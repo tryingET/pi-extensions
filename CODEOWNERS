@@ -1,0 +1,16 @@
+# Core + org context snapshots
+docs/_core/** @tryingET
+docs/org_context/** @tryingET
+
+# Project delivery + governance
+docs/project/** @tryingET
+docs/system4d/** @tryingET
+docs/decisions/** @tryingET
+docs/dev/** @tryingET
+policy/** @tryingET
+
+# Code
+scripts/** @tryingET
+src/** @tryingET
+tests/** @tryingET
+
