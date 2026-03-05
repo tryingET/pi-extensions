@@ -37,7 +37,9 @@ using the `tpl-monorepo` baseline, with
 - Regression coverage for malformed boundaries and import-path policy.
 - Release readiness checks (`npm run check`, `npm run release:check:quick`, `npm audit`).
 - Phase 3 Pilot 1 scaffold + validation in monorepo package path (`~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction`).
-- Pre-publish package rename locked: first public npm release target is `@tryinget/pi-interaction`. 
+- Pre-publish package rename locked: first public npm release target is `@tryinget/pi-interaction`.
+- Canonical monorepo repo created and pushed: `https://github.com/tryingET/pi-extensions`.
+- Incorrect standalone repo (`tryingET/pi-interaction`) removed; single-git-root model is now enforced.
 
 ## Priority objective for next session
 
@@ -48,6 +50,18 @@ Design and begin executing a safe migration path from:
 to:
 
 - **target model**: monorepo + interaction-runtime umbrella architecture.
+
+## Default working location (next session)
+
+Primary execution workspace should be:
+
+- `~/ai-society/softwareco/owned/pi-extensions`
+
+with package work under:
+
+- `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction`
+
+Use this standalone repo as migration control-plane + contingency reference while publish cutover is being finalized.
 
 ## Canonical rollout artifact
 
@@ -71,7 +85,9 @@ The rollout plan now explicitly captures:
 4. ✅ Select migration pilot extensions and define import/release strategy.
 5. ✅ Execute Pilot 1 scaffold + local verification for `pi-interaction` in monorepo package mode.
 6. Migrate Pilot 2 (`prompt-template-accelerator`) and run cross-extension integration matrix in monorepo context.
-7. Keep current package releasable while migration work proceeds on dedicated branches/workspaces.
+7. Wire monorepo-root release automation (release-please/publish) for component-based package releases.
+8. Publish first `@tryinget/pi-interaction` release from monorepo after release automation is green.
+9. Keep current standalone repo releasable only as contingency until monorepo publishing is confirmed.
 
 ## Invariants to preserve during migration
 
@@ -113,11 +129,19 @@ Monorepo Pilot 1 package baseline:
 ## Quick commands
 
 ```bash
-# Baseline verification
+# Standalone contingency verification
 npm run check
 npm run release:check:quick
 npm audit
 
-# Test suite
-node --test tests/*.test.mjs
+# Monorepo package verification
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction
+npm run check
+npm run release:check:quick
+npm audit
+
+# Monorepo root CI lanes
+cd ~/ai-society/softwareco/owned/pi-extensions
+./scripts/ci/smoke.sh
+./scripts/ci/full.sh
 ```
