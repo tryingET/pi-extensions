@@ -294,21 +294,23 @@ The runtime should additionally own:
   - `npm run release:check:quick`
   - `npm audit`
 
-### Progress snapshot (2026-03-05)
+### Progress snapshot (2026-03-06)
 
-- Scaffolded pilot package at:
-  - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction`
-- Generated via L3 wrapper in `monorepo-package` mode with metadata:
-  - `workspace_relative_path=packages/pi-interaction`
-  - `release_component_key=pi-interaction`
-- Migrated runtime/test/docs surface from standalone repo into pilot package.
-- Renamed publish target to `@tryinget/pi-interaction` before first npm publish.
-- Updated pilot `package.json` repository metadata to monorepo package path.
-- Aligned package structure validation to monorepo-package guardrails (no package-local `.github`/`.githooks`).
-- Validation evidence (pilot package):
+- Converted `packages/pi-interaction` from single-package pilot into split package group:
+  - `packages/pi-interaction/pi-editor-registry`
+  - `packages/pi-interaction/pi-interaction-kit`
+  - `packages/pi-interaction/pi-trigger-adapter`
+  - `packages/pi-interaction/pi-interaction` (umbrella)
+- Re-homed runtime code by responsibility while preserving command/fallback behavior.
+- Updated umbrella package to compose split packages via package-surface imports only.
+- Added umbrella runtime composition helpers (`createInteractionRuntime`, `getInteractionRuntime`).
+- Migrated Pilot 2 package into monorepo at `packages/prompt-template-accelerator`.
+- Updated PTX live-trigger integration to consume pi-interaction trigger surfaces (`@tryinget/pi-trigger-adapter`, fallback `@tryinget/pi-interaction`).
+- Validation evidence (split packages + Pilot 2):
+  - `npm run fix` ✅
   - `npm run check` ✅
   - `npm run release:check:quick` ✅
-  - `npm audit` ✅ (0 vulnerabilities)
+  - `npm audit` ✅
 - Validation evidence (monorepo root):
   - `./scripts/ci/smoke.sh` ✅
   - `./scripts/ci/full.sh` ✅
@@ -382,7 +384,7 @@ Two good modes:
 - [x] Monorepo instantiated in `~/ai-society/softwareco/owned/`
 - [x] L3 template adaptation complete + validated
 - [x] Pilot migration package 1 scaffolded + locally validated
-- [ ] Pilot migration package 2 complete
-- [ ] Cross-extension integration matrix green
+- [x] Pilot migration package 2 complete
+- [x] Cross-extension integration matrix green
 - [ ] Release from monorepo confirmed
 - [ ] Legacy repo transition notices published

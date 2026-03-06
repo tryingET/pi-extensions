@@ -1,0 +1,259 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import ptxExtension from "../extensions/ptx.ts";
+
+type InputEvent = { source: "user" | "extension"; text: string };
+type InputResult = { action: "continue" | "handled" | "transform"; text?: string };
+type InputHandler = (event: InputEvent, ctx: any) => Promise<InputResult> | InputResult;
+
+type ExtensionEntrypoint = (pi: any) => void;
+
+function createNonUiContext(cwd: string) {
+  return {
+    hasUI: false,
+    cwd,
+    sessionManager: {
+      getBranch() {
+        return [];
+      },
+    },
+  };
+}
+
+function createRuntime(options: { commands?: any[]; extensions: ExtensionEntrypoint[] }): InputHandler[] {
+  const handlers: InputHandler[] = [];
+  const commands = options.commands ?? [];
+
+  const pi = {
+    on(eventName: string, handler: InputHandler) {
+      if (eventName === "input") handlers.push(handler);
+    },
+    registerCommand() {
+      // Not needed for non-UI input smoke.
+    },
+    getCommands() {
+      return commands;
+    },
+    async exec() {
+      // Avoid shelling out to git in tests.
+      return { code: 1, stdout: "", stderr: "" };
+    },
+  };
+
+  for (const extension of options.extensions) {
+    extension(pi);
+  }
+
+  return handlers;
+}
+
+function vaultStubExtension(pi: any) {
+  pi.on("input", async (event: InputEvent): Promise<InputResult> => {
+    if (event.source === "extension") return { action: "continue" };
+
+    const text = event.text.trim();
+    if (text.startsWith("/vault")) {
+      return { action: "transform", text: "VAULT_STUB_NEXUS" };
+    }
+
+    return { action: "continue" };
+  });
+}
+
+async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Pipeline timed out after ${timeoutMs}ms`)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function runInputPipeline(
+  handlers: InputHandler[],
+  input: string,
+  ctx: any,
+  maxPasses = 12,
+): Promise<{ action: "continue" | "handled" | "transform"; text?: string }> {
+  let event: InputEvent = { source: "user", text: input };
+  let transformed = false;
+
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let restartFromFirstHandler = false;
+
+    for (const handler of handlers) {
+      const result = await handler(event, ctx);
+      if (!result || result.action === "continue") continue;
+
+      if (result.action === "handled") {
+        return { action: "handled" };
+      }
+
+      if (result.action === "transform") {
+        const nextText = String(result.text ?? "");
+
+        // If an extension keeps returning the same transformed payload,
+        // this would loop forever in a naïve pipeline.
+        if (event.source === "extension" && nextText === event.text) {
+          throw new Error(`Transform loop detected (pass=${pass + 1}, input=${input})`);
+        }
+
+        event = { source: "extension", text: nextText };
+        transformed = true;
+        restartFromFirstHandler = true;
+        break;
+      }
+
+      throw new Error(`Unsupported action: ${(result as { action?: string }).action}`);
+    }
+
+    if (!restartFromFirstHandler) {
+      return transformed ? { action: "transform", text: event.text } : { action: "continue", text: event.text };
+    }
+  }
+
+  throw new Error(`Pipeline exceeded maxPasses=${maxPasses} for input: ${input}`);
+}
+
+async function withTempTemplate(
+  templateContent: string,
+  run: (templatePath: string, cwd: string) => Promise<void>,
+): Promise<void> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-non-ui-smoke-"));
+  const templatePath = path.join(tempDir, "inv.md");
+  await writeFile(templatePath, templateContent, "utf8");
+
+  try {
+    await run(templatePath, tempDir);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+test("non-UI: '$$' returns deterministic usage transform error", async () => {
+  const handlers = createRuntime({ extensions: [ptxExtension] });
+  const result = await runWithTimeout(runInputPipeline(handlers, "$$", createNonUiContext(process.cwd())), 1500);
+
+  assert.equal(result.action, "transform");
+  assert.equal(result.text, "PTX input error: expected '/template' after '$$'.");
+});
+
+test("non-UI: malformed '$$' selector parse returns deterministic transform error", async () => {
+  const handlers = createRuntime({ extensions: [ptxExtension] });
+  const result = await runWithTimeout(
+    runInputPipeline(handlers, "$$ /inv \"unterminated", createNonUiContext(process.cwd())),
+    1500,
+  );
+
+  assert.equal(result.action, "transform");
+  assert.equal(result.text, "PTX parse error: Unclosed quote: \"");
+});
+
+test("non-UI: slash-only '$$ /' selector invocation returns deterministic transform error", async () => {
+  const handlers = createRuntime({ extensions: [ptxExtension] });
+  const result = await runWithTimeout(
+    runInputPipeline(handlers, "$$ /", createNonUiContext(process.cwd())),
+    1500,
+  );
+
+  assert.equal(result.action, "transform");
+  assert.equal(result.text, "PTX input error: expected slash command after '$$'.");
+});
+
+test("non-UI: invalid '$$' selector invocation returns deterministic transform error", async () => {
+  const handlers = createRuntime({ extensions: [ptxExtension] });
+  const result = await runWithTimeout(
+    runInputPipeline(handlers, "$$ not-a-slash-command", createNonUiContext(process.cwd())),
+    1500,
+  );
+
+  assert.equal(result.action, "transform");
+  assert.equal(result.text, "PTX input error: expected slash command after '$$'.");
+});
+
+test("non-UI: optional rest args (${@:4}) are omitted when no extras are inferred", async () => {
+  await withTempTemplate(
+    "Primary objective: $1\nWorkflow context: $2\nSystem4D mode: $3\nOptional overrides/context-pack: ${@:4}\n",
+    async (templatePath, cwd) => {
+      const commands = [
+        {
+          name: "next-10-expert-suggestions",
+          source: "prompt",
+          description: "Next 10 suggestions template",
+          path: templatePath,
+        },
+      ];
+
+      const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+      const result = await runWithTimeout(
+        runInputPipeline(handlers, "$$ /next-10-expert-suggestions", createNonUiContext(cwd)),
+        2000,
+      );
+
+      assert.equal(result.action, "transform");
+      assert.match(
+        result.text ?? "",
+        /^\/next-10-expert-suggestions\s+"[^"]+"\s+"[^"]+"\s+"lite"\s*$/,
+      );
+      assert.doesNotMatch(result.text ?? "", /"none"/);
+    },
+  );
+});
+
+test("mixed-extension non-UI smoke: both load orders handle '$$ /...' and '/vault...' without hanging", async () => {
+  await withTempTemplate("Task: $1\nContext: $2\n", async (templatePath, cwd) => {
+    const commands = [
+      {
+        name: "inv",
+        source: "prompt",
+        description: "Inversion test template",
+        path: templatePath,
+      },
+      {
+        name: "vault",
+        source: "extension",
+        description: "Vault extension command",
+      },
+    ];
+
+    const orders: Array<{ label: string; extensions: ExtensionEntrypoint[] }> = [
+      { label: "ptx-then-vault", extensions: [ptxExtension, vaultStubExtension] },
+      { label: "vault-then-ptx", extensions: [vaultStubExtension, ptxExtension] },
+    ];
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = "/__missing_fzf_path__";
+
+    try {
+      for (const order of orders) {
+        const handlers = createRuntime({ commands, extensions: order.extensions });
+
+        const ptxResult = await runWithTimeout(
+          runInputPipeline(handlers, "$$ /inv", createNonUiContext(cwd)),
+          2000,
+        );
+        assert.equal(ptxResult.action, "transform", `${order.label}: '$$ /inv' should transform`);
+        assert.match(ptxResult.text ?? "", /^\/inv\b/, `${order.label}: '$$ /inv' should produce /inv command text`);
+
+        const vaultResult = await runWithTimeout(
+          runInputPipeline(handlers, "/vault:nex", createNonUiContext(cwd)),
+          2000,
+        );
+        assert.equal(vaultResult.action, "transform", `${order.label}: '/vault:nex' should transform`);
+        assert.equal(vaultResult.text, "VAULT_STUB_NEXUS", `${order.label}: '/vault:nex' should be handled by vault flow`);
+      }
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+});

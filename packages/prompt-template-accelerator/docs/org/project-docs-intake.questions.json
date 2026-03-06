@@ -1,0 +1,60 @@
+{
+  "title": "Initialize organization and project documents",
+  "questions": [
+    {
+      "id": "org_purpose",
+      "type": "text",
+      "question": "What is the organization purpose?"
+    },
+    {
+      "id": "org_mission",
+      "type": "text",
+      "question": "What is the current organization mission?"
+    },
+    {
+      "id": "org_vision",
+      "type": "text",
+      "question": "What is the organization vision?"
+    },
+    {
+      "id": "org_strategic_objectives",
+      "type": "text",
+      "question": "List 3-5 organization strategic objectives."
+    },
+    {
+      "id": "org_core_values",
+      "type": "text",
+      "question": "List the core values that should drive ethics and culture."
+    },
+    {
+      "id": "project_purpose",
+      "type": "text",
+      "question": "What is this project purpose (distinct from organization purpose)?"
+    },
+    {
+      "id": "project_mission",
+      "type": "text",
+      "question": "What is the project mission for the next delivery cycle?"
+    },
+    {
+      "id": "project_vision",
+      "type": "text",
+      "question": "What is the project vision?"
+    },
+    {
+      "id": "project_strategic_objectives",
+      "type": "text",
+      "question": "List 3-5 project strategic objectives."
+    },
+    {
+      "id": "project_constraints",
+      "type": "text",
+      "question": "List hard constraints (time, quality, security, scope)."
+    },
+    {
+      "id": "project_success_criteria",
+      "type": "text",
+      "question": "How will success be measured?"
+    }
+  ]
+}

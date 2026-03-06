@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: v0.5.0-3-g758b508
+_src_path: /home/tryinget/programming/pi-extensions/pi-extensions-template_copier
+command_name: input-triggers
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-interaction
+release_config_mode: component
+repo_name: pi-interaction
+scaffold_mode: monorepo-package
+workspace_relative_path: packages/pi-interaction

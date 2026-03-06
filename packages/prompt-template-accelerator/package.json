@@ -1,0 +1,46 @@
+{
+  "name": "prompt-template-accelerator",
+  "version": "0.1.0",
+  "description": "pi extension package: prompt-template-accelerator",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/prompt-template-accelerator"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "prompt-template-accelerator"
+  ],
+  "scripts": {
+    "fix": "echo 'no-op: no formatter configured'",
+    "check": "npm run test:smoke:non-ui && npm pack --dry-run",
+    "test": "npm run test:smoke:non-ui",
+    "test:smoke:non-ui": "node --import tsx --test tests/non-ui-mixed-extension-smoke.test.ts",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "release:check:quick": "npm pack --dry-run"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/ptx.ts"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "dependencies": {
+    "@tryinget/pi-interaction": "file:../pi-interaction/pi-interaction",
+    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*"
+  }
+}
