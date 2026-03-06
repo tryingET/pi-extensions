@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "pi extension package: prompt-template-accelerator",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tryingET/pi-extensions.git",

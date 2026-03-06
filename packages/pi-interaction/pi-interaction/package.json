@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Umbrella interaction-runtime extension package for pi",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tryingET/pi-extensions.git",
