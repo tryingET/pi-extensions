@@ -1,0 +1,62 @@
+{
+  "name": "@tryinget/pi-trigger-adapter",
+  "version": "0.1.0",
+  "description": "Trigger broker and picker registration adapter for pi-interaction runtime",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-interaction/pi-trigger-adapter"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-interaction/pi-trigger-adapter",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "interaction-runtime",
+    "trigger-adapter"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "biome check --write --no-errors-on-unmatched .",
+    "lint": "biome check --no-errors-on-unmatched .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run lint && npm run typecheck && npm run test && npm pack --dry-run",
+    "release:check:quick": "npm pack --dry-run"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src"
+  ],
+  "x-pi-template": {
+    "scaffoldMode": "monorepo-package",
+    "workspacePath": "packages/pi-interaction/pi-trigger-adapter",
+    "releaseComponent": "pi-trigger-adapter",
+    "releaseConfigMode": "component"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48",
+    "@tryinget/pi-interaction-kit": "file:../pi-interaction-kit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@types/node": "22.14.0",
+    "typescript": "5.9.2"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.4.2"
+  }
+}

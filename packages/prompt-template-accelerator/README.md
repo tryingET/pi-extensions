@@ -1,0 +1,245 @@
+---
+summary: "Overview and quickstart for prompt-template-accelerator."
+read_when:
+  - "Starting work in this repository."
+system4d:
+  container: "Repository scaffold for a pi extension package."
+  compass: "Ship small, safe, testable extension iterations."
+  engine: "Plan -> implement -> verify with docs and hooks in sync."
+  fog: "Unknown runtime integration edge cases until first live sync."
+---
+
+# prompt-template-accelerator
+
+pi extension that auto-fills prompt template arguments from deterministic context inference.
+
+## Quickstart
+
+```bash
+pi -e ./extensions/ptx.ts
+```
+
+Then type `$$ /inv` (or `$$ /`) to open the fuzzy selector, choose a prompt template, and auto-fill args from context.
+
+## How it works
+
+1. Build prompt-template candidates from `pi.getCommands()` (`source === "prompt"`)
+2. Rank candidates via `fzf --filter` when available (fallback deterministic ranker otherwise)
+3. Let user choose from selector (`$$ /query` or `/ptx-select [query]`)
+4. Read the selected template file from `cmd.path`
+5. Parse placeholder usage (`$1`, `$2`, `$@`, `${@:N}`)
+6. Parse line hints around placeholders for slot inference
+7. Infer context deterministically from environment (repo, cwd, branch, objective)
+8. Insert transformed command into editor for review
+
+Press Enter to execute, or edit first.
+
+## Context inference
+
+- `$1` → objective/rough thought (last user message)
+- `$2` → context summary (repo, cwd, branch)
+- `$3` → system4d mode (defaults to `lite`)
+- rest → extras
+
+Hint-aware: reads template lines to infer slot types from keywords.
+
+## Fuzzy selection (primary)
+
+- `$$ /<partial>` opens the PTX fuzzy picker.
+- `/ptx-select [partial]` opens the same picker explicitly.
+- Mode is reported in notifications:
+  - `mode=fzf` when `fzf` ranking is available
+  - `mode=fallback` when deterministic in-app ranking is used
+
+## Compatibility hardening
+
+The extension no longer installs a custom editor component, so it can coexist with other extensions without `setEditorComponent` conflicts.
+In non-UI mode, malformed `$$` input is surfaced as deterministic transform text (usage/parse errors) instead of being silently swallowed.
+
+## Files
+
+- `extensions/ptx.ts` — main extension (selection + mapping flow)
+- `src/fuzzySelector.js` — shared selector contract + fzf/fallback ranking
+- `src/ptxCandidateAdapter.js` — prompt command → `FuzzyCandidate` adapter
+
+## Cognitive triggers
+
+Works great with cognitive trigger templates like:
+
+- `/inversion` — Find what's hiding in shadows
+- `/nexus` — Single highest-leverage intervention
+- `/audit` — Bugs, debt, smells, gaps tetrahedron
+- `/first-principles` — Dissolve assumptions, rebuild from axioms
+- `/crisis` — Overwhelmed recovery protocol
+- `/morning` — Start-of-day alignment
+
+See `~/ai-society/softwareco/infra/workstation/prompts/triggers/` for the full set.
+
+## Repository checks
+
+Run:
+
+```bash
+npm run check
+```
+
+This executes [scripts/validate-structure.sh](scripts/validate-structure.sh).
+
+Run core behavior tests with:
+
+```bash
+node --test tests/*.test.mjs
+npm run test:smoke:non-ui
+```
+
+## Troubleshooting
+
+- `PTX input error: expected '/template' after '$$'.`
+  - provide a selector invocation such as `$$ /inv`
+- `PTX parse error: Unclosed quote: ...`
+  - close unmatched quotes in `$$ /...` input
+- `PTX input error: expected slash command after '$$'.`
+  - the token after `$$` must be a non-empty slash command (for example `$$ /inv`, not `$$ /`)
+- `No prompt template selected (fzf-not-installed)`
+  - install `fzf`, or keep using fallback ranking mode
+- `No prompt template selected (prompt-command-source-unavailable)`
+  - ensure prompt templates are loaded (avoid `--no-prompt-templates`)
+- `No prompt template selected (no-prompt-templates)`
+  - there are no prompt commands in the current session
+- `Cannot read template: ...`
+  - the selected template path is unavailable/unreadable
+
+## Release + security baseline
+
+This scaffold defaults to **release-please** for single-package release PR + tag flow (`vX.Y.Z`) and npm trusted publishing via OIDC.
+
+Included files:
+
+- [CI workflow](.github/workflows/ci.yml)
+- [release-please workflow](.github/workflows/release-please.yml)
+- [publish workflow](.github/workflows/publish.yml)
+- [Dependabot config](.github/dependabot.yml)
+- [CODEOWNERS](.github/CODEOWNERS)
+- [release-please config](.release-please-config.json)
+- [release-please manifest](.release-please-manifest.json)
+- [Security policy](SECURITY.md)
+
+Before first production release:
+
+1. Confirm/adjust owners in [.github/CODEOWNERS](.github/CODEOWNERS).
+2. Enable branch protection on `main`.
+3. Configure npm Trusted Publishing for this repo + [publish workflow](.github/workflows/publish.yml).
+4. Merge release PR from release-please, then publish from GitHub release.
+
+## Issue + PR intake baseline
+
+Included files:
+
+- [Bug report form](.github/ISSUE_TEMPLATE/bug-report.yml)
+- [Feature request form](.github/ISSUE_TEMPLATE/feature-request.yml)
+- [Docs request form](.github/ISSUE_TEMPLATE/docs.yml)
+- [Issue template config](.github/ISSUE_TEMPLATE/config.yml)
+- [PR template](.github/pull_request_template.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Support guide](SUPPORT.md)
+- [Top-level contributing guide](CONTRIBUTING.md)
+
+## Vouch trust gate baseline
+
+Included files:
+
+- [Vouched contributors list](.github/VOUCHED.td)
+- [PR trust gate workflow](.github/workflows/vouch-check-pr.yml)
+- [Issue-comment trust management workflow](.github/workflows/vouch-manage.yml)
+
+Default behavior:
+
+- PR workflow runs on `pull_request_target` (`opened`, `reopened`).
+- `require-vouch: true` and `auto-close: true` are enabled by default.
+- Maintainers can comment `vouch`, `denounce`, or `unvouch` on issues to update trust state.
+- Vouch actions are SHA pinned (`5713ce1baedf75e2f830afa3dac813a9c48bff12`) for reproducibility and supply-chain review.
+
+Bootstrap step:
+
+- Confirm/adjust entries in [.github/VOUCHED.td](.github/VOUCHED.td) before enforcing production policy.
+
+## Docs discovery
+
+Run:
+
+```bash
+npm run docs:list
+npm run docs:list:workspace
+npm run docs:list:json
+```
+
+Wrapper script: [scripts/docs-list.sh](scripts/docs-list.sh)
+
+Resolution order:
+1. `DOCS_LIST_SCRIPT`
+2. `./scripts/docs-list.mjs` (if vendored)
+3. `~/ai-society/core/agent-scripts/scripts/docs-list.mjs`
+
+## Copier lifecycle policy
+
+- Keep `.copier-answers.yml` committed.
+- Do not edit `.copier-answers.yml` manually.
+- Run from a clean destination repo (commit or stash pending changes first).
+- Use `copier update --trust` when `.copier-answers.yml` includes `_commit` and update is supported.
+- In non-interactive shells/CI, append `--defaults` to update/recopy.
+- Use `copier recopy --trust` when update is unavailable (for example local non-VCS source) or cannot reconcile cleanly.
+- After recopy, re-apply local deltas intentionally and run `npm run check`.
+
+## Hook behavior
+
+- Git uses `.githooks/pre-commit` (configured by [scripts/install-hooks.sh](scripts/install-hooks.sh)).
+- If `prek` is available, the hook runs `prek` using [prek.toml](prek.toml).
+- If `prek` is not available, the hook falls back to `scripts/validate-structure.sh`.
+
+Install options for `prek`:
+
+```bash
+npm add -D @j178/prek
+# or
+npm install -g @j178/prek
+```
+
+## Startup interview flow (project-local)
+
+- [`.pi/extensions/startup-intake-router.ts`](.pi/extensions/startup-intake-router.ts) watches the first non-command message in a session.
+- It converts your startup intent into a prefilled command:
+  - `/init-project-docs "<your intent>"`
+- [`.pi/prompts/init-project-docs.md`](.pi/prompts/init-project-docs.md) then drives the `interview` tool using [docs/org/project-docs-intake.questions.json](docs/org/project-docs-intake.questions.json).
+
+Utility commands:
+
+- `/startup-intake-router-status`
+- `/startup-intake-router-reset`
+
+## Live sync helper
+
+Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy extension entrypoints plus
+shared `src/` modules into `~/.pi/agent/extensions/prompt-template-accelerator/`.
+
+Optional flags:
+
+- `--with-prompts`
+- `--with-policy`
+- `--all` (prompts + policy)
+
+After sync, run `/reload` in pi.
+
+## Docs map
+
+- [Organization operating model](docs/org/operating_model.md)
+- [Project foundation model](docs/project/foundation.md)
+- [Project vision](docs/project/vision.md)
+- [Project incentives](docs/project/incentives.md)
+- [Project resources](docs/project/resources.md)
+- [Project skills](docs/project/skills.md)
+- [Strategic goals](docs/project/strategic_goals.md)
+- [Tactical goals](docs/project/tactical_goals.md)
+- [Contributor guide](docs/dev/CONTRIBUTING.md)
+- [Extension SOP](docs/dev/EXTENSION_SOP.md)
+- [Next session prompt](NEXT_SESSION_PROMPT.md)
+- [Status](docs/dev/status.md)

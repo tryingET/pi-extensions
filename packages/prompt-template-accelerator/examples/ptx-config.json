@@ -1,0 +1,16 @@
+{
+  "defaultPolicy": "allow",
+  "defaultFallback": "passthrough",
+  "allowlist": ["refine-from-docs", "refine-from-docs-exp"],
+  "blocklist": ["security-review"],
+  "templates": {
+    "security-review": {
+      "policy": "block",
+      "fallback": "block"
+    },
+    "refine-from-docs-exp": {
+      "policy": "allow",
+      "fallback": "passthrough"
+    }
+  }
+}

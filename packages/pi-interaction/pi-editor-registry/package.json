@@ -1,0 +1,61 @@
+{
+  "name": "@tryinget/pi-editor-registry",
+  "version": "0.1.0",
+  "description": "Editor ownership and mount primitives for pi-interaction runtime",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-interaction/pi-editor-registry"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-interaction/pi-editor-registry",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "interaction-runtime",
+    "editor-registry"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "biome check --write --no-errors-on-unmatched .",
+    "lint": "biome check --no-errors-on-unmatched .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run lint && npm run typecheck && npm run test && npm pack --dry-run",
+    "release:check:quick": "npm pack --dry-run"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src"
+  ],
+  "x-pi-template": {
+    "scaffoldMode": "monorepo-package",
+    "workspacePath": "packages/pi-interaction/pi-editor-registry",
+    "releaseComponent": "pi-editor-registry",
+    "releaseConfigMode": "component"
+  },
+  "dependencies": {
+    "@tryinget/pi-trigger-adapter": "file:../pi-trigger-adapter"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@types/node": "22.14.0",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  }
+}
