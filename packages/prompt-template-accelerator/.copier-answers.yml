@@ -1,5 +1,12 @@
 # Changes here will be overwritten by Copier. Do not edit manually.
-_commit: v0.3.0
-_src_path: /home/lightningralf/programming/pi-extensions/template
+_commit: 101acb7
+_src_path: /home/tryinget/ai-society/softwareco/owned/pi-extensions-template
 command_name: ptx
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: prompt-template-accelerator
+release_config_mode: component
 repo_name: prompt-template-accelerator
+scaffold_mode: monorepo-package
+workspace_relative_path: packages/prompt-template-accelerator
