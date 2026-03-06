@@ -41,15 +41,23 @@ using the `tpl-monorepo` baseline, with
 - Canonical monorepo repo created and pushed: `https://github.com/tryingET/pi-extensions`.
 - Incorrect standalone repo (`tryingET/pi-interaction`) removed; single-git-root model is now enforced.
 
-## Priority objective for next session
+## Priority objective for next session (single huge push)
 
-Design and begin executing a safe migration path from:
+Execute the interaction-runtime monorepo cutover as **one cohesive delivery** on a dedicated branch,
+then push once when the full stack is green.
 
-- **current repo model**: one extension per repo
+From:
 
-to:
+- **current state**: monorepo has pilot package `packages/pi-interaction` as a single package
 
-- **target model**: monorepo + interaction-runtime umbrella architecture.
+To:
+
+- **target state**: logical interaction package group in one git root:
+  - `packages/pi-interaction/pi-editor-registry`
+  - `packages/pi-interaction/pi-interaction-kit`
+  - `packages/pi-interaction/pi-trigger-adapter`
+  - `packages/pi-interaction/pi-interaction` (umbrella/facade + extension entrypoint)
+- Pilot 2 (`prompt-template-accelerator`) migrated/updated against the new package surfaces.
 
 ## Default working location (next session)
 
@@ -77,17 +85,65 @@ The rollout plan now explicitly captures:
 - target repo topology (`pi-extensions` monorepo with logical `pi-interaction` sub-monorepo group)
 - release model options (independent package releases + independent vs lockstep `pi-interaction` group cadence)
 
-## Immediate execution queue (next session)
+## Immediate execution queue (next session, one huge push)
 
-1. ✅ Finalize naming direction for umbrella package + compatibility policy.
-2. ✅ Bootstrap target monorepo from `tpl-monorepo` under `~/ai-society/softwareco/owned/`.
-3. ✅ Adapt `pi-extensions-template_copier` into an L3 template aligned to monorepo workflows.
-4. ✅ Select migration pilot extensions and define import/release strategy.
-5. ✅ Execute Pilot 1 scaffold + local verification for `pi-interaction` in monorepo package mode.
-6. Migrate Pilot 2 (`prompt-template-accelerator`) and run cross-extension integration matrix in monorepo context.
-7. Wire monorepo-root release automation (release-please/publish) for component-based package releases.
-8. Publish first `@tryinget/pi-interaction` release from monorepo after release automation is green.
-9. Keep current standalone repo releasable only as contingency until monorepo publishing is confirmed.
+### 0) Branch + execution contract
+
+- Work in monorepo root only: `~/ai-society/softwareco/owned/pi-extensions`
+- Create a dedicated branch (example):
+  - `git checkout -b feat/pi-interaction-subpackage-split`
+- **No partial remote pushes** until full validation matrix is green.
+
+### 1) Split `pi-interaction` into subpackages (same git repo)
+
+Create/standardize this structure under `packages/pi-interaction/`:
+
+- `pi-editor-registry`
+- `pi-interaction-kit`
+- `pi-trigger-adapter`
+- `pi-interaction` (umbrella)
+
+### 2) Re-home code by responsibility
+
+- Move editor ownership/arbitration primitives to `pi-editor-registry`.
+- Move interaction UI/fallback primitives to `pi-interaction-kit`.
+- Move trigger broker + picker registration adapter to `pi-trigger-adapter`.
+- Keep runtime behavior unchanged while relocating.
+
+### 3) Wire umbrella package
+
+- `@tryinget/pi-interaction` re-exports stable APIs from subpackages.
+- Umbrella owns default runtime composition and extension entrypoint.
+- Preserve existing user-facing command behavior and fallback semantics.
+
+### 4) Migrate Pilot 2 against new surfaces
+
+- Update `prompt-template-accelerator` integration imports to package surfaces.
+- Re-run downstream non-UI smoke and any mixed-extension integration checks.
+
+### 5) Release/governance wiring
+
+- Add/confirm component-scoped release metadata for each split package.
+- Ensure monorepo release automation path is ready for package-level publishes.
+- Keep publish target as `@tryinget/pi-interaction` (first public npm release).
+
+### 6) Docs and handoff alignment in same branch
+
+- Update rollout plan, ADR notes, status docs, and package READMEs to reflect split state.
+- Update NEXT_SESSION_PROMPT artifacts after implementation/verification, not before.
+
+### 7) Validation matrix (must all pass before first push)
+
+- Package-local quality/release checks for each split package.
+- Umbrella package checks.
+- Cross-extension non-UI integration (including Pilot 2).
+- Monorepo root CI lanes (`./scripts/ci/smoke.sh`, `./scripts/ci/full.sh`).
+
+### 8) Single push protocol
+
+- Commit logically (can be multiple local commits).
+- Final pre-push sanity pass.
+- Push branch once and open one cohesive PR/MR for the full split.
 
 ## Invariants to preserve during migration
 
@@ -95,53 +151,64 @@ The rollout plan now explicitly captures:
 - Stable fallback semantics in non-UI contexts.
 - Explicit editor ownership and extension coexistence rules.
 - Deterministic release flow (release-please + trusted publishing).
-- Clear backward-compatibility path for existing imports/consumers.
+- Single git-root topology only (no nested repos for `pi-interaction` split).
+- No partial migration pushes; remote update happens only after full validation.
 
 ## Validation snapshot (current baseline)
 
-Current standalone package baseline:
-- `npm run lint`
-- `npm run typecheck`
-- `node --test tests/*.test.mjs`
-- `npm run check`
-- `npm run release:check:quick`
-- `npm audit` (0 vulnerabilities)
+Current verified baseline before split:
+- Standalone contingency repo:
+  - `npm run check`
+  - `npm run release:check:quick`
+  - `npm audit`
+- Monorepo pilot package (`packages/pi-interaction`):
+  - `npm run check`
+  - `npm run release:check:quick`
+  - `npm audit`
+- Monorepo root:
+  - `./scripts/ci/smoke.sh`
+  - `./scripts/ci/full.sh`
 
-Monorepo Pilot 1 package baseline:
-- `cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction`
-- `npm run check`
-- `npm run release:check:quick`
-- `npm audit` (0 vulnerabilities)
-- `cd ~/ai-society/softwareco/owned/pi-extensions && ./scripts/ci/smoke.sh && ./scripts/ci/full.sh`
+Required validation after split (before first remote push):
+- For each split package under `packages/pi-interaction/*`:
+  - `npm run check`
+  - `npm run release:check:quick`
+  - `npm audit`
+- Cross-extension integration (including `prompt-template-accelerator`) passes.
+- Monorepo root CI lanes stay green.
 
 ## Files to inspect first
 
-| File | Purpose |
+| File / Path | Purpose |
 |------|---------|
 | `docs/dev/monorepo-rollout-plan.md` | Strategic rollout phases and execution checklist |
-| `extensions/input-triggers.ts` | Current extension entrypoint surface |
-| `src/InteractionHelper.js` | Stable public helper surface |
-| `src/interaction-helper/register.js` | Runtime boundary + registration contracts |
-| `src/interaction-helper/selection.js` | Selection semantics and fallback behavior |
-| `tests/interaction-helper-boundary.test.mjs` | Boundary regression coverage |
-| `tests/extension-entry.test.mjs` | Public surface/import policy guardrails |
+| `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/README.md` | Current pilot package surface + migration framing |
+| `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/extensions/input-triggers.ts` | Current extension entrypoint to decompose |
+| `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/src/InteractionHelper.js` | Stable helper surface to split |
+| `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/src/interaction-helper/register.js` | Runtime boundary + registration contracts |
+| `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/src/interaction-helper/selection.js` | Selection semantics and fallback behavior |
+| `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/tests/interaction-helper-boundary.test.mjs` | Boundary regression coverage |
+| `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/tests/extension-entry.test.mjs` | Public surface/import policy guardrails |
+| `~/programming/pi-extensions/prompt-template-accelerator/extensions/ptx.ts` | Pilot 2 downstream integration points |
 
 ## Quick commands
 
 ```bash
-# Standalone contingency verification
-npm run check
-npm run release:check:quick
-npm audit
+# Start split branch (monorepo)
+cd ~/ai-society/softwareco/owned/pi-extensions
+git checkout -b feat/pi-interaction-subpackage-split
 
-# Monorepo package verification
+# Validate package(s) while splitting
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction
 npm run check
 npm run release:check:quick
 npm audit
 
-# Monorepo root CI lanes
+# Validate monorepo root lanes before push
 cd ~/ai-society/softwareco/owned/pi-extensions
 ./scripts/ci/smoke.sh
 ./scripts/ci/full.sh
+
+# Single remote push at end
+# git push -u origin feat/pi-interaction-subpackage-split
 ```
