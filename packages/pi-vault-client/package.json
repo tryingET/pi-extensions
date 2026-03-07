@@ -1,0 +1,83 @@
+{
+  "name": "pi-vault-client",
+  "version": "0.1.0",
+  "description": "pi extension package for vault workflows in monorepo runtime",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-vault-client"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-vault-client",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "vault",
+    "monorepo"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "npm run quality:ci",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+  },
+  "files": [
+    "extensions/vault.ts",
+    "src",
+    "prompts",
+    "examples",
+    "policy/security-policy.json",
+    "policy/stack-lane.json"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/vault.ts"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-vault-client",
+    "releaseComponent": "pi-vault-client",
+    "releaseConfigMode": "component"
+  },
+  "dependencies": {
+    "@tryinget/pi-interaction-kit": "file:../pi-interaction/pi-interaction-kit",
+    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.2"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-tui": "*"
+  }
+}
