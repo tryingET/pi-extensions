@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Apply vouch / denounce / unvouch from maintainer comments
-        uses: mitchellh/vouch/action/manage-by-issue@e87054b83fcd2b10d2155b733a10a8aec344176a
+        uses: mitchellh/vouch/action/manage-by-issue@c6d80ead49839655b61b422700b7a3bc9d0804a9
         with:
           repo: ${{ github.repository }}
           issue-id: ${{ github.event.issue.number }}
