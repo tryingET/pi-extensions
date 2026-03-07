@@ -29,7 +29,7 @@ A single package root containing one `package.json` that is the main package art
 
 Example:
 
-- `packages/prompt-template-accelerator`
+- `packages/pi-prompt-template-accelerator`
 - `packages/pi-autonomous-session-control`
 
 ### `package-group`

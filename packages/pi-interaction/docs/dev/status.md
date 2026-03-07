@@ -29,7 +29,7 @@ system4d:
 - [x] Added umbrella runtime helpers (`createInteractionRuntime`, `getInteractionRuntime`, `resetInteractionRuntime`).
 
 ### Pilot 2
-- [x] Migrated `prompt-template-accelerator` into monorepo (`packages/prompt-template-accelerator`).
+- [x] Migrated `pi-prompt-template-accelerator` into monorepo (`packages/pi-prompt-template-accelerator`).
 - [x] Updated PTX live-trigger bridge to load pi-interaction trigger surfaces (`@tryinget/pi-trigger-adapter` fallback `@tryinget/pi-interaction`).
 - [x] Revalidated downstream non-UI smoke path after migration.
 
@@ -38,7 +38,7 @@ system4d:
 - [x] `pi-interaction-kit`: `npm run fix`, `npm run check`, `npm run release:check:quick`, `npm audit`
 - [x] `pi-trigger-adapter`: `npm run fix`, `npm run check`, `npm run release:check:quick`, `npm audit`
 - [x] `pi-interaction` (umbrella): `npm run fix`, `npm run check`, `npm run release:check:quick`, `npm audit`
-- [x] `prompt-template-accelerator`: `npm run fix`, `npm run check`, `npm run release:check:quick`, `npm audit`
+- [x] `pi-prompt-template-accelerator`: `npm run fix`, `npm run check`, `npm run release:check:quick`, `npm audit`
 - [x] Monorepo root: `./scripts/ci/smoke.sh`, `./scripts/ci/full.sh`
 
 ## In Progress

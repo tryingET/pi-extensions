@@ -26,7 +26,7 @@ system4d:
 
 1. Prepare the first release-safe workflow for `@tryinget/pi-interaction`.
 2. Normalize docs so nothing still implies the old standalone repo is canonical.
-3. Run live interaction validation with `pi-interaction` + `prompt-template-accelerator` loaded together.
+3. Run live interaction validation with `pi-interaction` + `pi-prompt-template-accelerator` loaded together.
 
 ## Must-pass checks
 
@@ -40,6 +40,6 @@ npm run check
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-interaction
 npm run check
 
-cd ~/ai-society/softwareco/owned/pi-extensions/packages/prompt-template-accelerator
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
 npm run check
 ```

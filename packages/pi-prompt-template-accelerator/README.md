@@ -9,7 +9,7 @@ system4d:
   fog: "Unknown runtime integration edge cases until first live sync."
 ---
 
-# prompt-template-accelerator
+# pi-prompt-template-accelerator
 
 pi extension that auto-fills prompt template arguments from deterministic context inference.
 
@@ -219,7 +219,7 @@ Utility commands:
 ## Live sync helper
 
 Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy extension entrypoints plus
-shared `src/` modules into `~/.pi/agent/extensions/prompt-template-accelerator/`.
+shared `src/` modules into `~/.pi/agent/extensions/pi-prompt-template-accelerator/`.
 
 Optional flags:
 

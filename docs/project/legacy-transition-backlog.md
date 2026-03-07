@@ -24,7 +24,7 @@ That workflow now lives in:
 
 These appear to be the active remaining candidates under `~/programming/pi-extensions/`, excluding:
 - already transitioned: `pi-autonomous-session-control`
-- already represented in monorepo: `prompt-template-accelerator`
+- already represented in monorepo: `pi-prompt-template-accelerator`
 - non-target utility/template dirs: `.pi`, `_legacy-backups`, `_template-smoke`, `pi-extensions-template_copier`
 
 | Legacy repo | Current package name | Canonical status |

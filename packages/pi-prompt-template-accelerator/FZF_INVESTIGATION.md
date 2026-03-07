@@ -42,8 +42,8 @@ The fuzzy selector **IS** working for `$$ /`, but the behavior changed in commit
 ## Why It Might Seem "Not Working"
 
 1. **Extension Conflict**: The local extension conflicts with the globally installed version
-   - Local: `~/programming/pi-extensions/prompt-template-accelerator/extensions/ptx.ts`
-   - Global: `~/.pi/agent/extensions/prompt-template-accelerator/extensions/ptx.ts`
+   - Local: `~/programming/pi-extensions/pi-prompt-template-accelerator/extensions/ptx.ts`
+   - Global: `~/.pi/agent/extensions/pi-prompt-template-accelerator/extensions/ptx.ts`
    - Global takes precedence due to load order
 
 2. **FZF Probe Results** (from `/ptx-fzf-spike`):

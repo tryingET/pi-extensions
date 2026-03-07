@@ -33,7 +33,7 @@ All notable changes to this project should be documented here.
 
 ### Changed
 
-- Package migrated into `pi-extensions` monorepo under `packages/prompt-template-accelerator`.
+- Package migrated into `pi-extensions` monorepo under `packages/pi-prompt-template-accelerator`.
 - Live trigger bridge now targets pi-interaction split package surfaces:
   - primary: `@tryinget/pi-trigger-adapter`
   - fallback: `@tryinget/pi-interaction`

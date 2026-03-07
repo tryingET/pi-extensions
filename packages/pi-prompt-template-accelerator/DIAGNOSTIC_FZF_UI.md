@@ -20,7 +20,7 @@ When you type `$$ /` in the pi TUI and press Enter, nothing appears - no picker,
 ### 1. Extension Conflict
 The local extension is being **blocked** by the global installation:
 ```
-Failed to load extension ".../ptx.ts": Command "/ptx" conflicts with ~/.pi/agent/extensions/prompt-template-accelerator/extensions/ptx.ts
+Failed to load extension ".../ptx.ts": Command "/ptx" conflicts with ~/.pi/agent/extensions/pi-prompt-template-accelerator/extensions/ptx.ts
 ```
 
 **Result**: The GLOBAL extension loads, not your local development version.
@@ -44,7 +44,7 @@ When you type `$$ /` in the actual pi TUI:
 ## Hypotheses
 
 ### H1: The global extension is outdated/buggy
-- The global installation at `~/.pi/agent/extensions/prompt-template-accelerator/` might have an older version
+- The global installation at `~/.pi/agent/extensions/pi-prompt-template-accelerator/` might have an older version
 - OR there's a bug in how `ui.select()` is being called
 
 ### H2: `ui.select()` is hanging or failing silently

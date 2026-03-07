@@ -270,7 +270,7 @@ The runtime should additionally own:
 ### Selected pilot set
 
 1. `pi-interaction`
-2. `prompt-template-accelerator`
+2. `pi-prompt-template-accelerator`
 
 ### Migration strategy
 
@@ -304,7 +304,7 @@ The runtime should additionally own:
 - Re-homed runtime code by responsibility while preserving command/fallback behavior.
 - Updated umbrella package to compose split packages via package-surface imports only.
 - Added umbrella runtime composition helpers (`createInteractionRuntime`, `getInteractionRuntime`).
-- Migrated Pilot 2 package into monorepo at `packages/prompt-template-accelerator`.
+- Migrated Pilot 2 package into monorepo at `packages/pi-prompt-template-accelerator`.
 - Updated PTX live-trigger integration to consume pi-interaction trigger surfaces (`@tryinget/pi-trigger-adapter`, fallback `@tryinget/pi-interaction`).
 - Validation evidence (split packages + Pilot 2):
   - `npm run fix` ✅

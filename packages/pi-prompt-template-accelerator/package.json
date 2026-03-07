@@ -1,18 +1,18 @@
 {
-  "name": "prompt-template-accelerator",
+  "name": "pi-prompt-template-accelerator",
   "version": "0.1.0",
-  "description": "pi extension package: prompt-template-accelerator",
+  "description": "pi extension package: pi-prompt-template-accelerator",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tryingET/pi-extensions.git",
-    "directory": "packages/prompt-template-accelerator"
+    "directory": "packages/pi-prompt-template-accelerator"
   },
   "keywords": [
     "pi-package",
     "pi-extension",
-    "prompt-template-accelerator"
+    "pi-prompt-template-accelerator"
   ],
   "scripts": {
     "fix": "echo 'no-op: no formatter configured'",

@@ -25,7 +25,7 @@ Two canonical package modes:
 
 1. **simple-package**
    - one package root under `packages/<name>`
-   - example: `packages/prompt-template-accelerator`
+   - example: `packages/pi-prompt-template-accelerator`
    - example: `packages/pi-autonomous-session-control`
 
 2. **package-group**
@@ -52,7 +52,7 @@ The meaningful difference is:
 
 That matches current practice:
 
-- `prompt-template-accelerator` is a simple-package
+- `pi-prompt-template-accelerator` is a simple-package
 - `pi-autonomous-session-control` is a simple-package
 - `pi-interaction` is a package-group
 

@@ -9,4 +9,4 @@ release_component_key: prompt-template-accelerator
 release_config_mode: component
 repo_name: prompt-template-accelerator
 scaffold_mode: monorepo-package
-workspace_relative_path: packages/prompt-template-accelerator
+workspace_relative_path: packages/pi-prompt-template-accelerator

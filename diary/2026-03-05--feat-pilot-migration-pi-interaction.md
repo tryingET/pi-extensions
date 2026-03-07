@@ -18,6 +18,6 @@
   - `./scripts/ci/full.sh` ✅
 
 ## Open Follow-ups
-- Migrate pilot package 2 (`prompt-template-accelerator`) into monorepo.
+- Migrate pilot package 2 (`pi-prompt-template-accelerator`) into monorepo.
 - Wire monorepo-level release automation for component-based publishing before publish cutover.
 - Run cross-extension integration matrix from monorepo context.

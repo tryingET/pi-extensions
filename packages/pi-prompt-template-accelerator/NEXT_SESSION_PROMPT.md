@@ -1,7 +1,7 @@
 ---
 summary: "Session handoff after Pilot 2 monorepo migration and trigger-surface alignment."
 read_when:
-  - "Starting the next prompt-template-accelerator work session in monorepo."
+  - "Starting the next pi-prompt-template-accelerator work session in monorepo."
 system4d:
   container: "Session handoff artifact."
   compass: "Keep deterministic non-UI behavior while validating live trigger UX."
@@ -9,12 +9,12 @@ system4d:
   fog: "Main risk is live trigger behavior drift between optional runtime surfaces."
 ---
 
-# Next session prompt — prompt-template-accelerator
+# Next session prompt — pi-prompt-template-accelerator
 
 ## Completed ✅
 
 - Package migrated into monorepo at:
-  - `~/ai-society/softwareco/owned/pi-extensions/packages/prompt-template-accelerator`
+  - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator`
 - Live trigger bridge updated to load:
   - `@tryinget/pi-trigger-adapter` (primary)
   - `@tryinget/pi-interaction` (fallback)
@@ -31,7 +31,7 @@ Run interactive UI validation with `@tryinget/pi-interaction` loaded and confirm
 ## Quick commands
 
 ```bash
-cd ~/ai-society/softwareco/owned/pi-extensions/packages/prompt-template-accelerator
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
 npm run test:smoke:non-ui
 npm run check
 npm run release:check:quick
