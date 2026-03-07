@@ -1,11 +1,12 @@
 # AGENTS.md — pi-extensions
 
-## Intent
-Template for a monorepo workspace (packages + apps + shared tooling).
+## Scope
+Repo-level meta context for the `pi-extensions` monorepo.
+Keep this file stable, concise, and non-volatile.
 
 ## Structure
 ```
-packages/        # Reusable libraries
+packages/        # Reusable libraries and package groups
 apps/            # Deployable services/applications
 tools/           # Shared tooling (if any)
 docs/            # Documentation
@@ -13,52 +14,24 @@ ontology/        # ROCS ontology
 governance/      # Work items, policies
 ```
 
-## Guardrails
-- No secrets in git.
-- Never push to `main`; MRs only.
-- Treat `docs/_core/**` as immutable.
-- Packages in `packages/` have NO `.git` (managed by monorepo).
-- Apps in `apps/` have NO `.git` (managed by monorepo).
+## Layering
+This file is the leaf repo AGENTS for the monorepo root.
+Use it for repo-wide structure and navigation only.
 
-## Deterministic tooling policy (ROCS-first)
-- Prefer `./scripts/rocs.sh <args...>` before ad-hoc inline scripting.
-- For ontology/policy checks, use ROCS commands as the default execution path.
-- Use inline Python only as an explicit escape hatch when no deterministic command exists.
+Do not duplicate:
+- workspace/company/lane policy from parent AGENTS files
+- package-specific execution details that belong in package docs or scripts
+- deep rationale that should live in ADRs or project docs
 
-## Package Management
-- Package manager: **npm**
-- Languages: Defined per-package in `packages/` and `apps/` (via tpl-package)
-- Workspace config at root; packages inherit workspace settings.
-
-## Knowledge Crystallization Flow
-
-```
-Session → diary/ (raw) → docs/learnings/ (crystallized) → TIPs (propagated)
-```
-
-**Knowledge that isn't crystallized is knowledge that will be re-learned the hard way.**
-
-1. During work: Capture in `diary/YYYY-MM-DD--type-scope-summary.md`
-2. End of session: Extract patterns, decisions, learnings
-3. Weekly: Promote to `docs/learnings/` and `docs/decisions/`
-4. When pattern generalizes: Propose TIP
-
-## Recursion policy (explicit)
-Allowed:
-- L1 -> L2 (this monorepo)
-- L2 -> L3 (packages/apps via tpl-package)
-
-Forbidden:
-- L1 -> L0
-- L2 -> L1
-- any cycle
+## Package guidance
+- Put package-specific validation and workflow details in each package's docs, scripts, and manifests.
+- Keep package-local AGENTS files minimal and package-scoped.
+- Treat package folders as monorepo members, not independent repos, unless explicitly documented otherwise.
 
 ## Read order
-1) `docs/_core/`
-2) `docs/org_context/`
-3) `docs/project/`
-4) `docs/decisions/`
-5) `docs/learnings/`
-6) `diary/`               ← recent work sessions
-7) `packages/`            ← reusable libraries
-8) `apps/`                ← deployable services
+1. `docs/_core/` (if present)
+2. `docs/org_context/` (if present)
+3. `docs/project/`
+4. `docs/decisions/`
+5. relevant package docs
+6. relevant package manifests/scripts
