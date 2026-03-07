@@ -1,5 +1,51 @@
 import { runFzfProbe } from "./fuzzySelector.js";
-import type { PiExtension, UiContext, VaultModuleRuntime } from "./vaultTypes.js";
+import type { PiExtension, VaultModuleRuntime } from "./vaultTypes.js";
+
+function notifyPrepared(
+  runtime: VaultModuleRuntime,
+  templateName: string,
+  contextSuffix: string,
+  selectionMessage: string,
+  ctx: { hasUI: boolean; ui: { notify: (message: string, level?: string) => void } },
+): void {
+  const template = runtime.loadVaultTemplate(templateName);
+  if (!template || !ctx.hasUI) return;
+  ctx.ui.notify(
+    `Prepared: ${template.name} (${runtime.facetLabel(template)})${contextSuffix} — ${selectionMessage}`,
+    "info",
+  );
+}
+
+async function resolveVaultTemplateSelection(
+  runtime: VaultModuleRuntime,
+  ctx: { hasUI: boolean; ui?: { notify: (message: string, level?: string) => void } },
+  query: string,
+) {
+  const exactMatch = query.trim() ? runtime.loadVaultTemplate(query.trim()) : null;
+  if (exactMatch) {
+    return {
+      template: exactMatch,
+      modeMessage: "selection mode=exact",
+      selectionReason: "exact-match",
+    } as const;
+  }
+
+  const selection = await runtime.pickVaultTemplate(ctx as never, query);
+  if (!selection.selected) {
+    return {
+      template: null,
+      modeMessage: runtime.selectionModeMessage(selection),
+      selectionReason: selection.reason ?? "no-selection",
+    } as const;
+  }
+
+  const template = runtime.loadVaultTemplate(selection.selected.id);
+  return {
+    template,
+    modeMessage: runtime.selectionModeMessage(selection),
+    selectionReason: selection.reason ?? selection.mode,
+  } as const;
+}
 
 export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRuntime): void {
   pi.on("input", async (event, ctx) => {
@@ -23,73 +69,36 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
 
     const vaultSelectionInput = runtime.parseVaultSelectionInput(text);
     if (vaultSelectionInput) {
-      const selection = await runtime.pickVaultTemplate(ctx, vaultSelectionInput.query);
-      if (!selection.selected) {
+      const resolved = await resolveVaultTemplateSelection(runtime, ctx, vaultSelectionInput.query);
+      if (!resolved.template) {
         if (ctx.hasUI) {
-          const reason = selection.reason ? ` (${selection.reason})` : "";
+          const reason = resolved.selectionReason ? ` (${resolved.selectionReason})` : "";
           ctx.ui.notify(`No vault template selected${reason}.`, "warning");
           return { action: "handled" };
         }
         return {
           action: "transform",
-          text: `Vault selection unavailable: ${selection.reason ?? "no-selection"}. Check VAULT_DIR/fzf availability.`,
-        };
-      }
-
-      const template = runtime.loadVaultTemplate(selection.selected.id);
-      if (!template) {
-        if (ctx.hasUI) {
-          ctx.ui.notify(`Template not found: ${selection.selected.id}`, "error");
-          return { action: "handled" };
-        }
-        return {
-          action: "transform",
-          text: `Vault template unavailable: ${selection.selected.id}.`,
+          text: `Vault selection unavailable: ${resolved.selectionReason ?? "no-selection"}. Check VAULT_DIR/fzf availability.`,
         };
       }
 
       if (ctx.hasUI) {
         ctx.ui.notify(
-          `Loaded: ${template.name} (${runtime.facetLabel(template)}) — ${runtime.selectionModeMessage(selection)}`,
+          `Loaded: ${resolved.template.name} (${runtime.facetLabel(resolved.template)}) — ${resolved.modeMessage}`,
           "info",
         );
       }
-      if (template.id)
+      if (resolved.template.id)
         runtime.logExecution(
-          template.id,
-          template.name,
+          resolved.template.id,
+          resolved.template.name,
           ctx.model?.id || "unknown",
           vaultSelectionInput.context,
         );
       return {
         action: "transform",
-        text: runtime.buildVaultPrompt(template, vaultSelectionInput.context),
+        text: runtime.buildVaultPrompt(resolved.template, vaultSelectionInput.context),
       };
-    }
-
-    if (text === "/vaults" || text === "/vault-list") {
-      const templates = runtime.listTemplates();
-      const byFacet = templates.reduce(
-        (acc, t) => {
-          const key = runtime.facetLabel(t);
-          acc[key] = acc[key] || [];
-          acc[key].push(t);
-          return acc;
-        },
-        {} as Record<string, typeof templates>,
-      );
-
-      let output = "# Vault Templates\n\n";
-      for (const [facetKey, items] of Object.entries(byFacet)) {
-        output += `## ${facetKey} (${items.length})\n`;
-        for (const t of items) {
-          const desc = t.description.slice(0, 60);
-          output += `- \`/vault:${t.name}\` — ${desc}${t.description.length > 60 ? "..." : ""}\n`;
-        }
-        output += "\n";
-      }
-      if (ctx.hasUI) await ctx.ui.editor("Vault Contents", output);
-      return { action: "handled" };
     }
 
     if (text.startsWith("/vault-search ")) {
@@ -112,9 +121,16 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         if (ctx.hasUI) ctx.ui.notify(`No templates found for: ${query}`, "warning");
         return { action: "handled" };
       }
-      let output = `# Search Results: "${query}"\n\n`;
-      for (const t of templates)
-        output += `- \`/vault:${t.name}\` (${runtime.facetLabel(t)}) — ${t.description.slice(0, 50)}...\n`;
+      const output = [
+        `# Search Results: "${query}"`,
+        "",
+        `- current_company: ${runtime.getCurrentCompany()}`,
+        "",
+        ...templates
+          .map((t) => runtime.formatTemplateDetails(t, false))
+          .join("\n\n---\n\n")
+          .split("\n"),
+      ].join("\n");
       if (ctx.hasUI) await ctx.ui.editor("Search Results", output);
       return { action: "handled" };
     }
@@ -156,96 +172,31 @@ REASONING: [why these tools]
   });
 
   pi.registerCommand("vault", {
-    description: "Pick vault template via fuzzy selector (use /vaults to list all)",
+    description: "Load an exact visible vault template or open the picker",
     handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
-      const selection = await runtime.pickVaultTemplate(ctx, args.trim());
-      if (!selection.selected)
+      const parsed = runtime.splitVaultQueryAndContext(args.trim());
+      const resolved = await resolveVaultTemplateSelection(runtime, ctx, parsed.query);
+      if (!resolved.template)
         return ctx.ui.notify(
-          `No vault template selected${selection.reason ? ` (${selection.reason})` : ""}.`,
+          `No vault template selected${resolved.selectionReason ? ` (${resolved.selectionReason})` : ""}.`,
           "warning",
         );
-      const template = runtime.loadVaultTemplate(selection.selected.id);
-      if (!template) return ctx.ui.notify(`Template not found: ${selection.selected.id}`, "error");
-      ctx.ui.setEditorText(runtime.buildVaultPrompt(template, ""));
-      ctx.ui.notify(
-        `Prepared: ${template.name} (${runtime.facetLabel(template)}) — ${runtime.selectionModeMessage(selection)}`,
-        "info",
+      ctx.ui.setEditorText(runtime.buildVaultPrompt(resolved.template, parsed.context));
+      notifyPrepared(
+        runtime,
+        resolved.template.name,
+        parsed.context ? " + context" : "",
+        resolved.modeMessage,
+        ctx,
       );
-    },
-  });
-
-  const browseVaultTemplates = async (args: string, ctx: UiContext) => {
-    if (!ctx.hasUI) return;
-    const parsed = runtime.splitVaultQueryAndContext(args);
-    const templates = runtime.listTemplates();
-    const candidates = templates.map((template) => ({
-      id: template.name,
-      label: `/vault:${template.name}`,
-      source: "vault" as const,
-    }));
-    if (candidates.length === 0)
-      return ctx.ui.notify(
-        `Vault browser unavailable (${runtime.getVaultQueryError() ? "vault-db-unavailable" : "empty-vault"}).`,
-        "warning",
-      );
-    const ranking = runtime.rankVaultCandidates(candidates, parsed.query);
-    await ctx.ui.editor(
-      "Vault Browser",
-      runtime.buildVaultBrowserReport(parsed.query, candidates, ranking, runtime),
-    );
-    if (ranking.ranked.length === 0)
-      return ctx.ui.notify(
-        `No vault templates matched${ranking.reason ? ` (${ranking.reason})` : ""}.`,
-        "warning",
-      );
-    const selection = await runtime.pickVaultTemplate(ctx, parsed.query);
-    if (!selection.selected)
-      return ctx.ui.notify(
-        `No vault template selected${selection.reason ? ` (${selection.reason})` : ""}.`,
-        "warning",
-      );
-    const template = runtime.loadVaultTemplate(selection.selected.id);
-    if (!template) return ctx.ui.notify(`Template not found: ${selection.selected.id}`, "error");
-    ctx.ui.setEditorText(runtime.buildVaultPrompt(template, parsed.context));
-    ctx.ui.notify(
-      `Prepared: ${template.name} (${runtime.facetLabel(template)})${parsed.context ? " + context" : ""} — ${runtime.selectionModeMessage(selection)}`,
-      "info",
-    );
-  };
-
-  pi.registerCommand("vault-browse", {
-    description: "Browse ranked vault templates, then pick one with fuzzy selector",
-    handler: browseVaultTemplates,
-  });
-  pi.registerCommand("vault-browser", {
-    description: "Alias for /vault-browse",
-    handler: browseVaultTemplates,
-  });
-  pi.registerCommand("vault-select", {
-    description: "Pick a vault template with fuzzy selector and stage it in editor",
-    handler: async (args, ctx) => {
-      const selection = await runtime.pickVaultTemplate(ctx, args.trim());
-      if (!selection.selected) {
-        if (ctx.hasUI)
-          ctx.ui.notify(
-            `No vault template selected${selection.reason ? ` (${selection.reason})` : ""}.`,
-            "warning",
-          );
-        return;
-      }
-      const template = runtime.loadVaultTemplate(selection.selected.id);
-      if (!template) {
-        if (ctx.hasUI) ctx.ui.notify(`Template not found: ${selection.selected.id}`, "error");
-        return;
-      }
-      if (ctx.hasUI) {
-        ctx.ui.setEditorText(runtime.buildVaultPrompt(template, ""));
-        ctx.ui.notify(
-          `Prepared: ${template.name} (${runtime.facetLabel(template)}) — ${runtime.selectionModeMessage(selection)}`,
-          "info",
+      if (resolved.template.id)
+        runtime.logExecution(
+          resolved.template.id,
+          resolved.template.name,
+          ctx.model?.id || "unknown",
+          parsed.context,
         );
-      }
     },
   });
 
@@ -317,10 +268,16 @@ REASONING: [why]
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
     const templates = runtime.listTemplates();
+    const queryError = runtime.getVaultQueryError();
+    if (queryError) {
+      ctx.ui.notify(`Vault unavailable: ${queryError}`, "warning");
+      return;
+    }
     const cognitive = templates.filter((t) => t.artifact_kind === "cognitive").length;
     const procedure = templates.filter((t) => t.artifact_kind === "procedure").length;
+    const session = templates.filter((t) => t.artifact_kind === "session").length;
     ctx.ui.notify(
-      `Vault: ${cognitive} cognitive, ${procedure} procedure templates — /vault for picker, /vault-browse for ranked browser, live /vault: via shared interaction runtime`,
+      `Vault (${runtime.getCurrentCompany()}): ${cognitive} cognitive, ${procedure} procedure, ${session} session templates — /vault loads exact matches or opens picker; live /vault: uses shared interaction runtime`,
       "info",
     );
   });
@@ -334,18 +291,25 @@ REASONING: [why]
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
       const result = runtime.queryVaultJson(`
-        SELECT pt.name, pt.artifact_kind, pt.control_mode, pt.formalization_level, COUNT(e.id) as uses, MAX(e.created_at) as last_used
+        SELECT pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level, COUNT(e.id) as uses, MAX(e.created_at) as last_used
         FROM prompt_templates pt
         LEFT JOIN executions e ON e.entity_type = 'template' AND e.entity_id = pt.id
-        GROUP BY pt.id, pt.name, pt.artifact_kind, pt.control_mode, pt.formalization_level
+        WHERE pt.status = 'active' AND ${runtime.buildVisibilityPredicate()}
+        GROUP BY pt.id, pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level
         ORDER BY uses DESC
         LIMIT 20
       `);
-      if (!result?.rows?.length) return ctx.ui.notify("No execution data available", "warning");
+      if (!result?.rows?.length) {
+        const error = runtime.getVaultQueryError();
+        return ctx.ui.notify(
+          error ? `Vault stats unavailable: ${error}` : "No execution data available",
+          "warning",
+        );
+      }
       let output =
-        "# Vault Execution Stats\n\n| Template | Facets | Uses | Last Used |\n|----------|--------|------|----------|\n";
+        "# Vault Execution Stats\n\n| Template | Owner | Facets | Uses | Last Used |\n|----------|-------|--------|------|----------|\n";
       for (const row of result.rows)
-        output += `| ${row.name || ""} | ${row.artifact_kind || ""}/${row.control_mode || ""}/${row.formalization_level || ""} | ${row.uses || 0} | ${String(row.last_used || "never").slice(0, 10)} |\n`;
+        output += `| ${row.name || ""} | ${row.owner_company || ""} | ${row.artifact_kind || ""}/${row.control_mode || ""}/${row.formalization_level || ""} | ${row.uses || 0} | ${String(row.last_used || "never").slice(0, 10)} |\n`;
       await ctx.ui.editor("Vault Stats", output);
     },
   });

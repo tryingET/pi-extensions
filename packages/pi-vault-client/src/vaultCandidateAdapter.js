@@ -13,6 +13,16 @@ function facetLabel(template) {
   return `${artifactKind}/${controlMode}/${formalizationLevel}`;
 }
 
+function governanceLabel(template) {
+  const ownerCompany = template.owner_company || "core";
+  const visibilityCompanies = Array.isArray(template.visibility_companies)
+    ? template.visibility_companies.join(",")
+    : "";
+  return visibilityCompanies
+    ? `owner=${ownerCompany}; visible=${visibilityCompanies}`
+    : `owner=${ownerCompany}`;
+}
+
 export function toVaultCandidates(templates) {
   if (!Array.isArray(templates)) return [];
 
@@ -24,7 +34,8 @@ export function toVaultCandidates(templates) {
     .map((template) => ({
       id: template.name,
       label: `/vault:${template.name}`,
-      detail: `[${facetLabel(template)}] ${truncate(template.description || "")}`.trim(),
+      detail:
+        `[${facetLabel(template)}] ${governanceLabel(template)} — ${truncate(template.description || "")}`.trim(),
       preview: truncate(template.content || "", 180),
       source: "vault",
     }))

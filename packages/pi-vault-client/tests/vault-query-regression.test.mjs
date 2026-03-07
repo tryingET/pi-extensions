@@ -7,42 +7,66 @@ const PICKER_SOURCE = readFileSync(new URL("../src/vaultPicker.ts", import.meta.
 const COMMANDS_SOURCE = readFileSync(new URL("../src/vaultCommands.ts", import.meta.url), "utf8");
 const TOOLS_SOURCE = readFileSync(new URL("../src/vaultTools.ts", import.meta.url), "utf8");
 const TYPES_SOURCE = readFileSync(new URL("../src/vaultTypes.ts", import.meta.url), "utf8");
+const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.meta.url), "utf8");
 
-test("vault_query uses SQL-side keyword filtering without pre-limit window", () => {
+test("vault runtime targets Prompt Vault schema v7", () => {
+  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*7/);
+  assert.match(DB_SOURCE, /SELECT MAX\(version\) AS version FROM schema_version/);
+  assert.match(
+    EXTENSION_SOURCE,
+    /owner_company\/visibility_companies\/controlled_vocabulary\/export_to_pi/,
+  );
+});
+
+test("schema compatibility requires governance and controlled vocabulary columns", () => {
+  for (const column of [
+    "artifact_kind",
+    "control_mode",
+    "formalization_level",
+    "owner_company",
+    "visibility_companies",
+    "controlled_vocabulary",
+    "export_to_pi",
+  ]) {
+    assert.match(DB_SOURCE, new RegExp(`"${column}"`));
+  }
+});
+
+test("vault_query uses implicit visibility filtering", () => {
+  assert.match(DB_SOURCE, /function\s+buildVisibilityPredicate\(/);
   assert.match(
     DB_SOURCE,
-    /function\s+queryTemplates\([\s\S]*keywords:\s*string\[],[\s\S]*limit:\s*number,[\s\S]*includeContent:\s*boolean/,
+    /JSON_SEARCH\(visibility_companies, 'one', '\$\{escapeSql\(company\)\}'\) IS NOT NULL/,
   );
-  assert.doesNotMatch(DB_SOURCE, /limit\s*\*\s*2/);
-});
-
-test("vault_query tag matching uses JSON_QUOTE to avoid malformed JSON literals", () => {
-  assert.match(DB_SOURCE, /JSON_CONTAINS\(tags,\s*JSON_QUOTE\('/);
-});
-
-test("vault_query keyword LIKE matching escapes wildcards explicitly", () => {
-  assert.match(DB_SOURCE, /function\s+escapeLikePattern\(/);
-  assert.match(DB_SOURCE, /ESCAPE '!'/);
-});
-
-test("vault_query distinguishes query failure from empty search result", () => {
-  assert.match(TOOLS_SOURCE, /Vault query failed:/);
-  assert.match(TOOLS_SOURCE, /const\s+queryError\s*=\s*runtime\.getVaultQueryError\(\)/);
-});
-
-test("vault_query limits are clamped to a maximum", () => {
-  assert.match(TYPES_SOURCE, /const\s+MAX_VAULT_QUERY_LIMIT\s*=\s*50/);
   assert.match(
-    TOOLS_SOURCE,
-    /Math\.min\(MAX_VAULT_QUERY_LIMIT,\s*Math\.max\(1,\s*Math\.floor\(requestedLimit\)\)\)/,
+    DB_SOURCE,
+    /status = 'active'", buildVisibilityPredicate\(filters\.visibility_company\)/,
   );
 });
 
-test("vault_search uses escaped LIKE patterns and explicit wildcard escape", () => {
-  assert.match(DB_SOURCE, /function\s+searchTemplates\(query:\s*string\)/);
-  assert.match(DB_SOURCE, /const\s+escapedQuery\s*=\s*escapeLikePattern\(normalizedQuery\)/);
-  assert.match(DB_SOURCE, /LOWER\(name\) LIKE '%\$\{escapedQuery\}%' ESCAPE '!'/);
-  assert.match(DB_SOURCE, /LOWER\(content\) LIKE '%\$\{escapedQuery\}%' ESCAPE '!'/);
+test("vault_query supports controlled vocabulary filters instead of tags", () => {
+  assert.match(DB_SOURCE, /function\s+buildControlledVocabularyClauses\(/);
+  assert.match(DB_SOURCE, /JSON_UNQUOTE\(JSON_EXTRACT\(controlled_vocabulary/);
+  assert.match(TOOLS_SOURCE, /controlled_vocabulary/);
+  assert.doesNotMatch(TOOLS_SOURCE, /tags:/);
+});
+
+test("vault_vocabulary is contract-driven rather than tag-derived", () => {
+  assert.match(DB_SOURCE, /ontology\/controlled-vocabulary-contract\.json/);
+  assert.match(DB_SOURCE, /ontology\/company-visibility-contract\.json/);
+  assert.match(TOOLS_SOURCE, /# Vault Governed Vocabulary/);
+  assert.doesNotMatch(
+    DB_SOURCE,
+    /SELECT DISTINCT artifact_kind, control_mode, formalization_level, tags/,
+  );
+});
+
+test("vault_insert validates governance and router controlled vocabulary", () => {
+  assert.match(DB_SOURCE, /visibility_companies must include owner_company/);
+  assert.match(DB_SOURCE, /controlled_vocabulary is required when control_mode=router/);
+  assert.match(DB_SOURCE, /Unknown controlled_vocabulary\./);
+  assert.match(TOOLS_SOURCE, /owner_company/);
+  assert.match(TOOLS_SOURCE, /visibility_companies/);
 });
 
 test("vault_search surfaces backend query failures explicitly", () => {
@@ -50,9 +74,12 @@ test("vault_search surfaces backend query failures explicitly", () => {
   assert.match(COMMANDS_SOURCE, /Usage: \/vault-search <query>/);
 });
 
-test("vault_query include_content emits full content without truncation", () => {
-  assert.match(TOOLS_SOURCE, /output \+= `\\n---\\n\$\{t\.content\}\\n`;/);
-  assert.doesNotMatch(TOOLS_SOURCE, /t\.content\.slice\(0,\s*500\)/);
+test("session_start reports vault unavailability instead of empty counts", () => {
+  assert.match(COMMANDS_SOURCE, /Vault unavailable:/);
+  assert.doesNotMatch(
+    COMMANDS_SOURCE,
+    /Vault: \$\{cognitive\} cognitive, \$\{procedure\} procedure templates/,
+  );
 });
 
 test("vault selection parsing delegates :: context handling to helper", () => {
@@ -60,17 +87,27 @@ test("vault selection parsing delegates :: context handling to helper", () => {
   assert.match(PICKER_SOURCE, /splitQueryAndContext\(rest,\s*"::"\)/);
 });
 
+test("vault exact match resolves directly before picker fallback", () => {
+  assert.match(
+    COMMANDS_SOURCE,
+    /const exactMatch = query\.trim\(\) \? runtime\.loadVaultTemplate\(query\.trim\(\)\) : null/,
+  );
+  assert.match(COMMANDS_SOURCE, /selection mode=exact/);
+});
+
+test("legacy browse select and list commands are removed", () => {
+  assert.doesNotMatch(COMMANDS_SOURCE, /pi\.registerCommand\("vault-browse"/);
+  assert.doesNotMatch(COMMANDS_SOURCE, /pi\.registerCommand\("vault-browser"/);
+  assert.doesNotMatch(COMMANDS_SOURCE, /pi\.registerCommand\("vault-select"/);
+  assert.doesNotMatch(COMMANDS_SOURCE, /\/vault-list/);
+});
+
 test("vault picker surfaces full candidate set to UI", () => {
   assert.match(PICKER_SOURCE, /maxOptions:\s*Math\.max\(1,\s*candidates\.length\)/);
   assert.match(PICKER_SOURCE, /Vault template picker \(all templates\)/);
 });
 
-test("vault browser command is registered with alias", () => {
-  assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-browse"/);
-  assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-browser"/);
-});
-
-test("vault browser report includes ranking visibility fields", () => {
+test("vault browser report helper still includes ranking visibility fields", () => {
   assert.match(PICKER_SOURCE, /# Vault Browser/);
   assert.match(PICKER_SOURCE, /ranking mode:/);
   assert.match(PICKER_SOURCE, /results:\s*\$\{ranking\.ranked\.length\}\/\$\{candidates\.length\}/);

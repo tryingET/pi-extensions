@@ -1,8 +1,9 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 
-export const VAULT_DIR =
-  process.env.VAULT_DIR || "/home/tryinget/ai-society/core/prompt-vault/prompt-vault-db";
+export const PROMPT_VAULT_ROOT =
+  process.env.PROMPT_VAULT_ROOT || "/home/tryinget/ai-society/core/prompt-vault";
+export const VAULT_DIR = process.env.VAULT_DIR || `${PROMPT_VAULT_ROOT}/prompt-vault-db`;
 export const VLLM_ENDPOINT = process.env.VLLM_ENDPOINT || "http://localhost:8000";
 export const VLLM_MODEL = process.env.VLLM_MODEL || "Qwen/Qwen2.5-3B-Instruct";
 export const DEFAULT_VAULT_QUERY_LIMIT = 5;
@@ -11,7 +12,44 @@ export const LIVE_VAULT_TRIGGER_ID = "vault-template-live-picker";
 export const LIVE_VAULT_TRIGGER_DEBOUNCE_MS = 180;
 export const LIVE_VAULT_MIN_QUERY = 0;
 export const LIVE_TRIGGER_TELEMETRY_LIMIT = 100;
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 7;
+
+export const COMPANIES = [
+  "core",
+  "software",
+  "finance",
+  "house",
+  "health",
+  "teaching",
+  "holding",
+] as const;
+
+export const ARTIFACT_KINDS = ["cognitive", "procedure", "session"] as const;
+export const CONTROL_MODES = ["one_shot", "router", "loop"] as const;
+export const FORMALIZATION_LEVELS = ["napkin", "bounded", "structured", "workflow"] as const;
+export const CONTROLLED_VOCABULARY_DIMENSIONS = [
+  "routing_context",
+  "activity_phase",
+  "input_artifact",
+  "transition_target_type",
+  "selection_principles",
+  "output_commitment",
+] as const;
+
+export type Company = (typeof COMPANIES)[number];
+export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
+export type ControlMode = (typeof CONTROL_MODES)[number];
+export type FormalizationLevel = (typeof FORMALIZATION_LEVELS)[number];
+export type ControlledVocabularyDimension = (typeof CONTROLLED_VOCABULARY_DIMENSIONS)[number];
+
+export interface RouterControlledVocabulary {
+  routing_context?: string;
+  activity_phase?: string;
+  input_artifact?: string;
+  transition_target_type?: string;
+  selection_principles?: string[];
+  output_commitment?: string;
+}
 
 export interface FuzzyCandidate {
   id: string;
@@ -43,10 +81,15 @@ export interface Template {
   name: string;
   description: string;
   content: string;
-  artifact_kind: string;
-  control_mode: string;
-  formalization_level: string;
-  tags: string[];
+  artifact_kind: ArtifactKind | string;
+  control_mode: ControlMode | string;
+  formalization_level: FormalizationLevel | string;
+  owner_company: Company | string;
+  visibility_companies: string[];
+  controlled_vocabulary: RouterControlledVocabulary | null;
+  status?: string;
+  export_to_pi?: boolean;
+  version?: number;
   id?: number;
 }
 
@@ -54,11 +97,27 @@ export interface DoltJsonResult {
   rows: Record<string, unknown>[];
 }
 
+export interface VaultQueryControlledVocabulary {
+  routing_context?: string[];
+  activity_phase?: string[];
+  input_artifact?: string[];
+  transition_target_type?: string[];
+  selection_principles?: string[];
+  output_commitment?: string[];
+}
+
+export interface VaultQueryFilters {
+  artifact_kind?: string[];
+  control_mode?: string[];
+  formalization_level?: string[];
+  owner_company?: string[];
+  visibility_company?: string;
+  controlled_vocabulary?: VaultQueryControlledVocabulary;
+}
+
 export interface InsertResult {
-  status: "ok" | "confirm" | "error";
+  status: "ok" | "error";
   message: string;
-  newTags?: string[];
-  existingVocab?: Record<string, string[]>;
   templateId?: number;
 }
 
@@ -89,6 +148,27 @@ export interface FrameworkResolution {
   invalidOverrides: string[];
 }
 
+export interface GovernedContracts {
+  ontology: {
+    facets: {
+      artifact_kind: string[];
+      control_mode: string[];
+      formalization_level: string[];
+    };
+  };
+  controlledVocabulary: {
+    dimensions: Record<string, string[]>;
+    router_required_dimensions: string[];
+  };
+  companyVisibility: {
+    companies: string[];
+    defaults?: {
+      owner_company?: string;
+      visibility_companies?: string[];
+    };
+  };
+}
+
 export interface VaultRuntime {
   queryVaultJson: (sql: string) => DoltJsonResult | null;
   execVault: (sql: string) => boolean;
@@ -102,19 +182,21 @@ export interface VaultRuntime {
   facetLabel: (
     template: Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">,
   ) => string;
+  governanceLabel: (template: Pick<Template, "owner_company" | "visibility_companies">) => string;
+  controlledVocabularyLabel: (template: Pick<Template, "controlled_vocabulary">) => string;
+  formatTemplateDetails: (template: Template, includeContent?: boolean) => string;
+  getCurrentCompany: () => string;
+  buildVisibilityPredicate: (company?: string) => string;
+  getContracts: () => GovernedContracts;
   getTemplate: (name: string) => Template | null;
   listTemplates: (
     filters?: Partial<Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">>,
   ) => Template[];
   searchTemplates: (query: string) => Template[];
   queryTemplates: (
-    tags: string[],
-    keywords: string[],
+    filters: VaultQueryFilters,
     limit: number,
     includeContent: boolean,
-    artifactKinds: string[],
-    controlModes: string[],
-    formalizationLevels: string[],
   ) => Template[];
   retrieveByNames: (names: string[], includeContent: boolean) => Template[];
   getVocabulary: () => Record<string, string[]>;
@@ -122,11 +204,12 @@ export interface VaultRuntime {
     name: string,
     content: string,
     description: string,
-    tags: string[],
     artifactKind: string,
     controlMode: string,
     formalizationLevel: string,
-    confirmNewTags: boolean,
+    ownerCompany: string,
+    visibilityCompanies: string[],
+    controlledVocabulary: RouterControlledVocabulary | null,
   ) => InsertResult;
   rateTemplate: (
     templateName: string,

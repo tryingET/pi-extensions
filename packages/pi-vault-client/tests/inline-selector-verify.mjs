@@ -11,7 +11,7 @@ console.log(`
 
 ## Setup
 1. Start pi in a terminal
-2. Ensure vault is available: /vaults should list templates
+2. Ensure vault is available: /vault should open the picker or load an exact match
 3. Run test commands below
 
 ## Test Scenarios
@@ -97,19 +97,19 @@ Status: [ ] PASS / [ ] FAIL
 
 ### Integration Tests
 
-#### Test 16: /vault with query
+#### Test 16: /vault with exact visible name
 Command: /vault inversion
-Expected: Selector opens with "inversion" pre-filled in search
+Expected: Loads the exact visible template directly without opening the picker
 Status: [ ] PASS / [ ] FAIL
 
-#### Test 17: /vault-search
+#### Test 17: /vault with fuzzy query
+Command: /vault inv
+Expected: Opens selector with "inv" pre-filled in search
+Status: [ ] PASS / [ ] FAIL
+
+#### Test 18: /vault-search
 Command: /vault-search security
-Expected: Opens editor with search results, then can pick template
-Status: [ ] PASS / [ ] FAIL
-
-#### Test 18: /vault-browse
-Command: /vault-browse
-Expected: Opens browser, then selector
+Expected: Opens editor with search results for visible templates
 Status: [ ] PASS / [ ] FAIL
 
 ## Performance Tests

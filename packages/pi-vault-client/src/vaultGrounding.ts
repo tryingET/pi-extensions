@@ -96,7 +96,7 @@ function splitPipeValues(raw?: string): string[] {
   if (!raw) return [];
   return raw
     .split("|")
-    .map((s) => s.trim().toLowerCase())
+    .map((s) => s.trim())
     .filter(Boolean)
     .filter((v, i, arr) => arr.indexOf(v) === i);
 }
@@ -136,9 +136,9 @@ function discoverFrameworks(
 
   return runtime.parseTemplateRows(
     runtime.queryVaultJson(
-      `SELECT id, name, description, content, artifact_kind, control_mode, formalization_level, tags
+      `SELECT id, name, description, content, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary
        FROM prompt_templates
-       WHERE status = 'active' AND artifact_kind = 'cognitive' AND (${like})
+       WHERE status = 'active' AND artifact_kind = 'cognitive' AND ${runtime.buildVisibilityPredicate()} AND (${like})
        ORDER BY name
        LIMIT ${limit}`,
     ),
@@ -161,7 +161,7 @@ function resolveFrameworks(
     .filter((t) => t.artifact_kind === "cognitive");
 
   if (overrideNames.length > 0) {
-    const found = new Set(exactRetrieved.map((t) => t.name.toLowerCase()));
+    const found = new Set(exactRetrieved.map((t) => t.name));
     for (const name of overrideNames) if (!found.has(name)) invalidOverrides.push(name);
   }
 
@@ -235,6 +235,7 @@ function buildFrameworkGroundingAppendix(
     const f = selected[i];
     appendix += `\n### F${i + 1}: ${f.name}\n`;
     appendix += `Description: ${f.description || "(no description)"}\n`;
+    appendix += `Governance: owner=${f.owner_company}; visible_to=${f.visibility_companies.join(", ")}\n`;
     appendix += `\n${stripFrontmatter(f.content).trim()}\n`;
   }
   return appendix;

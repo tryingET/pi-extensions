@@ -15,7 +15,7 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
   const vaultRuntime = createVaultRuntime();
   if (!vaultRuntime.checkSchemaVersion()) {
     console.error(
-      `Vault schema version mismatch. Extension requires Prompt Vault schema v${SCHEMA_VERSION} with facet columns artifact_kind/control_mode/formalization_level.`,
+      `Vault schema version mismatch. Extension requires Prompt Vault schema v${SCHEMA_VERSION} with columns artifact_kind/control_mode/formalization_level plus owner_company/visibility_companies/controlled_vocabulary/export_to_pi.`,
     );
     return;
   }

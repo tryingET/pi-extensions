@@ -11,6 +11,8 @@ test("toVaultCandidates normalizes template rows to selector contract", () => {
       artifact_kind: "cognitive",
       control_mode: "one_shot",
       formalization_level: "structured",
+      owner_company: "core",
+      visibility_companies: ["core", "software"],
     },
     {
       name: "inversion",
@@ -19,6 +21,8 @@ test("toVaultCandidates normalizes template rows to selector contract", () => {
       artifact_kind: "cognitive",
       control_mode: "one_shot",
       formalization_level: "structured",
+      owner_company: "core",
+      visibility_companies: ["core", "software"],
     },
   ];
 
@@ -32,7 +36,8 @@ test("toVaultCandidates normalizes template rows to selector contract", () => {
   assert.deepEqual(candidates[1], {
     id: "nexus",
     label: "/vault:nexus",
-    detail: "[cognitive/one_shot/structured] Find the highest-leverage intervention",
+    detail:
+      "[cognitive/one_shot/structured] owner=core; visible=core,software — Find the highest-leverage intervention",
     preview: "nexus body",
     source: "vault",
   });
