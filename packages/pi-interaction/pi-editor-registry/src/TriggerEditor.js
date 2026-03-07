@@ -16,6 +16,7 @@ import { getBroker } from "@tryinget/pi-trigger-adapter";
  *   select?: (title: string, options: string[]) => Promise<string|null|undefined>,
  *   confirm?: (title: string, message: string) => Promise<boolean>,
  *   input?: (title: string, placeholder?: string) => Promise<string|null|undefined>,
+ *   custom?: (factory: (tui: unknown, theme: unknown, kb: unknown, done: (value: unknown) => void) => unknown, options?: unknown) => Promise<unknown>,
  * }} TriggerEditorUI
  */
 
@@ -92,6 +93,11 @@ export class TriggerEditor extends BaseCustomEditor {
       /** @param {string} title @param {string} [placeholder] */
       input: async (title, placeholder) => {
         return this.ui?.input?.(title, placeholder) ?? null;
+      },
+
+      /** @param {(tui: unknown, theme: unknown, kb: unknown, done: (value: unknown) => void) => unknown} factory @param {unknown} [options] */
+      custom: async (factory, options) => {
+        return this.ui?.custom?.(factory, options) ?? null;
       },
 
       getText: () => {

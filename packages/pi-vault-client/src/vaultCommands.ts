@@ -320,7 +320,7 @@ REASONING: [why]
     const cognitive = templates.filter((t) => t.artifact_kind === "cognitive").length;
     const procedure = templates.filter((t) => t.artifact_kind === "procedure").length;
     ctx.ui.notify(
-      `Vault: ${cognitive} cognitive, ${procedure} procedure templates — /vault for picker, /vault-browse for ranked browser, live /vault: via pi-input-triggers`,
+      `Vault: ${cognitive} cognitive, ${procedure} procedure templates — /vault for picker, /vault-browse for ranked browser, live /vault: via shared interaction runtime`,
       "info",
     );
   });

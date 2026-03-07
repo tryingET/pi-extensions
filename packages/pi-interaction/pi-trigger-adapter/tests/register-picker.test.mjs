@@ -245,6 +245,72 @@ test("registerPickerInteraction prompts for query when empty", async () => {
   assert.ok(telemetry.some((event) => event.event === "query-prompt-submitted"));
 });
 
+test("registerPickerInteraction skips query prompt when inline custom picker is available", async () => {
+  const broker = new TriggerBroker();
+  const telemetry = [];
+  const editorState = { text: "" };
+  let inputCalls = 0;
+  let customCalls = 0;
+
+  broker.setAPI({
+    setText(text) {
+      editorState.text = text;
+    },
+    async input() {
+      inputCalls += 1;
+      return "nex";
+    },
+    async custom() {
+      customCalls += 1;
+      return { id: "nexus", label: "/vault:nexus", detail: "leverage", source: "vault" };
+    },
+    notify() {
+      // no-op
+    },
+  });
+
+  registerPickerInteraction(
+    {
+      id: "unit-inline-custom-picker",
+      description: "Inline custom picker",
+      match: /^\/vault:(.*)$/,
+      debounceMs: 0,
+      disableFzf: true,
+      minQueryLength: 0,
+      promptForQueryWhenEmpty: true,
+      promptQueryThreshold: 1,
+      loadCandidates: () => ({
+        candidates: [
+          {
+            id: "nexus",
+            label: "/vault:nexus",
+            detail: "leverage",
+            source: "vault",
+          },
+          {
+            id: "inversion",
+            label: "/vault:inversion",
+            detail: "shadow",
+            source: "vault",
+          },
+        ],
+      }),
+      applySelection: ({ selected, api }) => {
+        api.setText(selected.id);
+      },
+      telemetry: (event) => telemetry.push(event),
+    },
+    { broker },
+  );
+
+  await broker.checkAndFire(contextFromText("/vault:"));
+
+  assert.equal(inputCalls, 0);
+  assert.equal(customCalls, 1);
+  assert.equal(editorState.text, "nexus");
+  assert.ok(!telemetry.some((event) => event.event === "query-prompt-submitted"));
+});
+
 test("registerPickerInteraction validates primitive config boundaries", () => {
   const broker = new TriggerBroker();
 
