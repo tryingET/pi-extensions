@@ -3,9 +3,9 @@
   "private": true,
   "description": "Monorepo root validation surface for pi-extensions.",
   "scripts": {
-    "quality:pre-commit": "./scripts/ci/smoke.sh",
-    "quality:pre-push": "./scripts/ci/full.sh",
-    "quality:ci": "npm run quality:pre-push",
-    "check": "npm run quality:ci"
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "bash ./scripts/quality-gate.sh check"
   }
 }

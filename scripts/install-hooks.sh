@@ -11,5 +11,5 @@ chmod +x \
 git -C "$ROOT_DIR" config core.hooksPath .githooks
 echo "Configured git hooks path: .githooks"
 echo "Hook wiring:"
-echo "  pre-commit -> npm run quality:pre-commit"
-echo "  pre-push   -> npm run quality:pre-push"
+echo "  pre-commit -> npm run quality:pre-commit -> scripts/quality-gate.sh pre-commit"
+echo "  pre-push   -> npm run quality:pre-push -> scripts/quality-gate.sh pre-push"
