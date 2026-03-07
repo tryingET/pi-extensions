@@ -3,8 +3,14 @@
   "private": true,
   "description": "Logical package group for the pi-interaction runtime split",
   "scripts": {
-    "fix": "npm --prefix ./pi-editor-registry run fix && npm --prefix ./pi-interaction-kit run fix && npm --prefix ./pi-trigger-adapter run fix && npm --prefix ./pi-interaction run fix",
-    "check": "npm --prefix ./pi-editor-registry run check && npm --prefix ./pi-interaction-kit run check && npm --prefix ./pi-trigger-adapter run check && npm --prefix ./pi-interaction run check",
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "test": "bash ./scripts/quality-gate.sh test",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json"

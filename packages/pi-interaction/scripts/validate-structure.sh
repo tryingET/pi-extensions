@@ -134,7 +134,7 @@ while IFS= read -r -d '' markdown_file; do
     fi
   done
 
-done < <(find . -type f -name "*.md" ! -path "./node_modules/*" ! -path "./.git/*" -print0)
+done < <(find . -type f -name "*.md" ! -path "*/node_modules/*" ! -path "./.git/*" -print0)
 
 if [[ "$errors" -gt 0 ]]; then
   echo "Structure validation failed with $errors issue(s)." >&2

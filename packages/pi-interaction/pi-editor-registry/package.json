@@ -29,11 +29,14 @@
     "node": ">=22"
   },
   "scripts": {
-    "fix": "biome check --write --no-errors-on-unmatched .",
-    "lint": "biome check --no-errors-on-unmatched .",
-    "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs",
-    "check": "npm run lint && npm run typecheck && npm run test && npm pack --dry-run",
+    "fix": "bash ../../../scripts/package-quality-gate.sh fix . --mode simple-package",
+    "lint": "bash ../../../scripts/package-quality-gate.sh lint . --mode simple-package",
+    "typecheck": "bash ../../../scripts/package-quality-gate.sh typecheck . --mode simple-package",
+    "test": "bash ../../../scripts/package-quality-gate.sh test . --mode simple-package",
+    "quality:pre-commit": "bash ../../../scripts/package-quality-gate.sh pre-commit . --mode simple-package",
+    "quality:pre-push": "bash ../../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
+    "quality:ci": "bash ../../../scripts/package-quality-gate.sh ci . --mode simple-package",
+    "check": "npm run quality:ci",
     "release:check:quick": "npm pack --dry-run"
   },
   "files": [

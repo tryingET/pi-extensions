@@ -27,11 +27,14 @@
     "node": ">=22"
   },
   "scripts": {
-    "fix": "biome check --write --no-errors-on-unmatched .",
-    "lint": "biome check --no-errors-on-unmatched .",
-    "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs",
-    "check": "npm run lint && npm run typecheck && npm run test && npm pack --dry-run",
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "test": "bash ./scripts/quality-gate.sh test",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
     "release:check:quick": "npm pack --dry-run"
   },
   "files": [

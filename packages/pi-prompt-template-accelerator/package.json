@@ -15,9 +15,14 @@
     "pi-prompt-template-accelerator"
   ],
   "scripts": {
-    "fix": "echo 'no-op: no formatter configured'",
-    "check": "npm run test:smoke:non-ui && npm pack --dry-run",
-    "test": "npm run test:smoke:non-ui",
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "test": "bash ./scripts/quality-gate.sh test",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
     "test:smoke:non-ui": "node --import tsx --test tests/non-ui-mixed-extension-smoke.test.ts",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
