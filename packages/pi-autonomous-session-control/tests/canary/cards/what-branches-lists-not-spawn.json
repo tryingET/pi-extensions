@@ -1,0 +1,20 @@
+{
+  "id": "what-branches-lists-not-spawn",
+  "title": "what branches must list, not spawn",
+  "target": "self",
+  "query": "what branches?",
+  "assertions": [
+    {
+      "path": "result.intent",
+      "equals": "direction"
+    },
+    {
+      "path": "result.answer",
+      "includes": "No branches spawned"
+    },
+    {
+      "path": "result.data.count",
+      "equals": 0
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+init-project-docs: done
+set-by: coding-agent
+set-at: 2026-02-19T11:13:00Z
+note: startup intake router should skip first-message init-project-docs prefill when this marker exists.

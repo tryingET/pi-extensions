@@ -1,0 +1,29 @@
+{
+  "id": "dispatch-invalid-objective-invariant",
+  "title": "dispatch_subagent rejects blank objective via invariant guard",
+  "target": "dispatch_subagent",
+  "calls": [
+    {
+      "profile": "reviewer",
+      "objective": "   "
+    }
+  ],
+  "assertions": [
+    {
+      "path": "results.0.details.status",
+      "equals": "error"
+    },
+    {
+      "path": "results.0.details.reason",
+      "equals": "invariant_failed"
+    },
+    {
+      "path": "results.0.content.0.text",
+      "includes": "dispatch.objective.required"
+    },
+    {
+      "path": "state.activeCount",
+      "equals": 0
+    }
+  ]
+}

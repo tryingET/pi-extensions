@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+*.tgz
+.obsidian/
+20-29_Input/
+.pi-subagent-sessions/

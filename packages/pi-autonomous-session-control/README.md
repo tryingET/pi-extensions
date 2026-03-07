@@ -1,0 +1,333 @@
+---
+summary: "Overview and quickstart for pi-autonomous-session-control."
+read_when:
+  - "Starting work in this repository."
+system4d:
+  container: "Repository scaffold for a pi extension package."
+  compass: "Ship small, safe, testable extension iterations."
+  engine: "Plan -> implement -> verify with docs and hooks in sync."
+  fog: "Unknown runtime integration edge cases until first live sync."
+---
+
+# pi-autonomous-session-control
+
+Monorepo-home package for subagent lifecycle hardening, failure recovery, and operator visibility in pi.
+
+Canonical package path: `packages/pi-autonomous-session-control`
+
+## Quickstart
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Test with pi (one-off, doesn't persist):
+
+   ```bash
+   pi -e ./extensions/self.ts
+   ```
+
+3. For active development, rely on auto-discovery:
+
+   When you're in this project directory, pi automatically discovers the `package.json` and loads extensions defined in `pi.extensions`. No manual install needed.
+
+## Local Development vs Global Install
+
+**Important:** Avoid double-loading by understanding pi's package identity:
+
+| Source | Identity |
+|--------|----------|
+| npm package | Package name (`pi-autonomous-session-control`) |
+| git source | Repository URL |
+| Local path | Resolved absolute path |
+
+**During local development:**
+- Do NOT add this package to global `~/.pi/agent/settings.json`
+- Rely on project auto-discovery when working in this directory
+- Use `pi -e /path/to/package` if you need the extension in another project temporarily
+
+**After publishing to npm:**
+```bash
+pi install npm:pi-autonomous-session-control
+```
+
+**When both exist:**
+- Local path and npm package are DIFFERENT identities → both load → conflicts
+- Solution: During active development, remove the npm entry from global settings
+
+To temporarily disable a global package while developing locally:
+```bash
+# Remove from global settings
+pi remove npm:pi-autonomous-session-control
+
+# Or manually edit ~/.pi/agent/settings.json and remove from packages array
+```
+
+To quickly test the extension in another project without installing:
+```bash
+pi -e /path/to/pi-autonomous-session-control
+```
+
+## Runtime dependencies and packaged files
+
+This extension expects pi host runtime APIs and declares them as `peerDependencies`:
+
+- `@mariozechner/pi-coding-agent`
+- `@mariozechner/pi-ai`
+
+For npm publishing, `package.json` uses a `files` whitelist so required runtime artifacts are explicit:
+
+- `extensions/self.ts`
+- `extensions/self/`
+- `prompts/`
+- `examples/`
+- `policy/security-policy.json`
+- `policy/stack-lane.json`
+
+If your extension also needs extra runtime assets, add them to `files` intentionally.
+
+When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
+
+## Repository checks
+
+Run:
+
+```bash
+npm run check
+```
+
+`check` routes to `quality:ci` via [scripts/quality-gate.sh](scripts/quality-gate.sh).
+It enforces structure validation, Biome lint checks, optional TypeScript typechecks, and npm pack dry-run.
+
+## Quality gate lane (TS)
+
+- formatter/lint baseline:
+  - [biome.jsonc](biome.jsonc)
+  - [.vscode/settings.json](.vscode/settings.json) (Biome formatter + code actions on save for JS/TS/JSON)
+  - pinned local binary via `@biomejs/biome` in `devDependencies`
+- [scripts/quality-gate.sh](scripts/quality-gate.sh) stages:
+  - `pre-commit`
+  - `pre-push`
+  - `ci`
+- npm script entry points:
+  - `npm run quality:pre-commit`
+  - `npm run quality:pre-push`
+  - `npm run quality:ci`
+- helper scripts:
+  - `npm run fix` (auto-fix)
+  - `npm run lint` (check-only)
+  - `npm run typecheck`
+- lane metadata:
+  - [policy/stack-lane.json](policy/stack-lane.json)
+
+## Release + security baseline
+
+This scaffold defaults to **release-please** for single-package release PR + tag flow (`vX.Y.Z`), npm trusted publishing via OIDC, and deterministic release artifact checks.
+
+Included files:
+
+- [CI workflow](.github/workflows/ci.yml)
+- [release-check workflow](.github/workflows/release-check.yml)
+- [release-please workflow](.github/workflows/release-please.yml)
+- [publish workflow](.github/workflows/publish.yml)
+- [release-check script](scripts/release-check.sh)
+- [Dependabot config](.github/dependabot.yml)
+- [CODEOWNERS](.github/CODEOWNERS)
+- [release-please config](.release-please-config.json)
+- [release-please manifest](.release-please-manifest.json)
+- [Security policy](SECURITY.md)
+
+Trusted-publishing defaults captured in this scaffold:
+
+- release-please uses `vX.Y.Z` tags (`include-component-in-tag: false`) to align with publish trigger logic.
+- release-please action is pinned to an immutable v4.4.0 SHA.
+- publish workflow and release-check workflow both upgrade npm (`>=11.5.1`) for consistent trusted publishing behavior.
+- setup-node uses `package-manager-cache: false` to avoid implicit caching behavior changes from setup-node v5+.
+- setup-node v6 / setup-python v6 / upload-artifact v6 require Actions Runner `>=2.327.1` on self-hosted runners (GitHub-hosted runners already satisfy this).
+- release-check script tolerates npm `already published version` dry-run responses for post-release idempotency.
+- package metadata must include `repository.url` matching the GitHub repo for npm provenance verification.
+
+Recommended before release:
+
+```bash
+npm run release:check
+# quick mode for CI / no local pi smoke
+npm run release:check:quick
+```
+
+Optional: add an executable `scripts/release-smoke.sh` for extension-specific smoke checks.
+`release-check.sh` will run it with isolated `PI_CODING_AGENT_DIR` and `PACKAGE_SPEC` env vars.
+
+Before first production release:
+
+1. Confirm/adjust owners in [.github/CODEOWNERS](.github/CODEOWNERS).
+2. Enable branch protection on `main`.
+3. Confirm GitHub Actions repo settings:
+   - workflow permissions: `Read and write`
+   - allow GitHub Actions to create/approve PRs
+   - allowed actions policy permits marketplace actions used by workflows
+4. Configure npm Trusted Publishing for this repo + [publish workflow](.github/workflows/publish.yml).
+5. If this is a brand-new npm package, perform one bootstrap token publish first, then add the trusted publisher in npm package settings.
+6. Merge release PR from release-please, then publish from GitHub release.
+
+## Issue + PR intake baseline
+
+Included files:
+
+- [Bug report form](.github/ISSUE_TEMPLATE/bug-report.yml)
+- [Feature request form](.github/ISSUE_TEMPLATE/feature-request.yml)
+- [Docs request form](.github/ISSUE_TEMPLATE/docs.yml)
+- [Issue template config](.github/ISSUE_TEMPLATE/config.yml)
+- [PR template](.github/pull_request_template.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Support guide](SUPPORT.md)
+- [Top-level contributing guide](CONTRIBUTING.md)
+
+## Vouch trust gate baseline
+
+Included files:
+
+- [Vouched contributors list](.github/VOUCHED.td)
+- [PR trust gate workflow](.github/workflows/vouch-check-pr.yml)
+- [Issue-comment trust management workflow](.github/workflows/vouch-manage.yml)
+
+Default behavior:
+
+- PR workflow runs on `pull_request_target` (`opened`, `reopened`).
+- `require-vouch: true` and `auto-close: true` are enabled by default.
+- Maintainers can comment `vouch`, `denounce`, or `unvouch` on issues to update trust state.
+- Vouch actions are SHA pinned for reproducibility and supply-chain review.
+
+Bootstrap step:
+
+- Confirm/adjust entries in [.github/VOUCHED.td](.github/VOUCHED.td) before enforcing production policy.
+
+## Docs discovery
+
+Run:
+
+```bash
+npm run docs:list
+npm run docs:list:workspace
+npm run docs:list:json
+```
+
+Wrapper script: [scripts/docs-list.sh](scripts/docs-list.sh)
+
+Resolution order:
+1. `DOCS_LIST_SCRIPT`
+2. `./scripts/docs-list.mjs` (if vendored)
+3. `~/ai-society/core/agent-scripts/scripts/docs-list.mjs`
+
+TypeScript lane reference for pi extensions:
+
+```bash
+uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo
+```
+
+Pinned lane metadata lives in [policy/stack-lane.json](policy/stack-lane.json).
+
+## Copier lifecycle policy
+
+- Keep `.copier-answers.yml` committed.
+- Do not edit `.copier-answers.yml` manually.
+- Run from a clean destination repo (commit or stash pending changes first).
+- Use `copier update --trust` when `.copier-answers.yml` includes `_commit` and update is supported.
+- In non-interactive shells/CI, append `--defaults` to update/recopy.
+- Use `copier recopy --trust` when update is unavailable (for example local non-VCS source) or cannot reconcile cleanly.
+- After recopy, re-apply local deltas intentionally and run `npm run check`.
+
+## Hook behavior
+
+- Git hooks path is configured to `.githooks` by [scripts/install-hooks.sh](scripts/install-hooks.sh).
+- [.githooks/pre-commit](.githooks/pre-commit) runs:
+  - `scripts/quality-gate.sh pre-commit`
+  - check-only (auto-fix with `npm run fix`)
+- [.githooks/pre-push](.githooks/pre-push) runs:
+  - `scripts/quality-gate.sh pre-push`
+- Repo-local commit workflow prompt:
+  - [`.pi/prompts/commit.md`](.pi/prompts/commit.md)
+
+## Subagent Configuration
+
+The `dispatch_subagent` tool spawns subagents with configurable model selection:
+
+**Model selection priority:**
+1. `PI_SUBAGENT_MODEL` environment variable (override)
+2. Latest session-selected model (`model_select` event)
+3. Fallback: `openai-codex/gpt-5.3-codex-spark`
+
+**Session storage:**
+- `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)
+- `PI_SUBAGENT_CLEAR_ON_SESSION_START` — set to `true` to clear `*.json` subagent sessions on `session_start` (default: off / non-destructive)
+- `PI_SUBAGENT_RESERVE_SESSION_NAMES` — set to `false` to disable all session-name reservation mechanisms (in-memory + file-lock) for rollback/debugging (default: enabled)
+- `PI_SUBAGENT_FILE_LOCK_SESSION_NAMES` — set to `false` to disable only cross-process file-lock reservation while keeping in-memory reservation (default: enabled; ignored when `PI_SUBAGENT_RESERVE_SESSION_NAMES=false`)
+- `PI_SUBAGENT_LOCK_STALE_AFTER_MS` — stale-lock reclamation threshold in milliseconds for orphaned subagent locks that no longer have a live owning PID (default: `3600000`)
+
+**Session artifact notes:**
+- Local session files in `./.pi-subagent-sessions` are runtime artifacts and are gitignored by default.
+- Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.
+- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|abandoned`; dead running sessions are reconciled to `abandoned` on next startup.
+- `subagent-status` now reports counts by terminal/runtime status for faster operator diagnosis.
+- A persistent read-only widget now surfaces recent subagent sessions, recency, and recommended action hints above the editor.
+- If you want long-horizon analysis/retention, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`).
+
+**Dashboard commands:**
+- `/subagent-dashboard` — open a read-only summary of recent subagent sessions
+- `/subagent-inspect <session-name>` — open raw status/session artifact pointers for a specific session
+
+**Example:**
+```bash
+# Use a different model for subagents
+PI_SUBAGENT_MODEL=github-copilot/gpt-4o pi
+
+# Custom session directory
+PI_SUBAGENT_SESSIONS_DIR=/tmp/pi-sessions pi
+```
+
+## Self memory persistence
+
+`self` now persists scoped memory domains across sessions:
+
+- Crystallization (`remember` / `recall` patterns)
+- Protection (`mark trap` / trap registry)
+
+Persistence behavior:
+
+- `PI_SELF_MEMORY_PATH` — explicit memory snapshot file path override
+- Default path: sibling of the sessions directory, named `<sessionsDirBase>.self-memory.json`
+  - default sessions dir `./.pi-subagent-sessions` ⇒ default memory file `./.pi-subagent-sessions.self-memory.json`
+- Snapshot format is schema-versioned (`schemaVersion: 1`) and validated on load
+- Malformed snapshots fail safe (tool remains usable; snapshot is repaired on next successful scoped persistence)
+
+## Live sync helper
+
+Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy extension entrypoints plus
+shared `src/` modules into `~/.pi/agent/extensions/pi-autonomous-session-control/`.
+
+Optional flags:
+
+- `--with-prompts`
+- `--with-policy`
+- `--all` (prompts + policy)
+
+After sync, run `/reload` in pi.
+
+## Docs map
+
+- [Organization operating model](docs/org/operating_model.md)
+- [Project foundation model](docs/project/foundation.md)
+- [Project vision](docs/project/vision.md)
+- [Project incentives](docs/project/incentives.md)
+- [Project resources](docs/project/resources.md)
+- [Tech stack local override](docs/tech-stack.local.md)
+- [Project skills](docs/project/skills.md)
+- [Strategic goals](docs/project/strategic_goals.md)
+- [Tactical goals](docs/project/tactical_goals.md)
+- [Contributor guide](docs/dev/CONTRIBUTING.md)
+- [Extension SOP](docs/dev/EXTENSION_SOP.md)
+- [Trusted publishing runbook](docs/dev/trusted_publishing.md)
+- [Next session prompt](NEXT_SESSION_PROMPT.md)
+- [Status](docs/dev/status.md)

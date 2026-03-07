@@ -1,0 +1,38 @@
+{
+  "id": "dispatch-lifecycle-activecount-invariant",
+  "title": "dispatch_subagent lifecycle invariant catches activeCount overflow",
+  "target": "dispatch_subagent",
+  "state": {
+    "maxConcurrent": 1
+  },
+  "spawner": {
+    "mode": "set_active_count_before_return",
+    "activeCount": 2,
+    "result": {
+      "output": "forced",
+      "exitCode": 0,
+      "elapsed": 1,
+      "status": "done"
+    }
+  },
+  "calls": [
+    {
+      "profile": "reviewer",
+      "objective": "Review lifecycle invariants"
+    }
+  ],
+  "assertions": [
+    {
+      "path": "results.0.details.status",
+      "equals": "error"
+    },
+    {
+      "path": "results.0.details.reason",
+      "equals": "invariant_failed"
+    },
+    {
+      "path": "results.0.content.0.text",
+      "includes": "dispatch.lifecycle.activeCount.within_limit"
+    }
+  ]
+}
