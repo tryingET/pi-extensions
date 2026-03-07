@@ -1,0 +1,34 @@
+name: vouch-manage
+
+on:
+  issue_comment:
+    types:
+      - created
+
+concurrency:
+  group: vouch-manage-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Apply vouch / denounce / unvouch from maintainer comments
+        uses: mitchellh/vouch/action/manage-by-issue@e87054b83fcd2b10d2155b733a10a8aec344176a
+        with:
+          repo: ${{ github.repository }}
+          issue-id: ${{ github.event.issue.number }}
+          comment-id: ${{ github.event.comment.id }}
+          vouched-file: .github/VOUCHED.td
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

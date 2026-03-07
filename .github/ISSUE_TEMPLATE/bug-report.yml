@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible defect.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+        Please provide a minimal reproduction and include exact versions.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I can reproduce this on the latest relevant state.
+          required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include exact commands, inputs, and files.
+      placeholder: |
+        1. Run ...
+        2. Execute ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Paste relevant logs/errors. Remove secrets before posting.
+      render: shell
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, runtime version, package/package-group version.
+      placeholder: "ubuntu-24.04, node 22.x, monorepo main"
+    validations:
+      required: true

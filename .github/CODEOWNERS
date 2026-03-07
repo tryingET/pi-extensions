@@ -1,0 +1,11 @@
+# Default owner for the pi-extensions monorepo. Update if you use a different maintainer/team.
+
+* @tryingET
+
+/.github/* @tryingET
+/AGENTS.md @tryingET
+/README.md @tryingET
+/package.json @tryingET
+/scripts/* @tryingET
+/docs/* @tryingET
+/packages/* @tryingET

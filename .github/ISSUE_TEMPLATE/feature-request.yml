@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a new capability or improvement.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and did not find a duplicate request.
+          required: true
+        - label: This request describes one focused capability.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user or maintainer problem should be solved?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior and expected outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other options did you evaluate?
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Links, examples, screenshots, or constraints.

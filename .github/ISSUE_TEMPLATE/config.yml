@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability reporting
+    url: https://docs.github.com/en/code-security/security-advisories/repository-security-advisories/about-coordinated-disclosure-of-security-vulnerabilities
+    about: Follow SECURITY.md and use private vulnerability reporting. Do not post exploit details publicly.

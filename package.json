@@ -1,0 +1,11 @@
+{
+  "name": "pi-extensions-monorepo",
+  "private": true,
+  "description": "Monorepo root validation surface for pi-extensions.",
+  "scripts": {
+    "quality:pre-commit": "./scripts/ci/smoke.sh",
+    "quality:pre-push": "./scripts/ci/full.sh",
+    "quality:ci": "npm run quality:pre-push",
+    "check": "npm run quality:ci"
+  }
+}
