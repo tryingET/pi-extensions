@@ -21,9 +21,11 @@ system4d:
   - `npm run quality:ci`
   - `npm run check`
 - Shell implementation:
+  - `scripts/quality-gate.sh`
   - `scripts/ci/smoke.sh`
   - `scripts/ci/full.sh`
   - `scripts/ci/packages.sh`
+  - `scripts/package-quality-gate.sh`
 
 ### Local feedback bootstrap
 - `.githooks/pre-commit`

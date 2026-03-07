@@ -1,5 +1,5 @@
 ---
-summary: "Proposed canonical package topology and root-owned package quality gate for the pi-extensions monorepo."
+summary: "Canonical package topology and implemented root-owned package quality gate for the pi-extensions monorepo."
 read_when:
   - "Deciding whether a new extension should be a simple package or a package-group."
   - "Refactoring package-local quality gates into a root-owned implementation."
@@ -15,7 +15,7 @@ system4d:
 
 ## Status
 
-Proposed.
+Implemented.
 
 ## Decision
 
@@ -73,20 +73,20 @@ That matches current practice:
 - package metadata
 - thin wrapper scripts only when helpful for local DX
 
-## Proposed validation model
+## Validation model
 
-Introduce:
+Canonical implementation:
 
 - `scripts/package-quality-gate.sh`
 
-This becomes the one canonical implementation of package validation behavior.
+This is now the implementation of record for monorepo package validation behavior.
 
-Expected responsibilities:
+Current responsibilities:
 
 - lint
 - typecheck
 - tests
-- package-local structure validation
+- package-local structure validation when the package declares the full monorepo scaffold contract
 - packaging check (`npm pack --dry-run`) when relevant
 
 Expected usage:
@@ -115,6 +115,7 @@ Package wrappers should delegate to it.
 
 - packages become intentionally coupled to monorepo root validation infrastructure
 - package-group detection/rules must be defined carefully
+- structure validation cannot be applied blindly to every brownfield package member; the gate must distinguish full-scaffold packages from lighter package members
 - template migration must be phased so current generated packages do not break suddenly
 
 ## Non-goal
@@ -122,9 +123,14 @@ Package wrappers should delegate to it.
 This proposal does **not** say every package must become a package-group.
 Most extensions should remain simple-packages.
 
-## Immediate follow-up docs
+## Follow-up state
 
-This proposal should be paired with:
+Completed companion docs:
 
-- a root interface spec for `scripts/package-quality-gate.sh`
-- a template redesign note in `pi-extensions-template`
+- root interface spec for `scripts/package-quality-gate.sh`: `docs/project/package-quality-gate-interface.md`
+- template redesign note in `pi-extensions-template`: `../pi-extensions-template/docs/decisions/package-topology-modes.md`
+
+Remaining follow-up:
+
+- continue aligning generated docs/contracts in `pi-extensions-template` with the implemented root-gate model
+- tighten release/workflow documentation around the now-centralized validation surface

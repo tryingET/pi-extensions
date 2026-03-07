@@ -28,7 +28,7 @@ Use **private reporting**.
 
 ## Release and supply-chain baseline
 
-- Root validation uses `npm run quality:pre-push` and `npm run quality:ci` before push/release decisions.
+- Root validation uses `scripts/quality-gate.sh` through `npm run quality:pre-push` and `npm run quality:ci` before push/release decisions.
 - Package release checks remain package-local until monorepo release automation is finalized.
 - Workflow permissions should default to read and elevate per job only.
 - Third-party actions should stay explicit; high-risk paths should be SHA pinned.

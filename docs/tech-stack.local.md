@@ -24,11 +24,15 @@ Repo-local emphasis:
   - `npm run quality:pre-push`
   - `npm run quality:ci`
   - `npm run check`
+- Canonical root wrapper:
+  - `./scripts/quality-gate.sh`
 - Single implementation of full root validation:
   - `./scripts/ci/full.sh`
+- Canonical package validation implementation:
+  - `./scripts/package-quality-gate.sh`
 - Package validation fan-out:
-  - `./scripts/ci/packages.sh` discovers package manifests recursively under `packages/**/package.json`
-  - excludes `node_modules`
+  - `./scripts/ci/packages.sh` discovers top-level package roots under `packages/`
+  - package-groups recurse through child packages via `scripts/package-quality-gate.sh`
 - Root smoke lane:
   - `./scripts/ci/smoke.sh`
 - Root local feedback bootstrap:

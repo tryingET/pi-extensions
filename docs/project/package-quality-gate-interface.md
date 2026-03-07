@@ -1,5 +1,5 @@
 ---
-summary: "Interface design for a root-owned package-quality-gate script covering both simple-package and package-group topologies."
+summary: "Implemented interface contract for the root-owned package-quality-gate script covering both simple-package and package-group topologies."
 read_when:
   - "Implementing scripts/package-quality-gate.sh."
   - "Updating package package.json scripts to thin wrappers."
@@ -11,7 +11,7 @@ system4d:
   fog: "Without a clear interface, centralization just moves duplication into ad-hoc conditionals."
 ---
 
-# Interface design: `scripts/package-quality-gate.sh`
+# Implemented interface: `scripts/package-quality-gate.sh`
 
 ## Goal
 
@@ -77,17 +77,18 @@ Behavior:
 ### `simple-package`
 
 Behavior:
-- run package-local structure validation for that package root
+- run package-local structure validation for that package root when the package declares the full monorepo scaffold contract
+- otherwise skip structure validation explicitly and continue with runtime/package validation
 - run lint/typecheck/tests in that package root
 - run `npm pack --dry-run` when stage requires packaging validation
 
 ### `package-group`
 
 Behavior:
-- validate the group root itself
+- treat the group root as the orchestration boundary
 - discover child package manifests below the group root
 - run the package gate recursively for each child package in a deterministic order
-- optionally run group-root checks before or after child checks depending on stage
+- do not require the package-group root itself to satisfy the full simple-package structure contract unless it intentionally declares one
 
 ## Expected stage behavior
 
@@ -161,10 +162,10 @@ Child packages inside a group can also delegate directly to root:
 
 ## `scripts/ci/packages.sh` contract update
 
-Current role should remain orchestration only.
+Current role remains orchestration only.
 
-Proposed behavior:
-- discover package roots under `packages/`
+Implemented behavior:
+- discover top-level package roots under `packages/`
 - invoke `scripts/package-quality-gate.sh ci <target>`
 - avoid embedding package-validation logic in `scripts/ci/packages.sh`
 
@@ -193,10 +194,15 @@ Implementation note:
 This root gate should become the **implementation of record** for monorepo packages.
 Package-local scripts should stop being independent copies of the same policy.
 
-## Migration path
+## Implementation status
 
-1. add the root gate
-2. migrate one simple-package first
-3. migrate one package-group root after that
-4. update `scripts/ci/packages.sh`
-5. then update the template outputs to emit thin wrappers instead of full private gates
+Completed:
+1. added the root gate at `scripts/package-quality-gate.sh`
+2. migrated simple-package validation delegation
+3. migrated package-group validation delegation for `packages/pi-interaction`
+4. updated `scripts/ci/packages.sh`
+5. updated monorepo package template output to emit a thin wrapper instead of a full private gate
+
+Current nuance:
+- structure validation is only enforced for packages that clearly declare the full monorepo scaffold contract
+- lighter-weight or brownfield package members continue through lint/test/package validation without being forced into the full scaffold shape

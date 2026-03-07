@@ -18,7 +18,8 @@ scripts/         # CI/utility scripts
 - **npm** — monorepo validation surface at root plus per-package manifests under `packages/` and `apps/`
 - Languages — defined per-package (see `packages/` and `apps/`)
 - Root `package.json` currently exists to expose consistent validation commands; it is not a full npm workspace manifest.
-- Root pre-push/CI validation aggregates root infrastructure checks plus package checks discovered recursively under `packages/**/package.json` via `scripts/ci/packages.sh` (excluding `node_modules`).
+- Root validation routes through `scripts/quality-gate.sh`.
+- Root pre-push/CI validation aggregates root infrastructure checks plus package checks orchestrated via `scripts/package-quality-gate.sh` from `scripts/ci/packages.sh`.
 - Editor/formatter configuration remains package-local; the monorepo root intentionally does not define a root `biome.jsonc` or root `.vscode/settings.json`.
 
 ## Quick Commands
@@ -29,12 +30,16 @@ scripts/         # CI/utility scripts
 ./scripts/rocs.sh version
 
 # CI lanes / canonical root validation
-./scripts/ci/smoke.sh        # root infrastructure smoke checks
-./scripts/ci/full.sh         # root infrastructure + canonical package checks
-npm run quality:pre-commit   # wrapper for smoke.sh
-npm run quality:pre-push     # wrapper for full.sh
-npm run quality:ci           # alias for the full root validation lane
-npm run check                # alias for quality:ci
+./scripts/quality-gate.sh pre-commit   # canonical root quality-gate wrapper
+./scripts/quality-gate.sh pre-push
+./scripts/quality-gate.sh ci
+./scripts/ci/smoke.sh                  # root infrastructure smoke checks
+./scripts/ci/full.sh                   # root infrastructure + canonical package checks
+./scripts/package-quality-gate.sh ci packages/pi-vault-client
+npm run quality:pre-commit
+npm run quality:pre-push
+npm run quality:ci
+npm run check
 
 # local feedback bootstrap
 bash ./scripts/install-hooks.sh

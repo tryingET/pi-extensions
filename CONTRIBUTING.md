@@ -22,8 +22,8 @@ Primary contributor guides live in:
 1. Read applicable docs.
 2. Keep changes scoped.
 3. Run the right validation level:
-   - monorepo root: `npm run quality:pre-push`
-   - package-level: `npm run check`
+   - monorepo root: `npm run quality:pre-push` (via `scripts/quality-gate.sh`)
+   - package-level: `npm run check` (delegates to the root-owned package gate)
 4. Update docs/handoffs when behavior changes.
 5. Open a PR with validation output.
 
