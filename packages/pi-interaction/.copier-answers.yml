@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier. Do not edit manually.
-_commit: v0.5.0-3-g758b508
-_src_path: /home/tryinget/programming/pi-extensions/pi-extensions-template_copier
+_commit: 101acb7
+_src_path: /home/tryinget/ai-society/softwareco/owned/pi-extensions-template
 command_name: input-triggers
 github_maintainer: tryingET
 monorepo_repo_name: pi-extensions

@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: 196aed5
+_src_path: /home/tryinget/ai-society/softwareco/owned/pi-extensions-template
+command_name: self
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-autonomous-session-control
+release_config_mode: component
+repo_name: pi-autonomous-session-control
+scaffold_mode: monorepo-package
+workspace_relative_path: packages/pi-autonomous-session-control

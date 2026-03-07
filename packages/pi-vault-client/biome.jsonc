@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/node_modules/**/*",
+      "!**/dist/**/*",
+      "!**/coverage/**/*",
+      // external/ is reserved for vendored or synced third-party assets.
+      "!external/**/*",
+      // ontology/ contains generated domain artifacts/snapshots.
+      "!ontology/**/*",
+      "!**/*.min.js",
+      "!**/*.generated.*"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "error"
+      },
+      "style": {
+        "useTemplate": "error"
+      }
+    }
+  }
+}

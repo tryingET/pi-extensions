@@ -1,0 +1,38 @@
+{
+  "id": "compare-branches-explicit",
+  "title": "compare branches must resolve explicitly",
+  "target": "self",
+  "setup": [
+    {
+      "query": "spawn branch \"alt-A\"",
+      "context": {
+        "entryId": "entry-1"
+      }
+    },
+    {
+      "query": "spawn branch \"alt-B\"",
+      "context": {
+        "entryId": "entry-1"
+      }
+    }
+  ],
+  "query": "compare branches",
+  "assertions": [
+    {
+      "path": "result.intent",
+      "equals": "direction"
+    },
+    {
+      "path": "result.answer",
+      "includes": "Comparison snapshot"
+    },
+    {
+      "path": "result.data.comparable",
+      "equals": true
+    },
+    {
+      "path": "result.data.count",
+      "equals": 2
+    }
+  ]
+}

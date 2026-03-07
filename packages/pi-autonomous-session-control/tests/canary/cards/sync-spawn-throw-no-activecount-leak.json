@@ -1,0 +1,36 @@
+{
+  "id": "sync-spawn-throw-no-activecount-leak",
+  "title": "sync spawn throw must not leak activeCount",
+  "target": "dispatch_subagent",
+  "state": {
+    "maxConcurrent": 1
+  },
+  "calls": [
+    {
+      "profile": "reviewer",
+      "objective": "bad\u0000objective"
+    },
+    {
+      "profile": "reviewer",
+      "objective": "bad\u0000objective-again"
+    }
+  ],
+  "assertions": [
+    {
+      "path": "results.0.details.status",
+      "equals": "error"
+    },
+    {
+      "path": "results.1.details.status",
+      "equals": "error"
+    },
+    {
+      "path": "results.1.details.reason",
+      "notEquals": "rate_limited"
+    },
+    {
+      "path": "state.activeCount",
+      "equals": 0
+    }
+  ]
+}

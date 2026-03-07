@@ -1,0 +1,33 @@
+{
+  "id": "subagent-clear-removes-lock-and-json",
+  "title": "subagent-clear must remove .lock + .json files",
+  "target": "subagent_sessions",
+  "seedFiles": [
+    {
+      "name": "same.lock",
+      "content": "busy"
+    },
+    {
+      "name": "same.json",
+      "content": "{}"
+    },
+    {
+      "name": "keep.txt",
+      "content": "keep"
+    }
+  ],
+  "assertions": [
+    {
+      "path": "files",
+      "includes": "keep.txt"
+    },
+    {
+      "path": "files",
+      "notIncludes": "same.lock"
+    },
+    {
+      "path": "files",
+      "notIncludes": "same.json"
+    }
+  ]
+}

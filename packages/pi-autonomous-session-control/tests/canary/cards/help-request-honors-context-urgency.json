@@ -1,0 +1,23 @@
+{
+  "id": "help-request-honors-context-urgency",
+  "title": "help request must honor context.urgency",
+  "target": "self",
+  "query": "I need help with \"database schema design\"",
+  "context": {
+    "urgency": "high"
+  },
+  "assertions": [
+    {
+      "path": "result.intent",
+      "equals": "direction"
+    },
+    {
+      "path": "result.answer",
+      "includes": "Help request recorded"
+    },
+    {
+      "path": "result.data.urgency",
+      "equals": "high"
+    }
+  ]
+}

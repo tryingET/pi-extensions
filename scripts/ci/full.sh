@@ -17,3 +17,7 @@ if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then
   ./scripts/rocs.sh build --repo . --resolve-refs --clean
   ./scripts/rocs.sh validate --repo . --resolve-refs
 fi
+
+if [ -x "./scripts/ci/packages.sh" ]; then
+  ./scripts/ci/packages.sh
+fi

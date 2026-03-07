@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tryingET/pi-extensions.git",
