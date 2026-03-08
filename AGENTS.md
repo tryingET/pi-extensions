@@ -28,6 +28,17 @@ Do not duplicate:
 - Keep package-local AGENTS files minimal and package-scoped.
 - Treat package folders as monorepo members, not independent repos, unless explicitly documented otherwise.
 
+## Live package activation
+- When a package change affects live Pi extension behavior, reinstall that package into Pi from its local package path.
+- Path shape depends on topology:
+  - simple package: `pi install /absolute/path/to/packages/<package-name>`
+  - monorepo package inside a package group: `pi install /absolute/path/to/packages/<group-name>/<package-name>`
+- Use the actual directory containing the package's `package.json` with the `pi` manifest.
+- Then reload Pi:
+  - `/reload`
+- Verify with a real command/tool call after reload; do not assume install alone updated the active runtime.
+- Keep package-specific install examples in package docs/AGENTS; keep this root rule generic.
+
 ## Read order
 1. `docs/_core/` (if present)
 2. `docs/org_context/` (if present)

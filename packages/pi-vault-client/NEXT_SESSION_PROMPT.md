@@ -1,12 +1,12 @@
 ---
-summary: "Session handoff for the canonical monorepo package pi-vault-client after the Prompt Vault schema-v7 boundary refactor."
+summary: "Session handoff for the next focused pi-vault-client slice: add governed Nunjucks templating support for Prompt Vault templates without breaking schema-v7 retrieval behavior."
 read_when:
   - "Starting the next focused package-development session."
 system4d:
-  container: "Canonical package session handoff artifact."
-  compass: "Keep vault-client aligned to the Prompt Vault schema-v7 boundary without reintroducing legacy tags, standalone drift, or overlapping command surfaces."
-  engine: "Re-read package context -> verify schema-v7 consumer behavior -> validate exact-match/picker UX -> clean remaining docs/tests drift -> re-run package checks."
-  fog: "Main risk is resuming from outdated v2/v3 assumptions or accidentally widening the command surface again after it was intentionally simplified."
+  container: "Canonical package session handoff artifact for vault-client templating work."
+  compass: "Add opt-in Nunjucks support as a rendering layer above Prompt Vault storage, while preserving schema-v7 ontology/governance boundaries and current retrieval semantics."
+  engine: "Re-read package and Prompt Vault boundary docs -> design render-engine contract -> implement minimal Nunjucks path -> validate retrieval/render/install/reload -> document clearly."
+  fog: "Main risks are treating Dolt as a template engine, breaking existing pi-style variable templates, introducing unsafe/unbounded templating, or adding DRY indirection without deterministic runtime behavior."
 ---
 
 # Next session prompt for pi-vault-client
@@ -26,10 +26,13 @@ system4d:
 4. `NEXT_SESSION_PROMPT.md`
 5. `~/ai-society/core/prompt-vault/docs/dev/vault-client-relocation-interface.md`
 6. `~/ai-society/core/prompt-vault/docs/dev/vault-client-company-visibility-boundary.md`
+7. `~/ai-society/core/prompt-vault/schema/schema.sql`
+8. `~/ai-society/core/prompt-vault/scripts/pv-template-vars`
+9. `~/ai-society/core/prompt-vault/scripts/pv-exec`
 
 ## Current package state
 
-- `pi-vault-client` is now aligned to the Prompt Vault schema-v7 boundary
+- `pi-vault-client` is aligned to the Prompt Vault schema-v7 boundary
 - runtime requires schema version `7`
 - runtime checks for these prompt columns:
   - `artifact_kind`
@@ -39,60 +42,89 @@ system4d:
   - `visibility_companies`
   - `controlled_vocabulary`
   - `export_to_pi`
-- client behavior is now contract-driven from Prompt Vault repo artifacts:
-  - `ontology/v2-contract.json`
-  - `ontology/controlled-vocabulary-contract.json`
-  - `ontology/company-visibility-contract.json`
-- tag-based assumptions were removed from vault query/insert/vocabulary behavior
-- vault query behavior now separates:
+- query behavior now supports:
   - ontology filters
   - governance filters
   - controlled-vocabulary filters
-- implicit company visibility filtering is applied by default via current runtime company context
-- picker/fuzzy integration still routes through shared package surfaces:
-  - `@tryinget/pi-trigger-adapter`
-  - `@tryinget/pi-interaction-kit`
-- command surface was intentionally simplified:
-  - kept:
-    - `/vault`
-    - live `/vault:`
-    - `/vault-search`
-    - `/route`
-    - `/vault-stats`
-    - `/vault-live-telemetry`
-    - `/vault-fzf-spike`
-  - removed:
-    - `/vault-browse`
-    - `/vault-browser`
-    - `/vault-select`
-    - `/vault-list`
-- `/vault <name>` now resolves an exact visible match directly before falling back to picker behavior
-- package-local validation currently passes
+  - optional `intent_text` re-ranking of the governed candidate set
+- `vault_query` defaults now are:
+  - `limit: 20`
+  - `include_content: false`
+  - `include_governance: false`
+- current live package install path is via Pi package install + `/reload`
+- existing Prompt Vault variable support is **pi-style positional substitution**, not Jinja/Nunjucks:
+  - `$1`
+  - `$2`
+  - `$@`
+  - `$ARGUMENTS`
+  - `${@:N}`
+- Dolt is storage only; templating must be added in client/tooling layers, not assumed from DB
 
 ## What not to redo
 
 - do **not** resume work from the retired standalone repo
 - do **not** reintroduce legacy `type`-based Prompt Vault assumptions
 - do **not** reintroduce prompt tags or namespaced tags into vault-client query/insert logic
-- do **not** infer ontology or controlled vocabulary from current live rows when the contract files already define them
-- do **not** widen the command surface again unless there is a strong product reason
-- do **not** treat `~/.pi/agent/extensions/vault-client/` as canonical source
+- do **not** treat Dolt as if it natively renders templates
+- do **not** add runtime-templating magic without a clear opt-in contract
+- do **not** break existing pi-style positional variable templates while adding Nunjucks
+- do **not** widen the command surface unless there is a strong product reason
+- do **not** treat `~/.pi/agent/extensions/...` as canonical source
 
-## Recommended next audit slice
+## Recommended next implementation slice
 
-1. update package docs to match schema-v7 behavior and simplified command surface
-2. verify live runtime UX for:
-   - `/vault`
-   - `/vault <exact-name>`
-   - `/vault <fuzzy-query>`
-   - live `/vault:`
-3. decide whether to add a small explicit inspect/health surface such as:
-   - `/vault-show <name>`
-   - `/vault-check`
-4. audit whether `meta-orchestration` and `next-10-expert-suggestions` are guaranteed visible in the intended company contexts
-5. verify current company detection is acceptable or needs a stricter runtime source
-6. decide whether `src/vaultPicker.ts` still contains now-unused browser/report helpers that should be pruned
-7. decide whether package-local `tsconfig.json` should be restored intentionally or remain omitted by design
+Implement **opt-in Nunjucks support** as a rendering layer for vault templates.
+
+### Design target
+
+Add support for a governed render-engine contract such as:
+- `none`
+- `pi-vars`
+- `nunjucks`
+
+The exact storage location can be:
+- a new DB column,
+- or frontmatter in `content`,
+- or another explicit contract field,
+
+but it must be:
+- deterministic,
+- inspectable,
+- backward-compatible,
+- and validated.
+
+### Required behavior
+
+1. Existing templates without templating metadata continue to work unchanged.
+2. Existing pi-style variable templates continue to render unchanged.
+3. Nunjucks templates are rendered only when explicitly opted in.
+4. Rendering must be sandboxed / restricted:
+   - no arbitrary code execution
+   - no filesystem access
+   - no hidden implicit globals
+5. Retrieval and execution behavior must remain separate:
+   - `vault_query(..., include_content:false)` is discovery
+   - `vault_retrieve(...)` / execution paths may render when requested or required
+6. If partials/includes are not ready, do **not** fake them.
+   - phase 1 should support inline Nunjucks rendering only
+   - partial/macro DRY support can be a deliberate follow-up slice
+
+### Good minimal scope for phase 1
+
+- choose `nunjucks` as the render engine
+- add explicit render-engine detection
+- add a minimal governed render context, e.g.:
+  - `args`
+  - `arguments`
+  - maybe `current_company`
+  - maybe named structured input for future session/workflow use
+- add a render path in the client/tooling layer
+- preserve current pi-style vars
+- add tests for:
+  - plain template unchanged
+  - pi-vars template unchanged
+  - opt-in Nunjucks template renders correctly
+  - malformed Nunjucks fails clearly
 
 ## Suggested commands
 
@@ -102,7 +134,7 @@ Package-local:
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
 npm run check
 npm run docs:list
-rg -n "\btype\b|\btags\b|pi-input-triggers|standalone|vault-browse|vault-browser|vault-select|vault-list|~/.pi/agent/extensions/vault-client" .
+rg -n "nunjucks|render_engine|template vars|\$ARGUMENTS|\$@|\$[0-9]+" src tests README.md .
 ```
 
 Prompt Vault boundary reads/checks:
@@ -110,19 +142,22 @@ Prompt Vault boundary reads/checks:
 ```bash
 cd ~/ai-society/core/prompt-vault
 ./verify.sh
-rg -n "schema version|controlled_vocabulary|visibility_companies|owner_company" docs/dev ontology schema tests
+rg -n "\$ARGUMENTS|\$@|\$[0-9]+|template vars|schema.sql|variables JSON" scripts schema docs tests
 ```
 
-Monorepo root:
+Pi package activation after changes:
 
 ```bash
-cd ~/ai-society/softwareco/owned/pi-extensions
-./scripts/ci/full.sh
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+# then inside pi:
+/reload
 ```
 
 ## Success condition for next session
 
 By the end of the next session:
-- docs and handoff notes in `packages/pi-vault-client` reflect schema-v7 reality,
-- live `/vault` and `/vault:` behavior is confirmed coherent for exact-match vs picker flows,
-- and any remaining cleanup is a small, explicit diff that preserves the Prompt Vault schema-v7 boundary.
+- `pi-vault-client` has a clear, explicit, backward-compatible render-engine contract,
+- Nunjucks support exists as an opt-in rendering path,
+- existing pi-style variable templates still work,
+- package docs explain when to use plain templates vs pi-vars vs Nunjucks,
+- and live behavior is verified with a real installed package + `/reload` + tool/command call.
