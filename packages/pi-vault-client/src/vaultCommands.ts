@@ -1,6 +1,37 @@
 import { runFzfProbe } from "./fuzzySelector.js";
 import type { PiExtension, VaultModuleRuntime } from "./vaultTypes.js";
 
+function buildRoutePrompt(
+  metaContent: string,
+  context: string,
+  options: {
+    outputHeading: "Output:" | "Output format:";
+    reasoningLabel: string;
+    includeInvokeStep: boolean;
+  },
+): string {
+  return `${metaContent}
+
+---
+
+## ROUTING REQUEST
+
+Analyze this situation and determine:
+1. Which PHASE this is in
+2. Which FORMALIZATION level (0-4)
+3. Which cognitive tool(s) to apply
+${options.includeInvokeStep ? "4. The command to invoke\n" : ""}
+Context: ${context}
+
+${options.outputHeading}
+${options.outputHeading === "Output format:" ? "```\n" : ""}PHASE: [phase]
+LEVEL: [0-4]
+TOOLS: [tool1, tool2]
+COMMAND: /vault:[tool]
+REASONING: [${options.reasoningLabel}]
+${options.outputHeading === "Output format:" ? "```\n" : ""}`;
+}
+
 function notifyPrepared(
   runtime: VaultModuleRuntime,
   templateName: string,
@@ -142,30 +173,14 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         if (ctx.hasUI) ctx.ui.notify("meta-orchestration template not found", "error");
         return { action: "handled" };
       }
-      const prompt = `${meta.content}
-
----
-
-## ROUTING REQUEST
-
-Analyze this situation and determine:
-1. Which PHASE this is in
-2. Which FORMALIZATION level (0-4)
-3. Which cognitive tool(s) to apply
-4. The command to invoke
-
-Context: ${context}
-
-Output format:
-\`\`\`
-PHASE: [phase]
-LEVEL: [0-4]
-TOOLS: [tool1, tool2]
-COMMAND: /vault:[tool]
-REASONING: [why these tools]
-\`\`\`
-`;
-      return { action: "transform", text: prompt };
+      return {
+        action: "transform",
+        text: buildRoutePrompt(meta.content, context, {
+          outputHeading: "Output format:",
+          reasoningLabel: "why these tools",
+          includeInvokeStep: true,
+        }),
+      };
     }
 
     return { action: "continue" };
@@ -208,27 +223,45 @@ REASONING: [why these tools]
       if (!context) return ctx.ui.notify("Usage: /route <describe your situation>", "warning");
       const meta = runtime.getTemplate("meta-orchestration");
       if (!meta) return ctx.ui.notify("meta-orchestration template not found", "error");
-      ctx.ui.setEditorText(`${meta.content}
-
----
-
-## ROUTING REQUEST
-
-Analyze this situation and determine:
-1. Which PHASE this is in
-2. Which FORMALIZATION level (0-4)
-3. Which cognitive tool(s) to apply
-
-Context: ${context}
-
-Output:
-PHASE: [phase]
-LEVEL: [0-4]
-TOOLS: [tool1, tool2]
-COMMAND: /vault:[tool]
-REASONING: [why]
-`);
+      ctx.ui.setEditorText(
+        buildRoutePrompt(meta.content, context, {
+          outputHeading: "Output:",
+          reasoningLabel: "why",
+          includeInvokeStep: false,
+        }),
+      );
       ctx.ui.notify("Routing prompt ready. Press Enter to submit.", "info");
+    },
+  });
+
+  pi.registerCommand("vault-check", {
+    description: "Show vault schema, company-context, and visibility health",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+      const companyContext = runtime.resolveCurrentCompanyContext();
+      const queryError = runtime.getVaultQueryError();
+      const schemaOk = runtime.checkSchemaVersion();
+      const templates = schemaOk ? runtime.listTemplates() : [];
+      const metaOrchestration = schemaOk ? runtime.loadVaultTemplate("meta-orchestration") : null;
+      const next10 = schemaOk ? runtime.loadVaultTemplate("next-10-expert-suggestions") : null;
+      const routerCount = templates.filter((template) => template.control_mode === "router").length;
+      const output = [
+        "# Vault Check",
+        "",
+        `- schema_required: ${schemaOk ? "7 (ok)" : "7 (mismatch)"}`,
+        `- current_company: ${companyContext.company}`,
+        `- company_source: ${companyContext.source}`,
+        `- query_error: ${queryError || "none"}`,
+        `- visible_active_templates: ${templates.length}`,
+        `- visible_router_templates: ${routerCount}`,
+        `- meta-orchestration: ${metaOrchestration ? `visible (${runtime.facetLabel(metaOrchestration)})` : "not visible"}`,
+        `- next-10-expert-suggestions: ${next10 ? `visible (${runtime.facetLabel(next10)})` : "not visible"}`,
+      ].join("\n");
+      await ctx.ui.editor("Vault Check", output);
+      ctx.ui.notify(
+        schemaOk ? "Vault check complete." : "Vault check found schema mismatch.",
+        schemaOk ? "info" : "warning",
+      );
     },
   });
 

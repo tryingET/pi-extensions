@@ -1,9 +1,5 @@
 import { registerPickerInteraction, splitQueryAndContext } from "@tryinget/pi-trigger-adapter";
-import {
-  rankCandidatesFallback,
-  rankCandidatesWithFzf,
-  selectFuzzyCandidate,
-} from "./fuzzySelector.js";
+import { selectFuzzyCandidate } from "./fuzzySelector.js";
 import { toVaultCandidates } from "./vaultCandidateAdapter.js";
 import {
   type FuzzyCandidate,
@@ -86,61 +82,6 @@ function parseVaultSelectionInput(text: string): { query: string; context: strin
   if (text.startsWith("/vault:")) return splitVaultQueryAndContext(text.slice(7));
   if (text.startsWith("/vault ")) return splitVaultQueryAndContext(text.slice(7));
   return null;
-}
-
-function rankVaultCandidates(
-  candidates: FuzzyCandidate[],
-  query: string,
-): { ranked: FuzzyCandidate[]; mode: "fzf" | "fallback"; reason?: string } {
-  const fzfAttempt = rankCandidatesWithFzf(candidates, query);
-  if (Array.isArray(fzfAttempt.ranked))
-    return { ranked: fzfAttempt.ranked, mode: "fzf", reason: fzfAttempt.reason };
-  return {
-    ranked: rankCandidatesFallback(candidates, query) as FuzzyCandidate[],
-    mode: "fallback",
-    reason: fzfAttempt.reason,
-  };
-}
-
-function buildVaultBrowserReport(
-  query: string,
-  candidates: FuzzyCandidate[],
-  ranking: { ranked: FuzzyCandidate[]; mode: "fzf" | "fallback"; reason?: string },
-  runtime: VaultRuntime,
-): string {
-  const mode =
-    ranking.mode === "fzf" ? "fzf" : `fallback${ranking.reason ? ` (${ranking.reason})` : ""}`;
-  const lines = [
-    "# Vault Browser",
-    "",
-    `- query: ${query || "(none)"}`,
-    `- ranking mode: ${mode}`,
-    `- results: ${ranking.ranked.length}/${candidates.length}`,
-    "",
-    "## Ranked templates",
-  ];
-
-  if (ranking.ranked.length === 0) lines.push("_No templates matched this query._");
-  else {
-    ranking.ranked.forEach((candidate, index) => {
-      const template = runtime.getTemplate(candidate.id);
-      const detail = template
-        ? ` — [${runtime.facetLabel(template)}] ${candidate.detail || ""}`
-        : candidate.detail
-          ? ` — ${candidate.detail}`
-          : "";
-      lines.push(`${index + 1}. \`${candidate.label}\`${detail}`);
-    });
-  }
-
-  lines.push(
-    "",
-    "## Usage",
-    "- `/vault` for full picker",
-    "- `/vault:<query>` to prefilter",
-    "- `/vault:<query>::<context>` to inject explicit context",
-  );
-  return lines.join("\n");
 }
 
 function buildVaultPrompt(template: Template, context: string): string {
@@ -297,9 +238,6 @@ export function createPickerRuntime(runtime: VaultRuntime): PickerRuntime {
     selectionModeMessage,
     splitVaultQueryAndContext,
     parseVaultSelectionInput,
-    rankVaultCandidates,
-    buildVaultBrowserReport: (query, candidates, ranking) =>
-      buildVaultBrowserReport(query, candidates, ranking, runtime),
     pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query),
     registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime),
     buildVaultPrompt,

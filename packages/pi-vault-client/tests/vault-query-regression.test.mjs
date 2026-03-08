@@ -11,6 +11,7 @@ const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.m
 
 test("vault runtime targets Prompt Vault schema v7", () => {
   assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*7/);
+  assert.match(TYPES_SOURCE, /const\s+DEFAULT_VAULT_QUERY_LIMIT\s*=\s*20/);
   assert.match(DB_SOURCE, /SELECT MAX\(version\) AS version FROM schema_version/);
   assert.match(
     EXTENSION_SOURCE,
@@ -42,13 +43,40 @@ test("vault_query uses implicit visibility filtering", () => {
     DB_SOURCE,
     /status = 'active'", buildVisibilityPredicate\(filters\.visibility_company\)/,
   );
+  assert.doesNotMatch(
+    TOOLS_SOURCE,
+    /# Vault Query Results \(\$\{templates\.length\}\)\\n\\n`;\s*output \+= `- current_company:/,
+  );
 });
 
 test("vault_query supports controlled vocabulary filters instead of tags", () => {
   assert.match(DB_SOURCE, /function\s+buildControlledVocabularyClauses\(/);
   assert.match(DB_SOURCE, /JSON_UNQUOTE\(JSON_EXTRACT\(controlled_vocabulary/);
   assert.match(TOOLS_SOURCE, /controlled_vocabulary/);
+  assert.match(TOOLS_SOURCE, /artifact_kind: \["procedure"\], formalization_level: \["workflow"\]/);
+  assert.match(TOOLS_SOURCE, /artifact_kind: \["session"\]/);
   assert.doesNotMatch(TOOLS_SOURCE, /tags:/);
+});
+
+test("vault_query can rank a governed candidate set against intent text", () => {
+  assert.match(TOOLS_SOURCE, /intent_text/);
+  assert.match(DB_SOURCE, /function\s+tokenizeIntentText\(/);
+  assert.match(DB_SOURCE, /function\s+buildIntentPhrases\(/);
+  assert.match(DB_SOURCE, /function\s+normalizeIntentHaystack\(/);
+  assert.match(DB_SOURCE, /function\s+scoreTemplateIntent\(/);
+  assert.match(DB_SOURCE, /compareTemplatesForIntent\(/);
+  assert.match(DB_SOURCE, /template\.control_mode === "loop"/);
+  assert.match(DB_SOURCE, /template\.formalization_level === "workflow"/);
+  assert.match(
+    DB_SOURCE,
+    /buildSelectColumns\(includeContent \|\| Boolean\(filters\.intent_text\)\)/,
+  );
+  assert.match(TYPES_SOURCE, /const\s+INTENT_RANKING_CANDIDATE_POOL_LIMIT\s*=\s*500/);
+  assert.match(
+    DB_SOURCE,
+    /candidatePoolLimit = filters\.intent_text\s*\?\s*INTENT_RANKING_CANDIDATE_POOL_LIMIT\s*:\s*effectiveLimit/,
+  );
+  assert.match(DB_SOURCE, /\.slice\(0, effectiveLimit\)/);
 });
 
 test("vault_vocabulary is contract-driven rather than tag-derived", () => {
@@ -67,6 +95,13 @@ test("vault_insert validates governance and router controlled vocabulary", () =>
   assert.match(DB_SOURCE, /Unknown controlled_vocabulary\./);
   assert.match(TOOLS_SOURCE, /owner_company/);
   assert.match(TOOLS_SOURCE, /visibility_companies/);
+});
+
+test("vault_query hides governance metadata by default and can opt in", () => {
+  assert.match(TOOLS_SOURCE, /include_governance/);
+  assert.match(DB_SOURCE, /includeGovernance = options\?\.includeGovernance \?\? false/);
+  assert.match(DB_SOURCE, /if \(includeGovernance\) \{/);
+  assert.match(DB_SOURCE, /### Governance/);
 });
 
 test("vault_search surfaces backend query failures explicitly", () => {
@@ -107,10 +142,10 @@ test("vault picker surfaces full candidate set to UI", () => {
   assert.match(PICKER_SOURCE, /Vault template picker \(all templates\)/);
 });
 
-test("vault browser report helper still includes ranking visibility fields", () => {
-  assert.match(PICKER_SOURCE, /# Vault Browser/);
-  assert.match(PICKER_SOURCE, /ranking mode:/);
-  assert.match(PICKER_SOURCE, /results:\s*\$\{ranking\.ranked\.length\}\/\$\{candidates\.length\}/);
+test("vault picker no longer carries unused browser report helper", () => {
+  assert.doesNotMatch(PICKER_SOURCE, /# Vault Browser/);
+  assert.doesNotMatch(PICKER_SOURCE, /function\s+buildVaultBrowserReport\(/);
+  assert.doesNotMatch(PICKER_SOURCE, /function\s+rankVaultCandidates\(/);
 });
 
 test("vault live trigger is registered through shared interaction helper", () => {
@@ -126,6 +161,24 @@ test("vault live trigger allows bare /vault: and prompts for filter", () => {
   assert.match(PICKER_SOURCE, /promptForQueryWhenEmpty:\s*true/);
   assert.match(PICKER_SOURCE, /queryPromptTitle:\s*"Filter vault templates"/);
   assert.match(PICKER_SOURCE, /maxOptions:\s*25/);
+});
+
+test("route prompt generation is centralized in a helper", () => {
+  assert.match(COMMANDS_SOURCE, /function\s+buildRoutePrompt\(/);
+  assert.match(COMMANDS_SOURCE, /includeInvokeStep/);
+  assert.match(COMMANDS_SOURCE, /outputHeading: "Output format:"/);
+  assert.match(COMMANDS_SOURCE, /outputHeading: "Output:"/);
+});
+
+test("vault check command reports company context and key template visibility", () => {
+  assert.match(DB_SOURCE, /function\s+resolveCurrentCompanyContext\(/);
+  assert.match(DB_SOURCE, /source: "env:PI_COMPANY"/);
+  assert.match(DB_SOURCE, /source: `cwd:\$\{cwd\}`/);
+  assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-check"/);
+  assert.match(COMMANDS_SOURCE, /# Vault Check/);
+  assert.match(COMMANDS_SOURCE, /company_source:/);
+  assert.match(COMMANDS_SOURCE, /meta-orchestration:/);
+  assert.match(COMMANDS_SOURCE, /next-10-expert-suggestions:/);
 });
 
 test("vault live telemetry command is exposed", () => {

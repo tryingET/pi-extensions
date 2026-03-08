@@ -19,7 +19,19 @@ Monorepo package for vault workflows in pi.
 
 ## Runtime dependencies
 
-This package expects pi host runtime APIs and declares them as `peerDependencies`:
+This package expects Prompt Vault schema v7 and pi host runtime APIs.
+
+Prompt rows are consumed through these canonical fields:
+
+- `artifact_kind`
+- `control_mode`
+- `formalization_level`
+- `owner_company`
+- `visibility_companies`
+- `controlled_vocabulary`
+- `export_to_pi`
+
+This package declares pi APIs as `peerDependencies`:
 
 - `@mariozechner/pi-coding-agent`
 - `@mariozechner/pi-ai`
@@ -53,6 +65,43 @@ This package writes component metadata in `package.json` under `x-pi-template`:
 - `releaseConfigMode`
 
 Use these values when wiring monorepo-level release-please component maps.
+
+## Command surface
+
+Kept commands:
+
+- `/vault`
+- live `/vault:`
+- `/vault-search`
+- `/route`
+- `/vault-stats`
+- `/vault-check`
+- `/vault-live-telemetry`
+- `/vault-fzf-spike`
+
+Current `/vault` behavior:
+
+- `/vault` opens the full picker
+- `/vault <exact-name>` loads the exact visible match directly
+- `/vault <fuzzy-query>` falls back to picker mode with the query applied
+- live `/vault:` uses the shared interaction runtime and allows bare `/vault:` with a follow-up filter prompt
+
+Tool-query defaults:
+
+- `vault_query` defaults to `limit: 20`
+- `include_content` defaults to `false`
+- `include_governance` defaults to `false`
+- optional `intent_text` can re-rank the governed candidate set without changing visibility/status filtering
+- if you already know your working stage, query directly by `formalization_level` instead of using semantic ranking
+  - `vault_query({ formalization_level: ["napkin"] })`
+  - `vault_query({ artifact_kind: ["procedure"], formalization_level: ["workflow"] })`
+- rotate your query style based on what you know already
+  - by stage: `vault_query({ formalization_level: ["bounded"] })`
+  - by control mode: `vault_query({ control_mode: ["router"], formalization_level: ["structured"] })`
+  - by artifact kind: `vault_query({ artifact_kind: ["session"] })`
+  - by intent only: `vault_query({ intent_text: "simplify and make retrieval feel almost alien" })`
+
+Use `/vault-check` to inspect schema compatibility, resolved company context, and visibility of key shared templates.
 
 ## Live sync helper
 

@@ -6,8 +6,9 @@ export const PROMPT_VAULT_ROOT =
 export const VAULT_DIR = process.env.VAULT_DIR || `${PROMPT_VAULT_ROOT}/prompt-vault-db`;
 export const VLLM_ENDPOINT = process.env.VLLM_ENDPOINT || "http://localhost:8000";
 export const VLLM_MODEL = process.env.VLLM_MODEL || "Qwen/Qwen2.5-3B-Instruct";
-export const DEFAULT_VAULT_QUERY_LIMIT = 5;
+export const DEFAULT_VAULT_QUERY_LIMIT = 20;
 export const MAX_VAULT_QUERY_LIMIT = 50;
+export const INTENT_RANKING_CANDIDATE_POOL_LIMIT = 500;
 export const LIVE_VAULT_TRIGGER_ID = "vault-template-live-picker";
 export const LIVE_VAULT_TRIGGER_DEBOUNCE_MS = 180;
 export const LIVE_VAULT_MIN_QUERY = 0;
@@ -112,6 +113,7 @@ export interface VaultQueryFilters {
   formalization_level?: string[];
   owner_company?: string[];
   visibility_company?: string;
+  intent_text?: string;
   controlled_vocabulary?: VaultQueryControlledVocabulary;
 }
 
@@ -184,8 +186,13 @@ export interface VaultRuntime {
   ) => string;
   governanceLabel: (template: Pick<Template, "owner_company" | "visibility_companies">) => string;
   controlledVocabularyLabel: (template: Pick<Template, "controlled_vocabulary">) => string;
-  formatTemplateDetails: (template: Template, includeContent?: boolean) => string;
+  formatTemplateDetails: (
+    template: Template,
+    includeContent?: boolean,
+    options?: { includeGovernance?: boolean },
+  ) => string;
   getCurrentCompany: () => string;
+  resolveCurrentCompanyContext: () => { company: string; source: string };
   buildVisibilityPredicate: (company?: string) => string;
   getContracts: () => GovernedContracts;
   getTemplate: (name: string) => Template | null;
@@ -233,16 +240,6 @@ export interface PickerRuntime {
   selectionModeMessage: (selection: SelectionResult) => string;
   splitVaultQueryAndContext: (rest: string) => { query: string; context: string };
   parseVaultSelectionInput: (text: string) => { query: string; context: string } | null;
-  rankVaultCandidates: (
-    candidates: FuzzyCandidate[],
-    query: string,
-  ) => { ranked: FuzzyCandidate[]; mode: "fzf" | "fallback"; reason?: string };
-  buildVaultBrowserReport: (
-    query: string,
-    candidates: FuzzyCandidate[],
-    ranking: { ranked: FuzzyCandidate[]; mode: "fzf" | "fallback"; reason?: string },
-    runtime: VaultRuntime,
-  ) => string;
   pickVaultTemplate: (ctx: UiContext, query: string) => Promise<SelectionResult>;
   registerVaultLiveTrigger: () => void;
   buildVaultPrompt: (template: Template, context: string) => string;

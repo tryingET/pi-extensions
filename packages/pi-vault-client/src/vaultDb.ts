@@ -9,6 +9,7 @@ import {
   type DoltJsonResult,
   FORMALIZATION_LEVELS,
   type GovernedContracts,
+  INTENT_RANKING_CANDIDATE_POOL_LIMIT,
   type InsertResult,
   MAX_VAULT_QUERY_LIMIT,
   PROMPT_VAULT_ROOT,
@@ -183,7 +184,12 @@ function controlledVocabularyLabel(template: Pick<Template, "controlled_vocabula
   return parts.length > 0 ? parts.join("; ") : "none";
 }
 
-function formatTemplateDetails(template: Template, includeContent = false): string {
+function formatTemplateDetails(
+  template: Template,
+  includeContent = false,
+  options?: { includeGovernance?: boolean },
+): string {
+  const includeGovernance = options?.includeGovernance ?? false;
   const lines = [
     `## ${template.name}`,
     template.description ? `${template.description}` : "",
@@ -210,11 +216,13 @@ function formatTemplateDetails(template: Template, includeContent = false): stri
     lines.push("- controlled_vocabulary: none");
   }
 
-  lines.push("", "### Governance");
-  lines.push(`- owner_company: ${template.owner_company}`);
-  lines.push(
-    `- visibility_companies: ${template.visibility_companies.length > 0 ? template.visibility_companies.join(", ") : "(none)"}`,
-  );
+  if (includeGovernance) {
+    lines.push("", "### Governance");
+    lines.push(`- owner_company: ${template.owner_company}`);
+    lines.push(
+      `- visibility_companies: ${template.visibility_companies.length > 0 ? template.visibility_companies.join(", ") : "(none)"}`,
+    );
+  }
 
   if (includeContent && template.content) lines.push("", "---", template.content);
   return lines.filter((line, index, arr) => !(line === "" && arr[index - 1] === "")).join("\n");
@@ -272,18 +280,28 @@ function getContracts(): GovernedContracts {
   return cachedContracts;
 }
 
-function getCurrentCompany(): string {
-  const explicit = process.env.PI_COMPANY || process.env.VAULT_CURRENT_COMPANY;
-  if (explicit) return explicit;
+function resolveCurrentCompanyContext(): { company: string; source: string } {
+  if (process.env.PI_COMPANY) return { company: process.env.PI_COMPANY, source: "env:PI_COMPANY" };
+  if (process.env.VAULT_CURRENT_COMPANY)
+    return { company: process.env.VAULT_CURRENT_COMPANY, source: "env:VAULT_CURRENT_COMPANY" };
 
-  const cwd = process.cwd().toLowerCase();
-  if (cwd.includes("/softwareco/")) return "software";
-  if (cwd.includes("/finance/")) return "finance";
-  if (cwd.includes("/house/")) return "house";
-  if (cwd.includes("/health/")) return "health";
-  if (cwd.includes("/teaching/")) return "teaching";
-  if (cwd.includes("/holding/")) return "holding";
-  return getContracts().companyVisibility.defaults?.owner_company || "core";
+  const cwd = process.cwd();
+  const normalizedCwd = cwd.toLowerCase();
+  if (normalizedCwd.includes("/softwareco/")) return { company: "software", source: `cwd:${cwd}` };
+  if (normalizedCwd.includes("/finance/")) return { company: "finance", source: `cwd:${cwd}` };
+  if (normalizedCwd.includes("/house/")) return { company: "house", source: `cwd:${cwd}` };
+  if (normalizedCwd.includes("/health/")) return { company: "health", source: `cwd:${cwd}` };
+  if (normalizedCwd.includes("/teaching/")) return { company: "teaching", source: `cwd:${cwd}` };
+  if (normalizedCwd.includes("/holding/")) return { company: "holding", source: `cwd:${cwd}` };
+
+  return {
+    company: getContracts().companyVisibility.defaults?.owner_company || "core",
+    source: "contract-default",
+  };
+}
+
+function getCurrentCompany(): string {
+  return resolveCurrentCompanyContext().company;
 }
 
 function buildVisibilityPredicate(company = getCurrentCompany()): string {
@@ -349,6 +367,102 @@ function searchTemplates(query: string): Template[] {
   return parseTemplateRows(result);
 }
 
+function tokenizeIntentText(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9-]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+    .filter((token, index, arr) => arr.indexOf(token) === index)
+    .slice(0, 24);
+}
+
+function buildIntentPhrases(tokens: string[]): string[] {
+  const phrases: string[] = [];
+  for (let i = 0; i < tokens.length - 1; i++) phrases.push(`${tokens[i]} ${tokens[i + 1]}`);
+  return phrases;
+}
+
+function normalizeIntentHaystack(text: string): string {
+  return text.toLowerCase().replace(/[-_]+/g, " ");
+}
+
+function scoreTemplateIntent(template: Template, intentText?: string): number {
+  if (!intentText) return 0;
+  const tokens = tokenizeIntentText(intentText);
+  if (tokens.length === 0) return 0;
+
+  const haystacks = {
+    name: normalizeIntentHaystack(template.name),
+    description: normalizeIntentHaystack(template.description || ""),
+    content: normalizeIntentHaystack(template.content || ""),
+    facets: normalizeIntentHaystack(
+      [template.artifact_kind, template.control_mode, template.formalization_level].join(" "),
+    ),
+  };
+
+  const phrases = buildIntentPhrases(tokens);
+  const intent = normalizeIntentHaystack(intentText);
+  const transformationalTokens = new Set([
+    "transcendent",
+    "iteration",
+    "iterative",
+    "rebuild",
+    "dissolve",
+    "loop",
+    "workflow",
+    "100x",
+    "alien",
+  ]);
+
+  let score = 0;
+  for (const phrase of phrases) {
+    if (haystacks.name.includes(phrase)) score += 30;
+    if (haystacks.description.includes(phrase)) score += 22;
+    if (haystacks.content.includes(phrase)) score += 16;
+  }
+
+  for (const token of tokens) {
+    if (haystacks.name === token) score += 20;
+    else if (haystacks.name.includes(token)) score += 10;
+    if (haystacks.description.includes(token)) score += 8;
+    if (haystacks.facets.includes(token)) score += 6;
+    if (haystacks.content.includes(token)) score += 5;
+
+    if (transformationalTokens.has(token)) {
+      if (template.control_mode === "loop") score += 14;
+      if (template.formalization_level === "workflow") score += 12;
+      if (template.artifact_kind === "procedure") score += 8;
+    }
+  }
+
+  if (template.description && intent.length > 0) {
+    if (haystacks.description.includes(intent)) score += 18;
+    if (haystacks.content.includes(intent)) score += 12;
+  }
+
+  if (/(transcendent|rebuild|dissolve|100x|iteration|iterative|alien)/.test(intent)) {
+    if (template.control_mode === "loop") score += 20;
+    if (template.formalization_level === "workflow") score += 16;
+    if (template.artifact_kind === "procedure") score += 8;
+  }
+
+  return score;
+}
+
+function compareTemplatesForIntent(a: Template, b: Template, intentText?: string): number {
+  const scoreDelta = scoreTemplateIntent(b, intentText) - scoreTemplateIntent(a, intentText);
+  if (scoreDelta !== 0) return scoreDelta;
+
+  const facetDelta = facetLabel(a).localeCompare(facetLabel(b));
+  if (facetDelta !== 0) return facetDelta;
+
+  const ownerDelta = a.owner_company.localeCompare(b.owner_company);
+  if (ownerDelta !== 0) return ownerDelta;
+
+  return a.name.localeCompare(b.name);
+}
+
 function buildControlledVocabularyClauses(
   controlledVocabulary?: VaultQueryControlledVocabulary,
 ): string[] {
@@ -387,7 +501,7 @@ function queryTemplates(
   limit: number,
   includeContent: boolean,
 ): Template[] {
-  const cols = buildSelectColumns(includeContent);
+  const cols = buildSelectColumns(includeContent || Boolean(filters.intent_text));
   const whereClauses = ["status = 'active'", buildVisibilityPredicate(filters.visibility_company)];
 
   if (filters.artifact_kind?.length)
@@ -412,10 +526,15 @@ function queryTemplates(
   const effectiveLimit = Number.isFinite(limit)
     ? Math.min(MAX_VAULT_QUERY_LIMIT, Math.max(1, Math.floor(limit)))
     : DEFAULT_VAULT_QUERY_LIMIT;
+  const candidatePoolLimit = filters.intent_text
+    ? INTENT_RANKING_CANDIDATE_POOL_LIMIT
+    : effectiveLimit;
   const result = queryVaultJson(
-    `SELECT ${cols} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name LIMIT ${effectiveLimit}`,
+    `SELECT ${cols} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name LIMIT ${candidatePoolLimit}`,
   );
-  return parseTemplateRows(result);
+  return parseTemplateRows(result)
+    .sort((a, b) => compareTemplatesForIntent(a, b, filters.intent_text))
+    .slice(0, effectiveLimit);
 }
 
 function retrieveByNames(names: string[], includeContent: boolean): Template[] {
@@ -655,6 +774,7 @@ export function createVaultRuntime(): VaultRuntime {
     controlledVocabularyLabel,
     formatTemplateDetails,
     getCurrentCompany,
+    resolveCurrentCompanyContext,
     buildVisibilityPredicate,
     getContracts,
     getTemplate,

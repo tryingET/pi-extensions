@@ -47,11 +47,15 @@ export function registerVaultTools(pi: PiExtension, runtime: VaultRuntime): void
 
 Use to find prompts visible to the current company context.
 Visibility is applied implicitly from runtime context unless visibility_company is explicitly provided.
+By default, query output shows only classification + governed semantics; governance metadata is hidden unless include_governance=true.
 
 Examples:
-- vault_query({ artifact_kind: ["cognitive"], limit: 3 })
+- vault_query({ formalization_level: ["napkin"] })
+- vault_query({ artifact_kind: ["procedure"], formalization_level: ["workflow"] })
 - vault_query({ control_mode: ["router"], formalization_level: ["structured"] })
-- vault_query({ owner_company: ["core"], controlled_vocabulary: { routing_context: ["review_followup"] } })`,
+- vault_query({ artifact_kind: ["session"] })
+- vault_query({ intent_text: "simplify and make retrieval feel almost alien" })
+- vault_query({ controlled_vocabulary: { routing_context: ["review_followup"] }, include_governance: true })`,
     parameters: Type.Object({
       artifact_kind: Type.Optional(Type.Array(Type.String())),
       control_mode: Type.Optional(Type.Array(Type.String())),
@@ -59,6 +63,9 @@ Examples:
       owner_company: Type.Optional(Type.Array(Type.String())),
       visibility_company: Type.Optional(
         Type.String({ description: "Override visible company context when explicitly needed" }),
+      ),
+      intent_text: Type.Optional(
+        Type.String({ description: "Rank the candidate set against this intent text" }),
       ),
       controlled_vocabulary: Type.Optional(
         Type.Object({
@@ -70,9 +77,14 @@ Examples:
           output_commitment: Type.Optional(Type.Array(Type.String())),
         }),
       ),
-      limit: Type.Optional(Type.Number({ description: "Max results (default: 5)" })),
+      limit: Type.Optional(Type.Number({ description: "Max results (default: 20)" })),
       include_content: Type.Optional(
         Type.Boolean({ description: "Include full content (default: false)" }),
+      ),
+      include_governance: Type.Optional(
+        Type.Boolean({
+          description: "Include owner/visibility metadata in output (default: false)",
+        }),
       ),
     }),
     async execute(_toolCallId, params) {
@@ -85,6 +97,10 @@ Examples:
           typeof params.visibility_company === "string" && params.visibility_company.trim()
             ? params.visibility_company.trim()
             : undefined,
+        intent_text:
+          typeof params.intent_text === "string" && params.intent_text.trim()
+            ? params.intent_text.trim()
+            : undefined,
         controlled_vocabulary: normalizeControlledVocabulary(params.controlled_vocabulary),
       };
       const requestedLimit = params.limit as number;
@@ -92,6 +108,7 @@ Examples:
         ? Math.min(MAX_VAULT_QUERY_LIMIT, Math.max(1, Math.floor(requestedLimit)))
         : DEFAULT_VAULT_QUERY_LIMIT;
       const includeContent = Boolean(params.include_content);
+      const includeGovernance = Boolean(params.include_governance);
       const templates = runtime.queryTemplates(filters, limit, includeContent);
       const queryError = runtime.getVaultQueryError();
 
@@ -102,6 +119,7 @@ Examples:
             count: 0,
             filters,
             includeContent,
+            includeGovernance,
             error: queryError,
             currentCompany: runtime.getCurrentCompany(),
           },
@@ -114,15 +132,17 @@ Examples:
             count: 0,
             filters,
             includeContent,
+            includeGovernance,
             currentCompany: runtime.getCurrentCompany(),
           },
         };
       }
 
       let output = `# Vault Query Results (${templates.length})\n\n`;
-      output += `- current_company: ${filters.visibility_company || runtime.getCurrentCompany()}\n\n`;
       output += templates
-        .map((template) => runtime.formatTemplateDetails(template, includeContent))
+        .map((template) =>
+          runtime.formatTemplateDetails(template, includeContent, { includeGovernance }),
+        )
         .join("\n\n---\n\n");
       return {
         content: [{ type: "text", text: output }],
@@ -130,6 +150,7 @@ Examples:
           count: templates.length,
           filters,
           includeContent,
+          includeGovernance,
           currentCompany: runtime.getCurrentCompany(),
         },
       };
@@ -141,6 +162,7 @@ Examples:
       const formalizationLevels = (args.formalization_level as string[]) || [];
       const ownerCompanies = (args.owner_company as string[]) || [];
       const visibilityCompany = (args.visibility_company as string) || "";
+      const intentText = (args.intent_text as string) || "";
       const controlledVocabulary = (args.controlled_vocabulary as Record<string, string[]>) || {};
       if (artifactKinds.length > 0) parts.push(`kind:[${artifactKinds.slice(0, 2).join(", ")}]`);
       if (controlModes.length > 0) parts.push(`mode:[${controlModes.slice(0, 2).join(", ")}]`);
@@ -148,6 +170,8 @@ Examples:
         parts.push(`formal:[${formalizationLevels.slice(0, 2).join(", ")}]`);
       if (ownerCompanies.length > 0) parts.push(`owner:[${ownerCompanies.slice(0, 2).join(", ")}]`);
       if (visibilityCompany) parts.push(`visible:${visibilityCompany}`);
+      if (intentText)
+        parts.push(`intent:${intentText.slice(0, 24)}${intentText.length > 24 ? "..." : ""}`);
       const firstCv = Object.entries(controlledVocabulary).find(
         ([, values]) => (values || []).length > 0,
       );

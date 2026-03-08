@@ -112,14 +112,19 @@ Command: /vault-search security
 Expected: Opens editor with search results for visible templates
 Status: [ ] PASS / [ ] FAIL
 
+#### Test 19: /vault-check
+Command: /vault-check
+Expected: Opens editor with schema status, current company source, and visibility for key shared templates
+Status: [ ] PASS / [ ] FAIL
+
 ## Performance Tests
 
-#### Test 19: Rapid typing
+#### Test 20: Rapid typing
 Action: Type quickly "abcdefghijklmnopqrstuvwxyz"
 Expected: No lag, search updates smoothly
 Status: [ ] PASS / [ ] FAIL
 
-#### Test 20: Rapid navigation
+#### Test 21: Rapid navigation
 Action: Hold Down arrow key
 Expected: Selection moves smoothly, no stuck states
 Status: [ ] PASS / [ ] FAIL
@@ -127,8 +132,8 @@ Status: [ ] PASS / [ ] FAIL
 ## Results
 
 Fill in after testing:
-- Total PASS: ___/20
-- Total FAIL: ___/20
+- Total PASS: ___/21
+- Total FAIL: ___/21
 - Blocker issues: [list any]
 - Minor issues: [list any]
 
@@ -136,8 +141,8 @@ Fill in after testing:
 
 - [ ] All critical tests pass (1-10)
 - [ ] Most edge cases pass (11-15)
-- [ ] Integration tests pass (16-18)
-- [ ] Performance acceptable (19-20)
+- [ ] Integration tests pass (16-19)
+- [ ] Performance acceptable (20-21)
 - [ ] Ready for production use
 
 Date: ____________
