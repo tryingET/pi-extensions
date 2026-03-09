@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { detectTemplateRenderEngine, stripFrontmatter } from "./templateRenderer.js";
 import {
   ARTIFACT_KINDS,
   COMPANIES,
@@ -16,16 +17,25 @@ import {
   type RouterControlledVocabulary,
   SCHEMA_VERSION,
   type Template,
+  type TemplateUpdatePatch,
+  type UpdateResult,
   VAULT_DIR,
+  type VaultExecutionContext,
+  type VaultMutationContext,
   type VaultQueryControlledVocabulary,
   type VaultQueryFilters,
+  type VaultResult,
   type VaultRuntime,
 } from "./vaultTypes.js";
 
-let lastVaultQueryError: string | null = null;
+const DEFAULT_DOLT_MAX_BUFFER = 64 * 1024 * 1024;
 let cachedContracts: GovernedContracts | null = null;
 
-function runDolt(args: string[], maxBuffer = 10 * 1024 * 1024): string {
+function formatVaultError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function runDolt(args: string[], maxBuffer = DEFAULT_DOLT_MAX_BUFFER): string {
   return execFileSync("dolt", args, {
     cwd: VAULT_DIR,
     encoding: "utf-8",
@@ -33,16 +43,22 @@ function runDolt(args: string[], maxBuffer = 10 * 1024 * 1024): string {
   });
 }
 
-function queryVaultJson(sql: string): DoltJsonResult | null {
+function queryVaultJsonDetailed(
+  sql: string,
+): { ok: true; value: DoltJsonResult; error: null } | { ok: false; value: null; error: string } {
   try {
     const result = runDolt(["sql", "-r", "json", "-q", sql]);
-    clearVaultQueryError();
-    return JSON.parse(result);
-  } catch (e) {
-    setVaultQueryError(e);
-    console.error("Vault query error:", e);
-    return null;
+    return { ok: true, value: JSON.parse(result) as DoltJsonResult, error: null };
+  } catch (error) {
+    const message = formatVaultError(error);
+    console.error("Vault query error:", error);
+    return { ok: false, value: null, error: message };
   }
+}
+
+function queryVaultJson(sql: string): DoltJsonResult | null {
+  const result = queryVaultJsonDetailed(sql);
+  return result.ok ? result.value : null;
 }
 
 function execVault(sql: string): boolean {
@@ -55,6 +71,32 @@ function execVault(sql: string): boolean {
   }
 }
 
+function execVaultWithRowCount(sql: string): number | null {
+  try {
+    const normalizedSql = sql.trim().replace(/;+\s*$/, "");
+    const output = runDolt([
+      "sql",
+      "-r",
+      "json",
+      "-q",
+      `${normalizedSql}; SELECT ROW_COUNT() AS row_count;`,
+    ]);
+    const jsonDocuments = output
+      .split(/\n(?=\{)/)
+      .map((chunk) => chunk.trim())
+      .filter(Boolean);
+    const lastDocument = jsonDocuments.at(-1);
+    if (!lastDocument) return null;
+    const parsed = JSON.parse(lastDocument) as DoltJsonResult;
+    const rawCount = parsed?.rows?.[0]?.row_count;
+    const rowCount = Number(rawCount);
+    return Number.isFinite(rowCount) ? rowCount : null;
+  } catch (e) {
+    console.error("Vault exec error:", e);
+    return null;
+  }
+}
+
 function commitVault(message: string): void {
   try {
     runDolt(["add", "-A"], 1024 * 1024);
@@ -62,18 +104,6 @@ function commitVault(message: string): void {
   } catch (_e) {
     // Ignore commit errors (commonly: nothing to commit)
   }
-}
-
-function clearVaultQueryError(): void {
-  lastVaultQueryError = null;
-}
-
-function setVaultQueryError(error: unknown): void {
-  lastVaultQueryError = error instanceof Error ? error.message : String(error);
-}
-
-function getVaultQueryError(): string | null {
-  return lastVaultQueryError;
 }
 
 function escapeSql(str: string): string {
@@ -127,6 +157,102 @@ function parseControlledVocabulary(value: unknown): RouterControlledVocabulary |
     parsed.selection_principles = record.selection_principles.map(String);
 
   return Object.keys(parsed).length > 0 ? parsed : null;
+}
+
+function hasOwn(value: object, key: string): boolean {
+  return Object.hasOwn(value, key);
+}
+
+function sanitizeControlledVocabularyValue(
+  controlledVocabulary: RouterControlledVocabulary | null | undefined,
+): RouterControlledVocabulary | null {
+  if (!controlledVocabulary || typeof controlledVocabulary !== "object") return null;
+
+  const sanitized: RouterControlledVocabulary = {};
+  for (const key of [
+    "routing_context",
+    "activity_phase",
+    "input_artifact",
+    "transition_target_type",
+    "output_commitment",
+  ] as const) {
+    const rawValue = controlledVocabulary[key];
+    if (rawValue == null) continue;
+    const normalizedValue = String(rawValue).trim();
+    if (normalizedValue) sanitized[key] = normalizedValue;
+  }
+
+  if (Array.isArray(controlledVocabulary.selection_principles)) {
+    const selectionPrinciples = controlledVocabulary.selection_principles
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+    if (selectionPrinciples.length > 0) sanitized.selection_principles = selectionPrinciples;
+  }
+
+  return Object.keys(sanitized).length > 0 ? sanitized : null;
+}
+
+function hasControlledVocabularyPatch(
+  controlledVocabulary: TemplateUpdatePatch["controlled_vocabulary"],
+): boolean {
+  if (!controlledVocabulary || typeof controlledVocabulary !== "object") return false;
+  return [
+    "routing_context",
+    "activity_phase",
+    "input_artifact",
+    "transition_target_type",
+    "selection_principles",
+    "output_commitment",
+  ].some((key) => hasOwn(controlledVocabulary, key));
+}
+
+function hasTemplateUpdateFields(patch: TemplateUpdatePatch): boolean {
+  return (
+    [
+      "content",
+      "description",
+      "artifact_kind",
+      "control_mode",
+      "formalization_level",
+      "owner_company",
+      "visibility_companies",
+    ].some((key) => hasOwn(patch, key)) || hasControlledVocabularyPatch(patch.controlled_vocabulary)
+  );
+}
+
+function mergeTemplateUpdate(existing: Template, patch: TemplateUpdatePatch): Template {
+  const mergedControlledVocabulary = hasControlledVocabularyPatch(patch.controlled_vocabulary)
+    ? sanitizeControlledVocabularyValue({
+        ...(existing.controlled_vocabulary || {}),
+        ...(patch.controlled_vocabulary || {}),
+      })
+    : sanitizeControlledVocabularyValue(existing.controlled_vocabulary);
+
+  return {
+    ...existing,
+    ...(hasOwn(patch, "content") ? { content: String(patch.content ?? "") } : {}),
+    ...(hasOwn(patch, "description") ? { description: String(patch.description ?? "") } : {}),
+    ...(hasOwn(patch, "artifact_kind")
+      ? { artifact_kind: String(patch.artifact_kind ?? "").trim() }
+      : {}),
+    ...(hasOwn(patch, "control_mode")
+      ? { control_mode: String(patch.control_mode ?? "").trim() }
+      : {}),
+    ...(hasOwn(patch, "formalization_level")
+      ? { formalization_level: String(patch.formalization_level ?? "").trim() }
+      : {}),
+    ...(hasOwn(patch, "owner_company")
+      ? { owner_company: String(patch.owner_company ?? "").trim() }
+      : {}),
+    ...(hasOwn(patch, "visibility_companies")
+      ? {
+          visibility_companies: (patch.visibility_companies || [])
+            .map((value) => String(value).trim())
+            .filter(Boolean),
+        }
+      : {}),
+    controlled_vocabulary: mergedControlledVocabulary,
+  };
 }
 
 function parseTemplateRows(result: DoltJsonResult | null): Template[] {
@@ -280,19 +406,24 @@ function getContracts(): GovernedContracts {
   return cachedContracts;
 }
 
-function resolveCurrentCompanyContext(): { company: string; source: string } {
+function resolveCurrentCompanyContext(cwd?: string): { company: string; source: string } {
   if (process.env.PI_COMPANY) return { company: process.env.PI_COMPANY, source: "env:PI_COMPANY" };
   if (process.env.VAULT_CURRENT_COMPANY)
     return { company: process.env.VAULT_CURRENT_COMPANY, source: "env:VAULT_CURRENT_COMPANY" };
 
-  const cwd = process.cwd();
-  const normalizedCwd = cwd.toLowerCase();
-  if (normalizedCwd.includes("/softwareco/")) return { company: "software", source: `cwd:${cwd}` };
-  if (normalizedCwd.includes("/finance/")) return { company: "finance", source: `cwd:${cwd}` };
-  if (normalizedCwd.includes("/house/")) return { company: "house", source: `cwd:${cwd}` };
-  if (normalizedCwd.includes("/health/")) return { company: "health", source: `cwd:${cwd}` };
-  if (normalizedCwd.includes("/teaching/")) return { company: "teaching", source: `cwd:${cwd}` };
-  if (normalizedCwd.includes("/holding/")) return { company: "holding", source: `cwd:${cwd}` };
+  const effectiveCwd = cwd?.trim() || process.cwd();
+  const normalizedCwd = effectiveCwd.toLowerCase();
+  if (normalizedCwd.includes("/softwareco/"))
+    return { company: "software", source: `cwd:${effectiveCwd}` };
+  if (normalizedCwd.includes("/finance/"))
+    return { company: "finance", source: `cwd:${effectiveCwd}` };
+  if (normalizedCwd.includes("/house/")) return { company: "house", source: `cwd:${effectiveCwd}` };
+  if (normalizedCwd.includes("/health/"))
+    return { company: "health", source: `cwd:${effectiveCwd}` };
+  if (normalizedCwd.includes("/teaching/"))
+    return { company: "teaching", source: `cwd:${effectiveCwd}` };
+  if (normalizedCwd.includes("/holding/"))
+    return { company: "holding", source: `cwd:${effectiveCwd}` };
 
   return {
     company: getContracts().companyVisibility.defaults?.owner_company || "core",
@@ -300,20 +431,97 @@ function resolveCurrentCompanyContext(): { company: string; source: string } {
   };
 }
 
-function getCurrentCompany(): string {
-  return resolveCurrentCompanyContext().company;
+function getCurrentCompany(cwd?: string): string {
+  return resolveCurrentCompanyContext(cwd).company;
+}
+
+function resolveCompanyFromContext(context?: VaultExecutionContext): string {
+  if (context?.currentCompany?.trim()) return context.currentCompany.trim();
+  return getCurrentCompany(context?.cwd);
+}
+
+export function resolveMutationActorContext(
+  context?: VaultMutationContext,
+): { status: "ok"; actorCompany: string; source: string } | { status: "error"; message: string } {
+  if (context?.actorCompany?.trim()) {
+    return {
+      status: "ok",
+      actorCompany: context.actorCompany.trim(),
+      source: "explicit:actorCompany",
+    };
+  }
+
+  if (process.env.PI_COMPANY?.trim()) {
+    return {
+      status: "ok",
+      actorCompany: process.env.PI_COMPANY.trim(),
+      source: "env:PI_COMPANY",
+    };
+  }
+  if (process.env.VAULT_CURRENT_COMPANY?.trim()) {
+    return {
+      status: "ok",
+      actorCompany: process.env.VAULT_CURRENT_COMPANY.trim(),
+      source: "env:VAULT_CURRENT_COMPANY",
+    };
+  }
+
+  if (context?.cwd?.trim()) {
+    const resolved = resolveCurrentCompanyContext(context.cwd);
+    if (resolved.source === "contract-default") {
+      return {
+        status: "error",
+        message:
+          "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+      };
+    }
+
+    return {
+      status: "ok",
+      actorCompany: resolved.company,
+      source: resolved.source,
+    };
+  }
+
+  if (context?.allowAmbientCwdFallback === false) {
+    return {
+      status: "error",
+      message:
+        "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+    };
+  }
+
+  const resolved = resolveCurrentCompanyContext();
+  if (resolved.source === "contract-default") {
+    return {
+      status: "error",
+      message:
+        "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+    };
+  }
+
+  return {
+    status: "ok",
+    actorCompany: resolved.company,
+    source: resolved.source,
+  };
 }
 
 function buildVisibilityPredicate(company = getCurrentCompany()): string {
   return `JSON_SEARCH(visibility_companies, 'one', '${escapeSql(company)}') IS NOT NULL`;
 }
 
-function buildSelectColumns(includeContent: boolean, includeId = false): string {
+function buildSelectColumns(
+  includeContent: boolean,
+  includeId = false,
+  options?: { contentExpression?: string },
+): string {
+  const contentColumn = includeContent ? options?.contentExpression || "content" : "";
   const columns = [
     includeId ? "id" : "",
     "name",
     "description",
-    includeContent ? "content" : "",
+    contentColumn,
     "artifact_kind",
     "control_mode",
     "formalization_level",
@@ -327,18 +535,38 @@ function buildSelectColumns(includeContent: boolean, includeId = false): string 
   return columns.join(", ");
 }
 
-function getTemplate(name: string): Template | null {
+function getActiveTemplateByName(name: string): Template | null {
   const escapedName = escapeSql(name);
   const result = queryVaultJson(
-    `SELECT ${buildSelectColumns(true, true)} FROM prompt_templates WHERE name = '${escapedName}' AND status = 'active' AND ${buildVisibilityPredicate()}`,
+    `SELECT ${buildSelectColumns(true, true)} FROM prompt_templates WHERE name = '${escapedName}' AND status = 'active'`,
   );
   return parseTemplateRows(result)[0] || null;
 }
 
-function listTemplates(
+function getTemplateDetailed(
+  name: string,
+  context?: VaultExecutionContext,
+): VaultResult<Template | null> {
+  const escapedName = escapeSql(name);
+  const company = resolveCompanyFromContext(context);
+  const result = queryVaultJsonDetailed(
+    `SELECT ${buildSelectColumns(true, true)} FROM prompt_templates WHERE name = '${escapedName}' AND status = 'active' AND ${buildVisibilityPredicate(company)}`,
+  );
+  if (!result.ok) return result;
+  return { ok: true, value: parseTemplateRows(result.value)[0] || null, error: null };
+}
+
+function getTemplate(name: string, context?: VaultExecutionContext): Template | null {
+  const result = getTemplateDetailed(name, context);
+  return result.ok ? result.value : null;
+}
+
+function listTemplatesDetailed(
   filters?: Partial<Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">>,
-): Template[] {
-  const whereClauses = ["status = 'active'", buildVisibilityPredicate()];
+  context?: VaultExecutionContext,
+): VaultResult<Template[]> {
+  const company = resolveCompanyFromContext(context);
+  const whereClauses = ["status = 'active'", buildVisibilityPredicate(company)];
   if (filters?.artifact_kind)
     whereClauses.push(`artifact_kind = '${escapeSql(filters.artifact_kind)}'`);
   if (filters?.control_mode)
@@ -346,25 +574,44 @@ function listTemplates(
   if (filters?.formalization_level)
     whereClauses.push(`formalization_level = '${escapeSql(filters.formalization_level)}'`);
 
-  const result = queryVaultJson(
+  const result = queryVaultJsonDetailed(
     `SELECT ${buildSelectColumns(true)} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name`,
   );
-  return parseTemplateRows(result);
+  if (!result.ok) return result;
+  return { ok: true, value: parseTemplateRows(result.value), error: null };
 }
 
-function searchTemplates(query: string): Template[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return [];
+function listTemplates(
+  filters?: Partial<Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">>,
+  context?: VaultExecutionContext,
+): Template[] {
+  const result = listTemplatesDetailed(filters, context);
+  return result.ok ? result.value : [];
+}
 
+function searchTemplatesDetailed(
+  query: string,
+  context?: VaultExecutionContext,
+): VaultResult<Template[]> {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return { ok: true, value: [], error: null };
+
+  const company = resolveCompanyFromContext(context);
   const escapedQuery = escapeLikePattern(normalizedQuery);
-  const result = queryVaultJson(
-    `SELECT ${buildSelectColumns(true)} FROM prompt_templates WHERE status = 'active' AND ${buildVisibilityPredicate()} AND (` +
+  const result = queryVaultJsonDetailed(
+    `SELECT ${buildSelectColumns(true)} FROM prompt_templates WHERE status = 'active' AND ${buildVisibilityPredicate(company)} AND (` +
       `LOWER(name) LIKE '%${escapedQuery}%' ESCAPE '!' OR ` +
       `LOWER(description) LIKE '%${escapedQuery}%' ESCAPE '!' OR ` +
       `LOWER(content) LIKE '%${escapedQuery}%' ESCAPE '!'` +
       `) ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name LIMIT 20`,
   );
-  return parseTemplateRows(result);
+  if (!result.ok) return result;
+  return { ok: true, value: parseTemplateRows(result.value), error: null };
+}
+
+function searchTemplates(query: string, context?: VaultExecutionContext): Template[] {
+  const result = searchTemplatesDetailed(query, context);
+  return result.ok ? result.value : [];
 }
 
 function tokenizeIntentText(text: string): string[] {
@@ -496,13 +743,19 @@ function buildControlledVocabularyClauses(
   return clauses;
 }
 
-function queryTemplates(
+function queryTemplatesDetailed(
   filters: VaultQueryFilters,
   limit: number,
   includeContent: boolean,
-): Template[] {
-  const cols = buildSelectColumns(includeContent || Boolean(filters.intent_text));
-  const whereClauses = ["status = 'active'", buildVisibilityPredicate(filters.visibility_company)];
+  context?: VaultExecutionContext,
+): VaultResult<Template[]> {
+  const includeScoringContent = includeContent || Boolean(filters.intent_text);
+  const cols = buildSelectColumns(includeScoringContent, false, {
+    contentExpression:
+      filters.intent_text && !includeContent ? "LEFT(content, 4096) AS content" : undefined,
+  });
+  const visibilityCompany = filters.visibility_company || resolveCompanyFromContext(context);
+  const whereClauses = ["status = 'active'", buildVisibilityPredicate(visibilityCompany)];
 
   if (filters.artifact_kind?.length)
     whereClauses.push(
@@ -529,22 +782,51 @@ function queryTemplates(
   const candidatePoolLimit = filters.intent_text
     ? INTENT_RANKING_CANDIDATE_POOL_LIMIT
     : effectiveLimit;
-  const result = queryVaultJson(
+  const result = queryVaultJsonDetailed(
     `SELECT ${cols} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name LIMIT ${candidatePoolLimit}`,
   );
-  return parseTemplateRows(result)
-    .sort((a, b) => compareTemplatesForIntent(a, b, filters.intent_text))
-    .slice(0, effectiveLimit);
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    value: parseTemplateRows(result.value)
+      .sort((a, b) => compareTemplatesForIntent(a, b, filters.intent_text))
+      .slice(0, effectiveLimit),
+    error: null,
+  };
 }
 
-function retrieveByNames(names: string[], includeContent: boolean): Template[] {
-  if (names.length === 0) return [];
+function queryTemplates(
+  filters: VaultQueryFilters,
+  limit: number,
+  includeContent: boolean,
+  context?: VaultExecutionContext,
+): Template[] {
+  const result = queryTemplatesDetailed(filters, limit, includeContent, context);
+  return result.ok ? result.value : [];
+}
+
+function retrieveByNamesDetailed(
+  names: string[],
+  includeContent: boolean,
+  context?: VaultExecutionContext,
+): VaultResult<Template[]> {
+  if (names.length === 0) return { ok: true, value: [], error: null };
+  const company = resolveCompanyFromContext(context);
   const escapedNames = names.map((n) => `'${escapeSql(n)}'`).join(", ");
-  return parseTemplateRows(
-    queryVaultJson(
-      `SELECT ${buildSelectColumns(includeContent, true)} FROM prompt_templates WHERE name IN (${escapedNames}) AND status = 'active' AND ${buildVisibilityPredicate()}`,
-    ),
+  const result = queryVaultJsonDetailed(
+    `SELECT ${buildSelectColumns(includeContent, true)} FROM prompt_templates WHERE name IN (${escapedNames}) AND status = 'active' AND ${buildVisibilityPredicate(company)}`,
   );
+  if (!result.ok) return result;
+  return { ok: true, value: parseTemplateRows(result.value), error: null };
+}
+
+function retrieveByNames(
+  names: string[],
+  includeContent: boolean,
+  context?: VaultExecutionContext,
+): Template[] {
+  const result = retrieveByNamesDetailed(names, includeContent, context);
+  return result.ok ? result.value : [];
 }
 
 function getVocabulary(): Record<string, string[]> {
@@ -563,8 +845,8 @@ function getVocabulary(): Record<string, string[]> {
   return vocab;
 }
 
-function validateCompanyList(companies: string[]): string | null {
-  const governedCompanies = new Set(getContracts().companyVisibility.companies);
+function validateCompanyList(companies: string[], contracts = getContracts()): string | null {
+  const governedCompanies = new Set(contracts.companyVisibility.companies);
   if (companies.length === 0) return "visibility_companies must be non-empty";
   const invalid = companies.filter((company) => !governedCompanies.has(company));
   if (invalid.length > 0) return `Unknown visibility company value(s): ${invalid.join(", ")}`;
@@ -574,8 +856,9 @@ function validateCompanyList(companies: string[]): string | null {
 function validateControlledVocabulary(
   controlMode: string,
   controlledVocabulary: RouterControlledVocabulary | null,
+  contracts = getContracts(),
 ): string | null {
-  const contract = getContracts().controlledVocabulary;
+  const contract = contracts.controlledVocabulary;
   if (controlMode !== "router") return null;
   if (!controlledVocabulary) return "controlled_vocabulary is required when control_mode=router";
 
@@ -602,6 +885,106 @@ function validateControlledVocabulary(
   return null;
 }
 
+export function validateTemplateContent(content: string): string | null {
+  const rawContent = String(content ?? "");
+  if (!rawContent.trim()) return "content must be non-empty";
+
+  const renderContract = detectTemplateRenderEngine(rawContent, {
+    allowLegacyPiVarsAutoDetect: false,
+  });
+  if (renderContract.error) return renderContract.error;
+
+  if (!stripFrontmatter(rawContent).trim()) {
+    return "content body must be non-empty after frontmatter";
+  }
+
+  return null;
+}
+
+function validateTemplateRecord(
+  template: Pick<
+    Template,
+    | "content"
+    | "artifact_kind"
+    | "control_mode"
+    | "formalization_level"
+    | "owner_company"
+    | "visibility_companies"
+    | "controlled_vocabulary"
+  >,
+  contracts = getContracts(),
+): string | null {
+  const contentError = validateTemplateContent(template.content);
+  if (contentError) return contentError;
+
+  if (!contracts.ontology.facets.artifact_kind.includes(template.artifact_kind)) {
+    return `Unknown artifact_kind: ${template.artifact_kind}`;
+  }
+  if (!contracts.ontology.facets.control_mode.includes(template.control_mode)) {
+    return `Unknown control_mode: ${template.control_mode}`;
+  }
+  if (!contracts.ontology.facets.formalization_level.includes(template.formalization_level)) {
+    return `Unknown formalization_level: ${template.formalization_level}`;
+  }
+  if (!contracts.companyVisibility.companies.includes(template.owner_company)) {
+    return `Unknown owner_company: ${template.owner_company}`;
+  }
+
+  const visibilityError = validateCompanyList(template.visibility_companies, contracts);
+  if (visibilityError) return visibilityError;
+  if (!template.visibility_companies.includes(template.owner_company)) {
+    return "visibility_companies must include owner_company";
+  }
+
+  return validateControlledVocabulary(
+    template.control_mode,
+    template.controlled_vocabulary,
+    contracts,
+  );
+}
+
+export function prepareTemplateUpdate(
+  name: string,
+  existing: Template | null,
+  patch: TemplateUpdatePatch,
+  contracts = getContracts(),
+): { status: "ok"; merged: Template } | { status: "error"; message: string } {
+  if (!existing) return { status: "error", message: `Template not found: ${name}` };
+  if (!hasTemplateUpdateFields(patch)) {
+    return {
+      status: "error",
+      message: "No update fields provided. Supply at least one patch field.",
+    };
+  }
+
+  const merged = mergeTemplateUpdate(existing, patch);
+  const validationError = validateTemplateRecord(merged, contracts);
+  if (validationError) return { status: "error", message: validationError };
+
+  return { status: "ok", merged };
+}
+
+export function authorizeTemplateInsert(ownerCompany: string, actorCompany: string): string | null {
+  if (ownerCompany !== actorCompany) {
+    return `owner_company must match the active mutation company (${actorCompany}) for vault_insert`;
+  }
+  return null;
+}
+
+export function authorizeTemplateUpdate(
+  existing: Pick<Template, "owner_company">,
+  merged: Pick<Template, "owner_company">,
+  actorCompany: string,
+): string | null {
+  if (existing.owner_company !== actorCompany) {
+    return `Template is owned by ${existing.owner_company}; active mutation company ${actorCompany} cannot update it.`;
+  }
+  if (merged.owner_company !== existing.owner_company) {
+    return "owner_company cannot be reassigned via vault_update";
+  }
+  return null;
+}
+
 function insertTemplate(
   name: string,
   content: string,
@@ -612,40 +995,45 @@ function insertTemplate(
   ownerCompany: string,
   visibilityCompanies: string[],
   controlledVocabulary: RouterControlledVocabulary | null,
+  context?: VaultMutationContext,
 ): InsertResult {
   const contracts = getContracts();
+  const actorContext = resolveMutationActorContext(context);
+  if (actorContext.status === "error") return actorContext;
+  const ownerAuthorizationError = authorizeTemplateInsert(ownerCompany, actorContext.actorCompany);
+  if (ownerAuthorizationError) return { status: "error", message: ownerAuthorizationError };
 
-  if (!contracts.ontology.facets.artifact_kind.includes(artifactKind)) {
-    return { status: "error", message: `Unknown artifact_kind: ${artifactKind}` };
-  }
-  if (!contracts.ontology.facets.control_mode.includes(controlMode)) {
-    return { status: "error", message: `Unknown control_mode: ${controlMode}` };
-  }
-  if (!contracts.ontology.facets.formalization_level.includes(formalizationLevel)) {
-    return { status: "error", message: `Unknown formalization_level: ${formalizationLevel}` };
-  }
-  if (!contracts.companyVisibility.companies.includes(ownerCompany)) {
-    return { status: "error", message: `Unknown owner_company: ${ownerCompany}` };
-  }
+  const normalizedControlledVocabulary = sanitizeControlledVocabularyValue(controlledVocabulary);
+  const validationError = validateTemplateRecord(
+    {
+      content,
+      artifact_kind: artifactKind,
+      control_mode: controlMode,
+      formalization_level: formalizationLevel,
+      owner_company: ownerCompany,
+      visibility_companies: visibilityCompanies,
+      controlled_vocabulary: normalizedControlledVocabulary,
+    },
+    contracts,
+  );
+  if (validationError) return { status: "error", message: validationError };
 
-  const visibilityError = validateCompanyList(visibilityCompanies);
-  if (visibilityError) return { status: "error", message: visibilityError };
-  if (!visibilityCompanies.includes(ownerCompany)) {
+  const escapedName = escapeSql(name);
+  const existing = queryVaultJson(
+    `SELECT id FROM prompt_templates WHERE name = '${escapedName}' AND status = 'active' LIMIT 1`,
+  );
+  if ((existing?.rows || []).length > 0) {
     return {
       status: "error",
-      message: "visibility_companies must include owner_company",
+      message: `Template already exists: ${name}. Use vault_update for in-place edits.`,
     };
   }
 
-  const controlledVocabularyError = validateControlledVocabulary(controlMode, controlledVocabulary);
-  if (controlledVocabularyError) return { status: "error", message: controlledVocabularyError };
-
-  const escapedName = escapeSql(name);
   const escapedContent = escapeSql(content);
   const escapedDesc = escapeSql(description);
   const visibilityCompaniesJson = escapeSql(JSON.stringify(visibilityCompanies));
-  const controlledVocabularyJson = controlledVocabulary
-    ? `'${escapeSql(JSON.stringify(controlledVocabulary))}'`
+  const controlledVocabularyJson = normalizedControlledVocabulary
+    ? `'${escapeSql(JSON.stringify(normalizedControlledVocabulary))}'`
     : "NULL";
   const sql = `
     INSERT INTO prompt_templates (
@@ -676,20 +1064,9 @@ function insertTemplate(
       true,
       1
     )
-    ON DUPLICATE KEY UPDATE
-      description = '${escapedDesc}',
-      content = '${escapedContent}',
-      artifact_kind = '${escapeSql(artifactKind)}',
-      control_mode = '${escapeSql(controlMode)}',
-      formalization_level = '${escapeSql(formalizationLevel)}',
-      owner_company = '${escapeSql(ownerCompany)}',
-      visibility_companies = '${visibilityCompaniesJson}',
-      controlled_vocabulary = ${controlledVocabularyJson},
-      export_to_pi = true,
-      updated_at = NOW()
   `;
   if (!execVault(sql)) return { status: "error", message: "Failed to insert template" };
-  commitVault(`Add/update template: ${name}`);
+  commitVault(`Add template: ${name}`);
   const templateId = queryVaultJson(`SELECT id FROM prompt_templates WHERE name = '${escapedName}'`)
     ?.rows?.[0]?.id as number | undefined;
   return {
@@ -699,44 +1076,169 @@ function insertTemplate(
   };
 }
 
+function updateTemplate(
+  name: string,
+  patch: TemplateUpdatePatch,
+  context?: VaultMutationContext,
+): UpdateResult {
+  const actorContext = resolveMutationActorContext(context);
+  if (actorContext.status === "error") return actorContext;
+
+  const existing = getActiveTemplateByName(name);
+  const prepared = prepareTemplateUpdate(name, existing, patch, getContracts());
+  if (prepared.status === "error") return prepared;
+  if (!existing) return { status: "error", message: `Template not found: ${name}` };
+
+  const authorizationError = authorizeTemplateUpdate(
+    existing,
+    prepared.merged,
+    actorContext.actorCompany,
+  );
+  if (authorizationError) return { status: "error", message: authorizationError };
+
+  if (!Number.isFinite(existing?.version)) {
+    return {
+      status: "error",
+      message: `Template '${name}' is missing a numeric version; refusing unsafe update.`,
+    };
+  }
+
+  const merged = prepared.merged;
+  const nextVersion = Number(existing.version) + 1;
+  const escapedName = escapeSql(name);
+  const escapedContent = escapeSql(merged.content);
+  const escapedDesc = escapeSql(merged.description);
+  const visibilityCompaniesJson = escapeSql(JSON.stringify(merged.visibility_companies));
+  const controlledVocabularyJson = merged.controlled_vocabulary
+    ? `'${escapeSql(JSON.stringify(merged.controlled_vocabulary))}'`
+    : "NULL";
+  const sql = `
+    UPDATE prompt_templates
+    SET
+      description = '${escapedDesc}',
+      content = '${escapedContent}',
+      artifact_kind = '${escapeSql(merged.artifact_kind)}',
+      control_mode = '${escapeSql(merged.control_mode)}',
+      formalization_level = '${escapeSql(merged.formalization_level)}',
+      owner_company = '${escapeSql(merged.owner_company)}',
+      visibility_companies = '${visibilityCompaniesJson}',
+      controlled_vocabulary = ${controlledVocabularyJson},
+      version = ${nextVersion},
+      updated_at = NOW()
+    WHERE name = '${escapedName}'
+      AND status = 'active'
+      AND owner_company = '${escapeSql(actorContext.actorCompany)}'
+      AND version = ${Number(existing.version)}
+  `;
+  const updatedRows = execVaultWithRowCount(sql);
+  if (updatedRows == null) return { status: "error", message: "Failed to update template" };
+  if (updatedRows !== 1) {
+    return {
+      status: "error",
+      message: `Template '${name}' changed during update. Refresh and retry with the latest version.`,
+    };
+  }
+  commitVault(`Update template: ${name}`);
+  return {
+    status: "ok",
+    message: `Template '${name}' updated as ${merged.artifact_kind}/${merged.control_mode}/${merged.formalization_level} for owner=${merged.owner_company} (v${nextVersion})`,
+    templateId: merged.id,
+  };
+}
+
 function rateTemplate(
-  templateName: string,
-  variant: string,
+  executionId: number,
   rating: number,
   success: boolean,
   notes: string,
+  context?: VaultMutationContext,
 ): { ok: boolean; message: string } {
-  const template = getTemplate(templateName);
-  if (!template) return { ok: false, message: `Template not found: ${templateName}` };
+  const actorContext = resolveMutationActorContext(context);
+  if (actorContext.status === "error") {
+    return { ok: false, message: actorContext.message };
+  }
+
+  if (!Number.isFinite(executionId) || executionId < 1) {
+    return { ok: false, message: "execution_id must be a positive integer." };
+  }
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    return { ok: false, message: "rating must be between 1 and 5." };
+  }
+
+  const execution = queryVaultJson(`
+    SELECT e.id, e.entity_version, pt.name
+    FROM executions e
+    INNER JOIN prompt_templates pt ON pt.id = e.entity_id
+    WHERE e.id = ${Math.floor(executionId)}
+      AND e.entity_type = 'template'
+      AND pt.status = 'active'
+      AND ${buildVisibilityPredicate(actorContext.actorCompany)}
+    LIMIT 1
+  `)?.rows?.[0];
+  if (!execution) {
+    return {
+      ok: false,
+      message: `Template execution not found or not visible: ${Math.floor(executionId)}`,
+    };
+  }
+
+  const existingFeedback = queryVaultJsonDetailed(`
+    SELECT id FROM feedback WHERE execution_id = ${Math.floor(executionId)} LIMIT 1
+  `);
+  if (!existingFeedback.ok) {
+    return { ok: false, message: `Failed to inspect existing feedback: ${existingFeedback.error}` };
+  }
+  if ((existingFeedback.value.rows || []).length > 0) {
+    return {
+      ok: false,
+      message: `Feedback already exists for execution ${Math.floor(executionId)}. Use a future feedback-update path instead of creating duplicates.`,
+    };
+  }
 
   const escapedNotes = escapeSql(notes);
   const issuesJson = escapeSql(
-    JSON.stringify(success ? [] : ["needs-improvement", `variant:${variant}`]),
+    JSON.stringify(success ? [] : ["needs-improvement", `execution:${Math.floor(executionId)}`]),
   );
-  const sql = `
+  const insertedRows = execVaultWithRowCount(`
     INSERT INTO feedback (execution_id, rating, notes, issues)
-    SELECT id, ${rating}, '${escapedNotes}', '${issuesJson}'
-    FROM executions
-    WHERE entity_type = 'template' AND entity_id = ${template.id}
-    ORDER BY created_at DESC LIMIT 1
-  `;
-  const ok = execVault(sql);
-  if (!ok) return { ok: false, message: "Failed to record feedback; no execution available" };
-  commitVault(`Rate template: ${templateName} (${rating}/5)`);
-  return { ok: true, message: `Recorded rating ${rating}/5 for ${templateName}` };
+    SELECT ${Math.floor(executionId)}, ${rating}, '${escapedNotes}', '${issuesJson}'
+    FROM DUAL
+    WHERE NOT EXISTS (
+      SELECT 1 FROM feedback WHERE execution_id = ${Math.floor(executionId)}
+    )
+  `);
+  if (insertedRows == null) return { ok: false, message: "Failed to record feedback" };
+  if (insertedRows !== 1) {
+    return {
+      ok: false,
+      message: `Feedback for execution ${Math.floor(executionId)} was not recorded because a duplicate already exists or the execution changed concurrently.`,
+    };
+  }
+
+  const executionVersion = Number.isFinite(Number(execution.entity_version))
+    ? ` v${Number(execution.entity_version)}`
+    : "";
+  const templateName = String(execution.name || "template");
+  commitVault(`Rate execution: ${Math.floor(executionId)} (${rating}/5)`);
+  return {
+    ok: true,
+    message: `Recorded rating ${rating}/5 for execution ${Math.floor(executionId)} (${templateName}${executionVersion})`,
+  };
 }
 
 function logExecution(
-  templateId: number,
-  _templateName: string,
+  template: Pick<Template, "id" | "version">,
   model: string,
   inputContext?: string,
 ): void {
+  if (!Number.isFinite(template.id)) return;
+
   const escapedContext = escapeSql((inputContext || "").slice(0, 1000));
   const escapedModel = escapeSql(model);
+  const entityVersion = Number.isFinite(template.version) ? Number(template.version) : "NULL";
   execVault(`
     INSERT INTO executions (entity_type, entity_id, entity_version, input_context, model, success, created_at)
-    VALUES ('template', ${templateId}, 1, '${escapedContext}', '${escapedModel}', true, NOW())
+    VALUES ('template', ${Number(template.id)}, ${entityVersion}, '${escapedContext}', '${escapedModel}', true, NOW())
   `);
 }
 
@@ -745,29 +1247,46 @@ function checkSchemaVersion(): boolean {
   if (!result || !result.rows || result.rows.length === 0) return false;
   const dbVersion = Number(result.rows[0].version) || 0;
   if (dbVersion !== SCHEMA_VERSION) return false;
-  const columns = queryVaultJson("SHOW COLUMNS FROM prompt_templates");
-  const present = new Set((columns?.rows || []).map((row) => String(row.Field || "")));
-  return [
-    "artifact_kind",
-    "control_mode",
-    "formalization_level",
-    "owner_company",
-    "visibility_companies",
-    "controlled_vocabulary",
-    "export_to_pi",
-  ].every((column) => present.has(column));
+
+  const promptTemplateColumns = queryVaultJson("SHOW COLUMNS FROM prompt_templates");
+  const promptTemplatePresent = new Set(
+    (promptTemplateColumns?.rows || []).map((row) => String(row.Field || "")),
+  );
+  const executionColumns = queryVaultJson("SHOW COLUMNS FROM executions");
+  const executionPresent = new Set(
+    (executionColumns?.rows || []).map((row) => String(row.Field || "")),
+  );
+  const feedbackColumns = queryVaultJson("SHOW COLUMNS FROM feedback");
+  const feedbackPresent = new Set(
+    (feedbackColumns?.rows || []).map((row) => String(row.Field || "")),
+  );
+
+  return (
+    [
+      "artifact_kind",
+      "control_mode",
+      "formalization_level",
+      "owner_company",
+      "visibility_companies",
+      "controlled_vocabulary",
+      "export_to_pi",
+      "version",
+    ].every((column) => promptTemplatePresent.has(column)) &&
+    ["id", "entity_type", "entity_id", "entity_version", "input_context", "model", "success"].every(
+      (column) => executionPresent.has(column),
+    ) &&
+    ["execution_id", "rating", "notes", "issues"].every((column) => feedbackPresent.has(column))
+  );
 }
 
 export function createVaultRuntime(): VaultRuntime {
   return {
     queryVaultJson,
+    queryVaultJsonDetailed,
     execVault,
     commitVault,
     escapeSql,
     escapeLikePattern,
-    clearVaultQueryError,
-    setVaultQueryError,
-    getVaultQueryError,
     parseTemplateRows,
     facetLabel,
     governanceLabel,
@@ -778,12 +1297,18 @@ export function createVaultRuntime(): VaultRuntime {
     buildVisibilityPredicate,
     getContracts,
     getTemplate,
+    getTemplateDetailed,
     listTemplates,
+    listTemplatesDetailed,
     searchTemplates,
+    searchTemplatesDetailed,
     queryTemplates,
+    queryTemplatesDetailed,
     retrieveByNames,
+    retrieveByNamesDetailed,
     getVocabulary,
     insertTemplate,
+    updateTemplate,
     rateTemplate,
     logExecution,
     checkSchemaVersion,

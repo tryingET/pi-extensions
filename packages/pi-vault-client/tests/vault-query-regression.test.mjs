@@ -7,6 +7,11 @@ const PICKER_SOURCE = readFileSync(new URL("../src/vaultPicker.ts", import.meta.
 const COMMANDS_SOURCE = readFileSync(new URL("../src/vaultCommands.ts", import.meta.url), "utf8");
 const TOOLS_SOURCE = readFileSync(new URL("../src/vaultTools.ts", import.meta.url), "utf8");
 const TYPES_SOURCE = readFileSync(new URL("../src/vaultTypes.ts", import.meta.url), "utf8");
+const GROUNDING_SOURCE = readFileSync(new URL("../src/vaultGrounding.ts", import.meta.url), "utf8");
+const RENDERER_SOURCE = readFileSync(
+  new URL("../src/templateRenderer.js", import.meta.url),
+  "utf8",
+);
 const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.meta.url), "utf8");
 
 test("vault runtime targets Prompt Vault schema v7", () => {
@@ -19,7 +24,7 @@ test("vault runtime targets Prompt Vault schema v7", () => {
   );
 });
 
-test("schema compatibility requires governance and controlled vocabulary columns", () => {
+test("schema compatibility requires governed prompt columns plus execution and feedback provenance", () => {
   for (const column of [
     "artifact_kind",
     "control_mode",
@@ -28,12 +33,18 @@ test("schema compatibility requires governance and controlled vocabulary columns
     "visibility_companies",
     "controlled_vocabulary",
     "export_to_pi",
+    "version",
+    "entity_version",
+    "execution_id",
+    "rating",
+    "notes",
+    "issues",
   ]) {
     assert.match(DB_SOURCE, new RegExp(`"${column}"`));
   }
 });
 
-test("vault_query uses implicit visibility filtering", () => {
+test("vault_query uses implicit visibility filtering with explicit execution context when available", () => {
   assert.match(DB_SOURCE, /function\s+buildVisibilityPredicate\(/);
   assert.match(
     DB_SOURCE,
@@ -41,8 +52,11 @@ test("vault_query uses implicit visibility filtering", () => {
   );
   assert.match(
     DB_SOURCE,
-    /status = 'active'", buildVisibilityPredicate\(filters\.visibility_company\)/,
+    /const visibilityCompany = filters\.visibility_company \|\| resolveCompanyFromContext\(context\)/,
   );
+  assert.match(TOOLS_SOURCE, /resolveToolExecutionContext\(runtime, ctx\)/);
+  assert.match(TOOLS_SOURCE, /runtime\.queryTemplatesDetailed\([\s\S]*executionContext/);
+  assert.doesNotMatch(TOOLS_SOURCE, /getVaultQueryError/);
   assert.doesNotMatch(
     TOOLS_SOURCE,
     /# Vault Query Results \(\$\{templates\.length\}\)\\n\\n`;\s*output \+= `- current_company:/,
@@ -67,10 +81,7 @@ test("vault_query can rank a governed candidate set against intent text", () => 
   assert.match(DB_SOURCE, /compareTemplatesForIntent\(/);
   assert.match(DB_SOURCE, /template\.control_mode === "loop"/);
   assert.match(DB_SOURCE, /template\.formalization_level === "workflow"/);
-  assert.match(
-    DB_SOURCE,
-    /buildSelectColumns\(includeContent \|\| Boolean\(filters\.intent_text\)\)/,
-  );
+  assert.match(DB_SOURCE, /LEFT\(content, 4096\) AS content/);
   assert.match(TYPES_SOURCE, /const\s+INTENT_RANKING_CANDIDATE_POOL_LIMIT\s*=\s*500/);
   assert.match(
     DB_SOURCE,
@@ -95,6 +106,67 @@ test("vault_insert validates governance and router controlled vocabulary", () =>
   assert.match(DB_SOURCE, /Unknown controlled_vocabulary\./);
   assert.match(TOOLS_SOURCE, /owner_company/);
   assert.match(TOOLS_SOURCE, /visibility_companies/);
+});
+
+test("vault_insert now fails closed on duplicate names instead of overwriting", () => {
+  assert.match(DB_SOURCE, /Template already exists:/);
+  assert.match(TOOLS_SOURCE, /Fails closed when the exact template name already exists/);
+  assert.doesNotMatch(DB_SOURCE, /ON DUPLICATE KEY UPDATE/);
+});
+
+test("vault_update is registered as the explicit in-place mutation path", () => {
+  assert.match(TOOLS_SOURCE, /name: "vault_update"/);
+  assert.match(TOOLS_SOURCE, /use vault_update for explicit in-place edits/i);
+  assert.match(DB_SOURCE, /function updateTemplate\(/);
+  assert.match(DB_SOURCE, /prepareTemplateUpdate\(/);
+  assert.match(DB_SOURCE, /Template not found:/);
+  assert.match(DB_SOURCE, /No update fields provided/);
+});
+
+test("vault mutations require explicit company context, owner authorization, and version-safe updates", () => {
+  assert.match(DB_SOURCE, /Explicit company context is required for vault mutations/);
+  assert.match(DB_SOURCE, /allowAmbientCwdFallback === false/);
+  assert.match(DB_SOURCE, /owner_company must match the active mutation company/);
+  assert.match(DB_SOURCE, /owner_company cannot be reassigned via vault_update/);
+  assert.match(DB_SOURCE, /AND owner_company = '\$\{escapeSql\(actorContext\.actorCompany\)\}'/);
+  assert.match(DB_SOURCE, /AND version = \$\{Number\(existing\.version\)\}/);
+  assert.match(DB_SOURCE, /SELECT ROW_COUNT\(\) AS row_count/);
+  assert.match(DB_SOURCE, /changed during update\. Refresh and retry with the latest version/);
+  assert.match(DB_SOURCE, /Template execution not found or not visible/);
+  assert.match(DB_SOURCE, /Feedback already exists for execution/);
+  assert.match(DB_SOURCE, /WHERE NOT EXISTS \(/);
+  assert.match(TOOLS_SOURCE, /buildToolMutationContext\(ctx\)/);
+  assert.match(TOOLS_SOURCE, /allowAmbientCwdFallback: false/);
+  assert.match(TOOLS_SOURCE, /runtime\.insertTemplate\([\s\S]*mutationContext/);
+  assert.match(TOOLS_SOURCE, /runtime\.updateTemplate\(name, patch, mutationContext\)/);
+  assert.match(TOOLS_SOURCE, /runtime\.rateTemplate\([\s\S]*mutationContext/);
+});
+
+test("vault tools pass explicit tool-call context when available", () => {
+  assert.match(TOOLS_SOURCE, /async execute\(_toolCallId, params, _signal, _onUpdate, ctx\)/);
+  assert.match(TOOLS_SOURCE, /runtime\.retrieveByNamesDetailed\([\s\S]*executionContext,/);
+  assert.match(TOOLS_SOURCE, /currentCompanySource: executionContext\.companySource/);
+});
+
+test("vault exposes execution provenance for exact feedback binding", () => {
+  assert.match(TOOLS_SOURCE, /name: "vault_executions"/);
+  assert.match(TOOLS_SOURCE, /execution_id/);
+  assert.match(TOOLS_SOURCE, /entity_version/);
+  assert.match(TOOLS_SOURCE, /Use vault_executions first, then pass the exact execution_id/);
+  assert.match(DB_SOURCE, /INNER JOIN prompt_templates pt ON pt.id = e\.entity_id/);
+});
+
+test("execution logging records the actual template version used", () => {
+  assert.match(
+    DB_SOURCE,
+    /const entityVersion = Number\.isFinite\(template\.version\) \? Number\(template\.version\) : "NULL"/,
+  );
+  assert.doesNotMatch(DB_SOURCE, /VALUES \('template', \$\{templateId\}, 1,/);
+  assert.match(
+    COMMANDS_SOURCE,
+    /runtime\.logExecution\(resolved\.template, ctx\.model\?\.id \|\| "unknown",/,
+  );
+  assert.match(PICKER_SOURCE, /runtime\.logExecution\(template, "live-trigger", parsed\.context\)/);
 });
 
 test("vault_query hides governance metadata by default and can opt in", () => {
@@ -123,9 +195,10 @@ test("vault selection parsing delegates :: context handling to helper", () => {
 });
 
 test("vault exact match resolves directly before picker fallback", () => {
+  assert.match(COMMANDS_SOURCE, /const currentCompany = runtime\.getCurrentCompany\(ctx\.cwd\)/);
   assert.match(
     COMMANDS_SOURCE,
-    /const exactMatch = query\.trim\(\) \? runtime\.loadVaultTemplate\(query\.trim\(\)\) : null/,
+    /const exactMatchResult = query\.trim\(\)\s*\? runtime\.getTemplateDetailed\(query\.trim\(\), \{ currentCompany, cwd: ctx\.cwd \}\)\s*:\s*\{ ok: true, value: null, error: null as null \}/,
   );
   assert.match(COMMANDS_SOURCE, /selection mode=exact/);
 });
@@ -138,6 +211,7 @@ test("legacy browse select and list commands are removed", () => {
 });
 
 test("vault picker surfaces full candidate set to UI", () => {
+  assert.match(PICKER_SOURCE, /listTemplatesDetailed\(undefined, \{/);
   assert.match(PICKER_SOURCE, /maxOptions:\s*Math\.max\(1,\s*candidates\.length\)/);
   assert.match(PICKER_SOURCE, /Vault template picker \(all templates\)/);
 });
@@ -171,9 +245,11 @@ test("route prompt generation is centralized in a helper", () => {
 });
 
 test("vault check command reports company context and key template visibility", () => {
-  assert.match(DB_SOURCE, /function\s+resolveCurrentCompanyContext\(/);
+  assert.doesNotMatch(DB_SOURCE, /activeSessionCwd/);
+  assert.match(DB_SOURCE, /function\s+resolveCurrentCompanyContext\(cwd\?: string\)/);
+  assert.match(DB_SOURCE, /const effectiveCwd = cwd\?\.trim\(\) \|\| process\.cwd\(\)/);
   assert.match(DB_SOURCE, /source: "env:PI_COMPANY"/);
-  assert.match(DB_SOURCE, /source: `cwd:\$\{cwd\}`/);
+  assert.match(DB_SOURCE, /source: `cwd:\$\{effectiveCwd\}`/);
   assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-check"/);
   assert.match(COMMANDS_SOURCE, /# Vault Check/);
   assert.match(COMMANDS_SOURCE, /company_source:/);
@@ -183,4 +259,53 @@ test("vault check command reports company context and key template visibility", 
 
 test("vault live telemetry command is exposed", () => {
   assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-live-telemetry"/);
+});
+
+test("vault stats uses the caller company instead of ambient visibility state", () => {
+  assert.match(COMMANDS_SOURCE, /const currentCompany = runtime\.getCurrentCompany\(ctx\.cwd\)/);
+  assert.match(COMMANDS_SOURCE, /runtime\.buildVisibilityPredicate\(currentCompany\)/);
+});
+
+test("session-sensitive execution paths pass explicit company context before rendering", () => {
+  assert.doesNotMatch(COMMANDS_SOURCE, /runtime\.setSessionCwd\(/);
+  assert.match(COMMANDS_SOURCE, /buildGroundedNext10Prompt\(text, \{/);
+  assert.match(COMMANDS_SOURCE, /currentCompany: runtime\.getCurrentCompany\(ctx\.cwd\)/);
+  assert.match(
+    PICKER_SOURCE,
+    /const currentCompany = runtime\.getCurrentCompany\(context\?\.cwd\)/,
+  );
+  assert.match(PICKER_SOURCE, /runtime\.listTemplatesDetailed\(undefined, \{/);
+  assert.match(PICKER_SOURCE, /cwd: context\?\.cwd/);
+  assert.match(GROUNDING_SOURCE, /retrieveByNamesDetailed\(exactCandidates, true, \{/);
+  assert.match(
+    GROUNDING_SOURCE,
+    /getTemplateDetailed\("next-10-expert-suggestions", \{[\s\S]*currentCompany,[\s\S]*\}\)/,
+  );
+  assert.match(GROUNDING_SOURCE, /context: frameworkContext/);
+  assert.match(GROUNDING_SOURCE, /args: frameworkArgs/);
+});
+
+test("render engine contract uses explicit preparation for vault and grounding paths", () => {
+  assert.match(TYPES_SOURCE, /const\s+RENDER_ENGINES\s*=\s*\["none", "pi-vars", "nunjucks"\]/);
+  assert.match(RENDERER_SOURCE, /export function prepareTemplateForExecution\(/);
+  assert.match(RENDERER_SOURCE, /allowLegacyPiVarsAutoDetect/);
+  assert.match(RENDERER_SOURCE, /Unsafe Nunjucks expression/);
+  assert.match(RENDERER_SOURCE, /Unsupported Nunjucks syntax/);
+  assert.match(RENDERER_SOURCE, /Pi-vars render failed:/);
+  assert.match(DB_SOURCE, /export function validateTemplateContent\(/);
+  assert.match(DB_SOURCE, /content body must be non-empty after frontmatter/);
+  assert.match(PICKER_SOURCE, /allowLegacyPiVarsAutoDetect: false/);
+  assert.match(GROUNDING_SOURCE, /allowLegacyPiVarsAutoDetect: true/);
+  assert.match(GROUNDING_SOURCE, /framework grounding render failed for/);
+});
+
+test("picker runtime exposes structured vault prompt preparation", () => {
+  assert.match(TYPES_SOURCE, /prepareVaultPrompt:/);
+  assert.match(PICKER_SOURCE, /function prepareVaultPrompt\(/);
+  assert.match(COMMANDS_SOURCE, /runtime\.prepareVaultPrompt\(/);
+});
+
+test("live vault paths surface render failures clearly", () => {
+  assert.match(COMMANDS_SOURCE, /Vault template render failed \(/);
+  assert.match(PICKER_SOURCE, /Vault live picker render failed \(/);
 });

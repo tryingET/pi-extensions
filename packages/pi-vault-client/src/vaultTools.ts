@@ -3,6 +3,9 @@ import { Type } from "@sinclair/typebox";
 import type {
   PiExtension,
   RouterControlledVocabulary,
+  TemplateUpdatePatch,
+  VaultExecutionContext,
+  VaultMutationContext,
   VaultQueryFilters,
   VaultRuntime,
 } from "./vaultTypes.js";
@@ -37,6 +40,92 @@ function normalizeControlledVocabulary(value: unknown): VaultQueryFilters["contr
   }
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function hasOwn(value: object, key: string): boolean {
+  return Object.hasOwn(value, key);
+}
+
+function normalizeControlledVocabularyPatch(
+  value: unknown,
+): TemplateUpdatePatch["controlled_vocabulary"] {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const normalized: RouterControlledVocabulary = {};
+  let hasAny = false;
+
+  for (const key of [
+    "routing_context",
+    "activity_phase",
+    "input_artifact",
+    "transition_target_type",
+    "output_commitment",
+  ] as const) {
+    if (!hasOwn(raw, key)) continue;
+    normalized[key] = String(raw[key] ?? "").trim();
+    hasAny = true;
+  }
+
+  if (hasOwn(raw, "selection_principles")) {
+    normalized.selection_principles = Array.isArray(raw.selection_principles)
+      ? raw.selection_principles.map((value) => String(value).trim()).filter(Boolean)
+      : [];
+    hasAny = true;
+  }
+
+  return hasAny ? normalized : undefined;
+}
+
+function buildTemplateUpdatePatch(params: Record<string, unknown>): TemplateUpdatePatch {
+  const patch: TemplateUpdatePatch = {};
+
+  if (hasOwn(params, "content")) patch.content = String(params.content ?? "");
+  if (hasOwn(params, "description")) patch.description = String(params.description ?? "");
+  if (hasOwn(params, "artifact_kind"))
+    patch.artifact_kind = String(params.artifact_kind ?? "").trim();
+  if (hasOwn(params, "control_mode")) patch.control_mode = String(params.control_mode ?? "").trim();
+  if (hasOwn(params, "formalization_level")) {
+    patch.formalization_level = String(params.formalization_level ?? "").trim();
+  }
+  if (hasOwn(params, "owner_company"))
+    patch.owner_company = String(params.owner_company ?? "").trim();
+  if (hasOwn(params, "visibility_companies")) {
+    patch.visibility_companies = Array.isArray(params.visibility_companies)
+      ? params.visibility_companies.map((value) => String(value).trim()).filter(Boolean)
+      : [];
+  }
+  const controlledVocabularyPatch = normalizeControlledVocabularyPatch(
+    params.controlled_vocabulary,
+  );
+  if (controlledVocabularyPatch) patch.controlled_vocabulary = controlledVocabularyPatch;
+
+  return patch;
+}
+
+function normalizeToolCwd(ctx: unknown): string | undefined {
+  const cwd = (ctx as { cwd?: unknown } | undefined)?.cwd;
+  return typeof cwd === "string" && cwd.trim() ? cwd.trim() : undefined;
+}
+
+function resolveToolExecutionContext(
+  runtime: VaultRuntime,
+  ctx: unknown,
+): VaultExecutionContext & { currentCompany: string; companySource: string } {
+  const cwd = normalizeToolCwd(ctx);
+  const companyContext = runtime.resolveCurrentCompanyContext(cwd);
+  return {
+    ...(cwd ? { cwd } : {}),
+    currentCompany: companyContext.company,
+    companySource: companyContext.source,
+  };
+}
+
+function buildToolMutationContext(ctx: unknown): VaultMutationContext {
+  const cwd = normalizeToolCwd(ctx);
+  return {
+    ...(cwd ? { cwd } : {}),
+    allowAmbientCwdFallback: false,
+  };
 }
 
 export function registerVaultTools(pi: PiExtension, runtime: VaultRuntime): void {
@@ -87,7 +176,8 @@ Examples:
         }),
       ),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const executionContext = resolveToolExecutionContext(runtime, ctx);
       const filters: VaultQueryFilters = {
         artifact_kind: normalizeStringArray(params.artifact_kind),
         control_mode: normalizeStringArray(params.control_mode),
@@ -109,22 +199,28 @@ Examples:
         : DEFAULT_VAULT_QUERY_LIMIT;
       const includeContent = Boolean(params.include_content);
       const includeGovernance = Boolean(params.include_governance);
-      const templates = runtime.queryTemplates(filters, limit, includeContent);
-      const queryError = runtime.getVaultQueryError();
+      const templatesResult = runtime.queryTemplatesDetailed(
+        filters,
+        limit,
+        includeContent,
+        executionContext,
+      );
 
-      if (queryError) {
+      if (!templatesResult.ok) {
         return {
-          content: [{ type: "text", text: `Vault query failed: ${queryError}` }],
+          content: [{ type: "text", text: `Vault query failed: ${templatesResult.error}` }],
           details: {
             count: 0,
             filters,
             includeContent,
             includeGovernance,
-            error: queryError,
-            currentCompany: runtime.getCurrentCompany(),
+            error: templatesResult.error,
+            currentCompany: executionContext.currentCompany,
+            currentCompanySource: executionContext.companySource,
           },
         };
       }
+      const templates = templatesResult.value;
       if (templates.length === 0) {
         return {
           content: [{ type: "text", text: "No templates found matching criteria." }],
@@ -133,7 +229,8 @@ Examples:
             filters,
             includeContent,
             includeGovernance,
-            currentCompany: runtime.getCurrentCompany(),
+            currentCompany: executionContext.currentCompany,
+            currentCompanySource: executionContext.companySource,
           },
         };
       }
@@ -151,7 +248,8 @@ Examples:
           filters,
           includeContent,
           includeGovernance,
-          currentCompany: runtime.getCurrentCompany(),
+          currentCompany: executionContext.currentCompany,
+          currentCompanySource: executionContext.companySource,
         },
       };
     },
@@ -199,23 +297,45 @@ Example: vault_retrieve({ names: ["inversion", "nexus"], include_content: true }
         Type.Boolean({ description: "Include full content (default: true)" }),
       ),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const executionContext = resolveToolExecutionContext(runtime, ctx);
       const names = normalizeStringArray(params.names);
       const includeContent = (params.include_content as boolean) ?? true;
       if (names.length === 0)
         return { content: [{ type: "text", text: "No names provided." }], details: { ok: false } };
-      const templates = runtime.retrieveByNames(names, includeContent);
+      const templatesResult = runtime.retrieveByNamesDetailed(
+        names,
+        includeContent,
+        executionContext,
+      );
+      if (!templatesResult.ok)
+        return {
+          content: [{ type: "text", text: `Vault retrieve failed: ${templatesResult.error}` }],
+          details: {
+            ok: false,
+            error: templatesResult.error,
+            requested: names,
+            currentCompany: executionContext.currentCompany,
+            currentCompanySource: executionContext.companySource,
+          },
+        };
+      const templates = templatesResult.value;
       if (templates.length === 0)
         return {
           content: [{ type: "text", text: `No templates found: ${names.join(", ")}` }],
-          details: { ok: false, requested: names, currentCompany: runtime.getCurrentCompany() },
+          details: {
+            ok: false,
+            requested: names,
+            currentCompany: executionContext.currentCompany,
+            currentCompanySource: executionContext.companySource,
+          },
         };
 
       const found = templates.map((t) => t.name);
       const output = [
         `# Retrieved Templates (${templates.length})`,
         "",
-        `- current_company: ${runtime.getCurrentCompany()}`,
+        `- current_company: ${executionContext.currentCompany}`,
         "",
         ...templates
           .map((t) => runtime.formatTemplateDetails(t, includeContent))
@@ -229,7 +349,8 @@ Example: vault_retrieve({ names: ["inversion", "nexus"], include_content: true }
           found,
           missing: names.filter((n) => !found.includes(n)),
           includeContent,
-          currentCompany: runtime.getCurrentCompany(),
+          currentCompany: executionContext.currentCompany,
+          currentCompanySource: executionContext.companySource,
         },
       };
     },
@@ -295,6 +416,8 @@ Example: vault_vocabulary()`,
 Validates artifact_kind/control_mode/formalization_level against the ontology contract.
 Validates owner_company/visibility_companies against the governance contract.
 Requires controlled_vocabulary for routers.
+Mutation fails closed unless the active mutation company is explicit, and owner_company must match it.
+Fails closed when the exact template name already exists; use vault_update for explicit in-place edits.
 
 Example:
 - vault_insert({ name: "my-router", content: "...", artifact_kind: "procedure", control_mode: "router", formalization_level: "structured", owner_company: "core", visibility_companies: ["core", "software"], controlled_vocabulary: { routing_context: "review_followup", activity_phase: "post_review", input_artifact: "review_findings", transition_target_type: "framework_mode", selection_principles: ["constraint_preserving"], output_commitment: "exact_next_prompt" } })`,
@@ -320,7 +443,8 @@ Example:
         }),
       ),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const mutationContext = buildToolMutationContext(ctx);
       const name = String(params.name || "").trim();
       const content = String(params.content || "");
       if (!name || !content)
@@ -359,6 +483,7 @@ Example:
         ownerCompany,
         visibilityCompanies,
         controlledVocabulary,
+        mutationContext,
       );
       if (result.status === "error")
         return {
@@ -393,29 +518,209 @@ Example:
   });
 
   pi.registerTool({
+    name: "vault_update",
+    label: "Vault Update",
+    description: `Update an existing template in place by exact name using Prompt Vault schema v7 ontology, governance, and controlled vocabulary rules.
+
+Loads the current template row first, merges only the provided patch fields, and revalidates the merged result against the same governed contracts used by vault_insert.
+Fails clearly if the target template does not exist, if no update fields were provided, if the active mutation company does not own the row, or if the row changed during the update.
+This first slice avoids fuzzy matching, bulk mutation, rename behavior, and owner reassignment.
+
+Example:
+- vault_update({ name: "my-router", description: "Refined router guidance", controlled_vocabulary: { selection_principles: ["constraint_preserving", "minimal_change"] } })`,
+    parameters: Type.Object({
+      name: Type.String({ description: "Template name to update (exact match)" }),
+      content: Type.Optional(Type.String({ description: "Updated template content (markdown)" })),
+      description: Type.Optional(Type.String({ description: "Updated brief description" })),
+      artifact_kind: Type.Optional(
+        Type.String({ description: "Updated ontology facet: artifact kind" }),
+      ),
+      control_mode: Type.Optional(
+        Type.String({ description: "Updated ontology facet: control mode" }),
+      ),
+      formalization_level: Type.Optional(
+        Type.String({ description: "Updated ontology facet: formalization level" }),
+      ),
+      owner_company: Type.Optional(
+        Type.String({ description: "Updated governance owner company" }),
+      ),
+      visibility_companies: Type.Optional(
+        Type.Array(Type.String(), { description: "Updated governance visibility boundary" }),
+      ),
+      controlled_vocabulary: Type.Optional(
+        Type.Object({
+          routing_context: Type.Optional(Type.String()),
+          activity_phase: Type.Optional(Type.String()),
+          input_artifact: Type.Optional(Type.String()),
+          transition_target_type: Type.Optional(Type.String()),
+          selection_principles: Type.Optional(Type.Array(Type.String())),
+          output_commitment: Type.Optional(Type.String()),
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const mutationContext = buildToolMutationContext(ctx);
+      const name = String(params.name || "").trim();
+      if (!name)
+        return {
+          content: [{ type: "text", text: "name is required." }],
+          details: { ok: false },
+        };
+
+      const patch = buildTemplateUpdatePatch(params as Record<string, unknown>);
+      const result = runtime.updateTemplate(name, patch, mutationContext);
+      if (result.status === "error")
+        return {
+          content: [{ type: "text", text: `Error: ${result.message}` }],
+          details: { ok: false, error: result.message },
+        };
+      return {
+        content: [{ type: "text", text: result.message }],
+        details: {
+          ok: true,
+          templateId: result.templateId,
+          updatedFields: Object.keys(patch).sort(),
+        },
+      };
+    },
+    renderCall(args, theme) {
+      return new Text(
+        theme.fg("toolTitle", theme.bold("vault_update ")) +
+          theme.fg("accent", (args.name as string) || "?"),
+        0,
+        0,
+      );
+    },
+    renderResult(result) {
+      const details = result.details as { ok?: boolean } | undefined;
+      return new Text(details?.ok ? "ok" : "error", 0, 0);
+    },
+  });
+
+  pi.registerTool({
+    name: "vault_executions",
+    label: "Vault Executions",
+    description: `List recent visible template executions with exact execution_id and entity_version.
+
+Use before vault_rate so feedback can bind to a specific execution instead of a template name.
+Example: vault_executions({ template_name: "nexus", limit: 10 })`,
+    parameters: Type.Object({
+      template_name: Type.Optional(
+        Type.String({ description: "Optional exact template name filter" }),
+      ),
+      limit: Type.Optional(Type.Number({ description: "Max results (default: 20)" })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const executionContext = resolveToolExecutionContext(runtime, ctx);
+      const templateName =
+        typeof params.template_name === "string" && params.template_name.trim()
+          ? params.template_name.trim()
+          : "";
+      const requestedLimit = params.limit as number;
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.min(MAX_VAULT_QUERY_LIMIT, Math.max(1, Math.floor(requestedLimit)))
+        : DEFAULT_VAULT_QUERY_LIMIT;
+      const templateFilter = templateName
+        ? ` AND pt.name = '${runtime.escapeSql(templateName)}'`
+        : "";
+      const result = runtime.queryVaultJsonDetailed(`
+        SELECT
+          e.id AS execution_id,
+          pt.name AS template_name,
+          e.entity_version,
+          pt.owner_company,
+          pt.artifact_kind,
+          pt.control_mode,
+          pt.formalization_level,
+          e.model,
+          e.success,
+          e.created_at
+        FROM executions e
+        INNER JOIN prompt_templates pt ON pt.id = e.entity_id
+        WHERE e.entity_type = 'template'
+          AND pt.status = 'active'
+          AND ${runtime.buildVisibilityPredicate(executionContext.currentCompany)}
+          ${templateFilter}
+        ORDER BY e.created_at DESC
+        LIMIT ${limit}
+      `);
+      if (!result.ok) {
+        return {
+          content: [{ type: "text", text: `Vault executions query failed: ${result.error}` }],
+          details: {
+            ok: false,
+            error: result.error,
+            currentCompany: executionContext.currentCompany,
+            currentCompanySource: executionContext.companySource,
+          },
+        };
+      }
+
+      const rows = result.value.rows || [];
+      if (rows.length === 0) {
+        return {
+          content: [{ type: "text", text: "No executions found matching criteria." }],
+          details: {
+            ok: false,
+            currentCompany: executionContext.currentCompany,
+            currentCompanySource: executionContext.companySource,
+          },
+        };
+      }
+
+      let output =
+        "# Vault Executions\n\n| Execution ID | Template | Version | Owner | Facets | Model | Success | Created |\n|---|---|---:|---|---|---|---|---|\n";
+      for (const row of rows) {
+        output += `| ${row.execution_id || ""} | ${row.template_name || ""} | ${row.entity_version || ""} | ${row.owner_company || ""} | ${row.artifact_kind || ""}/${row.control_mode || ""}/${row.formalization_level || ""} | ${row.model || ""} | ${row.success ? "true" : "false"} | ${String(row.created_at || "").slice(0, 19)} |\n`;
+      }
+
+      return {
+        content: [{ type: "text", text: output }],
+        details: {
+          ok: true,
+          count: rows.length,
+          templateName: templateName || undefined,
+          currentCompany: executionContext.currentCompany,
+          currentCompanySource: executionContext.companySource,
+        },
+      };
+    },
+    renderCall(args, theme) {
+      const templateName = (args.template_name as string) || "recent";
+      return new Text(
+        theme.fg("toolTitle", theme.bold("vault_executions ")) + theme.fg("accent", templateName),
+        0,
+        0,
+      );
+    },
+    renderResult(result) {
+      const details = result.details as { count?: number } | undefined;
+      return new Text(`${details?.count || 0} executions`, 0, 0);
+    },
+  });
+
+  pi.registerTool({
     name: "vault_rate",
     label: "Vault Rate",
-    description: `Rate a template after use for A/B tracking and improvement.
+    description: `Rate a specific template execution after use.
 
-Use to provide feedback on template effectiveness.
+Use vault_executions first, then pass the exact execution_id so feedback binds to a single run.
 Rating: 1-5 (1=poor, 5=excellent)
 
-Example: vault_rate({ template_name: "inversion", rating: 4, success: true, notes: "Found root cause quickly" })`,
+Example: vault_rate({ execution_id: 42, rating: 4, success: true, notes: "Found root cause quickly" })`,
     parameters: Type.Object({
-      template_name: Type.String({ description: "Template name that was used" }),
-      variant: Type.Optional(
-        Type.String({ description: "Variant identifier (default: 'default')" }),
-      ),
+      execution_id: Type.Number({ description: "Exact execution id to rate" }),
       rating: Type.Number({ description: "Rating 1-5" }),
       success: Type.Boolean({ description: "Was the template effective?" }),
       notes: Type.Optional(Type.String({ description: "Optional feedback notes" })),
     }),
-    async execute(_toolCallId, params) {
-      const templateName = params.template_name as string;
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const mutationContext = buildToolMutationContext(ctx);
+      const executionId = params.execution_id as number;
       const rating = params.rating as number;
-      if (!templateName)
+      if (!Number.isFinite(executionId) || executionId < 1)
         return {
-          content: [{ type: "text", text: "template_name is required." }],
+          content: [{ type: "text", text: "execution_id must be a positive integer." }],
           details: { ok: false },
         };
       if (rating < 1 || rating > 5)
@@ -424,15 +729,15 @@ Example: vault_rate({ template_name: "inversion", rating: 4, success: true, note
           details: { ok: false },
         };
       const result = runtime.rateTemplate(
-        templateName,
-        (params.variant as string) || "default",
+        executionId,
         rating,
         params.success as boolean,
         (params.notes as string) || "",
+        mutationContext,
       );
       return {
         content: [{ type: "text", text: result.message }],
-        details: { ok: result.ok, templateName, rating, success: params.success as boolean },
+        details: { ok: result.ok, executionId, rating, success: params.success as boolean },
       };
     },
     renderCall(args, theme) {
@@ -440,7 +745,7 @@ Example: vault_rate({ template_name: "inversion", rating: 4, success: true, note
         theme.fg("toolTitle", theme.bold("vault_rate ")) +
           theme.fg(
             "accent",
-            `${(args.template_name as string) || "?"} (${(args.rating as number) || 0}/5)`,
+            `execution:${(args.execution_id as number) || 0} (${(args.rating as number) || 0}/5)`,
           ),
         0,
         0,

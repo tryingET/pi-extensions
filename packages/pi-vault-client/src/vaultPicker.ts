@@ -1,5 +1,6 @@
 import { registerPickerInteraction, splitQueryAndContext } from "@tryinget/pi-trigger-adapter";
 import { selectFuzzyCandidate } from "./fuzzySelector.js";
+import { prepareTemplateForExecution } from "./templateRenderer.js";
 import { toVaultCandidates } from "./vaultCandidateAdapter.js";
 import {
   type FuzzyCandidate,
@@ -84,12 +85,25 @@ function parseVaultSelectionInput(text: string): { query: string; context: strin
   return null;
 }
 
-function buildVaultPrompt(template: Template, context: string): string {
-  return context ? `${template.content}\n\n## CONTEXT\n${context}` : template.content;
+function prepareVaultPrompt(
+  runtime: VaultRuntime,
+  template: Template,
+  options: { context?: string; currentCompany?: string; cwd?: string } = {},
+) {
+  return prepareTemplateForExecution(template.content, {
+    currentCompany: options.currentCompany ?? runtime.getCurrentCompany(options.cwd),
+    context: options.context ?? "",
+    templateName: template.name,
+    allowLegacyPiVarsAutoDetect: false,
+  });
 }
 
-function loadVaultTemplate(runtime: VaultRuntime, name: string): Template | null {
-  return runtime.getTemplate(name);
+function loadVaultTemplate(
+  runtime: VaultRuntime,
+  name: string,
+  context?: { currentCompany?: string; cwd?: string },
+): Template | null {
+  return runtime.getTemplate(name, context);
 }
 
 async function pickVaultTemplate(
@@ -97,11 +111,17 @@ async function pickVaultTemplate(
   ctx: UiContext,
   query: string,
 ): Promise<SelectionResult> {
-  const templates = runtime.listTemplates();
-  const candidates = toVaultCandidates(templates) as FuzzyCandidate[];
+  const currentCompany = runtime.getCurrentCompany(ctx.cwd);
+  const templatesResult = runtime.listTemplatesDetailed(undefined, {
+    currentCompany,
+    cwd: ctx.cwd,
+  });
+  if (!templatesResult.ok) {
+    return { selected: null, mode: "fallback", reason: "vault-db-unavailable" };
+  }
+  const candidates = toVaultCandidates(templatesResult.value) as FuzzyCandidate[];
   if (candidates.length === 0) {
-    const reason = runtime.getVaultQueryError() ? "vault-db-unavailable" : "empty-vault";
-    return { selected: null, mode: "fallback", reason };
+    return { selected: null, mode: "fallback", reason: "empty-vault" };
   }
   return (await selectFuzzyCandidate(candidates, {
     query,
@@ -132,16 +152,22 @@ function registerVaultLiveTrigger(runtime: VaultRuntime): void {
         return { query: parsed.query, context: parsed.context, raw };
       },
       minQueryLength: LIVE_VAULT_MIN_QUERY,
-      loadCandidates: () => {
-        const templates = runtime.listTemplates();
-        const candidates = toVaultCandidates(templates) as FuzzyCandidate[];
-        const reason =
-          candidates.length === 0
-            ? runtime.getVaultQueryError()
-              ? "vault-db-unavailable"
-              : "empty-vault"
-            : undefined;
-        return { candidates, reason, metadata: { templateCount: templates.length } };
+      loadCandidates: ({ context }: { context?: { cwd?: string } }) => {
+        const currentCompany = runtime.getCurrentCompany(context?.cwd);
+        const templatesResult = runtime.listTemplatesDetailed(undefined, {
+          currentCompany,
+          cwd: context?.cwd,
+        });
+        if (!templatesResult.ok) {
+          return {
+            candidates: [],
+            reason: "vault-db-unavailable",
+            metadata: { templateCount: 0 },
+          };
+        }
+        const candidates = toVaultCandidates(templatesResult.value) as FuzzyCandidate[];
+        const reason = candidates.length === 0 ? "empty-vault" : undefined;
+        return { candidates, reason, metadata: { templateCount: templatesResult.value.length } };
       },
       selectTitle: ({ query }: { query: string }) =>
         query ? `Vault live picker (query: ${query})` : "Vault live picker",
@@ -153,30 +179,54 @@ function registerVaultLiveTrigger(runtime: VaultRuntime): void {
       applySelection: ({
         selected,
         parsed,
+        context,
         api,
         selection,
       }: {
         selected: { id: string };
         parsed: { context: string };
+        context?: { cwd?: string };
         api: {
           setText: (text: string) => void;
           notify?: (message: string, level?: string) => void;
         };
         selection: { mode: "fzf" | "fallback"; reason?: string };
       }) => {
-        const template = loadVaultTemplate(runtime, selected.id);
+        const currentCompany = runtime.getCurrentCompany(context?.cwd);
+        const templateResult = runtime.getTemplateDetailed(selected.id, {
+          currentCompany,
+          cwd: context?.cwd,
+        });
+        if (!templateResult.ok) {
+          api.notify?.(`Template lookup failed (${selected.id}): ${templateResult.error}`, "error");
+          return;
+        }
+        const template = templateResult.value;
         if (!template) {
           api.notify?.(`Template not found: ${selected.id}`, "error");
           return;
         }
-        api.setText(buildVaultPrompt(template, parsed.context));
+
+        const prepared = prepareVaultPrompt(runtime, template, {
+          context: parsed.context,
+          currentCompany,
+          cwd: context?.cwd,
+        });
+        if (!prepared.ok) {
+          api.notify?.(
+            `Vault live picker render failed (${template.name}): ${prepared.error}`,
+            "error",
+          );
+          return;
+        }
+
+        api.setText(prepared.prepared);
         const contextSuffix = parsed.context ? " + context" : "";
         api.notify?.(
           `Prepared: ${template.name} (${runtime.facetLabel(template)})${contextSuffix} — ${selectionModeMessage(selection as SelectionResult)}`,
           "info",
         );
-        if (template.id)
-          runtime.logExecution(template.id, template.name, "live-trigger", parsed.context);
+        if (template.id) runtime.logExecution(template, "live-trigger", parsed.context);
       },
       onNoCandidates: ({
         parsed,
@@ -240,7 +290,7 @@ export function createPickerRuntime(runtime: VaultRuntime): PickerRuntime {
     parseVaultSelectionInput,
     pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query),
     registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime),
-    buildVaultPrompt,
-    loadVaultTemplate: (name) => loadVaultTemplate(runtime, name),
+    prepareVaultPrompt: (template, options) => prepareVaultPrompt(runtime, template, options),
+    loadVaultTemplate: (name, context) => loadVaultTemplate(runtime, name, context),
   };
 }

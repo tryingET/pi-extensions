@@ -36,8 +36,10 @@ export const CONTROLLED_VOCABULARY_DIMENSIONS = [
   "selection_principles",
   "output_commitment",
 ] as const;
+export const RENDER_ENGINES = ["none", "pi-vars", "nunjucks"] as const;
 
 export type Company = (typeof COMPANIES)[number];
+export type RenderEngine = (typeof RENDER_ENGINES)[number];
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 export type ControlMode = (typeof CONTROL_MODES)[number];
 export type FormalizationLevel = (typeof FORMALIZATION_LEVELS)[number];
@@ -82,6 +84,7 @@ export interface Template {
   name: string;
   description: string;
   content: string;
+  render_engine?: RenderEngine | null;
   artifact_kind: ArtifactKind | string;
   control_mode: ControlMode | string;
   formalization_level: FormalizationLevel | string;
@@ -117,11 +120,66 @@ export interface VaultQueryFilters {
   controlled_vocabulary?: VaultQueryControlledVocabulary;
 }
 
-export interface InsertResult {
+export interface VaultExecutionContext {
+  cwd?: string;
+  currentCompany?: string;
+}
+
+export interface VaultMutationContext extends VaultExecutionContext {
+  actorCompany?: string;
+  allowAmbientCwdFallback?: boolean;
+}
+
+export interface TemplateUpdatePatch {
+  content?: string;
+  description?: string;
+  artifact_kind?: string;
+  control_mode?: string;
+  formalization_level?: string;
+  owner_company?: string;
+  visibility_companies?: string[];
+  controlled_vocabulary?: RouterControlledVocabulary;
+}
+
+export interface TemplateMutationResult {
   status: "ok" | "error";
   message: string;
   templateId?: number;
 }
+
+export type InsertResult = TemplateMutationResult;
+export type UpdateResult = TemplateMutationResult;
+
+export interface TemplatePreparationOptions {
+  args?: string[];
+  currentCompany?: string;
+  context?: string;
+  templateName?: string;
+  data?: Record<string, unknown>;
+  appendContextSection?: boolean;
+  allowLegacyPiVarsAutoDetect?: boolean;
+}
+
+export interface PreparedTemplateSuccess {
+  ok: true;
+  engine: RenderEngine;
+  explicitEngine: RenderEngine | null;
+  body: string;
+  hasFrontmatter: boolean;
+  error: null;
+  rendered: string;
+  prepared: string;
+  renderContext: Record<string, unknown>;
+  usedRenderKeys: string[];
+  contextAppended: boolean;
+}
+
+export interface PreparedTemplateFailure {
+  ok: false;
+  error: string;
+}
+
+export type PreparedTemplateResult = PreparedTemplateSuccess | PreparedTemplateFailure;
 
 export interface LiveTriggerTelemetryEvent {
   timestamp: string;
@@ -171,15 +229,17 @@ export interface GovernedContracts {
   };
 }
 
+export type VaultResult<T> =
+  | { ok: true; value: T; error: null }
+  | { ok: false; value: null; error: string };
+
 export interface VaultRuntime {
   queryVaultJson: (sql: string) => DoltJsonResult | null;
+  queryVaultJsonDetailed: (sql: string) => VaultResult<DoltJsonResult>;
   execVault: (sql: string) => boolean;
   commitVault: (message: string) => void;
   escapeSql: (str: string) => string;
   escapeLikePattern: (str: string) => string;
-  clearVaultQueryError: () => void;
-  setVaultQueryError: (error: unknown) => void;
-  getVaultQueryError: () => string | null;
   parseTemplateRows: (result: DoltJsonResult | null) => Template[];
   facetLabel: (
     template: Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">,
@@ -191,21 +251,50 @@ export interface VaultRuntime {
     includeContent?: boolean,
     options?: { includeGovernance?: boolean },
   ) => string;
-  getCurrentCompany: () => string;
-  resolveCurrentCompanyContext: () => { company: string; source: string };
+  getCurrentCompany: (cwd?: string) => string;
+  resolveCurrentCompanyContext: (cwd?: string) => { company: string; source: string };
   buildVisibilityPredicate: (company?: string) => string;
   getContracts: () => GovernedContracts;
-  getTemplate: (name: string) => Template | null;
+  getTemplate: (name: string, context?: VaultExecutionContext) => Template | null;
+  getTemplateDetailed: (
+    name: string,
+    context?: VaultExecutionContext,
+  ) => VaultResult<Template | null>;
   listTemplates: (
     filters?: Partial<Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">>,
+    context?: VaultExecutionContext,
   ) => Template[];
-  searchTemplates: (query: string) => Template[];
+  listTemplatesDetailed: (
+    filters?: Partial<Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">>,
+    context?: VaultExecutionContext,
+  ) => VaultResult<Template[]>;
+  searchTemplates: (query: string, context?: VaultExecutionContext) => Template[];
+  searchTemplatesDetailed: (
+    query: string,
+    context?: VaultExecutionContext,
+  ) => VaultResult<Template[]>;
   queryTemplates: (
     filters: VaultQueryFilters,
     limit: number,
     includeContent: boolean,
+    context?: VaultExecutionContext,
   ) => Template[];
-  retrieveByNames: (names: string[], includeContent: boolean) => Template[];
+  queryTemplatesDetailed: (
+    filters: VaultQueryFilters,
+    limit: number,
+    includeContent: boolean,
+    context?: VaultExecutionContext,
+  ) => VaultResult<Template[]>;
+  retrieveByNames: (
+    names: string[],
+    includeContent: boolean,
+    context?: VaultExecutionContext,
+  ) => Template[];
+  retrieveByNamesDetailed: (
+    names: string[],
+    includeContent: boolean,
+    context?: VaultExecutionContext,
+  ) => VaultResult<Template[]>;
   getVocabulary: () => Record<string, string[]>;
   insertTemplate: (
     name: string,
@@ -217,17 +306,22 @@ export interface VaultRuntime {
     ownerCompany: string,
     visibilityCompanies: string[],
     controlledVocabulary: RouterControlledVocabulary | null,
+    context?: VaultMutationContext,
   ) => InsertResult;
+  updateTemplate: (
+    name: string,
+    patch: TemplateUpdatePatch,
+    context?: VaultMutationContext,
+  ) => UpdateResult;
   rateTemplate: (
-    templateName: string,
-    variant: string,
+    executionId: number,
     rating: number,
     success: boolean,
     notes: string,
+    context?: VaultMutationContext,
   ) => { ok: boolean; message: string };
   logExecution: (
-    templateId: number,
-    templateName: string,
+    template: Pick<Template, "id" | "version">,
     model: string,
     inputContext?: string,
   ) => void;
@@ -242,13 +336,17 @@ export interface PickerRuntime {
   parseVaultSelectionInput: (text: string) => { query: string; context: string } | null;
   pickVaultTemplate: (ctx: UiContext, query: string) => Promise<SelectionResult>;
   registerVaultLiveTrigger: () => void;
-  buildVaultPrompt: (template: Template, context: string) => string;
-  loadVaultTemplate: (name: string) => Template | null;
+  prepareVaultPrompt: (
+    template: Template,
+    options?: { context?: string; currentCompany?: string; cwd?: string },
+  ) => PreparedTemplateResult;
+  loadVaultTemplate: (name: string, context?: VaultExecutionContext) => Template | null;
 }
 
 export interface GroundingRuntime {
   buildGroundedNext10Prompt: (
     commandText: string,
+    options?: { cwd?: string; currentCompany?: string },
   ) => { ok: true; prompt: string } | { ok: false; reason: string };
 }
 
