@@ -89,8 +89,10 @@ Current `/vault` behavior:
 Tool-query defaults:
 
 - `vault_query` defaults to `limit: 20`
+- `vault_executions` defaults to `limit: 20`
 - `include_content` defaults to `false`
 - `include_governance` defaults to `false`
+- `vault_query`, `vault_retrieve`, and `vault_executions` use explicit tool-call `ctx.cwd` when available so visibility-sensitive reads stay session-aware on the tool surface too
 - optional `intent_text` can re-rank the governed candidate set without changing visibility/status filtering
 - if you already know your working stage, query directly by `formalization_level` instead of using semantic ranking
   - `vault_query({ formalization_level: ["napkin"] })`
@@ -100,8 +102,92 @@ Tool-query defaults:
   - by control mode: `vault_query({ control_mode: ["router"], formalization_level: ["structured"] })`
   - by artifact kind: `vault_query({ artifact_kind: ["session"] })`
   - by intent only: `vault_query({ intent_text: "simplify and make retrieval feel almost alien" })`
+- for exact feedback binding, inspect recent execution provenance first
+  - `vault_executions({ template_name: "nexus", limit: 10 })`
+
+Tool mutation surface:
+
+- mutation tools now pass explicit tool-call context when available and disable ambient process-cwd fallback on the tool surface
+  - if a tool runtime cannot provide `ctx.cwd`, prefer setting `PI_COMPANY` explicitly for mutation calls
+- `vault_insert(...)` now inserts new templates only and fails closed when the exact `name` already exists.
+  - mutation requires an explicit active company context (`PI_COMPANY` or a company-scoped cwd)
+  - `owner_company` must match the active mutation company
+- `vault_update({ name, ...patch })` is the explicit in-place update path for agents.
+  - exact `name` only
+  - owner-only: the active mutation company must own the current row
+  - loads the current row first
+  - merges only provided fields
+  - revalidates the merged template against schema-v7 ontology/governance/controlled-vocabulary contracts
+  - rejects blank content, frontmatter-only bodies, and unsupported explicit `render_engine` values at mutation time
+  - uses optimistic locking on `version`; stale writers fail closed and must retry from fresh state
+  - no fuzzy targeting, bulk mutation, rename behavior, or owner reassignment in this first slice
+- `vault_rate({ execution_id, ... })` now binds feedback to an exact execution row instead of a template name.
+  - use `vault_executions(...)` first to retrieve the exact `execution_id`
+  - feedback insert succeeds only when exactly one feedback row is written for that execution
+  - mutation still uses explicit company context so feedback writes do not silently inherit ambient process cwd
 
 Use `/vault-check` to inspect schema compatibility, resolved company context, and visibility of key shared templates.
+Schema compatibility now requires `prompt_templates.version` plus the execution/feedback provenance tables and columns (`executions.entity_version`, `feedback.execution_id`, etc.) because optimistic locking and exact feedback binding depend on them.
+
+## Render engine contract
+
+Template rendering is a client-layer concern above Prompt Vault storage.
+
+Supported render engines:
+
+- `none` — plain prompt body, no variable substitution
+- `pi-vars` — explicit pi-style positional substitution (`$1`, `$2`, `$@`, `$ARGUMENTS`, `${@:N}`)
+- `nunjucks` — opt-in safe variable-only interpolation against the governed render context
+
+Phase-1 contract:
+
+- storage remains schema-v7 compatible; render metadata is carried in prompt-content frontmatter
+- if `render_engine` is omitted, generic execution paths treat the template as `none`
+- generic `/vault` and live `/vault:` do **not** auto-detect legacy pi-vars syntax from raw prompt text
+- specific internal grounding paths may opt into legacy pi-vars auto-detection explicitly while stored templates are migrated
+- `nunjucks` renders only when explicitly declared via frontmatter
+- `nunjucks` supports variable interpolation such as `{{ current_company }}`, `{{ context }}`, and `{{ args[0] }}` only
+- Nunjucks blocks/comments/filters/function calls/prototype traversal are rejected explicitly
+- retrieval stays raw; execution paths strip frontmatter and render on use
+- frontmatter parsing accepts both LF and CRLF-authored templates
+- literal `{{ ... }}` sequences inside substituted data are preserved rather than treated as template syntax
+
+Frontmatter example:
+
+```md
+---
+render_engine: nunjucks
+---
+Company: {{ current_company }}
+Context: {{ context }}
+Template: {{ template_name }}
+```
+
+Governed render context keys (path-dependent availability):
+
+- `args`
+- `arguments`
+- `arg1`, `arg2`, ...
+- `current_company`
+- `context`
+- `template_name`
+
+Current execution behavior:
+
+- grounding flows such as `next-10-expert-suggestions` can explicitly opt into legacy pi-vars auto-detection and pass positional args
+- `/vault`, live `/vault:`, and grounding now route through a shared structured preparation step with explicit inputs (`currentCompany`, `context`, `args`, `templateName`) and structured success/error output
+- `/vault` and live `/vault:` strip frontmatter before inserting prompt text
+- `/vault` and live `/vault:` currently populate `current_company`, `context`, and `template_name` but do not supply positional args
+- explicit `pi-vars` templates now fail clearly on execution paths that do not provide the positional args they require; they no longer degrade into silent empty-string substitution
+- if a Nunjucks template does not reference `context`, the shared preparation step appends a deterministic `## CONTEXT` section instead of silently dropping caller context
+- extra render `data` cannot override governed keys such as `current_company`, `context`, `template_name`, `arguments`, or `argN`
+- explicit Nunjucks templates render inline at execution time through the safe variable-only subset
+- shared preparation now also governs framework-grounding appendices, so migrated framework templates render or fail through the same contract instead of bypassing it as raw text
+- unsafe or malformed Nunjucks syntax surfaces explicitly on live vault execution paths
+- session-sensitive company resolution is pinned through explicit `ctx.cwd` handoff and session tracking instead of relying only on ambient process cwd
+- for visibility-sensitive live verification, pin `PI_COMPANY` instead of relying on cwd inference alone
+
+See [live render-engine validation](docs/dev/live-render-engine-validation.md) for installed-package verification evidence, and [legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md) for the operator migration boundary.
 
 ## Live sync helper
 
@@ -142,4 +228,6 @@ npm run docs:list:json
 - [Project resources](docs/project/resources.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
 - [Prompt Vault v2 relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
+- [Live render-engine validation](docs/dev/live-render-engine-validation.md)
+- [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)

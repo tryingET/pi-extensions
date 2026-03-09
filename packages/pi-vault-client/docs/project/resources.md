@@ -17,6 +17,7 @@ system4d:
 - [Security policy](../../policy/security-policy.json)
 - [Validation script](../../scripts/validate-structure.sh)
 - [Trusted publishing runbook](../dev/trusted_publishing.md)
+- [Legacy render-engine rollout](../dev/legacy-render-engine-rollout.md)
 - [Biome config](../../biome.jsonc)
 - [VS Code workspace settings](../../.vscode/settings.json)
 - Tech-stack lane reference (pi extension TypeScript):
