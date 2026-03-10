@@ -34,6 +34,7 @@ All notable changes to this project should be documented here.
 
 ### Changed
 
+- Package docs now treat `README.md` + `NEXT_SESSION_PROMPT.md` as the maintained package truth/handoff surface; `docs/dev/status.md` is removed, this package no longer keeps a separate markdown status snapshot, and Agent Kernel (`ak`) is referenced as canonical task/work-item authority for task tracking.
 - PTX context inference now treats `sessionManager` / `getBranch()` as optional so trigger-style live-picker contexts can build suggestions without crashing.
 - PTX live-picker selections now preserve exact selected prompt metadata instead of re-resolving only by slash-command name, avoiding duplicate-name drift across installed packages.
 - PTX picker candidates now include only prompt commands with a usable template path, keeping picker selection aligned with the fully-prefilled-command contract.

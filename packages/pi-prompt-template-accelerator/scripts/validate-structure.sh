@@ -38,12 +38,10 @@ required_files=(
   "docs/project/skills.md"
   "docs/project/strategic_goals.md"
   "docs/project/tactical_goals.md"
-  "docs/dev/status.md"
   "docs/dev/CONTRIBUTING.md"
   "docs/dev/EXTENSION_SOP.md"
   ".pi/extensions/startup-intake-router.ts"
   ".pi/prompts/init-project-docs.md"
-  "scripts/sync-to-live.sh"
   "scripts/install-hooks.sh"
   "scripts/init-project-docs.sh"
   "scripts/docs-list.sh"
@@ -75,7 +73,6 @@ required_dirs=(
 )
 
 required_executables=(
-  "scripts/sync-to-live.sh"
   "scripts/install-hooks.sh"
   "scripts/init-project-docs.sh"
   "scripts/docs-list.sh"

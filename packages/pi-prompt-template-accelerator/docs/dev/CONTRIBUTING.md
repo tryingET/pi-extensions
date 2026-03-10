@@ -26,6 +26,12 @@ system4d:
 - Preserve markdown frontmatter in generated docs.
 - Prefer explicit scripts over manual one-off commands.
 
+## Task tracking
+
+- Use Agent Kernel (`ak`) as the canonical task/evidence/work-item authority when tracking work for this package.
+- This package does **not** maintain a `governance/work-items.json` projection.
+- Keep `README.md` + `NEXT_SESSION_PROMPT.md` current instead of recreating a separate package-local status document.
+
 ## Copier policy
 
 - Keep `.copier-answers.yml` in version control.

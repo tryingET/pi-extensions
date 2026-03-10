@@ -23,4 +23,4 @@ Keep PTX live-picker selections stable when multiple prompt commands share the s
 4. Fall back to staging the raw slash command when live suggestion building still cannot produce a richer transform.
 5. Add regression coverage for duplicate-name live-picker selection.
 6. Run `npm run check`, `npm run test:smoke:non-ui`, and `npm run release:check:quick`.
-7. Update `README.md`, `docs/dev/status.md`, `CHANGELOG.md`, and `NEXT_SESSION_PROMPT.md` with the new package truth.
+7. Update `README.md`, `CHANGELOG.md`, and `NEXT_SESSION_PROMPT.md` with the new package truth.

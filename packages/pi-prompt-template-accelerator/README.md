@@ -81,6 +81,22 @@ Works great with cognitive trigger templates like:
 
 See `~/ai-society/softwareco/infra/workstation/prompts/triggers/` for the full set.
 
+## Current package truth
+
+- Primary UX: `$$ /<partial>` routes through the PTX fuzzy selector (`fzf --filter` when available, deterministic fallback otherwise)
+- Command UX: `/ptx-select [query]` opens the same selector explicitly
+- Current prefill behavior is still **deterministic** and code-driven at suggestion time
+  - the active model is **not** currently used to generate PTX arg suggestions
+- Trigger/live-picker hardening in place:
+  - missing `sessionManager` / `getBranch()` no longer crashes context inference
+  - duplicate prompt names are disambiguated and preserve exact selected prompt identity
+  - picker candidates include only prompt commands with a usable template path
+- Diagnostics available:
+  - `/ptx-debug-commands [query]`
+  - `/ptx-fzf-spike`
+- Current semantic ceiling:
+  - PTX objective extraction is still heuristic and may fall back to `"<MUST_REPLACE_PRIMARY_OBJECTIVE>"` when no trustworthy objective is available
+
 ## Repository checks
 
 Run:
@@ -239,6 +255,35 @@ Then in Pi:
 1. run `/reload`
 2. verify with a real command or tool call from this package
 
+## Task management and handoff authority
+
+- Use `NEXT_SESSION_PROMPT.md` as the active handoff for this package.
+- Do **not** keep a separate package-local status snapshot document.
+- For canonical task/evidence/work-item authority, use Agent Kernel (`ak`) instead of ad-hoc markdown tracking:
+  - [agent-kernel README](../agent-kernel/README.md)
+  - [DB-first work-items runbook](../agent-kernel/docs/project/db-first-work-items-runbook.md)
+  - [Issue-tracker placement and AK boundary ADR](../agent-kernel/docs/adr/0007-issue-tracker-placement-and-ak-boundary.md)
+- Operational rule borrowed from agent-kernel:
+  - use the handoff file as the active fresh-context artifact, not as a second status database
+- This package currently does **not** maintain a `governance/work-items.json` projection.
+  - if you need task tracking, use AK DB task/evidence commands directly
+
+Example AK flow for this package:
+
+```bash
+cd ~/ai-society/softwareco/owned/agent-kernel
+source ./.ak-env-v2
+
+./scripts/ak-v2.sh task create \
+  --repo /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator \
+  "<task title>"
+
+./scripts/ak-v2.sh task ready
+./scripts/ak-v2.sh task claim <id> --agent <agent-id> --lease 3600
+./scripts/ak-v2.sh evidence record --task <id> --check-type validation:workspace --result pass
+./scripts/ak-v2.sh task complete <id> --result '{"summary":"done"}'
+```
+
 ## Docs map
 
 - [Organization operating model](docs/org/operating_model.md)
@@ -252,4 +297,4 @@ Then in Pi:
 - [Contributor guide](docs/dev/CONTRIBUTING.md)
 - [Extension SOP](docs/dev/EXTENSION_SOP.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)
-- [Status](docs/dev/status.md)
+- [Agent Kernel task/work-item authority](../agent-kernel/README.md)
