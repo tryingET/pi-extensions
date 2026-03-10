@@ -1,163 +1,190 @@
 ---
-summary: "Current handoff after the zero-defect runtime hardening pass in pi-vault-client."
+summary: "pi-vault-client is stable after schema-v8 alignment; only revisit for regressions or for bounded live coexistence evidence, and route broader semantic-organism work to Prompt Vault + agent-kernel instead of this package."
 read_when:
   - "Starting the next focused session in packages/pi-vault-client."
-  - "Before changing vault runtime, render preparation, query error handling, or execution/feedback provenance."
+  - "Deciding whether the next slice belongs here, in Prompt Vault, or in agent-kernel."
 system4d:
-  container: "Canonical handoff for the post-hardening state of pi-vault-client."
-  compass: "Do not reopen solved ambiguity; only continue on the explicitly remaining contracts."
-  engine: "Reacquire quickly -> verify current truth -> continue only on the remaining bounded items."
-  fog: "Main risk is treating completed correctness work as still-open, or reintroducing ambient magic while chasing rollout convenience."
+  container: "Canonical handoff for the post-hardening, schema-v8-aligned state of pi-vault-client."
+  compass: "Do not reopen solved runtime ambiguity; only touch this package for real regressions, explicit upstream contract changes, or bounded live coexistence evidence."
+  engine: "Reacquire current truth -> choose the correct repo boundary -> proceed only on the smallest truthful next slice."
+  fog: "Main risks are package churn, confusing PTX with /vault, and trying to do semantic-organism architecture work inside the wrong repo."
 ---
 
 # Next session prompt for `pi-vault-client`
 
 ## One-line handoff
 
-The package-level correctness pass is complete and verified: render preparation is explicit, tool/query error handling is per-call rather than global-state-driven, execution provenance is exact, feedback binds to `execution_id`, and the only unresolved correctness item is **DB-enforced uniqueness for one feedback row per execution**, which requires Prompt Vault schema-owner action outside this package.
-
-## What landed in the 2026-03-09 zero-defect follow-up
-
-### Render contract hardening
-- explicit `pi-vars` templates now fail clearly if the execution path does not supply the required positional args
-- mutation-time content validation now rejects:
-  - blank content
-  - frontmatter-only bodies
-  - unsupported explicit `render_engine` values
-- framework grounding appendices now use the same shared preparation contract as normal template execution
-- framework grounding now receives explicit render inputs:
-  - `currentCompany`
-  - synthesized `context`
-  - positional `args`
-  - structured `data`
-
-### Query/read-path hardening
-- active reliance on module-global query-error state was removed from live command/tool/picker/grounding paths
-- per-call detailed result helpers now exist and are used on the live surfaces:
-  - `queryVaultJsonDetailed(...)`
-  - `getTemplateDetailed(...)`
-  - `listTemplatesDetailed(...)`
-  - `searchTemplatesDetailed(...)`
-  - `queryTemplatesDetailed(...)`
-  - `retrieveByNamesDetailed(...)`
-- `/vault-search`, `/vault-check`, `/vault-stats`, picker flows, and grounding lookups now surface concrete query/lookup failures instead of silently degrading
-
-### Provenance and feedback hardening
-- execution logging already used the real template version; that contract remains intact
-- feedback is now execution-bound rather than template-name-bound
-- new tool: `vault_executions`
-  - exposes exact `execution_id`
-  - exposes `entity_version`
-- `vault_rate(...)` now requires `execution_id`
-- duplicate feedback is rejected at the runtime layer and covered by integration testing
-
-### Scale/safety adjustments
-- Dolt query buffer was increased to reduce scale-related truncation failures during ranking
-- `intent_text` ranking now truncates scoring-only content reads (`LEFT(content, 4096)`) instead of pulling full template bodies unnecessarily
+`pi-vault-client` is operationally done enough for now: render preparation is explicit, tool/query handling is per-call, execution provenance is exact, feedback is execution-bound with Prompt Vault schema-level uniqueness in v8, and the next truthful work is either **bounded live coexistence evidence** with `pi-interaction` + PTX or a **strategic pivot** into Prompt Vault + agent-kernel semantic-organism architecture work outside this package.
 
 ## Current package truth
 
-### Runtime behavior
+### Stable runtime boundary
 - generic `/vault` and live `/vault:` remain intentionally strict
-- no generic-path legacy auto-detect was restored
+- no generic legacy pi-vars auto-detect was restored
 - exact-match lookup, picker flows, and grounding all use explicit context handoff
-- shared render preparation remains the canonical execution path
+- shared render preparation is the canonical execution path
+- schema compatibility targets Prompt Vault `v8`
 
-### Tool surface
+### Stable tool boundary
 - `vault_query` uses explicit tool-call execution context
 - `vault_retrieve` uses explicit tool-call execution context
 - `vault_insert` and `vault_update` require explicit mutation context and fail closed on ambiguity
 - `vault_executions` is the required discovery step before `vault_rate`
-- `vault_rate({ execution_id, ... })` is now the only supported feedback path
+- `vault_rate({ execution_id, ... })` is the only supported feedback path
 
-### Validation status
-- package check passes cleanly
-- current verification baseline:
-  - `npm run check`
-- test suite status at handoff:
-  - `78` tests passing
+### Verified package baseline
+- `npm run check` passes
+- test suite baseline at handoff:
+  - `78` passing
   - `0` failing
 
-## Remaining workstreams
+## Verified cross-package truth
 
-### 1. Remaining correctness debt: Prompt Vault schema uniqueness for feedback
-This is the only live correctness item still open.
+A later verification pass established that the previously suspected open `pi-interaction` trigger-isolation implementation work appears to have already landed in an earlier session.
 
-Current package behavior already rejects duplicate feedback rows in runtime logic.
-What is still missing is a **schema-level uniqueness guarantee** so concurrent multi-process writers cannot race past the client guard.
+Evidence already verified:
+- `packages/pi-interaction/docs/dev/status.md` marks the runtime migration as completed
+- `pi-trigger-adapter` tests already cover debounce/session isolation behavior
+- `pi-editor-registry` tests already cover cwd + `sessionKey` propagation
+- PTX mixed-extension non-UI smoke already passes
 
-### 2. Separate operational backlog: Prompt Vault render-engine data migration
-This is **not** a package-runtime ambiguity bug anymore.
-It is an operator/data migration problem in Prompt Vault.
-
-Last measured inventory (still the latest known number for the data backlog):
-- active templates using legacy pi-vars tokens: `78`
-- active templates with explicit `render_engine:` frontmatter: `0`
-
-Treat that as Prompt Vault rollout work, not as a reason to weaken package runtime strictness.
-
-## Deferred with contract
-
-| Finding | Rationale | Owner | Trigger | Deadline | Blast Radius |
-|---------|-----------|-------|---------|----------|--------------|
-| DB-enforced uniqueness for one feedback row per execution | This pass added runtime duplicate rejection and a real temp-Dolt integration test, but absolute uniqueness under concurrent multi-process writers requires a Prompt Vault schema migration plus schema-owner approval on feedback cardinality. | Prompt Vault schema maintainers in `~/ai-society/core/prompt-vault`, coordinated with the `pi-vault-client` maintainer | Formal decision that feedback cardinality is **one row per execution** and a migration window opens | 2026-03-31 or before any concurrent/shared rollout of `vault_rate`, whichever comes first | Concurrent writers could still create duplicate feedback rows and skew analytics despite client-side guards |
-
-## If the next session stays in `pi-vault-client`
-
-Do **not** reopen solved design questions.
-Only work in this package if one of these becomes true:
-- a regression appears in the detailed-result query path
-- Prompt Vault schema changes require client adaptation
-- `vault_rate` semantics must be updated to match a schema decision
-- a newly migrated template reveals a real renderer/preparation bug
-
-If none of those are true, package correctness work is done enough for now.
-
-## If the next session moves into Prompt Vault
-
-Focus on one of these bounded tracks:
-
-### Feedback schema track
-- decide whether feedback cardinality is truly **one row per execution**
-- if yes, add schema enforcement in Prompt Vault (for example, a uniqueness constraint or equivalent migration strategy)
-- align package/runtime docs with that decision
-
-### Render-engine rollout track
-- re-measure the live inventory
-- classify legacy templates into:
-  - plain `none`
-  - explicit `nunjucks`
-  - true args-supplying `pi-vars`
-- migrate only the smallest safe batch first
-- keep generic `/vault` and live `/vault:` strict
-
-## 15-minute reacquisition protocol
-
-Read these in order before touching code:
-1. `AGENTS.md`
-2. `README.md`
-3. `NEXT_SESSION_PROMPT.md`
-4. `src/templateRenderer.js`
-5. `src/vaultDb.ts`
-6. `src/vaultTools.ts`
-7. `src/vaultCommands.ts`
-8. `src/vaultPicker.ts`
-9. `src/vaultGrounding.ts`
-10. `src/vaultTypes.ts`
-11. `tests/template-renderer.test.mjs`
-12. `tests/vault-grounding.test.mjs`
-13. `tests/vault-dolt-integration.test.mjs`
-14. `tests/vault-update.test.mjs`
-15. `tests/vault-query-regression.test.mjs`
-
-Then run:
-
+Checks already re-run successfully:
 ```bash
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction
+npm run check
+
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-interaction
+npm run check
+npm run release:check:quick
+
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
+npm run check
+
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
 npm run check
 ```
 
-## Files most relevant to the current truth
+Interpretation:
+- do **not** reopen trigger-isolation implementation blindly
+- the remaining operational gap on this line is durable **live interactive coexistence evidence**, not obvious missing package-local code
+
+## Branch A — if the next slice stays package-adjacent
+
+### Bounded next step
+Capture durable live coexistence evidence with these three packages loaded together:
+- `pi-interaction`
+- `pi-prompt-template-accelerator`
+- `pi-vault-client`
+
+### Boundary that must be made explicit
+- `$$ /...` = installed/exported PTX prompt commands only
+- `/vault` = full visible Prompt Vault set
+- a much smaller PTX count than vault count can therefore be correct when only the `export_to_pi` subset is installed
+
+### Nunjucks/rendering note
+- `/vault` is the place where full Prompt Vault execution-time rendering is verified
+- PTX must **not** be assumed to mirror `/vault` semantics for non-exported vault templates
+- if an exported Prompt Vault template is reachable through PTX, validate and document that behavior explicitly rather than inferring parity
+
+### Live pass kickoff
+```bash
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-interaction
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+# then inside pi:
+# /reload
+# /triggers
+# $$ /
+# /vault
+# /vault:
+```
+
+### Success condition for Branch A
+A bounded session is successful if it cleanly does one of these:
+1. captures durable live coexistence evidence
+2. records explicit evidence for the PTX vs `/vault` picker-surface boundary
+3. reveals a real regression and fixes it without reopening solved ambiguity
+
+## Branch B — if the next slice is the broader semantic vision (recommended pivot)
+
+### Architectural direction recovered from session history
+The stronger direction is **not** to keep growing Prompt Vault as a mere prompt tool.
+The target shape is:
+- **Prompt Vault** = versioned prompt-body / authoring substrate
+- **agent-kernel / `society.v2.db`** = canonical operational substrate
+- **bridge layer** = capability semantics, invocation contracts, artifacts, commitments, and evidence
+
+That means the system should gradually move from:
+- “which template should I retrieve?”
+
+toward:
+- “what state transition is needed, what evidence is missing, what capability can satisfy it, and what commitments/artifacts will result?”
+
+### Do not do this broader work here
+If that is the next real slice:
+- do **not** try to implement the semantic-organism architecture primarily inside `pi-vault-client`
+- do **not** collapse Prompt Vault into agent-kernel
+- do **not** use more `pi-vault-client` runtime churn as a proxy for strategic progress
+
+### Correct repo routing for the semantic-organism track
+Use:
+- `~/ai-society/core/prompt-vault`
+- `~/ai-society/softwareco/owned/agent-kernel`
+
+Treat `pi-vault-client` as a consumer/projection surface, not the main design arena.
+
+### Recommended next artifact on that track
+Create a **1-page architecture note** first, before any bridge-first schema proposal.
+
+The architecture note should lock in:
+1. what Prompt Vault owns
+2. what agent-kernel owns
+3. what the bridge layer owns
+4. why prompt text is not the whole organism
+5. why capability/affordance/intention/commitment/evidence belong above raw prompt rows
+
+Only after that should a bridge-first schema proposal define concrete tables/fields/APIs.
+
+### Read first for the semantic-organism track
+1. `~/ai-society/softwareco/owned/agent-kernel/docs/project/prompt-vault-ak-capability-bridge.md`
+2. `~/ai-society/softwareco/owned/agent-kernel/docs/project/ai-society-convergence-architecture.md`
+3. `~/ai-society/core/prompt-vault/next_session_prompt.md`
+4. `~/ai-society/core/prompt-vault/docs/project/tactical_goals.md`
+5. `~/ai-society/core/prompt-vault/docs/dev/controlled-vocabulary-layer-plan.md`
+6. `~/ai-society/softwareco/owned/agent-kernel/next_session_prompt.md`
+7. `~/ai-society/softwareco/owned/agent-kernel/README.md`
+
+### Success condition for Branch B
+A strategic session is successful if it cleanly does one of these:
+1. writes the 1-page architecture note
+2. defines the minimal bridge concepts (`capability`, `capability_version`, `prompt_source_ref`, `invocation_contract`, `artifact`, `commitment`, `evidence`)
+3. routes future work clearly so Prompt Vault authoring truth and agent-kernel operational truth are not blurred
+
+## Reacquisition protocol
+
+Read these in order before making any changes:
+1. `AGENTS.md`
+2. `README.md`
+3. `NEXT_SESSION_PROMPT.md`
+4. if doing Branch A:
+   - `../pi-interaction/NEXT_SESSION_PROMPT.md`
+   - `../pi-prompt-template-accelerator/NEXT_SESSION_PROMPT.md`
+5. if doing Branch B:
+   - `~/ai-society/core/prompt-vault/next_session_prompt.md`
+   - `~/ai-society/softwareco/owned/agent-kernel/next_session_prompt.md`
+6. then only the package/runtime files relevant to the chosen branch
+
+## Non-goals and hard noes
+- do **not** restore generic legacy pi-vars auto-detect on `/vault` or live `/vault:`
+- do **not** reintroduce module-global query-error state as the primary error channel
+- do **not** weaken explicit mutation-context requirements
+- do **not** turn Prompt Vault data migration pressure into package-runtime ambiguity
+- do **not** broaden feedback semantics casually; keep exact execution binding unless Prompt Vault changes it explicitly
+- do **not** redo already-landed trigger-isolation implementation unless live evidence shows an actual regression
+- do **not** describe `$$ /...` as if it were a full Prompt Vault browser
+- do **not** try to make `pi-vault-client` itself the semantic-organism substrate
+
+## Files most relevant to the current package truth
 
 ### Core runtime
 - `src/templateRenderer.js`
@@ -180,34 +207,8 @@ npm run check
 - `docs/dev/live-render-engine-validation.md`
 - `docs/dev/legacy-render-engine-rollout.md`
 
-## Non-goals and hard noes
+## Final routing rule
 
-- do **not** restore generic legacy pi-vars auto-detect on `/vault` or live `/vault:`
-- do **not** reintroduce module-global query-error state as the primary error channel
-- do **not** weaken explicit mutation-context requirements
-- do **not** turn Prompt Vault data migration pressure into package-runtime ambiguity
-- do **not** broaden feedback semantics casually; either keep exact execution binding or change it explicitly with schema-owner approval
-
-## Verification baseline that already passed
-
-```bash
-cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
-npm run check
-```
-
-That passing gate includes:
-- renderer tests
-- grounding tests
-- query regression tests
-- update/mutation tests
-- temp-Dolt integration coverage for exact execution-bound feedback
-
-## Success condition for the next session
-
-A next focused session is successful if it does **one** of the following cleanly:
-
-1. lands the Prompt Vault schema decision/migration for feedback uniqueness
-2. executes a small, explicit Prompt Vault render-engine migration batch without weakening runtime strictness
-3. fixes a newly observed regression without reopening solved ambiguity
-
-If none of those happen, the right action is to leave the package alone rather than churn completed correctness work.
+If the next session is about:
+- **runtime/package correctness or live coexistence evidence** → this repo may still be relevant
+- **Prompt Vault as more than a prompt tool / semantic-organism architecture / AK bridge design** → leave this repo and work in Prompt Vault + agent-kernel

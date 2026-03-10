@@ -14,8 +14,8 @@ const RENDERER_SOURCE = readFileSync(
 );
 const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.meta.url), "utf8");
 
-test("vault runtime targets Prompt Vault schema v7", () => {
-  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*7/);
+test("vault runtime targets Prompt Vault schema v8", () => {
+  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*8/);
   assert.match(TYPES_SOURCE, /const\s+DEFAULT_VAULT_QUERY_LIMIT\s*=\s*20/);
   assert.match(DB_SOURCE, /SELECT MAX\(version\) AS version FROM schema_version/);
   assert.match(

@@ -19,7 +19,7 @@ Monorepo package for vault workflows in pi.
 
 ## Runtime dependencies
 
-This package expects Prompt Vault schema v7 and pi host runtime APIs.
+This package expects Prompt Vault schema v8 and pi host runtime APIs.
 
 Prompt rows are consumed through these canonical fields:
 
@@ -117,7 +117,7 @@ Tool mutation surface:
   - owner-only: the active mutation company must own the current row
   - loads the current row first
   - merges only provided fields
-  - revalidates the merged template against schema-v7 ontology/governance/controlled-vocabulary contracts
+  - revalidates the merged template against schema-v8 ontology/governance/controlled-vocabulary contracts
   - rejects blank content, frontmatter-only bodies, and unsupported explicit `render_engine` values at mutation time
   - uses optimistic locking on `version`; stale writers fail closed and must retry from fresh state
   - no fuzzy targeting, bulk mutation, rename behavior, or owner reassignment in this first slice
@@ -141,7 +141,7 @@ Supported render engines:
 
 Phase-1 contract:
 
-- storage remains schema-v7 compatible; render metadata is carried in prompt-content frontmatter
+- storage remains schema-v8 compatible; render metadata is carried in prompt-content frontmatter
 - if `render_engine` is omitted, generic execution paths treat the template as `none`
 - generic `/vault` and live `/vault:` do **not** auto-detect legacy pi-vars syntax from raw prompt text
 - specific internal grounding paths may opt into legacy pi-vars auto-detection explicitly while stored templates are migrated

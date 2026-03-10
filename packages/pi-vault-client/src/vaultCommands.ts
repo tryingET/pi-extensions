@@ -331,7 +331,7 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       const output = [
         "# Vault Check",
         "",
-        `- schema_required: ${schemaOk ? "7 (ok)" : "7 (mismatch)"}`,
+        `- schema_required: ${schemaOk ? "8 (ok)" : "8 (mismatch)"}`,
         `- current_company: ${companyContext.company}`,
         `- company_source: ${companyContext.source}`,
         `- query_error: ${queryError}`,

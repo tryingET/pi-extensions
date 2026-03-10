@@ -1,4 +1,7 @@
 ---
+summary: "Prompt template for drafting an implementation plan for a requested change."
+read_when:
+  - "You need a scoped implementation plan before making a code or docs change."
 description: Draft an implementation plan for a requested change
 system4d:
   container: "Prompt template for implementation planning."
