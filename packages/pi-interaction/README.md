@@ -34,6 +34,16 @@ The canonical npm package is:
 The package-group root (`packages/pi-interaction/`) is **not** the release target.
 Treat it as a private coordination shell for the split package family.
 
+Support libraries inside the group (`pi-editor-registry`, `pi-interaction-kit`, `pi-trigger-adapter`) are still legitimate package boundaries.
+They should remain process-local library packages rather than being promoted to service/API boundaries.
+See [Package-boundary architecture](docs/dev/package-boundary-architecture.md).
+
+### Support-library publish readiness
+
+- `pi-interaction-kit`, `pi-trigger-adapter`, and `pi-editor-registry` now expose explicit top-level package surfaces via `exports`.
+- Their `prepack` flow rewrites local sibling `file:` dependencies to versioned package dependencies inside packed artifacts.
+- Their `npm run release:check:quick` now verifies `npm publish --dry-run`, packed-manifest dependency rewrite, and clean-room tarball install/import smoke with locally packed sibling tarballs when needed.
+
 ## Current package-group truth
 
 ### Completed

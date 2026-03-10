@@ -14,12 +14,27 @@ system4d:
 
 ## Canonical release target
 
-Publish **only** the umbrella package at:
+The canonical **end-user pi package** remains the umbrella package at:
 
 - `packages/pi-interaction/pi-interaction`
 
 Do **not** treat the package-group root (`packages/pi-interaction/`) as the publish target.
 That directory is a private coordination shell for the split package family.
+
+The supporting library packages (`pi-editor-registry`, `pi-interaction-kit`, `pi-trigger-adapter`) are still real package boundaries in the architecture.
+They should stay same-process library/runtime packages, not service/API boundaries.
+See [package-boundary architecture](package-boundary-architecture.md).
+
+## Support-library publish readiness
+
+The support packages are now expected to be publish-safe ordinary npm packages even though the umbrella package remains the canonical end-user Pi publish target.
+For `pi-interaction-kit`, `pi-trigger-adapter`, and `pi-editor-registry`, the package contract is:
+
+- explicit top-level `exports`
+- `prepack` rewrites local sibling `file:` dependencies to versioned package dependencies in the packed manifest
+- `npm run release:check:quick` verifies `npm publish --dry-run`, packed-manifest dependency rewrite, and clean-room tarball install/import smoke with locally packed sibling tarballs when required
+
+This is the release contract that lets external consumers retire generated vendoring bridges in favor of real package dependencies.
 
 ## Current release model
 

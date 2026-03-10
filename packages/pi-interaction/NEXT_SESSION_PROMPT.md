@@ -25,20 +25,25 @@ system4d:
   - `~/ai-society/softwareco/owned/pi-extensions/docs/project/root-capabilities.md`
 - Package release workflow is documented at:
   - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/docs/dev/release-workflow.md`
+- Support-library package boundaries are now publish-safe at the tarball level:
+  - `pi-interaction-kit`, `pi-trigger-adapter`, and `pi-editor-registry` expose explicit top-level package surfaces via `exports`
+  - their `prepack` flow rewrites local sibling `file:` dependencies to versioned package dependencies inside packed artifacts
+  - their `npm run release:check:quick` now verifies packed-manifest rewrite plus clean-room tarball install/import smoke with locally packed sibling tarballs
 
 ## Continue with
 
-1. Capture durable live validation evidence for `pi-interaction` + `pi-prompt-template-accelerator` + `pi-vault-client` loaded together.
-2. Make the picker-surface boundary explicit in that validation:
+1. Use the now-publish-safe support-package boundary to remove the generated vendoring bridge in `packages/pi-vault-client` and verify that direct package consumption stays release-safe.
+2. Capture durable live validation evidence for `pi-interaction` + `pi-prompt-template-accelerator` + `pi-vault-client` loaded together.
+3. Make the picker-surface boundary explicit in that validation:
    - `$$ /...` (PTX) shows installed/exported prompt commands only, not the full Prompt Vault DB
    - `/vault` shows the full visible vault template set from Prompt Vault
    - today the PTX count may be much smaller than vault count because it reflects the `export_to_pi` subset
-3. Keep Nunjucks changes in mind during the cross-package pass:
+4. Keep Nunjucks changes in mind during the cross-package pass:
    - `/vault` execution-time rendering in `pi-vault-client` is the place where vault Nunjucks behavior is verified
    - do **not** assume PTX automatically mirrors vault-client retrieval/rendering semantics for non-exported vault templates
    - if an exported Prompt Vault template is surfaced through PTX, verify that PTX behavior is explicit and documented rather than assumed
-4. Decide whether to wire the first root-owned component release automation for `pi-interaction` now or keep the documented operator-driven workflow.
-5. Keep package/root release docs synchronized if automation lands.
+5. Decide whether to wire the first root-owned component release automation for `pi-interaction` now or keep the documented operator-driven workflow.
+6. Keep package/root release docs synchronized if automation lands.
 
 ## Must-pass checks
 
