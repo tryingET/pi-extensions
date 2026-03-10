@@ -14,7 +14,7 @@ system4d:
 
 ## Supported versions
 
-Security fixes target the latest release and `main` branch.
+Security fixes target the latest release of the canonical umbrella package and `main`.
 
 ## Reporting a vulnerability
 
@@ -28,8 +28,8 @@ Use **private reporting**.
 
 ## Release and supply-chain baseline
 
-- Release flow uses release-please PRs before tags/releases.
+- The canonical publish target is `packages/pi-interaction/pi-interaction` (`@tryinget/pi-interaction`).
 - Release checks gate artifact contents (`npm pack --dry-run --json`) and publish dry-run (`npm publish --dry-run`).
-- Publish flow uses npm Trusted Publishing (OIDC) and `npm publish --provenance`.
-- Workflow permissions default to read and elevate per job only.
-- Third-party actions must stay explicit; high-risk paths should be SHA pinned.
+- Trusted publishing must keep provenance aligned with the monorepo repository URL and package directory.
+- Workflow permissions should default to read and elevate per job only.
+- Third-party actions should stay explicit; high-risk paths should be SHA pinned.
