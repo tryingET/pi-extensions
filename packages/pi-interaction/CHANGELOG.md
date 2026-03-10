@@ -22,3 +22,4 @@ system4d:
   - `pi-trigger-adapter`
   - `pi-interaction` (umbrella facade + extension entrypoint)
 - Migrated Pilot 2 package (`pi-prompt-template-accelerator`) into the monorepo and updated live-trigger integration to use pi-interaction trigger surfaces.
+- Documented the first release-safe monorepo workflow for `@tryinget/pi-interaction` and clarified that only `packages/pi-interaction/pi-interaction` is the canonical publish target.
