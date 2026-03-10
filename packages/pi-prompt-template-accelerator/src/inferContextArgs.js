@@ -29,7 +29,16 @@ function isLowSignalObjectiveHint(value) {
 }
 
 function readLatestObjectiveHint(sessionManager) {
-  const branch = sessionManager.getBranch();
+  if (!sessionManager || typeof sessionManager.getBranch !== "function") return undefined;
+
+  let branch;
+  try {
+    branch = sessionManager.getBranch();
+  } catch {
+    return undefined;
+  }
+
+  if (!Array.isArray(branch)) return undefined;
 
   for (let index = branch.length - 1; index >= 0; index -= 1) {
     const entry = branch[index];
@@ -83,10 +92,10 @@ function inferSystem4dMode(providedArgs, objectiveHint) {
  * Infer deterministic context snippets for missing prompt-template args.
  */
 export async function inferContextArgs({ pi, ctx, providedArgs }) {
-  const cwd = ctx.cwd || process.cwd();
+  const cwd = ctx?.cwd || process.cwd();
   const repoName = basename(cwd) || cwd;
   const branch = await readGitBranch(pi, cwd);
-  const rawObjectiveHint = readLatestObjectiveHint(ctx.sessionManager);
+  const rawObjectiveHint = readLatestObjectiveHint(ctx?.sessionManager);
   const objectiveHint = isLowSignalObjectiveHint(rawObjectiveHint) ? undefined : rawObjectiveHint;
 
   const firstProvidedArgRaw = providedArgs.find((arg) => arg.trim().length > 0);

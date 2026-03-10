@@ -17,7 +17,12 @@ system4d:
 - Mapping logic: placeholder-aware argument shaping with line-hint parsing + deterministic context inference preserved
 - Conflict mitigation: deprecated custom-editor autocomplete path removed (no `setEditorComponent` usage)
 - Runtime hardening: non-UI mode now returns transformed command (`action: transform`) instead of swallowing `$$` input; malformed/non-slash `$$` invocations also return deterministic transform errors.
-- Failure-mode signaling: explicit reasons surfaced (`fzf-not-installed`, `prompt-command-source-unavailable`, `no-prompt-templates`, deterministic `PTX input/parse error` messages).
+- Trigger-context hardening: PTX context inference now tolerates contexts without `sessionManager` / `getBranch()`, so live-picker style flows do not crash when only lightweight trigger metadata is available.
+- Selection identity hardening: live picker candidates now carry exact prompt metadata (`name` + `path` + description), so duplicate prompt names from multiple installed packages keep the selected template stable instead of re-resolving by name only.
+- Picker contract hardening: `$$ /...` and `/ptx-select` now include only prompt commands with a usable template path, so picker selections stay aligned with PTX's fully-prefilled-command contract.
+- Prefill fallback: when a direct `$$ /name` invocation cannot provide a readable template path or richer live transform, PTX now inserts the raw slash command instead of leaving the editor empty.
+- Failure-mode signaling: explicit reasons surfaced (`fzf-not-installed`, `prompt-command-source-unavailable`, `no-prompt-templates`, `no-prefillable-prompt-templates`, deterministic `PTX input/parse error` messages).
+- Diagnostics: `/ptx-debug-commands [query]` inspects visible prompt commands, paths, prefillability, and inferred arg contracts.
 - CI smoke: mixed-extension non-UI smoke tests cover both load orders and both probes (`$$ /...`, `/vault...`) with loop/timeout detection.
 - Spike support: `/ptx-fzf-spike` probes runtime viability (`interactive` vs `--filter`)
 - Validation hooks: installed

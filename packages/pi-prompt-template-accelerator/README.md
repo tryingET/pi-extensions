@@ -47,6 +47,9 @@ Hint-aware: reads template lines to infer slot types from keywords.
 
 - `$$ /<partial>` opens the PTX fuzzy picker.
 - `/ptx-select [partial]` opens the same picker explicitly.
+- PTX picker candidates now include only prompt commands with a usable template path, so picker selection stays aligned with the PTX contract of producing a fully prefilled command.
+- When multiple packages expose the same prompt name, PTX now carries the exact selected prompt metadata and adds origin detail to duplicate entries so the chosen template stays stable.
+- Use `/ptx-debug-commands [query]` to inspect visible prompt commands, paths, and inferred arg contracts.
 - Mode is reported in notifications:
   - `mode=fzf` when `fzf` ranking is available
   - `mode=fallback` when deterministic in-app ranking is used
@@ -55,6 +58,9 @@ Hint-aware: reads template lines to infer slot types from keywords.
 
 The extension no longer installs a custom editor component, so it can coexist with other extensions without `setEditorComponent` conflicts.
 In non-UI mode, malformed `$$` input is surfaced as deterministic transform text (usage/parse errors) instead of being silently swallowed.
+Context inference now treats `sessionManager` / `getBranch()` as optional so trigger-style live-picker contexts can still build PTX suggestions without crashing.
+Live picker selections now preserve the exact selected prompt command metadata instead of re-resolving only by slash-command name, which avoids duplicate-name drift across installed packages.
+If you type a direct `$$ /name` invocation for a prompt command that PTX cannot read or fully resolve (for example missing `path`, metadata drift, or live fallback conditions), PTX now prefills the raw slash command instead of leaving the editor empty.
 
 ## Files
 
@@ -106,8 +112,12 @@ npm run test:smoke:non-ui
   - ensure prompt templates are loaded (avoid `--no-prompt-templates`)
 - `No prompt template selected (no-prompt-templates)`
   - there are no prompt commands in the current session
+- `No prompt template selected (no-prefillable-prompt-templates)`
+  - prompt commands exist, but none expose a usable template path for PTX picker prefill
 - `Cannot read template: ...`
   - the selected template path is unavailable/unreadable
+- `PTX Debug Commands`
+  - use `/ptx-debug-commands [query]` to inspect which visible prompt commands are prefillable and what arg contracts they expose
 
 ## Release + security baseline
 
@@ -216,18 +226,18 @@ Utility commands:
 - `/startup-intake-router-status`
 - `/startup-intake-router-reset`
 
-## Live sync helper
+## Live package activation
 
-Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy extension entrypoints plus
-shared `src/` modules into `~/.pi/agent/extensions/pi-prompt-template-accelerator/`.
+Install the package into Pi from its local package path:
 
-Optional flags:
+```bash
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
+```
 
-- `--with-prompts`
-- `--with-policy`
-- `--all` (prompts + policy)
+Then in Pi:
 
-After sync, run `/reload` in pi.
+1. run `/reload`
+2. verify with a real command or tool call from this package
 
 ## Docs map
 

@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { getBroker, resetBroker } from "@tryinget/pi-trigger-adapter";
 import ptxExtension from "../extensions/ptx.ts";
 
 type InputEvent = { source: "user" | "extension"; text: string };
@@ -20,6 +21,13 @@ function createNonUiContext(cwd: string) {
         return [];
       },
     },
+  };
+}
+
+function createTriggerLikeContext(cwd: string) {
+  return {
+    hasUI: false,
+    cwd,
   };
 }
 
@@ -77,6 +85,18 @@ async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promis
       },
     );
   });
+}
+
+async function waitForLiveTrigger(id: string, timeoutMs = 1500): Promise<void> {
+  const broker = getBroker();
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (broker.get(id)) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error(`Timed out waiting for live trigger: ${id}`);
 }
 
 async function runInputPipeline(
@@ -208,6 +228,134 @@ test("non-UI: optional rest args (${@:4}) are omitted when no extras are inferre
       assert.doesNotMatch(result.text ?? "", /"none"/);
     },
   );
+});
+
+test("non-UI: trigger-like context without sessionManager still builds PTX suggestion", async () => {
+  await withTempTemplate("Task: $1\nContext: $2\n", async (templatePath, cwd) => {
+    const commands = [
+      {
+        name: "workflow",
+        source: "prompt",
+        description: "Workflow template",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(
+        handlers,
+        '$$ /workflow "fix trigger live picker"',
+        createTriggerLikeContext(cwd),
+      ),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text ?? "", /^\/workflow\s+"fix trigger live picker"\s+"[^"]+"\s*$/);
+  });
+});
+
+test("non-UI: prompt command without template path falls back to prefilling raw slash command", async () => {
+  const commands = [
+    {
+      name: "analysis-router",
+      source: "prompt",
+      description: "Router template without file path",
+    },
+  ];
+
+  const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+  const result = await runWithTimeout(
+    runInputPipeline(handlers, "$$ /analysis-router", createTriggerLikeContext(process.cwd())),
+    2000,
+  );
+
+  assert.equal(result.action, "transform");
+  assert.equal(result.text, "/analysis-router");
+});
+
+test("live trigger: duplicate prompt names keep selected command identity and prefill transformed command", async () => {
+  const previousPath = process.env.PATH;
+  process.env.PATH = "/__missing_fzf_path__";
+  resetBroker();
+
+  try {
+    await withTempTemplate("Create an implementation plan for this request: $@\n", async (templatePath, cwd) => {
+      const commands = [
+        {
+          name: "implementation-planning",
+          source: "prompt",
+          description: "Draft an implementation plan for a requested change",
+        },
+        {
+          name: "implementation-planning",
+          source: "prompt",
+          description: "Draft an implementation plan for a requested change",
+          path: templatePath,
+        },
+      ];
+
+      const pi = {
+        on() {
+          // Input handlers are not needed for broker-driven live trigger verification.
+        },
+        registerCommand() {
+          // Not needed for this test.
+        },
+        getCommands() {
+          return commands;
+        },
+        async exec() {
+          return { code: 1, stdout: "", stderr: "" };
+        },
+      };
+
+      ptxExtension(pi as any);
+      await waitForLiveTrigger("ptx-template-picker");
+
+      const broker = getBroker();
+      let editorText = "";
+      const notifications: Array<{ message: string; level?: string }> = [];
+
+      broker.setAPI({
+        setText(text: string) {
+          editorText = text;
+        },
+        async select(_title: string, options: string[]) {
+          return options.find((option) => !option.includes("no template path")) ?? options[0] ?? null;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      });
+
+      const input = "$$ /implementation-planning";
+      await runWithTimeout(
+        broker.checkAndFire({
+          fullText: input,
+          textBeforeCursor: input,
+          textAfterCursor: "",
+          cursorLine: 0,
+          cursorColumn: input.length,
+          totalLines: 1,
+          isLive: true,
+          cwd,
+          sessionKey: "ptx-live-duplicate-test",
+        }),
+        2500,
+      );
+
+      assert.match(editorText, /^\/implementation-planning\s+"<MUST_REPLACE_PRIMARY_OBJECTIVE>"$/);
+      assert.equal(
+        notifications.some((entry) => /Unable to build suggestion|Template not found/.test(entry.message)),
+        false,
+      );
+    });
+  } finally {
+    process.env.PATH = previousPath;
+    resetBroker();
+  }
 });
 
 test("mixed-extension non-UI smoke: both load orders handle '$$ /...' and '/vault...' without hanging", async () => {

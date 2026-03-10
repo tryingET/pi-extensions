@@ -8,10 +8,32 @@ import { parseTemplateArgHints } from "./parseTemplateArgHints.js";
 import { resolvePromptTemplate } from "./resolvePromptTemplate.js";
 import { resolveTemplatePolicy } from "./ptxPolicyConfig.js";
 
+function normalizeTemplateCommandOverride(value) {
+  if (!value || typeof value !== "object") return undefined;
+
+  const name = typeof value.name === "string" ? value.name.trim().replace(/^\/+/, "") : "";
+  if (!name) return undefined;
+
+  const normalized = {
+    name,
+    source: "prompt",
+  };
+
+  if (typeof value.description === "string" && value.description.trim().length > 0) {
+    normalized.description = value.description.trim();
+  }
+
+  if (typeof value.path === "string" && value.path.trim().length > 0) {
+    normalized.path = value.path.trim();
+  }
+
+  return normalized;
+}
+
 /**
  * Build a deterministic transform plan for a raw slash command.
  */
-export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConfig }) {
+export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConfig, templateCommandOverride }) {
   let parsed;
   try {
     parsed = parseRawCommand(rawText);
@@ -26,7 +48,11 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
     return { status: "not-slash-command" };
   }
 
-  const templateCommand = resolvePromptTemplate(pi.getCommands(), parsed.commandName);
+  const normalizedOverride = normalizeTemplateCommandOverride(templateCommandOverride);
+  const templateCommand =
+    normalizedOverride && normalizedOverride.name === parsed.commandName
+      ? normalizedOverride
+      : resolvePromptTemplate(pi.getCommands(), parsed.commandName);
   if (!templateCommand) {
     return {
       status: "non-template-command",
