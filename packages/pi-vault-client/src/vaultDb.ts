@@ -16,6 +16,7 @@ import {
   PROMPT_VAULT_ROOT,
   type RouterControlledVocabulary,
   SCHEMA_VERSION,
+  type SchemaCompatibilityReport,
   type Template,
   type TemplateUpdatePatch,
   type UpdateResult,
@@ -29,6 +30,28 @@ import {
 } from "./vaultTypes.js";
 
 const DEFAULT_DOLT_MAX_BUFFER = 64 * 1024 * 1024;
+const REQUIRED_PROMPT_TEMPLATE_COLUMNS = [
+  "artifact_kind",
+  "control_mode",
+  "formalization_level",
+  "owner_company",
+  "visibility_companies",
+  "controlled_vocabulary",
+  "export_to_pi",
+  "version",
+] as const;
+const REQUIRED_EXECUTION_COLUMNS = [
+  "id",
+  "entity_type",
+  "entity_id",
+  "entity_version",
+  "input_context",
+  "model",
+  "output_capture_mode",
+  "output_text",
+  "success",
+] as const;
+const REQUIRED_FEEDBACK_COLUMNS = ["execution_id", "rating", "notes", "issues"] as const;
 let cachedContracts: GovernedContracts | null = null;
 
 function formatVaultError(error: unknown): string {
@@ -1242,41 +1265,45 @@ function logExecution(
   `);
 }
 
+function getPresentColumns(tableName: string): Set<string> {
+  const columns = queryVaultJson(`SHOW COLUMNS FROM ${tableName}`);
+  return new Set((columns?.rows || []).map((row) => String(row.Field || "")));
+}
+
+function getMissingColumns(required: readonly string[], present: Set<string>): string[] {
+  return required.filter((column) => !present.has(column));
+}
+
+function checkSchemaCompatibilityDetailed(): SchemaCompatibilityReport {
+  const versionResult = queryVaultJson("SELECT MAX(version) AS version FROM schema_version");
+  const rawVersion = versionResult?.rows?.[0]?.version;
+  const actualVersion = Number.isFinite(Number(rawVersion)) ? Number(rawVersion) : null;
+  const promptTemplatePresent = getPresentColumns("prompt_templates");
+  const executionPresent = getPresentColumns("executions");
+  const feedbackPresent = getPresentColumns("feedback");
+  const missingPromptTemplateColumns = getMissingColumns(
+    REQUIRED_PROMPT_TEMPLATE_COLUMNS,
+    promptTemplatePresent,
+  );
+  const missingExecutionColumns = getMissingColumns(REQUIRED_EXECUTION_COLUMNS, executionPresent);
+  const missingFeedbackColumns = getMissingColumns(REQUIRED_FEEDBACK_COLUMNS, feedbackPresent);
+
+  return {
+    ok:
+      actualVersion === SCHEMA_VERSION &&
+      missingPromptTemplateColumns.length === 0 &&
+      missingExecutionColumns.length === 0 &&
+      missingFeedbackColumns.length === 0,
+    expectedVersion: SCHEMA_VERSION,
+    actualVersion,
+    missingPromptTemplateColumns,
+    missingExecutionColumns,
+    missingFeedbackColumns,
+  };
+}
+
 function checkSchemaVersion(): boolean {
-  const result = queryVaultJson("SELECT MAX(version) AS version FROM schema_version");
-  if (!result || !result.rows || result.rows.length === 0) return false;
-  const dbVersion = Number(result.rows[0].version) || 0;
-  if (dbVersion !== SCHEMA_VERSION) return false;
-
-  const promptTemplateColumns = queryVaultJson("SHOW COLUMNS FROM prompt_templates");
-  const promptTemplatePresent = new Set(
-    (promptTemplateColumns?.rows || []).map((row) => String(row.Field || "")),
-  );
-  const executionColumns = queryVaultJson("SHOW COLUMNS FROM executions");
-  const executionPresent = new Set(
-    (executionColumns?.rows || []).map((row) => String(row.Field || "")),
-  );
-  const feedbackColumns = queryVaultJson("SHOW COLUMNS FROM feedback");
-  const feedbackPresent = new Set(
-    (feedbackColumns?.rows || []).map((row) => String(row.Field || "")),
-  );
-
-  return (
-    [
-      "artifact_kind",
-      "control_mode",
-      "formalization_level",
-      "owner_company",
-      "visibility_companies",
-      "controlled_vocabulary",
-      "export_to_pi",
-      "version",
-    ].every((column) => promptTemplatePresent.has(column)) &&
-    ["id", "entity_type", "entity_id", "entity_version", "input_context", "model", "success"].every(
-      (column) => executionPresent.has(column),
-    ) &&
-    ["execution_id", "rating", "notes", "issues"].every((column) => feedbackPresent.has(column))
-  );
+  return checkSchemaCompatibilityDetailed().ok;
 }
 
 export function createVaultRuntime(): VaultRuntime {
@@ -1311,6 +1338,7 @@ export function createVaultRuntime(): VaultRuntime {
     updateTemplate,
     rateTemplate,
     logExecution,
+    checkSchemaCompatibilityDetailed,
     checkSchemaVersion,
   };
 }

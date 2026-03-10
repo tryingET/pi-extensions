@@ -128,6 +128,67 @@ function buildToolMutationContext(ctx: unknown): VaultMutationContext {
   };
 }
 
+function formatSchemaDiagnosticsReport(
+  runtime: VaultRuntime,
+  currentCompany: string,
+  currentCompanySource: string,
+): string {
+  const report = runtime.checkSchemaCompatibilityDetailed();
+  return [
+    "# Vault Schema Diagnostics",
+    "",
+    `- schema_required: ${report.expectedVersion}`,
+    `- schema_actual: ${report.actualVersion ?? "unknown"}`,
+    `- schema_status: ${report.ok ? "ok" : "mismatch"}`,
+    `- missing_prompt_template_columns: ${report.missingPromptTemplateColumns.join(", ") || "none"}`,
+    `- missing_execution_columns: ${report.missingExecutionColumns.join(", ") || "none"}`,
+    `- missing_feedback_columns: ${report.missingFeedbackColumns.join(", ") || "none"}`,
+    `- current_company: ${currentCompany}`,
+    `- current_company_source: ${currentCompanySource}`,
+  ].join("\n");
+}
+
+export function registerVaultDiagnosticsTool(pi: PiExtension, runtime: VaultRuntime): void {
+  pi.registerTool({
+    name: "vault_schema_diagnostics",
+    label: "Vault Schema Diagnostics",
+    description: `Inspect Prompt Vault schema compatibility for this client runtime.
+
+Use when /vault or vault tools may be unavailable due to schema drift.
+Reports expected vs actual schema version plus missing prompt/execution/feedback columns.`,
+    parameters: Type.Object({}),
+    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+      const executionContext = resolveToolExecutionContext(runtime, ctx);
+      const output = formatSchemaDiagnosticsReport(
+        runtime,
+        executionContext.currentCompany,
+        executionContext.companySource,
+      );
+      const report = runtime.checkSchemaCompatibilityDetailed();
+      return {
+        content: [{ type: "text", text: output }],
+        details: {
+          ok: report.ok,
+          expectedVersion: report.expectedVersion,
+          actualVersion: report.actualVersion,
+          missingPromptTemplateColumns: report.missingPromptTemplateColumns,
+          missingExecutionColumns: report.missingExecutionColumns,
+          missingFeedbackColumns: report.missingFeedbackColumns,
+          currentCompany: executionContext.currentCompany,
+          currentCompanySource: executionContext.companySource,
+        },
+      };
+    },
+    renderCall(_args, theme) {
+      return new Text(theme.fg("toolTitle", theme.bold("vault_schema_diagnostics")), 0, 0);
+    },
+    renderResult(result) {
+      const details = result.details as { ok?: boolean } | undefined;
+      return new Text(details?.ok ? "schema ok" : "schema mismatch", 0, 0);
+    },
+  });
+}
+
 export function registerVaultTools(pi: PiExtension, runtime: VaultRuntime): void {
   pi.registerTool({
     name: "vault_query",
@@ -411,7 +472,7 @@ Example: vault_vocabulary()`,
   pi.registerTool({
     name: "vault_insert",
     label: "Vault Insert",
-    description: `Insert a new template using Prompt Vault schema v8 ontology, governance, and controlled vocabulary.
+    description: `Insert a new template using Prompt Vault schema v9 ontology, governance, and controlled vocabulary.
 
 Validates artifact_kind/control_mode/formalization_level against the ontology contract.
 Validates owner_company/visibility_companies against the governance contract.
@@ -520,7 +581,7 @@ Example:
   pi.registerTool({
     name: "vault_update",
     label: "Vault Update",
-    description: `Update an existing template in place by exact name using Prompt Vault schema v8 ontology, governance, and controlled vocabulary rules.
+    description: `Update an existing template in place by exact name using Prompt Vault schema v9 ontology, governance, and controlled vocabulary rules.
 
 Loads the current template row first, merges only the provided patch fields, and revalidates the merged result against the same governed contracts used by vault_insert.
 Fails clearly if the target template does not exist, if no update fields were provided, if the active mutation company does not own the row, or if the row changed during the update.

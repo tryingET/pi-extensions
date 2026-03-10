@@ -1,4 +1,4 @@
-import { prepareTemplateForExecution } from "./templateRenderer.js";
+import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import type {
   FrameworkResolution,
   GroundingRuntime,
@@ -234,7 +234,7 @@ function buildFrameworkGroundingAppendix(
 
   for (let i = 0; i < selected.length; i++) {
     const f = selected[i];
-    const prepared = prepareTemplateForExecution(f.content, {
+    const prepared = prepareTemplateForExecutionCompat(f.content, {
       currentCompany: renderOptions.currentCompany,
       context: renderOptions.context,
       args: renderOptions.args,
@@ -320,7 +320,7 @@ function buildGroundedNext10Prompt(
     mode,
     extras: normalizedExtras,
   };
-  const prepared = prepareTemplateForExecution(template.content, {
+  const prepared = prepareTemplateForExecutionCompat(template.content, {
     args: frameworkArgs,
     currentCompany,
     templateName: template.name,

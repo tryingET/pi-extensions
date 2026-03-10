@@ -219,6 +219,53 @@ test("vault_executions and vault_rate use execution-bound provenance contracts",
   });
 });
 
+test("vault_schema_diagnostics reports detailed compatibility in headless tool mode", async () => {
+  await withVaultModules(async ({ importModule }) => {
+    const { registerVaultDiagnosticsTool } = await importModule("src/vaultTools.js");
+    const tools = new Map();
+    const pi = {
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+    };
+
+    registerVaultDiagnosticsTool(pi, {
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: false,
+          expectedVersion: 9,
+          actualVersion: 8,
+          missingPromptTemplateColumns: ["controlled_vocabulary"],
+          missingExecutionColumns: ["output_capture_mode", "output_text"],
+          missingFeedbackColumns: [],
+        };
+      },
+      resolveCurrentCompanyContext(cwd) {
+        return {
+          company: cwd?.includes("softwareco") ? "software" : "core",
+          source: cwd ? `cwd:${cwd}` : "contract-default",
+        };
+      },
+    });
+
+    const tool = tools.get("vault_schema_diagnostics");
+    assert.ok(tool);
+    const result = await tool.execute("call-1", {}, undefined, undefined, {
+      cwd: "/tmp/softwareco/owned/demo",
+    });
+
+    const text = result.content[0]?.text || "";
+    assert.match(text, /# Vault Schema Diagnostics/);
+    assert.match(text, /schema_required: 9/);
+    assert.match(text, /schema_actual: 8/);
+    assert.match(text, /schema_status: mismatch/);
+    assert.match(text, /missing_prompt_template_columns: controlled_vocabulary/);
+    assert.match(text, /missing_execution_columns: output_capture_mode, output_text/);
+    assert.match(text, /current_company: software/);
+    assert.deepEqual(result.details.ok, false);
+  });
+});
+
 test("vault_update forwards only provided patch fields and strict tool context to the runtime", async () => {
   await withVaultModules(async ({ importModule }) => {
     const { registerVaultTools } = await importModule("src/vaultTools.js");

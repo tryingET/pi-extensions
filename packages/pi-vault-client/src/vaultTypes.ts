@@ -13,7 +13,7 @@ export const LIVE_VAULT_TRIGGER_ID = "vault-template-live-picker";
 export const LIVE_VAULT_TRIGGER_DEBOUNCE_MS = 180;
 export const LIVE_VAULT_MIN_QUERY = 0;
 export const LIVE_TRIGGER_TELEMETRY_LIMIT = 100;
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export const COMPANIES = [
   "core",
@@ -233,6 +233,15 @@ export type VaultResult<T> =
   | { ok: true; value: T; error: null }
   | { ok: false; value: null; error: string };
 
+export interface SchemaCompatibilityReport {
+  ok: boolean;
+  expectedVersion: number;
+  actualVersion: number | null;
+  missingPromptTemplateColumns: string[];
+  missingExecutionColumns: string[];
+  missingFeedbackColumns: string[];
+}
+
 export interface VaultRuntime {
   queryVaultJson: (sql: string) => DoltJsonResult | null;
   queryVaultJsonDetailed: (sql: string) => VaultResult<DoltJsonResult>;
@@ -325,6 +334,7 @@ export interface VaultRuntime {
     model: string,
     inputContext?: string,
   ) => void;
+  checkSchemaCompatibilityDetailed: () => SchemaCompatibilityReport;
   checkSchemaVersion: () => boolean;
 }
 

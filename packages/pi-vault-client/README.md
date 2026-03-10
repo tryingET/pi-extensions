@@ -19,7 +19,7 @@ Monorepo package for vault workflows in pi.
 
 ## Runtime dependencies
 
-This package expects Prompt Vault schema v8 and pi host runtime APIs.
+This package expects Prompt Vault schema v9 and pi host runtime APIs.
 
 Prompt rows are consumed through these canonical fields:
 
@@ -38,6 +38,7 @@ This package declares pi APIs as `peerDependencies`:
 - `@mariozechner/pi-tui`
 
 When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
+`/vault-check` is interactive-only; use `vault_schema_diagnostics` or the isolated headless smoke below for `pi -p` verification.
 
 ## Package checks
 
@@ -117,7 +118,7 @@ Tool mutation surface:
   - owner-only: the active mutation company must own the current row
   - loads the current row first
   - merges only provided fields
-  - revalidates the merged template against schema-v8 ontology/governance/controlled-vocabulary contracts
+  - revalidates the merged template against schema-v9 ontology/governance/controlled-vocabulary contracts
   - rejects blank content, frontmatter-only bodies, and unsupported explicit `render_engine` values at mutation time
   - uses optimistic locking on `version`; stale writers fail closed and must retry from fresh state
   - no fuzzy targeting, bulk mutation, rename behavior, or owner reassignment in this first slice
@@ -126,8 +127,40 @@ Tool mutation surface:
   - feedback insert succeeds only when exactly one feedback row is written for that execution
   - mutation still uses explicit company context so feedback writes do not silently inherit ambient process cwd
 
-Use `/vault-check` to inspect schema compatibility, resolved company context, and visibility of key shared templates.
-Schema compatibility now requires `prompt_templates.version` plus the execution/feedback provenance tables and columns (`executions.entity_version`, `feedback.execution_id`, etc.) because optimistic locking and exact feedback binding depend on them.
+Use `/vault-check` to inspect schema compatibility, resolved company context, and visibility of key shared templates in the interactive TUI.
+Use `vault_schema_diagnostics()` on the tool surface when headless or when startup is running in schema-mismatch diagnostic mode.
+Schema compatibility now requires Prompt Vault schema `9`, `prompt_templates.version`, and the execution/feedback provenance + capture columns (`executions.entity_version`, `executions.output_capture_mode`, `executions.output_text`, `feedback.execution_id`, etc.) because optimistic locking, exact feedback binding, and execution-capture awareness depend on them.
+`/vault-check` now reports expected vs actual schema version plus missing prompt/execution/feedback columns when the boundary is broken.
+When schema compatibility fails, the extension stays loaded in diagnostic mode so `/vault-check` and `vault_schema_diagnostics()` remain available even while vault query/mutation surfaces stay gated.
+
+## Isolated live validation
+
+For a headless schema-diagnostic call that remains available even during schema mismatch:
+
+```bash
+PI_COMPANY=software \
+pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client -p \
+  "Call vault_schema_diagnostics, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
+```
+
+For a headless query smoke that avoids unrelated auto-discovered extensions:
+
+```bash
+PI_COMPANY=software \
+pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client -p \
+  "Call vault_query with limit 1 and include_content false, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
+```
+
+For interactive slash-command validation in an isolated runtime:
+
+```bash
+export PI_COMPANY=software
+pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+# then inside pi:
+# /vault-check
+# /vault meta-orchestration
+# /vault:meta-orchestration
+```
 
 ## Render engine contract
 
@@ -141,7 +174,7 @@ Supported render engines:
 
 Phase-1 contract:
 
-- storage remains schema-v8 compatible; render metadata is carried in prompt-content frontmatter
+- storage remains schema-v9 compatible; render metadata is carried in prompt-content frontmatter
 - if `render_engine` is omitted, generic execution paths treat the template as `none`
 - generic `/vault` and live `/vault:` do **not** auto-detect legacy pi-vars syntax from raw prompt text
 - specific internal grounding paths may opt into legacy pi-vars auto-detection explicitly while stored templates are migrated
@@ -189,17 +222,18 @@ Current execution behavior:
 
 See [live render-engine validation](docs/dev/live-render-engine-validation.md) for installed-package verification evidence, and [legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md) for the operator migration boundary.
 
-## Live sync helper
+## Live package activation
 
-Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy the extension entrypoint plus shared `src/` modules into `~/.pi/agent/extensions/vault-client/`.
+Install the package into Pi from its local package path:
 
-Optional flags:
+```bash
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+```
 
-- `--with-prompts`
-- `--with-policy`
-- `--all`
+Then in Pi:
 
-After sync, run `/reload` in pi.
+1. run `/reload`
+2. verify with a real command or tool call from this package
 
 ## Docs discovery
 
@@ -227,7 +261,9 @@ npm run docs:list:json
 - [Project incentives](docs/project/incentives.md)
 - [Project resources](docs/project/resources.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
-- [Prompt Vault v2 relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
+- [Status](docs/dev/status.md)
+- [Prompt Vault v9 cutover](docs/dev/v9-cutover.md)
+- [Historical Prompt Vault relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
 - [Live render-engine validation](docs/dev/live-render-engine-validation.md)
 - [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)

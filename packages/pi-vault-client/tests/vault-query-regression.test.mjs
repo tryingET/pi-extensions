@@ -14,17 +14,22 @@ const RENDERER_SOURCE = readFileSync(
 );
 const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.meta.url), "utf8");
 
-test("vault runtime targets Prompt Vault schema v8", () => {
-  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*8/);
+test("vault runtime targets Prompt Vault schema v9", () => {
+  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*9/);
   assert.match(TYPES_SOURCE, /const\s+DEFAULT_VAULT_QUERY_LIMIT\s*=\s*20/);
   assert.match(DB_SOURCE, /SELECT MAX\(version\) AS version FROM schema_version/);
-  assert.match(
-    EXTENSION_SOURCE,
-    /owner_company\/visibility_companies\/controlled_vocabulary\/export_to_pi/,
-  );
+  assert.match(EXTENSION_SOURCE, /registerVaultDiagnosticsTool\(pi, vaultRuntime\)/);
+  assert.match(EXTENSION_SOURCE, /registerVaultCommands\(pi, runtime\)/);
+  assert.match(EXTENSION_SOURCE, /formatMissingColumns\("prompt_templates"/);
+  assert.match(EXTENSION_SOURCE, /missingPromptTemplateColumns/);
+  assert.match(EXTENSION_SOURCE, /formatMissingColumns\("executions"/);
+  assert.match(EXTENSION_SOURCE, /missingExecutionColumns/);
+  assert.match(EXTENSION_SOURCE, /checkSchemaCompatibilityDetailed\(\)/);
+  assert.match(EXTENSION_SOURCE, /expected=\$\{SCHEMA_VERSION\}/);
+  assert.match(EXTENSION_SOURCE, /actual=\$\{schemaReport\.actualVersion \?\? "unknown"\}/);
 });
 
-test("schema compatibility requires governed prompt columns plus execution and feedback provenance", () => {
+test("schema compatibility requires governed prompt columns plus execution capture/provenance and feedback binding", () => {
   for (const column of [
     "artifact_kind",
     "control_mode",
@@ -35,6 +40,8 @@ test("schema compatibility requires governed prompt columns plus execution and f
     "export_to_pi",
     "version",
     "entity_version",
+    "output_capture_mode",
+    "output_text",
     "execution_id",
     "rating",
     "notes",
@@ -42,6 +49,20 @@ test("schema compatibility requires governed prompt columns plus execution and f
   ]) {
     assert.match(DB_SOURCE, new RegExp(`"${column}"`));
   }
+  assert.match(TYPES_SOURCE, /interface\s+SchemaCompatibilityReport/);
+  assert.match(
+    TYPES_SOURCE,
+    /checkSchemaCompatibilityDetailed:\s*\(\)\s*=>\s*SchemaCompatibilityReport/,
+  );
+  assert.match(
+    DB_SOURCE,
+    /function\s+checkSchemaCompatibilityDetailed\(\): SchemaCompatibilityReport/,
+  );
+  assert.match(DB_SOURCE, /expectedVersion: SCHEMA_VERSION/);
+  assert.match(DB_SOURCE, /actualVersion,/);
+  assert.match(DB_SOURCE, /missingPromptTemplateColumns/);
+  assert.match(DB_SOURCE, /missingExecutionColumns/);
+  assert.match(DB_SOURCE, /missingFeedbackColumns/);
 });
 
 test("vault_query uses implicit visibility filtering with explicit execution context when available", () => {
@@ -181,7 +202,16 @@ test("vault_search surfaces backend query failures explicitly", () => {
   assert.match(COMMANDS_SOURCE, /Usage: \/vault-search <query>/);
 });
 
-test("session_start reports vault unavailability instead of empty counts", () => {
+test("vault exposes a schema diagnostics tool that remains useful during mismatch", () => {
+  assert.match(TOOLS_SOURCE, /name: "vault_schema_diagnostics"/);
+  assert.match(TOOLS_SOURCE, /# Vault Schema Diagnostics/);
+  assert.match(TOOLS_SOURCE, /missing_prompt_template_columns:/);
+  assert.match(TOOLS_SOURCE, /missing_execution_columns:/);
+  assert.match(TOOLS_SOURCE, /missing_feedback_columns:/);
+});
+
+test("session_start reports schema mismatch or vault unavailability instead of empty counts", () => {
+  assert.match(COMMANDS_SOURCE, /Vault schema mismatch \(/);
   assert.match(COMMANDS_SOURCE, /Vault unavailable:/);
   assert.doesNotMatch(
     COMMANDS_SOURCE,
@@ -244,14 +274,20 @@ test("route prompt generation is centralized in a helper", () => {
   assert.match(COMMANDS_SOURCE, /outputHeading: "Output:"/);
 });
 
-test("vault check command reports company context and key template visibility", () => {
+test("vault check command reports detailed schema diagnostics plus company context and key template visibility", () => {
   assert.doesNotMatch(DB_SOURCE, /activeSessionCwd/);
   assert.match(DB_SOURCE, /function\s+resolveCurrentCompanyContext\(cwd\?: string\)/);
   assert.match(DB_SOURCE, /const effectiveCwd = cwd\?\.trim\(\) \|\| process\.cwd\(\)/);
   assert.match(DB_SOURCE, /source: "env:PI_COMPANY"/);
   assert.match(DB_SOURCE, /source: `cwd:\$\{effectiveCwd\}`/);
   assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-check"/);
+  assert.match(COMMANDS_SOURCE, /checkSchemaCompatibilityDetailed\(\)/);
   assert.match(COMMANDS_SOURCE, /# Vault Check/);
+  assert.match(COMMANDS_SOURCE, /schema_actual:/);
+  assert.match(COMMANDS_SOURCE, /schema_status:/);
+  assert.match(COMMANDS_SOURCE, /missing_prompt_template_columns:/);
+  assert.match(COMMANDS_SOURCE, /missing_execution_columns:/);
+  assert.match(COMMANDS_SOURCE, /missing_feedback_columns:/);
   assert.match(COMMANDS_SOURCE, /company_source:/);
   assert.match(COMMANDS_SOURCE, /meta-orchestration:/);
   assert.match(COMMANDS_SOURCE, /next-10-expert-suggestions:/);

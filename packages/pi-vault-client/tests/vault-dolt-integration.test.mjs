@@ -165,3 +165,26 @@ test("vault runtime supports end-to-end execution-bound feedback in a real temp 
     assert.equal(String(feedbackRows.value.rows[0].notes), "solid");
   });
 });
+
+test("vault runtime exposes detailed schema compatibility diagnostics for v9", async () => {
+  await withTempVaultRuntime(async ({ importModule, repoDir }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    const okReport = runtime.checkSchemaCompatibilityDetailed();
+    assert.equal(okReport.ok, true);
+    assert.equal(okReport.expectedVersion, 9);
+    assert.equal(okReport.actualVersion, 9);
+    assert.deepEqual(okReport.missingPromptTemplateColumns, []);
+    assert.deepEqual(okReport.missingExecutionColumns, []);
+    assert.deepEqual(okReport.missingFeedbackColumns, []);
+
+    run("dolt", ["sql", "-q", "ALTER TABLE executions DROP COLUMN output_text"], { cwd: repoDir });
+
+    const mismatchReport = runtime.checkSchemaCompatibilityDetailed();
+    assert.equal(mismatchReport.ok, false);
+    assert.equal(mismatchReport.expectedVersion, 9);
+    assert.equal(mismatchReport.actualVersion, 9);
+    assert.deepEqual(mismatchReport.missingExecutionColumns, ["output_text"]);
+  });
+});

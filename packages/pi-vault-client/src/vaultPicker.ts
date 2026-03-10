@@ -1,6 +1,6 @@
 import { registerPickerInteraction, splitQueryAndContext } from "@tryinget/pi-trigger-adapter";
 import { selectFuzzyCandidate } from "./fuzzySelector.js";
-import { prepareTemplateForExecution } from "./templateRenderer.js";
+import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import { toVaultCandidates } from "./vaultCandidateAdapter.js";
 import {
   type FuzzyCandidate,
@@ -90,7 +90,7 @@ function prepareVaultPrompt(
   template: Template,
   options: { context?: string; currentCompany?: string; cwd?: string } = {},
 ) {
-  return prepareTemplateForExecution(template.content, {
+  return prepareTemplateForExecutionCompat(template.content, {
     currentCompany: options.currentCompany ?? runtime.getCurrentCompany(options.cwd),
     context: options.context ?? "",
     templateName: template.name,

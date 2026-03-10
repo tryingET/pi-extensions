@@ -56,6 +56,23 @@ function formatVaultTemplateRenderError(templateName: string, error: unknown): s
   return `Vault template render failed (${templateName}): ${message}`;
 }
 
+function formatSchemaMismatchMessage(
+  runtime: Pick<VaultModuleRuntime, "checkSchemaCompatibilityDetailed">,
+): string {
+  const report = runtime.checkSchemaCompatibilityDetailed();
+  const parts = [
+    `expected=${report.expectedVersion}`,
+    `actual=${report.actualVersion ?? "unknown"}`,
+  ];
+  if (report.missingPromptTemplateColumns.length > 0)
+    parts.push(`prompt_templates:[${report.missingPromptTemplateColumns.join(", ")}]`);
+  if (report.missingExecutionColumns.length > 0)
+    parts.push(`executions:[${report.missingExecutionColumns.join(", ")}]`);
+  if (report.missingFeedbackColumns.length > 0)
+    parts.push(`feedback:[${report.missingFeedbackColumns.join(", ")}]`);
+  return `Vault schema mismatch (${parts.join("; ")}). Use /vault-check or vault_schema_diagnostics.`;
+}
+
 async function resolveVaultTemplateSelection(
   runtime: VaultModuleRuntime,
   ctx: { hasUI: boolean; cwd?: string; ui?: { notify: (message: string, level?: string) => void } },
@@ -107,6 +124,19 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
   pi.on("input", async (event, ctx) => {
     if (event.source === "extension") return { action: "continue" };
     const text = event.text.trim();
+    const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+    const schemaMismatchMessage = schemaReport.ok ? "" : formatSchemaMismatchMessage(runtime);
+
+    if (
+      !schemaReport.ok &&
+      /^\/(vault(?::|\s|$)|route\b|next-10-expert-suggestions\b)/.test(text)
+    ) {
+      if (ctx.hasUI) {
+        ctx.ui.notify(schemaMismatchMessage, "warning");
+        return { action: "handled" };
+      }
+      return { action: "transform", text: schemaMismatchMessage };
+    }
 
     if (text.startsWith("/next-10-expert-suggestions")) {
       const grounded = runtime.buildGroundedNext10Prompt(text, {
@@ -243,6 +273,8 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     description: "Load an exact visible vault template or open the picker",
     handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
       const parsed = runtime.splitVaultQueryAndContext(args.trim());
       const resolved = await resolveVaultTemplateSelection(runtime, ctx, parsed.query);
       if (!resolved.template)
@@ -279,6 +311,8 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     description: "Route context to best cognitive tool via meta-orchestration",
     handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
       const context = args.trim();
       if (!context) return ctx.ui.notify("Usage: /route <describe your situation>", "warning");
       const metaResult = runtime.getTemplateDetailed("meta-orchestration", {
@@ -306,7 +340,8 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
       const companyContext = runtime.resolveCurrentCompanyContext(ctx.cwd);
-      const schemaOk = runtime.checkSchemaVersion();
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      const schemaOk = schemaReport.ok;
       const executionContext = { currentCompany: companyContext.company, cwd: ctx.cwd };
       const templatesResult = schemaOk
         ? runtime.listTemplatesDetailed(undefined, executionContext)
@@ -317,13 +352,15 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       const next10Result = schemaOk
         ? runtime.getTemplateDetailed("next-10-expert-suggestions", executionContext)
         : { ok: true, value: null, error: null as null };
-      const queryError = !templatesResult.ok
-        ? templatesResult.error
-        : !metaResult.ok
-          ? metaResult.error
-          : !next10Result.ok
-            ? next10Result.error
-            : "none";
+      const queryError = !schemaOk
+        ? "schema-mismatch"
+        : !templatesResult.ok
+          ? templatesResult.error
+          : !metaResult.ok
+            ? metaResult.error
+            : !next10Result.ok
+              ? next10Result.error
+              : "none";
       const templates = templatesResult.ok ? templatesResult.value : [];
       const metaOrchestration = metaResult.ok ? metaResult.value : null;
       const next10 = next10Result.ok ? next10Result.value : null;
@@ -331,7 +368,12 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       const output = [
         "# Vault Check",
         "",
-        `- schema_required: ${schemaOk ? "8 (ok)" : "8 (mismatch)"}`,
+        `- schema_required: ${schemaReport.expectedVersion}`,
+        `- schema_actual: ${schemaReport.actualVersion ?? "unknown"}`,
+        `- schema_status: ${schemaOk ? "ok" : "mismatch"}`,
+        `- missing_prompt_template_columns: ${schemaReport.missingPromptTemplateColumns.join(", ") || "none"}`,
+        `- missing_execution_columns: ${schemaReport.missingExecutionColumns.join(", ") || "none"}`,
+        `- missing_feedback_columns: ${schemaReport.missingFeedbackColumns.join(", ") || "none"}`,
         `- current_company: ${companyContext.company}`,
         `- company_source: ${companyContext.source}`,
         `- query_error: ${queryError}`,
@@ -383,6 +425,11 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
 
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
+    const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+    if (!schemaReport.ok) {
+      ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
+      return;
+    }
     const executionContext = {
       currentCompany: runtime.getCurrentCompany(ctx.cwd),
       cwd: ctx.cwd,
@@ -413,6 +460,8 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     description: "Show vault execution statistics",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
       const currentCompany = runtime.getCurrentCompany(ctx.cwd);
       const result = runtime.queryVaultJsonDetailed(`
         SELECT pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level, COUNT(e.id) as uses, MAX(e.created_at) as last_used
