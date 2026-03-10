@@ -302,18 +302,18 @@ Persistence behavior:
 - Snapshot format is schema-versioned (`schemaVersion: 1`) and validated on load
 - Malformed snapshots fail safe (tool remains usable; snapshot is repaired on next successful scoped persistence)
 
-## Live sync helper
+## Live package activation
 
-Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy extension entrypoints plus
-shared `src/` modules into `~/.pi/agent/extensions/pi-autonomous-session-control/`.
+Install the package into Pi from its local package path:
 
-Optional flags:
+```bash
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
+```
 
-- `--with-prompts`
-- `--with-policy`
-- `--all` (prompts + policy)
+Then in Pi:
 
-After sync, run `/reload` in pi.
+1. run `/reload`
+2. verify with a real command or tool call from this package
 
 ## Docs map
 

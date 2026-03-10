@@ -26,7 +26,6 @@ required_files=(
   "policy/stack-lane.json"
   "policy/security-policy.json"
   ".pi/prompts/commit.md"
-  "scripts/sync-to-live.sh"
   "scripts/docs-list.sh"
   "scripts/release-check.sh"
   "scripts/validate-structure.sh"
@@ -56,7 +55,6 @@ required_dirs=(
 )
 
 required_executables=(
-  "scripts/sync-to-live.sh"
   "scripts/docs-list.sh"
   "scripts/release-check.sh"
   "scripts/validate-structure.sh"
