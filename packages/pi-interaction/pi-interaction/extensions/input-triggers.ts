@@ -258,7 +258,9 @@ export default function (pi: ExtensionAPI) {
       ctx,
       notifyMessage: "Interaction runtime enabled",
       factory: (tui: unknown, theme: unknown, keybindings: unknown) => {
-        return new TriggerEditor(tui, theme, keybindings, pi, ctx.ui) as unknown as CustomEditor;
+        return new TriggerEditor(tui, theme, keybindings, pi, ctx.ui, {
+          cwd: ctx.cwd,
+        }) as unknown as CustomEditor;
       },
     });
   });

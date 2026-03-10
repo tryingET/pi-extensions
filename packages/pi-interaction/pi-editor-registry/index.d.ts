@@ -1,5 +1,12 @@
 export declare class TriggerEditor {
-  constructor(tui: unknown, theme: unknown, keybindings: unknown, pi: unknown, ui: unknown);
+  constructor(
+    tui: unknown,
+    theme: unknown,
+    keybindings: unknown,
+    pi: unknown,
+    ui: unknown,
+    sessionCtx?: { cwd?: string; sessionKey?: string },
+  );
 }
 
 export declare function createEditorRegistry(options?: { ownerId?: string }): {

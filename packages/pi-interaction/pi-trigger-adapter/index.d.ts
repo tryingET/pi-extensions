@@ -6,6 +6,8 @@ export type TriggerContext = {
   cursorColumn: number;
   totalLines: number;
   isLive: boolean;
+  cwd?: string;
+  sessionKey?: string;
 };
 
 export declare class TriggerBroker {
@@ -18,7 +20,7 @@ export declare class TriggerBroker {
   list(): Record<string, unknown>[];
   diagnostics(): Record<string, unknown>[];
   setEnabled(id: string, enabled: boolean): boolean;
-  checkAndFire(context: TriggerContext): Promise<boolean>;
+  checkAndFire(context: TriggerContext, api?: Record<string, unknown>): Promise<boolean>;
   clear(): void;
   setAPI(api: Record<string, unknown>): void;
 }

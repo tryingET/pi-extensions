@@ -37,6 +37,8 @@
  * @property {number} cursorColumn
  * @property {number} totalLines
  * @property {boolean} isLive
+ * @property {string} [cwd]
+ * @property {string} [sessionKey]
  */
 
 /**
@@ -117,6 +119,52 @@ export class TriggerBroker {
   }
 
   /**
+   * Resolve the dispatch scope for a trigger fire.
+   * @param {TriggerContext|undefined} context
+   * @param {TriggerAPI|undefined|null} api
+   * @returns {string}
+   */
+  getDispatchScopeKey(context, api) {
+    const contextSessionKey =
+      typeof context?.sessionKey === "string" ? context.sessionKey.trim() : "";
+    if (contextSessionKey) return contextSessionKey;
+
+    const apiCtx = api && typeof api === "object" ? api.ctx : undefined;
+    const apiSessionKey =
+      apiCtx && typeof apiCtx === "object" && typeof apiCtx.sessionKey === "string"
+        ? apiCtx.sessionKey.trim()
+        : "";
+    if (apiSessionKey) return apiSessionKey;
+
+    return "__global__";
+  }
+
+  /**
+   * Build a debounce key that isolates timers by trigger id and dispatch scope.
+   * @param {string} triggerId
+   * @param {TriggerContext|undefined} context
+   * @param {TriggerAPI|undefined|null} api
+   * @returns {string}
+   */
+  buildDebounceKey(triggerId, context, api) {
+    return `${triggerId}::${this.getDispatchScopeKey(context, api)}`;
+  }
+
+  /**
+   * Clear any pending debounce timers for a trigger across all dispatch scopes.
+   * @param {string} triggerId
+   */
+  clearDebounceTimersForTrigger(triggerId) {
+    const prefix = `${triggerId}::`;
+    for (const [key, timer] of this.debounceTimers.entries()) {
+      if (key === triggerId || key.startsWith(prefix)) {
+        clearTimeout(timer);
+        this.debounceTimers.delete(key);
+      }
+    }
+  }
+
+  /**
    * Register a new trigger.
    * @param {InputTrigger} trigger
    * @param {RegisterTriggerOptions} [options]
@@ -170,11 +218,7 @@ export class TriggerBroker {
    * @returns {boolean}
    */
   unregister(id) {
-    const timer = this.debounceTimers.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      this.debounceTimers.delete(id);
-    }
+    this.clearDebounceTimersForTrigger(id);
     return this.triggers.delete(id);
   }
 
@@ -228,10 +272,12 @@ export class TriggerBroker {
   /**
    * Check triggers against current context and fire matching ones.
    * @param {TriggerContext} context
+   * @param {TriggerAPI} [apiOverride]
    * @returns {Promise<boolean>}
    */
-  async checkAndFire(context) {
-    if (!this.api) {
+  async checkAndFire(context, apiOverride) {
+    const dispatchApi = apiOverride ?? this.api;
+    if (!dispatchApi) {
       console.warn("[TriggerBroker] No API set, cannot fire triggers");
       return false;
     }
@@ -251,23 +297,24 @@ export class TriggerBroker {
 
         const debounceMs = trigger.debounceMs ?? 100;
         if (debounceMs > 0) {
-          const existing = this.debounceTimers.get(trigger.id);
+          const debounceKey = this.buildDebounceKey(trigger.id, context, dispatchApi);
+          const existing = this.debounceTimers.get(debounceKey);
           if (existing) {
             clearTimeout(existing);
           }
 
           return new Promise((resolve) => {
             this.debounceTimers.set(
-              trigger.id,
+              debounceKey,
               setTimeout(async () => {
-                this.debounceTimers.delete(trigger.id);
-                const fired = await this.fireTrigger(trigger, match, context);
+                this.debounceTimers.delete(debounceKey);
+                const fired = await this.fireTrigger(trigger, match, context, dispatchApi);
                 resolve(fired);
               }, debounceMs),
             );
           });
         } else {
-          return this.fireTrigger(trigger, match, context);
+          return this.fireTrigger(trigger, match, context, dispatchApi);
         }
       }
     }
@@ -280,10 +327,11 @@ export class TriggerBroker {
    * @param {RegisteredTrigger} trigger
    * @param {TriggerMatch} match
    * @param {TriggerContext} context
+   * @param {TriggerAPI} [apiOverride]
    * @returns {Promise<boolean>}
    */
-  async fireTrigger(trigger, match, context) {
-    const api = this.api;
+  async fireTrigger(trigger, match, context, apiOverride) {
+    const api = apiOverride ?? this.api;
     if (!api) {
       trigger.lastError = "Trigger API not set";
       return false;
