@@ -35,6 +35,7 @@ function createTranspiledGroundingModules() {
   for (const relativePath of [
     "src/vaultTypes.ts",
     "src/vaultGrounding.ts",
+    "src/templatePreparationCompat.js",
     "src/templateRenderer.js",
   ]) {
     const sourcePath = path.join(PACKAGE_ROOT, relativePath);
