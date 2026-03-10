@@ -19,7 +19,7 @@ Primary lane:
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).
-- Release baseline: release-please + `npm run release:check` + npm trusted publishing.
+- Release baseline for `@tryinget/pi-interaction`: component-scoped monorepo workflow for `packages/pi-interaction/pi-interaction` + `npm run release:check:quick` + npm trusted publishing bootstrap as needed.
 - Keep package artifacts deterministic via `package.json` `files` allowlist.
 - Lint/format baseline: Biome config in `biome.jsonc` + pinned local `@biomejs/biome` dev dependency.
 - Biome path strategy: lint repo files by default, but exclude artifact/vendor buckets (`external/`, `ontology/`, build outputs, generated/minified files).

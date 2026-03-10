@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { validateTechStackContract } from "../../../scripts/validate-tech-stack-contract.mjs";
 
 let failed = false;
 const fail = (msg) => {
@@ -312,20 +313,14 @@ try {
     fail(".release-please-manifest.json '.' entry must match package.json version");
   }
 
-  const stackLane = JSON.parse(fs.readFileSync("policy/stack-lane.json", "utf8"));
-  if (stackLane.lane !== "ts") {
-    fail("policy/stack-lane.json lane must be 'ts'");
-  }
-
-  const laneName = stackLane.tech_stack_core?.lane;
-  if (laneName !== "pi-ts") {
-    fail("policy/stack-lane.json tech_stack_core.lane must be 'pi-ts'");
-  }
-
-  const stackRef = stackLane.tech_stack_core?.ref;
-  if (typeof stackRef !== "string" || !/^[0-9a-f]{40}$/i.test(stackRef)) {
-    fail("policy/stack-lane.json tech_stack_core.ref must be a pinned 40-char git SHA");
-  }
+  validateTechStackContract({
+    policyPath: "policy/stack-lane.json",
+    expectedLane: "ts",
+    expectedTechStackLane: "pi-ts",
+    requirePinnedRef: "sha40",
+    smokeMode: process.env.PI_TECH_STACK_SMOKE === "0" ? "off" : "if-available",
+    fail,
+  });
 
   validateBiomeIgnoreGovernance(".");
 } catch (error) {

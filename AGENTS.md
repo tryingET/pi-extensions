@@ -27,6 +27,11 @@ Do not duplicate:
 - Put package-specific validation and workflow details in each package's docs, scripts, and manifests.
 - Keep package-local AGENTS files minimal and package-scoped.
 - Treat package folders as monorepo members, not independent repos, unless explicitly documented otherwise.
+- Keep the package stack contract explicit:
+  - `policy/stack-lane.json` pins the `tech-stack-core` lane
+  - `docs/tech-stack.local.md` records repo-local overrides
+  - root `scripts/validate-tech-stack-contract.mjs` centralizes stack-contract validation policy
+  - package `AGENTS.md` may point to the canonical `tech-stack-core` CLI command
 
 ## Live package activation
 - When a package change affects live Pi extension behavior, reinstall that package into Pi from its local package path.

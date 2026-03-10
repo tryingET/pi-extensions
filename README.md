@@ -101,6 +101,13 @@ Use `tpl-package` from your L1 templates to add packages:
   - `.github/dependabot.yml`
 - Repo-local stack note:
   - `docs/tech-stack.local.md`
+- Package stack contract surface:
+  - package-local `policy/stack-lane.json`
+  - package-local `docs/tech-stack.local.md`
+  - root helper `scripts/validate-tech-stack-contract.mjs`
+  - package-local `AGENTS.md` / `docs/project/resources.md`
+- Upstream lane CLI:
+  - `uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo`
 - Agent/operator feedback prompt:
   - `.pi/prompts/commit.md`
 - Community/process docs:
