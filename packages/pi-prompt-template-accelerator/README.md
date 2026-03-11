@@ -137,35 +137,40 @@ npm run test:smoke:non-ui
 
 ## Release + security baseline
 
-This scaffold defaults to **release-please** for single-package release PR + tag flow (`vX.Y.Z`) and npm trusted publishing via OIDC.
+This package now uses the **root-owned monorepo release control plane** in component mode.
+It gets its own independent release-please PRs/tags/releases, but the workflows/config live at monorepo root.
 
-Included files:
+Relevant root-owned files:
 
-- [CI workflow](.github/workflows/ci.yml)
-- [release-please workflow](.github/workflows/release-please.yml)
-- [publish workflow](.github/workflows/publish.yml)
-- [Dependabot config](.github/dependabot.yml)
-- [CODEOWNERS](.github/CODEOWNERS)
-- [release-please config](.release-please-config.json)
-- [release-please manifest](.release-please-manifest.json)
+- [CI workflow](../../.github/workflows/ci.yml)
+- [release-please workflow](../../.github/workflows/release-please.yml)
+- [release-check workflow](../../.github/workflows/release-check.yml)
+- [publish workflow](../../.github/workflows/publish.yml)
+- [release-please config](../../.release-please-config.json)
+- [release-please manifest](../../.release-please-manifest.json)
+- [root component helper](../../scripts/release-components.mjs)
 - [Security policy](SECURITY.md)
 
-Before first production release:
+Current component tag shape:
 
-1. Confirm/adjust owners in [.github/CODEOWNERS](.github/CODEOWNERS).
+- `pi-prompt-template-accelerator-vX.Y.Z`
+
+Before first production release under root automation:
+
+1. Confirm/adjust owners in [../../.github/CODEOWNERS](../../.github/CODEOWNERS).
 2. Enable branch protection on `main`.
-3. Configure npm Trusted Publishing for this repo + [publish workflow](.github/workflows/publish.yml).
-4. Merge release PR from release-please, then publish from GitHub release.
+3. Configure npm Trusted Publishing for the monorepo repo + [root publish workflow](../../.github/workflows/publish.yml).
+4. Let root release-please open the component release PR, then publish from the GitHub release.
 
 ## Issue + PR intake baseline
 
 Included files:
 
-- [Bug report form](.github/ISSUE_TEMPLATE/bug-report.yml)
-- [Feature request form](.github/ISSUE_TEMPLATE/feature-request.yml)
-- [Docs request form](.github/ISSUE_TEMPLATE/docs.yml)
-- [Issue template config](.github/ISSUE_TEMPLATE/config.yml)
-- [PR template](.github/pull_request_template.md)
+- [Bug report form](../../.github/ISSUE_TEMPLATE/bug-report.yml)
+- [Feature request form](../../.github/ISSUE_TEMPLATE/feature-request.yml)
+- [Docs request form](../../.github/ISSUE_TEMPLATE/docs.yml)
+- [Issue template config](../../.github/ISSUE_TEMPLATE/config.yml)
+- [PR template](../../.github/pull_request_template.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Support guide](SUPPORT.md)
 - [Top-level contributing guide](CONTRIBUTING.md)
@@ -174,9 +179,9 @@ Included files:
 
 Included files:
 
-- [Vouched contributors list](.github/VOUCHED.td)
-- [PR trust gate workflow](.github/workflows/vouch-check-pr.yml)
-- [Issue-comment trust management workflow](.github/workflows/vouch-manage.yml)
+- [Vouched contributors list](../../.github/VOUCHED.td)
+- [PR trust gate workflow](../../.github/workflows/vouch-check-pr.yml)
+- [Issue-comment trust management workflow](../../.github/workflows/vouch-manage.yml)
 
 Default behavior:
 
@@ -187,7 +192,7 @@ Default behavior:
 
 Bootstrap step:
 
-- Confirm/adjust entries in [.github/VOUCHED.td](.github/VOUCHED.td) before enforcing production policy.
+- Confirm/adjust entries in [../../.github/VOUCHED.td](../../.github/VOUCHED.td) before enforcing production policy.
 
 ## Docs discovery
 

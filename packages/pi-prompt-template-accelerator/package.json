@@ -9,11 +9,22 @@
     "url": "git+https://github.com/tryingET/pi-extensions.git",
     "directory": "packages/pi-prompt-template-accelerator"
   },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-prompt-template-accelerator",
   "keywords": [
     "pi-package",
     "pi-extension",
     "pi-prompt-template-accelerator"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
@@ -37,9 +48,15 @@
       "./prompts"
     ]
   },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-prompt-template-accelerator",
+    "releaseComponent": "pi-prompt-template-accelerator",
+    "releaseConfigMode": "component"
+  },
   "dependencies": {
-    "@tryinget/pi-interaction": "file:../pi-interaction/pi-interaction",
-    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
+    "@tryinget/pi-interaction": "^0.2.0",
+    "@tryinget/pi-trigger-adapter": "^0.1.0"
   },
   "devDependencies": {
     "tsx": "^4.20.5"

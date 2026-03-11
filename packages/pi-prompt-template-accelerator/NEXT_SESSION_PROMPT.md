@@ -1,20 +1,20 @@
 ---
-summary: "Package docs are now normalized around README.md + this handoff, `docs/dev/status.md` is gone, and Agent Kernel (`ak`) is the canonical task/work-item authority when tracking work. The only meaningful remaining PTX work is live runtime verification and, if warranted, a guarded hybrid LLM-assisted inference design."
+summary: "PTX package/runtime hardening and docs cleanup are now committed and validated; package truth lives in README.md + this handoff, while the true remaining PTX work is stable live-runtime verification and, if warranted, a guarded hybrid LLM-assisted inference design."
 read_when:
   - "Starting the next pi-prompt-template-accelerator work session in monorepo."
 system4d:
   container: "Session handoff artifact."
-  compass: "Keep PTX runtime behavior truthful while separating completed docs cleanup from still-unfinished runtime and inference work."
+  compass: "Resume from committed PTX package truth, not from earlier mixed-state debugging or already-finished docs cleanup."
   engine: "Verify live runtime -> decide objective-source contract -> only then evolve inference architecture."
-  fog: "Main risk is resuming from stale assumptions or redoing already-completed doc cleanup instead of attacking the true remaining work."
+  fog: "Main risk is redoing committed cleanup work or confusing adjacent monorepo churn with unfinished PTX package work."
 ---
 
 # Next session prompt — pi-prompt-template-accelerator
 
 ## Completed ✅
 
-### Runtime/picker hardening already landed
-- PTX context inference still treats `sessionManager` / `getBranch()` as optional enrichment instead of a required dependency.
+### PTX runtime/picker hardening is landed and committed
+- PTX context inference treats `sessionManager` / `getBranch()` as optional enrichment instead of a required dependency.
 - PTX live picker preserves the **exact selected prompt metadata** (`name` / `path` / description) instead of re-resolving only by slash-command name after selection.
 - PTX picker candidates now:
   - disambiguate duplicate prompt names with origin detail
@@ -26,8 +26,8 @@ system4d:
 - Regression coverage includes a broker-driven live-picker case with duplicate prompt names:
   - `tests/non-ui-mixed-extension-smoke.test.ts`
 
-### Documentation/task-management cleanup already landed
-- `docs/dev/status.md` has been removed.
+### PTX docs/task-management cleanup is landed and committed
+- `docs/dev/status.md` is gone.
 - Package truth now lives in:
   - `README.md` for durable repo/operator guidance
   - `NEXT_SESSION_PROMPT.md` for active fresh-context handoff
@@ -38,10 +38,11 @@ system4d:
   - `docs/dev/plans/*.md`
   - `scripts/validate-structure.sh`
   - `CHANGELOG.md`
-- Agent Kernel (`ak`) is now the documented canonical task/work-item authority when task tracking is needed.
-- This package currently does **not** maintain a `governance/work-items.json` projection.
+- Agent Kernel (`ak`) is the documented canonical task/work-item authority when task tracking is needed.
+- This package does **not** maintain a `governance/work-items.json` projection.
+- PTX release automation now belongs to the root-owned monorepo component release control plane.
 
-### Recent package validation passed
+### Recent package validation passed on the committed PTX state
 ```bash
 npm run docs:list
 npm run check
@@ -83,9 +84,9 @@ npm run release:check:quick
   - deterministic provenance, confidence thresholds, and fallback behavior
 - This remains a **proposal**, not implemented package behavior.
 
-## The true remaining work
+## The true remaining PTX work
 
-Only two meaningful areas are left:
+Only two meaningful PTX areas are left:
 
 1. **Live runtime verification**
    - confirm PTX behavior in a stable, single-agent Pi runtime after reinstall + `/reload`
@@ -94,7 +95,7 @@ Only two meaningful areas are left:
 2. **Inference-architecture decision**
    - decide whether deterministic improvements are enough, or whether to implement guarded hybrid LLM-assisted slot inference
 
-Do **not** spend the next session redoing docs cleanup unless new evidence forces it.
+Do **not** spend the next PTX session redoing docs cleanup unless new evidence forces it.
 
 ## Priority objective (next session)
 
