@@ -1,216 +1,250 @@
 ---
-summary: "pi-vault-client now consumes published pi-interaction support packages through normal semver dependencies, with installed headless runtime evidence for tool surfaces and live /vault:, and the next truthful slice is same-session interactive /reload parity for /vault, /route, and /vault-check or deeper runtime work only if new evidence points there."
+summary: "The AK-backed receipts/replay setup slice now exists in-repo, and the next truthful step is to make AK task 29 truthful if needed, then execute VRE-01 and author the Vault Execution Receipt architecture note."
 read_when:
   - "Starting the next focused session in packages/pi-vault-client."
-  - "Deciding whether the next slice belongs here or in packages/pi-interaction."
+  - "Deciding whether the next slice is remaining VRE-00 state-sync or the VRE-01 architecture note."
 system4d:
-  container: "Canonical post-packaging-simplification handoff for the current pi-vault-client runtime + packaging state."
-  compass: "Preserve the repaired release/install path, avoid reintroducing vendoring or bundle shims, and keep package-boundary ownership explicit."
-  engine: "Reacquire current truth -> verify whether the next blocker is live runtime evidence or vault behavior -> keep release/install safety intact -> only then expand scope."
-  fog: "Main risks are resuming from stale bundling narratives, confusing package boundaries with service/API boundaries, or changing runtime behavior before collecting installed-runtime evidence."
+  container: "Canonical handoff after the VRE-00 backlog/prompt setup slice."
+  compass: "Preserve the repaired runtime/package state, keep AK as the canonical queue, and advance one backlog item at a time with validate -> deep-review -> nexus -> atomic-completion -> revalidate -> commit."
+  engine: "Reacquire repo truth -> sync AK task 29 if needed -> claim VRE-01 -> author architecture note -> validate -> review -> commit -> record AK evidence -> advance queue."
+  fog: "Main risks are resuming from stale VRE-00 setup work, sweeping unrelated monorepo dirt into a commit, or forgetting that this package uses the central agent-kernel wrapper rather than a package-local helper."
 ---
 
 # Next session prompt for `pi-vault-client`
 
 ## One-line handoff
 
-`pi-vault-client` is now **release-safe and functionally repaired** for Prompt Vault schema v9, with generated installable runtime entrypoints, scoped Dolt commits, fail-closed visibility-sensitive tool reads, `/route` sharing the same preparation boundary as `/vault`, and **normal semver consumption** of the shared `pi-interaction` helpers. There is no remaining vendored source bridge and no remaining temporary bundled-dependency staging bridge in this package, and installed headless runtime evidence now exists for tool surfaces plus live `/vault:`.
+`pi-vault-client` now has the durable AK-backed receipts/replay backlog doc plus reusable supervisor/worker prompts in-repo. The next implementation slice is `VRE-01`: author `docs/dev/vault-execution-receipts.md`. Current known blocker: `./scripts/ak-v2.sh task complete 29` presently fails with `query returned more than one row`, so AK task `29` must be repaired/truthfully closed before task `30` can become ready.
 
 ## Current package truth
 
-### What is now true
-- Prompt Vault schema compatibility is **v9 only**.
-- Schema diagnostics are first-class:
-  - `checkSchemaCompatibilityDetailed()` in the runtime
-  - `vault_schema_diagnostics()` on the tool surface
-  - `/vault-check` in the interactive TUI
-- On schema mismatch:
-  - the extension stays loaded in diagnostic mode
-  - `/vault-check` and `vault_schema_diagnostics()` remain available
-  - vault query/mutation/live-trigger surfaces stay gated
-- Visibility-sensitive tool reads now fail closed without explicit company context.
-- Cross-company `visibility_company` overrides are rejected on the tool surface.
-- `/route`, `/vault`, live `/vault:`, and grounding now share the same preparation boundary.
-- Execution / feedback / template writes commit only their scoped Dolt tables.
-- There is **no** repo-wide `session_shutdown` auto-commit anymore.
-- Installable runtime entrypoints are generated as `.js` artifacts for package loading in Pi.
-- Shared interaction helpers are consumed through published package dependencies:
-  - `@tryinget/pi-interaction-kit@^0.1.0`
-  - `@tryinget/pi-trigger-adapter@^0.1.0`
-- The old generated vendored bridge is gone.
-- The temporary bundled-dependency staging bridge is also gone.
+### Runtime/package truth
+- Prompt Vault contract target remains **schema v9 only**.
+- `npm run typecheck` is green.
+- `npm run check` is green.
+- Pi-visible reads are centralized around:
+  - `status = 'active'`
+  - `export_to_pi = true`
+  - visibility-company filtering
+- Visibility-sensitive reads fail closed without explicit company context on:
+  - tool surfaces
+  - slash-command execution surfaces
+  - grounding paths
+- Governed ontology/visibility contracts refresh in-process when their backing files change.
+- `prompt_eval create_variant` fails closed on persistence failure.
+- Package-local `tsconfig.json` exists, so typecheck no longer silently skips.
 
-### Current packaging contract
-Do **not** hand-edit generated runtime artifacts unless you are intentionally changing the generation flow:
+### AK/tasking truth
+- Canonical backlog spec:
+  - `docs/dev/plans/vault-receipts-ak-backlog.md`
+- Reusable prompts:
+  - `prompts/task-worker-loop.md`
+  - `prompts/task-supervisor-loop.md`
+- Worker loop explicitly requires:
+  - implement
+  - validate
+  - deep-review
+  - nexus implementation
+  - atomic-completion
+  - revalidate
+  - commit
+- Canonical AK wrapper remains **central**, not package-local:
+  - env: `/home/tryinget/ai-society/softwareco/owned/agent-kernel/.ak-env-v2`
+  - wrapper: `/home/tryinget/ai-society/softwareco/owned/agent-kernel/scripts/ak-v2.sh`
+- This package still does **not** carry a local `.ak-env-v2` or `scripts/ak-v2.sh` helper.
+- Seeded AK task IDs for this project:
+  - `29` → `VRE-00`
+  - `30` → `VRE-01`
+  - `31` → `VRE-02`
+  - `32` → `VRE-03`
+  - `33` → `VRE-04`
+  - `34` → `VRE-05`
+  - `35` → `VRE-06`
+  - `36` → `VRE-07`
+  - `37` → `VRE-08`
+  - `38` → `VRE-09`
+  - `39` → `VRE-10`
+- After truthful closeout of task `29`, the next ready task should be:
+  - `30` (`VRE-01`)
 
-- generated runtime artifacts:
-  - `extensions/vault.js`
-  - `src/*.js` generated from package TS entrypoints
+### Prompt/testing truth
+- Worker prompt was tested via real `pi -p` dry runs.
+- Supervisor prompt was tested via real `pi -p` dry runs.
+- Sentinel output contract exists to tolerate startup noise:
+  - worker: `BEGIN_WORKER_RESULT_JSON ... END_WORKER_RESULT_JSON`
+  - supervisor: `BEGIN_SUPERVISOR_RESULT_JSON ... END_SUPERVISOR_RESULT_JSON`
+- Supervisor prompt references supported AK commands only:
+  - `task ready -F json`
+  - `task claim <id> --agent <agent> --lease 3600`
+  - `evidence record ...`
+  - `task complete ...`
+  - `task fail ...`
+  - `task release-expired`
 
-Current release/install flow:
-- package source control uses normal published semver dependencies for shared interaction helpers
-- `prepack` regenerates installable runtime `.js` entrypoints
-- `release:check` verifies clean-room install and installed-package smoke using the real published dependency graph
+### Working-tree truth
+- The monorepo still has unrelated dirty state in sibling packages.
+- This package may also contain dirty files unrelated to `VRE-00`/`VRE-01` from recent runtime hardening work.
+- Do **not** sweep sibling-package or unrelated package changes into a receipts/replay commit.
+- Use selective staging only.
 
 ## Verified evidence
 
-### Verified in-package evidence
+### Package validation
 From `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client`:
 
 ```bash
-npm run check
-npm run release:check
 npm run docs:list
+npm run typecheck
+npm run check
 ```
 
-All passed after retiring the local bundling bridge.
+Observed: passed.
 
-Additional installed-runtime evidence in an isolated `PI_CODING_AGENT_DIR`:
+### AK queue evidence
+From `~/ai-society/softwareco/owned/agent-kernel`:
 
 ```bash
-PI_COMPANY=software pi -p "...vault_schema_diagnostics..."
-PI_COMPANY=software pi -p "...vault_query..."
-PI_COMPANY=software pi --no-session --mode json --print '/vault:meta-orchestration::phase-1-live'
+source ./.ak-env-v2
+./scripts/ak-v2.sh task release-expired
+./scripts/ak-v2.sh task ready -F json
 ```
 
-Observed:
-- installed-package tool diagnostics succeeded
-- installed-package visibility-aware query succeeded
-- installed-package live `/vault:` exact-name path prepared the template successfully with context preserved
+Observed during setup closeout:
+- task `29` (`VRE-00`) was the ready repo task
+- the repo/task registration is live in AK
+- after repo commit + evidence recording, `./scripts/ak-v2.sh task complete 29` failed with:
+  - `Database error: engine error: query returned more than one row`
+- because of that AK-side failure, task `29` remains claimed and task `30` is not yet ready
 
-### What `release:check` now proves
-- `npm pack --dry-run --json`
-- static runtime dependency audit for bare imports
-- packed-manifest dependency hygiene (no `file:` runtime deps, no bundle bridge)
-- clean-room tarball install
-- `pi install` tarball registration check
-- installed-package extension registration smoke
-
-## Architectural truth
-
-### Correct high-level boundary
-The correct long-term move is **package boundaries**, not service/API boundaries, for the interaction runtime layer.
-
-That means the intended architecture is:
-- `@tryinget/pi-interaction-kit`
-- `@tryinget/pi-trigger-adapter`
-- `@tryinget/pi-editor-registry`
-- `@tryinget/pi-interaction`
-
-as same-process runtime/library packages.
-
-### Packaging status
-The packaging simplification is done here.
-If future issues appear, treat them as one of these classes first:
-1. installed-runtime/live Pi validation gap
-2. published-package contract drift
-3. vault runtime correctness issue
-
-Do **not** jump back to vendoring or local bundle shims unless new evidence forces it.
-
-See:
-- `../pi-interaction/docs/dev/package-boundary-architecture.md`
+### Prompt dry-run evidence
+Observed from real `pi -p` tests:
+- worker dry run for `VRE-01` returned a valid `done` payload
+- worker dry run for `VRE-04` returned a valid `done` payload
+- supervisor dry run correctly identified `VRE-00` as the next ready repo task during setup
 
 ## What is **not** the current problem here
 
 Do **not** resume from these stale assumptions unless new evidence forces it:
-- `/vault` is still broken because of tags
-- schema-v8 compatibility is still current
-- PTX `$$ /...` behavior belongs here
-- an API/service boundary is the right fix for interaction helper packaging
-- source vendoring or bundle staging should return
-
-## Recommended next step
+- the package still lacks a receipts/replay backlog or queue-driving prompts
+- AK is unavailable for this repo
+- the worker loop still stops before atomic-completion
+- package typecheck still skips
+- the next truthful step is more setup/docs churn instead of the receipt architecture note
+- phase 1 already requires a Prompt Vault schema migration
 
 ## Single best next step
-Choose the next slice based on what is still unproven:
 
-1. **if the blocker is same-session interactive runtime confidence**
-   - stay here in `pi-vault-client`
-   - reinstall into Pi from the package path
-   - `/reload`
-   - validate the interactive command-handler paths `/vault`, `/route`, and `/vault-check` in a normal TUI runtime with the published interaction-package path now in place
-2. **if the blocker is live coexistence evidence with PTX + pi-interaction + pi-vault-client loaded together**
-   - stay split across `../pi-interaction`, `../pi-prompt-template-accelerator`, and this package as needed
-   - keep the picker-surface boundary explicit during validation
-3. **if the blocker is vault runtime correctness (`/vault`, `/vault:`, `/vault-check`, schema diagnostics, render prep, visibility/tool behavior)**
-   - stay here in `pi-vault-client`
+Repair AK truth for task `29`, then advance to `VRE-01`.
 
-### Concrete objective for the next slice
-Capture durable same-session interactive `/reload` evidence for the command-handler paths that are still TUI-specific (`/vault`, `/route`, `/vault-check`) now that headless installed-runtime evidence already exists for tool surfaces and live `/vault:`, while keeping:
-- `npm run check` green
-- `npm run release:check` green
-- installed-package smoke green
+That means:
+1. diagnose/fix the AK-side failure on `task complete 29`
+2. close task `29` truthfully in AK
+3. confirm task `30` becomes ready
+4. claim task `30`
+5. author `docs/dev/vault-execution-receipts.md`
+6. validate
+7. deep-review
+8. apply the single highest-leverage nexus improvement
+9. run atomic-completion closeout
+10. revalidate, commit, record evidence, and complete task `30`
+
+## Concrete objective for the next slice
+
+Create the architecture note at:
+- `docs/dev/vault-execution-receipts.md`
+
+It should define:
+- receipt purpose
+- receipt schema v1
+- sink abstraction
+- privacy boundary
+- replay contract
+- rollout phases
+- open decisions
+- why phase 1 avoids a Prompt Vault schema migration
 
 ## Suggested kickoff
 
-### In `pi-vault-client`
-Start with:
-
+### 1. Reacquire package truth
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
 npm run docs:list
+npm run typecheck
 npm run check
-npm run release:check:quick
-pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+git status --short
 ```
 
-Then in Pi:
-
-```text
-/reload
-/vault-check
-/vault meta-orchestration
-/vault:
-/route <real context>
+### 2. Reacquire AK queue truth
+```bash
+cd ~/ai-society/softwareco/owned/agent-kernel
+source ./.ak-env-v2
+./scripts/ak-v2.sh task release-expired
+./scripts/ak-v2.sh task ready -F json
 ```
+
+### 3. If task `29` is not truthfully closed yet, reconcile it before new work
+Typical closeout shape:
+```bash
+./scripts/ak-v2.sh evidence record --task 29 --check-type review:deep --result pass --details '{"summary":"VRE-00 review complete"}'
+./scripts/ak-v2.sh evidence record --task 29 --check-type review:nexus --result pass --details '{"summary":"VRE-00 nexus applied"}'
+./scripts/ak-v2.sh evidence record --task 29 --check-type review:atomic-completion --result pass --details '{"summary":"VRE-00 atomic completion complete"}'
+./scripts/ak-v2.sh evidence record --task 29 --check-type validation:typecheck --result pass --details '{"command":"npm run typecheck"}'
+./scripts/ak-v2.sh evidence record --task 29 --check-type validation:package --result pass --details '{"command":"npm run check"}'
+./scripts/ak-v2.sh task complete 29 --result '{"summary":"VRE-00 complete"}'
+```
+
+### 4. Claim `VRE-01`
+```bash
+./scripts/ak-v2.sh task claim 30 --agent pi-vault-worker --lease 3600
+```
+
+### 5. Read the architecture inputs before drafting
+- `docs/dev/plans/vault-receipts-ak-backlog.md#vre-01`
+- `src/vaultDb.ts`
+- `src/vaultTypes.ts`
+- `NEXT_SESSION_PROMPT.md`
 
 ## Repo routing rule
-- **vault runtime correctness (`/vault`, `/vault:`, `/vault-check`, schema diagnostics, render prep, visibility/tool behavior)**
+- **receipts/replay backlog setup, receipt architecture, receipt runtime, replay runtime, vault execution provenance, queue-driving prompts**
   - stay here in `pi-vault-client`
 - **shared interaction package architecture / published package contract drift**
   - go to `../pi-interaction`
-- **Prompt Vault schema/contracts/data or Prompt Vault-side docs drift**
+- **Prompt Vault schema/contracts/data changes**
   - go to `~/ai-society/core/prompt-vault`
-- **PTX `$$ /...` picker/prefill behavior**
+- **AK CLI/runtime changes**
+  - go to `~/ai-society/softwareco/owned/agent-kernel`
+- **PTX behavior**
   - go to `../pi-prompt-template-accelerator`
 
 ## Read first next time
 1. `AGENTS.md`
 2. `README.md`
 3. `docs/dev/status.md`
-4. `NEXT_SESSION_PROMPT.md`
-5. `../pi-interaction/docs/dev/package-boundary-architecture.md`
-6. `scripts/release-check.sh`
-7. `scripts/release-smoke.sh`
+4. `docs/dev/plans/vault-receipts-ak-backlog.md`
+5. `NEXT_SESSION_PROMPT.md`
+6. `src/vaultDb.ts`
+7. `src/vaultTypes.ts`
 
 ## Files most relevant right now
-- `package.json`
-- `scripts/build-runtime.mjs`
-- `scripts/release-check.sh`
-- `scripts/release-smoke.sh`
-- `src/fuzzySelector.js`
-- `src/triggerAdapter.js`
-- `src/vaultCommands.ts`
+- `docs/dev/plans/vault-receipts-ak-backlog.md`
+- `docs/dev/vault-execution-receipts.md`
+- `NEXT_SESSION_PROMPT.md`
 - `src/vaultDb.ts`
-- `src/vaultPicker.ts`
-- `src/vaultTools.ts`
-- `tests/vault-commands.test.mjs`
-- `tests/vault-update.test.mjs`
+- `src/vaultTypes.ts`
+- `tests/vault-dolt-integration.test.mjs`
 
 ## Success condition for the next slice
-A truthful next session is successful if it does one of these cleanly:
 
 ### Preferred success
-1. captures durable same-session interactive `/reload` evidence for `/vault`, `/route`, and `/vault-check`
-2. keeps the already-verified installed headless `/vault:` and tool-surface evidence intact
-3. keeps `pi-vault-client` on published semver interaction dependencies
-4. keeps `npm run check` green
-5. keeps `npm run release:check` green
-6. records any remaining issue as runtime behavior or published-package contract drift, not as a packaging workaround problem
+1. `VRE-01` lands as a task-local commit
+2. `docs/dev/vault-execution-receipts.md` clearly defines the v1 architecture boundary
+3. AK evidence is recorded for review, nexus, atomic-completion, and validation
+4. task `30` is completed truthfully
+5. `npm run typecheck` stays green
+6. `npm run check` stays green
 
 ### Acceptable fallback success
-1. identifies the exact installed-runtime drift point
-2. leaves the current package-boundary consumption intact
-3. avoids reintroducing vendoring or bundle bridges
-4. narrows the next fix to the owning runtime boundary
+1. a concrete architecture blocker is identified
+2. the blocker is written down without widening scope into implementation
+3. unrelated dirty state is not swept into a commit
+4. AK queue state is kept truthful
