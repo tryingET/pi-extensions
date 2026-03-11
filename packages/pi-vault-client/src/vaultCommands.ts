@@ -1,5 +1,5 @@
 import { runFzfProbe } from "./fuzzySelector.js";
-import type { PiExtension, VaultModuleRuntime } from "./vaultTypes.js";
+import type { PiExtension, Template, VaultModuleRuntime } from "./vaultTypes.js";
 
 function buildRoutePrompt(
   metaContent: string,
@@ -71,6 +71,39 @@ function formatSchemaMismatchMessage(
   if (report.missingFeedbackColumns.length > 0)
     parts.push(`feedback:[${report.missingFeedbackColumns.join(", ")}]`);
   return `Vault schema mismatch (${parts.join("; ")}). Use /vault-check or vault_schema_diagnostics.`;
+}
+
+function resolvePreparedRoutePrompt(
+  runtime: VaultModuleRuntime,
+  metaTemplate: Template,
+  options: {
+    context: string;
+    cwd?: string;
+    outputHeading: "Output:" | "Output format:";
+    reasoningLabel: string;
+    includeInvokeStep: boolean;
+  },
+): { ok: true; prompt: string } | { ok: false; error: string } {
+  const prepared = runtime.prepareVaultPrompt(metaTemplate, {
+    context: options.context,
+    currentCompany: runtime.getCurrentCompany(options.cwd),
+    cwd: options.cwd,
+    appendContextSection: false,
+  });
+  if (!prepared.ok) {
+    return {
+      ok: false,
+      error: formatVaultTemplateRenderError(metaTemplate.name, prepared.error),
+    };
+  }
+  return {
+    ok: true,
+    prompt: buildRoutePrompt(prepared.prepared, options.context, {
+      outputHeading: options.outputHeading,
+      reasoningLabel: options.reasoningLabel,
+      includeInvokeStep: options.includeInvokeStep,
+    }),
+  };
 }
 
 async function resolveVaultTemplateSelection(
@@ -256,13 +289,23 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         if (ctx.hasUI) ctx.ui.notify("meta-orchestration template not found", "error");
         return { action: "handled" };
       }
+      const preparedRoutePrompt = resolvePreparedRoutePrompt(runtime, meta, {
+        context,
+        cwd: ctx.cwd,
+        outputHeading: "Output format:",
+        reasoningLabel: "why these tools",
+        includeInvokeStep: true,
+      });
+      if (!preparedRoutePrompt.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(preparedRoutePrompt.error, "error");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: preparedRoutePrompt.error };
+      }
       return {
         action: "transform",
-        text: buildRoutePrompt(meta.content, context, {
-          outputHeading: "Output format:",
-          reasoningLabel: "why these tools",
-          includeInvokeStep: true,
-        }),
+        text: preparedRoutePrompt.prompt,
       };
     }
 
@@ -324,13 +367,17 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       }
       const meta = metaResult.value;
       if (!meta) return ctx.ui.notify("meta-orchestration template not found", "error");
-      ctx.ui.setEditorText(
-        buildRoutePrompt(meta.content, context, {
-          outputHeading: "Output:",
-          reasoningLabel: "why",
-          includeInvokeStep: false,
-        }),
-      );
+      const preparedRoutePrompt = resolvePreparedRoutePrompt(runtime, meta, {
+        context,
+        cwd: ctx.cwd,
+        outputHeading: "Output:",
+        reasoningLabel: "why",
+        includeInvokeStep: false,
+      });
+      if (!preparedRoutePrompt.ok) {
+        return ctx.ui.notify(preparedRoutePrompt.error, "error");
+      }
+      ctx.ui.setEditorText(preparedRoutePrompt.prompt);
       ctx.ui.notify("Routing prompt ready. Press Enter to submit.", "info");
     },
   });
@@ -450,10 +497,6 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       `Vault (${currentCompany}): ${cognitive} cognitive, ${procedure} procedure, ${session} session templates — /vault loads exact matches or opens picker; live /vault: uses shared interaction runtime`,
       "info",
     );
-  });
-
-  pi.on("session_shutdown", async () => {
-    runtime.commitVault("Log template executions");
   });
 
   pi.registerCommand("vault-stats", {

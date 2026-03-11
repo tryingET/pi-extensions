@@ -37,6 +37,17 @@ This package declares pi APIs as `peerDependencies`:
 - `@mariozechner/pi-ai`
 - `@mariozechner/pi-tui`
 
+The package keeps a narrow local seam over the shared interaction runtime packages (`@tryinget/pi-interaction-kit` and `@tryinget/pi-trigger-adapter`) without hand-maintaining a fork of their source.
+
+Current package-boundary contract:
+
+- local monorepo development consumes those packages through `file:` dependencies
+- `prepack` rewrites those local specs to versioned package dependencies in the packed manifest
+- `prepack` also stages bundled runtime copies of the shared interaction packages so clean-room tarball installs and Pi smoke checks stay green before the support packages are published independently
+- `npm run build:runtime` generates installable `.js` entrypoints for this package's TypeScript runtime surface
+
+Runtime `.js` entrypoints are generated from the package `*.ts` sources by `npm run build:runtime` and by `prepack`, so installed tarballs load through `extensions/vault.js` instead of relying on TypeScript execution inside `node_modules`.
+
 When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
 `/vault-check` is interactive-only; use `vault_schema_diagnostics` or the isolated headless smoke below for `pi -p` verification.
 
@@ -48,6 +59,12 @@ Run from package directory:
 npm install
 npm run check
 ```
+
+Notes:
+
+- `npm run check` regenerates the installed-package runtime `.js` artifacts before running the package gate.
+- `npm run release:check` proves packed-manifest rewrite, bundled dependency staging, clean-room tarball install, and installed-package smoke.
+- if you want to refresh the live-installable runtime without a full check, run `npm run build:runtime`.
 
 Or from monorepo root:
 
@@ -94,6 +111,9 @@ Tool-query defaults:
 - `include_content` defaults to `false`
 - `include_governance` defaults to `false`
 - `vault_query`, `vault_retrieve`, and `vault_executions` use explicit tool-call `ctx.cwd` when available so visibility-sensitive reads stay session-aware on the tool surface too
+- visibility-sensitive tool reads now fail closed when no explicit company context is available on the tool surface
+  - set `PI_COMPANY` or invoke from a company-scoped cwd
+- cross-company `visibility_company` overrides are rejected on the tool surface; use explicit company context for the target company instead of read-side impersonation
 - optional `intent_text` can re-rank the governed candidate set without changing visibility/status filtering
 - if you already know your working stage, query directly by `formalization_level` instead of using semantic ranking
   - `vault_query({ formalization_level: ["napkin"] })`
@@ -140,7 +160,7 @@ For a headless schema-diagnostic call that remains available even during schema 
 ```bash
 PI_COMPANY=software \
 pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client -p \
-  "Call vault_schema_diagnostics, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
+  "Do not use bash or read. Call the custom tool named vault_schema_diagnostics exactly once with empty arguments, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
 ```
 
 For a headless query smoke that avoids unrelated auto-discovered extensions:
@@ -148,7 +168,7 @@ For a headless query smoke that avoids unrelated auto-discovered extensions:
 ```bash
 PI_COMPANY=software \
 pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client -p \
-  "Call vault_query with limit 1 and include_content false, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
+  "Do not use bash or read. Call the custom tool named vault_query with limit 1 and include_content false, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
 ```
 
 For interactive slash-command validation in an isolated runtime:
@@ -208,7 +228,7 @@ Governed render context keys (path-dependent availability):
 Current execution behavior:
 
 - grounding flows such as `next-10-expert-suggestions` can explicitly opt into legacy pi-vars auto-detection and pass positional args
-- `/vault`, live `/vault:`, and grounding now route through a shared structured preparation step with explicit inputs (`currentCompany`, `context`, `args`, `templateName`) and structured success/error output
+- `/vault`, live `/vault:`, `/route`, and grounding now route through a shared structured preparation step with explicit inputs (`currentCompany`, `context`, `args`, `templateName`) and structured success/error output
 - `/vault` and live `/vault:` strip frontmatter before inserting prompt text
 - `/vault` and live `/vault:` currently populate `current_company`, `context`, and `template_name` but do not supply positional args
 - explicit `pi-vars` templates now fail clearly on execution paths that do not provide the positional args they require; they no longer degrade into silent empty-string substitution
@@ -227,6 +247,7 @@ See [live render-engine validation](docs/dev/live-render-engine-validation.md) f
 Install the package into Pi from its local package path:
 
 ```bash
+npm run build:runtime
 pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
 ```
 
@@ -234,6 +255,20 @@ Then in Pi:
 
 1. run `/reload`
 2. verify with a real command or tool call from this package
+
+For publish-safe validation from the package root, run:
+
+```bash
+npm run release:check
+```
+
+That release gate now covers:
+
+- `npm pack --dry-run --json`
+- static runtime dependency audit for bare imports
+- clean-room tarball install
+- `pi install` tarball registration check
+- installed-package extension registration smoke
 
 ## Docs discovery
 

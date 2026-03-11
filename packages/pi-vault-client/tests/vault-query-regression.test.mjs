@@ -13,6 +13,15 @@ const RENDERER_SOURCE = readFileSync(
   "utf8",
 );
 const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.meta.url), "utf8");
+const FUZZY_SELECTOR_SOURCE = readFileSync(
+  new URL("../src/fuzzySelector.js", import.meta.url),
+  "utf8",
+);
+const TRIGGER_ADAPTER_SOURCE = readFileSync(
+  new URL("../src/triggerAdapter.js", import.meta.url),
+  "utf8",
+);
+const PACKAGE_JSON_SOURCE = readFileSync(new URL("../package.json", import.meta.url), "utf8");
 
 test("vault runtime targets Prompt Vault schema v9", () => {
   assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*9/);
@@ -339,6 +348,21 @@ test("picker runtime exposes structured vault prompt preparation", () => {
   assert.match(TYPES_SOURCE, /prepareVaultPrompt:/);
   assert.match(PICKER_SOURCE, /function prepareVaultPrompt\(/);
   assert.match(COMMANDS_SOURCE, /runtime\.prepareVaultPrompt\(/);
+});
+
+test("interaction helpers are consumed through package boundaries instead of vendored source copies", () => {
+  assert.match(FUZZY_SELECTOR_SOURCE, /from "@tryinget\/pi-interaction-kit"/);
+  assert.match(TRIGGER_ADAPTER_SOURCE, /from "@tryinget\/pi-trigger-adapter"/);
+  assert.match(
+    PACKAGE_JSON_SOURCE,
+    /"@tryinget\/pi-interaction-kit": "file:\.\.\/pi-interaction\/pi-interaction-kit"/,
+  );
+  assert.match(
+    PACKAGE_JSON_SOURCE,
+    /"@tryinget\/pi-trigger-adapter": "file:\.\.\/pi-interaction\/pi-trigger-adapter"/,
+  );
+  assert.match(PACKAGE_JSON_SOURCE, /"bundleDependencies"/);
+  assert.doesNotMatch(PACKAGE_JSON_SOURCE, /sync:interaction-vendors/);
 });
 
 test("live vault paths surface render failures clearly", () => {

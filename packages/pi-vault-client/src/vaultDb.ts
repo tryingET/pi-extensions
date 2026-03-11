@@ -120,12 +120,21 @@ function execVaultWithRowCount(sql: string): number | null {
   }
 }
 
-function commitVault(message: string): void {
+function commitVault(message: string, tables?: string[]): void {
+  const normalizedTables = Array.isArray(tables)
+    ? tables.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+
   try {
-    runDolt(["add", "-A"], 1024 * 1024);
+    runDolt(
+      normalizedTables.length > 0 ? ["add", ...normalizedTables] : ["add", "-A"],
+      1024 * 1024,
+    );
     runDolt(["commit", "-m", message], 1024 * 1024);
-  } catch (_e) {
-    // Ignore commit errors (commonly: nothing to commit)
+  } catch (error) {
+    const detail = formatVaultError(error);
+    if (/nothing to commit|no changes added to commit/i.test(detail)) return;
+    console.warn(`Vault commit warning (${message}): ${detail}`);
   }
 }
 
@@ -1089,7 +1098,7 @@ function insertTemplate(
     )
   `;
   if (!execVault(sql)) return { status: "error", message: "Failed to insert template" };
-  commitVault(`Add template: ${name}`);
+  commitVault(`Add template: ${name}`, ["prompt_templates"]);
   const templateId = queryVaultJson(`SELECT id FROM prompt_templates WHERE name = '${escapedName}'`)
     ?.rows?.[0]?.id as number | undefined;
   return {
@@ -1161,7 +1170,7 @@ function updateTemplate(
       message: `Template '${name}' changed during update. Refresh and retry with the latest version.`,
     };
   }
-  commitVault(`Update template: ${name}`);
+  commitVault(`Update template: ${name}`, ["prompt_templates"]);
   return {
     status: "ok",
     message: `Template '${name}' updated as ${merged.artifact_kind}/${merged.control_mode}/${merged.formalization_level} for owner=${merged.owner_company} (v${nextVersion})`,
@@ -1242,7 +1251,7 @@ function rateTemplate(
     ? ` v${Number(execution.entity_version)}`
     : "";
   const templateName = String(execution.name || "template");
-  commitVault(`Rate execution: ${Math.floor(executionId)} (${rating}/5)`);
+  commitVault(`Rate execution: ${Math.floor(executionId)} (${rating}/5)`, ["feedback"]);
   return {
     ok: true,
     message: `Recorded rating ${rating}/5 for execution ${Math.floor(executionId)} (${templateName}${executionVersion})`,
@@ -1259,10 +1268,12 @@ function logExecution(
   const escapedContext = escapeSql((inputContext || "").slice(0, 1000));
   const escapedModel = escapeSql(model);
   const entityVersion = Number.isFinite(template.version) ? Number(template.version) : "NULL";
-  execVault(`
+  const inserted = execVault(`
     INSERT INTO executions (entity_type, entity_id, entity_version, input_context, model, success, created_at)
     VALUES ('template', ${Number(template.id)}, ${entityVersion}, '${escapedContext}', '${escapedModel}', true, NOW())
   `);
+  if (!inserted) return;
+  commitVault(`Log template execution: ${Number(template.id)}`, ["executions"]);
 }
 
 function getPresentColumns(tableName: string): Set<string> {

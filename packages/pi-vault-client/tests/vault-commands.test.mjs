@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -7,6 +7,9 @@ import ts from "typescript";
 
 const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
 const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
+const INTERACTION_GROUP_ROOT = path.resolve(PACKAGE_ROOT, "../pi-interaction");
+const INTERACTION_KIT_ROOT = path.join(INTERACTION_GROUP_ROOT, "pi-interaction-kit");
+const TRIGGER_ADAPTER_ROOT = path.join(INTERACTION_GROUP_ROOT, "pi-trigger-adapter");
 
 function makeTemplate(overrides = {}) {
   return {
@@ -27,15 +30,25 @@ function makeTemplate(overrides = {}) {
   };
 }
 
+function linkPackageDependency(tempDir, packageName, packageRoot) {
+  const destination = path.join(tempDir, "node_modules", ...packageName.split("/"));
+  mkdirSync(path.dirname(destination), { recursive: true });
+  symlinkSync(packageRoot, destination, "dir");
+}
+
 function createTranspiledCommandModules() {
   const baseDir = path.join(PACKAGE_ROOT, ".tmp-test");
   mkdirSync(baseDir, { recursive: true });
   const tempDir = mkdtempSync(path.join(baseDir, "vault-commands-"));
 
+  linkPackageDependency(tempDir, "@tryinget/pi-interaction-kit", INTERACTION_KIT_ROOT);
+  linkPackageDependency(tempDir, "@tryinget/pi-trigger-adapter", TRIGGER_ADAPTER_ROOT);
+
   for (const relativePath of [
     "src/vaultTypes.ts",
     "src/vaultCommands.ts",
     "src/fuzzySelector.js",
+    "src/triggerAdapter.js",
   ]) {
     const sourcePath = path.join(PACKAGE_ROOT, relativePath);
     const source = readFileSync(sourcePath, "utf8");
@@ -263,5 +276,115 @@ test("vault command surface degrades to schema diagnostics instead of disappeari
 
     assert.match(notifications[0]?.message || "", /Vault schema mismatch/);
     assert.match(notifications[0]?.message || "", /output_text/);
+  });
+});
+
+test("interactive /route prepares meta-orchestration through the shared vault renderer", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+    const editorWrites = [];
+    const prepareCalls = [];
+
+    registerVaultCommands(pi, {
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: true,
+          expectedVersion: 9,
+          actualVersion: 9,
+          missingPromptTemplateColumns: [],
+          missingExecutionColumns: [],
+          missingFeedbackColumns: [],
+        };
+      },
+      getCurrentCompany() {
+        return "software";
+      },
+      getTemplateDetailed(name) {
+        assert.equal(name, "meta-orchestration");
+        return {
+          ok: true,
+          value: makeTemplate({
+            content:
+              "---\nrender_engine: nunjucks\n---\nCompany: {{ current_company }}\nContext: {{ context }}",
+          }),
+          error: null,
+        };
+      },
+      prepareVaultPrompt(template, options) {
+        prepareCalls.push({ template, options });
+        return {
+          ok: true,
+          prepared: `Company: ${options?.currentCompany}\nContext: ${options?.context}`,
+        };
+      },
+    });
+
+    const routeCommand = pi.commands.get("route");
+    assert.ok(routeCommand);
+    await routeCommand.handler("release drift", {
+      hasUI: true,
+      cwd: "/tmp/software/project",
+      ui: {
+        notify() {},
+        setEditorText(text) {
+          editorWrites.push(text);
+        },
+      },
+    });
+
+    assert.equal(prepareCalls.length, 1);
+    assert.equal(prepareCalls[0].options?.currentCompany, "software");
+    assert.equal(prepareCalls[0].options?.context, "release drift");
+    assert.equal(prepareCalls[0].options?.appendContextSection, false);
+    assert.match(editorWrites[0] || "", /^Company: software/);
+    assert.doesNotMatch(editorWrites[0] || "", /^---/);
+    assert.match(editorWrites[0] || "", /## ROUTING REQUEST/);
+  });
+});
+
+test("non-UI /route surfaces shared render failures instead of emitting raw template text", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+
+    registerVaultCommands(pi, {
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: true,
+          expectedVersion: 9,
+          actualVersion: 9,
+          missingPromptTemplateColumns: [],
+          missingExecutionColumns: [],
+          missingFeedbackColumns: [],
+        };
+      },
+      getCurrentCompany() {
+        return "software";
+      },
+      getTemplateDetailed(name) {
+        assert.equal(name, "meta-orchestration");
+        return { ok: true, value: makeTemplate(), error: null };
+      },
+      prepareVaultPrompt() {
+        return {
+          ok: false,
+          error: "Nunjucks render failed: Unsupported Nunjucks syntax",
+        };
+      },
+      parseVaultSelectionInput() {
+        return null;
+      },
+    });
+
+    const inputHandler = pi.events.get("input");
+    const result = await inputHandler(
+      { source: "interactive", text: "/route release drift" },
+      { hasUI: false, cwd: "/tmp/software/project" },
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text, /Vault template render failed \(meta-orchestration\)/);
+    assert.match(result.text, /Unsupported Nunjucks syntax/);
   });
 });

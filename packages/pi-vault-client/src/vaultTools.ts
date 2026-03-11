@@ -107,6 +107,9 @@ function normalizeToolCwd(ctx: unknown): string | undefined {
   return typeof cwd === "string" && cwd.trim() ? cwd.trim() : undefined;
 }
 
+const TOOL_READ_CONTEXT_ERROR =
+  "Explicit company context is required for visibility-sensitive vault reads on the tool surface. Set PI_COMPANY or invoke the tool from a company-scoped cwd.";
+
 function resolveToolExecutionContext(
   runtime: VaultRuntime,
   ctx: unknown,
@@ -118,6 +121,19 @@ function resolveToolExecutionContext(
     currentCompany: companyContext.company,
     companySource: companyContext.source,
   };
+}
+
+function resolveStrictToolReadExecutionContext(
+  runtime: VaultRuntime,
+  ctx: unknown,
+):
+  | { ok: true; value: VaultExecutionContext & { currentCompany: string; companySource: string } }
+  | { ok: false; error: string } {
+  const executionContext = resolveToolExecutionContext(runtime, ctx);
+  if (executionContext.companySource === "contract-default") {
+    return { ok: false, error: TOOL_READ_CONTEXT_ERROR };
+  }
+  return { ok: true, value: executionContext };
 }
 
 function buildToolMutationContext(ctx: unknown): VaultMutationContext {
@@ -196,7 +212,8 @@ export function registerVaultTools(pi: PiExtension, runtime: VaultRuntime): void
     description: `Query templates by ontology facets, governance fields, and controlled vocabulary.
 
 Use to find prompts visible to the current company context.
-Visibility is applied implicitly from runtime context unless visibility_company is explicitly provided.
+Visibility is applied implicitly from runtime context.
+On the tool surface, visibility-sensitive reads fail closed without explicit company context and cross-company visibility overrides are rejected.
 By default, query output shows only classification + governed semantics; governance metadata is hidden unless include_governance=true.
 
 Examples:
@@ -212,7 +229,10 @@ Examples:
       formalization_level: Type.Optional(Type.Array(Type.String())),
       owner_company: Type.Optional(Type.Array(Type.String())),
       visibility_company: Type.Optional(
-        Type.String({ description: "Override visible company context when explicitly needed" }),
+        Type.String({
+          description:
+            "Explicitly pin visible company; cross-company overrides are rejected on the tool surface",
+        }),
       ),
       intent_text: Type.Optional(
         Type.String({ description: "Rank the candidate set against this intent text" }),
@@ -238,7 +258,14 @@ Examples:
       ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const executionContext = resolveToolExecutionContext(runtime, ctx);
+      const executionContextResult = resolveStrictToolReadExecutionContext(runtime, ctx);
+      if (!executionContextResult.ok) {
+        return {
+          content: [{ type: "text", text: executionContextResult.error }],
+          details: { ok: false, error: executionContextResult.error },
+        };
+      }
+      const executionContext = executionContextResult.value;
       const filters: VaultQueryFilters = {
         artifact_kind: normalizeStringArray(params.artifact_kind),
         control_mode: normalizeStringArray(params.control_mode),
@@ -254,6 +281,23 @@ Examples:
             : undefined,
         controlled_vocabulary: normalizeControlledVocabulary(params.controlled_vocabulary),
       };
+      if (
+        filters.visibility_company &&
+        filters.visibility_company !== executionContext.currentCompany
+      ) {
+        const error =
+          "Cross-company visibility overrides are rejected on the tool surface. Set PI_COMPANY or invoke from the target company-scoped cwd instead.";
+        return {
+          content: [{ type: "text", text: error }],
+          details: {
+            ok: false,
+            error,
+            requestedVisibilityCompany: filters.visibility_company,
+            currentCompany: executionContext.currentCompany,
+            currentCompanySource: executionContext.companySource,
+          },
+        };
+      }
       const requestedLimit = params.limit as number;
       const limit = Number.isFinite(requestedLimit)
         ? Math.min(MAX_VAULT_QUERY_LIMIT, Math.max(1, Math.floor(requestedLimit)))
@@ -359,7 +403,13 @@ Example: vault_retrieve({ names: ["inversion", "nexus"], include_content: true }
       ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const executionContext = resolveToolExecutionContext(runtime, ctx);
+      const executionContextResult = resolveStrictToolReadExecutionContext(runtime, ctx);
+      if (!executionContextResult.ok)
+        return {
+          content: [{ type: "text", text: executionContextResult.error }],
+          details: { ok: false, error: executionContextResult.error },
+        };
+      const executionContext = executionContextResult.value;
       const names = normalizeStringArray(params.names);
       const includeContent = (params.include_content as boolean) ?? true;
       if (names.length === 0)
@@ -672,7 +722,14 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
       limit: Type.Optional(Type.Number({ description: "Max results (default: 20)" })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const executionContext = resolveToolExecutionContext(runtime, ctx);
+      const executionContextResult = resolveStrictToolReadExecutionContext(runtime, ctx);
+      if (!executionContextResult.ok) {
+        return {
+          content: [{ type: "text", text: executionContextResult.error }],
+          details: { ok: false, error: executionContextResult.error },
+        };
+      }
+      const executionContext = executionContextResult.value;
       const templateName =
         typeof params.template_name === "string" && params.template_name.trim()
           ? params.template_name.trim()

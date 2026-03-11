@@ -26,6 +26,9 @@ system4d:
 - Keep diffs small and reviewable.
 - Preserve markdown frontmatter in generated docs.
 - Prefer explicit scripts over manual one-off commands.
+- Treat `extensions/vault.js` plus generated `src/*.js` runtime entry artifacts as outputs from `npm run build:runtime` / `prepack`; do not hand-edit them.
+- `src/fuzzySelector.js` and `src/triggerAdapter.js` are intentional local seam files over the shared interaction packages; edit them only when the package-boundary contract changes.
+- Prefer package-boundary fixes over manual source copying; shared interaction behavior belongs in the canonical `packages/pi-interaction/` sources.
 
 ## Biome suppression policy
 

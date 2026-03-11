@@ -410,6 +410,69 @@ test("vault_retrieve forwards explicit tool execution context to the runtime", a
   });
 });
 
+test("vault tool reads fail closed without explicit company context", async () => {
+  await withVaultModules(async ({ importModule }) => {
+    const { registerVaultTools } = await importModule("src/vaultTools.js");
+    const tools = new Map();
+    const pi = {
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+    };
+
+    registerVaultTools(pi, {
+      resolveCurrentCompanyContext() {
+        return { company: "core", source: "contract-default" };
+      },
+      queryTemplatesDetailed() {
+        throw new Error("query should not run without explicit company context");
+      },
+    });
+
+    const tool = tools.get("vault_query");
+    const result = await tool.execute("call-1", { limit: 1 }, undefined, undefined, undefined);
+
+    assert.equal(result.details.ok, false);
+    assert.match(result.content[0]?.text || "", /Explicit company context is required/);
+  });
+});
+
+test("vault_query rejects cross-company visibility overrides on the tool surface", async () => {
+  await withVaultModules(async ({ importModule }) => {
+    const { registerVaultTools } = await importModule("src/vaultTools.js");
+    const tools = new Map();
+    const pi = {
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+    };
+
+    registerVaultTools(pi, {
+      resolveCurrentCompanyContext(cwd) {
+        return {
+          company: cwd?.includes("softwareco") ? "software" : "core",
+          source: cwd ? `cwd:${cwd}` : "contract-default",
+        };
+      },
+      queryTemplatesDetailed() {
+        throw new Error("query should not run for cross-company visibility override");
+      },
+    });
+
+    const tool = tools.get("vault_query");
+    const result = await tool.execute(
+      "call-1",
+      { visibility_company: "finance" },
+      undefined,
+      undefined,
+      { cwd: "/tmp/softwareco/owned/demo" },
+    );
+
+    assert.equal(result.details.ok, false);
+    assert.match(result.content[0]?.text || "", /Cross-company visibility overrides are rejected/);
+  });
+});
+
 test("vault_insert and vault_rate forward strict mutation context to the runtime", async () => {
   await withVaultModules(async ({ importModule }) => {
     const { registerVaultTools } = await importModule("src/vaultTools.js");

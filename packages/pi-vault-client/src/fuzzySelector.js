@@ -1,4 +1,4 @@
-// vault-client delegates fuzzy interaction primitives to shared pi-interaction packages.
+// vault-client consumes shared interaction runtime helpers through a narrow local seam.
 
 export {
   rankCandidatesFallback,

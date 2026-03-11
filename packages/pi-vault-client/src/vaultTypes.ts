@@ -246,7 +246,7 @@ export interface VaultRuntime {
   queryVaultJson: (sql: string) => DoltJsonResult | null;
   queryVaultJsonDetailed: (sql: string) => VaultResult<DoltJsonResult>;
   execVault: (sql: string) => boolean;
-  commitVault: (message: string) => void;
+  commitVault: (message: string, tables?: string[]) => void;
   escapeSql: (str: string) => string;
   escapeLikePattern: (str: string) => string;
   parseTemplateRows: (result: DoltJsonResult | null) => Template[];
@@ -348,7 +348,12 @@ export interface PickerRuntime {
   registerVaultLiveTrigger: () => void;
   prepareVaultPrompt: (
     template: Template,
-    options?: { context?: string; currentCompany?: string; cwd?: string },
+    options?: {
+      context?: string;
+      currentCompany?: string;
+      cwd?: string;
+      appendContextSection?: boolean;
+    },
   ) => PreparedTemplateResult;
   loadVaultTemplate: (name: string, context?: VaultExecutionContext) => Template | null;
 }

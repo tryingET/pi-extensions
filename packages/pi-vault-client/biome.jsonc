@@ -16,6 +16,15 @@
       "!external/**/*",
       // ontology/ contains generated domain artifacts/snapshots.
       "!ontology/**/*",
+      // runtime JS artifacts are generated from the package's TS entrypoints.
+      "!extensions/vault.js",
+      "!src/evaluator.js",
+      "!src/vaultCommands.js",
+      "!src/vaultDb.js",
+      "!src/vaultGrounding.js",
+      "!src/vaultPicker.js",
+      "!src/vaultTools.js",
+      "!src/vaultTypes.js",
       "!**/*.min.js",
       "!**/*.generated.*"
     ]
