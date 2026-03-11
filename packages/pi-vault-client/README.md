@@ -41,9 +41,8 @@ The package keeps a narrow local seam over the shared interaction runtime packag
 
 Current package-boundary contract:
 
-- local monorepo development consumes those packages through `file:` dependencies
-- `prepack` rewrites those local specs to versioned package dependencies in the packed manifest
-- `prepack` also stages bundled runtime copies of the shared interaction packages so clean-room tarball installs and Pi smoke checks stay green before the support packages are published independently
+- shared interaction helpers are consumed as normal published semver dependencies
+- no local vendored bridge or bundled-dependency staging remains in the active packaging path
 - `npm run build:runtime` generates installable `.js` entrypoints for this package's TypeScript runtime surface
 
 Runtime `.js` entrypoints are generated from the package `*.ts` sources by `npm run build:runtime` and by `prepack`, so installed tarballs load through `extensions/vault.js` instead of relying on TypeScript execution inside `node_modules`.
@@ -63,7 +62,7 @@ npm run check
 Notes:
 
 - `npm run check` regenerates the installed-package runtime `.js` artifacts before running the package gate.
-- `npm run release:check` proves packed-manifest rewrite, bundled dependency staging, clean-room tarball install, and installed-package smoke.
+- `npm run release:check` proves publish-file determinism, static runtime import coverage, clean-room tarball install, and installed-package smoke.
 - if you want to refresh the live-installable runtime without a full check, run `npm run build:runtime`.
 
 Or from monorepo root:

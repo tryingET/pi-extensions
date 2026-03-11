@@ -1,20 +1,20 @@
 ---
-summary: "pi-vault-client now consumes real pi-interaction support packages through local package seams, with release-safe manifest rewrite + bundled tarball staging preserving clean installs until those support packages are published independently; the next truthful slice is to retire that temporary bundling path once publication/live evidence is in place."
+summary: "pi-vault-client now consumes published pi-interaction support packages through normal semver dependencies, with installed headless runtime evidence for tool surfaces and live /vault:, and the next truthful slice is same-session interactive /reload parity for /vault, /route, and /vault-check or deeper runtime work only if new evidence points there."
 read_when:
   - "Starting the next focused session in packages/pi-vault-client."
   - "Deciding whether the next slice belongs here or in packages/pi-interaction."
 system4d:
-  container: "Canonical post-de-vendor handoff for the current pi-vault-client runtime + packaging state."
-  compass: "Preserve the repaired release/install path, avoid reintroducing source vendoring, and keep package-boundary ownership explicit."
-  engine: "Reacquire current truth -> verify whether the next blocker is publication/live evidence or vault runtime behavior -> keep release/install safety intact -> only then simplify the remaining packaging bridge."
-  fog: "Main risks are resuming from stale vendoring narratives, confusing package boundaries with service/API boundaries, or breaking release safety while trying to retire the temporary bundled-dependency staging path too early."
+  container: "Canonical post-packaging-simplification handoff for the current pi-vault-client runtime + packaging state."
+  compass: "Preserve the repaired release/install path, avoid reintroducing vendoring or bundle shims, and keep package-boundary ownership explicit."
+  engine: "Reacquire current truth -> verify whether the next blocker is live runtime evidence or vault behavior -> keep release/install safety intact -> only then expand scope."
+  fog: "Main risks are resuming from stale bundling narratives, confusing package boundaries with service/API boundaries, or changing runtime behavior before collecting installed-runtime evidence."
 ---
 
 # Next session prompt for `pi-vault-client`
 
 ## One-line handoff
 
-`pi-vault-client` is now **release-safe and functionally repaired** for Prompt Vault schema v9, with generated installable runtime entrypoints, scoped Dolt commits, fail-closed visibility-sensitive tool reads, `/route` sharing the same preparation boundary as `/vault`, and **real package-boundary consumption** of the shared `pi-interaction` helpers. The remaining temporary bridge is no longer source vendoring; it is **release-time bundled dependency staging** so tarball installs stay green until the shared support packages are published independently.
+`pi-vault-client` is now **release-safe and functionally repaired** for Prompt Vault schema v9, with generated installable runtime entrypoints, scoped Dolt commits, fail-closed visibility-sensitive tool reads, `/route` sharing the same preparation boundary as `/vault`, and **normal semver consumption** of the shared `pi-interaction` helpers. There is no remaining vendored source bridge and no remaining temporary bundled-dependency staging bridge in this package, and installed headless runtime evidence now exists for tool surfaces plus live `/vault:`.
 
 ## Current package truth
 
@@ -34,12 +34,13 @@ system4d:
 - Execution / feedback / template writes commit only their scoped Dolt tables.
 - There is **no** repo-wide `session_shutdown` auto-commit anymore.
 - Installable runtime entrypoints are generated as `.js` artifacts for package loading in Pi.
-- Shared interaction helpers are consumed through package dependencies:
-  - `@tryinget/pi-interaction-kit`
-  - `@tryinget/pi-trigger-adapter`
-- The old generated vendored bridge has been removed from the active code path.
+- Shared interaction helpers are consumed through published package dependencies:
+  - `@tryinget/pi-interaction-kit@^0.1.0`
+  - `@tryinget/pi-trigger-adapter@^0.1.0`
+- The old generated vendored bridge is gone.
+- The temporary bundled-dependency staging bridge is also gone.
 
-### Current packaging bridge contract
+### Current packaging contract
 Do **not** hand-edit generated runtime artifacts unless you are intentionally changing the generation flow:
 
 - generated runtime artifacts:
@@ -47,15 +48,9 @@ Do **not** hand-edit generated runtime artifacts unless you are intentionally ch
   - `src/*.js` generated from package TS entrypoints
 
 Current release/install flow:
-- local monorepo development uses `file:` dependencies on the canonical `packages/pi-interaction/` support packages
-- `prepack` rewrites those local specs to versioned package dependencies in the packed manifest
-- `prepack` also stages bundled runtime copies of those support packages so:
-  - clean-room tarball install stays green
-  - `pi install` tarball smoke stays green
-  - installed-package extension registration smoke stays green
-- `postpack` restores the local workspace dependency links after packing
-- `npm run build:runtime`
-  - regenerates installable runtime `.js` entrypoints
+- package source control uses normal published semver dependencies for shared interaction helpers
+- `prepack` regenerates installable runtime `.js` entrypoints
+- `release:check` verifies clean-room install and installed-package smoke using the real published dependency graph
 
 ## Verified evidence
 
@@ -68,13 +63,25 @@ npm run release:check
 npm run docs:list
 ```
 
-All passed after the de-vendor + release-staging work.
+All passed after retiring the local bundling bridge.
+
+Additional installed-runtime evidence in an isolated `PI_CODING_AGENT_DIR`:
+
+```bash
+PI_COMPANY=software pi -p "...vault_schema_diagnostics..."
+PI_COMPANY=software pi -p "...vault_query..."
+PI_COMPANY=software pi --no-session --mode json --print '/vault:meta-orchestration::phase-1-live'
+```
+
+Observed:
+- installed-package tool diagnostics succeeded
+- installed-package visibility-aware query succeeded
+- installed-package live `/vault:` exact-name path prepared the template successfully with context preserved
 
 ### What `release:check` now proves
 - `npm pack --dry-run --json`
 - static runtime dependency audit for bare imports
-- packed-manifest rewrite from local `file:` specs to versioned package dependencies
-- bundled dependency staging in packed artifacts
+- packed-manifest dependency hygiene (no `file:` runtime deps, no bundle bridge)
 - clean-room tarball install
 - `pi install` tarball registration check
 - installed-package extension registration smoke
@@ -92,20 +99,14 @@ That means the intended architecture is:
 
 as same-process runtime/library packages.
 
-### Current temporary bridge
-The remaining bridge is **not source vendoring anymore**.
-It is the release-time bundling/staging needed because `pi-vault-client` must stay install-safe before the shared interaction support packages are fully published and consumable as normal external npm dependencies.
+### Packaging status
+The packaging simplification is done here.
+If future issues appear, treat them as one of these classes first:
+1. installed-runtime/live Pi validation gap
+2. published-package contract drift
+3. vault runtime correctness issue
 
-Current evidence:
-- `npm view @tryinget/pi-interaction-kit version --json --registry https://registry.npmjs.org/` -> 404
-- `npm view @tryinget/pi-trigger-adapter version --json --registry https://registry.npmjs.org/` -> 404
-- `npm view @tryinget/pi-editor-registry version --json --registry https://registry.npmjs.org/` -> 404
-
-That bridge is acceptable short-term because it is:
-- script-driven
-- fed from canonical package-group code
-- release-verified
-- explicitly documented as temporary packaging glue, not the end state
+Do **not** jump back to vendoring or local bundle shims unless new evidence forces it.
 
 See:
 - `../pi-interaction/docs/dev/package-boundary-architecture.md`
@@ -117,17 +118,18 @@ Do **not** resume from these stale assumptions unless new evidence forces it:
 - schema-v8 compatibility is still current
 - PTX `$$ /...` behavior belongs here
 - an API/service boundary is the right fix for interaction helper packaging
-- the removed vendored interaction bridge should come back
+- source vendoring or bundle staging should return
 
 ## Recommended next step
 
 ## Single best next step
 Choose the next slice based on what is still unproven:
 
-1. **if the blocker is shared-package publication / publish order / bundle-bridge retirement**
-   - go to `../pi-interaction`
-   - publish or otherwise complete the support-package rollout story
-   - then come back here and retire `bundleDependencies` + release-time staged bundling
+1. **if the blocker is same-session interactive runtime confidence**
+   - stay here in `pi-vault-client`
+   - reinstall into Pi from the package path
+   - `/reload`
+   - validate the interactive command-handler paths `/vault`, `/route`, and `/vault-check` in a normal TUI runtime with the published interaction-package path now in place
 2. **if the blocker is live coexistence evidence with PTX + pi-interaction + pi-vault-client loaded together**
    - stay split across `../pi-interaction`, `../pi-prompt-template-accelerator`, and this package as needed
    - keep the picker-surface boundary explicit during validation
@@ -135,7 +137,7 @@ Choose the next slice based on what is still unproven:
    - stay here in `pi-vault-client`
 
 ### Concrete objective for the next slice
-Prove that `pi-vault-client` can eventually remove the temporary bundled-dependency staging path once the shared support packages are truly available as normal external package dependencies, while keeping:
+Capture durable same-session interactive `/reload` evidence for the command-handler paths that are still TUI-specific (`/vault`, `/route`, `/vault-check`) now that headless installed-runtime evidence already exists for tool surfaces and live `/vault:`, while keeping:
 - `npm run check` green
 - `npm run release:check` green
 - installed-package smoke green
@@ -150,56 +152,40 @@ cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
 npm run docs:list
 npm run check
 npm run release:check:quick
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
 ```
 
-### In `packages/pi-interaction/`
-If the next slice is publication/bundle retirement work, start with:
+Then in Pi:
 
-```bash
-cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction
-npm run docs:list
-
-cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-interaction-kit
-npm run check
-npm run release:check:quick
-
-cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-trigger-adapter
-npm run check
-npm run release:check:quick
+```text
+/reload
+/vault-check
+/vault meta-orchestration
+/vault:
+/route <real context>
 ```
 
 ## Repo routing rule
-- **shared interaction package architecture / publish readiness / bundle-bridge retirement**
-  - go to `../pi-interaction`
 - **vault runtime correctness (`/vault`, `/vault:`, `/vault-check`, schema diagnostics, render prep, visibility/tool behavior)**
   - stay here in `pi-vault-client`
+- **shared interaction package architecture / published package contract drift**
+  - go to `../pi-interaction`
 - **Prompt Vault schema/contracts/data or Prompt Vault-side docs drift**
   - go to `~/ai-society/core/prompt-vault`
 - **PTX `$$ /...` picker/prefill behavior**
   - go to `../pi-prompt-template-accelerator`
 
 ## Read first next time
-### If staying in `pi-vault-client`
 1. `AGENTS.md`
 2. `README.md`
 3. `docs/dev/status.md`
 4. `NEXT_SESSION_PROMPT.md`
 5. `../pi-interaction/docs/dev/package-boundary-architecture.md`
-6. `scripts/prepare-publish-manifest.mjs`
-7. `scripts/release-check.sh`
-
-### If moving to `pi-interaction`
-1. `../pi-interaction/AGENTS.md`
-2. `../pi-interaction/README.md`
-3. `../pi-interaction/docs/dev/package-boundary-architecture.md`
-4. `../pi-interaction/docs/dev/release-workflow.md`
-5. `../pi-interaction/docs/dev/trusted_publishing.md`
-6. relevant subpackage `package.json` + `README.md`
+6. `scripts/release-check.sh`
+7. `scripts/release-smoke.sh`
 
 ## Files most relevant right now
-### In `pi-vault-client`
 - `package.json`
-- `scripts/prepare-publish-manifest.mjs`
 - `scripts/build-runtime.mjs`
 - `scripts/release-check.sh`
 - `scripts/release-smoke.sh`
@@ -212,26 +198,19 @@ npm run release:check:quick
 - `tests/vault-commands.test.mjs`
 - `tests/vault-update.test.mjs`
 
-### In `pi-interaction`
-- `../pi-interaction/docs/dev/package-boundary-architecture.md`
-- `../pi-interaction/pi-interaction-kit/package.json`
-- `../pi-interaction/pi-trigger-adapter/package.json`
-- `../pi-interaction/pi-editor-registry/package.json`
-- `../pi-interaction/pi-interaction/package.json`
-- `../pi-interaction/docs/dev/release-workflow.md`
-
 ## Success condition for the next slice
 A truthful next session is successful if it does one of these cleanly:
 
 ### Preferred success
-1. proves the shared `pi-interaction` support packages are available strongly enough to retire the temporary bundled-dependency staging path here
-2. keeps `pi-vault-client` on real package-boundary consumption
-3. keeps `npm run check` green
-4. keeps `npm run release:check` green
-5. records any remaining blocker as a publish-order / package-availability issue in the owning repo
+1. captures durable same-session interactive `/reload` evidence for `/vault`, `/route`, and `/vault-check`
+2. keeps the already-verified installed headless `/vault:` and tool-surface evidence intact
+3. keeps `pi-vault-client` on published semver interaction dependencies
+4. keeps `npm run check` green
+5. keeps `npm run release:check` green
+6. records any remaining issue as runtime behavior or published-package contract drift, not as a packaging workaround problem
 
 ### Acceptable fallback success
-1. captures the exact remaining publication/live-validation blocker
+1. identifies the exact installed-runtime drift point
 2. leaves the current package-boundary consumption intact
-3. leaves the temporary bundled-dependency staging path release-safe
-4. avoids reintroducing manual vendoring or service/API overengineering
+3. avoids reintroducing vendoring or bundle bridges
+4. narrows the next fix to the owning runtime boundary

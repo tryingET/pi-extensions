@@ -7,9 +7,18 @@ import ts from "typescript";
 
 const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
 const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
-const INTERACTION_GROUP_ROOT = path.resolve(PACKAGE_ROOT, "../pi-interaction");
-const INTERACTION_KIT_ROOT = path.join(INTERACTION_GROUP_ROOT, "pi-interaction-kit");
-const TRIGGER_ADAPTER_ROOT = path.join(INTERACTION_GROUP_ROOT, "pi-trigger-adapter");
+const INSTALLED_INTERACTION_KIT_ROOT = path.join(
+  PACKAGE_ROOT,
+  "node_modules",
+  "@tryinget",
+  "pi-interaction-kit",
+);
+const INSTALLED_TRIGGER_ADAPTER_ROOT = path.join(
+  PACKAGE_ROOT,
+  "node_modules",
+  "@tryinget",
+  "pi-trigger-adapter",
+);
 
 function makeTemplate(overrides = {}) {
   return {
@@ -41,8 +50,8 @@ function createTranspiledCommandModules() {
   mkdirSync(baseDir, { recursive: true });
   const tempDir = mkdtempSync(path.join(baseDir, "vault-commands-"));
 
-  linkPackageDependency(tempDir, "@tryinget/pi-interaction-kit", INTERACTION_KIT_ROOT);
-  linkPackageDependency(tempDir, "@tryinget/pi-trigger-adapter", TRIGGER_ADAPTER_ROOT);
+  linkPackageDependency(tempDir, "@tryinget/pi-interaction-kit", INSTALLED_INTERACTION_KIT_ROOT);
+  linkPackageDependency(tempDir, "@tryinget/pi-trigger-adapter", INSTALLED_TRIGGER_ADAPTER_ROOT);
 
   for (const relativePath of [
     "src/vaultTypes.ts",

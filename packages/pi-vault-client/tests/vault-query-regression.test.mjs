@@ -350,18 +350,13 @@ test("picker runtime exposes structured vault prompt preparation", () => {
   assert.match(COMMANDS_SOURCE, /runtime\.prepareVaultPrompt\(/);
 });
 
-test("interaction helpers are consumed through package boundaries instead of vendored source copies", () => {
+test("interaction helpers are consumed through published package boundaries instead of local vendored or bundled bridges", () => {
   assert.match(FUZZY_SELECTOR_SOURCE, /from "@tryinget\/pi-interaction-kit"/);
   assert.match(TRIGGER_ADAPTER_SOURCE, /from "@tryinget\/pi-trigger-adapter"/);
-  assert.match(
-    PACKAGE_JSON_SOURCE,
-    /"@tryinget\/pi-interaction-kit": "file:\.\.\/pi-interaction\/pi-interaction-kit"/,
-  );
-  assert.match(
-    PACKAGE_JSON_SOURCE,
-    /"@tryinget\/pi-trigger-adapter": "file:\.\.\/pi-interaction\/pi-trigger-adapter"/,
-  );
-  assert.match(PACKAGE_JSON_SOURCE, /"bundleDependencies"/);
+  assert.match(PACKAGE_JSON_SOURCE, /"@tryinget\/pi-interaction-kit": "\^0\.1\.0"/);
+  assert.match(PACKAGE_JSON_SOURCE, /"@tryinget\/pi-trigger-adapter": "\^0\.1\.0"/);
+  assert.doesNotMatch(PACKAGE_JSON_SOURCE, /"bundleDependencies"/);
+  assert.doesNotMatch(PACKAGE_JSON_SOURCE, /prepare-publish-manifest/);
   assert.doesNotMatch(PACKAGE_JSON_SOURCE, /sync:interaction-vendors/);
 });
 

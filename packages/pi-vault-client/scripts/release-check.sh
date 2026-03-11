@@ -41,11 +41,6 @@ const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const filesEntries = Array.isArray(pkg.files)
   ? pkg.files.map((entry) => normalize(String(entry).trim())).filter(Boolean)
   : [];
-const bundledEntries = [
-  ...((Array.isArray(pkg.bundleDependencies) ? pkg.bundleDependencies : []).map(String)),
-  ...((Array.isArray(pkg.bundledDependencies) ? pkg.bundledDependencies : []).map(String)),
-].filter(Boolean);
-const allowBundledNodeModules = bundledEntries.length > 0;
 
 if (filesEntries.length === 0) {
   fail("package.json must define a non-empty files array for deterministic publish artifacts.");
@@ -54,7 +49,6 @@ if (filesEntries.length === 0) {
 const expectedExact = new Set(["package.json"]);
 const expectedDirPrefixes = [];
 const expectedPatternPrefixes = [];
-const expectedBundledPrefixes = allowBundledNodeModules ? ["node_modules/"] : [];
 
 for (const entry of filesEntries) {
   if (/[*?\[]/.test(entry)) {
@@ -73,8 +67,7 @@ for (const entry of filesEntries) {
 
   const stat = fs.statSync(fullPath);
   if (stat.isDirectory()) {
-    const prefix = entry.endsWith("/") ? entry : `${entry}/`;
-    expectedDirPrefixes.push(prefix);
+    expectedDirPrefixes.push(entry.endsWith("/") ? entry : `${entry}/`);
   } else {
     expectedExact.add(entry);
   }
@@ -112,17 +105,11 @@ for (const prefix of expectedPatternPrefixes) {
     missing.push(`${prefix}*`);
   }
 }
-for (const prefix of expectedBundledPrefixes) {
-  if (!actual.some((filePath) => filePath.startsWith(prefix))) {
-    missing.push(`${prefix}*`);
-  }
-}
 
 const extra = actual.filter((filePath) => {
   if (expectedExact.has(filePath)) return false;
   if (expectedDirPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
   if (expectedPatternPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
-  if (expectedBundledPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
   if (allowByAlwaysIncluded(filePath)) return false;
   return true;
 });
@@ -159,26 +146,20 @@ const declaredRoots = new Set([
   ...Object.keys(declaredRuntimeDeps),
   ...Object.keys(declaredRuntimePeerDeps),
 ]);
-const bundledDeps = new Set([
-  ...((Array.isArray(pkg.bundleDependencies) ? pkg.bundleDependencies : []).map(String)),
-  ...((Array.isArray(pkg.bundledDependencies) ? pkg.bundledDependencies : []).map(String)),
-]);
 
-const localFileBackedDeps = Object.entries(declaredRuntimeDeps).filter(([, version]) =>
-  String(version || "").startsWith("file:"),
-);
-for (const [name] of localFileBackedDeps) {
-  if (!bundledDeps.has(name)) {
-    fail(
-      `Local file-backed runtime dependency must be bundled for release-safe artifacts: ${name}`,
-    );
-  }
+const localFileBackedDeps = Object.entries(declaredRuntimeDeps)
+  .filter(([, version]) => String(version || "").startsWith("file:"))
+  .map(([name, version]) => `${name}=${String(version)}`);
+if (localFileBackedDeps.length > 0) {
+  fail(`Publishable runtime dependencies must not use file: specifiers: ${localFileBackedDeps.join(", ")}`);
 }
 
-for (const name of bundledDeps) {
-  if (!(name in declaredRuntimeDeps)) {
-    fail(`bundleDependencies entry must also exist in dependencies: ${name}`);
-  }
+const bundledEntries = [
+  ...((Array.isArray(pkg.bundleDependencies) ? pkg.bundleDependencies : []).map(String)),
+  ...((Array.isArray(pkg.bundledDependencies) ? pkg.bundledDependencies : []).map(String)),
+].filter(Boolean);
+if (bundledEntries.length > 0) {
+  fail(`Temporary bundleDependencies bridge should be retired: ${bundledEntries.join(", ")}`);
 }
 
 const runtimeRoots = ["extensions", "src"];
@@ -279,8 +260,6 @@ echo "Tarball: $TARBALL_PATH"
 
 echo "== packed manifest dependency audit"
 TARBALL_PATH="$TARBALL_PATH" node <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const fail = (msg) => {
@@ -288,19 +267,15 @@ const fail = (msg) => {
   process.exit(1);
 };
 
-const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-const dependencyFields = ["dependencies", "optionalDependencies", "peerDependencies"];
 const packedManifest = JSON.parse(
   execFileSync("tar", ["-xOf", process.env.TARBALL_PATH, "package/package.json"], {
     encoding: "utf8",
   }),
 );
-
+const dependencyFields = ["dependencies", "optionalDependencies", "peerDependencies"];
 for (const field of dependencyFields) {
   const deps = packedManifest[field];
-  if (!deps || typeof deps !== "object" || Array.isArray(deps)) {
-    continue;
-  }
+  if (!deps || typeof deps !== "object" || Array.isArray(deps)) continue;
   for (const [name, spec] of Object.entries(deps)) {
     if (typeof spec === "string" && spec.startsWith("file:")) {
       fail(`Packed manifest still contains file dependency ${field}.${name}=${spec}`);
@@ -308,29 +283,15 @@ for (const field of dependencyFields) {
   }
 }
 
-for (const field of dependencyFields) {
-  const deps = pkg[field];
-  if (!deps || typeof deps !== "object" || Array.isArray(deps)) {
-    continue;
-  }
-  for (const [name, spec] of Object.entries(deps)) {
-    if (typeof spec !== "string" || !spec.startsWith("file:")) {
-      continue;
-    }
-    const dependencyDir = path.resolve(spec.slice("file:".length));
-    const dependencyManifest = JSON.parse(
-      fs.readFileSync(path.join(dependencyDir, "package.json"), "utf8"),
-    );
-    const packedValue = packedManifest?.[field]?.[name];
-    if (packedValue !== dependencyManifest.version) {
-      fail(
-        `Packed manifest expected ${field}.${name}=${dependencyManifest.version}, got ${packedValue ?? "<missing>"}`,
-      );
-    }
-  }
+const bundledEntries = [
+  ...((Array.isArray(packedManifest.bundleDependencies) ? packedManifest.bundleDependencies : []).map(String)),
+  ...((Array.isArray(packedManifest.bundledDependencies) ? packedManifest.bundledDependencies : []).map(String)),
+].filter(Boolean);
+if (bundledEntries.length > 0) {
+  fail(`Packed manifest still contains bundleDependencies: ${bundledEntries.join(", ")}`);
 }
 
-console.log("Packed manifest dependency rewrite OK.");
+console.log("Packed manifest dependency audit OK.");
 NODE
 
 echo "== clean-room tarball install"

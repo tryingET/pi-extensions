@@ -326,3 +326,89 @@ That proves the installed package behavior on a clean runtime load.
 
 What is **not** captured here is a same-session interactive `/reload` transcript inside a running TUI instance.
 If maintainers require literal `/reload` evidence rather than clean-start equivalence, append a short manual TUI note here rather than redoing the rest of the matrix.
+
+## 2026-03-11 addendum — published semver dependency installed-runtime follow-up
+
+After retiring the local file-dependency + bundle-staging bridge, an additional installed-runtime pass was run against the package as installed into an isolated `PI_CODING_AGENT_DIR`.
+
+### Installation evidence
+
+Commands:
+
+```bash
+TEST_AGENT_DIR=$(mktemp -d /tmp/pi-vault-live-XXXXXX)
+cp ~/.pi/agent/auth.json "$TEST_AGENT_DIR/auth.json"
+cat > "$TEST_AGENT_DIR/settings.json" <<'JSON'
+{
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-4o",
+  "enabledModels": ["openai/gpt-4*"],
+  "extensions": []
+}
+JSON
+
+PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
+  pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+
+PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi list
+```
+
+Observed excerpt:
+
+```text
+User packages:
+  ../../home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+    /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+```
+
+### Installed-package tool evidence
+
+Commands:
+
+```bash
+PI_COMPANY=software PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
+  pi -p "Do not use bash or read. Call the custom tool named vault_schema_diagnostics exactly once with empty arguments, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
+
+PI_COMPANY=software PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
+  pi -p "Do not use bash or read. Call the custom tool named vault_query with limit 1 and include_content false, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
+```
+
+Observed:
+
+```text
+SUCCESS
+SUCCESS
+```
+
+Interpretation:
+- installed package registration remained healthy after the semver-dependency switch
+- tool surfaces still load and execute in an isolated installed runtime
+
+### Installed-package live `/vault:` path
+
+Command:
+
+```bash
+PI_COMPANY=software PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
+  pi --no-session --mode json --print '/vault:meta-orchestration::phase-1-live' \
+  | jq -r 'select(.type=="agent_end") | .messages[0].content[0].text'
+```
+
+Observed excerpt:
+
+```text
+META-ORCHESTRATION — The Phase Navigator
+...
+## CONTEXT
+phase-1-live
+```
+
+Interpretation:
+- installed package handled the live `/vault:` execution path correctly after the dependency simplification
+- execution-time preparation still happened in the installed runtime
+- caller context was preserved through the shared preparation boundary
+
+### Important limitation from this addendum
+
+Headless `--print` evidence remains strongest for live `/vault:` and tool surfaces.
+Registered slash-command handlers such as `/vault`, `/route`, and the interactive-only `/vault-check` still need a same-session TUI `/reload` validation note if maintainers want literal interactive parity evidence rather than clean-start installed-runtime equivalence.

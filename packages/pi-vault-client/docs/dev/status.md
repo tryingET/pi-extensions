@@ -32,18 +32,20 @@ system4d:
   - render preparation is shared across vault execution paths
 - Packaging / persistence behavior:
   - runtime `.js` artifacts are generated from the package `*.ts` entrypoints for installable tarballs
-  - interaction helpers are consumed through real package dependencies on `@tryinget/pi-interaction-kit` and `@tryinget/pi-trigger-adapter`
-  - `prepack` rewrites local `file:` specs to versioned package dependencies and stages bundled runtime copies for release-safe tarballs while the support packages are still being rolled out independently
-  - npm registry lookups for `@tryinget/pi-interaction-kit`, `@tryinget/pi-trigger-adapter`, and `@tryinget/pi-editor-registry` currently return 404, so the temporary bundled-dependency staging path is still required
-  - package release gate now checks static runtime imports, packed-manifest rewrite, clean-room tarball install, and installed-package extension registration
+  - interaction helpers are consumed through published semver dependencies on `@tryinget/pi-interaction-kit` and `@tryinget/pi-trigger-adapter`
+  - the temporary bundled-dependency staging bridge is gone
+  - package release gate now checks static runtime imports, packed-manifest dependency hygiene, clean-room tarball install, and installed-package extension registration
   - execution / feedback / template writes commit only their scoped Dolt tables; there is no repo-wide session-shutdown auto-commit
 - Verification completed:
   - `npm run check`
   - `npm run release:check`
   - `npm run docs:list`
+  - isolated installed-package `vault_schema_diagnostics` headless smoke
+  - isolated installed-package `vault_query` headless smoke
+  - isolated installed-package live `/vault:meta-orchestration::phase-1-live` smoke
 - Remaining uncertainty:
-  - installed interactive `/reload` parity proof in a normal Pi runtime
-  - final live TUI evidence for `/vault`, `/vault:`, and `/vault-check` after reload
+  - same-session interactive `/reload` parity proof in a normal Pi runtime
+  - final TUI evidence for interactive command-handler paths (`/vault`, `/route`, `/vault-check`) after reload
 - Explicit boundary:
   - `pi-vault-client` owns `/vault`, `/vault:`, and Prompt Vault client/runtime behavior
   - PTX `$$ /...` behavior belongs to `pi-prompt-template-accelerator`

@@ -41,8 +41,7 @@
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
-    "prepack": "node ./scripts/prepare-publish-manifest.mjs prepack >/dev/null && node ./scripts/build-runtime.mjs --quiet",
-    "postpack": "node ./scripts/prepare-publish-manifest.mjs postpack >/dev/null"
+    "prepack": "node ./scripts/build-runtime.mjs --quiet"
   },
   "files": [
     "extensions/vault.js",
@@ -68,13 +67,9 @@
   },
   "dependencies": {
     "@sinclair/typebox": "0.34.48",
-    "@tryinget/pi-interaction-kit": "file:../pi-interaction/pi-interaction-kit",
-    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
+    "@tryinget/pi-interaction-kit": "^0.1.0",
+    "@tryinget/pi-trigger-adapter": "^0.1.0"
   },
-  "bundleDependencies": [
-    "@tryinget/pi-interaction-kit",
-    "@tryinget/pi-trigger-adapter"
-  ],
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
     "@types/node": "^22.0.0",
