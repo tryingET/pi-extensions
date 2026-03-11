@@ -230,17 +230,10 @@ npm add -D @j178/prek
 npm install -g @j178/prek
 ```
 
-## Startup interview flow (project-local)
+## Project docs maintenance
 
-- [`.pi/extensions/startup-intake-router.ts`](.pi/extensions/startup-intake-router.ts) watches the first non-command message in a session.
-- It converts your startup intent into a prefilled command:
-  - `/init-project-docs "<your intent>"`
-- [`.pi/prompts/init-project-docs.md`](.pi/prompts/init-project-docs.md) then drives the `interview` tool using [docs/org/project-docs-intake.questions.json](docs/org/project-docs-intake.questions.json).
-
-Utility commands:
-
-- `/startup-intake-router-status`
-- `/startup-intake-router-reset`
+This package no longer ships a repo-local startup-intake layer.
+Maintain organization and project docs directly in `docs/org/` and `docs/project/`.
 
 ## Live package activation
 

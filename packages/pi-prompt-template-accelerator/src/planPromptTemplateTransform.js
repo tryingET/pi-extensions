@@ -49,17 +49,35 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
   }
 
   const normalizedOverride = normalizeTemplateCommandOverride(templateCommandOverride);
-  const templateCommand =
+  const templateResolution =
     normalizedOverride && normalizedOverride.name === parsed.commandName
-      ? normalizedOverride
+      ? {
+          status: "ok",
+          templateCommand: normalizedOverride,
+          matches: [normalizedOverride],
+          prefillableMatches: normalizedOverride.path ? [normalizedOverride] : [],
+          resolution: "override",
+        }
       : resolvePromptTemplate(pi.getCommands(), parsed.commandName);
-  if (!templateCommand) {
+
+  if (templateResolution.status === "ambiguous") {
+    return {
+      status: "template-name-ambiguous",
+      parsed,
+      matches: templateResolution.matches,
+      prefillableMatches: templateResolution.prefillableMatches,
+      resolution: templateResolution.resolution,
+    };
+  }
+
+  if (templateResolution.status !== "ok") {
     return {
       status: "non-template-command",
       parsed,
     };
   }
 
+  const templateCommand = templateResolution.templateCommand;
   const policy = resolveTemplatePolicy(parsed.commandName, policyConfig);
   if (!policy.allowed) {
     return {
@@ -67,6 +85,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
       parsed,
       templateCommand,
       policy,
+      resolution: templateResolution.resolution,
     };
   }
 
@@ -76,6 +95,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
       parsed,
       templateCommand,
       policy,
+      resolution: templateResolution.resolution,
     };
   }
 
@@ -88,6 +108,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
       parsed,
       templateCommand,
       policy,
+      resolution: templateResolution.resolution,
       error,
     };
   }
@@ -108,6 +129,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
     parsed,
     templateCommand,
     policy,
+    resolution: templateResolution.resolution,
     usage,
     hints,
     inferred,

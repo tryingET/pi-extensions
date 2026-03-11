@@ -19,8 +19,6 @@ import { loadPtxPolicyConfig } from "../src/ptxPolicyConfig.js";
 const PREFIX = "$$";
 const LIVE_TRIGGER_ID = "ptx-template-picker";
 
-type PolicyConfig = Awaited<ReturnType<typeof loadPtxPolicyConfig>>["config"];
-
 type SelectorInvocation = {
   query: string;
   args: string[];
@@ -46,6 +44,24 @@ type PtxTemplateCandidate = {
 
 function asErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function resolvePolicyLookupCwd(ctx: any): string {
+  const cwd = typeof ctx?.cwd === "string" ? ctx.cwd.trim() : "";
+  return cwd.length > 0 ? cwd : process.cwd();
+}
+
+function formatPolicyConfigError(configPath: string, error: unknown): string {
+  return `PTX policy config error at ${configPath}: ${asErrorMessage(error)}`;
+}
+
+function formatTemplateAmbiguityWarning(commandName: string, plan: {
+  matches?: unknown[];
+  prefillableMatches?: unknown[];
+}): string {
+  const totalCount = Array.isArray(plan.matches) ? plan.matches.length : 0;
+  const prefillableCount = Array.isArray(plan.prefillableMatches) ? plan.prefillableMatches.length : 0;
+  return `Template name is ambiguous: /${commandName} (${prefillableCount} prefillable matches, ${totalCount} total). Use picker or '/ptx-select ${commandName}'.`;
 }
 
 function parseSelectorInvocation(rawAfterPrefix: string): SelectorInvocation | null {
@@ -98,16 +114,22 @@ async function buildTemplateSuggestion(options: {
   ctx: any;
   commandName: string;
   providedArgs: string[];
-  policyConfig: PolicyConfig;
   templateCommand?: TemplateCommandOverride;
 }): Promise<{ transformed?: string; warning?: string }> {
   const rawText = buildTransformedCommand(options.commandName, options.providedArgs);
+  const policyLoad = await loadPtxPolicyConfig({ cwd: resolvePolicyLookupCwd(options.ctx) });
+
+  if (policyLoad.error) {
+    return {
+      warning: formatPolicyConfigError(policyLoad.configPath, policyLoad.error),
+    };
+  }
 
   const plan = await planPromptTemplateTransform({
     pi: options.pi,
     ctx: options.ctx,
     rawText,
-    policyConfig: options.policyConfig,
+    policyConfig: policyLoad.config,
     templateCommandOverride: options.templateCommand,
   });
 
@@ -115,7 +137,14 @@ async function buildTemplateSuggestion(options: {
     case "ok":
       return { transformed: plan.transformed };
     case "policy-blocked":
-      return { warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason})` };
+      return plan.policy.fallback === "passthrough"
+        ? {
+            transformed: rawText,
+            warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason}); inserted raw command without inferred args.`,
+          }
+        : { warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason}).` };
+    case "template-name-ambiguous":
+      return { warning: formatTemplateAmbiguityWarning(options.commandName, plan) };
     case "template-path-missing":
       return {
         transformed: rawText,
@@ -245,7 +274,6 @@ async function loadTriggerSurface() {
 
 async function maybeRegisterLiveTrigger(options: {
   pi: ExtensionAPI;
-  getPolicyConfig: () => Promise<PolicyConfig>;
 }) {
   try {
     const inputTriggers = await loadTriggerSurface();
@@ -317,7 +345,6 @@ async function maybeRegisterLiveTrigger(options: {
       selectTitle: ({ query }: { query: string }) =>
         query ? `PTX template picker (query: ${query})` : "PTX template picker",
       applySelection: async ({ selected, parsed, context, api }: any) => {
-        const policyConfig = await options.getPolicyConfig();
         const parsedArgs = Array.isArray(parsed?.meta?.parsedArgs) ? parsed.meta.parsedArgs : [];
         const contextArg = String(parsed?.context ?? "").trim();
         const providedArgs = contextArg ? [...parsedArgs, contextArg] : parsedArgs;
@@ -333,7 +360,6 @@ async function maybeRegisterLiveTrigger(options: {
             ctx: context,
             commandName,
             providedArgs,
-            policyConfig,
             templateCommand,
           });
         } catch (error) {
@@ -377,19 +403,11 @@ async function maybeRegisterLiveTrigger(options: {
 }
 
 export default function ptxExtension(pi: ExtensionAPI) {
-  let cachedPolicyConfig: PolicyConfig | null = null;
   let unregisterLivePicker: (() => void) | null = null;
-
-  const getPolicyConfig = async () => {
-    if (cachedPolicyConfig) return cachedPolicyConfig;
-    const loaded = await loadPtxPolicyConfig({ cwd: process.cwd() });
-    cachedPolicyConfig = loaded.config;
-    return cachedPolicyConfig;
-  };
 
   // Optional live trigger registration through pi-interaction trigger surfaces.
   // PTX remains fully functional in non-UI mode even when these packages are absent.
-  void maybeRegisterLiveTrigger({ pi, getPolicyConfig }).then((result) => {
+  void maybeRegisterLiveTrigger({ pi }).then((result) => {
     unregisterLivePicker = result.unregister;
   });
 
@@ -459,7 +477,6 @@ export default function ptxExtension(pi: ExtensionAPI) {
           ctx,
           commandName,
           providedArgs: parsed.args,
-          policyConfig: await getPolicyConfig(),
           templateCommand,
         });
       } catch (error) {
@@ -493,7 +510,6 @@ export default function ptxExtension(pi: ExtensionAPI) {
       ctx,
       commandName: parsed.query,
       providedArgs: parsed.args,
-      policyConfig: await getPolicyConfig(),
     });
 
     if (!suggestion.transformed) {
@@ -544,7 +560,6 @@ export default function ptxExtension(pi: ExtensionAPI) {
           ctx,
           commandName,
           providedArgs: [],
-          policyConfig: await getPolicyConfig(),
           templateCommand,
         });
       } catch (error) {

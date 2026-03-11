@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -273,6 +273,142 @@ test("non-UI: prompt command without template path falls back to prefilling raw 
 
   assert.equal(result.action, "transform");
   assert.equal(result.text, "/analysis-router");
+});
+
+test("non-UI: duplicate prompt names use the single prefillable match deterministically", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-single-prefillable-"));
+  const templatePath = path.join(tempDir, "same.md");
+  await writeFile(templatePath, "Task: $1\nContext: $2\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "same",
+        source: "prompt",
+        description: "missing path first",
+      },
+      {
+        name: "same",
+        source: "prompt",
+        description: "valid second",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, '$$ /same "fix this"', createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text ?? "", /^\/same\s+"fix this"\s+"[^"]+"\s*$/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("non-UI: duplicate prefillable prompt names return explicit ambiguity", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-ambiguous-"));
+  const templateA = path.join(tempDir, "same-a.md");
+  const templateB = path.join(tempDir, "same-b.md");
+  await writeFile(templateA, "Task: $1\n", "utf8");
+  await writeFile(templateB, "Context: $2\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "same",
+        source: "prompt",
+        description: "first duplicate",
+        path: templateA,
+      },
+      {
+        name: "same",
+        source: "prompt",
+        description: "second duplicate",
+        path: templateB,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, "$$ /same", createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.equal(
+      result.text,
+      "Template name is ambiguous: /same (2 prefillable matches, 2 total). Use picker or '/ptx-select same'.",
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("non-UI: PTX policy is loaded from ctx.cwd and honors passthrough fallback", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-policy-cwd-"));
+  const templatePath = path.join(tempDir, "blocked.md");
+  await mkdir(path.join(tempDir, ".pi"), { recursive: true });
+  await writeFile(
+    path.join(tempDir, ".pi", "ptx-config.json"),
+    JSON.stringify({ templates: { blocked: { policy: "block", fallback: "passthrough" } } }),
+    "utf8",
+  );
+  await writeFile(templatePath, "Task: $1\nContext: $2\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "blocked",
+        source: "prompt",
+        description: "blocked template",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, '$$ /blocked "x"', createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.equal(result.text, '/blocked "x"');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("non-UI: invalid repo-local PTX policy config returns deterministic error", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-policy-invalid-"));
+  const templatePath = path.join(tempDir, "allowed.md");
+  await mkdir(path.join(tempDir, ".pi"), { recursive: true });
+  await writeFile(path.join(tempDir, ".pi", "ptx-config.json"), "{ not valid json", "utf8");
+  await writeFile(templatePath, "Task: $1\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "allowed",
+        source: "prompt",
+        description: "allowed template",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, '$$ /allowed "x"', createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text ?? "", /^PTX policy config error at .*\.pi\/ptx-config\.json:/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("live trigger: duplicate prompt names keep selected command identity and prefill transformed command", async () => {
