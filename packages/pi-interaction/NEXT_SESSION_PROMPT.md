@@ -42,8 +42,7 @@ system4d:
    - `/vault` execution-time rendering in `pi-vault-client` is the place where vault Nunjucks behavior is verified
    - do **not** assume PTX automatically mirrors vault-client retrieval/rendering semantics for non-exported vault templates
    - if an exported Prompt Vault template is surfaced through PTX, verify that PTX behavior is explicit and documented rather than assumed
-5. Decide whether to wire the first root-owned component release automation for `pi-interaction` now or keep the documented operator-driven workflow.
-6. Keep package/root release docs synchronized if automation lands.
+5. Validate the new root-owned component release automation against real package releases and keep the component map/docs synchronized if package inventory changes.
 
 ## Must-pass checks
 

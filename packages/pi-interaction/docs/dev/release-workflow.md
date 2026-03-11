@@ -38,15 +38,16 @@ This is the release contract that lets external consumers retire generated vendo
 
 ## Current release model
 
-Today the release-safe path is **component-scoped and operator-driven**:
+The release-safe path is now **component-scoped with root-owned monorepo automation**:
 
 1. validate the umbrella package locally
 2. validate live interaction behavior with dependent extensions loaded
 3. validate monorepo root gates
-4. then create/merge the release change only when the package is publish-ready
+4. let root release-please open component-scoped release PRs/tags
+5. publish from the root-owned monorepo publish workflow
 
-Monorepo-wide automated release orchestration is still a follow-up item.
-Until that lands, this document is the canonical safe workflow.
+The release model remains component-scoped rather than lockstep.
+That means the support packages and umbrella package can move on independent release cadences when their own changes justify it.
 
 ## Preconditions
 

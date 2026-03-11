@@ -18,6 +18,14 @@ if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then
   ./scripts/rocs.sh validate --repo . --resolve-refs
 fi
 
+if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.json" ] && [ -f "./.release-please-manifest.json" ]; then
+  node ./scripts/release-components.mjs validate
+fi
+
+if [ -f "./scripts/release-components.test.mjs" ]; then
+  node --test ./scripts/release-components.test.mjs
+fi
+
 if [ -x "./scripts/ci/packages.sh" ]; then
   ./scripts/ci/packages.sh
 fi

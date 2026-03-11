@@ -1,0 +1,73 @@
+name: release-check
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  discover-components:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Validate release-please component metadata
+        run: node ./scripts/release-components.mjs validate
+
+      - name: Run release component tests
+        run: node --test ./scripts/release-components.test.mjs
+
+      - id: matrix
+        name: Build component matrix
+        run: |
+          echo 'matrix<<EOF' >> "$GITHUB_OUTPUT"
+          node ./scripts/release-components.mjs matrix --json >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+
+  package-release-check:
+    needs: discover-components
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover-components.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Upgrade npm for release-check parity
+        run: npm install --global npm@^11.5.1
+
+      - name: Install package dependencies
+        working-directory: ${{ matrix.package_path }}
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install --package-lock-only --ignore-scripts
+            npm ci
+          fi
+
+      - name: Run release checks (artifact-only)
+        working-directory: ${{ matrix.package_path }}
+        run: npm run release:check:quick
