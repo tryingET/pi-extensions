@@ -1,14 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import ts from "typescript";
-
-const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
-const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
+import { withTranspiledModuleHarness } from "./helpers/transpiled-module-harness.mjs";
 
 function makeContracts() {
   return {
@@ -125,61 +121,28 @@ function makeReplayReceipt(template, preparedText, overrides = {}) {
   };
 }
 
-function createTranspiledVaultModules() {
-  const baseDir = path.join(PACKAGE_ROOT, ".tmp-test");
-  mkdirSync(baseDir, { recursive: true });
-  const tempDir = mkdtempSync(path.join(baseDir, "vault-update-"));
-
-  for (const relativePath of [
-    "src/vaultTypes.ts",
-    "src/vaultDb.ts",
-    "src/vaultTools.ts",
-    "src/vaultReceipts.ts",
-    "src/vaultReplay.ts",
-    "src/vaultRoute.ts",
-    "src/vaultGrounding.ts",
-    "src/templatePreparationCompat.js",
-    "src/templateRenderer.js",
-  ]) {
-    const sourcePath = path.join(PACKAGE_ROOT, relativePath);
-    const source = readFileSync(sourcePath, "utf8");
-    const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));
-    mkdirSync(path.dirname(outputPath), { recursive: true });
-
-    if (relativePath.endsWith(".ts")) {
-      const transpiled = ts.transpileModule(source, {
-        compilerOptions: {
-          module: ts.ModuleKind.ESNext,
-          target: ts.ScriptTarget.ES2022,
-        },
-        fileName: sourcePath,
-      }).outputText;
-      writeFileSync(outputPath, transpiled, "utf8");
-      continue;
-    }
-
-    writeFileSync(outputPath, source, "utf8");
-  }
-
-  return {
-    async importModule(relativePath) {
-      return import(
-        `${pathToFileURL(path.join(tempDir, relativePath)).href}?t=${Date.now()}-${Math.random()}`
-      );
-    },
-    cleanup() {
-      rmSync(tempDir, { recursive: true, force: true });
-    },
-  };
-}
-
 async function withVaultModules(run) {
-  const modules = createTranspiledVaultModules();
-  try {
-    return await run(modules);
-  } finally {
-    modules.cleanup();
-  }
+  return withTranspiledModuleHarness(
+    {
+      prefix: "vault-update-",
+      files: [
+        "src/vaultTypes.ts",
+        "src/companyContext.ts",
+        "src/vaultSchema.ts",
+        "src/vaultMutations.ts",
+        "src/vaultFeedback.ts",
+        "src/vaultDb.ts",
+        "src/vaultTools.ts",
+        "src/vaultReceipts.ts",
+        "src/vaultReplay.ts",
+        "src/vaultRoute.ts",
+        "src/vaultGrounding.ts",
+        "src/templatePreparationCompat.js",
+        "src/templateRenderer.js",
+      ],
+    },
+    run,
+  );
 }
 
 test("vault runtime resolves company from explicit cwd without shared session state", async () => {

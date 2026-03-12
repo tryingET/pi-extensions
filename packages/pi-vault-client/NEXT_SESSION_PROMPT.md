@@ -97,6 +97,18 @@ Read at minimum:
 
 If the ready task touches a different subsystem more directly, add the most relevant docs/source/tests for that subsystem before editing.
 
+If the task touches `src/vaultDb.ts` or company/schema/mutation resolution, also read:
+- `diary/2026-03-12-company-context-hardening.md`
+- `diary/2026-03-12-vault-schema-seam.md`
+- `diary/2026-03-12-vault-mutation-seam.md`
+- `diary/2026-03-12-vault-feedback-seam.md`
+- `tests/company-context.test.mjs`
+- `tests/vault-schema.test.mjs`
+- `tests/vault-mutations.test.mjs`
+- `tests/vault-feedback.test.mjs`
+
+If continuing the bounded `src/vaultDb.ts` decomposition after the feedback seam, prefer separating execution logging helpers next rather than widening query behavior.
+
 ### 3. AK queue truth
 From `~/ai-society/softwareco/owned/agent-kernel`:
 

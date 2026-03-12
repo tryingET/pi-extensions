@@ -4,11 +4,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import ts from "typescript";
+import {
+  createTranspiledModuleHarness,
+  PACKAGE_ROOT,
+} from "./helpers/transpiled-module-harness.mjs";
 
-const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
-const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
 const PROMPT_VAULT_SCHEMA = path.resolve(
   PACKAGE_ROOT,
   "../../../../../core/prompt-vault/schema/schema.sql",
@@ -38,46 +38,19 @@ function setupTempVaultRepo() {
 }
 
 function createTranspiledVaultModules() {
-  const baseDir = path.join(PACKAGE_ROOT, ".tmp-test");
-  mkdirSync(baseDir, { recursive: true });
-  const tempDir = mkdtempSync(path.join(baseDir, "vault-dolt-"));
-
-  for (const relativePath of [
-    "src/vaultTypes.ts",
-    "src/vaultDb.ts",
-    "src/vaultReceipts.ts",
-    "src/templateRenderer.js",
-  ]) {
-    const sourcePath = path.join(PACKAGE_ROOT, relativePath);
-    const source = readFileSync(sourcePath, "utf8");
-    const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));
-    mkdirSync(path.dirname(outputPath), { recursive: true });
-
-    if (relativePath.endsWith(".ts")) {
-      const transpiled = ts.transpileModule(source, {
-        compilerOptions: {
-          module: ts.ModuleKind.ESNext,
-          target: ts.ScriptTarget.ES2022,
-        },
-        fileName: sourcePath,
-      }).outputText;
-      writeFileSync(outputPath, transpiled, "utf8");
-      continue;
-    }
-
-    writeFileSync(outputPath, source, "utf8");
-  }
-
-  return {
-    async importModule(relativePath) {
-      return import(
-        `${pathToFileURL(path.join(tempDir, relativePath)).href}?t=${Date.now()}-${Math.random()}`
-      );
-    },
-    cleanup() {
-      rmSync(tempDir, { recursive: true, force: true });
-    },
-  };
+  return createTranspiledModuleHarness({
+    prefix: "vault-dolt-",
+    files: [
+      "src/vaultTypes.ts",
+      "src/companyContext.ts",
+      "src/vaultSchema.ts",
+      "src/vaultMutations.ts",
+      "src/vaultFeedback.ts",
+      "src/vaultDb.ts",
+      "src/vaultReceipts.ts",
+      "src/templateRenderer.js",
+    ],
+  });
 }
 
 async function withTempVaultRuntime(runTest) {

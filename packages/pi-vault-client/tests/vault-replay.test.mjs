@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import ts from "typescript";
+import {
+  createTranspiledModuleHarness,
+  PACKAGE_ROOT,
+} from "./helpers/transpiled-module-harness.mjs";
 
-const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
-const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
 const PROMPT_VAULT_SCHEMA = path.resolve(
   PACKAGE_ROOT,
   "../../../../../core/prompt-vault/schema/schema.sql",
@@ -42,56 +42,25 @@ function setupTempVaultRepo() {
   return dir;
 }
 
-function createTranspiledReplayModules() {
-  const baseDir = path.join(PACKAGE_ROOT, ".tmp-test");
-  mkdirSync(baseDir, { recursive: true });
-  const tempDir = mkdtempSync(path.join(baseDir, "vault-replay-"));
-
-  for (const relativePath of [
-    "src/vaultTypes.ts",
-    "src/vaultDb.ts",
-    "src/vaultReceipts.ts",
-    "src/vaultReplay.ts",
-    "src/vaultRoute.ts",
-    "src/vaultGrounding.ts",
-    "src/templatePreparationCompat.js",
-    "src/templateRenderer.js",
-  ]) {
-    const sourcePath = path.join(PACKAGE_ROOT, relativePath);
-    const source = readFileSync(sourcePath, "utf8");
-    const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));
-    mkdirSync(path.dirname(outputPath), { recursive: true });
-
-    if (relativePath.endsWith(".ts")) {
-      const transpiled = ts.transpileModule(source, {
-        compilerOptions: {
-          module: ts.ModuleKind.ESNext,
-          target: ts.ScriptTarget.ES2022,
-        },
-        fileName: sourcePath,
-      }).outputText;
-      writeFileSync(outputPath, transpiled, "utf8");
-      continue;
-    }
-
-    writeFileSync(outputPath, source, "utf8");
-  }
-
-  return {
-    async importModule(relativePath) {
-      return import(
-        `${pathToFileURL(path.join(tempDir, relativePath)).href}?t=${Date.now()}-${Math.random()}`
-      );
-    },
-    cleanup() {
-      rmSync(tempDir, { recursive: true, force: true });
-    },
-  };
-}
-
 async function withTempVaultRuntime(runTest) {
   const repoDir = setupTempVaultRepo();
-  const modules = createTranspiledReplayModules();
+  const modules = createTranspiledModuleHarness({
+    prefix: "vault-replay-",
+    files: [
+      "src/vaultTypes.ts",
+      "src/companyContext.ts",
+      "src/vaultSchema.ts",
+      "src/vaultMutations.ts",
+      "src/vaultFeedback.ts",
+      "src/vaultDb.ts",
+      "src/vaultReceipts.ts",
+      "src/vaultReplay.ts",
+      "src/vaultRoute.ts",
+      "src/vaultGrounding.ts",
+      "src/templatePreparationCompat.js",
+      "src/templateRenderer.js",
+    ],
+  });
   const originalVaultDir = process.env.VAULT_DIR;
   const originalPromptVaultRoot = process.env.PROMPT_VAULT_ROOT;
   const originalPiCompany = process.env.PI_COMPANY;

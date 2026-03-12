@@ -18,7 +18,11 @@
       "!ontology/**/*",
       // runtime JS artifacts are generated from the package's TS entrypoints.
       "!extensions/vault.js",
+      "!src/companyContext.js",
       "!src/evaluator.js",
+      "!src/vaultFeedback.js",
+      "!src/vaultMutations.js",
+      "!src/vaultSchema.js",
       "!src/vaultCommands.js",
       "!src/vaultDb.js",
       "!src/vaultGrounding.js",

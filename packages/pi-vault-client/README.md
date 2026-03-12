@@ -107,6 +107,7 @@ Current `/vault` behavior:
 - live `/vault:` uses the shared interaction runtime and allows bare `/vault:` with a follow-up filter prompt
 - visibility-sensitive slash-command reads (`/vault`, `/vault:`, `/vault-search`, `/route`, grounding) now fail closed when no explicit company context is available
   - set `PI_COMPANY` or invoke from a company-scoped cwd
+  - cwd inference now matches exact workspace/company path segments (for example `ai-society/softwareco/...`) instead of arbitrary substrings; if your checkout path is ambiguous, set `PI_COMPANY`
 - canonical Pi-visible reads now centralize on `status='active'` + `export_to_pi=true` + visibility-company filtering
 - `/vault`, live `/vault:`, `/route`, and grounding now queue execution provenance at preparation time but write the actual execution row only when the prepared prompt is sent as a real user message
   - opening a template in the editor no longer counts as a successful execution by itself
@@ -341,6 +342,7 @@ npm run docs:list:json
 - [Historical Prompt Vault relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
 - [Live render-engine validation](docs/dev/live-render-engine-validation.md)
 - [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
+- [Company-context hardening diary](diary/2026-03-12-company-context-hardening.md)
 - [Replay core diary](diary/2026-03-12-vre-08-replay-core.md)
 - [Replay surface diary](diary/2026-03-12-vre-09-replay-surface.md)
 - [Replay docs/tests diary](diary/2026-03-12-vre-10-docs-tests.md)
