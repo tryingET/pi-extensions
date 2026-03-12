@@ -3,6 +3,7 @@ import { registerVaultCommands } from "../src/vaultCommands.js";
 import { createVaultRuntime } from "../src/vaultDb.js";
 import { createGroundingRuntime } from "../src/vaultGrounding.js";
 import { createPickerRuntime } from "../src/vaultPicker.js";
+import { createVaultReceiptManager } from "../src/vaultReceipts.js";
 import { registerVaultDiagnosticsTool, registerVaultTools } from "../src/vaultTools.js";
 import { SCHEMA_VERSION, VAULT_DIR, VLLM_ENDPOINT, VLLM_MODEL } from "../src/vaultTypes.js";
 function formatMissingColumns(label, columns) {
@@ -10,7 +11,8 @@ function formatMissingColumns(label, columns) {
 }
 export default function registerVaultExtension(pi) {
     const vaultRuntime = createVaultRuntime();
-    const pickerRuntime = createPickerRuntime(vaultRuntime);
+    const receiptManager = createVaultReceiptManager(vaultRuntime);
+    const pickerRuntime = createPickerRuntime(vaultRuntime, receiptManager);
     const groundingRuntime = createGroundingRuntime(vaultRuntime);
     const runtime = {
         ...vaultRuntime,
@@ -19,7 +21,7 @@ export default function registerVaultExtension(pi) {
     };
     const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();
     registerVaultDiagnosticsTool(pi, vaultRuntime);
-    registerVaultCommands(pi, runtime);
+    registerVaultCommands(pi, runtime, receiptManager);
     if (!schemaReport.ok) {
         const details = [
             `expected=${SCHEMA_VERSION}`,
@@ -47,5 +49,5 @@ export default function registerVaultExtension(pi) {
     registerPromptEvaluatorTool(pi, evalConfig, vaultOps);
     registerPromptEvaluatorCommands(pi, evalConfig, vaultOps);
     runtime.registerVaultLiveTrigger();
-    registerVaultTools(pi, runtime);
+    registerVaultTools(pi, runtime, receiptManager);
 }

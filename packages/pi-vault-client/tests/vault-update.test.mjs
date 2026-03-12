@@ -496,7 +496,8 @@ test("vault_insert and vault_rate forward strict mutation context to the runtime
           rating: args[1],
           success: args[2],
           notes: args[3],
-          context: args.at(-1),
+          context: args[4],
+          options: args[5],
         });
         return { ok: true, message: "rated" };
       },
@@ -545,6 +546,9 @@ test("vault_insert and vault_rate forward strict mutation context to the runtime
         context: {
           cwd: "/tmp/softwareco/owned/demo",
           allowAmbientCwdFallback: false,
+        },
+        options: {
+          executionReceipt: null,
         },
       },
     ]);

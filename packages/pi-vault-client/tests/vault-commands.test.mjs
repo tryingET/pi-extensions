@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
+import { stripPreparedExecutionMarkers } from "../src/vaultReceipts.js";
 
 const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
 const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
@@ -56,6 +57,7 @@ function createTranspiledCommandModules() {
   for (const relativePath of [
     "src/vaultTypes.ts",
     "src/vaultCommands.ts",
+    "src/vaultReceipts.ts",
     "src/fuzzySelector.js",
     "src/triggerAdapter.js",
   ]) {
@@ -118,55 +120,94 @@ function makePiStub() {
 test("live /vault: exact-name path transforms in non-UI mode without picker fallback", async () => {
   await withCommandModules(async ({ importModule }) => {
     const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const { createVaultReceiptManager } = await importModule("src/vaultReceipts.js");
     const pi = makePiStub();
     const template = makeTemplate();
     const logged = [];
+    const receiptDir = mkdtempSync(path.join(PACKAGE_ROOT, ".tmp-test", "receipts-"));
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution(...args) {
+          logged.push(args);
+          return {
+            ok: true,
+            executionId: 41,
+            templateId: args[0].id,
+            entityVersion: args[0].version,
+            createdAt: "2026-03-11T12:00:00.000Z",
+            model: args[1],
+            inputContext: args[2] || "",
+          };
+        },
+      },
+      { filePath: path.join(receiptDir, "receipts.jsonl") },
+    );
 
-    registerVaultCommands(pi, {
-      checkSchemaCompatibilityDetailed() {
-        return {
-          ok: true,
-          expectedVersion: 9,
-          actualVersion: 9,
-          missingPromptTemplateColumns: [],
-          missingExecutionColumns: [],
-          missingFeedbackColumns: [],
-        };
+    registerVaultCommands(
+      pi,
+      {
+        checkSchemaCompatibilityDetailed() {
+          return {
+            ok: true,
+            expectedVersion: 9,
+            actualVersion: 9,
+            missingPromptTemplateColumns: [],
+            missingExecutionColumns: [],
+            missingFeedbackColumns: [],
+          };
+        },
+        parseVaultSelectionInput(text) {
+          return text.startsWith("/vault:") ? { query: text.slice(7), context: "" } : null;
+        },
+        getCurrentCompany() {
+          return "software";
+        },
+        getTemplateDetailed(name) {
+          assert.equal(name, "meta-orchestration");
+          return { ok: true, value: template, error: null };
+        },
+        async pickVaultTemplate() {
+          throw new Error("picker should not run for exact /vault: matches");
+        },
+        prepareVaultPrompt(_template, options) {
+          assert.equal(options?.currentCompany, "software");
+          return {
+            ok: true,
+            engine: "none",
+            explicitEngine: null,
+            body: "Reply with V9-OK",
+            hasFrontmatter: false,
+            error: null,
+            rendered: "Reply with V9-OK",
+            prepared: "Reply with V9-OK",
+            renderContext: {},
+            usedRenderKeys: [],
+            contextAppended: false,
+          };
+        },
       },
-      parseVaultSelectionInput(text) {
-        return text.startsWith("/vault:") ? { query: text.slice(7), context: "" } : null;
-      },
-      getCurrentCompany() {
-        return "software";
-      },
-      getTemplateDetailed(name) {
-        assert.equal(name, "meta-orchestration");
-        return { ok: true, value: template, error: null };
-      },
-      async pickVaultTemplate() {
-        throw new Error("picker should not run for exact /vault: matches");
-      },
-      prepareVaultPrompt(_template, options) {
-        assert.equal(options?.currentCompany, "software");
-        return {
-          ok: true,
-          prepared: "Reply with V9-OK",
-        };
-      },
-      logExecution(...args) {
-        logged.push(args);
-      },
-    });
+      receipts,
+    );
 
     const inputHandler = pi.events.get("input");
+    const messageEndHandler = pi.events.get("message_end");
     assert.equal(typeof inputHandler, "function");
+    assert.equal(typeof messageEndHandler, "function");
 
     const result = await inputHandler(
       { source: "interactive", text: "/vault:meta-orchestration" },
       { hasUI: false, cwd: "/tmp/software/project", model: { id: "unit-model" } },
     );
 
-    assert.deepEqual(result, { action: "transform", text: "Reply with V9-OK" });
+    assert.equal(result.action, "transform");
+    assert.equal(stripPreparedExecutionMarkers(result.text), "Reply with V9-OK");
+    assert.equal(logged.length, 0);
+
+    await messageEndHandler(
+      { type: "message_end", message: { role: "user", content: result.text } },
+      { hasUI: false, model: { id: "unit-model" } },
+    );
+
     assert.equal(logged.length, 1);
     assert.equal(logged[0][0].name, "meta-orchestration");
     assert.equal(logged[0][1], "unit-model");
@@ -176,56 +217,87 @@ test("live /vault: exact-name path transforms in non-UI mode without picker fall
 test("interactive /vault command loads exact-name templates into the editor", async () => {
   await withCommandModules(async ({ importModule }) => {
     const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const { createVaultReceiptManager } = await importModule("src/vaultReceipts.js");
     const pi = makePiStub();
     const template = makeTemplate();
     const notifications = [];
     const editorWrites = [];
     const logged = [];
+    const receiptDir = mkdtempSync(path.join(PACKAGE_ROOT, ".tmp-test", "receipts-"));
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution(...args) {
+          logged.push(args);
+          return {
+            ok: true,
+            executionId: 42,
+            templateId: args[0].id,
+            entityVersion: args[0].version,
+            createdAt: "2026-03-11T12:00:01.000Z",
+            model: args[1],
+            inputContext: args[2] || "",
+          };
+        },
+      },
+      { filePath: path.join(receiptDir, "receipts.jsonl") },
+    );
 
-    registerVaultCommands(pi, {
-      checkSchemaCompatibilityDetailed() {
-        return {
-          ok: true,
-          expectedVersion: 9,
-          actualVersion: 9,
-          missingPromptTemplateColumns: [],
-          missingExecutionColumns: [],
-          missingFeedbackColumns: [],
-        };
+    registerVaultCommands(
+      pi,
+      {
+        checkSchemaCompatibilityDetailed() {
+          return {
+            ok: true,
+            expectedVersion: 9,
+            actualVersion: 9,
+            missingPromptTemplateColumns: [],
+            missingExecutionColumns: [],
+            missingFeedbackColumns: [],
+          };
+        },
+        parseVaultSelectionInput() {
+          return null;
+        },
+        splitVaultQueryAndContext(text) {
+          return { query: text, context: "" };
+        },
+        getCurrentCompany() {
+          return "software";
+        },
+        getTemplateDetailed(name) {
+          assert.equal(name, "meta-orchestration");
+          return { ok: true, value: template, error: null };
+        },
+        async pickVaultTemplate() {
+          throw new Error("picker should not run for exact /vault matches");
+        },
+        prepareVaultPrompt(_template, options) {
+          assert.equal(options?.currentCompany, "software");
+          return {
+            ok: true,
+            engine: "none",
+            explicitEngine: null,
+            body: "Reply with V9-OK",
+            hasFrontmatter: false,
+            error: null,
+            rendered: "Reply with V9-OK",
+            prepared: "Reply with V9-OK",
+            renderContext: {},
+            usedRenderKeys: [],
+            contextAppended: false,
+          };
+        },
+        facetLabel(resolved) {
+          return `${resolved.artifact_kind}/${resolved.control_mode}/${resolved.formalization_level}`;
+        },
       },
-      parseVaultSelectionInput() {
-        return null;
-      },
-      splitVaultQueryAndContext(text) {
-        return { query: text, context: "" };
-      },
-      getCurrentCompany() {
-        return "software";
-      },
-      getTemplateDetailed(name) {
-        assert.equal(name, "meta-orchestration");
-        return { ok: true, value: template, error: null };
-      },
-      async pickVaultTemplate() {
-        throw new Error("picker should not run for exact /vault matches");
-      },
-      prepareVaultPrompt(_template, options) {
-        assert.equal(options?.currentCompany, "software");
-        return {
-          ok: true,
-          prepared: "Reply with V9-OK",
-        };
-      },
-      facetLabel(resolved) {
-        return `${resolved.artifact_kind}/${resolved.control_mode}/${resolved.formalization_level}`;
-      },
-      logExecution(...args) {
-        logged.push(args);
-      },
-    });
+      receipts,
+    );
 
     const vaultCommand = pi.commands.get("vault");
+    const messageEndHandler = pi.events.get("message_end");
     assert.ok(vaultCommand);
+    assert.equal(typeof messageEndHandler, "function");
 
     await vaultCommand.handler("meta-orchestration", {
       hasUI: true,
@@ -241,7 +313,15 @@ test("interactive /vault command loads exact-name templates into the editor", as
       },
     });
 
-    assert.deepEqual(editorWrites, ["Reply with V9-OK"]);
+    assert.deepEqual(
+      editorWrites.map((text) => stripPreparedExecutionMarkers(text)),
+      ["Reply with V9-OK"],
+    );
+    assert.equal(logged.length, 0);
+    await messageEndHandler(
+      { type: "message_end", message: { role: "user", content: editorWrites[0] } },
+      { hasUI: false, model: { id: "unit-model" } },
+    );
     assert.equal(logged.length, 1);
     assert.match(notifications[0]?.message || "", /Prepared: meta-orchestration/);
   });
@@ -349,6 +429,141 @@ test("interactive /route prepares meta-orchestration through the shared vault re
     assert.match(editorWrites[0] || "", /^Company: software/);
     assert.doesNotMatch(editorWrites[0] || "", /^---/);
     assert.match(editorWrites[0] || "", /## ROUTING REQUEST/);
+    assert.doesNotMatch(editorWrites[0] || "", /COMMAND: \/vault/);
+  });
+});
+
+test("non-UI /vault-search returns transformed exported-only results", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+
+    registerVaultCommands(pi, {
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: true,
+          expectedVersion: 9,
+          actualVersion: 9,
+          missingPromptTemplateColumns: [],
+          missingExecutionColumns: [],
+          missingFeedbackColumns: [],
+        };
+      },
+      resolveCurrentCompanyContext(cwd) {
+        return { company: "software", source: `cwd:${cwd || "/tmp/software/project"}` };
+      },
+      parseVaultSelectionInput() {
+        return null;
+      },
+      searchTemplatesDetailed(query, context, options) {
+        assert.equal(query, "demo");
+        assert.equal(context?.currentCompany, "software");
+        assert.equal(context?.requireExplicitCompany, true);
+        assert.equal(options?.includeContent, false);
+        return {
+          ok: true,
+          value: [makeTemplate({ name: "demo-template", description: "demo" })],
+          error: null,
+        };
+      },
+      formatTemplateDetails() {
+        return "DETAIL";
+      },
+    });
+
+    const inputHandler = pi.events.get("input");
+    const result = await inputHandler(
+      { source: "interactive", text: "/vault-search demo" },
+      { hasUI: false, cwd: "/tmp/software/project" },
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text, /# Search Results: "demo"/);
+    assert.match(result.text, /current_company: software/);
+    assert.match(result.text, /DETAIL/);
+  });
+});
+
+test("vault receipt inspection commands respect current company visibility", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+    const notifications = [];
+
+    registerVaultCommands(
+      pi,
+      {
+        checkSchemaCompatibilityDetailed() {
+          return {
+            ok: true,
+            expectedVersion: 9,
+            actualVersion: 9,
+            missingPromptTemplateColumns: [],
+            missingExecutionColumns: [],
+            missingFeedbackColumns: [],
+          };
+        },
+        resolveCurrentCompanyContext(cwd) {
+          return {
+            company: cwd?.includes("finance") ? "finance" : "software",
+            source: `cwd:${cwd}`,
+          };
+        },
+      },
+      {
+        listRecentReceipts({ currentCompany }) {
+          if (currentCompany !== "finance") {
+            return [
+              {
+                execution_id: 7,
+                template: { visibility_companies: ["software"] },
+              },
+            ];
+          }
+          return [];
+        },
+        readReceiptByExecutionId() {
+          return {
+            execution_id: 7,
+            template: { visibility_companies: ["software"] },
+          };
+        },
+      },
+    );
+
+    const lastReceipt = pi.commands.get("vault-last-receipt");
+    const receiptById = pi.commands.get("vault-receipt");
+    assert.ok(lastReceipt);
+    assert.ok(receiptById);
+
+    await lastReceipt.handler("", {
+      hasUI: true,
+      cwd: "/tmp/finance/project",
+      ui: {
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    await receiptById.handler("7", {
+      hasUI: true,
+      cwd: "/tmp/finance/project",
+      ui: {
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(
+      notifications[0]?.message || "",
+      /No local vault execution receipts recorded yet for the current company/,
+    );
+    assert.match(
+      notifications[1]?.message || "",
+      /No local receipt found for execution 7 in the current company context/,
+    );
   });
 });
 

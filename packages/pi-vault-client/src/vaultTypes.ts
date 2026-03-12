@@ -57,9 +57,10 @@ export interface RouterControlledVocabulary {
 export interface FuzzyCandidate {
   id: string;
   label: string;
-  detail?: string;
-  preview?: string;
+  detail: string;
+  preview: string;
   source: "ptx" | "vault";
+  [key: string]: unknown;
 }
 
 export interface SelectionResult {
@@ -123,6 +124,7 @@ export interface VaultQueryFilters {
 export interface VaultExecutionContext {
   cwd?: string;
   currentCompany?: string;
+  requireExplicitCompany?: boolean;
 }
 
 export interface VaultMutationContext extends VaultExecutionContext {
@@ -208,6 +210,173 @@ export interface FrameworkResolution {
   invalidOverrides: string[];
 }
 
+export type VaultInvocationSurface = "/vault" | "/vault:" | "/route" | "grounding";
+export type VaultInvocationChannel =
+  | "slash-command"
+  | "input-transform"
+  | "live-trigger"
+  | "helper-call";
+export type VaultSelectionMode = "exact" | "picker-fzf" | "picker-fallback" | "fixed-template";
+
+export interface VaultLlmToolCallProvenance {
+  tool_name: string;
+  tool_call_id?: string;
+}
+
+export interface VaultGroundingFrameworkResolutionReceipt {
+  selected_names: string[];
+  retrieval_method: FrameworkResolution["retrievalMethod"];
+  discovery_used: FrameworkResolution["discoveryUsed"];
+  invalid_overrides: string[];
+  warnings: string[];
+}
+
+export interface VaultSelectionReplaySafeInputs {
+  kind: "vault-selection";
+  query: string;
+  context: string;
+}
+
+export interface VaultRouteReplaySafeInputs {
+  kind: "route-request";
+  context: string;
+}
+
+export interface VaultGroundingReplaySafeInputs {
+  kind: "grounding-request";
+  command_text: string;
+  objective: string;
+  workflow: string;
+  mode: string;
+  extras: string;
+  framework_resolution: VaultGroundingFrameworkResolutionReceipt;
+}
+
+export type VaultReplaySafeInputs =
+  | VaultSelectionReplaySafeInputs
+  | VaultRouteReplaySafeInputs
+  | VaultGroundingReplaySafeInputs;
+
+export interface VaultExecutionReceiptTemplateSnapshot {
+  id?: number;
+  name: string;
+  version?: number;
+  artifact_kind: string;
+  control_mode: string;
+  formalization_level: string;
+  owner_company: string;
+  visibility_companies: string[];
+}
+
+export interface VaultExecutionReceiptRenderSnapshot {
+  engine: RenderEngine;
+  explicit_engine: RenderEngine | null;
+  context_appended: boolean;
+  append_context_section: boolean;
+  used_render_keys: string[];
+}
+
+export interface VaultExecutionReceiptPreparedSnapshot {
+  text: string;
+  sha256: string;
+  edited_after_prepare: boolean;
+}
+
+export interface VaultPreparedExecutionCandidate {
+  execution_token: string;
+  queued_at: string;
+  invocation: {
+    surface: VaultInvocationSurface;
+    channel: VaultInvocationChannel;
+    selection_mode: VaultSelectionMode;
+    llm_tool_call: VaultLlmToolCallProvenance | null;
+  };
+  template: VaultExecutionReceiptTemplateSnapshot;
+  company: {
+    current_company: string;
+    company_source: string;
+  };
+  render: VaultExecutionReceiptRenderSnapshot;
+  prepared: {
+    text: string;
+  };
+  replay_safe_inputs: VaultReplaySafeInputs;
+  input_context: string;
+}
+
+export interface VaultExecutionReceiptV1 {
+  schema_version: 1;
+  receipt_kind: "vault_execution";
+  execution_id: number;
+  recorded_at: string;
+  invocation: VaultPreparedExecutionCandidate["invocation"];
+  template: VaultExecutionReceiptTemplateSnapshot;
+  company: VaultPreparedExecutionCandidate["company"];
+  model: {
+    id: string;
+  };
+  render: VaultExecutionReceiptRenderSnapshot;
+  prepared: VaultExecutionReceiptPreparedSnapshot;
+  replay_safe_inputs: VaultReplaySafeInputs;
+}
+
+export interface VaultExecutionReceiptSink {
+  append: (receipt: VaultExecutionReceiptV1) => Promise<void> | void;
+}
+
+export interface VaultExecutionLogOptions {
+  executionReceipt?: VaultExecutionReceiptV1 | null;
+}
+
+export type VaultExecutionLogResult =
+  | {
+      ok: true;
+      executionId: number;
+      templateId: number;
+      entityVersion: number | null;
+      createdAt: string;
+      model: string;
+      inputContext: string;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+export interface VaultReceiptManager {
+  readonly spoolPath: string;
+  queuePreparedExecution: (candidate: VaultPreparedExecutionCandidate) => void;
+  finalizePreparedExecution: (
+    preparedText: string,
+    modelId: string,
+  ) =>
+    | { status: "matched"; execution: VaultExecutionLogResult; receipt: VaultExecutionReceiptV1 }
+    | { status: "no-match" }
+    | { status: "error"; message: string };
+  readLatestReceipt: () => VaultExecutionReceiptV1 | null;
+  readReceiptByExecutionId: (executionId: number) => VaultExecutionReceiptV1 | null;
+  listRecentReceipts: (options?: {
+    currentCompany?: string;
+    templateName?: string;
+    limit?: number;
+  }) => VaultExecutionReceiptV1[];
+}
+
+export interface GroundedNext10PromptSuccess {
+  ok: true;
+  prompt: string;
+  template: Template;
+  prepared: PreparedTemplateSuccess;
+  currentCompany: string;
+  companySource: string;
+  inputContext: string;
+  replaySafeInputs: VaultGroundingReplaySafeInputs;
+}
+
+export type GroundedNext10PromptResult =
+  | GroundedNext10PromptSuccess
+  | { ok: false; reason: string };
+
 export interface GovernedContracts {
   ontology: {
     facets: {
@@ -262,7 +431,8 @@ export interface VaultRuntime {
   ) => string;
   getCurrentCompany: (cwd?: string) => string;
   resolveCurrentCompanyContext: (cwd?: string) => { company: string; source: string };
-  buildVisibilityPredicate: (company?: string) => string;
+  buildVisibilityPredicate: (company?: string, alias?: string) => string;
+  buildPiVisibleTemplatePredicate: (company?: string, alias?: string) => string;
   getContracts: () => GovernedContracts;
   getTemplate: (name: string, context?: VaultExecutionContext) => Template | null;
   getTemplateDetailed: (
@@ -272,15 +442,22 @@ export interface VaultRuntime {
   listTemplates: (
     filters?: Partial<Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">>,
     context?: VaultExecutionContext,
+    options?: { includeContent?: boolean },
   ) => Template[];
   listTemplatesDetailed: (
     filters?: Partial<Pick<Template, "artifact_kind" | "control_mode" | "formalization_level">>,
     context?: VaultExecutionContext,
+    options?: { includeContent?: boolean },
   ) => VaultResult<Template[]>;
-  searchTemplates: (query: string, context?: VaultExecutionContext) => Template[];
+  searchTemplates: (
+    query: string,
+    context?: VaultExecutionContext,
+    options?: { includeContent?: boolean },
+  ) => Template[];
   searchTemplatesDetailed: (
     query: string,
     context?: VaultExecutionContext,
+    options?: { includeContent?: boolean },
   ) => VaultResult<Template[]>;
   queryTemplates: (
     filters: VaultQueryFilters,
@@ -328,12 +505,13 @@ export interface VaultRuntime {
     success: boolean,
     notes: string,
     context?: VaultMutationContext,
+    options?: VaultExecutionLogOptions,
   ) => { ok: boolean; message: string };
   logExecution: (
     template: Pick<Template, "id" | "version">,
     model: string,
     inputContext?: string,
-  ) => void;
+  ) => VaultExecutionLogResult;
   checkSchemaCompatibilityDetailed: () => SchemaCompatibilityReport;
   checkSchemaVersion: () => boolean;
 }
@@ -362,7 +540,7 @@ export interface GroundingRuntime {
   buildGroundedNext10Prompt: (
     commandText: string,
     options?: { cwd?: string; currentCompany?: string },
-  ) => { ok: true; prompt: string } | { ok: false; reason: string };
+  ) => GroundedNext10PromptResult;
 }
 
 export interface VaultModuleRuntime extends VaultRuntime, PickerRuntime, GroundingRuntime {}

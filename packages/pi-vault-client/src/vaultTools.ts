@@ -7,6 +7,7 @@ import type {
   VaultExecutionContext,
   VaultMutationContext,
   VaultQueryFilters,
+  VaultReceiptManager,
   VaultRuntime,
 } from "./vaultTypes.js";
 import {
@@ -205,7 +206,11 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
   });
 }
 
-export function registerVaultTools(pi: PiExtension, runtime: VaultRuntime): void {
+export function registerVaultTools(
+  pi: PiExtension,
+  runtime: VaultRuntime,
+  receipts?: VaultReceiptManager,
+): void {
   pi.registerTool({
     name: "vault_query",
     label: "Vault Query",
@@ -359,7 +364,7 @@ Examples:
       };
     },
     renderCall(args, theme) {
-      const parts = [];
+      const parts: string[] = [];
       const artifactKinds = (args.artifact_kind as string[]) || [];
       const controlModes = (args.control_mode as string[]) || [];
       const formalizationLevels = (args.formalization_level as string[]) || [];
@@ -738,43 +743,89 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
       const limit = Number.isFinite(requestedLimit)
         ? Math.min(MAX_VAULT_QUERY_LIMIT, Math.max(1, Math.floor(requestedLimit)))
         : DEFAULT_VAULT_QUERY_LIMIT;
-      const templateFilter = templateName
-        ? ` AND pt.name = '${runtime.escapeSql(templateName)}'`
-        : "";
-      const result = runtime.queryVaultJsonDetailed(`
-        SELECT
-          e.id AS execution_id,
-          pt.name AS template_name,
-          e.entity_version,
-          pt.owner_company,
-          pt.artifact_kind,
-          pt.control_mode,
-          pt.formalization_level,
-          e.model,
-          e.success,
-          e.created_at
-        FROM executions e
-        INNER JOIN prompt_templates pt ON pt.id = e.entity_id
-        WHERE e.entity_type = 'template'
-          AND pt.status = 'active'
-          AND ${runtime.buildVisibilityPredicate(executionContext.currentCompany)}
-          ${templateFilter}
-        ORDER BY e.created_at DESC
-        LIMIT ${limit}
-      `);
-      if (!result.ok) {
-        return {
-          content: [{ type: "text", text: `Vault executions query failed: ${result.error}` }],
-          details: {
-            ok: false,
-            error: result.error,
+      const receiptRows = receipts
+        ? receipts.listRecentReceipts({
             currentCompany: executionContext.currentCompany,
-            currentCompanySource: executionContext.companySource,
-          },
-        };
+            templateName: templateName || undefined,
+            limit,
+          })
+        : [];
+      const rowMap = new Map<number, Record<string, unknown>>();
+      for (const receipt of receiptRows) {
+        rowMap.set(receipt.execution_id, {
+          execution_id: receipt.execution_id,
+          template_name: receipt.template.name,
+          entity_version: receipt.template.version ?? "",
+          owner_company: receipt.template.owner_company,
+          artifact_kind: receipt.template.artifact_kind,
+          control_mode: receipt.template.control_mode,
+          formalization_level: receipt.template.formalization_level,
+          model: receipt.model.id,
+          success: "unknown",
+          created_at: receipt.recorded_at,
+        });
       }
 
-      const rows = result.value.rows || [];
+      const dbLimit = Math.max(1, limit - rowMap.size);
+      if (dbLimit > 0) {
+        const templateFilter = templateName
+          ? ` AND pt.name = '${runtime.escapeSql(templateName)}'`
+          : "";
+        const result = runtime.queryVaultJsonDetailed(`
+          SELECT
+            e.id AS execution_id,
+            pt.name AS template_name,
+            e.entity_version,
+            pt.owner_company,
+            pt.artifact_kind,
+            pt.control_mode,
+            pt.formalization_level,
+            e.model,
+            e.success,
+            e.created_at
+          FROM executions e
+          INNER JOIN prompt_templates pt ON pt.id = e.entity_id
+          WHERE e.entity_type = 'template'
+            AND ${runtime.buildPiVisibleTemplatePredicate(executionContext.currentCompany, "pt")}
+            ${templateFilter}
+          ORDER BY e.created_at DESC
+          LIMIT ${dbLimit}
+        `);
+        if (!result.ok && rowMap.size === 0) {
+          return {
+            content: [{ type: "text", text: `Vault executions query failed: ${result.error}` }],
+            details: {
+              ok: false,
+              error: result.error,
+              currentCompany: executionContext.currentCompany,
+              currentCompanySource: executionContext.companySource,
+            },
+          };
+        }
+        if (result.ok) {
+          for (const row of result.value.rows || []) {
+            const executionId = Number(row.execution_id);
+            if (!Number.isFinite(executionId)) continue;
+            const existing = rowMap.get(executionId);
+            if (!existing) {
+              rowMap.set(executionId, row);
+              continue;
+            }
+            rowMap.set(executionId, {
+              ...existing,
+              success: row.success,
+              created_at: row.created_at || existing.created_at,
+              model: row.model || existing.model,
+            });
+          }
+        }
+      }
+
+      const rows = [...rowMap.values()]
+        .sort(
+          (a, b) => Date.parse(String(b.created_at || "")) - Date.parse(String(a.created_at || "")),
+        )
+        .slice(0, limit);
       if (rows.length === 0) {
         return {
           content: [{ type: "text", text: "No executions found matching criteria." }],
@@ -789,7 +840,9 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
       let output =
         "# Vault Executions\n\n| Execution ID | Template | Version | Owner | Facets | Model | Success | Created |\n|---|---|---:|---|---|---|---|---|\n";
       for (const row of rows) {
-        output += `| ${row.execution_id || ""} | ${row.template_name || ""} | ${row.entity_version || ""} | ${row.owner_company || ""} | ${row.artifact_kind || ""}/${row.control_mode || ""}/${row.formalization_level || ""} | ${row.model || ""} | ${row.success ? "true" : "false"} | ${String(row.created_at || "").slice(0, 19)} |\n`;
+        const successLabel =
+          row.success === true ? "true" : row.success === false ? "false" : "unknown";
+        output += `| ${row.execution_id || ""} | ${row.template_name || ""} | ${row.entity_version || ""} | ${row.owner_company || ""} | ${row.artifact_kind || ""}/${row.control_mode || ""}/${row.formalization_level || ""} | ${row.model || ""} | ${successLabel} | ${String(row.created_at || "").slice(0, 19)} |\n`;
       }
 
       return {
@@ -846,12 +899,14 @@ Example: vault_rate({ execution_id: 42, rating: 4, success: true, notes: "Found 
           content: [{ type: "text", text: "rating must be between 1 and 5." }],
           details: { ok: false },
         };
+      const executionReceipt = receipts?.readReceiptByExecutionId(executionId) || null;
       const result = runtime.rateTemplate(
         executionId,
         rating,
         params.success as boolean,
         (params.notes as string) || "",
         mutationContext,
+        { executionReceipt },
       );
       return {
         content: [{ type: "text", text: result.message }],

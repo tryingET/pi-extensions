@@ -23,6 +23,7 @@
       "!src/vaultDb.js",
       "!src/vaultGrounding.js",
       "!src/vaultPicker.js",
+      "!src/vaultReceipts.js",
       "!src/vaultTools.js",
       "!src/vaultTypes.js",
       "!**/*.min.js",

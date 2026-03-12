@@ -1,6 +1,7 @@
 import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import type {
   FrameworkResolution,
+  GroundedNext10PromptResult,
   GroundingRuntime,
   ParsedDsl,
   Template,
@@ -118,7 +119,7 @@ function discoverFrameworks(
   const result = runtime.queryVaultJsonDetailed(
     `SELECT id, name, description, content, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary
      FROM prompt_templates
-     WHERE status = 'active' AND artifact_kind = 'cognitive' AND ${runtime.buildVisibilityPredicate(currentCompany)} AND (${like})
+     WHERE ${runtime.buildPiVisibleTemplatePredicate(currentCompany)} AND artifact_kind = 'cognitive' AND (${like})
      ORDER BY name
      LIMIT ${limit}`,
   );
@@ -189,7 +190,10 @@ function buildNormalizedExtras(
   selectedFrameworkNames: string[],
   retrieval: FrameworkResolution,
 ): string {
-  const map = { ...dsl.map, frameworks: selectedFrameworkNames.join("|") };
+  const map: Record<string, string> = {
+    ...dsl.map,
+    frameworks: selectedFrameworkNames.join("|"),
+  };
   delete map.triggers;
 
   if (retrieval.invalidOverrides.length > 0) {
@@ -262,7 +266,7 @@ function buildGroundedNext10Prompt(
   runtime: VaultRuntime,
   commandText: string,
   options: { cwd?: string; currentCompany?: string } = {},
-): { ok: true; prompt: string } | { ok: false; reason: string } {
+): GroundedNext10PromptResult {
   const spaceIndex = commandText.indexOf(" ");
   const argsString = spaceIndex === -1 ? "" : commandText.slice(spaceIndex + 1);
   const args = parseCommandArgs(argsString);
@@ -272,7 +276,17 @@ function buildGroundedNext10Prompt(
   const mode = modeRaw === "off" || modeRaw === "lite" || modeRaw === "full" ? modeRaw : "lite";
   const extrasRaw = args.slice(3).join(" ");
 
-  const currentCompany = options.currentCompany ?? runtime.getCurrentCompany(options.cwd);
+  const companyResolution = options.currentCompany?.trim()
+    ? { company: options.currentCompany.trim(), source: "explicit:currentCompany" }
+    : runtime.resolveCurrentCompanyContext(options.cwd);
+  if (companyResolution.source === "contract-default") {
+    return {
+      ok: false,
+      reason:
+        "BLOCKED: explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.",
+    };
+  }
+  const currentCompany = companyResolution.company;
   const dsl = parseExtrasDsl(extrasRaw);
   const resolved = resolveFrameworks(runtime, objective, workflow, dsl, currentCompany);
   if (!resolved.ok) {
@@ -349,7 +363,30 @@ function buildGroundedNext10Prompt(
     };
   }
 
-  return { ok: true, prompt: `${prepared.prepared}${appendix.appendix}` };
+  return {
+    ok: true,
+    prompt: `${prepared.prepared}${appendix.appendix}`,
+    template,
+    prepared,
+    currentCompany,
+    companySource: companyResolution.source,
+    inputContext: frameworkContext,
+    replaySafeInputs: {
+      kind: "grounding-request",
+      command_text: commandText,
+      objective,
+      workflow,
+      mode,
+      extras: normalizedExtras,
+      framework_resolution: {
+        selected_names: selectedNames,
+        retrieval_method: resolution.retrievalMethod,
+        discovery_used: resolution.discoveryUsed,
+        invalid_overrides: [...resolution.invalidOverrides],
+        warnings: [...dsl.warnings],
+      },
+    },
+  };
 }
 
 export function createGroundingRuntime(runtime: VaultRuntime): GroundingRuntime {

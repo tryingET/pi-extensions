@@ -42,7 +42,12 @@ function createTranspiledVaultModules() {
   mkdirSync(baseDir, { recursive: true });
   const tempDir = mkdtempSync(path.join(baseDir, "vault-dolt-"));
 
-  for (const relativePath of ["src/vaultTypes.ts", "src/vaultDb.ts", "src/templateRenderer.js"]) {
+  for (const relativePath of [
+    "src/vaultTypes.ts",
+    "src/vaultDb.ts",
+    "src/vaultReceipts.ts",
+    "src/templateRenderer.js",
+  ]) {
     const sourcePath = path.join(PACKAGE_ROOT, relativePath);
     const source = readFileSync(sourcePath, "utf8");
     const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));
@@ -164,6 +169,344 @@ test("vault runtime supports end-to-end execution-bound feedback in a real temp 
     assert.equal(Number(feedbackRows.value.rows[0].rating), 5);
     assert.equal(String(feedbackRows.value.rows[0].notes), "solid");
   });
+});
+
+test("vault runtime can still rate an archived execution when a local receipt preserves visibility provenance", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const { createPreparedExecutionToken, createVaultReceiptManager, withPreparedExecutionMarker } =
+      await importModule("src/vaultReceipts.js");
+    const runtime = createVaultRuntime();
+    const receiptDir = mkdtempSync(path.join(os.tmpdir(), "pi-vault-receipt-rate-"));
+
+    try {
+      const receipts = createVaultReceiptManager(runtime, {
+        filePath: path.join(receiptDir, "vault-execution-receipts.jsonl"),
+      });
+      const insertResult = runtime.insertTemplate(
+        "receipt-demo",
+        "Demo body",
+        "Demo description",
+        "procedure",
+        "one_shot",
+        "structured",
+        "software",
+        ["software"],
+        null,
+        { actorCompany: "software", allowAmbientCwdFallback: false },
+      );
+      assert.equal(insertResult.status, "ok");
+
+      const template = runtime.getTemplate("receipt-demo", { currentCompany: "software" });
+      assert.ok(template);
+      if (!template) return;
+
+      const executionToken = createPreparedExecutionToken();
+      receipts.queuePreparedExecution({
+        execution_token: executionToken,
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/vault",
+          channel: "slash-command",
+          selection_mode: "exact",
+          llm_tool_call: null,
+        },
+        template: {
+          id: template.id,
+          name: template.name,
+          version: template.version,
+          artifact_kind: template.artifact_kind,
+          control_mode: template.control_mode,
+          formalization_level: template.formalization_level,
+          owner_company: template.owner_company,
+          visibility_companies: [...template.visibility_companies],
+        },
+        company: {
+          current_company: "software",
+          company_source: "explicit:test",
+        },
+        render: {
+          engine: "none",
+          explicit_engine: null,
+          context_appended: false,
+          append_context_section: true,
+          used_render_keys: [],
+        },
+        prepared: { text: "Demo body" },
+        replay_safe_inputs: {
+          kind: "vault-selection",
+          query: template.name,
+          context: "",
+        },
+        input_context: "",
+      });
+
+      const finalized = receipts.finalizePreparedExecution(
+        withPreparedExecutionMarker("Demo body", executionToken),
+        "unit-test-model",
+      );
+      assert.equal(finalized.status, "matched");
+      if (finalized.status !== "matched") return;
+
+      runtime.execVault("UPDATE prompt_templates SET status='archived' WHERE name='receipt-demo'");
+
+      const rating = runtime.rateTemplate(
+        finalized.receipt.execution_id,
+        5,
+        true,
+        "still visible via receipt",
+        { actorCompany: "software", allowAmbientCwdFallback: false },
+        { executionReceipt: finalized.receipt },
+      );
+      assert.equal(rating.ok, true);
+      assert.match(rating.message, /Recorded rating 5\/5/);
+    } finally {
+      rmSync(receiptDir, { recursive: true, force: true });
+    }
+  });
+});
+
+test("vault runtime rejects forged local receipt identity when execution template id does not match", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    const insertResult = runtime.insertTemplate(
+      "forge-check",
+      "body",
+      "desc",
+      "procedure",
+      "one_shot",
+      "structured",
+      "finance",
+      ["finance"],
+      null,
+      { actorCompany: "finance", allowAmbientCwdFallback: false },
+    );
+    assert.equal(insertResult.status, "ok");
+
+    const template = runtime.getTemplate("forge-check", { currentCompany: "finance" });
+    assert.ok(template);
+    if (!template) return;
+
+    const execution = runtime.logExecution(template, "unit-test-model", "ctx");
+    assert.equal(execution.ok, true);
+    if (!execution.ok) return;
+
+    const forgedReceipt = {
+      schema_version: 1,
+      receipt_kind: "vault_execution",
+      execution_id: execution.executionId,
+      recorded_at: execution.createdAt,
+      invocation: {
+        surface: "/vault",
+        channel: "slash-command",
+        selection_mode: "exact",
+        llm_tool_call: null,
+      },
+      template: {
+        id: Number(template.id) + 999,
+        name: "forged-template",
+        version: template.version,
+        artifact_kind: template.artifact_kind,
+        control_mode: template.control_mode,
+        formalization_level: template.formalization_level,
+        owner_company: "finance",
+        visibility_companies: ["finance"],
+      },
+      company: {
+        current_company: "finance",
+        company_source: "forged",
+      },
+      model: { id: "unit-test-model" },
+      render: {
+        engine: "none",
+        explicit_engine: null,
+        context_appended: false,
+        append_context_section: true,
+        used_render_keys: [],
+      },
+      prepared: {
+        text: "body",
+        sha256: "forged",
+        edited_after_prepare: false,
+      },
+      replay_safe_inputs: {
+        kind: "vault-selection",
+        query: template.name,
+        context: "",
+      },
+    };
+
+    const rating = runtime.rateTemplate(
+      execution.executionId,
+      5,
+      true,
+      "forged",
+      { actorCompany: "finance", allowAmbientCwdFallback: false },
+      { executionReceipt: forgedReceipt },
+    );
+    assert.equal(rating.ok, false);
+    assert.match(rating.message, /Execution receipt template mismatch/);
+  });
+});
+
+test("vault runtime centralizes Pi-visible reads around export gating and explicit company context", async () => {
+  await withTempVaultRuntime(async ({ importModule, repoDir }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    run(
+      "dolt",
+      [
+        "sql",
+        "-q",
+        `INSERT INTO prompt_templates (name, description, content, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary, status, export_to_pi, version)
+         VALUES
+           ('visible-template', 'visible', 'visible body', 'procedure', 'one_shot', 'structured', 'software', '["software"]', NULL, 'active', true, 1),
+           ('hidden-template', 'hidden', 'hidden body', 'procedure', 'one_shot', 'structured', 'software', '["software"]', NULL, 'active', false, 1)`,
+      ],
+      { cwd: repoDir },
+    );
+
+    const visible = runtime.getTemplate("visible-template", { currentCompany: "software" });
+    assert.ok(visible);
+    assert.equal(visible?.export_to_pi, true);
+
+    const hidden = runtime.getTemplate("hidden-template", { currentCompany: "software" });
+    assert.equal(hidden, null);
+
+    const listResult = runtime.listTemplatesDetailed(
+      undefined,
+      { currentCompany: "software", requireExplicitCompany: true },
+      { includeContent: false },
+    );
+    assert.equal(listResult.ok, true);
+    if (!listResult.ok) return;
+    assert.deepEqual(
+      listResult.value.map((template) => template.name),
+      ["visible-template"],
+    );
+    assert.equal(listResult.value[0]?.content, "");
+
+    const searchResult = runtime.searchTemplatesDetailed(
+      "template",
+      { currentCompany: "software", requireExplicitCompany: true },
+      { includeContent: false },
+    );
+    assert.equal(searchResult.ok, true);
+    if (!searchResult.ok) return;
+    assert.deepEqual(
+      searchResult.value.map((template) => template.name),
+      ["visible-template"],
+    );
+
+    const retrieveResult = runtime.retrieveByNamesDetailed(
+      ["visible-template", "hidden-template"],
+      false,
+      { currentCompany: "software", requireExplicitCompany: true },
+    );
+    assert.equal(retrieveResult.ok, true);
+    if (!retrieveResult.ok) return;
+    assert.deepEqual(
+      retrieveResult.value.map((template) => template.name),
+      ["visible-template"],
+    );
+
+    const queryResult = runtime.queryTemplatesDetailed({}, 10, false, {
+      currentCompany: "software",
+      requireExplicitCompany: true,
+    });
+    assert.equal(queryResult.ok, true);
+    if (!queryResult.ok) return;
+    assert.deepEqual(
+      queryResult.value.map((template) => template.name),
+      ["visible-template"],
+    );
+
+    const strictRead = runtime.listTemplatesDetailed(undefined, {
+      cwd: "/tmp",
+      requireExplicitCompany: true,
+    });
+    assert.equal(strictRead.ok, false);
+    if (strictRead.ok) return;
+    assert.match(
+      strictRead.error,
+      /Explicit company context is required for visibility-sensitive vault reads/,
+    );
+  });
+});
+
+test("vault runtime refreshes governed contracts when ontology files change in-process", async () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), "pi-vault-contracts-"));
+  const modules = createTranspiledVaultModules();
+  const originalVaultDir = process.env.VAULT_DIR;
+  const originalPromptVaultRoot = process.env.PROMPT_VAULT_ROOT;
+
+  try {
+    mkdirSync(path.join(tempRoot, "prompt-vault-db"), { recursive: true });
+    mkdirSync(path.join(tempRoot, "ontology"), { recursive: true });
+    writeFileSync(
+      path.join(tempRoot, "ontology", "v2-contract.json"),
+      JSON.stringify({
+        facets: {
+          artifact_kind: ["procedure"],
+          control_mode: ["one_shot"],
+          formalization_level: ["structured"],
+        },
+      }),
+    );
+    writeFileSync(
+      path.join(tempRoot, "ontology", "controlled-vocabulary-contract.json"),
+      JSON.stringify({
+        dimensions: {
+          routing_context: ["a"],
+          activity_phase: ["a"],
+          input_artifact: ["a"],
+          transition_target_type: ["a"],
+          selection_principles: ["a"],
+          output_commitment: ["a"],
+        },
+        router_required_dimensions: ["routing_context"],
+      }),
+    );
+    writeFileSync(
+      path.join(tempRoot, "ontology", "company-visibility-contract.json"),
+      JSON.stringify({
+        companies: ["software"],
+        defaults: { owner_company: "software", visibility_companies: ["software"] },
+      }),
+    );
+
+    process.env.VAULT_DIR = path.join(tempRoot, "prompt-vault-db");
+    process.env.PROMPT_VAULT_ROOT = tempRoot;
+
+    const { createVaultRuntime } = await modules.importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+    assert.deepEqual(runtime.getContracts().ontology.facets.artifact_kind, ["procedure"]);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    writeFileSync(
+      path.join(tempRoot, "ontology", "v2-contract.json"),
+      JSON.stringify({
+        facets: {
+          artifact_kind: ["session"],
+          control_mode: ["loop"],
+          formalization_level: ["workflow"],
+        },
+      }),
+    );
+
+    assert.deepEqual(runtime.getContracts().ontology.facets.artifact_kind, ["session"]);
+    assert.deepEqual(runtime.getContracts().ontology.facets.control_mode, ["loop"]);
+  } finally {
+    modules.cleanup();
+    rmSync(tempRoot, { recursive: true, force: true });
+    if (originalVaultDir === undefined) delete process.env.VAULT_DIR;
+    else process.env.VAULT_DIR = originalVaultDir;
+    if (originalPromptVaultRoot === undefined) delete process.env.PROMPT_VAULT_ROOT;
+    else process.env.PROMPT_VAULT_ROOT = originalPromptVaultRoot;
+  }
 });
 
 test("vault runtime exposes detailed schema compatibility diagnostics for v9", async () => {

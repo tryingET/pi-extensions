@@ -1,5 +1,22 @@
+import type { Message, TextContent } from "@mariozechner/pi-ai";
 import { runFzfProbe } from "./fuzzySelector.js";
-import type { PiExtension, Template, VaultModuleRuntime } from "./vaultTypes.js";
+import {
+  createPreparedExecutionToken,
+  formatVaultReceipt,
+  stripPreparedExecutionMarkers,
+  withPreparedExecutionMarker,
+} from "./vaultReceipts.js";
+import type {
+  PiExtension,
+  PreparedTemplateSuccess,
+  Template,
+  VaultModuleRuntime,
+  VaultPreparedExecutionCandidate,
+  VaultReceiptManager,
+} from "./vaultTypes.js";
+
+const COMMAND_READ_CONTEXT_ERROR =
+  "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
 
 function buildRoutePrompt(
   metaContent: string,
@@ -10,6 +27,7 @@ function buildRoutePrompt(
     includeInvokeStep: boolean;
   },
 ): string {
+  const commandLine = options.includeInvokeStep ? "COMMAND: /vault:[tool]\n" : "";
   return `${metaContent}
 
 ---
@@ -27,8 +45,7 @@ ${options.outputHeading}
 ${options.outputHeading === "Output format:" ? "```\n" : ""}PHASE: [phase]
 LEVEL: [0-4]
 TOOLS: [tool1, tool2]
-COMMAND: /vault:[tool]
-REASONING: [${options.reasoningLabel}]
+${commandLine}REASONING: [${options.reasoningLabel}]
 ${options.outputHeading === "Output format:" ? "```\n" : ""}`;
 }
 
@@ -46,7 +63,7 @@ function notifyPrepared(
 ): void {
   if (!ctx.hasUI) return;
   ctx.ui.notify(
-    `Prepared: ${template.name} (${runtime.facetLabel(template)})${contextSuffix} — ${selectionMessage}`,
+    `Prepared: ${template.name} (${runtime.facetLabel(template)})${contextSuffix} - ${selectionMessage}`,
     "info",
   );
 }
@@ -73,20 +90,78 @@ function formatSchemaMismatchMessage(
   return `Vault schema mismatch (${parts.join("; ")}). Use /vault-check or vault_schema_diagnostics.`;
 }
 
+function resolveCommandCompanyContext(
+  runtime: Pick<VaultModuleRuntime, "resolveCurrentCompanyContext" | "getCurrentCompany">,
+  ctx: { cwd?: string },
+): { ok: true; currentCompany: string; companySource: string } | { ok: false; error: string } {
+  const companyContext =
+    typeof runtime.resolveCurrentCompanyContext === "function"
+      ? runtime.resolveCurrentCompanyContext(ctx.cwd)
+      : {
+          company: runtime.getCurrentCompany(ctx.cwd),
+          source: ctx.cwd ? `cwd:${ctx.cwd}` : "fallback:getCurrentCompany",
+        };
+  if (companyContext.source === "contract-default") {
+    return { ok: false, error: COMMAND_READ_CONTEXT_ERROR };
+  }
+  return {
+    ok: true,
+    currentCompany: companyContext.company,
+    companySource: companyContext.source,
+  };
+}
+
+function toTemplateSnapshot(template: Template) {
+  return {
+    id: template.id,
+    name: template.name,
+    version: template.version,
+    artifact_kind: template.artifact_kind,
+    control_mode: template.control_mode,
+    formalization_level: template.formalization_level,
+    owner_company: template.owner_company,
+    visibility_companies: [...template.visibility_companies],
+  };
+}
+
+function queuePreparedExecution(
+  receipts: VaultReceiptManager | undefined,
+  candidate: Omit<VaultPreparedExecutionCandidate, "execution_token">,
+): string {
+  if (!receipts) return candidate.prepared.text;
+  const executionToken = createPreparedExecutionToken();
+  receipts.queuePreparedExecution({
+    ...candidate,
+    execution_token: executionToken,
+  });
+  return withPreparedExecutionMarker(candidate.prepared.text, executionToken);
+}
+
+function getUserMessageText(message: Message): string | null {
+  if (!message || message.role !== "user") return null;
+  if (typeof message.content === "string") return message.content;
+  if (!Array.isArray(message.content)) return null;
+  const textParts = message.content
+    .filter((item): item is TextContent => item?.type === "text")
+    .map((item) => item.text);
+  return textParts.length > 0 ? textParts.join("\n") : null;
+}
+
 function resolvePreparedRoutePrompt(
   runtime: VaultModuleRuntime,
   metaTemplate: Template,
   options: {
     context: string;
+    currentCompany: string;
     cwd?: string;
     outputHeading: "Output:" | "Output format:";
     reasoningLabel: string;
     includeInvokeStep: boolean;
   },
-): { ok: true; prompt: string } | { ok: false; error: string } {
+): { ok: true; prompt: string; prepared: PreparedTemplateSuccess } | { ok: false; error: string } {
   const prepared = runtime.prepareVaultPrompt(metaTemplate, {
     context: options.context,
-    currentCompany: runtime.getCurrentCompany(options.cwd),
+    currentCompany: options.currentCompany,
     cwd: options.cwd,
     appendContextSection: false,
   });
@@ -98,6 +173,7 @@ function resolvePreparedRoutePrompt(
   }
   return {
     ok: true,
+    prepared,
     prompt: buildRoutePrompt(prepared.prepared, options.context, {
       outputHeading: options.outputHeading,
       reasoningLabel: options.reasoningLabel,
@@ -110,15 +186,20 @@ async function resolveVaultTemplateSelection(
   runtime: VaultModuleRuntime,
   ctx: { hasUI: boolean; cwd?: string; ui?: { notify: (message: string, level?: string) => void } },
   query: string,
+  currentCompany: string,
 ) {
-  const currentCompany = runtime.getCurrentCompany(ctx.cwd);
   const exactMatchResult = query.trim()
-    ? runtime.getTemplateDetailed(query.trim(), { currentCompany, cwd: ctx.cwd })
+    ? runtime.getTemplateDetailed(query.trim(), {
+        currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      })
     : { ok: true, value: null, error: null as null };
   if (!exactMatchResult.ok) {
     return {
       template: null,
       modeMessage: "selection mode=exact",
+      selectionMode: "exact",
       selectionReason: `lookup-error:${exactMatchResult.error}`,
     } as const;
   }
@@ -127,6 +208,7 @@ async function resolveVaultTemplateSelection(
     return {
       template: exactMatch,
       modeMessage: "selection mode=exact",
+      selectionMode: "exact",
       selectionReason: "exact-match",
     } as const;
   }
@@ -136,6 +218,7 @@ async function resolveVaultTemplateSelection(
     return {
       template: null,
       modeMessage: runtime.selectionModeMessage(selection),
+      selectionMode: selection.mode === "fzf" ? "picker-fzf" : "picker-fallback",
       selectionReason: selection.reason ?? "no-selection",
     } as const;
   }
@@ -143,17 +226,60 @@ async function resolveVaultTemplateSelection(
   const templateResult = runtime.getTemplateDetailed(selection.selected.id, {
     currentCompany,
     cwd: ctx.cwd,
+    requireExplicitCompany: true,
   });
   return {
     template: templateResult.ok ? templateResult.value : null,
     modeMessage: runtime.selectionModeMessage(selection),
+    selectionMode: selection.mode === "fzf" ? "picker-fzf" : "picker-fallback",
     selectionReason: templateResult.ok
       ? (selection.reason ?? selection.mode)
       : `lookup-error:${templateResult.error}`,
   } as const;
 }
 
-export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRuntime): void {
+export function registerVaultCommands(
+  pi: PiExtension,
+  runtime: VaultModuleRuntime,
+  receipts?: VaultReceiptManager,
+): void {
+  if (receipts) {
+    pi.on("message_end", async (event, ctx) => {
+      const messageText = getUserMessageText(event.message as Message);
+      if (!messageText) return;
+      const finalized = receipts.finalizePreparedExecution(messageText, ctx.model?.id || "unknown");
+      if (finalized.status === "error") {
+        const warning = `Vault execution receipt failed: ${finalized.message}`;
+        if (ctx.hasUI) ctx.ui.notify(warning, "warning");
+        else console.warn(warning);
+      }
+    });
+
+    pi.on("context", async (event) => ({
+      messages: event.messages.map((message) => {
+        if (!message || message.role !== "user") return message;
+        if (typeof message.content === "string") {
+          return {
+            ...message,
+            content: stripPreparedExecutionMarkers(message.content),
+          };
+        }
+        if (!Array.isArray(message.content)) return message;
+        return {
+          ...message,
+          content: message.content.map((item) =>
+            item?.type === "text"
+              ? {
+                  ...item,
+                  text: stripPreparedExecutionMarkers(item.text),
+                }
+              : item,
+          ),
+        };
+      }),
+    }));
+  }
+
   pi.on("input", async (event, ctx) => {
     if (event.source === "extension") return { action: "continue" };
     const text = event.text.trim();
@@ -162,7 +288,7 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
 
     if (
       !schemaReport.ok &&
-      /^\/(vault(?::|\s|$)|route\b|next-10-expert-suggestions\b)/.test(text)
+      /^\/(vault(?::|\s|$)|vault-search\b|route\b|next-10-expert-suggestions\b)/.test(text)
     ) {
       if (ctx.hasUI) {
         ctx.ui.notify(schemaMismatchMessage, "warning");
@@ -172,26 +298,72 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     }
 
     if (text.startsWith("/next-10-expert-suggestions")) {
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
+      }
       const grounded = runtime.buildGroundedNext10Prompt(text, {
         cwd: ctx.cwd,
-        currentCompany: runtime.getCurrentCompany(ctx.cwd),
+        currentCompany: companyContext.currentCompany,
       });
       if (!grounded.ok) {
         const reason = "reason" in grounded ? grounded.reason : "Grounding unavailable";
         if (ctx.hasUI) {
           ctx.ui.notify(reason, "error");
           ctx.ui.setEditorText(reason);
+          return { action: "handled" };
         }
-        return { action: "handled" };
+        return { action: "transform", text: reason };
       }
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "grounding",
+          channel: "input-transform",
+          selection_mode: "fixed-template",
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(grounded.template),
+        company: {
+          current_company: grounded.currentCompany,
+          company_source: grounded.companySource,
+        },
+        render: {
+          engine: grounded.prepared.engine,
+          explicit_engine: grounded.prepared.explicitEngine,
+          context_appended: grounded.prepared.contextAppended,
+          append_context_section: false,
+          used_render_keys: grounded.prepared.usedRenderKeys,
+        },
+        prepared: { text: grounded.prompt },
+        replay_safe_inputs: grounded.replaySafeInputs,
+        input_context: grounded.inputContext,
+      });
       if (ctx.hasUI)
         ctx.ui.notify("Grounded via Prompt Vault: frameworks pre-resolved and injected", "info");
-      return { action: "transform", text: grounded.prompt };
+      return { action: "transform", text: preparedPrompt };
     }
 
     const vaultSelectionInput = runtime.parseVaultSelectionInput(text);
     if (vaultSelectionInput) {
-      const resolved = await resolveVaultTemplateSelection(runtime, ctx, vaultSelectionInput.query);
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
+      }
+      const resolved = await resolveVaultTemplateSelection(
+        runtime,
+        ctx,
+        vaultSelectionInput.query,
+        companyContext.currentCompany,
+      );
       if (!resolved.template) {
         if (ctx.hasUI) {
           const reason = resolved.selectionReason ? ` (${resolved.selectionReason})` : "";
@@ -206,13 +378,13 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
 
       if (ctx.hasUI) {
         ctx.ui.notify(
-          `Loaded: ${resolved.template.name} (${runtime.facetLabel(resolved.template)}) — ${resolved.modeMessage}`,
+          `Loaded: ${resolved.template.name} (${runtime.facetLabel(resolved.template)}) - ${resolved.modeMessage}`,
           "info",
         );
       }
       const prepared = runtime.prepareVaultPrompt(resolved.template, {
         context: vaultSelectionInput.context,
-        currentCompany: runtime.getCurrentCompany(ctx.cwd),
+        currentCompany: companyContext.currentCompany,
       });
       if (!prepared.ok) {
         const message = formatVaultTemplateRenderError(resolved.template.name, prepared.error);
@@ -223,15 +395,37 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         return { action: "transform", text: message };
       }
 
-      if (resolved.template.id)
-        runtime.logExecution(
-          resolved.template,
-          ctx.model?.id || "unknown",
-          vaultSelectionInput.context,
-        );
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: text.startsWith("/vault:") ? "/vault:" : "/vault",
+          channel: "input-transform",
+          selection_mode: resolved.selectionMode,
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(resolved.template),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: prepared.engine,
+          explicit_engine: prepared.explicitEngine,
+          context_appended: prepared.contextAppended,
+          append_context_section: true,
+          used_render_keys: prepared.usedRenderKeys,
+        },
+        prepared: { text: prepared.prepared },
+        replay_safe_inputs: {
+          kind: "vault-selection",
+          query: vaultSelectionInput.query,
+          context: vaultSelectionInput.context,
+        },
+        input_context: vaultSelectionInput.context,
+      });
       return {
         action: "transform",
-        text: prepared.prepared,
+        text: preparedPrompt,
       };
     }
 
@@ -241,11 +435,24 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         if (ctx.hasUI) ctx.ui.notify("Usage: /vault-search <query>", "warning");
         return { action: "handled" };
       }
-      const currentCompany = runtime.getCurrentCompany(ctx.cwd);
-      const templatesResult = runtime.searchTemplatesDetailed(query, {
-        currentCompany,
-        cwd: ctx.cwd,
-      });
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
+      }
+      const currentCompany = companyContext.currentCompany;
+      const templatesResult = runtime.searchTemplatesDetailed(
+        query,
+        {
+          currentCompany,
+          cwd: ctx.cwd,
+          requireExplicitCompany: true,
+        },
+        { includeContent: false },
+      );
       if (!templatesResult.ok) {
         const message = `Vault search failed: ${templatesResult.error}`;
         if (ctx.hasUI) {
@@ -269,28 +476,48 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
           .join("\n\n---\n\n")
           .split("\n"),
       ].join("\n");
-      if (ctx.hasUI) await ctx.ui.editor("Search Results", output);
-      return { action: "handled" };
+      if (ctx.hasUI) {
+        await ctx.ui.editor("Search Results", output);
+        return { action: "handled" };
+      }
+      return { action: "transform", text: output };
     }
 
     if (text.startsWith("/route ")) {
       const context = text.slice(7).trim();
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
+      }
       const metaResult = runtime.getTemplateDetailed("meta-orchestration", {
-        currentCompany: runtime.getCurrentCompany(ctx.cwd),
+        currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
+        requireExplicitCompany: true,
       });
       if (!metaResult.ok) {
-        if (ctx.hasUI)
-          ctx.ui.notify(`meta-orchestration lookup failed: ${metaResult.error}`, "error");
-        return { action: "handled" };
+        const message = `meta-orchestration lookup failed: ${metaResult.error}`;
+        if (ctx.hasUI) {
+          ctx.ui.notify(message, "error");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: message };
       }
       const meta = metaResult.value;
       if (!meta) {
-        if (ctx.hasUI) ctx.ui.notify("meta-orchestration template not found", "error");
-        return { action: "handled" };
+        const message = "meta-orchestration template not found";
+        if (ctx.hasUI) {
+          ctx.ui.notify(message, "error");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: message };
       }
       const preparedRoutePrompt = resolvePreparedRoutePrompt(runtime, meta, {
         context,
+        currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
         outputHeading: "Output format:",
         reasoningLabel: "why these tools",
@@ -303,9 +530,36 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         }
         return { action: "transform", text: preparedRoutePrompt.error };
       }
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/route",
+          channel: "input-transform",
+          selection_mode: "fixed-template",
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(meta),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: preparedRoutePrompt.prepared.engine,
+          explicit_engine: preparedRoutePrompt.prepared.explicitEngine,
+          context_appended: preparedRoutePrompt.prepared.contextAppended,
+          append_context_section: false,
+          used_render_keys: preparedRoutePrompt.prepared.usedRenderKeys,
+        },
+        prepared: { text: preparedRoutePrompt.prompt },
+        replay_safe_inputs: {
+          kind: "route-request",
+          context,
+        },
+        input_context: context,
+      });
       return {
         action: "transform",
-        text: preparedRoutePrompt.prompt,
+        text: preparedPrompt,
       };
     }
 
@@ -318,8 +572,15 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       if (!ctx.hasUI) return;
       const schemaReport = runtime.checkSchemaCompatibilityDetailed();
       if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
       const parsed = runtime.splitVaultQueryAndContext(args.trim());
-      const resolved = await resolveVaultTemplateSelection(runtime, ctx, parsed.query);
+      const resolved = await resolveVaultTemplateSelection(
+        runtime,
+        ctx,
+        parsed.query,
+        companyContext.currentCompany,
+      );
       if (!resolved.template)
         return ctx.ui.notify(
           `No vault template selected${resolved.selectionReason ? ` (${resolved.selectionReason})` : ""}.`,
@@ -328,7 +589,7 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
 
       const prepared = runtime.prepareVaultPrompt(resolved.template, {
         context: parsed.context,
-        currentCompany: runtime.getCurrentCompany(ctx.cwd),
+        currentCompany: companyContext.currentCompany,
       });
       if (!prepared.ok) {
         return ctx.ui.notify(
@@ -337,7 +598,35 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         );
       }
 
-      ctx.ui.setEditorText(prepared.prepared);
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/vault",
+          channel: "slash-command",
+          selection_mode: resolved.selectionMode,
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(resolved.template),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: prepared.engine,
+          explicit_engine: prepared.explicitEngine,
+          context_appended: prepared.contextAppended,
+          append_context_section: true,
+          used_render_keys: prepared.usedRenderKeys,
+        },
+        prepared: { text: prepared.prepared },
+        replay_safe_inputs: {
+          kind: "vault-selection",
+          query: parsed.query,
+          context: parsed.context,
+        },
+        input_context: parsed.context,
+      });
+      ctx.ui.setEditorText(preparedPrompt);
       notifyPrepared(
         runtime,
         resolved.template,
@@ -345,8 +634,6 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         resolved.modeMessage,
         ctx,
       );
-      if (resolved.template.id)
-        runtime.logExecution(resolved.template, ctx.model?.id || "unknown", parsed.context);
     },
   });
 
@@ -356,11 +643,14 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       if (!ctx.hasUI) return;
       const schemaReport = runtime.checkSchemaCompatibilityDetailed();
       if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
       const context = args.trim();
       if (!context) return ctx.ui.notify("Usage: /route <describe your situation>", "warning");
       const metaResult = runtime.getTemplateDetailed("meta-orchestration", {
-        currentCompany: runtime.getCurrentCompany(ctx.cwd),
+        currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
+        requireExplicitCompany: true,
       });
       if (!metaResult.ok) {
         return ctx.ui.notify(`meta-orchestration lookup failed: ${metaResult.error}`, "error");
@@ -369,6 +659,7 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       if (!meta) return ctx.ui.notify("meta-orchestration template not found", "error");
       const preparedRoutePrompt = resolvePreparedRoutePrompt(runtime, meta, {
         context,
+        currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
         outputHeading: "Output:",
         reasoningLabel: "why",
@@ -377,7 +668,34 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       if (!preparedRoutePrompt.ok) {
         return ctx.ui.notify(preparedRoutePrompt.error, "error");
       }
-      ctx.ui.setEditorText(preparedRoutePrompt.prompt);
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/route",
+          channel: "slash-command",
+          selection_mode: "fixed-template",
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(meta),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: preparedRoutePrompt.prepared.engine,
+          explicit_engine: preparedRoutePrompt.prepared.explicitEngine,
+          context_appended: preparedRoutePrompt.prepared.contextAppended,
+          append_context_section: false,
+          used_render_keys: preparedRoutePrompt.prepared.usedRenderKeys,
+        },
+        prepared: { text: preparedRoutePrompt.prompt },
+        replay_safe_inputs: {
+          kind: "route-request",
+          context,
+        },
+        input_context: context,
+      });
+      ctx.ui.setEditorText(preparedPrompt);
       ctx.ui.notify("Routing prompt ready. Press Enter to submit.", "info");
     },
   });
@@ -391,7 +709,7 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       const schemaOk = schemaReport.ok;
       const executionContext = { currentCompany: companyContext.company, cwd: ctx.cwd };
       const templatesResult = schemaOk
-        ? runtime.listTemplatesDetailed(undefined, executionContext)
+        ? runtime.listTemplatesDetailed(undefined, executionContext, { includeContent: false })
         : { ok: true, value: [], error: null as null };
       const metaResult = schemaOk
         ? runtime.getTemplateDetailed("meta-orchestration", executionContext)
@@ -441,7 +759,10 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     description: "Run FZF viability probe for vault selector runtime",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
-      const probe = runFzfProbe();
+      const probe = runFzfProbe() as {
+        interactive: { status?: number | null; stderr?: string };
+        filter: { status?: number | null; stdout?: string; stderr?: string };
+      };
       await ctx.ui.editor(
         "Vault FZF Spike",
         [
@@ -470,6 +791,51 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     },
   });
 
+  if (receipts) {
+    pi.registerCommand("vault-last-receipt", {
+      description: "Show the latest local vault execution receipt visible to the current company",
+      handler: async (_args, ctx) => {
+        if (!ctx.hasUI) return;
+        const companyContext = resolveCommandCompanyContext(runtime, ctx);
+        if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+        const receipt = receipts.listRecentReceipts({
+          currentCompany: companyContext.currentCompany,
+          limit: 1,
+        })[0];
+        if (!receipt)
+          return ctx.ui.notify(
+            "No local vault execution receipts recorded yet for the current company.",
+            "warning",
+          );
+        await ctx.ui.editor("Latest Vault Receipt", formatVaultReceipt(receipt));
+      },
+    });
+
+    pi.registerCommand("vault-receipt", {
+      description: "Show a local vault execution receipt by execution id",
+      handler: async (args, ctx) => {
+        if (!ctx.hasUI) return;
+        const companyContext = resolveCommandCompanyContext(runtime, ctx);
+        if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+        const executionId = Math.floor(Number(args.trim()));
+        if (!Number.isFinite(executionId) || executionId < 1) {
+          return ctx.ui.notify("Usage: /vault-receipt <execution_id>", "warning");
+        }
+        const receipt = receipts.readReceiptByExecutionId(executionId);
+        if (
+          !receipt ||
+          !receipt.template.visibility_companies.includes(companyContext.currentCompany)
+        ) {
+          return ctx.ui.notify(
+            `No local receipt found for execution ${executionId} in the current company context.`,
+            "warning",
+          );
+        }
+        await ctx.ui.editor(`Vault Receipt ${executionId}`, formatVaultReceipt(receipt));
+      },
+    });
+  }
+
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
     const schemaReport = runtime.checkSchemaCompatibilityDetailed();
@@ -477,11 +843,19 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
       return;
     }
+    const companyContext = runtime.resolveCurrentCompanyContext(ctx.cwd);
+    if (companyContext.source === "contract-default") {
+      ctx.ui.notify(COMMAND_READ_CONTEXT_ERROR, "warning");
+      return;
+    }
     const executionContext = {
-      currentCompany: runtime.getCurrentCompany(ctx.cwd),
+      currentCompany: companyContext.company,
       cwd: ctx.cwd,
+      requireExplicitCompany: true,
     };
-    const templatesResult = runtime.listTemplatesDetailed(undefined, executionContext);
+    const templatesResult = runtime.listTemplatesDetailed(undefined, executionContext, {
+      includeContent: false,
+    });
     if (!templatesResult.ok) {
       ctx.ui.notify(`Vault unavailable: ${templatesResult.error}`, "warning");
       return;
@@ -490,11 +864,9 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
     const cognitive = templates.filter((t) => t.artifact_kind === "cognitive").length;
     const procedure = templates.filter((t) => t.artifact_kind === "procedure").length;
     const session = templates.filter((t) => t.artifact_kind === "session").length;
-    const currentCompany = ctx.cwd
-      ? runtime.getCurrentCompany(ctx.cwd)
-      : runtime.getCurrentCompany();
+    const currentCompany = companyContext.company;
     ctx.ui.notify(
-      `Vault (${currentCompany}): ${cognitive} cognitive, ${procedure} procedure, ${session} session templates — /vault loads exact matches or opens picker; live /vault: uses shared interaction runtime`,
+      `Vault (${currentCompany}): ${cognitive} cognitive, ${procedure} procedure, ${session} session templates - /vault loads exact matches or opens picker; live /vault: uses shared interaction runtime`,
       "info",
     );
   });
@@ -505,12 +877,14 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       if (!ctx.hasUI) return;
       const schemaReport = runtime.checkSchemaCompatibilityDetailed();
       if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
-      const currentCompany = runtime.getCurrentCompany(ctx.cwd);
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+      const currentCompany = companyContext.currentCompany;
       const result = runtime.queryVaultJsonDetailed(`
         SELECT pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level, COUNT(e.id) as uses, MAX(e.created_at) as last_used
         FROM prompt_templates pt
         LEFT JOIN executions e ON e.entity_type = 'template' AND e.entity_id = pt.id
-        WHERE pt.status = 'active' AND ${runtime.buildVisibilityPredicate(currentCompany)}
+        WHERE ${runtime.buildPiVisibleTemplatePredicate(currentCompany, "pt")}
         GROUP BY pt.id, pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level
         ORDER BY uses DESC
         LIMIT 20

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { detectTemplateRenderEngine, stripFrontmatter } from "./templateRenderer.js";
 import { ARTIFACT_KINDS, COMPANIES, CONTROL_MODES, CONTROLLED_VOCABULARY_DIMENSIONS, DEFAULT_VAULT_QUERY_LIMIT, FORMALIZATION_LEVELS, INTENT_RANKING_CANDIDATE_POOL_LIMIT, MAX_VAULT_QUERY_LIMIT, PROMPT_VAULT_ROOT, SCHEMA_VERSION, VAULT_DIR, } from "./vaultTypes.js";
 const DEFAULT_DOLT_MAX_BUFFER = 64 * 1024 * 1024;
@@ -26,6 +26,7 @@ const REQUIRED_EXECUTION_COLUMNS = [
 ];
 const REQUIRED_FEEDBACK_COLUMNS = ["execution_id", "rating", "notes", "issues"];
 let cachedContracts = null;
+let cachedContractsKey = null;
 function formatVaultError(error) {
     return error instanceof Error ? error.message : String(error);
 }
@@ -61,6 +62,13 @@ function execVault(sql) {
         return false;
     }
 }
+function parseJsonDocuments(output) {
+    return output
+        .split(/\n(?=\{)/)
+        .map((chunk) => chunk.trim())
+        .filter(Boolean)
+        .map((chunk) => JSON.parse(chunk));
+}
 function execVaultWithRowCount(sql) {
     try {
         const normalizedSql = sql.trim().replace(/;+\s*$/, "");
@@ -71,17 +79,37 @@ function execVaultWithRowCount(sql) {
             "-q",
             `${normalizedSql}; SELECT ROW_COUNT() AS row_count;`,
         ]);
-        const jsonDocuments = output
-            .split(/\n(?=\{)/)
-            .map((chunk) => chunk.trim())
-            .filter(Boolean);
-        const lastDocument = jsonDocuments.at(-1);
+        const lastDocument = parseJsonDocuments(output).at(-1);
         if (!lastDocument)
             return null;
-        const parsed = JSON.parse(lastDocument);
-        const rawCount = parsed?.rows?.[0]?.row_count;
+        const rawCount = lastDocument?.rows?.[0]?.row_count;
         const rowCount = Number(rawCount);
         return Number.isFinite(rowCount) ? rowCount : null;
+    }
+    catch (e) {
+        console.error("Vault exec error:", e);
+        return null;
+    }
+}
+function execVaultInsertWithId(sql) {
+    try {
+        const normalizedSql = sql.trim().replace(/;+\s*$/, "");
+        const output = runDolt([
+            "sql",
+            "-r",
+            "json",
+            "-q",
+            `${normalizedSql}; SELECT ROW_COUNT() AS row_count, LAST_INSERT_ID() AS insert_id;`,
+        ]);
+        const lastDocument = parseJsonDocuments(output).at(-1);
+        if (!lastDocument)
+            return null;
+        const rowCount = Number(lastDocument?.rows?.[0]?.row_count);
+        const insertId = Number(lastDocument?.rows?.[0]?.insert_id);
+        return {
+            rowCount: Number.isFinite(rowCount) ? rowCount : 0,
+            insertId: Number.isFinite(insertId) && insertId > 0 ? insertId : null,
+        };
     }
     catch (e) {
         console.error("Vault exec error:", e);
@@ -243,6 +271,24 @@ function mergeTemplateUpdate(existing, patch) {
         controlled_vocabulary: mergedControlledVocabulary,
     };
 }
+function normalizeBoolean(value) {
+    if (typeof value === "boolean")
+        return value;
+    if (typeof value === "number")
+        return value !== 0;
+    if (typeof value === "bigint")
+        return value !== 0n;
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (!normalized)
+            return undefined;
+        if (["1", "true", "yes", "y", "on"].includes(normalized))
+            return true;
+        if (["0", "false", "no", "n", "off"].includes(normalized))
+            return false;
+    }
+    return undefined;
+}
 function parseTemplateRows(result) {
     if (!result || !result.rows || result.rows.length === 0)
         return [];
@@ -258,11 +304,7 @@ function parseTemplateRows(result) {
         visibility_companies: parseJsonArray(row.visibility_companies),
         controlled_vocabulary: parseControlledVocabulary(row.controlled_vocabulary),
         status: row.status ? String(row.status) : undefined,
-        export_to_pi: typeof row.export_to_pi === "boolean"
-            ? row.export_to_pi
-            : row.export_to_pi == null
-                ? undefined
-                : String(row.export_to_pi).toLowerCase() === "true",
+        export_to_pi: normalizeBoolean(row.export_to_pi),
         version: typeof row.version === "number" ? row.version : undefined,
     }));
 }
@@ -333,8 +375,26 @@ function readJsonContract(path, fallback) {
         return fallback;
     }
 }
+function buildContractCacheKey(paths) {
+    return paths
+        .map((path) => {
+        if (!existsSync(path))
+            return `${path}:missing`;
+        const stats = statSync(path);
+        return `${path}:${stats.size}:${stats.mtimeMs}`;
+    })
+        .join("|");
+}
 function getContracts() {
-    if (cachedContracts)
+    const ontologyPath = `${PROMPT_VAULT_ROOT}/ontology/v2-contract.json`;
+    const controlledVocabularyPath = `${PROMPT_VAULT_ROOT}/ontology/controlled-vocabulary-contract.json`;
+    const companyVisibilityPath = `${PROMPT_VAULT_ROOT}/ontology/company-visibility-contract.json`;
+    const contractCacheKey = buildContractCacheKey([
+        ontologyPath,
+        controlledVocabularyPath,
+        companyVisibilityPath,
+    ]);
+    if (cachedContracts && cachedContractsKey === contractCacheKey)
         return cachedContracts;
     const ontologyFallback = {
         facets: {
@@ -362,10 +422,11 @@ function getContracts() {
         },
     };
     cachedContracts = {
-        ontology: readJsonContract(`${PROMPT_VAULT_ROOT}/ontology/v2-contract.json`, ontologyFallback),
-        controlledVocabulary: readJsonContract(`${PROMPT_VAULT_ROOT}/ontology/controlled-vocabulary-contract.json`, controlledVocabularyFallback),
-        companyVisibility: readJsonContract(`${PROMPT_VAULT_ROOT}/ontology/company-visibility-contract.json`, companyVisibilityFallback),
+        ontology: readJsonContract(ontologyPath, ontologyFallback),
+        controlledVocabulary: readJsonContract(controlledVocabularyPath, controlledVocabularyFallback),
+        companyVisibility: readJsonContract(companyVisibilityPath, companyVisibilityFallback),
     };
+    cachedContractsKey = contractCacheKey;
     return cachedContracts;
 }
 function resolveCurrentCompanyContext(cwd) {
@@ -395,10 +456,22 @@ function resolveCurrentCompanyContext(cwd) {
 function getCurrentCompany(cwd) {
     return resolveCurrentCompanyContext(cwd).company;
 }
-function resolveCompanyFromContext(context) {
-    if (context?.currentCompany?.trim())
-        return context.currentCompany.trim();
-    return getCurrentCompany(context?.cwd);
+function resolveReadCompanyContext(context) {
+    if (context?.currentCompany?.trim()) {
+        return {
+            ok: true,
+            company: context.currentCompany.trim(),
+            source: "explicit:currentCompany",
+        };
+    }
+    const resolved = resolveCurrentCompanyContext(context?.cwd);
+    if (context?.requireExplicitCompany && resolved.source === "contract-default") {
+        return {
+            ok: false,
+            error: "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.",
+        };
+    }
+    return { ok: true, company: resolved.company, source: resolved.source };
 }
 export function resolveMutationActorContext(context) {
     if (context?.actorCompany?.trim()) {
@@ -455,8 +528,18 @@ export function resolveMutationActorContext(context) {
         source: resolved.source,
     };
 }
-function buildVisibilityPredicate(company = getCurrentCompany()) {
-    return `JSON_SEARCH(visibility_companies, 'one', '${escapeSql(company)}') IS NOT NULL`;
+function qualifyTemplateColumn(column, alias) {
+    return alias ? `${alias}.${column}` : column;
+}
+function buildVisibilityPredicate(company = getCurrentCompany(), alias) {
+    return `JSON_SEARCH(${qualifyTemplateColumn("visibility_companies", alias)}, 'one', '${escapeSql(company)}') IS NOT NULL`;
+}
+function buildPiVisibleTemplatePredicate(company = getCurrentCompany(), alias) {
+    return [
+        `${qualifyTemplateColumn("status", alias)} = 'active'`,
+        `COALESCE(${qualifyTemplateColumn("export_to_pi", alias)}, 0) <> 0`,
+        buildVisibilityPredicate(company, alias),
+    ].join(" AND ");
 }
 function buildSelectColumns(includeContent, includeId = false, options) {
     const contentColumn = includeContent ? options?.contentExpression || "content" : "";
@@ -483,9 +566,11 @@ function getActiveTemplateByName(name) {
     return parseTemplateRows(result)[0] || null;
 }
 function getTemplateDetailed(name, context) {
+    const companyContext = resolveReadCompanyContext(context);
+    if (!companyContext.ok)
+        return { ok: false, value: null, error: companyContext.error };
     const escapedName = escapeSql(name);
-    const company = resolveCompanyFromContext(context);
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(true, true)} FROM prompt_templates WHERE name = '${escapedName}' AND status = 'active' AND ${buildVisibilityPredicate(company)}`);
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(true, true)} FROM prompt_templates WHERE name = '${escapedName}' AND ${buildPiVisibleTemplatePredicate(companyContext.company)}`);
     if (!result.ok)
         return result;
     return { ok: true, value: parseTemplateRows(result.value)[0] || null, error: null };
@@ -494,31 +579,35 @@ function getTemplate(name, context) {
     const result = getTemplateDetailed(name, context);
     return result.ok ? result.value : null;
 }
-function listTemplatesDetailed(filters, context) {
-    const company = resolveCompanyFromContext(context);
-    const whereClauses = ["status = 'active'", buildVisibilityPredicate(company)];
+function listTemplatesDetailed(filters, context, options) {
+    const companyContext = resolveReadCompanyContext(context);
+    if (!companyContext.ok)
+        return { ok: false, value: null, error: companyContext.error };
+    const whereClauses = [buildPiVisibleTemplatePredicate(companyContext.company)];
     if (filters?.artifact_kind)
         whereClauses.push(`artifact_kind = '${escapeSql(filters.artifact_kind)}'`);
     if (filters?.control_mode)
         whereClauses.push(`control_mode = '${escapeSql(filters.control_mode)}'`);
     if (filters?.formalization_level)
         whereClauses.push(`formalization_level = '${escapeSql(filters.formalization_level)}'`);
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(true)} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name`);
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(options?.includeContent ?? false)} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name`);
     if (!result.ok)
         return result;
     return { ok: true, value: parseTemplateRows(result.value), error: null };
 }
-function listTemplates(filters, context) {
-    const result = listTemplatesDetailed(filters, context);
+function listTemplates(filters, context, options) {
+    const result = listTemplatesDetailed(filters, context, options);
     return result.ok ? result.value : [];
 }
-function searchTemplatesDetailed(query, context) {
+function searchTemplatesDetailed(query, context, options) {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery)
         return { ok: true, value: [], error: null };
-    const company = resolveCompanyFromContext(context);
+    const companyContext = resolveReadCompanyContext(context);
+    if (!companyContext.ok)
+        return { ok: false, value: null, error: companyContext.error };
     const escapedQuery = escapeLikePattern(normalizedQuery);
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(true)} FROM prompt_templates WHERE status = 'active' AND ${buildVisibilityPredicate(company)} AND (` +
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(options?.includeContent ?? false)} FROM prompt_templates WHERE ${buildPiVisibleTemplatePredicate(companyContext.company)} AND (` +
         `LOWER(name) LIKE '%${escapedQuery}%' ESCAPE '!' OR ` +
         `LOWER(description) LIKE '%${escapedQuery}%' ESCAPE '!' OR ` +
         `LOWER(content) LIKE '%${escapedQuery}%' ESCAPE '!'` +
@@ -527,8 +616,8 @@ function searchTemplatesDetailed(query, context) {
         return result;
     return { ok: true, value: parseTemplateRows(result.value), error: null };
 }
-function searchTemplates(query, context) {
-    const result = searchTemplatesDetailed(query, context);
+function searchTemplates(query, context, options) {
+    const result = searchTemplatesDetailed(query, context, options);
     return result.ok ? result.value : [];
 }
 function tokenizeIntentText(text) {
@@ -657,8 +746,11 @@ function queryTemplatesDetailed(filters, limit, includeContent, context) {
     const cols = buildSelectColumns(includeScoringContent, false, {
         contentExpression: filters.intent_text && !includeContent ? "LEFT(content, 4096) AS content" : undefined,
     });
-    const visibilityCompany = filters.visibility_company || resolveCompanyFromContext(context);
-    const whereClauses = ["status = 'active'", buildVisibilityPredicate(visibilityCompany)];
+    const companyContext = resolveReadCompanyContext(context);
+    if (!companyContext.ok)
+        return { ok: false, value: null, error: companyContext.error };
+    const visibilityCompany = filters.visibility_company || companyContext.company;
+    const whereClauses = [buildPiVisibleTemplatePredicate(visibilityCompany)];
     if (filters.artifact_kind?.length)
         whereClauses.push(`artifact_kind IN (${filters.artifact_kind.map((value) => `'${escapeSql(value)}'`).join(", ")})`);
     if (filters.control_mode?.length)
@@ -692,9 +784,11 @@ function queryTemplates(filters, limit, includeContent, context) {
 function retrieveByNamesDetailed(names, includeContent, context) {
     if (names.length === 0)
         return { ok: true, value: [], error: null };
-    const company = resolveCompanyFromContext(context);
+    const companyContext = resolveReadCompanyContext(context);
+    if (!companyContext.ok)
+        return { ok: false, value: null, error: companyContext.error };
     const escapedNames = names.map((n) => `'${escapeSql(n)}'`).join(", ");
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(includeContent, true)} FROM prompt_templates WHERE name IN (${escapedNames}) AND status = 'active' AND ${buildVisibilityPredicate(company)}`);
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(includeContent, true)} FROM prompt_templates WHERE name IN (${escapedNames}) AND ${buildPiVisibleTemplatePredicate(companyContext.company)}`);
     if (!result.ok)
         return result;
     return { ok: true, value: parseTemplateRows(result.value), error: null };
@@ -840,7 +934,7 @@ function insertTemplate(name, content, description, artifactKind, controlMode, f
     if (validationError)
         return { status: "error", message: validationError };
     const escapedName = escapeSql(name);
-    const existing = queryVaultJson(`SELECT id FROM prompt_templates WHERE name = '${escapedName}' AND status = 'active' LIMIT 1`);
+    const existing = queryVaultJson(`SELECT id FROM prompt_templates WHERE name = '${escapedName}' LIMIT 1`);
     if ((existing?.rows || []).length > 0) {
         return {
             status: "error",
@@ -956,7 +1050,7 @@ function updateTemplate(name, patch, context) {
         templateId: merged.id,
     };
 }
-function rateTemplate(executionId, rating, success, notes, context) {
+function rateTemplate(executionId, rating, success, notes, context, options) {
     const actorContext = resolveMutationActorContext(context);
     if (actorContext.status === "error") {
         return { ok: false, message: actorContext.message };
@@ -967,24 +1061,73 @@ function rateTemplate(executionId, rating, success, notes, context) {
     if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
         return { ok: false, message: "rating must be between 1 and 5." };
     }
-    const execution = queryVaultJson(`
-    SELECT e.id, e.entity_version, pt.name
-    FROM executions e
-    INNER JOIN prompt_templates pt ON pt.id = e.entity_id
-    WHERE e.id = ${Math.floor(executionId)}
-      AND e.entity_type = 'template'
-      AND pt.status = 'active'
-      AND ${buildVisibilityPredicate(actorContext.actorCompany)}
+    const normalizedExecutionId = Math.floor(executionId);
+    const executionRow = queryVaultJson(`
+    SELECT id, entity_id, entity_version
+    FROM executions
+    WHERE id = ${normalizedExecutionId}
+      AND entity_type = 'template'
     LIMIT 1
   `)?.rows?.[0];
-    if (!execution) {
+    if (!executionRow) {
         return {
             ok: false,
-            message: `Template execution not found or not visible: ${Math.floor(executionId)}`,
+            message: `Template execution not found: ${normalizedExecutionId}`,
         };
     }
+    const receipt = options?.executionReceipt ?? null;
+    let templateName = "template";
+    if (receipt) {
+        if (Number(receipt.execution_id) !== normalizedExecutionId) {
+            return {
+                ok: false,
+                message: `Execution receipt mismatch for execution ${normalizedExecutionId}`,
+            };
+        }
+        if (Number.isFinite(Number(receipt.template.id)) &&
+            Number(receipt.template.id) !== Number(executionRow.entity_id)) {
+            return {
+                ok: false,
+                message: `Execution receipt template mismatch for execution ${normalizedExecutionId}`,
+            };
+        }
+        if (Number.isFinite(Number(receipt.template.version)) &&
+            Number.isFinite(Number(executionRow.entity_version)) &&
+            Number(receipt.template.version) !== Number(executionRow.entity_version)) {
+            return {
+                ok: false,
+                message: `Execution receipt version mismatch for execution ${normalizedExecutionId}`,
+            };
+        }
+        if (!receipt.template.visibility_companies.includes(actorContext.actorCompany)) {
+            return {
+                ok: false,
+                message: `Template execution not visible to ${actorContext.actorCompany}: ${normalizedExecutionId}`,
+            };
+        }
+        templateName = receipt.template.name || "template";
+    }
+    else {
+        const execution = queryVaultJson(`
+      SELECT e.id, pt.name
+      FROM executions e
+      INNER JOIN prompt_templates pt ON pt.id = e.entity_id
+      WHERE e.id = ${normalizedExecutionId}
+        AND e.entity_type = 'template'
+        AND pt.status = 'active'
+        AND ${buildVisibilityPredicate(actorContext.actorCompany)}
+      LIMIT 1
+    `)?.rows?.[0];
+        if (!execution) {
+            return {
+                ok: false,
+                message: `Template execution not found or not visible: ${normalizedExecutionId}`,
+            };
+        }
+        templateName = String(execution.name || "template");
+    }
     const existingFeedback = queryVaultJsonDetailed(`
-    SELECT id FROM feedback WHERE execution_id = ${Math.floor(executionId)} LIMIT 1
+    SELECT id FROM feedback WHERE execution_id = ${normalizedExecutionId} LIMIT 1
   `);
     if (!existingFeedback.ok) {
         return { ok: false, message: `Failed to inspect existing feedback: ${existingFeedback.error}` };
@@ -992,17 +1135,17 @@ function rateTemplate(executionId, rating, success, notes, context) {
     if ((existingFeedback.value.rows || []).length > 0) {
         return {
             ok: false,
-            message: `Feedback already exists for execution ${Math.floor(executionId)}. Use a future feedback-update path instead of creating duplicates.`,
+            message: `Feedback already exists for execution ${normalizedExecutionId}. Use a future feedback-update path instead of creating duplicates.`,
         };
     }
     const escapedNotes = escapeSql(notes);
-    const issuesJson = escapeSql(JSON.stringify(success ? [] : ["needs-improvement", `execution:${Math.floor(executionId)}`]));
+    const issuesJson = escapeSql(JSON.stringify(success ? [] : ["needs-improvement", `execution:${normalizedExecutionId}`]));
     const insertedRows = execVaultWithRowCount(`
     INSERT INTO feedback (execution_id, rating, notes, issues)
-    SELECT ${Math.floor(executionId)}, ${rating}, '${escapedNotes}', '${issuesJson}'
+    SELECT ${normalizedExecutionId}, ${rating}, '${escapedNotes}', '${issuesJson}'
     FROM DUAL
     WHERE NOT EXISTS (
-      SELECT 1 FROM feedback WHERE execution_id = ${Math.floor(executionId)}
+      SELECT 1 FROM feedback WHERE execution_id = ${normalizedExecutionId}
     )
   `);
     if (insertedRows == null)
@@ -1010,32 +1153,51 @@ function rateTemplate(executionId, rating, success, notes, context) {
     if (insertedRows !== 1) {
         return {
             ok: false,
-            message: `Feedback for execution ${Math.floor(executionId)} was not recorded because a duplicate already exists or the execution changed concurrently.`,
+            message: `Feedback for execution ${normalizedExecutionId} was not recorded because a duplicate already exists or the execution changed concurrently.`,
         };
     }
-    const executionVersion = Number.isFinite(Number(execution.entity_version))
-        ? ` v${Number(execution.entity_version)}`
+    const executionVersion = Number.isFinite(Number(executionRow.entity_version))
+        ? ` v${Number(executionRow.entity_version)}`
         : "";
-    const templateName = String(execution.name || "template");
-    commitVault(`Rate execution: ${Math.floor(executionId)} (${rating}/5)`, ["feedback"]);
+    commitVault(`Rate execution: ${normalizedExecutionId} (${rating}/5)`, ["feedback"]);
     return {
         ok: true,
-        message: `Recorded rating ${rating}/5 for execution ${Math.floor(executionId)} (${templateName}${executionVersion})`,
+        message: `Recorded rating ${rating}/5 for execution ${normalizedExecutionId} (${templateName}${executionVersion})`,
     };
 }
 function logExecution(template, model, inputContext) {
-    if (!Number.isFinite(template.id))
-        return;
+    if (!Number.isFinite(template.id)) {
+        return { ok: false, message: "Template id is required for execution logging." };
+    }
     const escapedContext = escapeSql((inputContext || "").slice(0, 1000));
     const escapedModel = escapeSql(model);
-    const entityVersion = Number.isFinite(template.version) ? Number(template.version) : "NULL";
-    const inserted = execVault(`
+    const entityVersion = Number.isFinite(template.version) ? Number(template.version) : null;
+    const createdAt = new Date().toISOString();
+    const inserted = execVaultInsertWithId(`
     INSERT INTO executions (entity_type, entity_id, entity_version, input_context, model, success, created_at)
-    VALUES ('template', ${Number(template.id)}, ${entityVersion}, '${escapedContext}', '${escapedModel}', true, NOW())
+    VALUES (
+      'template',
+      ${Number(template.id)},
+      ${entityVersion == null ? "NULL" : entityVersion},
+      '${escapedContext}',
+      '${escapedModel}',
+      true,
+      NOW()
+    )
   `);
-    if (!inserted)
-        return;
+    if (!inserted || inserted.rowCount !== 1 || !inserted.insertId) {
+        return { ok: false, message: "Failed to log template execution." };
+    }
     commitVault(`Log template execution: ${Number(template.id)}`, ["executions"]);
+    return {
+        ok: true,
+        executionId: inserted.insertId,
+        templateId: Number(template.id),
+        entityVersion,
+        createdAt,
+        model,
+        inputContext: String(inputContext || "").slice(0, 1000),
+    };
 }
 function getPresentColumns(tableName) {
     const columns = queryVaultJson(`SHOW COLUMNS FROM ${tableName}`);
@@ -1085,6 +1247,7 @@ export function createVaultRuntime() {
         getCurrentCompany,
         resolveCurrentCompanyContext,
         buildVisibilityPredicate,
+        buildPiVisibleTemplatePredicate,
         getContracts,
         getTemplate,
         getTemplateDetailed,

@@ -104,7 +104,7 @@ function discoverFrameworks(runtime, objective, workflow, currentCompany, limit 
         .join(" OR ");
     const result = runtime.queryVaultJsonDetailed(`SELECT id, name, description, content, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary
      FROM prompt_templates
-     WHERE status = 'active' AND artifact_kind = 'cognitive' AND ${runtime.buildVisibilityPredicate(currentCompany)} AND (${like})
+     WHERE ${runtime.buildPiVisibleTemplatePredicate(currentCompany)} AND artifact_kind = 'cognitive' AND (${like})
      ORDER BY name
      LIMIT ${limit}`);
     if (!result.ok)
@@ -161,7 +161,10 @@ function resolveFrameworks(runtime, objective, workflow, dsl, currentCompany) {
     };
 }
 function buildNormalizedExtras(dsl, selectedFrameworkNames, retrieval) {
-    const map = { ...dsl.map, frameworks: selectedFrameworkNames.join("|") };
+    const map = {
+        ...dsl.map,
+        frameworks: selectedFrameworkNames.join("|"),
+    };
     delete map.triggers;
     if (retrieval.invalidOverrides.length > 0) {
         const note = `invalid_framework_overrides_dropped=${retrieval.invalidOverrides.join("|")}`;
@@ -224,7 +227,16 @@ function buildGroundedNext10Prompt(runtime, commandText, options = {}) {
     const modeRaw = (args[2] ?? "").trim().toLowerCase();
     const mode = modeRaw === "off" || modeRaw === "lite" || modeRaw === "full" ? modeRaw : "lite";
     const extrasRaw = args.slice(3).join(" ");
-    const currentCompany = options.currentCompany ?? runtime.getCurrentCompany(options.cwd);
+    const companyResolution = options.currentCompany?.trim()
+        ? { company: options.currentCompany.trim(), source: "explicit:currentCompany" }
+        : runtime.resolveCurrentCompanyContext(options.cwd);
+    if (companyResolution.source === "contract-default") {
+        return {
+            ok: false,
+            reason: "BLOCKED: explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.",
+        };
+    }
+    const currentCompany = companyResolution.company;
     const dsl = parseExtrasDsl(extrasRaw);
     const resolved = resolveFrameworks(runtime, objective, workflow, dsl, currentCompany);
     if (!resolved.ok) {
@@ -297,7 +309,30 @@ function buildGroundedNext10Prompt(runtime, commandText, options = {}) {
             reason: `BLOCKED: ${appendix.reason}`,
         };
     }
-    return { ok: true, prompt: `${prepared.prepared}${appendix.appendix}` };
+    return {
+        ok: true,
+        prompt: `${prepared.prepared}${appendix.appendix}`,
+        template,
+        prepared,
+        currentCompany,
+        companySource: companyResolution.source,
+        inputContext: frameworkContext,
+        replaySafeInputs: {
+            kind: "grounding-request",
+            command_text: commandText,
+            objective,
+            workflow,
+            mode,
+            extras: normalizedExtras,
+            framework_resolution: {
+                selected_names: selectedNames,
+                retrieval_method: resolution.retrievalMethod,
+                discovery_used: resolution.discoveryUsed,
+                invalid_overrides: [...resolution.invalidOverrides],
+                warnings: [...dsl.warnings],
+            },
+        },
+    };
 }
 export function createGroundingRuntime(runtime) {
     return {

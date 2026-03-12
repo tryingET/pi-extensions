@@ -2,6 +2,7 @@ import { selectFuzzyCandidate } from "./fuzzySelector.js";
 import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import { registerPickerInteraction, splitQueryAndContext } from "./triggerAdapter.js";
 import { toVaultCandidates } from "./vaultCandidateAdapter.js";
+import { createPreparedExecutionToken, withPreparedExecutionMarker } from "./vaultReceipts.js";
 import {
   type FuzzyCandidate,
   LIVE_TRIGGER_TELEMETRY_LIMIT,
@@ -13,8 +14,13 @@ import {
   type SelectionResult,
   type Template,
   type UiContext,
+  type VaultPreparedExecutionCandidate,
+  type VaultReceiptManager,
   type VaultRuntime,
 } from "./vaultTypes.js";
+
+const PICKER_READ_CONTEXT_ERROR =
+  "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
 
 const liveTriggerTelemetry = {
   registrations: 0,
@@ -85,6 +91,30 @@ function parseVaultSelectionInput(text: string): { query: string; context: strin
   return null;
 }
 
+function resolvePickerCompanyContext(
+  runtime: VaultRuntime,
+  context?: { cwd?: string; currentCompany?: string },
+): { ok: true; currentCompany: string; companySource: string } | { ok: false; reason: string } {
+  if (context?.currentCompany?.trim()) {
+    return {
+      ok: true,
+      currentCompany: context.currentCompany.trim(),
+      companySource: "explicit:currentCompany",
+    };
+  }
+
+  const companyContext = runtime.resolveCurrentCompanyContext(context?.cwd);
+  if (companyContext.source === "contract-default") {
+    return { ok: false, reason: "explicit-company-context-required" };
+  }
+
+  return {
+    ok: true,
+    currentCompany: companyContext.company,
+    companySource: companyContext.source,
+  };
+}
+
 function prepareVaultPrompt(
   runtime: VaultRuntime,
   template: Template,
@@ -117,13 +147,28 @@ async function pickVaultTemplate(
   ctx: UiContext,
   query: string,
 ): Promise<SelectionResult> {
-  const currentCompany = runtime.getCurrentCompany(ctx.cwd);
-  const templatesResult = runtime.listTemplatesDetailed(undefined, {
-    currentCompany,
-    cwd: ctx.cwd,
-  });
+  const companyContext = resolvePickerCompanyContext(runtime, ctx);
+  if (!companyContext.ok) {
+    return { selected: null, mode: "fallback", reason: companyContext.reason };
+  }
+  const templatesResult = runtime.listTemplatesDetailed(
+    undefined,
+    {
+      currentCompany: companyContext.currentCompany,
+      cwd: ctx.cwd,
+      requireExplicitCompany: true,
+    },
+    { includeContent: false },
+  );
   if (!templatesResult.ok) {
-    return { selected: null, mode: "fallback", reason: "vault-db-unavailable" };
+    return {
+      selected: null,
+      mode: "fallback",
+      reason:
+        templatesResult.error === PICKER_READ_CONTEXT_ERROR
+          ? "explicit-company-context-required"
+          : "vault-db-unavailable",
+    };
   }
   const candidates = toVaultCandidates(templatesResult.value) as FuzzyCandidate[];
   if (candidates.length === 0) {
@@ -140,7 +185,33 @@ async function pickVaultTemplate(
   })) as SelectionResult;
 }
 
-function registerVaultLiveTrigger(runtime: VaultRuntime): void {
+function toTemplateSnapshot(template: Template) {
+  return {
+    id: template.id,
+    name: template.name,
+    version: template.version,
+    artifact_kind: template.artifact_kind,
+    control_mode: template.control_mode,
+    formalization_level: template.formalization_level,
+    owner_company: template.owner_company,
+    visibility_companies: [...template.visibility_companies],
+  };
+}
+
+function queuePreparedExecution(
+  receipts: VaultReceiptManager | undefined,
+  candidate: Omit<VaultPreparedExecutionCandidate, "execution_token">,
+): string {
+  if (!receipts) return candidate.prepared.text;
+  const executionToken = createPreparedExecutionToken();
+  receipts.queuePreparedExecution({
+    ...candidate,
+    execution_token: executionToken,
+  });
+  return withPreparedExecutionMarker(candidate.prepared.text, executionToken);
+}
+
+function registerVaultLiveTrigger(runtime: VaultRuntime, receipts?: VaultReceiptManager): void {
   try {
     const registration = registerPickerInteraction({
       id: LIVE_VAULT_TRIGGER_ID,
@@ -159,15 +230,30 @@ function registerVaultLiveTrigger(runtime: VaultRuntime): void {
       },
       minQueryLength: LIVE_VAULT_MIN_QUERY,
       loadCandidates: ({ context }: { context?: { cwd?: string } }) => {
-        const currentCompany = runtime.getCurrentCompany(context?.cwd);
-        const templatesResult = runtime.listTemplatesDetailed(undefined, {
-          currentCompany,
-          cwd: context?.cwd,
-        });
+        const companyContext = resolvePickerCompanyContext(runtime, context);
+        if (!companyContext.ok) {
+          return {
+            candidates: [],
+            reason: companyContext.reason,
+            metadata: { templateCount: 0 },
+          };
+        }
+        const templatesResult = runtime.listTemplatesDetailed(
+          undefined,
+          {
+            currentCompany: companyContext.currentCompany,
+            cwd: context?.cwd,
+            requireExplicitCompany: true,
+          },
+          { includeContent: false },
+        );
         if (!templatesResult.ok) {
           return {
             candidates: [],
-            reason: "vault-db-unavailable",
+            reason:
+              templatesResult.error === PICKER_READ_CONTEXT_ERROR
+                ? "explicit-company-context-required"
+                : "vault-db-unavailable",
             metadata: { templateCount: 0 },
           };
         }
@@ -190,7 +276,7 @@ function registerVaultLiveTrigger(runtime: VaultRuntime): void {
         selection,
       }: {
         selected: { id: string };
-        parsed: { context: string };
+        parsed: { query: string; context: string };
         context?: { cwd?: string };
         api: {
           setText: (text: string) => void;
@@ -198,10 +284,16 @@ function registerVaultLiveTrigger(runtime: VaultRuntime): void {
         };
         selection: { mode: "fzf" | "fallback"; reason?: string };
       }) => {
-        const currentCompany = runtime.getCurrentCompany(context?.cwd);
+        const companyContext = resolvePickerCompanyContext(runtime, context);
+        if (!companyContext.ok) {
+          api.notify?.(PICKER_READ_CONTEXT_ERROR, "warning");
+          return;
+        }
+        const currentCompany = companyContext.currentCompany;
         const templateResult = runtime.getTemplateDetailed(selected.id, {
           currentCompany,
           cwd: context?.cwd,
+          requireExplicitCompany: true,
         });
         if (!templateResult.ok) {
           api.notify?.(`Template lookup failed (${selected.id}): ${templateResult.error}`, "error");
@@ -226,13 +318,40 @@ function registerVaultLiveTrigger(runtime: VaultRuntime): void {
           return;
         }
 
-        api.setText(prepared.prepared);
+        const preparedPrompt = queuePreparedExecution(receipts, {
+          queued_at: new Date().toISOString(),
+          invocation: {
+            surface: "/vault:",
+            channel: "live-trigger",
+            selection_mode: selection.mode === "fzf" ? "picker-fzf" : "picker-fallback",
+            llm_tool_call: null,
+          },
+          template: toTemplateSnapshot(template),
+          company: {
+            current_company: currentCompany,
+            company_source: companyContext.companySource,
+          },
+          render: {
+            engine: prepared.engine,
+            explicit_engine: prepared.explicitEngine,
+            context_appended: prepared.contextAppended,
+            append_context_section: true,
+            used_render_keys: prepared.usedRenderKeys,
+          },
+          prepared: { text: prepared.prepared },
+          replay_safe_inputs: {
+            kind: "vault-selection",
+            query: parsed.query,
+            context: parsed.context,
+          },
+          input_context: parsed.context,
+        });
+        api.setText(preparedPrompt);
         const contextSuffix = parsed.context ? " + context" : "";
         api.notify?.(
           `Prepared: ${template.name} (${runtime.facetLabel(template)})${contextSuffix} — ${selectionModeMessage(selection as SelectionResult)}`,
           "info",
         );
-        if (template.id) runtime.logExecution(template, "live-trigger", parsed.context);
       },
       onNoCandidates: ({
         parsed,
@@ -287,7 +406,10 @@ function registerVaultLiveTrigger(runtime: VaultRuntime): void {
   }
 }
 
-export function createPickerRuntime(runtime: VaultRuntime): PickerRuntime {
+export function createPickerRuntime(
+  runtime: VaultRuntime,
+  receipts?: VaultReceiptManager,
+): PickerRuntime {
   return {
     recordLiveTriggerTelemetry,
     summarizeLiveTriggerTelemetry,
@@ -295,7 +417,7 @@ export function createPickerRuntime(runtime: VaultRuntime): PickerRuntime {
     splitVaultQueryAndContext,
     parseVaultSelectionInput,
     pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query),
-    registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime),
+    registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime, receipts),
     prepareVaultPrompt: (template, options) => prepareVaultPrompt(runtime, template, options),
     loadVaultTemplate: (name, context) => loadVaultTemplate(runtime, name, context),
   };

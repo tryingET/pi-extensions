@@ -13,6 +13,7 @@ const RENDERER_SOURCE = readFileSync(
   "utf8",
 );
 const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.meta.url), "utf8");
+const RECEIPTS_SOURCE = readFileSync(new URL("../src/vaultReceipts.ts", import.meta.url), "utf8");
 const FUZZY_SELECTOR_SOURCE = readFileSync(
   new URL("../src/fuzzySelector.js", import.meta.url),
   "utf8",
@@ -28,7 +29,8 @@ test("vault runtime targets Prompt Vault schema v9", () => {
   assert.match(TYPES_SOURCE, /const\s+DEFAULT_VAULT_QUERY_LIMIT\s*=\s*20/);
   assert.match(DB_SOURCE, /SELECT MAX\(version\) AS version FROM schema_version/);
   assert.match(EXTENSION_SOURCE, /registerVaultDiagnosticsTool\(pi, vaultRuntime\)/);
-  assert.match(EXTENSION_SOURCE, /registerVaultCommands\(pi, runtime\)/);
+  assert.match(EXTENSION_SOURCE, /createVaultReceiptManager\(vaultRuntime\)/);
+  assert.match(EXTENSION_SOURCE, /registerVaultCommands\(pi, runtime, receiptManager\)/);
   assert.match(EXTENSION_SOURCE, /formatMissingColumns\("prompt_templates"/);
   assert.match(EXTENSION_SOURCE, /missingPromptTemplateColumns/);
   assert.match(EXTENSION_SOURCE, /formatMissingColumns\("executions"/);
@@ -74,15 +76,23 @@ test("schema compatibility requires governed prompt columns plus execution captu
   assert.match(DB_SOURCE, /missingFeedbackColumns/);
 });
 
-test("vault_query uses implicit visibility filtering with explicit execution context when available", () => {
-  assert.match(DB_SOURCE, /function\s+buildVisibilityPredicate\(/);
+test("vault_query uses centralized Pi-visible filtering with explicit execution context when available", () => {
   assert.match(
     DB_SOURCE,
-    /JSON_SEARCH\(visibility_companies, 'one', '\$\{escapeSql\(company\)\}'\) IS NOT NULL/,
+    /function\s+buildVisibilityPredicate\(company = getCurrentCompany\(\), alias\?: string\)/,
   );
   assert.match(
     DB_SOURCE,
-    /const visibilityCompany = filters\.visibility_company \|\| resolveCompanyFromContext\(context\)/,
+    /JSON_SEARCH\(\$\{qualifyTemplateColumn\("visibility_companies", alias\)\}, 'one', '\$\{escapeSql\(company\)\}'\) IS NOT NULL/,
+  );
+  assert.match(DB_SOURCE, /function\s+buildPiVisibleTemplatePredicate\(/);
+  assert.match(
+    DB_SOURCE,
+    /COALESCE\(\$\{qualifyTemplateColumn\("export_to_pi", alias\)\}, 0\) <> 0/,
+  );
+  assert.match(
+    DB_SOURCE,
+    /const visibilityCompany = filters\.visibility_company \|\| companyContext\.company/,
   );
   assert.match(TOOLS_SOURCE, /resolveToolExecutionContext\(runtime, ctx\)/);
   assert.match(TOOLS_SOURCE, /runtime\.queryTemplatesDetailed\([\s\S]*executionContext/);
@@ -163,6 +173,7 @@ test("vault mutations require explicit company context, owner authorization, and
   assert.match(DB_SOURCE, /SELECT ROW_COUNT\(\) AS row_count/);
   assert.match(DB_SOURCE, /changed during update\. Refresh and retry with the latest version/);
   assert.match(DB_SOURCE, /Template execution not found or not visible/);
+  assert.match(DB_SOURCE, /Template execution not found:/);
   assert.match(DB_SOURCE, /Feedback already exists for execution/);
   assert.match(DB_SOURCE, /WHERE NOT EXISTS \(/);
   assert.match(TOOLS_SOURCE, /buildToolMutationContext\(ctx\)/);
@@ -184,19 +195,26 @@ test("vault exposes execution provenance for exact feedback binding", () => {
   assert.match(TOOLS_SOURCE, /entity_version/);
   assert.match(TOOLS_SOURCE, /Use vault_executions first, then pass the exact execution_id/);
   assert.match(DB_SOURCE, /INNER JOIN prompt_templates pt ON pt.id = e\.entity_id/);
+  assert.match(RECEIPTS_SOURCE, /receipt_kind: "vault_execution"/);
+  assert.match(RECEIPTS_SOURCE, /readReceiptByExecutionId/);
 });
 
-test("execution logging records the actual template version used", () => {
+test("execution logging records the actual template version used and finalizes via receipts on message send", () => {
   assert.match(
     DB_SOURCE,
-    /const entityVersion = Number\.isFinite\(template\.version\) \? Number\(template\.version\) : "NULL"/,
+    /const entityVersion = Number\.isFinite\(template\.version\) \? Number\(template\.version\) : null/,
   );
-  assert.doesNotMatch(DB_SOURCE, /VALUES \('template', \$\{templateId\}, 1,/);
+  assert.match(DB_SOURCE, /LAST_INSERT_ID\(\) AS insert_id/);
   assert.match(
-    COMMANDS_SOURCE,
-    /runtime\.logExecution\(resolved\.template, ctx\.model\?\.id \|\| "unknown",/,
+    RECEIPTS_SOURCE,
+    /runtime\.logExecution\(candidate\.template, modelId, candidate\.input_context\)/,
   );
-  assert.match(PICKER_SOURCE, /runtime\.logExecution\(template, "live-trigger", parsed\.context\)/);
+  assert.match(COMMANDS_SOURCE, /pi\.on\("message_end"/);
+  assert.match(COMMANDS_SOURCE, /receipts\.finalizePreparedExecution/);
+  assert.match(RECEIPTS_SOURCE, /createPreparedExecutionToken/);
+  assert.match(RECEIPTS_SOURCE, /withPreparedExecutionMarker/);
+  assert.match(PICKER_SOURCE, /execution_token: executionToken/);
+  assert.match(COMMANDS_SOURCE, /stripPreparedExecutionMarkers/);
 });
 
 test("vault_query hides governance metadata by default and can opt in", () => {
@@ -234,10 +252,10 @@ test("vault selection parsing delegates :: context handling to helper", () => {
 });
 
 test("vault exact match resolves directly before picker fallback", () => {
-  assert.match(COMMANDS_SOURCE, /const currentCompany = runtime\.getCurrentCompany\(ctx\.cwd\)/);
+  assert.match(COMMANDS_SOURCE, /resolveCommandCompanyContext\(runtime, ctx\)/);
   assert.match(
     COMMANDS_SOURCE,
-    /const exactMatchResult = query\.trim\(\)\s*\? runtime\.getTemplateDetailed\(query\.trim\(\), \{ currentCompany, cwd: ctx\.cwd \}\)\s*:\s*\{ ok: true, value: null, error: null as null \}/,
+    /const exactMatchResult = query\.trim\(\)\s*\? runtime\.getTemplateDetailed\(query\.trim\(\), \{[\s\S]*currentCompany,[\s\S]*requireExplicitCompany: true,[\s\S]*\}\)\s*:\s*\{ ok: true, value: null, error: null as null \}/,
   );
   assert.match(COMMANDS_SOURCE, /selection mode=exact/);
 });
@@ -249,8 +267,13 @@ test("legacy browse select and list commands are removed", () => {
   assert.doesNotMatch(COMMANDS_SOURCE, /\/vault-list/);
 });
 
-test("vault picker surfaces full candidate set to UI", () => {
-  assert.match(PICKER_SOURCE, /listTemplatesDetailed\(undefined, \{/);
+test("vault picker surfaces full candidate set to UI through strict exported-only metadata reads", () => {
+  assert.match(PICKER_SOURCE, /resolvePickerCompanyContext\(runtime, ctx\)/);
+  assert.match(
+    PICKER_SOURCE,
+    /listTemplatesDetailed\([\s\S]*requireExplicitCompany: true,[\s\S]*\{ includeContent: false \}/,
+  );
+  assert.match(PICKER_SOURCE, /explicit-company-context-required/);
   assert.match(PICKER_SOURCE, /maxOptions:\s*Math\.max\(1,\s*candidates\.length\)/);
   assert.match(PICKER_SOURCE, /Vault template picker \(all templates\)/);
 });
@@ -306,21 +329,24 @@ test("vault live telemetry command is exposed", () => {
   assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-live-telemetry"/);
 });
 
-test("vault stats uses the caller company instead of ambient visibility state", () => {
-  assert.match(COMMANDS_SOURCE, /const currentCompany = runtime\.getCurrentCompany\(ctx\.cwd\)/);
-  assert.match(COMMANDS_SOURCE, /runtime\.buildVisibilityPredicate\(currentCompany\)/);
+test("vault stats uses the caller company through the centralized Pi-visible predicate", () => {
+  assert.match(COMMANDS_SOURCE, /resolveCommandCompanyContext\(runtime, ctx\)/);
+  assert.match(COMMANDS_SOURCE, /const currentCompany = companyContext\.currentCompany/);
+  assert.match(COMMANDS_SOURCE, /runtime\.buildPiVisibleTemplatePredicate\(currentCompany, "pt"\)/);
 });
 
 test("session-sensitive execution paths pass explicit company context before rendering", () => {
   assert.doesNotMatch(COMMANDS_SOURCE, /runtime\.setSessionCwd\(/);
+  assert.match(COMMANDS_SOURCE, /resolveCommandCompanyContext\(runtime, ctx\)/);
   assert.match(COMMANDS_SOURCE, /buildGroundedNext10Prompt\(text, \{/);
-  assert.match(COMMANDS_SOURCE, /currentCompany: runtime\.getCurrentCompany\(ctx\.cwd\)/);
+  assert.match(COMMANDS_SOURCE, /currentCompany: companyContext\.currentCompany/);
+  assert.match(PICKER_SOURCE, /resolvePickerCompanyContext\(runtime, context\)/);
+  assert.match(PICKER_SOURCE, /requireExplicitCompany: true/);
+  assert.match(GROUNDING_SOURCE, /runtime\.resolveCurrentCompanyContext\(options\.cwd\)/);
   assert.match(
-    PICKER_SOURCE,
-    /const currentCompany = runtime\.getCurrentCompany\(context\?\.cwd\)/,
+    GROUNDING_SOURCE,
+    /BLOCKED: explicit company context is required for visibility-sensitive vault reads/,
   );
-  assert.match(PICKER_SOURCE, /runtime\.listTemplatesDetailed\(undefined, \{/);
-  assert.match(PICKER_SOURCE, /cwd: context\?\.cwd/);
   assert.match(GROUNDING_SOURCE, /retrieveByNamesDetailed\(exactCandidates, true, \{/);
   assert.match(
     GROUNDING_SOURCE,
