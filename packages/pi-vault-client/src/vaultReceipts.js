@@ -276,7 +276,7 @@ function buildReceipt(candidate, execution, sentText) {
         replay_safe_inputs: candidate.replay_safe_inputs,
     };
 }
-function receiptVisibleToCompany(receipt, company) {
+export function receiptVisibleToCompany(receipt, company) {
     if (!company)
         return true;
     return receipt.template.visibility_companies.includes(company);

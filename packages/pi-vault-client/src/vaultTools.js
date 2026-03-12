@@ -1,5 +1,7 @@
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
+import { receiptVisibleToCompany } from "./vaultReceipts.js";
+import { formatVaultReplayReport, replayVaultExecutionById } from "./vaultReplay.js";
 import { DEFAULT_VAULT_QUERY_LIMIT, MAX_VAULT_QUERY_LIMIT, renderTextPreview, } from "./vaultTypes.js";
 function normalizeStringArray(value) {
     return (value || [])
@@ -577,6 +579,63 @@ Example:
         renderResult(result) {
             const details = result.details;
             return new Text(details?.ok ? "ok" : "error", 0, 0);
+        },
+    });
+    pi.registerTool({
+        name: "vault_replay",
+        label: "Vault Replay",
+        description: `Replay a local vault execution receipt by exact execution_id.
+
+Uses the local receipt replay core to classify match, drift, or unavailable without inventing new replay semantics.
+Example: vault_replay({ execution_id: 42 })`,
+        parameters: Type.Object({
+            execution_id: Type.Number({ description: "Exact execution id to replay" }),
+        }),
+        async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+            const executionContextResult = resolveStrictToolReadExecutionContext(runtime, ctx);
+            if (!executionContextResult.ok) {
+                return {
+                    content: [{ type: "text", text: executionContextResult.error }],
+                    details: { ok: false, error: executionContextResult.error },
+                };
+            }
+            if (!receipts) {
+                const error = "Local vault execution receipts are unavailable in this runtime.";
+                return {
+                    content: [{ type: "text", text: error }],
+                    details: { ok: false, error },
+                };
+            }
+            const executionContext = executionContextResult.value;
+            const executionId = Math.floor(Number(params.execution_id));
+            if (!Number.isFinite(executionId) || executionId < 1) {
+                const error = "execution_id must be a positive integer.";
+                return {
+                    content: [{ type: "text", text: error }],
+                    details: { ok: false, error },
+                };
+            }
+            const receipt = receipts.readReceiptByExecutionId(executionId);
+            const report = !receipt || !receiptVisibleToCompany(receipt, executionContext.currentCompany)
+                ? replayVaultExecutionById(runtime, { readReceiptByExecutionId: () => null }, executionId, executionContext)
+                : replayVaultExecutionById(runtime, receipts, executionId, executionContext);
+            return {
+                content: [{ type: "text", text: formatVaultReplayReport(report) }],
+                details: {
+                    ok: report.status === "match",
+                    ...report,
+                    currentCompany: executionContext.currentCompany,
+                    currentCompanySource: executionContext.companySource,
+                },
+            };
+        },
+        renderCall(args, theme) {
+            return new Text(theme.fg("toolTitle", theme.bold("vault_replay ")) +
+                theme.fg("accent", String(args.execution_id || "?")), 0, 0);
+        },
+        renderResult(result) {
+            const details = result.details;
+            return new Text(details?.status || "unavailable", 0, 0);
         },
     });
     pi.registerTool({

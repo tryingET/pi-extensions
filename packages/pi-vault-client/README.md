@@ -97,6 +97,7 @@ Kept commands:
 - `/vault-fzf-spike`
 - `/vault-last-receipt` — latest local receipt visible to the current company
 - `/vault-receipt <execution_id>` — exact local receipt if visible to the current company
+- `/vault-replay <execution_id>` — deterministic replay report for one visible local receipt
 
 Current `/vault` behavior:
 
@@ -116,7 +117,7 @@ Tool-query defaults:
 - `vault_executions` defaults to `limit: 20`
 - `include_content` defaults to `false`
 - `include_governance` defaults to `false`
-- `vault_query`, `vault_retrieve`, and `vault_executions` use explicit tool-call `ctx.cwd` when available so visibility-sensitive reads stay session-aware on the tool surface too
+- `vault_query`, `vault_retrieve`, `vault_replay`, and `vault_executions` use explicit tool-call `ctx.cwd` when available so visibility-sensitive reads stay session-aware on the tool surface too
 - visibility-sensitive tool reads now fail closed when no explicit company context is available on the tool surface
   - set `PI_COMPANY` or invoke from a company-scoped cwd
 - governed ontology/visibility contracts now refresh in-process when the underlying contract files change
@@ -138,7 +139,7 @@ Tool-query defaults:
   - queued prepared prompts now carry an opaque hidden execution marker so send-time binding does not rely on raw prompt-text equality
   - execution markers are stripped from user messages before the LLM sees them
   - `vault_executions` prefers local receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
-  - replay core can now regenerate local receipts by `execution_id` and classify `match` / `drift` / `unavailable` internally; the operator-facing replay command/tool surface is still deferred to a later slice
+  - `vault_replay({ execution_id })` and `/vault-replay <execution_id>` now expose the local replay core directly with deterministic `match` / `drift` / `unavailable` reporting keyed to the exact execution id
 
 Tool mutation surface:
 
@@ -317,5 +318,6 @@ npm run docs:list:json
 - [Live render-engine validation](docs/dev/live-render-engine-validation.md)
 - [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
 - [Replay core diary](diary/2026-03-12-vre-08-replay-core.md)
+- [Replay surface diary](diary/2026-03-12-vre-09-replay-surface.md)
 - [Previous receipt hardening diary](diary/2026-03-12-receipt-hardening.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)

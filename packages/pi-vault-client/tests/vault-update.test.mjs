@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -72,6 +73,58 @@ function makeTemplate(overrides = {}) {
   };
 }
 
+function sha256(text) {
+  return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+function makeReplayReceipt(template, preparedText, overrides = {}) {
+  return {
+    schema_version: 1,
+    receipt_kind: "vault_execution",
+    execution_id: 41,
+    recorded_at: "2026-03-12T12:00:00.000Z",
+    invocation: {
+      surface: "/vault",
+      channel: "slash-command",
+      selection_mode: "exact",
+      llm_tool_call: null,
+    },
+    template: {
+      id: template.id,
+      name: template.name,
+      version: template.version,
+      artifact_kind: template.artifact_kind,
+      control_mode: template.control_mode,
+      formalization_level: template.formalization_level,
+      owner_company: template.owner_company,
+      visibility_companies: [...template.visibility_companies],
+    },
+    company: {
+      current_company: "software",
+      company_source: "cwd:/tmp/softwareco/owned/demo",
+    },
+    model: { id: "unit-test-model" },
+    render: {
+      engine: "none",
+      explicit_engine: null,
+      context_appended: false,
+      append_context_section: true,
+      used_render_keys: [],
+    },
+    prepared: {
+      text: preparedText,
+      sha256: sha256(preparedText),
+      edited_after_prepare: false,
+    },
+    replay_safe_inputs: {
+      kind: "vault-selection",
+      query: template.name,
+      context: "",
+    },
+    ...overrides,
+  };
+}
+
 function createTranspiledVaultModules() {
   const baseDir = path.join(PACKAGE_ROOT, ".tmp-test");
   mkdirSync(baseDir, { recursive: true });
@@ -81,6 +134,11 @@ function createTranspiledVaultModules() {
     "src/vaultTypes.ts",
     "src/vaultDb.ts",
     "src/vaultTools.ts",
+    "src/vaultReceipts.ts",
+    "src/vaultReplay.ts",
+    "src/vaultRoute.ts",
+    "src/vaultGrounding.ts",
+    "src/templatePreparationCompat.js",
     "src/templateRenderer.js",
   ]) {
     const sourcePath = path.join(PACKAGE_ROOT, relativePath);
@@ -207,6 +265,11 @@ test("vault_executions and vault_rate use execution-bound provenance contracts",
       },
     });
 
+    const replayTool = tools.get("vault_replay");
+    assert.ok(replayTool);
+    assert.deepEqual(replayTool.parameters.required, ["execution_id"]);
+    assert.equal(replayTool.parameters.properties.execution_id?.type, "number");
+
     const executionsTool = tools.get("vault_executions");
     assert.ok(executionsTool);
     assert.equal(executionsTool.parameters.properties.template_name?.type, "string");
@@ -216,6 +279,163 @@ test("vault_executions and vault_rate use execution-bound provenance contracts",
     assert.deepEqual(rateTool.parameters.required, ["execution_id", "rating", "success"]);
     assert.equal(rateTool.parameters.properties.execution_id?.type, "number");
     assert.equal(rateTool.parameters.properties.template_name, undefined);
+  });
+});
+
+test("vault_replay tool surfaces drift and unavailable replay classifications", async () => {
+  await withVaultModules(async ({ importModule }) => {
+    const { registerVaultTools } = await importModule("src/vaultTools.js");
+    const tools = new Map();
+    const baseTemplate = makeTemplate({
+      name: "replay-template",
+      content: "Stable prompt",
+      owner_company: "software",
+      visibility_companies: ["core", "software"],
+      control_mode: "one_shot",
+      formalization_level: "workflow",
+    });
+    const scenarios = [
+      {
+        currentCompany: "software",
+        receipt: makeReplayReceipt(baseTemplate, "Stable prompt"),
+        templateResult: {
+          ok: true,
+          value: { ...baseTemplate, version: 2, content: "Changed prompt" },
+          error: null,
+        },
+        expectedStatus: "drift",
+        expectedReasons: ["version-mismatch", "render-mismatch"],
+      },
+      {
+        currentCompany: "core",
+        receipt: makeReplayReceipt(baseTemplate, "Stable prompt"),
+        templateResult: { ok: true, value: baseTemplate, error: null },
+        expectedStatus: "unavailable",
+        expectedReasons: ["company-mismatch"],
+      },
+      {
+        currentCompany: "software",
+        receipt: makeReplayReceipt(baseTemplate, "Stable prompt"),
+        templateResult: { ok: true, value: null, error: null },
+        expectedStatus: "unavailable",
+        expectedReasons: ["template-missing"],
+      },
+      {
+        currentCompany: "software",
+        receipt: makeReplayReceipt(baseTemplate, "Stable prompt", {
+          replay_safe_inputs: { kind: "unknown-kind" },
+        }),
+        templateResult: { ok: true, value: baseTemplate, error: null },
+        expectedStatus: "unavailable",
+        expectedReasons: ["missing-input-contract"],
+      },
+    ];
+    let scenario = scenarios[0];
+    const pi = {
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+    };
+
+    registerVaultTools(
+      pi,
+      {
+        resolveCurrentCompanyContext(cwd) {
+          return {
+            company: scenario.currentCompany,
+            source: cwd ? `cwd:${cwd}` : "contract-default",
+          };
+        },
+        getTemplateDetailed() {
+          return scenario.templateResult;
+        },
+      },
+      {
+        readReceiptByExecutionId(executionId) {
+          assert.equal(executionId, 41);
+          return scenario.receipt;
+        },
+        listRecentReceipts() {
+          return [];
+        },
+      },
+    );
+
+    const replayTool = tools.get("vault_replay");
+    assert.ok(replayTool);
+
+    for (const testScenario of scenarios) {
+      scenario = testScenario;
+      const result = await replayTool.execute(
+        "call-1",
+        { execution_id: 41 },
+        undefined,
+        undefined,
+        { cwd: "/tmp/softwareco/owned/demo" },
+      );
+      const text = result.content[0]?.text || "";
+      assert.match(text, new RegExp(`status: ${testScenario.expectedStatus}`));
+      for (const reason of testScenario.expectedReasons) {
+        assert.match(text, new RegExp(reason));
+      }
+      assert.equal(result.details.status, testScenario.expectedStatus);
+    }
+  });
+});
+
+test("vault_replay hides non-visible receipts as missing", async () => {
+  await withVaultModules(async ({ importModule }) => {
+    const { registerVaultTools } = await importModule("src/vaultTools.js");
+    const tools = new Map();
+    const hiddenReceipt = makeReplayReceipt(
+      makeTemplate({
+        name: "hidden-template",
+        owner_company: "software",
+        visibility_companies: ["software"],
+        control_mode: "one_shot",
+      }),
+      "Hidden prompt",
+    );
+    const pi = {
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+    };
+
+    registerVaultTools(
+      pi,
+      {
+        resolveCurrentCompanyContext(cwd) {
+          return {
+            company: "finance",
+            source: cwd ? `cwd:${cwd}` : "contract-default",
+          };
+        },
+        getTemplateDetailed() {
+          throw new Error("template lookup should not run for non-visible receipts");
+        },
+      },
+      {
+        readReceiptByExecutionId() {
+          return hiddenReceipt;
+        },
+        listRecentReceipts() {
+          return [];
+        },
+      },
+    );
+
+    const replayTool = tools.get("vault_replay");
+    const result = await replayTool.execute("call-1", { execution_id: 41 }, undefined, undefined, {
+      cwd: "/tmp/softwareco/owned/demo",
+    });
+
+    const text = result.content[0]?.text || "";
+    assert.match(text, /status: unavailable/);
+    assert.match(text, /reasons: receipt-missing/);
+    assert.match(text, /current_company: finance/);
+    assert.doesNotMatch(text, /hidden-template/);
+    assert.equal(result.details.status, "unavailable");
   });
 });
 

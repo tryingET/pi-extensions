@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -40,6 +41,58 @@ function makeTemplate(overrides = {}) {
   };
 }
 
+function sha256(text) {
+  return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+function makeReplayReceipt(template, preparedText, overrides = {}) {
+  return {
+    schema_version: 1,
+    receipt_kind: "vault_execution",
+    execution_id: 41,
+    recorded_at: "2026-03-12T12:00:00.000Z",
+    invocation: {
+      surface: "/vault",
+      channel: "slash-command",
+      selection_mode: "exact",
+      llm_tool_call: null,
+    },
+    template: {
+      id: template.id,
+      name: template.name,
+      version: template.version,
+      artifact_kind: template.artifact_kind,
+      control_mode: template.control_mode,
+      formalization_level: template.formalization_level,
+      owner_company: template.owner_company,
+      visibility_companies: [...template.visibility_companies],
+    },
+    company: {
+      current_company: "software",
+      company_source: "cwd:/tmp/software/project",
+    },
+    model: { id: "unit-test-model" },
+    render: {
+      engine: "none",
+      explicit_engine: null,
+      context_appended: false,
+      append_context_section: true,
+      used_render_keys: [],
+    },
+    prepared: {
+      text: preparedText,
+      sha256: sha256(preparedText),
+      edited_after_prepare: false,
+    },
+    replay_safe_inputs: {
+      kind: "vault-selection",
+      query: template.name,
+      context: "",
+    },
+    ...overrides,
+  };
+}
+
 function linkPackageDependency(tempDir, packageName, packageRoot) {
   const destination = path.join(tempDir, "node_modules", ...packageName.split("/"));
   mkdirSync(path.dirname(destination), { recursive: true });
@@ -58,7 +111,9 @@ function createTranspiledCommandModules() {
     "src/vaultTypes.ts",
     "src/vaultCommands.ts",
     "src/vaultReceipts.ts",
+    "src/vaultReplay.ts",
     "src/vaultRoute.ts",
+    "src/vaultGrounding.ts",
     "src/fuzzySelector.js",
     "src/triggerAdapter.js",
     "src/templatePreparationCompat.js",
@@ -567,6 +622,88 @@ test("vault receipt inspection commands respect current company visibility", asy
       notifications[1]?.message || "",
       /No local receipt found for execution 7 in the current company context/,
     );
+  });
+});
+
+test("vault replay command renders a deterministic replay report", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+    const template = makeTemplate({
+      name: "replay-match",
+      content: "Replay body",
+      owner_company: "software",
+      visibility_companies: ["software"],
+      artifact_kind: "procedure",
+      formalization_level: "workflow",
+    });
+    const receipt = makeReplayReceipt(template, "Replay body");
+    const editors = [];
+    const notifications = [];
+
+    registerVaultCommands(
+      pi,
+      {
+        checkSchemaCompatibilityDetailed() {
+          return {
+            ok: true,
+            expectedVersion: 9,
+            actualVersion: 9,
+            missingPromptTemplateColumns: [],
+            missingExecutionColumns: [],
+            missingFeedbackColumns: [],
+          };
+        },
+        resolveCurrentCompanyContext(cwd) {
+          return {
+            company: "software",
+            source: `cwd:${cwd}`,
+          };
+        },
+        getTemplateDetailed(name) {
+          assert.equal(name, "replay-match");
+          return { ok: true, value: template, error: null };
+        },
+      },
+      {
+        readReceiptByExecutionId(executionId) {
+          assert.equal(executionId, 41);
+          return receipt;
+        },
+        listRecentReceipts() {
+          return [receipt];
+        },
+      },
+    );
+
+    const replayCommand = pi.commands.get("vault-replay");
+    assert.ok(replayCommand);
+
+    await replayCommand.handler("41", {
+      hasUI: true,
+      cwd: "/tmp/software/project",
+      ui: {
+        async editor(title, text) {
+          editors.push({ title, text });
+        },
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.equal(editors.length, 1);
+    assert.equal(editors[0].title, "Vault Replay 41");
+    assert.match(editors[0].text, /# Vault Execution Replay/);
+    assert.match(editors[0].text, /status: match/);
+    assert.match(editors[0].text, /reasons: none/);
+    assert.match(editors[0].text, /template: replay-match/);
+    assert.match(editors[0].text, /## Stored Prepared Prompt/);
+    assert.match(editors[0].text, /## Regenerated Prepared Prompt/);
+    assert.deepEqual(notifications.at(-1), {
+      message: "Vault replay status: match",
+      level: "info",
+    });
   });
 });
 

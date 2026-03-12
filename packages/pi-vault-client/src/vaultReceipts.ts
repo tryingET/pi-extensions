@@ -313,7 +313,10 @@ function buildReceipt(
   };
 }
 
-function receiptVisibleToCompany(receipt: VaultExecutionReceiptV1, company?: string): boolean {
+export function receiptVisibleToCompany(
+  receipt: VaultExecutionReceiptV1,
+  company?: string,
+): boolean {
   if (!company) return true;
   return receipt.template.visibility_companies.includes(company);
 }

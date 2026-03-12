@@ -35,7 +35,7 @@ As of the current package runtime:
   - replay loads local receipts by `execution_id`
   - replay regenerates prepared prompts for `vault-selection`, `route-request`, and `grounding-request`
   - replay classifies `match`, `drift`, and `unavailable` with explicit reasons including `template-missing`, `version-mismatch`, `render-mismatch`, `company-mismatch`, and `missing-input-contract`
-  - the operator-facing replay command/tool surface is **not** implemented yet
+  - the operator-facing replay surface is now exposed through `/vault-replay <execution_id>` and `vault_replay({ execution_id })`
 
 Execution rows are now written only when the prepared prompt is actually sent as a real user message.
 Editor population alone is no longer treated as a successful execution.
@@ -522,6 +522,7 @@ The implementation phases intentionally mirror the AK backlog.
 
 ### Phase 9 — replay surface (`VRE-09`)
 - expose replay as a deterministic command/tool
+- status: implemented through `/vault-replay <execution_id>` and `vault_replay({ execution_id })`
 
 ### Phase 10 — docs and test hardening (`VRE-10`)
 - strengthen coverage across all receipt/replay surfaces

@@ -3,9 +3,11 @@ import { runFzfProbe } from "./fuzzySelector.js";
 import {
   createPreparedExecutionToken,
   formatVaultReceipt,
+  receiptVisibleToCompany,
   stripPreparedExecutionMarkers,
   withPreparedExecutionMarker,
 } from "./vaultReceipts.js";
+import { formatVaultReplayReport, replayVaultExecutionById } from "./vaultReplay.js";
 import { buildRoutePrompt, getRoutePromptShapeForChannel } from "./vaultRoute.js";
 import type {
   PiExtension,
@@ -788,16 +790,39 @@ export function registerVaultCommands(
           return ctx.ui.notify("Usage: /vault-receipt <execution_id>", "warning");
         }
         const receipt = receipts.readReceiptByExecutionId(executionId);
-        if (
-          !receipt ||
-          !receipt.template.visibility_companies.includes(companyContext.currentCompany)
-        ) {
+        if (!receipt || !receiptVisibleToCompany(receipt, companyContext.currentCompany)) {
           return ctx.ui.notify(
             `No local receipt found for execution ${executionId} in the current company context.`,
             "warning",
           );
         }
         await ctx.ui.editor(`Vault Receipt ${executionId}`, formatVaultReceipt(receipt));
+      },
+    });
+
+    pi.registerCommand("vault-replay", {
+      description: "Replay a local vault execution receipt by execution id",
+      handler: async (args, ctx) => {
+        if (!ctx.hasUI) return;
+        const companyContext = resolveCommandCompanyContext(runtime, ctx);
+        if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+        const executionId = Math.floor(Number(args.trim()));
+        if (!Number.isFinite(executionId) || executionId < 1) {
+          return ctx.ui.notify("Usage: /vault-replay <execution_id>", "warning");
+        }
+        const receipt = receipts.readReceiptByExecutionId(executionId);
+        if (!receipt || !receiptVisibleToCompany(receipt, companyContext.currentCompany)) {
+          return ctx.ui.notify(
+            `No local receipt found for execution ${executionId} in the current company context.`,
+            "warning",
+          );
+        }
+        const report = replayVaultExecutionById(runtime, receipts, executionId, {
+          currentCompany: companyContext.currentCompany,
+          cwd: ctx.cwd,
+        });
+        await ctx.ui.editor(`Vault Replay ${executionId}`, formatVaultReplayReport(report));
+        ctx.ui.notify(`Vault replay status: ${report.status}`, "info");
       },
     });
   }

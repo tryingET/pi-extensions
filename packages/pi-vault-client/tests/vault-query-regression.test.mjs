@@ -8,6 +8,7 @@ const COMMANDS_SOURCE = readFileSync(new URL("../src/vaultCommands.ts", import.m
 const ROUTE_SOURCE = readFileSync(new URL("../src/vaultRoute.ts", import.meta.url), "utf8");
 const TOOLS_SOURCE = readFileSync(new URL("../src/vaultTools.ts", import.meta.url), "utf8");
 const TYPES_SOURCE = readFileSync(new URL("../src/vaultTypes.ts", import.meta.url), "utf8");
+const REPLAY_SOURCE = readFileSync(new URL("../src/vaultReplay.ts", import.meta.url), "utf8");
 const GROUNDING_SOURCE = readFileSync(new URL("../src/vaultGrounding.ts", import.meta.url), "utf8");
 const RENDERER_SOURCE = readFileSync(
   new URL("../src/templateRenderer.js", import.meta.url),
@@ -191,6 +192,7 @@ test("vault tools pass explicit tool-call context when available", () => {
 });
 
 test("vault exposes execution provenance for exact feedback binding", () => {
+  assert.match(TOOLS_SOURCE, /name: "vault_replay"/);
   assert.match(TOOLS_SOURCE, /name: "vault_executions"/);
   assert.match(TOOLS_SOURCE, /execution_id/);
   assert.match(TOOLS_SOURCE, /entity_version/);
@@ -198,6 +200,16 @@ test("vault exposes execution provenance for exact feedback binding", () => {
   assert.match(DB_SOURCE, /INNER JOIN prompt_templates pt ON pt.id = e\.entity_id/);
   assert.match(RECEIPTS_SOURCE, /receipt_kind: "vault_execution"/);
   assert.match(RECEIPTS_SOURCE, /readReceiptByExecutionId/);
+});
+
+test("vault replay surfaces are registered through deterministic command and tool contracts", () => {
+  assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-replay"/);
+  assert.match(COMMANDS_SOURCE, /Usage: \/vault-replay <execution_id>/);
+  assert.match(COMMANDS_SOURCE, /formatVaultReplayReport\(report\)/);
+  assert.match(TOOLS_SOURCE, /name: "vault_replay"/);
+  assert.match(TOOLS_SOURCE, /formatVaultReplayReport\(report\)/);
+  assert.match(REPLAY_SOURCE, /export function formatVaultReplayReport/);
+  assert.match(REPLAY_SOURCE, /status: \$\{report\.status\}/);
 });
 
 test("execution logging records the actual template version used and finalizes via receipts on message send", () => {

@@ -78,6 +78,27 @@ function createBaseReport(
   };
 }
 
+function resolveRequestedReplayContext(
+  runtime: VaultRuntime,
+  options?: { currentCompany?: string; cwd?: string },
+): { current_company?: string; company_source?: string } {
+  const explicitCompany = String(options?.currentCompany || "").trim();
+  if (explicitCompany) {
+    return {
+      current_company: explicitCompany,
+      company_source: "explicit:currentCompany",
+    };
+  }
+  if (options?.cwd) {
+    const resolved = runtime.resolveCurrentCompanyContext(options.cwd);
+    return {
+      current_company: resolved.company,
+      company_source: resolved.source,
+    };
+  }
+  return {};
+}
+
 function finalizeReport(report: VaultReplayReport): VaultReplayReport {
   const reasons = uniqueReasons(report.reasons);
   const matches = report.matches_prepared_text && report.matches_prepared_sha256;
@@ -448,9 +469,11 @@ export function replayVaultExecutionById(
   options?: { currentCompany?: string; cwd?: string },
 ): VaultReplayReport {
   const normalizedExecutionId = Math.floor(Number(executionId));
+  const requestedContext = resolveRequestedReplayContext(runtime, options);
   if (!Number.isFinite(normalizedExecutionId) || normalizedExecutionId < 1) {
     return finalizeReport(
       createBaseReport(normalizedExecutionId, null, {
+        ...requestedContext,
         reasons: ["receipt-missing"],
         notes: ["Replay requires a positive integer execution_id."],
       }),
@@ -461,6 +484,7 @@ export function replayVaultExecutionById(
   if (!receipt) {
     return finalizeReport(
       createBaseReport(normalizedExecutionId, null, {
+        ...requestedContext,
         reasons: ["receipt-missing"],
         notes: [`No local receipt found for execution ${normalizedExecutionId}.`],
       }),
@@ -468,4 +492,40 @@ export function replayVaultExecutionById(
   }
 
   return replayVaultExecutionReceipt(runtime, receipt, options);
+}
+
+export function formatVaultReplayReport(report: VaultReplayReport): string {
+  const receipt = report.receipt;
+  const recordedVersion = Number.isFinite(Number(receipt?.template.version))
+    ? Number(receipt?.template.version)
+    : null;
+  const lines = [
+    "# Vault Execution Replay",
+    "",
+    `- execution_id: ${report.execution_id}`,
+    `- status: ${report.status}`,
+    `- reasons: ${report.reasons.join(", ") || "none"}`,
+    `- current_company: ${report.current_company || "(unknown)"}`,
+    `- company_source: ${report.company_source || "(unknown)"}`,
+    `- template: ${report.template_name || receipt?.template.name || "(unknown)"}`,
+    `- recorded_template_version: ${recordedVersion ?? "unknown"}`,
+    `- current_template_version: ${report.template_version ?? "unknown"}`,
+    `- surface: ${receipt?.invocation.surface || "(unavailable)"}`,
+    `- channel: ${receipt?.invocation.channel || "(unavailable)"}`,
+    `- selection_mode: ${receipt?.invocation.selection_mode || "(unavailable)"}`,
+    `- matches_prepared_text: ${report.matches_prepared_text ? "true" : "false"}`,
+    `- matches_prepared_sha256: ${report.matches_prepared_sha256 ? "true" : "false"}`,
+    `- recorded_prepared_sha256: ${receipt?.prepared.sha256 || "(unavailable)"}`,
+    `- regenerated_prepared_sha256: ${report.regenerated?.sha256 || "(unavailable)"}`,
+    `- recorded_render_engine: ${receipt?.render.engine || "(unavailable)"}`,
+    `- regenerated_render_engine: ${report.regenerated?.engine || "(unavailable)"}`,
+    `- notes: ${report.notes.join(" | ") || "none"}`,
+    "",
+    "## Stored Prepared Prompt",
+    receipt?.prepared.text || "(unavailable)",
+    "",
+    "## Regenerated Prepared Prompt",
+    report.regenerated?.text || "(unavailable)",
+  ];
+  return lines.join("\n");
 }
