@@ -262,10 +262,10 @@ async function inspectPromptCommands(commands: Array<Record<string, unknown>>) {
 
 async function loadTriggerSurface() {
   try {
-    return await import("@tryinget/pi-trigger-adapter");
+    return await import("@tryinget/pi-interaction");
   } catch {
     try {
-      return await import("@tryinget/pi-interaction");
+      return await import("@tryinget/pi-trigger-adapter");
     } catch {
       return null;
     }

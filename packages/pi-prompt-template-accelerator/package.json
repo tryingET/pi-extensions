@@ -38,7 +38,9 @@
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
-    "release:check:quick": "npm pack --dry-run"
+    "release:check:quick": "npm pack --dry-run",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
   },
   "pi": {
     "extensions": [
@@ -55,8 +57,8 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
-    "@tryinget/pi-interaction": "^0.2.0",
-    "@tryinget/pi-trigger-adapter": "^0.1.0"
+    "@tryinget/pi-interaction": "file:../pi-interaction/pi-interaction",
+    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
   },
   "devDependencies": {
     "tsx": "^4.20.5"
