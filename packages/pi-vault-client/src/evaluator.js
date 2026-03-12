@@ -6,22 +6,44 @@
  */
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
+function formatEvaluatorError(error) {
+    return error instanceof Error ? error.message : String(error);
+}
 function createVariant(vault, name, content, description) {
-    const id = `var_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const createdAt = Date.now();
+    const id = `var_${createdAt}_${Math.random().toString(36).slice(2, 8)}`;
+    const escapedId = vault.escapeSql(id);
     const escapedContent = vault.escapeSql(content);
     const escapedDesc = vault.escapeSql(description || "");
     const escapedName = vault.escapeSql(name);
-    // Ensure table exists
-    vault.exec(`CREATE TABLE IF NOT EXISTS prompt_variants (
+    const tableReady = vault.exec(`CREATE TABLE IF NOT EXISTS prompt_variants (
       id VARCHAR(64) PRIMARY KEY,
       name VARCHAR(128),
       content TEXT,
       description TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
-    vault.exec(`INSERT INTO prompt_variants (id, name, content, description, created_at) VALUES ('${id}', '${escapedName}', '${escapedContent}', '${escapedDesc}', NOW())`);
-    vault.commit(`Add prompt variant: ${name}`);
-    return { id, name, content, description, createdAt: Date.now() };
+    if (!tableReady) {
+        return { ok: false, error: "Failed to ensure prompt_variants table exists" };
+    }
+    const inserted = vault.exec(`INSERT INTO prompt_variants (id, name, content, description, created_at) VALUES ('${escapedId}', '${escapedName}', '${escapedContent}', '${escapedDesc}', NOW())`);
+    if (!inserted) {
+        return { ok: false, error: `Failed to insert prompt variant: ${name}` };
+    }
+    try {
+        vault.commit(`Add prompt variant: ${name}`);
+    }
+    catch (error) {
+        return {
+            ok: false,
+            error: `Failed to commit prompt variant '${name}': ${formatEvaluatorError(error)}`,
+        };
+    }
+    const persisted = vault.queryJson(`SELECT id FROM prompt_variants WHERE id = '${escapedId}' LIMIT 1`);
+    if ((persisted?.rows || []).length !== 1) {
+        return { ok: false, error: `Prompt variant was not persisted: ${name}` };
+    }
+    return { ok: true, variant: { id, name, content, description, createdAt } };
 }
 function listVariants(vault) {
     const result = vault.queryJson("SELECT id, name, content, description FROM prompt_variants ORDER BY created_at DESC");
@@ -172,7 +194,14 @@ Use to systematically improve prompts through experimentation.`,
                         details: { ok: false },
                     };
                 }
-                const variant = createVariant(vault, params.name, params.content, params.description);
+                const created = createVariant(vault, params.name, params.content, params.description);
+                if (!created.ok) {
+                    return {
+                        content: [{ type: "text", text: `Error: ${created.error}` }],
+                        details: { ok: false, error: created.error },
+                    };
+                }
+                const variant = created.variant;
                 return {
                     content: [{ type: "text", text: `Created variant: ${variant.name} (${variant.id})` }],
                     details: { ok: true, variant },
