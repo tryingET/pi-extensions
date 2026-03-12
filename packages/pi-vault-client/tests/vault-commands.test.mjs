@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import ts from "typescript";
 import { stripPreparedExecutionMarkers } from "../src/vaultReceipts.js";
+import {
+  createPackageTempDir,
+  PACKAGE_ROOT,
+  withTranspiledModuleHarness,
+} from "./helpers/transpiled-module-harness.mjs";
 
-const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
-const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
 const INSTALLED_INTERACTION_KIT_ROOT = path.join(
   PACKAGE_ROOT,
   "node_modules",
@@ -93,71 +93,35 @@ function makeReplayReceipt(template, preparedText, overrides = {}) {
   };
 }
 
-function linkPackageDependency(tempDir, packageName, packageRoot) {
-  const destination = path.join(tempDir, "node_modules", ...packageName.split("/"));
-  mkdirSync(path.dirname(destination), { recursive: true });
-  symlinkSync(packageRoot, destination, "dir");
-}
-
-function createTranspiledCommandModules() {
-  const baseDir = path.join(PACKAGE_ROOT, ".tmp-test");
-  mkdirSync(baseDir, { recursive: true });
-  const tempDir = mkdtempSync(path.join(baseDir, "vault-commands-"));
-
-  linkPackageDependency(tempDir, "@tryinget/pi-interaction-kit", INSTALLED_INTERACTION_KIT_ROOT);
-  linkPackageDependency(tempDir, "@tryinget/pi-trigger-adapter", INSTALLED_TRIGGER_ADAPTER_ROOT);
-
-  for (const relativePath of [
-    "src/vaultTypes.ts",
-    "src/vaultCommands.ts",
-    "src/vaultReceipts.ts",
-    "src/vaultReplay.ts",
-    "src/vaultRoute.ts",
-    "src/vaultGrounding.ts",
-    "src/fuzzySelector.js",
-    "src/triggerAdapter.js",
-    "src/templatePreparationCompat.js",
-    "src/templateRenderer.js",
-  ]) {
-    const sourcePath = path.join(PACKAGE_ROOT, relativePath);
-    const source = readFileSync(sourcePath, "utf8");
-    const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));
-    mkdirSync(path.dirname(outputPath), { recursive: true });
-
-    if (relativePath.endsWith(".ts")) {
-      const transpiled = ts.transpileModule(source, {
-        compilerOptions: {
-          module: ts.ModuleKind.ESNext,
-          target: ts.ScriptTarget.ES2022,
-        },
-        fileName: sourcePath,
-      }).outputText;
-      writeFileSync(outputPath, transpiled, "utf8");
-      continue;
-    }
-
-    writeFileSync(outputPath, source, "utf8");
-  }
-
-  return {
-    async importModule(relativePath) {
-      return import(
-        `${pathToFileURL(path.join(tempDir, relativePath)).href}?t=${Date.now()}-${Math.random()}`
-      );
-    },
-    cleanup() {
-      rmSync(tempDir, { recursive: true, force: true });
-    },
-  };
-}
-
 async function withCommandModules(run) {
-  const modules = createTranspiledCommandModules();
-  try {
-    return await run(modules);
-  } finally {
-    modules.cleanup();
-  }
+  return withTranspiledModuleHarness(
+    {
+      prefix: "vault-commands-",
+      files: [
+        "src/vaultTypes.ts",
+        "src/vaultCommands.ts",
+        "src/vaultReceipts.ts",
+        "src/vaultReplay.ts",
+        "src/vaultRoute.ts",
+        "src/vaultGrounding.ts",
+        "src/fuzzySelector.js",
+        "src/triggerAdapter.js",
+        "src/templatePreparationCompat.js",
+        "src/templateRenderer.js",
+      ],
+      linkedPackages: [
+        {
+          packageName: "@tryinget/pi-interaction-kit",
+          packageRoot: INSTALLED_INTERACTION_KIT_ROOT,
+        },
+        {
+          packageName: "@tryinget/pi-trigger-adapter",
+          packageRoot: INSTALLED_TRIGGER_ADAPTER_ROOT,
+        },
+      ],
+    },
+    run,
+  );
 }
 
 function makePiStub() {
@@ -182,7 +146,7 @@ test("live /vault: exact-name path transforms in non-UI mode without picker fall
     const pi = makePiStub();
     const template = makeTemplate();
     const logged = [];
-    const receiptDir = mkdtempSync(path.join(PACKAGE_ROOT, ".tmp-test", "receipts-"));
+    const receiptDir = createPackageTempDir("receipts-");
     const receipts = createVaultReceiptManager(
       {
         logExecution(...args) {
@@ -281,7 +245,7 @@ test("interactive /vault command loads exact-name templates into the editor", as
     const notifications = [];
     const editorWrites = [];
     const logged = [];
-    const receiptDir = mkdtempSync(path.join(PACKAGE_ROOT, ".tmp-test", "receipts-"));
+    const receiptDir = createPackageTempDir("receipts-");
     const receipts = createVaultReceiptManager(
       {
         logExecution(...args) {

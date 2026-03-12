@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import ts from "typescript";
-
-const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
-const PACKAGE_ROOT = path.resolve(TEST_DIR, "..");
+import { withTranspiledModuleHarness } from "./helpers/transpiled-module-harness.mjs";
 
 function makeTemplate(overrides = {}) {
   return {
@@ -27,56 +21,19 @@ function makeTemplate(overrides = {}) {
   };
 }
 
-function createTranspiledGroundingModules() {
-  const baseDir = path.join(PACKAGE_ROOT, ".tmp-test");
-  mkdirSync(baseDir, { recursive: true });
-  const tempDir = mkdtempSync(path.join(baseDir, "vault-grounding-"));
-
-  for (const relativePath of [
-    "src/vaultTypes.ts",
-    "src/vaultGrounding.ts",
-    "src/templatePreparationCompat.js",
-    "src/templateRenderer.js",
-  ]) {
-    const sourcePath = path.join(PACKAGE_ROOT, relativePath);
-    const source = readFileSync(sourcePath, "utf8");
-    const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));
-    mkdirSync(path.dirname(outputPath), { recursive: true });
-
-    if (relativePath.endsWith(".ts")) {
-      const transpiled = ts.transpileModule(source, {
-        compilerOptions: {
-          module: ts.ModuleKind.ESNext,
-          target: ts.ScriptTarget.ES2022,
-        },
-        fileName: sourcePath,
-      }).outputText;
-      writeFileSync(outputPath, transpiled, "utf8");
-      continue;
-    }
-
-    writeFileSync(outputPath, source, "utf8");
-  }
-
-  return {
-    async importModule(relativePath) {
-      return import(
-        `${pathToFileURL(path.join(tempDir, relativePath)).href}?t=${Date.now()}-${Math.random()}`
-      );
-    },
-    cleanup() {
-      rmSync(tempDir, { recursive: true, force: true });
-    },
-  };
-}
-
 async function withGroundingModules(run) {
-  const modules = createTranspiledGroundingModules();
-  try {
-    return await run(modules);
-  } finally {
-    modules.cleanup();
-  }
+  return withTranspiledModuleHarness(
+    {
+      prefix: "vault-grounding-",
+      files: [
+        "src/vaultTypes.ts",
+        "src/vaultGrounding.ts",
+        "src/templatePreparationCompat.js",
+        "src/templateRenderer.js",
+      ],
+    },
+    run,
+  );
 }
 
 test("framework grounding appendix prepares explicit nunjucks templates through the shared renderer", async () => {
