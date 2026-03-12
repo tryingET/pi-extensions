@@ -377,6 +377,41 @@ export type GroundedNext10PromptResult =
   | GroundedNext10PromptSuccess
   | { ok: false; reason: string };
 
+export type VaultReplayStatus = "match" | "drift" | "unavailable";
+export type VaultReplayReason =
+  | "receipt-missing"
+  | "template-missing"
+  | "version-mismatch"
+  | "render-mismatch"
+  | "company-mismatch"
+  | "missing-input-contract"
+  | "runtime-unavailable";
+
+export interface VaultReplayPreparedSnapshot {
+  text: string;
+  sha256: string;
+  engine: RenderEngine;
+  explicit_engine: RenderEngine | null;
+  context_appended: boolean;
+  append_context_section: boolean;
+  used_render_keys: string[];
+}
+
+export interface VaultReplayReport {
+  execution_id: number;
+  status: VaultReplayStatus;
+  reasons: VaultReplayReason[];
+  current_company: string;
+  company_source: string;
+  receipt: VaultExecutionReceiptV1 | null;
+  template_name: string;
+  template_version: number | null;
+  regenerated: VaultReplayPreparedSnapshot | null;
+  matches_prepared_text: boolean;
+  matches_prepared_sha256: boolean;
+  notes: string[];
+}
+
 export interface GovernedContracts {
   ontology: {
     facets: {

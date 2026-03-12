@@ -6,9 +6,9 @@ import {
   stripPreparedExecutionMarkers,
   withPreparedExecutionMarker,
 } from "./vaultReceipts.js";
+import { buildRoutePrompt, getRoutePromptShapeForChannel } from "./vaultRoute.js";
 import type {
   PiExtension,
-  PreparedTemplateSuccess,
   Template,
   VaultModuleRuntime,
   VaultPreparedExecutionCandidate,
@@ -17,37 +17,6 @@ import type {
 
 const COMMAND_READ_CONTEXT_ERROR =
   "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
-
-function buildRoutePrompt(
-  metaContent: string,
-  context: string,
-  options: {
-    outputHeading: "Output:" | "Output format:";
-    reasoningLabel: string;
-    includeInvokeStep: boolean;
-  },
-): string {
-  const commandLine = options.includeInvokeStep ? "COMMAND: /vault:[tool]\n" : "";
-  return `${metaContent}
-
----
-
-## ROUTING REQUEST
-
-Analyze this situation and determine:
-1. Which PHASE this is in
-2. Which FORMALIZATION level (0-4)
-3. Which cognitive tool(s) to apply
-${options.includeInvokeStep ? "4. The command to invoke\n" : ""}
-Context: ${context}
-
-${options.outputHeading}
-${options.outputHeading === "Output format:" ? "```\n" : ""}PHASE: [phase]
-LEVEL: [0-4]
-TOOLS: [tool1, tool2]
-${commandLine}REASONING: [${options.reasoningLabel}]
-${options.outputHeading === "Output format:" ? "```\n" : ""}`;
-}
 
 function notifyPrepared(
   runtime: VaultModuleRuntime,
@@ -154,11 +123,16 @@ function resolvePreparedRoutePrompt(
     context: string;
     currentCompany: string;
     cwd?: string;
-    outputHeading: "Output:" | "Output format:";
-    reasoningLabel: string;
-    includeInvokeStep: boolean;
+    channel: "slash-command" | "input-transform";
   },
-): { ok: true; prompt: string; prepared: PreparedTemplateSuccess } | { ok: false; error: string } {
+) {
+  const shape = getRoutePromptShapeForChannel(options.channel);
+  if (!shape) {
+    return {
+      ok: false as const,
+      error: `Unsupported route replay channel: ${options.channel}`,
+    };
+  }
   const prepared = runtime.prepareVaultPrompt(metaTemplate, {
     context: options.context,
     currentCompany: options.currentCompany,
@@ -167,18 +141,14 @@ function resolvePreparedRoutePrompt(
   });
   if (!prepared.ok) {
     return {
-      ok: false,
+      ok: false as const,
       error: formatVaultTemplateRenderError(metaTemplate.name, prepared.error),
     };
   }
   return {
-    ok: true,
+    ok: true as const,
     prepared,
-    prompt: buildRoutePrompt(prepared.prepared, options.context, {
-      outputHeading: options.outputHeading,
-      reasoningLabel: options.reasoningLabel,
-      includeInvokeStep: options.includeInvokeStep,
-    }),
+    prompt: buildRoutePrompt(prepared.prepared, options.context, shape),
   };
 }
 
@@ -519,9 +489,7 @@ export function registerVaultCommands(
         context,
         currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
-        outputHeading: "Output format:",
-        reasoningLabel: "why these tools",
-        includeInvokeStep: true,
+        channel: "input-transform",
       });
       if (!preparedRoutePrompt.ok) {
         if (ctx.hasUI) {
@@ -661,9 +629,7 @@ export function registerVaultCommands(
         context,
         currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
-        outputHeading: "Output:",
-        reasoningLabel: "why",
-        includeInvokeStep: false,
+        channel: "slash-command",
       });
       if (!preparedRoutePrompt.ok) {
         return ctx.ui.notify(preparedRoutePrompt.error, "error");

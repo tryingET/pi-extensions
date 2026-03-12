@@ -58,8 +58,11 @@ function createTranspiledCommandModules() {
     "src/vaultTypes.ts",
     "src/vaultCommands.ts",
     "src/vaultReceipts.ts",
+    "src/vaultRoute.ts",
     "src/fuzzySelector.js",
     "src/triggerAdapter.js",
+    "src/templatePreparationCompat.js",
+    "src/templateRenderer.js",
   ]) {
     const sourcePath = path.join(PACKAGE_ROOT, relativePath);
     const source = readFileSync(sourcePath, "utf8");

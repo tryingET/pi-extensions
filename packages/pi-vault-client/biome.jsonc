@@ -24,6 +24,8 @@
       "!src/vaultGrounding.js",
       "!src/vaultPicker.js",
       "!src/vaultReceipts.js",
+      "!src/vaultReplay.js",
+      "!src/vaultRoute.js",
       "!src/vaultTools.js",
       "!src/vaultTypes.js",
       "!**/*.min.js",

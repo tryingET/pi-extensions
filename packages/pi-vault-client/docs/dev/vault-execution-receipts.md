@@ -31,7 +31,11 @@ As of the current package runtime:
 - receipt inspection is company-scoped
   - the current company context must be explicit
   - receipts outside the current company's visibility boundary are treated as unavailable
-- replay is **not** implemented yet
+- replay core is implemented in package internals
+  - replay loads local receipts by `execution_id`
+  - replay regenerates prepared prompts for `vault-selection`, `route-request`, and `grounding-request`
+  - replay classifies `match`, `drift`, and `unavailable` with explicit reasons including `template-missing`, `version-mismatch`, `render-mismatch`, `company-mismatch`, and `missing-input-contract`
+  - the operator-facing replay command/tool surface is **not** implemented yet
 
 Execution rows are now written only when the prepared prompt is actually sent as a real user message.
 Editor population alone is no longer treated as a successful execution.
@@ -514,6 +518,7 @@ The implementation phases intentionally mirror the AK backlog.
 ### Phase 8 — replay core (`VRE-08`)
 - regenerate prepared prompts from stored provenance
 - classify drift vs unavailable
+- status: implemented in package internals
 
 ### Phase 9 — replay surface (`VRE-09`)
 - expose replay as a deterministic command/tool

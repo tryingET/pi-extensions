@@ -334,6 +334,134 @@ function buildGroundedNext10Prompt(runtime, commandText, options = {}) {
         },
     };
 }
+export function rebuildGroundedNext10PromptFromReplayInputs(runtime, replaySafeInputs, options) {
+    const currentCompany = String(options.currentCompany || "").trim();
+    if (!currentCompany) {
+        return {
+            ok: false,
+            reason: "BLOCKED: explicit company context is required for grounding replay",
+        };
+    }
+    const selectedNames = replaySafeInputs.framework_resolution.selected_names || [];
+    if (selectedNames.length === 0) {
+        return {
+            ok: false,
+            reason: "BLOCKED: grounding replay is missing stored framework_resolution.selected_names",
+        };
+    }
+    const frameworksResult = runtime.retrieveByNamesDetailed(selectedNames, true, {
+        currentCompany,
+        requireExplicitCompany: true,
+    });
+    if (!frameworksResult.ok) {
+        return {
+            ok: false,
+            reason: `BLOCKED: framework grounding lookup failed: ${frameworksResult.error}`,
+        };
+    }
+    const retrievedByName = new Map(frameworksResult.value
+        .filter((template) => template.artifact_kind === "cognitive")
+        .map((template) => [template.name, template]));
+    const selected = selectedNames
+        .map((name) => retrievedByName.get(name))
+        .filter((template) => Boolean(template));
+    const missingFrameworks = selectedNames.filter((name) => !retrievedByName.has(name));
+    if (missingFrameworks.length > 0) {
+        return {
+            ok: false,
+            reason: `BLOCKED: framework grounding unavailable from Prompt Vault: ${missingFrameworks.join(", ")}`,
+        };
+    }
+    const templateResult = runtime.getTemplateDetailed("next-10-expert-suggestions", {
+        currentCompany,
+        requireExplicitCompany: true,
+    });
+    if (!templateResult.ok) {
+        return {
+            ok: false,
+            reason: `BLOCKED: next-10-expert-suggestions lookup failed: ${templateResult.error}`,
+        };
+    }
+    const template = templateResult.value;
+    if (!template?.content) {
+        return {
+            ok: false,
+            reason: "BLOCKED: next-10-expert-suggestions template unavailable in Prompt Vault",
+        };
+    }
+    const normalizedExtras = replaySafeInputs.extras || "";
+    const frameworkArgs = [
+        replaySafeInputs.objective,
+        replaySafeInputs.workflow,
+        replaySafeInputs.mode,
+        normalizedExtras,
+    ];
+    const frameworkContext = [
+        `Objective: ${replaySafeInputs.objective}`,
+        `Workflow: ${replaySafeInputs.workflow}`,
+        `Mode: ${replaySafeInputs.mode}`,
+        normalizedExtras ? `Extras: ${normalizedExtras}` : "",
+    ]
+        .filter(Boolean)
+        .join("\n");
+    const frameworkData = {
+        objective: replaySafeInputs.objective,
+        workflow: replaySafeInputs.workflow,
+        mode: replaySafeInputs.mode,
+        extras: normalizedExtras,
+    };
+    const prepared = prepareTemplateForExecutionCompat(template.content, {
+        args: frameworkArgs,
+        currentCompany,
+        templateName: template.name,
+        context: frameworkContext,
+        data: frameworkData,
+        appendContextSection: false,
+        allowLegacyPiVarsAutoDetect: true,
+    });
+    if (!prepared.ok) {
+        return {
+            ok: false,
+            reason: `BLOCKED: next-10-expert-suggestions render failed: ${prepared.error}`,
+        };
+    }
+    const appendix = buildFrameworkGroundingAppendix(selected, {
+        selected,
+        retrievalMethod: replaySafeInputs.framework_resolution.retrieval_method,
+        discoveryUsed: replaySafeInputs.framework_resolution.discovery_used,
+        invalidOverrides: [...replaySafeInputs.framework_resolution.invalid_overrides],
+    }, [...replaySafeInputs.framework_resolution.warnings], {
+        currentCompany,
+        context: frameworkContext,
+        args: frameworkArgs,
+        data: frameworkData,
+    });
+    if (!appendix.ok) {
+        return {
+            ok: false,
+            reason: `BLOCKED: ${appendix.reason}`,
+        };
+    }
+    return {
+        ok: true,
+        prompt: `${prepared.prepared}${appendix.appendix}`,
+        template,
+        prepared,
+        currentCompany,
+        companySource: options.companySource || "explicit:currentCompany",
+        inputContext: frameworkContext,
+        replaySafeInputs: {
+            ...replaySafeInputs,
+            framework_resolution: {
+                selected_names: [...replaySafeInputs.framework_resolution.selected_names],
+                retrieval_method: replaySafeInputs.framework_resolution.retrieval_method,
+                discovery_used: replaySafeInputs.framework_resolution.discovery_used,
+                invalid_overrides: [...replaySafeInputs.framework_resolution.invalid_overrides],
+                warnings: [...replaySafeInputs.framework_resolution.warnings],
+            },
+        },
+    };
+}
 export function createGroundingRuntime(runtime) {
     return {
         buildGroundedNext10Prompt: (commandText, options) => buildGroundedNext10Prompt(runtime, commandText, options),

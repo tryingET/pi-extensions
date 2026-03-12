@@ -138,6 +138,7 @@ Tool-query defaults:
   - queued prepared prompts now carry an opaque hidden execution marker so send-time binding does not rely on raw prompt-text equality
   - execution markers are stripped from user messages before the LLM sees them
   - `vault_executions` prefers local receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
+  - replay core can now regenerate local receipts by `execution_id` and classify `match` / `drift` / `unavailable` internally; the operator-facing replay command/tool surface is still deferred to a later slice
 
 Tool mutation surface:
 
@@ -315,5 +316,6 @@ npm run docs:list:json
 - [Historical Prompt Vault relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
 - [Live render-engine validation](docs/dev/live-render-engine-validation.md)
 - [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
-- [Latest receipt hardening diary](diary/2026-03-12-receipt-hardening.md)
+- [Replay core diary](diary/2026-03-12-vre-08-replay-core.md)
+- [Previous receipt hardening diary](diary/2026-03-12-receipt-hardening.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)

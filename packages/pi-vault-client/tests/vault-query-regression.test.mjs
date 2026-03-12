@@ -5,6 +5,7 @@ import test from "node:test";
 const DB_SOURCE = readFileSync(new URL("../src/vaultDb.ts", import.meta.url), "utf8");
 const PICKER_SOURCE = readFileSync(new URL("../src/vaultPicker.ts", import.meta.url), "utf8");
 const COMMANDS_SOURCE = readFileSync(new URL("../src/vaultCommands.ts", import.meta.url), "utf8");
+const ROUTE_SOURCE = readFileSync(new URL("../src/vaultRoute.ts", import.meta.url), "utf8");
 const TOOLS_SOURCE = readFileSync(new URL("../src/vaultTools.ts", import.meta.url), "utf8");
 const TYPES_SOURCE = readFileSync(new URL("../src/vaultTypes.ts", import.meta.url), "utf8");
 const GROUNDING_SOURCE = readFileSync(new URL("../src/vaultGrounding.ts", import.meta.url), "utf8");
@@ -300,10 +301,11 @@ test("vault live trigger allows bare /vault: and prompts for filter", () => {
 });
 
 test("route prompt generation is centralized in a helper", () => {
-  assert.match(COMMANDS_SOURCE, /function\s+buildRoutePrompt\(/);
-  assert.match(COMMANDS_SOURCE, /includeInvokeStep/);
-  assert.match(COMMANDS_SOURCE, /outputHeading: "Output format:"/);
-  assert.match(COMMANDS_SOURCE, /outputHeading: "Output:"/);
+  assert.match(COMMANDS_SOURCE, /from "\.\/vaultRoute\.js"/);
+  assert.match(ROUTE_SOURCE, /export function buildRoutePrompt\(/);
+  assert.match(ROUTE_SOURCE, /includeInvokeStep/);
+  assert.match(ROUTE_SOURCE, /outputHeading: "Output format:"/);
+  assert.match(ROUTE_SOURCE, /outputHeading: "Output:"/);
 });
 
 test("vault check command reports detailed schema diagnostics plus company context and key template visibility", () => {
