@@ -71,7 +71,7 @@ See [Package-boundary architecture](docs/dev/package-boundary-architecture.md).
   - `pi-interaction`
   - `pi-prompt-template-accelerator`
   - `pi-vault-client`
-- Decide whether to wire the first root-owned component release automation now or keep the documented operator-driven workflow.
+- Validate the root-owned component release automation against real package releases and keep package/docs inventory aligned as the group evolves.
 
 ## Release workflow
 

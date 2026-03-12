@@ -17,7 +17,7 @@ system4d:
 - The canonical npm package is `@tryinget/pi-interaction`.
 - The canonical package directory is `packages/pi-interaction/pi-interaction`.
 - The package-group root is **not** the publish target.
-- Monorepo release orchestration at root is still being finalized.
+- Monorepo release orchestration now lives at repo root in component mode.
 - The current safe path is documented in [release-workflow.md](release-workflow.md).
 
 ## Package-level requirements
