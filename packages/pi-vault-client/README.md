@@ -41,7 +41,8 @@ The package keeps a narrow local seam over the shared interaction runtime packag
 
 Current package-boundary contract:
 
-- shared interaction helpers are consumed as normal published semver dependencies
+- local monorepo development consumes the shared interaction packages through `file:` dependencies pinned to sibling package paths
+- publish/pack flows rewrite those `file:` specs back to versioned manifest entries during `prepack` and restore the working manifest in `postpack`
 - no local vendored bridge or bundled-dependency staging remains in the active packaging path
 - `npm run build:runtime` generates installable `.js` entrypoints for this package's TypeScript runtime surface
 
