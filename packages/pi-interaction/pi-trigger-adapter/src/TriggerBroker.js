@@ -2,6 +2,47 @@
  * Core broker that manages input trigger registration and dispatch.
  */
 
+const BROKER_GLOBAL_KEY = Symbol.for("@tryinget/pi-trigger-adapter.TriggerBroker/v1");
+const BROKER_VERSION = 1;
+
+function getGlobalBrokerCandidate() {
+  return /** @type {any} */ (globalThis)[BROKER_GLOBAL_KEY];
+}
+
+/**
+ * @param {TriggerBroker} broker
+ * @returns {TriggerBroker}
+ */
+function setGlobalBrokerCandidate(broker) {
+  /** @type {any} */ (globalThis)[BROKER_GLOBAL_KEY] = broker;
+  return broker;
+}
+
+function clearGlobalBrokerCandidate() {
+  delete (/** @type {any} */ (globalThis)[BROKER_GLOBAL_KEY]);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isCompatibleBroker(value) {
+  const candidate = /** @type {any} */ (value);
+  return Boolean(
+    candidate &&
+      typeof candidate === "object" &&
+      candidate.__piTriggerBrokerVersion === BROKER_VERSION &&
+      typeof candidate.setAPI === "function" &&
+      typeof candidate.register === "function" &&
+      typeof candidate.unregister === "function" &&
+      typeof candidate.get === "function" &&
+      typeof candidate.list === "function" &&
+      typeof candidate.diagnostics === "function" &&
+      typeof candidate.checkAndFire === "function" &&
+      typeof candidate.clear === "function",
+  );
+}
+
 /**
  * @typedef {(context: TriggerContext) => TriggerMatch|null} TriggerMatchFunction
  */
@@ -102,6 +143,12 @@
 
 export class TriggerBroker {
   constructor() {
+    Object.defineProperty(this, "__piTriggerBrokerVersion", {
+      value: BROKER_VERSION,
+      enumerable: false,
+      configurable: true,
+      writable: false,
+    });
     /** @type {Map<string, RegisteredTrigger>} */
     this.triggers = new Map();
     /** @type {Map<string, ReturnType<typeof setTimeout>>} */
@@ -447,20 +494,23 @@ export class TriggerBroker {
   }
 }
 
-// Singleton instance
-/** @type {TriggerBroker|null} */
-let brokerInstance = null;
-
 export function getBroker() {
-  if (!brokerInstance) {
-    brokerInstance = new TriggerBroker();
+  const existing = getGlobalBrokerCandidate();
+  if (isCompatibleBroker(existing)) {
+    return existing;
   }
-  return brokerInstance;
+
+  if (existing !== undefined) {
+    clearGlobalBrokerCandidate();
+  }
+
+  return setGlobalBrokerCandidate(new TriggerBroker());
 }
 
 export function resetBroker() {
-  if (brokerInstance) {
-    brokerInstance.clear();
+  const existing = getGlobalBrokerCandidate();
+  if (isCompatibleBroker(existing)) {
+    existing.clear();
   }
-  brokerInstance = null;
+  clearGlobalBrokerCandidate();
 }

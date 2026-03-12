@@ -328,6 +328,7 @@ export default function (pi: ExtensionAPI) {
       if (!ctx.hasUI) return;
 
       const diagnostics = broker.diagnostics() as TriggerDiagnosticsView[];
+      const editorDiagnostics = editorRegistry.diagnostics();
       const lines = [
         "# Trigger Diagnostics",
         "",
@@ -335,6 +336,14 @@ export default function (pi: ExtensionAPI) {
         `- Total triggers: ${diagnostics.length}`,
         `- Enabled: ${diagnostics.filter((d: TriggerDiagnosticsView) => d.enabled).length}`,
         `- Disabled: ${diagnostics.filter((d: TriggerDiagnosticsView) => !d.enabled).length}`,
+        "",
+        "## Editor runtime",
+        `- Owner: ${editorDiagnostics.ownerId}`,
+        `- Mounted: ${editorDiagnostics.mounted}`,
+        `- Mount count: ${editorDiagnostics.mountCount}`,
+        ...(editorDiagnostics.lastMountedAt
+          ? [`- Last mounted at: ${editorDiagnostics.lastMountedAt}`]
+          : []),
         "",
         "## Details",
         "",
