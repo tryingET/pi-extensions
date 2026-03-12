@@ -14,8 +14,9 @@ system4d:
 
 ## Baseline assumptions
 
-- Release tags are `vX.Y.Z`.
-- release-please and publish workflows run from GitHub Actions.
+- This package is released through the root-owned monorepo release workflows.
+- Release tags are component-scoped: `pi-autonomous-session-control-vX.Y.Z`.
+- release-please and publish workflows run from GitHub Actions at monorepo root.
 - Publish workflow uses npm OIDC trusted publishing (no long-lived npm token in CI).
 
 ## Required GitHub settings
@@ -47,7 +48,7 @@ then configure trusted publisher and continue with OIDC-only CI publishes.
 
 ## Verification checklist
 
-- `release-please` run succeeds and can open/update release PR.
-- Release tag format matches publish trigger (`vX.Y.Z`).
+- root `release-please` run succeeds and can open/update the component release PR.
+- Release tag format matches publish trigger (`pi-autonomous-session-control-vX.Y.Z`).
 - Publish workflow completes with `npm publish --provenance --access public`.
 - No npm token secret is required in CI after trusted publisher is active.

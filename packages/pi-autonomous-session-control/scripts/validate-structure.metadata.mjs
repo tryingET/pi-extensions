@@ -290,27 +290,60 @@ try {
     }
   }
 
-  const rpConfig = JSON.parse(fs.readFileSync(".release-please-config.json", "utf8"));
-  if (rpConfig["include-v-in-tag"] !== true) {
-    fail(".release-please-config.json must set include-v-in-tag=true");
+  const versionPattern = /^\d+\.\d+\.\d+([-.][0-9A-Za-z.]+)?$/;
+  const templateMeta = p["x-pi-template"] || {};
+  if (templateMeta.scaffoldMode !== "monorepo-package") {
+    fail("package.json x-pi-template.scaffoldMode must be 'monorepo-package'");
   }
-  if (rpConfig["include-component-in-tag"] !== false) {
-    fail(".release-please-config.json must set include-component-in-tag=false");
+  if (templateMeta.workspacePath !== "packages/pi-autonomous-session-control") {
+    fail(
+      "package.json x-pi-template.workspacePath must match packages/pi-autonomous-session-control",
+    );
   }
-  if (!rpConfig.packages || !rpConfig.packages["."]) {
-    fail(".release-please-config.json must include packages['.']");
+  if (templateMeta.releaseComponent !== "pi-autonomous-session-control") {
+    fail("package.json x-pi-template.releaseComponent must be 'pi-autonomous-session-control'");
+  }
+  if (templateMeta.releaseConfigMode !== "component") {
+    fail("package.json x-pi-template.releaseConfigMode must be 'component'");
   }
 
-  const rpManifest = JSON.parse(fs.readFileSync(".release-please-manifest.json", "utf8"));
-  if (!rpManifest["."]) {
-    fail(".release-please-manifest.json must include '.' version entry");
+  const rootReleaseComponentsPath = "../../scripts/release-components.mjs";
+  if (!fs.existsSync(rootReleaseComponentsPath)) {
+    fail(`Missing root release component helper: ${rootReleaseComponentsPath}`);
   }
-  const versionPattern = /^\d+\.\d+\.\d+([-.][0-9A-Za-z.]+)?$/;
-  if (!versionPattern.test(rpManifest["."])) {
-    fail(".release-please-manifest.json '.' entry must match X.Y.Z");
+
+  const rootRpConfigPath = "../../.release-please-config.json";
+  const rootRpManifestPath = "../../.release-please-manifest.json";
+  if (!fs.existsSync(rootRpConfigPath)) {
+    fail(`Missing root release-please config: ${rootRpConfigPath}`);
   }
-  if (rpManifest["."] !== p.version) {
-    fail(".release-please-manifest.json '.' entry must match package.json version");
+  if (!fs.existsSync(rootRpManifestPath)) {
+    fail(`Missing root release-please manifest: ${rootRpManifestPath}`);
+  }
+
+  const rpConfig = JSON.parse(fs.readFileSync(rootRpConfigPath, "utf8"));
+  if (rpConfig["include-v-in-tag"] !== true) {
+    fail("root .release-please-config.json must set include-v-in-tag=true");
+  }
+  if (rpConfig["include-component-in-tag"] !== true) {
+    fail(
+      "root .release-please-config.json must set include-component-in-tag=true for monorepo component tags",
+    );
+  }
+  if (!rpConfig.packages || !rpConfig.packages["packages/pi-autonomous-session-control"]) {
+    fail("root .release-please-config.json must include packages/pi-autonomous-session-control");
+  }
+
+  const rpManifest = JSON.parse(fs.readFileSync(rootRpManifestPath, "utf8"));
+  const manifestVersion = rpManifest["packages/pi-autonomous-session-control"];
+  if (!manifestVersion) {
+    fail("root .release-please-manifest.json must include packages/pi-autonomous-session-control");
+  }
+  if (!versionPattern.test(manifestVersion)) {
+    fail("root .release-please-manifest.json entry must match X.Y.Z");
+  }
+  if (manifestVersion !== p.version) {
+    fail("root .release-please-manifest.json entry must match package.json version");
   }
 
   validateTechStackContract({
