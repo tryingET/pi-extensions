@@ -45,7 +45,7 @@ Grounding line at end:
 
 Advance the Vault Execution Receipts / Replay backlog for `pi-vault-client` by executing the **next ready VRE task** for this repo.
 
-Current intended next slice: `VRE-01` (`docs/dev/vault-execution-receipts.md`), **unless fresh AK truth says otherwise**.
+Current intended next slice: `VRE-02` (`src/vaultTypes.ts`, `src/vaultReceipts.ts`, `tests/vault-receipts.test.mjs`), **unless fresh AK truth says otherwise**.
 
 ## RECONSTRUCT TRUTH
 
@@ -72,7 +72,7 @@ source ./.ak-env-v2
 
 ### 3. Interpret truth
 Apply these rules strictly:
-- If `[VRE-01]` is the next ready repo task, claim and execute it.
+- If `[VRE-02]` is the next ready repo task, claim and execute it.
 - If another `pi-vault-client` repo task is ready first, follow AK truth instead of this file's last-known intent.
 - If no `pi-vault-client` task is ready, identify the blocker and stop.
 - Do **not** trust previous session prose over fresh command output.
@@ -80,21 +80,22 @@ Apply these rules strictly:
 ## EXECUTE THE READY TASK
 
 ### 1. Claim the task
-Example for `VRE-01`:
+Example shape:
 
 ```bash
 cd ~/ai-society/softwareco/owned/agent-kernel
 source ./.ak-env-v2
-./scripts/ak-v2.sh task claim 30 --agent pi-vault-worker --lease 3600
+./scripts/ak-v2.sh task claim <task-id> --agent pi-vault-worker --lease 3600
 ```
 
 ### 2. Read the task anchor and immediate inputs
-If executing `VRE-01`, read at minimum:
-1. `docs/dev/plans/vault-receipts-ak-backlog.md#vre-01`
-2. `src/vaultDb.ts`
+If executing `VRE-02`, read at minimum:
+1. `docs/dev/plans/vault-receipts-ak-backlog.md#vre-02`
+2. `docs/dev/vault-execution-receipts.md`
 3. `src/vaultTypes.ts`
-4. `README.md`
-5. `docs/dev/status.md`
+4. `src/vaultDb.ts`
+5. `README.md`
+6. `docs/dev/status.md`
 
 ### 3. Run the task loop
 For the selected task:
