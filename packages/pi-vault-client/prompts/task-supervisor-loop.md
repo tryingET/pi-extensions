@@ -24,11 +24,15 @@ The trailing input must be a JSON object with this shape:
 ```json
 {
   "repo_path": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client",
-  "backlog_doc": "docs/dev/plans/vault-receipts-ak-backlog.md",
   "agent_kernel_root": "/home/tryinget/ai-society/softwareco/owned/agent-kernel",
   "ak_env": "/home/tryinget/ai-society/softwareco/owned/agent-kernel/.ak-env-v2",
   "ak_wrapper": "/home/tryinget/ai-society/softwareco/owned/agent-kernel/scripts/ak-v2.sh",
   "worker_prompt_path": "prompts/task-worker-loop.md",
+  "context_docs": [
+    "README.md",
+    "docs/dev/vault-execution-receipts.md",
+    "NEXT_SESSION_PROMPT.md"
+  ],
   "agent_id": "pi-vault-supervisor",
   "worker_agent_id": "pi-vault-worker",
   "max_tasks": 3,
@@ -51,7 +55,8 @@ If the input envelope is invalid, stop immediately and return `outcome="blocked"
 ## NON-NEGOTIABLE RULES
 
 - AK task rows are the canonical queue state.
-- This document's backlog anchors are the canonical detailed task payload for this repo.
+- AK task rows are also the canonical detailed task payload for this repo.
+- Repo docs are supporting context, not a shadow backlog system.
 - Launch **one fresh worker session per task**.
 - Do not let the supervisor turn into a general implementation agent.
 - Do not push.
@@ -84,7 +89,8 @@ Construct the worker envelope with:
 - repo path
 - task ID
 - task title/ref
-- matching backlog anchor path
+- detailed task payload copied from the AK task row/body
+- relevant context docs
 - validation commands
 - commit policy
 - worker mode (`execute` or `dry_run`)

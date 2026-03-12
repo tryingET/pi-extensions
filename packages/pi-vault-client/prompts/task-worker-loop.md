@@ -25,7 +25,21 @@ The trailing input must be a JSON object with this shape:
   "task_id": 1234,
   "task_ref": "VRE-04",
   "task_title": "[VRE-04] Return execution metadata from logExecution()",
-  "spec_doc": "docs/dev/plans/vault-receipts-ak-backlog.md#vre-04",
+  "task_payload": {
+    "objective": "Make execution logging return enough metadata to bind receipts to real execution rows.",
+    "scope": ["src/vaultDb.ts", "receipt-facing runtime types", "tests for execution metadata return value"],
+    "acceptance_criteria": [
+      "execution logging returns concrete execution metadata including execution ID",
+      "existing execution behavior remains intact",
+      "tests prove stable binding to real execution rows"
+    ],
+    "rollback": "Revert to the previous logging contract."
+  },
+  "context_docs": [
+    "README.md",
+    "docs/dev/vault-execution-receipts.md",
+    "NEXT_SESSION_PROMPT.md"
+  ],
   "agent_id": "pi-vault-worker",
   "mode": "execute",
   "validation_commands": ["npm run typecheck", "npm run check"],
@@ -46,7 +60,7 @@ If the envelope is invalid or required fields are missing, stop immediately and 
 ## NON-NEGOTIABLE RULES
 
 - Work **one task only**.
-- Read the matching task anchor in the backlog spec before coding.
+- Read the detailed task payload from the AK-provided input envelope before coding.
 - Keep the change set as small and reviewable as possible.
 - Do not silently widen scope.
 - Do not take a second task.
@@ -66,11 +80,12 @@ If the envelope is invalid or required fields are missing, stop immediately and 
 ## REQUIRED LOOP
 
 ### 1. LOAD
-- Read the task anchor from `spec_doc`.
+- Read the detailed task payload from `task_payload`.
+- Read any repo docs listed in `context_docs` that are relevant to the task.
 - Choose the smallest relevant file shortlist before reading further.
 - Read only the relevant repo files needed for this task.
 - Re-state the acceptance criteria internally before acting.
-- In `dry_run`, if the task anchor already provides enough truth to plan safely, do not keep exploring.
+- In `dry_run`, if the task payload already provides enough truth to plan safely, do not keep exploring.
 
 ### 2. IMPLEMENT
 - In `execute` mode: implement the smallest coherent task-complete slice.
@@ -138,7 +153,7 @@ Return `outcome="needs_human"` when:
 
 Return `outcome="blocked"` when:
 - a dependency task is incomplete
-- the task spec is insufficient
+- the AK task payload is insufficient
 - the environment/tooling is unavailable
 - acceptance criteria cannot be met without widening scope
 
@@ -220,7 +235,7 @@ JSON shape:
   },
   "artifacts": [
     "path/to/file",
-    "docs/dev/plans/vault-receipts-ak-backlog.md#vre-04"
+    "docs/dev/vault-execution-receipts.md"
   ],
   "rollback": "Exact rollback command(s)",
   "needs_human": null

@@ -95,13 +95,20 @@ Kept commands:
 - `/vault-check`
 - `/vault-live-telemetry`
 - `/vault-fzf-spike`
+- `/vault-last-receipt` — latest local receipt visible to the current company
+- `/vault-receipt <execution_id>` — exact local receipt if visible to the current company
 
 Current `/vault` behavior:
 
 - `/vault` opens the full picker
-- `/vault <exact-name>` loads the exact visible match directly
+- `/vault <exact-name>` loads the exact exported-and-visible match directly
 - `/vault <fuzzy-query>` falls back to picker mode with the query applied
 - live `/vault:` uses the shared interaction runtime and allows bare `/vault:` with a follow-up filter prompt
+- visibility-sensitive slash-command reads (`/vault`, `/vault:`, `/vault-search`, `/route`, grounding) now fail closed when no explicit company context is available
+  - set `PI_COMPANY` or invoke from a company-scoped cwd
+- canonical Pi-visible reads now centralize on `status='active'` + `export_to_pi=true` + visibility-company filtering
+- `/vault`, live `/vault:`, `/route`, and grounding now queue execution provenance at preparation time but write the actual execution row only when the prepared prompt is sent as a real user message
+  - opening a template in the editor no longer counts as a successful execution by itself
 
 Tool-query defaults:
 
@@ -112,6 +119,7 @@ Tool-query defaults:
 - `vault_query`, `vault_retrieve`, and `vault_executions` use explicit tool-call `ctx.cwd` when available so visibility-sensitive reads stay session-aware on the tool surface too
 - visibility-sensitive tool reads now fail closed when no explicit company context is available on the tool surface
   - set `PI_COMPANY` or invoke from a company-scoped cwd
+- governed ontology/visibility contracts now refresh in-process when the underlying contract files change
 - cross-company `visibility_company` overrides are rejected on the tool surface; use explicit company context for the target company instead of read-side impersonation
 - optional `intent_text` can re-rank the governed candidate set without changing visibility/status filtering
 - if you already know your working stage, query directly by `formalization_level` instead of using semantic ranking
@@ -124,6 +132,12 @@ Tool-query defaults:
   - by intent only: `vault_query({ intent_text: "simplify and make retrieval feel almost alien" })`
 - for exact feedback binding, inspect recent execution provenance first
   - `vault_executions({ template_name: "nexus", limit: 10 })`
+- local execution receipts now preserve immutable execution-bound template/company/render snapshots in package-owned JSONL
+  - default spool path: `~/.pi/agent/state/pi-vault-client/vault-execution-receipts.jsonl`
+  - override directory with `PI_VAULT_RECEIPTS_DIR`
+  - queued prepared prompts now carry an opaque hidden execution marker so send-time binding does not rely on raw prompt-text equality
+  - execution markers are stripped from user messages before the LLM sees them
+  - `vault_executions` prefers local receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
 
 Tool mutation surface:
 
@@ -144,6 +158,7 @@ Tool mutation surface:
 - `vault_rate({ execution_id, ... })` now binds feedback to an exact execution row instead of a template name.
   - use `vault_executions(...)` first to retrieve the exact `execution_id`
   - feedback insert succeeds only when exactly one feedback row is written for that execution
+  - when a local receipt exists for that execution, `vault_rate` uses the receipt's immutable visibility snapshot so later template archive drift does not block feedback for package-originated executions
   - mutation still uses explicit company context so feedback writes do not silently inherit ambient process cwd
 
 Use `/vault-check` to inspect schema compatibility, resolved company context, and visibility of key shared templates in the interactive TUI.
@@ -295,9 +310,10 @@ npm run docs:list:json
 - [Project incentives](docs/project/incentives.md)
 - [Project resources](docs/project/resources.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
-- [Status](docs/dev/status.md)
+- [Vault execution receipts architecture](docs/dev/vault-execution-receipts.md)
 - [Prompt Vault v9 cutover](docs/dev/v9-cutover.md)
 - [Historical Prompt Vault relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
 - [Live render-engine validation](docs/dev/live-render-engine-validation.md)
 - [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
+- [Latest receipt hardening diary](diary/2026-03-12-receipt-hardening.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)

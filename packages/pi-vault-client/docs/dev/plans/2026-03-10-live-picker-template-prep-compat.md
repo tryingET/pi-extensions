@@ -33,6 +33,5 @@ Harden `pi-vault-client` so live `/vault:` picker execution does not fail when t
 - `tests/template-renderer.test.mjs`
 - `tests/vault-query-regression.test.mjs`
 - `README.md`
-- `docs/dev/status.md`
 - `NEXT_SESSION_PROMPT.md`
 - `CHANGELOG.md`

@@ -37,6 +37,5 @@ Retire the generated `src/interaction-kit/*`, `src/trigger-adapter/*`, and `src/
 - `src/triggerAdapter.js`
 - `tests/vault-commands.test.mjs`
 - `README.md`
-- `docs/dev/status.md`
 - `docs/dev/CONTRIBUTING.md`
 - `NEXT_SESSION_PROMPT.md`

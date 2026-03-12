@@ -14,9 +14,30 @@ system4d:
 # Vault Execution Receipts
 
 ## Status
-This note freezes the **v1 architecture** for execution receipts in `pi-vault-client` before runtime implementation begins.
+This note started as the **v1 architecture freeze** for execution receipts in `pi-vault-client`.
 
-It is the design anchor for backlog items `VRE-02` through `VRE-10` in [plans/vault-receipts-ak-backlog.md](plans/vault-receipts-ak-backlog.md).
+It remains the design anchor for receipt/replay implementation tasks `VRE-02` through `VRE-10`.
+Canonical queue state and detailed task payloads now live in Agent Kernel task rows rather than a repo-local backlog mirror.
+
+### Implementation status snapshot
+As of the current package runtime:
+
+- receipt types, builder helpers, and a local JSONL sink are implemented
+- `logExecution()` returns concrete execution metadata including `execution_id`
+- `/vault`, live `/vault:`, `/route`, and grounding emit local receipts after execution binding
+- receipt inspection commands exist:
+  - `/vault-last-receipt`
+  - `/vault-receipt <execution_id>`
+- receipt inspection is company-scoped
+  - the current company context must be explicit
+  - receipts outside the current company's visibility boundary are treated as unavailable
+- replay is **not** implemented yet
+
+Execution rows are now written only when the prepared prompt is actually sent as a real user message.
+Editor population alone is no longer treated as a successful execution.
+
+The current runtime correlates prepared prompts to sent prompts with an opaque hidden execution marker carried through the editor/transform path and stripped back out before the LLM sees user content.
+That marker replaced the earlier raw-text matching heuristic.
 
 ## Problem statement
 `pi-vault-client` already does three useful things:
@@ -59,11 +80,11 @@ The architecture is anchored to the execution surfaces that already exist in thi
 
 | Surface | Current source of truth | What is already known at execution time | Current gap |
 |---|---|---|---|
-| `/vault` exact / picker path | `src/vaultCommands.ts` | template identity, company context, optional context string, prepared prompt, model id, execution logging | no durable receipt, no selection metadata beyond transient message |
-| live `/vault:` | `src/vaultPicker.ts` | selected template id, selection mode (`fzf` vs fallback), optional context string, prepared prompt, live-trigger channel | no durable receipt, no exact replay input record |
-| `/route` | `src/vaultCommands.ts` | fixed template `meta-orchestration`, company context, route context, prepared prompt | no execution-bound provenance yet |
-| grounding | `src/vaultGrounding.ts` | fixed template `next-10-expert-suggestions`, company context, args/context/data, discovered frameworks, prepared prompt | no execution-bound provenance yet |
-| execution logging | `src/vaultDb.ts` | template id/version, model, input_context | return value is currently too small for receipt binding |
+| `/vault` exact / picker path | `src/vaultCommands.ts` | template identity, company context, optional context string, prepared prompt, model id, execution logging | local receipts now capture selection metadata and prepared-prompt baseline after send-time execution binding |
+| live `/vault:` | `src/vaultPicker.ts` | selected template id, selection mode (`fzf` vs fallback), optional context string, prepared prompt, live-trigger channel | local receipts now preserve live-trigger selection provenance and exact prepared text |
+| `/route` | `src/vaultCommands.ts` | fixed template `meta-orchestration`, company context, route context, prepared prompt | local receipts now record fixed-template route provenance after send-time execution binding |
+| grounding | `src/vaultGrounding.ts` | fixed template `next-10-expert-suggestions`, company context, args/context/data, discovered frameworks, prepared prompt | local receipts now capture framework-resolution provenance and prepared output |
+| execution logging | `src/vaultDb.ts` | template id/version, model, input_context | returns concrete execution metadata including `execution_id` for receipt binding |
 
 ## Design principles
 
@@ -376,6 +397,14 @@ The write interface stays minimal so the builder logic is not coupled to one sto
 
 ### Phase-1 storage boundary
 Phase 1 stores receipts in **local package-owned JSONL**, not in Prompt Vault's shared schema.
+
+Current default spool path:
+
+```text
+~/.pi/agent/state/pi-vault-client/vault-execution-receipts.jsonl
+```
+
+Override the parent directory with `PI_VAULT_RECEIPTS_DIR` when you need isolated test/runtime storage.
 
 Why:
 - receipts need replay-critical freeform inputs and exact prepared prompt text

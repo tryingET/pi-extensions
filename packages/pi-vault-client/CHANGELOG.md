@@ -17,7 +17,8 @@ All notable changes to this project should be documented here.
 
 ### Added
 
-- `docs/dev/status.md` to track current package truth after the Prompt Vault schema-v9 cutover.
+- `docs/dev/vault-execution-receipts.md` as the durable architecture note for execution-bound receipt and replay design.
+- repo-local diary capture and executable session handoff patterns via `diary/` and `NEXT_SESSION_PROMPT.md`.
 - `vault_schema_diagnostics()` tool surface for headless/runtime schema diagnostics.
 - installed/headless validation guidance for schema diagnostics and governed query verification.
 

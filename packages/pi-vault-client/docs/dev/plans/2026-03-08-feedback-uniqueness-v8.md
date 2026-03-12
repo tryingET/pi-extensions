@@ -35,7 +35,7 @@ Close the last correctness gap called out in `NEXT_SESSION_PROMPT.md` by enforci
 - `scripts/pv-rate`
 - `tests/pv-v2-facets.bats`
 - `tests/pv-feedback.bats`
-- `docs/dev/status.md`
+- `prompt-vault/docs/dev/status.md`
 - `docs/dev/vault-client-relocation-interface.md`
 - `docs/dev/vault-client-company-visibility-boundary.md`
 - `next_session_prompt.md`
