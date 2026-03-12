@@ -141,6 +141,22 @@ Tool-query defaults:
   - `vault_executions` prefers local receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
   - `vault_replay({ execution_id })` and `/vault-replay <execution_id>` now expose the local replay core directly with deterministic `match` / `drift` / `unavailable` reporting keyed to the exact execution id
 
+### Receipt and replay operator workflow
+
+- receipts are execution-bound, not editor-bound
+  - prepare a prompt first, then send it as a real user message before expecting a local receipt or replayable `execution_id`
+- use exact ids end to end
+  - interactive: `/vault-last-receipt` to grab the latest visible receipt, then `/vault-receipt <execution_id>` or `/vault-replay <execution_id>`
+  - headless/tooling: `vault_executions({ template_name, limit })` to enumerate exact ids, then `vault_replay({ execution_id })`
+- replay status contract stays fixed
+  - `match` = regenerated prompt still matches the stored prepared baseline
+  - `drift` = replay succeeded but the current template/runtime state no longer matches the stored baseline
+  - `unavailable` = replay could not be completed truthfully
+- visibility stays fail-closed
+  - explicit company context is required for receipt inspection and replay surfaces
+  - `/vault-receipt <execution_id>` and `/vault-replay <execution_id>` only open visible local receipts in the current company context
+  - `vault_replay({ execution_id })` returns the same replay contract on the tool surface, and treats non-visible receipts as `receipt-missing` rather than leaking template identity
+
 Tool mutation surface:
 
 - mutation tools now pass explicit tool-call context when available and disable ambient process-cwd fallback on the tool surface
@@ -185,6 +201,14 @@ For a headless query smoke that avoids unrelated auto-discovered extensions:
 PI_COMPANY=software \
 pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client -p \
   "Do not use bash or read. Call the custom tool named vault_query with limit 1 and include_content false, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
+```
+
+For a headless replay-boundary smoke keyed to an exact `execution_id`:
+
+```bash
+PI_COMPANY=software \
+pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client -p \
+  "Do not use bash or read. Call the custom tool named vault_replay exactly once with execution_id 999999. If the tool call succeeds and returns text mentioning both 'status: unavailable' and 'receipt-missing', reply with only SUCCESS. Otherwise reply with only FAILURE."
 ```
 
 For interactive slash-command validation in an isolated runtime:
@@ -319,5 +343,6 @@ npm run docs:list:json
 - [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
 - [Replay core diary](diary/2026-03-12-vre-08-replay-core.md)
 - [Replay surface diary](diary/2026-03-12-vre-09-replay-surface.md)
+- [Replay docs/tests diary](diary/2026-03-12-vre-10-docs-tests.md)
 - [Previous receipt hardening diary](diary/2026-03-12-receipt-hardening.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)

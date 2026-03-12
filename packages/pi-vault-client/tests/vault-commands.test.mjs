@@ -707,6 +707,77 @@ test("vault replay command renders a deterministic replay report", async () => {
   });
 });
 
+test("vault replay command treats non-visible receipts as missing in the current company context", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+    const notifications = [];
+    const editors = [];
+    const hiddenReceipt = makeReplayReceipt(
+      makeTemplate({
+        name: "hidden-template",
+        owner_company: "software",
+        visibility_companies: ["software"],
+        control_mode: "one_shot",
+      }),
+      "Hidden prompt",
+    );
+
+    registerVaultCommands(
+      pi,
+      {
+        checkSchemaCompatibilityDetailed() {
+          return {
+            ok: true,
+            expectedVersion: 9,
+            actualVersion: 9,
+            missingPromptTemplateColumns: [],
+            missingExecutionColumns: [],
+            missingFeedbackColumns: [],
+          };
+        },
+        resolveCurrentCompanyContext(cwd) {
+          return {
+            company: cwd?.includes("finance") ? "finance" : "software",
+            source: `cwd:${cwd}`,
+          };
+        },
+      },
+      {
+        readReceiptByExecutionId(executionId) {
+          assert.equal(executionId, 41);
+          return hiddenReceipt;
+        },
+        listRecentReceipts() {
+          return [hiddenReceipt];
+        },
+      },
+    );
+
+    const replayCommand = pi.commands.get("vault-replay");
+    assert.ok(replayCommand);
+
+    await replayCommand.handler("41", {
+      hasUI: true,
+      cwd: "/tmp/finance/project",
+      ui: {
+        async editor(title, text) {
+          editors.push({ title, text });
+        },
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.equal(editors.length, 0);
+    assert.match(
+      notifications.at(-1)?.message || "",
+      /No local receipt found for execution 41 in the current company context/,
+    );
+  });
+});
+
 test("non-UI /route surfaces shared render failures instead of emitting raw template text", async () => {
   await withCommandModules(async ({ importModule }) => {
     const { registerVaultCommands } = await importModule("src/vaultCommands.js");

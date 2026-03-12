@@ -1,13 +1,13 @@
 ---
-summary: "Executable next-session launcher for pi-vault-client: reconstruct truth from commands, continue from the replay-core baseline, and execute the next ready replay-surface task without reopening already-landed receipt or replay-core work."
+summary: "Executable next-session launcher for pi-vault-client: reconstruct truth from commands, start from the post-VRE baseline, and execute the next ready AK task without reopening already-landed receipt/replay work unless validation proves regression."
 read_when:
   - "Starting the next focused session in packages/pi-vault-client."
   - "Using @NEXT_SESSION_PROMPT.md as the launcher prompt instead of a passive handoff note."
 system4d:
-  container: "Command-first launcher for the next receipts/replay slice in pi-vault-client."
-  compass: "Prefer regenerated truth over stale state, keep work task-local, and advance from the replay-core baseline instead of redoing already-landed receipt or replay-core work."
+  container: "Command-first launcher for the next ready pi-vault-client task after the VRE backlog closure."
+  compass: "Prefer regenerated truth over stale prose, keep work task-local, and treat the receipt/replay backlog as landed baseline rather than open implementation work."
   engine: "Reconstruct truth -> choose ready task -> select vault framework -> execute -> validate -> review -> revalidate -> commit -> record evidence -> complete task."
-  fog: "Main risks are trusting stale queue/session state, reopening VRE-02..08, or widening the replay surface into analytics/dashboard work."
+  fog: "Main risks are trusting stale queue/session state, reopening VRE-02..10 without fresh evidence, or widening a local package task into unrelated Prompt Vault or AK changes."
 ---
 
 # NEXT_SESSION_PROMPT.md
@@ -43,28 +43,35 @@ Grounding line at end:
 
 ## DURABLE OBJECTIVE
 
-Advance the Vault Execution Receipts / Replay backlog for `pi-vault-client` by executing the **next ready VRE task** for this repo.
+Advance `pi-vault-client` by executing the **next ready Agent Kernel task for this repo**.
 
-Current intended next slice: **`VRE-09` — replay command/tool surface**, unless fresh AK truth says otherwise.
+There is **no pinned next slice in this file anymore**.
+Fresh AK truth is authoritative.
 
-Do **not** reopen VRE-02 through VRE-08 unless fresh validation proves a regression.
-Those slices are already implemented in the package runtime:
+## POST-VRE BASELINE
+
+Treat the Vault Execution Receipts / Replay backlog as landed baseline, not open implementation work.
+
+Already-landed runtime surface includes:
 - receipt types/contracts
 - local JSONL receipt sink + read helpers
 - send-time execution binding via `executionId`
 - receipt emission for `/vault`, live `/vault:`, `/route`, and grounding
-- inspection commands
-- post-review hardening:
-  - opaque execution marker correlation
-  - marker stripping before LLM context
-  - company-scoped receipt inspection
-  - malformed receipt tolerance
-  - forged receipt rejection in `vault_rate`
+- receipt inspection surfaces:
+  - `/vault-last-receipt`
+  - `/vault-receipt <execution_id>`
 - replay core:
-  - receipt load by `execution_id`
+  - receipt load by exact `execution_id`
   - replay regeneration for `vault-selection`, `route-request`, and `grounding-request`
-  - drift / unavailable classification
+  - `match` / `drift` / `unavailable` classification
   - stored grounding framework-resolution reuse during replay
+- replay operator surfaces:
+  - `/vault-replay <execution_id>`
+  - `vault_replay({ execution_id })`
+- docs/test hardening for the exact-id replay workflow, replay reporting, and non-visible-as-missing behavior
+
+Do **not** reopen `VRE-02` through `VRE-10` unless fresh validation proves a regression.
+If AK still presents one of those tasks as ready, verify whether queue state is stale before re-implementing anything.
 
 ## RECONSTRUCT TRUTH
 
@@ -83,8 +90,12 @@ git status --short
 Read at minimum:
 1. `README.md`
 2. `docs/dev/vault-execution-receipts.md`
-3. `diary/2026-03-12-vre-08-replay-core.md`
-4. `NEXT_SESSION_PROMPT.md`
+3. `diary/2026-03-12-vre-10-docs-tests.md`
+4. `diary/2026-03-12-vre-09-replay-surface.md`
+5. `diary/2026-03-12-vre-08-replay-core.md`
+6. `NEXT_SESSION_PROMPT.md`
+
+If the ready task touches a different subsystem more directly, add the most relevant docs/source/tests for that subsystem before editing.
 
 ### 3. AK queue truth
 From `~/ai-society/softwareco/owned/agent-kernel`:
@@ -98,10 +109,10 @@ source ./.ak-env-v2
 
 ### 4. Interpret truth
 Apply these rules strictly:
-- If `[VRE-09]` is the next ready repo task, claim and execute it.
-- If another `pi-vault-client` repo task is ready first, follow AK truth instead of this file's last-known intent.
-- If no `pi-vault-client` task is ready, identify the blocker and stop.
+- If a `pi-vault-client` task is ready, follow AK truth and execute the highest-priority ready task for this repo.
+- If no `pi-vault-client` task is ready, identify the blocker or empty queue state and stop.
 - Do **not** trust previous session prose over fresh command output.
+- Do **not** reopen completed VRE backlog work unless fresh tests/docs/runtime evidence show drift or regression.
 
 ## EXECUTE THE READY TASK
 
@@ -126,20 +137,6 @@ source ./.ak-env-v2
 Use the claimed task row as the canonical task payload.
 If the current AK runtime cannot expose the claimed task's detailed payload truthfully, stop and report that blocker instead of reconstructing it from stale repo docs.
 
-If executing `VRE-09`, read at minimum:
-1. claimed AK task payload/body for `VRE-09`
-2. `docs/dev/vault-execution-receipts.md`
-3. `diary/2026-03-12-vre-08-replay-core.md`
-4. `README.md`
-5. `src/vaultReplay.ts`
-6. `src/vaultRoute.ts`
-7. `src/vaultGrounding.ts`
-8. `src/vaultCommands.ts`
-9. `src/vaultTools.ts`
-10. `src/vaultTypes.ts`
-11. `tests/vault-replay.test.mjs`
-12. `tests/vault-commands.test.mjs`
-
 ### 3. Run the task loop
 For the selected task:
 1. select the best Prompt Vault template
@@ -154,23 +151,6 @@ For the selected task:
 10. record AK evidence
 11. complete the task
 
-## VRE-09 TARGET SHAPE
-
-The intended replay-surface slice should stay tightly scoped to deterministic operator access to the already-landed replay core by `execution_id`.
-
-Minimum expected contract:
-- expose replay through a deterministic operator surface
-- keep replay keyed to exact `execution_id`
-- surface existing core classifications without inventing new semantics
-- preserve the current explicit reasons from replay core
-- allow both interactive and headless use if the task payload and local scope support it cleanly
-
-Minimum explicit non-goals:
-- no analytics/dashboard work
-- no Prompt Vault schema changes
-- no historical backfill
-- no expansion into transcript capture or model-output analysis
-
 ## VALIDATION
 
 Default validation commands:
@@ -180,10 +160,11 @@ npm run typecheck
 npm run check
 ```
 
-If replay surface code lands, add focused proof for:
-- successful operator replay of a known matching receipt
-- operator-visible drift report for a controlled mismatch
-- operator-visible unavailable report for bad company / missing template / missing input contract
+Add focused proof whenever the task changes a specific operator/runtime contract.
+Examples:
+- targeted `node --test ...` invocations for touched tests
+- `npm run release:check` for packaging/release-surface changes
+- headless `pi --no-extensions -e ... -p ...` smoke when command/tool behavior changes
 
 ## AK EVIDENCE SHAPE
 
@@ -194,6 +175,7 @@ Suggested evidence types:
 - `review:atomic-completion`
 - `validation:typecheck`
 - `validation:package`
+- `validation:headless-smoke`
 - `commit:created`
 
 Complete the claimed task only after validations pass and the change is isolated.
@@ -231,13 +213,13 @@ Return to the normal execution loop only after the simpler workflow is clear.
 Stop and report instead of improvising when:
 - a privacy/persistence/policy decision is required
 - a Prompt Vault schema change becomes necessary
-- work must spill outside this package beyond clearly local docs/tests
+- work must spill outside this package beyond clearly local docs/tests/runtime boundaries
 - the ready task cannot be isolated cleanly for commit
 - runtime/tooling needed for truthful execution is unavailable
 
 ## ROUTING RULE
 
-- **receipts/replay backlog setup, receipt architecture, receipt runtime, replay runtime, replay surface, vault execution provenance, queue-driving prompts**
+- **vault client package behavior, receipt/replay docs/tests, command/tool surfaces, package-local validation, queue-driving prompts**
   - stay here in `pi-vault-client`
 - **shared interaction package architecture / published package contract drift**
   - go to `../pi-interaction`
@@ -257,4 +239,4 @@ A successful session:
 4. keeps `npm run check` green
 5. records truthful AK evidence
 6. completes the task or stops with an exact blocker
-7. leaves the queue in a more truthful state than it found it
+7. leaves the queue, docs, and operator surface in a more truthful state than it found them

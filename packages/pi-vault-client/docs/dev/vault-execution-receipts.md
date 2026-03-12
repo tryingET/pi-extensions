@@ -43,6 +43,35 @@ Editor population alone is no longer treated as a successful execution.
 The current runtime correlates prepared prompts to sent prompts with an opaque hidden execution marker carried through the editor/transform path and stripped back out before the LLM sees user content.
 That marker replaced the earlier raw-text matching heuristic.
 
+## Current operator workflow
+
+### Exact-id workflow
+1. prepare and send a real prompt through `/vault`, live `/vault:`, `/route`, or grounding
+2. obtain the exact `execution_id`
+   - interactive: `/vault-last-receipt`
+   - headless/tooling: `vault_executions({ template_name, limit })`
+3. inspect the stored local receipt if needed
+   - `/vault-receipt <execution_id>`
+4. replay against current visible runtime state
+   - interactive: `/vault-replay <execution_id>`
+   - headless/tooling: `vault_replay({ execution_id })`
+
+### Current replay/reporting truth
+- replay remains keyed to the exact `execution_id`; there is no fuzzy or latest-by-default replay surface
+- replay statuses remain:
+  - `match`
+  - `drift`
+  - `unavailable`
+- visible replay reports remain grounded in the stored prepared baseline plus the regenerated prepared baseline
+- `vault_replay({ execution_id })` is the headless/operator tool surface for the same replay contract used by the interactive command path
+
+### Visibility and fail-closed behavior
+- receipt inspection and replay require explicit company context
+- `/vault-last-receipt`, `/vault-receipt <execution_id>`, and `/vault-replay <execution_id>` only expose receipts visible to the current company
+- non-visible receipts are treated as missing on replay surfaces rather than leaking template identity
+  - interactive slash commands warn and stop
+  - `vault_replay({ execution_id })` returns an `unavailable` report with reason `receipt-missing`
+
 ## Problem statement
 `pi-vault-client` already does three useful things:
 

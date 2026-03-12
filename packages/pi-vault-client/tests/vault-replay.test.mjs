@@ -626,3 +626,153 @@ test("grounding replay uses stored framework resolution instead of rediscovery",
     assert.equal(replay.regenerated?.text, grounded.prompt);
   });
 });
+
+test("formatted replay report captures drift details for operator review", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const { createVaultReceiptManager, createPreparedExecutionToken, withPreparedExecutionMarker } =
+      await importModule("src/vaultReceipts.js");
+    const { replayVaultExecutionById, formatVaultReplayReport } =
+      await importModule("src/vaultReplay.js");
+    const { prepareTemplateForExecutionCompat } = await importModule(
+      "src/templatePreparationCompat.js",
+    );
+    const runtime = createVaultRuntime();
+    const receiptDir = mkdtempSync(path.join(os.tmpdir(), "pi-vault-replay-receipts-"));
+
+    try {
+      const receipts = createVaultReceiptManager(runtime, {
+        filePath: path.join(receiptDir, "vault-execution-receipts.jsonl"),
+      });
+      const insertResult = runtime.insertTemplate(
+        "replay-format-drift",
+        "---\nrender_engine: nunjucks\n---\nCompany: {{ current_company }}\nContext: {{ context }}",
+        "Replay formatted drift template",
+        "procedure",
+        "one_shot",
+        "structured",
+        "software",
+        ["software"],
+        null,
+        { actorCompany: "software", allowAmbientCwdFallback: false },
+      );
+      assert.equal(insertResult.status, "ok");
+
+      const template = runtime.getTemplate("replay-format-drift", { currentCompany: "software" });
+      assert.ok(template);
+      if (!template) return;
+
+      const prepared = prepareTemplateForExecutionCompat(template.content, {
+        currentCompany: "software",
+        context: "operator drift review",
+        templateName: template.name,
+        appendContextSection: true,
+        allowLegacyPiVarsAutoDetect: false,
+      });
+      assert.equal(prepared.ok, true);
+      if (!prepared.ok) return;
+
+      const executionToken = createPreparedExecutionToken();
+      receipts.queuePreparedExecution({
+        execution_token: executionToken,
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/vault",
+          channel: "slash-command",
+          selection_mode: "exact",
+          llm_tool_call: null,
+        },
+        template: {
+          id: template.id,
+          name: template.name,
+          version: template.version,
+          artifact_kind: template.artifact_kind,
+          control_mode: template.control_mode,
+          formalization_level: template.formalization_level,
+          owner_company: template.owner_company,
+          visibility_companies: [...template.visibility_companies],
+        },
+        company: {
+          current_company: "software",
+          company_source: "explicit:test",
+        },
+        render: {
+          engine: prepared.engine,
+          explicit_engine: prepared.explicitEngine,
+          context_appended: prepared.contextAppended,
+          append_context_section: true,
+          used_render_keys: prepared.usedRenderKeys,
+        },
+        prepared: {
+          text: prepared.prepared,
+        },
+        replay_safe_inputs: {
+          kind: "vault-selection",
+          query: template.name,
+          context: "operator drift review",
+        },
+        input_context: "operator drift review",
+      });
+
+      const finalized = receipts.finalizePreparedExecution(
+        withPreparedExecutionMarker(prepared.prepared, executionToken),
+        "unit-test-model",
+      );
+      assert.equal(finalized.status, "matched");
+      if (finalized.status !== "matched") return;
+
+      const updateResult = runtime.updateTemplate(
+        "replay-format-drift",
+        {
+          content:
+            "---\nrender_engine: nunjucks\n---\nChanged company: {{ current_company }}\nChanged context: {{ context }}",
+        },
+        { actorCompany: "software", allowAmbientCwdFallback: false },
+      );
+      assert.equal(updateResult.status, "ok");
+
+      const replay = replayVaultExecutionById(runtime, receipts, finalized.receipt.execution_id, {
+        currentCompany: "software",
+      });
+      const formatted = formatVaultReplayReport(replay);
+
+      assert.match(formatted, /# Vault Execution Replay/);
+      assert.match(formatted, /status: drift/);
+      assert.match(formatted, /reasons: .*version-mismatch/);
+      assert.match(formatted, /reasons: .*render-mismatch/);
+      assert.match(formatted, /recorded_template_version: 1/);
+      assert.match(formatted, /current_template_version: 2/);
+      assert.match(formatted, /## Stored Prepared Prompt/);
+      assert.match(formatted, /## Regenerated Prepared Prompt/);
+      assert.match(formatted, /Recorded template version 1; current version 2\./);
+    } finally {
+      rmSync(receiptDir, { recursive: true, force: true });
+    }
+  });
+});
+
+test("missing-receipt replay report preserves requested company context without template leakage", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const { replayVaultExecutionById, formatVaultReplayReport } =
+      await importModule("src/vaultReplay.js");
+    const runtime = createVaultRuntime();
+
+    const replay = replayVaultExecutionById(
+      runtime,
+      { readReceiptByExecutionId: () => null },
+      999999,
+      { currentCompany: "software" },
+    );
+    const formatted = formatVaultReplayReport(replay);
+
+    assert.equal(replay.status, "unavailable");
+    assert.deepEqual(replay.reasons, ["receipt-missing"]);
+    assert.match(formatted, /status: unavailable/);
+    assert.match(formatted, /reasons: receipt-missing/);
+    assert.match(formatted, /current_company: software/);
+    assert.match(formatted, /company_source: explicit:currentCompany/);
+    assert.match(formatted, /template: \(unknown\)/);
+    assert.doesNotMatch(formatted, /hidden-template/);
+  });
+});
