@@ -135,7 +135,7 @@ Status update:
 ## Immediate next leaves after Phase A
 
 1. Review/socialize the drafted ASC-owned public execution contract proposal and turn it into either an ASC implementation slice or an upstream/internal issue.
-2. Pick the **next** raw society/ontology bypass family and route it toward the canonical adapter path.
+2. Continue with the **remaining raw society read/query family** (`society_query`, `/evidence`) now that ontology reads are on the `rocs-cli` adapter path.
 3. Keep presentation helpers local unless a second real consumer proves extraction pressure.
 4. Continue to defer prompt-plane seam selection until the upstream `pi-vault-client` boundary lands.
 
@@ -151,13 +151,13 @@ Status update:
 
 | Current location | Current behavior | Intended canonical replacement | Status |
 |---|---|---|---|
-| `extensions/society-orchestrator.ts:47,100-121,339-357,694-710` | `SOCIETY_DB` + `querySociety` / `execSociety` + `society_query` + `/evidence` against raw sqlite | `ak`-backed society-state adapter / explicit diagnostic exception if truly needed | pending |
-| `extensions/society-orchestrator.ts:146-178` | local `queryVaultJson` via `dolt sql` | deferred prompt-plane review against upstream `pi-vault-client` Vault execution boundary | deferred-upstream |
-| `extensions/society-orchestrator.ts:142-163,510-514,608` | evidence writes now route through shared `recordEvidence(...)` with `ak` first and explicit SQL fallback | canonical `ak` evidence path only (or explicit audited fallback) | partial |
-| `extensions/society-orchestrator.ts:626-633,725-726` | ontology reads via local SQL table contract | `rocs-cli`-backed ontology adapter | pending |
+| `extensions/society-orchestrator.ts` (`society_query`, `/evidence`) | `SOCIETY_DB` + `querySociety` against raw sqlite for read-side diagnostics and evidence listing | `ak`-backed society-state adapter / explicit diagnostic exception if truly needed | pending |
+| `src/runtime/cognitive-tools.ts` | local prompt-vault lookup via `dolt sql` | deferred prompt-plane review against upstream `pi-vault-client` Vault execution boundary | deferred-upstream |
+| `src/runtime/evidence.ts` | evidence writes now route through shared `recordEvidence(...)` with `ak` first and explicit SQL fallback | canonical `ak` evidence path only (or explicit audited fallback) | partial |
+| `extensions/society-orchestrator.ts` + `src/runtime/ontology.ts` | ontology reads now resolve through shared ROCS build/id-index artifacts instead of local SQL table assumptions | `rocs-cli`-backed ontology adapter | complete |
 
 ### Inventory command used
 
 ```bash
-rg -n "sqlite3|dolt sql|society\.db|ontology WHERE|queryVaultJson|querySociety|execSociety" extensions src -g '!node_modules'
+rg -n "sqlite3|dolt sql|society\.db|querySociety|queryDoltJson|recordEvidence\(|ontology_context|registerCommand\(\"ontology\"" extensions src -g '!node_modules'
 ```

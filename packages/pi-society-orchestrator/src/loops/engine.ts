@@ -13,7 +13,6 @@
  *   /loop kaizen "Improve test coverage"
  */
 
-import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -21,9 +20,24 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { AGENT_PROFILES } from "../runtime/agent-profiles.ts";
+import type { AgentResolution } from "../runtime/agent-routing.ts";
+import { runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
 import { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
+import {
+  type EvidenceEntry,
+  type EvidenceWriteResult,
+  finalizeExecutionEffects,
+  recordEvidence,
+} from "../runtime/evidence.ts";
+import type { ExecutionStatus } from "../runtime/execution-status.ts";
+import { buildCombinedSystemPrompt, spawnPiSubagent } from "../runtime/subagent.ts";
+import type { TeamScopedContext } from "../runtime/team-state.ts";
 
+const DEFAULT_SOCIETY_DB =
+  process.env.SOCIETY_DB ||
+  process.env.AK_DB ||
+  path.join(os.homedir(), "ai-society", "society.db");
 const DEFAULT_AK_PATH = path.join(
   os.homedir(),
   "ai-society",
@@ -64,6 +78,7 @@ export interface PhaseResult {
   phase: string;
   output: string;
   exitCode: number;
+  status: ExecutionStatus;
   elapsed: number;
   artifacts: Artifact[];
   timestamp: Date;
@@ -259,13 +274,20 @@ ${JSON.stringify(entry.metadata || {}, null, 2)}
 
 export class AgentKernel {
   private akPath: string;
+  private societyDb?: string;
 
-  constructor(akPath: string = fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak") {
+  constructor(
+    akPath: string = fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak",
+    societyDb?: string,
+  ) {
     this.akPath = akPath;
+    this.societyDb = societyDb;
   }
 
-  async taskReady(): Promise<Array<{ id: number; title: string; repo: string }>> {
-    const output = await this.run(["task", "ready", "--format", "json"]);
+  async taskReady(
+    signal?: AbortSignal,
+  ): Promise<Array<{ id: number; title: string; repo: string }>> {
+    const output = await this.run(["task", "ready", "--format", "json"], signal);
     try {
       return JSON.parse(output);
     } catch {
@@ -273,78 +295,59 @@ export class AgentKernel {
     }
   }
 
-  async taskClaim(taskId: number, agent: string, lease: number = 3600): Promise<boolean> {
+  async taskClaim(
+    taskId: number,
+    agent: string,
+    lease: number = 3600,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
     try {
-      await this.run(["task", "claim", String(taskId), "--agent", agent, "--lease", String(lease)]);
+      await this.run(
+        ["task", "claim", String(taskId), "--agent", agent, "--lease", String(lease)],
+        signal,
+      );
       return true;
     } catch {
       return false;
     }
   }
 
-  async taskComplete(taskId: number, result: Record<string, unknown>): Promise<boolean> {
+  async taskComplete(
+    taskId: number,
+    result: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
     try {
-      await this.run(["task", "complete", String(taskId), "--result", JSON.stringify(result)]);
+      await this.run(
+        ["task", "complete", String(taskId), "--result", JSON.stringify(result)],
+        signal,
+      );
       return true;
     } catch {
       return false;
     }
   }
 
-  async evidenceRecord(params: {
-    task_id?: number;
-    check_type: string;
-    result: "pass" | "fail" | "skip";
-    details?: Record<string, unknown>;
-  }): Promise<boolean> {
-    try {
-      const args = [
-        "evidence",
-        "record",
-        "--check-type",
-        params.check_type,
-        "--result",
-        params.result,
-      ];
-      if (params.task_id) {
-        args.push("--task", String(params.task_id));
-      }
-      if (params.details) {
-        args.push("--details", JSON.stringify(params.details));
-      }
-      await this.run(args);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private run(args: string[]): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const proc = spawn(this.akPath, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-
-      let stdout = "";
-      let stderr = "";
-
-      proc.stdout?.on("data", (chunk) => {
-        stdout += chunk;
-      });
-      proc.stderr?.on("data", (chunk) => {
-        stderr += chunk;
-      });
-
-      proc.on("close", (code) => {
-        if (code === 0) {
-          resolve(stdout);
-        } else {
-          reject(new Error(stderr || `ak exited with code ${code}`));
-        }
-      });
-
-      proc.on("error", reject);
+  evidenceRecord(params: EvidenceEntry, signal?: AbortSignal): Promise<EvidenceWriteResult> {
+    return recordEvidence(params, signal, {
+      akPath: this.akPath,
+      societyDb: this.societyDb || process.env.SOCIETY_DB || process.env.AK_DB || "",
     });
+  }
+
+  private async run(args: string[], signal?: AbortSignal): Promise<string> {
+    const result = await runAkCommandAsync({
+      akPath: this.akPath,
+      societyDb: this.societyDb || process.env.SOCIETY_DB || process.env.AK_DB || "",
+      args,
+      signal,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.stderr || `ak exited with error`);
+    }
+
+    return result.stdout;
   }
 }
 
@@ -356,6 +359,7 @@ export class LoopExecutor {
   private plugin: LoopPlugin;
   private diary: DiaryWriter;
   private ak: AgentKernel;
+  private cwd: string;
 
   constructor(
     plugin: LoopPlugin,
@@ -364,8 +368,9 @@ export class LoopExecutor {
     akPath: string = fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak",
   ) {
     this.plugin = plugin;
+    this.cwd = cwd;
     this.diary = new DiaryWriter(cwd);
-    this.ak = new AgentKernel(akPath);
+    this.ak = new AgentKernel(akPath, DEFAULT_SOCIETY_DB);
     const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "loops");
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });
@@ -374,11 +379,14 @@ export class LoopExecutor {
 
   async execute(
     objective: string,
-    dispatchFn: (params: {
-      agent: string;
-      cognitiveTool: string;
-      context: string;
-    }) => Promise<{ output: string; exitCode: number; elapsed: number }>,
+    dispatchFn: (params: { agent: string; cognitiveTool: string; context: string }) => Promise<{
+      output: string;
+      exitCode: number;
+      elapsed: number;
+      aborted?: boolean;
+      timedOut?: boolean;
+    }>,
+    signal?: AbortSignal,
   ): Promise<LoopResult> {
     const startTime = Date.now();
     const sessionId = `${this.plugin.name}-${Date.now()}`;
@@ -390,7 +398,7 @@ export class LoopExecutor {
       currentPhase: "",
       history: [],
       artifacts: [],
-      cwd: process.cwd(),
+      cwd: this.cwd,
     };
 
     // Write loop start to diary
@@ -404,8 +412,33 @@ export class LoopExecutor {
     let success = true;
 
     for (let i = 0; i < this.plugin.phases.length; i++) {
+      if (signal?.aborted) {
+        success = false;
+        break;
+      }
+
       const phase = this.plugin.phases[i];
+      const previousPhase = context.history.at(-1)?.phase;
       context.currentPhase = phase;
+
+      if (
+        previousPhase &&
+        this.plugin.validate &&
+        !this.plugin.validate(previousPhase, phase, context)
+      ) {
+        const validationFailure: PhaseResult = {
+          phase,
+          output: `Transition validation failed: ${previousPhase} -> ${phase}`,
+          exitCode: 1,
+          status: "error",
+          elapsed: 0,
+          artifacts: [],
+          timestamp: new Date(),
+        };
+        context.history.push(validationFailure);
+        success = false;
+        break;
+      }
 
       // Phase enter hook
       if (this.plugin.onEnter) {
@@ -428,25 +461,41 @@ export class LoopExecutor {
         context: phaseContext,
       });
 
+      const executionOutcome = await finalizeExecutionEffects({
+        result,
+        signal,
+        createEvidenceEntry: ({ status, success }) => ({
+          check_type: `loop:${this.plugin.name}:${phase}`,
+          result: success ? "pass" : "fail",
+          details: {
+            sessionId,
+            objective: objective.slice(0, 100),
+            elapsed: result.elapsed,
+            status,
+          },
+        }),
+        recordEvidence: (entry, activeSignal) => this.ak.evidenceRecord(entry, activeSignal),
+      });
+
       const phaseResult: PhaseResult = {
         phase,
         output: result.output,
         exitCode: result.exitCode,
+        status: executionOutcome.status,
         elapsed: result.elapsed,
         artifacts: [],
         timestamp: new Date(),
       };
 
-      // Record evidence
-      await this.ak.evidenceRecord({
-        check_type: `loop:${this.plugin.name}:${phase}`,
-        result: result.exitCode === 0 ? "pass" : "fail",
-        details: {
-          sessionId,
-          objective: objective.slice(0, 100),
-          elapsed: result.elapsed,
-        },
-      });
+      if (executionOutcome.status === "aborted") {
+        context.history.push(phaseResult);
+        success = false;
+        break;
+      }
+
+      if (!executionOutcome.evidence.ok) {
+        success = false;
+      }
 
       // Phase exit hook
       if (this.plugin.onExit) {
@@ -468,7 +517,7 @@ export class LoopExecutor {
         metadata: { exitCode: result.exitCode, elapsed: result.elapsed },
       });
 
-      if (result.exitCode !== 0) {
+      if (!executionOutcome.success) {
         success = false;
         // Continue to next phase even on failure (resilient loop)
       }
@@ -529,6 +578,7 @@ export function registerLoopTools(
   plugins: Record<string, LoopPlugin> = BUILT_IN_PLUGINS,
   vaultDir: string = process.env.VAULT_DIR ||
     path.join(os.homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db"),
+  resolveAgent?: (agent: string, ctx: TeamScopedContext & { cwd: string }) => AgentResolution,
 ): void {
   pi.registerTool({
     name: "loop_execute",
@@ -557,7 +607,7 @@ Results are recorded to diary/ and evidence ledger.`,
       ),
       objective: Type.String({ description: "The objective to accomplish through the loop" }),
     }),
-    async execute(_toolCallId, params, _signal, onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const { loop, objective } = params as { loop: string; objective: string };
 
       if (loop === "mito") {
@@ -592,12 +642,61 @@ Results are recorded to diary/ and evidence ledger.`,
         });
       }
 
+      const resolvedAgents = new Map<string, string>();
+      if (resolveAgent) {
+        const incompatiblePhases = plugin.phases.flatMap((phase) => {
+          const requestedAgent = plugin.agents[phase] || "scout";
+          const resolution = resolveAgent(requestedAgent, ctx);
+          if (!resolution.ok) {
+            return [
+              {
+                phase,
+                agent: requestedAgent,
+                error: resolution.error,
+              },
+            ];
+          }
+
+          resolvedAgents.set(requestedAgent, resolution.agent);
+          return [];
+        });
+
+        if (incompatiblePhases.length > 0) {
+          const mismatchReport = incompatiblePhases
+            .map((entry) => `- ${entry.phase}: ${entry.agent} — ${entry.error}`)
+            .join("\n");
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Loop '${loop}' is incompatible with the active team:\n${mismatchReport}`,
+              },
+            ],
+            details: { ok: false, error: "loop-agent-team-mismatch", incompatiblePhases },
+          };
+        }
+      }
+
       const executor = new LoopExecutor(plugin, ctx.cwd, vaultDir);
 
       // Create dispatch function using shared agent profiles + vault-loaded cognitive tools.
       const dispatch = async (p: { agent: string; cognitiveTool: string; context: string }) => {
-        const agentProfile = AGENT_PROFILES[p.agent] || AGENT_PROFILES.scout;
-        const toolResult = getCognitiveToolByName(vaultDir, p.cognitiveTool);
+        let effectiveAgent = resolvedAgents.get(p.agent) || p.agent;
+        if (resolveAgent && !resolvedAgents.has(p.agent)) {
+          const resolution = resolveAgent(p.agent, ctx);
+          if (!resolution.ok) {
+            return {
+              output: `Agent/team resolution failed for '${p.agent}': ${resolution.error}`,
+              exitCode: 1,
+              elapsed: 0,
+            };
+          }
+          effectiveAgent = resolution.agent;
+          resolvedAgents.set(p.agent, effectiveAgent);
+        }
+
+        const agentProfile = AGENT_PROFILES[effectiveAgent] || AGENT_PROFILES.scout;
+        const toolResult = await getCognitiveToolByName(vaultDir, p.cognitiveTool, signal);
         if (isBoundaryFailure(toolResult)) {
           return {
             output: `Failed to load cognitive tool '${p.cognitiveTool}': ${toolResult.error}`,
@@ -614,17 +713,13 @@ Results are recorded to diary/ and evidence ledger.`,
           };
         }
 
-        const combinedPrompt = `${agentProfile.systemPrompt}
-
----
-
-${toolResult.value.content}
-
----
-
-## LOOP EXECUTION CONTEXT
-- Agent profile: ${agentProfile.name}
-- Cognitive tool: ${toolResult.value.name}`;
+        const combinedPrompt = buildCombinedSystemPrompt({
+          agentSystemPrompt: agentProfile.systemPrompt,
+          cognitiveToolContent: toolResult.value.content,
+          extraSections: [
+            `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
+          ],
+        });
         const model = ctx.model
           ? `${ctx.model.provider}/${ctx.model.id}`
           : "openrouter/google/gemini-2.5-flash-preview";
@@ -637,73 +732,18 @@ ${toolResult.value.content}
           `${agentProfile.name}-${toolResult.value.name}-${Date.now()}.json`,
         );
 
-        return new Promise<{ output: string; exitCode: number; elapsed: number }>((resolve) => {
-          const startTime = Date.now();
-          const args = [
-            "--mode",
-            "json",
-            "-p",
-            "--no-extensions",
-            "--model",
-            model,
-            "--tools",
-            agentProfile.tools,
-            "--thinking",
-            "off",
-            "--append-system-prompt",
-            combinedPrompt,
-            "--session",
-            sessionFile,
-            p.context,
-          ];
-
-          const proc = spawn("pi", args, { stdio: ["ignore", "pipe", "pipe"] });
-          const chunks: string[] = [];
-          let buffer = "";
-          let stderr = "";
-
-          proc.stdout?.setEncoding("utf-8");
-          proc.stdout?.on("data", (chunk: string) => {
-            buffer += chunk;
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-            for (const line of lines) {
-              if (!line.trim()) continue;
-              try {
-                const event = JSON.parse(line);
-                if (
-                  event.type === "message_update" &&
-                  event.assistantMessageEvent?.type === "text_delta"
-                ) {
-                  chunks.push(event.assistantMessageEvent.delta || "");
-                }
-              } catch {}
-            }
-          });
-
-          proc.stderr?.setEncoding("utf-8");
-          proc.stderr?.on("data", (chunk: string) => {
-            stderr += chunk;
-          });
-          proc.on("close", (code) => {
-            resolve({
-              output: chunks.join("") || stderr || `pi exited with code ${code ?? 1}`,
-              exitCode: code ?? 1,
-              elapsed: Date.now() - startTime,
-            });
-          });
-          proc.on("error", (error) => {
-            resolve({
-              output: `Spawn error: ${error.message}`,
-              exitCode: 1,
-              elapsed: Date.now() - startTime,
-            });
-          });
+        return spawnPiSubagent({
+          tools: agentProfile.tools,
+          systemPrompt: combinedPrompt,
+          objective: p.context,
+          model,
+          sessionFile,
+          signal,
         });
       };
 
       try {
-        const result = await executor.execute(objective, dispatch);
+        const result = await executor.execute(objective, dispatch, signal);
 
         const summary = `# ${loop.toUpperCase()} Loop Complete
 
@@ -712,7 +752,7 @@ ${toolResult.value.content}
 **Elapsed:** ${Math.round(result.elapsed / 1000)}s
 
 ## Phases
-${result.phases.map((p) => `- ${p.phase}: ${p.exitCode === 0 ? "✓" : "✗"} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
+${result.phases.map((p) => `- ${p.phase}: ${p.status === "done" ? "✓" : "✗"} ${p.status} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
 
 ## Artifacts
 ${result.artifacts.map((a) => `- ${a.type}`).join("\n") || "None"}
@@ -723,7 +763,7 @@ Entries written to \`diary/\` directory.
 
         return {
           content: [{ type: "text", text: summary }],
-          details: { ok: true, result },
+          details: { ok: result.success, result },
         };
       } catch (err) {
         return {

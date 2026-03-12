@@ -3,12 +3,12 @@ import {
   type BoundaryResult,
   escapeSqlLiteral,
   isBoundaryFailure,
-  queryDoltJson,
+  queryDoltJsonAsync,
 } from "./boundaries.ts";
 
 export interface CognitiveTool {
   name: string;
-  type: "cognitive" | "task";
+  type: "cognitive";
   description: string;
   content: string;
 }
@@ -23,14 +23,16 @@ function propagateFailure<T>(result: BoundaryFailure): BoundaryResult<T> {
   };
 }
 
-export function getCognitiveToolByName(
+export async function getCognitiveToolByName(
   vaultDir: string,
   name: string,
-): BoundaryResult<CognitiveTool | null> {
+  signal?: AbortSignal,
+): Promise<BoundaryResult<CognitiveTool | null>> {
   const safeName = escapeSqlLiteral(name);
-  const result = queryDoltJson(
+  const result = await queryDoltJsonAsync(
     vaultDir,
-    `SELECT name, artifact_kind, description, content FROM prompt_templates WHERE name = '${safeName}' AND status = 'active'`,
+    `SELECT name, artifact_kind, description, content FROM prompt_templates WHERE name = '${safeName}' AND artifact_kind = 'cognitive' AND status = 'active'`,
+    signal,
   );
   if (isBoundaryFailure(result)) {
     return propagateFailure(result);
@@ -45,17 +47,21 @@ export function getCognitiveToolByName(
     ok: true,
     value: {
       name: String(row.name || ""),
-      type: String(row.artifact_kind || "procedure") === "cognitive" ? "cognitive" : "task",
+      type: "cognitive",
       description: String(row.description || ""),
       content: String(row.content || ""),
     },
   };
 }
 
-export function listCognitiveTools(vaultDir: string): BoundaryResult<CognitiveTool[]> {
-  const result = queryDoltJson(
+export async function listCognitiveTools(
+  vaultDir: string,
+  signal?: AbortSignal,
+): Promise<BoundaryResult<CognitiveTool[]>> {
+  const result = await queryDoltJsonAsync(
     vaultDir,
     "SELECT name, artifact_kind, description FROM prompt_templates WHERE artifact_kind = 'cognitive' AND status = 'active' ORDER BY name",
+    signal,
   );
   if (isBoundaryFailure(result)) {
     return propagateFailure(result);

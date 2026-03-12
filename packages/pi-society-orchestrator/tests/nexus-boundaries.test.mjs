@@ -8,14 +8,26 @@ import { buildLoopExecuteInvocation } from "../src/loops/engine.ts";
 import {
   buildSqlContainsExpression,
   execFileText,
+  execFileTextAsync,
   isReadOnlySql,
   querySqliteJson,
+  querySqliteJsonAsync,
 } from "../src/runtime/boundaries.ts";
 
 test("isReadOnlySql accepts read-only statements and rejects mutating or stacked SQL", () => {
   assert.equal(isReadOnlySql("SELECT 1"), true);
   assert.equal(isReadOnlySql("-- comment\nSELECT 1"), true);
+  assert.equal(isReadOnlySql("WITH x AS (SELECT 1 AS n) SELECT * FROM x"), true);
+  assert.equal(
+    isReadOnlySql(
+      "WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM cnt LIMIT 3) SELECT * FROM cnt",
+    ),
+    true,
+  );
+  assert.equal(isReadOnlySql("WITH x AS (SELECT 1) DELETE FROM evidence"), false);
   assert.equal(isReadOnlySql("PRAGMA table_info('ontology')"), true);
+  assert.equal(isReadOnlySql("PRAGMA main.table_info('ontology')"), true);
+  assert.equal(isReadOnlySql("PRAGMA user_version = 7"), false);
   assert.equal(isReadOnlySql("INSERT INTO evidence VALUES (1)"), false);
   assert.equal(isReadOnlySql("SELECT 1; DROP TABLE evidence"), false);
 });
@@ -32,6 +44,42 @@ test("execFileText passes argv literally without shell interpolation", () => {
       assert.match(result.value, /\$\(/);
     }
     assert.equal(fs.existsSync(touchedFile), false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("execFileTextAsync stays non-blocking for runtime boundary calls", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-boundary-async-"));
+  const scriptPath = path.join(tempDir, "slow-print.sh");
+
+  fs.writeFileSync(
+    scriptPath,
+    `#!/usr/bin/env bash
+sleep 0.2
+printf 'async-ok'
+`,
+  );
+  fs.chmodSync(scriptPath, 0o755);
+
+  try {
+    let timerFired = false;
+    const timer = new Promise((resolve) => {
+      setTimeout(() => {
+        timerFired = true;
+        resolve(undefined);
+      }, 20);
+    });
+
+    const resultPromise = execFileTextAsync(scriptPath, []);
+    await timer;
+    assert.equal(timerFired, true);
+
+    const result = await resultPromise;
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.value, "async-ok");
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -63,6 +111,27 @@ test("buildSqlContainsExpression neutralizes hostile LIKE input without dropping
 
     const tables = execFileSync("sqlite3", [dbPath, ".tables"], { encoding: "utf-8" });
     assert.match(tables, /\bontology\b/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("querySqliteJsonAsync keeps runtime society reads off the blocking path", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-sqlite-async-"));
+  const dbPath = path.join(tempDir, "ontology.db");
+
+  try {
+    execFileSync(
+      "sqlite3",
+      [dbPath, "CREATE TABLE ontology(concept text); INSERT INTO ontology VALUES ('safe');"],
+      { encoding: "utf-8" },
+    );
+
+    const result = await querySqliteJsonAsync(dbPath, "SELECT concept FROM ontology LIMIT 1");
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.deepEqual(result.value, [{ concept: "safe" }]);
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

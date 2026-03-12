@@ -71,13 +71,13 @@ The runtime extension surface still uses the existing `society-orchestrator` ide
 
 Primary tools and commands exposed by the imported extension include:
 
-- `society_query` (read-only diagnostic SQL only)
+- `society_query` (read-only diagnostic SQL only; read-only `WITH ... SELECT ...`, `SELECT`, `EXPLAIN`, and non-mutating `PRAGMA` forms are allowed)
 - `cognitive_dispatch`
 - `evidence_record`
-- `ontology_context`
+- `ontology_context` (now resolved through the sanctioned `rocs-cli` adapter path instead of the local `society.db` ontology table)
 - `loop_execute`
 - `/cognitive`
-- `/agents-team`
+- `/agents-team` (session-identity-scoped team selection for direct-dispatch and loop agents; incompatible loop/team combinations now fail explicitly instead of silently swapping roles)
 - `/evidence`
 - `/ontology <query>`
 - `/loops`
@@ -114,6 +114,39 @@ npm run check
 
 `npm run check` now exercises package-local typechecking and regression tests in addition to lint/structure/package validation.
 
+The runtime now also shares package-local helpers for:
+- no-shell lower-plane command execution (`sqlite3`, `dolt`, `ak`, `rocs-cli`)
+- async, timeout-bound lower-plane runtime calls for `sqlite3`, `dolt`, and `rocs-cli` instead of synchronous runtime `execFileSync` reads
+- cognitive-tool schema-aware vault access with cognitive-only lookup by name
+- `rocs-cli`-backed ontology resolution via ROCS build/index artifacts instead of raw ontology SQL reads
+- fail-closed agent/team routing plus session-identity-scoped, capacity-bounded team state for direct dispatch and loop execution
+- shared execution/evidence policy across direct dispatch and loop execution (abort skips evidence, timeout/protocol failure records fail evidence, SQL fallback eligibility is consistent)
+- abortable, timeout-bound, capture-bounded child-process supervision for `ak` and Pi subagents
+- explicit `societyDb` targeting for `ak`-backed runtime paths so ambient `AK_DB` does not silently override the configured package DB target
+- subagent prompt composition + spawn behavior across direct dispatch and loop execution
+
+Session team identity precedence is now explicit:
+1. `ctx.sessionKey`
+2. `ctx.sessionId`
+3. `ctx.sessionManager.sessionKey`
+4. `ctx.sessionManager.sessionId`
+5. `ctx.sessionManager.id`
+6. fallback to `sessionManager` object identity
+
+Additional runtime knobs:
+- `PI_ORCH_DEFAULT_AGENT_TEAM` — default team for sessions without explicit selection (validated; invalid values fall back to `full`)
+- `PI_ORCH_MAX_SESSION_KEYS` — max retained session-key entries before oldest-key eviction
+- `PI_ORCH_PROCESS_CAPTURE_BYTES` — bounded stdout/stderr capture limit for supervised child processes
+- `PI_ORCH_SUBAGENT_OUTPUT_CHARS` — bounded assistant-output capture for Pi subagents
+- `PI_ORCH_SUBAGENT_EVENT_BUFFER_BYTES` — max unterminated event-buffer size before protocol failure
+- `PI_ORCH_ONTOLOGY_REPO` — ontology repo passed to `rocs build` (defaults to `~/ai-society/softwareco/ontology`)
+- `PI_ORCH_ROCS_PROJECT` — local `rocs-cli` project used when invoking `uv --project ... run rocs`
+- `PI_ORCH_ROCS_BIN` — direct `rocs`/wrapper executable override for ontology resolution
+- `PI_ORCH_ROCS_WORKSPACE_ROOT` — workspace root passed to `rocs` for ref resolution (defaults to `~/ai-society`)
+- `PI_ORCH_ROCS_WORKSPACE_REF_MODE` — ROCS workspace ref mode for ontology resolution (defaults to `loose`)
+
+`npm run release:check` now also exercises installed-package timeout, truncation, and team-mismatch smoke through a headless harness that binds to the exact `PACKAGE_SPEC` recorded in the isolated Pi agent settings, verifies the installed package contents still match that tarball, and then drives the installed extension's registered tools/commands directly. The harness uses deterministic fake subagent/`ak` dependencies plus a temporary vault fixture, asserts the expected evidence-write argv for direct-dispatch smoke, and installs through an isolated `NPM_CONFIG_PREFIX` so routine release validation does not mutate the user's default global npm package space. That keeps the installed-package proof while removing the old dependency on `~/.pi/agent/auth.json` and a live provider-backed Pi host for routine release checks.
+
 From the monorepo root:
 
 ```bash
@@ -125,4 +158,4 @@ bash ./scripts/package-quality-gate.sh ci packages/pi-society-orchestrator
 - The package ships `src/` because the extension entrypoint imports runtime modules from there.
 - `session_start` guards UI-only behavior with `ctx.hasUI` so non-UI runs stay safer.
 - The package was renamed early to the `pi-society-orchestrator` canonical package identity to avoid later naming churn.
-- The current convergence priority is execution-plane/public-contract work and raw adapter migration; prompt-plane seam finalization stays deferred until the upstream `pi-vault-client` execution boundary lands.
+- The current convergence priority is execution-plane/public-contract work plus the remaining society/prompt adapter migration; prompt-plane seam finalization stays deferred until the upstream `pi-vault-client` execution boundary lands.

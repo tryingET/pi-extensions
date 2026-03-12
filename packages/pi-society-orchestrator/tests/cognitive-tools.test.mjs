@@ -31,13 +31,13 @@ function seedVault(vaultDir) {
   );
 }
 
-test("cognitive tool queries use artifact_kind schema and return cognitive templates", () => {
+test("cognitive tool queries use artifact_kind schema and return cognitive templates", async () => {
   const vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-vault-"));
 
   try {
     seedVault(vaultDir);
 
-    const listed = listCognitiveTools(vaultDir);
+    const listed = await listCognitiveTools(vaultDir);
     assert.equal(listed.ok, true);
     if (listed.ok) {
       assert.deepEqual(
@@ -46,12 +46,18 @@ test("cognitive tool queries use artifact_kind schema and return cognitive templ
       );
     }
 
-    const inversion = getCognitiveToolByName(vaultDir, "inversion");
+    const inversion = await getCognitiveToolByName(vaultDir, "inversion");
     assert.equal(inversion.ok, true);
     if (inversion.ok) {
       assert.equal(inversion.value?.name, "inversion");
       assert.equal(inversion.value?.type, "cognitive");
       assert.equal(inversion.value?.content, "shadow analysis");
+    }
+
+    const procedure = await getCognitiveToolByName(vaultDir, "builder-playbook");
+    assert.equal(procedure.ok, true);
+    if (procedure.ok) {
+      assert.equal(procedure.value, null);
     }
   } finally {
     fs.rmSync(vaultDir, { recursive: true, force: true });

@@ -140,6 +140,7 @@ fi
 
 TEST_AGENT_DIR=""
 TARBALL_PATH=""
+NPM_GLOBAL_PREFIX=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
@@ -164,17 +165,13 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
 
   TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
+  NPM_GLOBAL_PREFIX="$TEST_AGENT_DIR/npm-global"
+  mkdir -p "$NPM_GLOBAL_PREFIX"
 
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Allow override via environment variables for different provider configurations
+  # Keep a minimal deterministic settings shape for isolated tarball install.
+  # Provider/model values are not exercised by the headless installed-package smoke.
   PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
   PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
   PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
@@ -188,9 +185,9 @@ else
 }
 JSON
 
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR)"
+  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR + NPM_CONFIG_PREFIX)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
+  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX" pi install "$PACKAGE_SPEC"
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -214,7 +211,7 @@ NODE
 
   if [[ -x "./scripts/release-smoke.sh" ]]; then
     echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
+    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX" bash ./scripts/release-smoke.sh
   fi
 fi
 
