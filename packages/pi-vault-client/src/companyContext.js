@@ -3,10 +3,15 @@ const COMPANY_PATH_SEGMENT_ALIASES = {
     software: "software",
     softwareco: "software",
     finance: "finance",
+    financeco: "finance",
     house: "house",
+    houseco: "house",
     health: "health",
+    healthco: "health",
     teaching: "teaching",
+    teachingco: "teaching",
     holding: "holding",
+    holdingco: "holding",
 };
 function normalizePathSegments(cwd) {
     return cwd

@@ -53,7 +53,7 @@ test("resolveCompanyContext falls back to VAULT_CURRENT_COMPANY when PI_COMPANY 
   );
 });
 
-test("inferCompanyFromCwd prefers the ai-society anchor and still supports exact segment aliases", async () => {
+test("inferCompanyFromCwd prefers the ai-society anchor and supports company lane aliases", async () => {
   await withTranspiledModuleHarness(
     {
       prefix: "company-context-",
@@ -70,6 +70,14 @@ test("inferCompanyFromCwd prefers the ai-society anchor and still supports exact
       assert.equal(
         inferCompanyFromCwd("/home/tryinget/ai-society/softwareco/owned/pi-extensions"),
         "software",
+      );
+      assert.equal(
+        inferCompanyFromCwd("/home/tryinget/ai-society/holdingco/projects/governance-kernel"),
+        "holding",
+      );
+      assert.equal(
+        inferCompanyFromCwd("/home/tryinget/ai-society/financeco/projects/ledger"),
+        "finance",
       );
       assert.equal(
         inferCompanyFromCwd("C:\\Users\\tryinget\\ai-society\\core\\prompt-vault"),
