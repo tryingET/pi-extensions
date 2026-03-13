@@ -357,10 +357,9 @@ function qualifyTemplateColumn(column, alias) {
 function buildVisibilityPredicate(company = getCurrentCompany(), alias) {
     return `JSON_SEARCH(${qualifyTemplateColumn("visibility_companies", alias)}, 'one', '${escapeSql(company)}') IS NOT NULL`;
 }
-function buildPiVisibleTemplatePredicate(company = getCurrentCompany(), alias) {
+function buildActiveVisibleTemplatePredicate(company = getCurrentCompany(), alias) {
     return [
         `${qualifyTemplateColumn("status", alias)} = 'active'`,
-        `COALESCE(${qualifyTemplateColumn("export_to_pi", alias)}, 0) <> 0`,
         buildVisibilityPredicate(company, alias),
     ].join(" AND ");
 }
@@ -393,7 +392,7 @@ function getTemplateDetailed(name, context) {
     if (!companyContext.ok)
         return { ok: false, value: null, error: companyContext.error };
     const escapedName = escapeSql(name);
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(true, true)} FROM prompt_templates WHERE name = '${escapedName}' AND ${buildPiVisibleTemplatePredicate(companyContext.company)}`);
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(true, true)} FROM prompt_templates WHERE name = '${escapedName}' AND ${buildActiveVisibleTemplatePredicate(companyContext.company)}`);
     if (!result.ok)
         return result;
     return { ok: true, value: parseTemplateRows(result.value)[0] || null, error: null };
@@ -406,7 +405,7 @@ function listTemplatesDetailed(filters, context, options) {
     const companyContext = resolveReadCompanyContext(context);
     if (!companyContext.ok)
         return { ok: false, value: null, error: companyContext.error };
-    const whereClauses = [buildPiVisibleTemplatePredicate(companyContext.company)];
+    const whereClauses = [buildActiveVisibleTemplatePredicate(companyContext.company)];
     if (filters?.artifact_kind)
         whereClauses.push(`artifact_kind = '${escapeSql(filters.artifact_kind)}'`);
     if (filters?.control_mode)
@@ -430,7 +429,7 @@ function searchTemplatesDetailed(query, context, options) {
     if (!companyContext.ok)
         return { ok: false, value: null, error: companyContext.error };
     const escapedQuery = escapeLikePattern(normalizedQuery);
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(options?.includeContent ?? false)} FROM prompt_templates WHERE ${buildPiVisibleTemplatePredicate(companyContext.company)} AND (` +
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(options?.includeContent ?? false)} FROM prompt_templates WHERE ${buildActiveVisibleTemplatePredicate(companyContext.company)} AND (` +
         `LOWER(name) LIKE '%${escapedQuery}%' ESCAPE '!' OR ` +
         `LOWER(description) LIKE '%${escapedQuery}%' ESCAPE '!' OR ` +
         `LOWER(content) LIKE '%${escapedQuery}%' ESCAPE '!'` +
@@ -573,7 +572,7 @@ function queryTemplatesDetailed(filters, limit, includeContent, context) {
     if (!companyContext.ok)
         return { ok: false, value: null, error: companyContext.error };
     const visibilityCompany = filters.visibility_company || companyContext.company;
-    const whereClauses = [buildPiVisibleTemplatePredicate(visibilityCompany)];
+    const whereClauses = [buildActiveVisibleTemplatePredicate(visibilityCompany)];
     if (filters.artifact_kind?.length)
         whereClauses.push(`artifact_kind IN (${filters.artifact_kind.map((value) => `'${escapeSql(value)}'`).join(", ")})`);
     if (filters.control_mode?.length)
@@ -611,7 +610,7 @@ function retrieveByNamesDetailed(names, includeContent, context) {
     if (!companyContext.ok)
         return { ok: false, value: null, error: companyContext.error };
     const escapedNames = names.map((n) => `'${escapeSql(n)}'`).join(", ");
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(includeContent, true)} FROM prompt_templates WHERE name IN (${escapedNames}) AND ${buildPiVisibleTemplatePredicate(companyContext.company)}`);
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(includeContent, true)} FROM prompt_templates WHERE name IN (${escapedNames}) AND ${buildActiveVisibleTemplatePredicate(companyContext.company)}`);
     if (!result.ok)
         return result;
     return { ok: true, value: parseTemplateRows(result.value), error: null };
@@ -721,7 +720,7 @@ export function createVaultRuntime() {
         getCurrentCompany,
         resolveCurrentCompanyContext,
         buildVisibilityPredicate,
-        buildPiVisibleTemplatePredicate,
+        buildActiveVisibleTemplatePredicate,
         getContracts,
         getTemplate,
         getTemplateDetailed,

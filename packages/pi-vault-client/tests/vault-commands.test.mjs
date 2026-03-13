@@ -455,7 +455,7 @@ test("interactive /route prepares meta-orchestration through the shared vault re
   });
 });
 
-test("non-UI /vault-search returns transformed exported-only results", async () => {
+test("non-UI /vault-search returns transformed company-visible results", async () => {
   await withCommandModules(async ({ importModule }) => {
     const { registerVaultCommands } = await importModule("src/vaultCommands.js");
     const pi = makePiStub();

@@ -88,7 +88,7 @@ test("schema compatibility requires governed prompt columns plus execution captu
   assert.match(SCHEMA_SOURCE, /missingFeedbackColumns/);
 });
 
-test("vault_query uses centralized Pi-visible filtering with explicit execution context when available", () => {
+test("vault_query uses centralized active + company-visible filtering with explicit execution context when available", () => {
   assert.match(
     DB_SOURCE,
     /function\s+buildVisibilityPredicate\(company = getCurrentCompany\(\), alias\?: string\)/,
@@ -97,11 +97,8 @@ test("vault_query uses centralized Pi-visible filtering with explicit execution 
     DB_SOURCE,
     /JSON_SEARCH\(\$\{qualifyTemplateColumn\("visibility_companies", alias\)\}, 'one', '\$\{escapeSql\(company\)\}'\) IS NOT NULL/,
   );
-  assert.match(DB_SOURCE, /function\s+buildPiVisibleTemplatePredicate\(/);
-  assert.match(
-    DB_SOURCE,
-    /COALESCE\(\$\{qualifyTemplateColumn\("export_to_pi", alias\)\}, 0\) <> 0/,
-  );
+  assert.match(DB_SOURCE, /function\s+buildActiveVisibleTemplatePredicate\(/);
+  assert.doesNotMatch(DB_SOURCE, /function\s+buildPiVisibleTemplatePredicate\(/);
   assert.match(
     DB_SOURCE,
     /const visibilityCompany = filters\.visibility_company \|\| companyContext\.company/,
@@ -308,7 +305,7 @@ test("legacy browse select and list commands are removed", () => {
   assert.doesNotMatch(COMMANDS_SOURCE, /\/vault-list/);
 });
 
-test("vault picker surfaces full candidate set to UI through strict exported-only metadata reads", () => {
+test("vault picker surfaces full company-visible candidate set to UI through strict metadata reads", () => {
   assert.match(PICKER_SOURCE, /resolvePickerCompanyContext\(runtime, ctx\)/);
   assert.match(
     PICKER_SOURCE,
@@ -380,10 +377,13 @@ test("vault live telemetry command is exposed", () => {
   assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-live-telemetry"/);
 });
 
-test("vault stats uses the caller company through the centralized Pi-visible predicate", () => {
+test("vault stats uses the caller company through the centralized active + visible predicate", () => {
   assert.match(COMMANDS_SOURCE, /resolveCommandCompanyContext\(runtime, ctx\)/);
   assert.match(COMMANDS_SOURCE, /const currentCompany = companyContext\.currentCompany/);
-  assert.match(COMMANDS_SOURCE, /runtime\.buildPiVisibleTemplatePredicate\(currentCompany, "pt"\)/);
+  assert.match(
+    COMMANDS_SOURCE,
+    /runtime\.buildActiveVisibleTemplatePredicate\(currentCompany, "pt"\)/,
+  );
 });
 
 test("session-sensitive execution paths pass explicit company context before rendering", () => {

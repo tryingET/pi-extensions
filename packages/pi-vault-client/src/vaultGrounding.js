@@ -104,7 +104,7 @@ function discoverFrameworks(runtime, objective, workflow, currentCompany, limit 
         .join(" OR ");
     const result = runtime.queryVaultJsonDetailed(`SELECT id, name, description, content, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary
      FROM prompt_templates
-     WHERE ${runtime.buildPiVisibleTemplatePredicate(currentCompany)} AND artifact_kind = 'cognitive' AND (${like})
+     WHERE ${runtime.buildActiveVisibleTemplatePredicate(currentCompany)} AND artifact_kind = 'cognitive' AND (${like})
      ORDER BY name
      LIMIT ${limit}`);
     if (!result.ok)

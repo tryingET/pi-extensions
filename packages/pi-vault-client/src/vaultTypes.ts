@@ -467,7 +467,7 @@ export interface VaultRuntime {
   getCurrentCompany: (cwd?: string) => string;
   resolveCurrentCompanyContext: (cwd?: string) => { company: string; source: string };
   buildVisibilityPredicate: (company?: string, alias?: string) => string;
-  buildPiVisibleTemplatePredicate: (company?: string, alias?: string) => string;
+  buildActiveVisibleTemplatePredicate: (company?: string, alias?: string) => string;
   getContracts: () => GovernedContracts;
   getTemplate: (name: string, context?: VaultExecutionContext) => Template | null;
   getTemplateDetailed: (

@@ -764,7 +764,7 @@ export function registerVaultCommands(pi, runtime, receipts) {
         SELECT pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level, COUNT(e.id) as uses, MAX(e.created_at) as last_used
         FROM prompt_templates pt
         LEFT JOIN executions e ON e.entity_type = 'template' AND e.entity_id = pt.id
-        WHERE ${runtime.buildPiVisibleTemplatePredicate(currentCompany, "pt")}
+        WHERE ${runtime.buildActiveVisibleTemplatePredicate(currentCompany, "pt")}
         GROUP BY pt.id, pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level
         ORDER BY uses DESC
         LIMIT 20

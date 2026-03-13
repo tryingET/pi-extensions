@@ -856,7 +856,7 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
           FROM executions e
           INNER JOIN prompt_templates pt ON pt.id = e.entity_id
           WHERE e.entity_type = 'template'
-            AND ${runtime.buildPiVisibleTemplatePredicate(executionContext.currentCompany, "pt")}
+            AND ${runtime.buildActiveVisibleTemplatePredicate(executionContext.currentCompany, "pt")}
             ${templateFilter}
           ORDER BY e.created_at DESC
           LIMIT ${dbLimit}

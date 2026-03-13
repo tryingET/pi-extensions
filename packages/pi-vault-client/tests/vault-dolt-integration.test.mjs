@@ -324,7 +324,7 @@ test("vault runtime rejects forged local receipt identity when execution templat
   });
 });
 
-test("vault runtime centralizes Pi-visible reads around export gating and explicit company context", async () => {
+test("vault runtime centralizes active + company-visible reads independent of export_to_pi", async () => {
   await withTempVaultRuntime(async ({ importModule, repoDir }) => {
     const { createVaultRuntime } = await importModule("src/vaultDb.js");
     const runtime = createVaultRuntime();
@@ -347,7 +347,8 @@ test("vault runtime centralizes Pi-visible reads around export gating and explic
     assert.equal(visible?.export_to_pi, true);
 
     const hidden = runtime.getTemplate("hidden-template", { currentCompany: "software" });
-    assert.equal(hidden, null);
+    assert.ok(hidden);
+    assert.equal(hidden?.export_to_pi, false);
 
     const listResult = runtime.listTemplatesDetailed(
       undefined,
@@ -358,7 +359,7 @@ test("vault runtime centralizes Pi-visible reads around export gating and explic
     if (!listResult.ok) return;
     assert.deepEqual(
       listResult.value.map((template) => template.name),
-      ["visible-template"],
+      ["hidden-template", "visible-template"],
     );
     assert.equal(listResult.value[0]?.content, "");
 
@@ -371,7 +372,7 @@ test("vault runtime centralizes Pi-visible reads around export gating and explic
     if (!searchResult.ok) return;
     assert.deepEqual(
       searchResult.value.map((template) => template.name),
-      ["visible-template"],
+      ["hidden-template", "visible-template"],
     );
 
     const retrieveResult = runtime.retrieveByNamesDetailed(
@@ -383,7 +384,7 @@ test("vault runtime centralizes Pi-visible reads around export gating and explic
     if (!retrieveResult.ok) return;
     assert.deepEqual(
       retrieveResult.value.map((template) => template.name),
-      ["visible-template"],
+      ["hidden-template", "visible-template"],
     );
 
     const queryResult = runtime.queryTemplatesDetailed({}, 10, false, {
@@ -394,7 +395,7 @@ test("vault runtime centralizes Pi-visible reads around export gating and explic
     if (!queryResult.ok) return;
     assert.deepEqual(
       queryResult.value.map((template) => template.name),
-      ["visible-template"],
+      ["hidden-template", "visible-template"],
     );
 
     const strictRead = runtime.listTemplatesDetailed(undefined, {
