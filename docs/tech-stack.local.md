@@ -42,6 +42,10 @@ Repo-local emphasis:
   - no root `.vscode/settings.json`
   - package repos/groups own their own formatter/editor settings
 - Package-level stack specifics remain owned by each package/group under `packages/`.
+- Common package-local pi-ts companions stay package-scoped rather than becoming root defaults:
+  - `fast-check`
+  - `@cucumber/cucumber`
+  - `nunjucks`
 
 Practical rule:
 
