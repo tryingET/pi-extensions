@@ -25,6 +25,10 @@
       "release-type": "node",
       "component": "pi-trigger-adapter"
     },
+    "packages/pi-ontology-workflows": {
+      "release-type": "node",
+      "component": "pi-ontology-workflows"
+    },
     "packages/pi-prompt-template-accelerator": {
       "release-type": "node",
       "component": "pi-prompt-template-accelerator"

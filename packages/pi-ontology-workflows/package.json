@@ -1,0 +1,92 @@
+{
+  "name": "@tryinget/pi-ontology-workflows",
+  "version": "0.1.0",
+  "description": "Pi extension package for ontology inspection, routing, and change workflows backed by ROCS.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-ontology-workflows"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-ontology-workflows",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "ontology",
+    "rocs",
+    "workflows"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "npm run quality:ci",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
+    "smoke:headless-live": "PI_COMPANY=software pi --no-extensions -e . -p \"Do not use bash or read. Call the custom tool named ontology_inspect exactly once with kind=status and scope=core, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded.\"",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
+  },
+  "files": [
+    "extensions/ontology-workflows.ts",
+    "src",
+    "prompts",
+    "examples",
+    "policy/security-policy.json",
+    "policy/stack-lane.json"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/ontology-workflows.ts"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-ontology-workflows",
+    "releaseComponent": "pi-ontology-workflows",
+    "releaseConfigMode": "component"
+  },
+  "dependencies": {
+    "@tryinget/pi-editor-registry": "file:../pi-interaction/pi-editor-registry",
+    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "^0.34.41",
+    "@types/node": "^25.3.3",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "^0.34.41"
+  }
+}

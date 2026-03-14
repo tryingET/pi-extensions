@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: 9c0e10d
+_src_path: /home/tryinget/ai-society/softwareco/owned/pi-extensions-template
+command_name: ontology-workflows
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-ontology-workflows
+release_config_mode: component
+repo_name: pi-ontology-workflows
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-ontology-workflows
