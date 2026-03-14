@@ -20,11 +20,13 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
   exit 1
 fi
 
-echo "== npm pack --dry-run --json"
-PACK_JSON="$(npm pack --dry-run --json)"
-echo "$PACK_JSON"
+PACK_JSON_FILE="$(mktemp /tmp/pi-vault-pack-json-XXXXXX.json)"
 
-PACK_JSON="$PACK_JSON" node <<'NODE'
+echo "== npm pack --dry-run --json"
+npm pack --dry-run --json > "$PACK_JSON_FILE"
+cat "$PACK_JSON_FILE"
+
+PACK_JSON_FILE="$PACK_JSON_FILE" node <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -65,14 +67,13 @@ for (const entry of filesEntries) {
 
   const stat = fs.statSync(fullPath);
   if (stat.isDirectory()) {
-    const prefix = entry.endsWith("/") ? entry : `${entry}/`;
-    expectedDirPrefixes.push(prefix);
+    expectedDirPrefixes.push(entry.endsWith("/") ? entry : `${entry}/`);
   } else {
     expectedExact.add(entry);
   }
 }
 
-const pack = JSON.parse(process.env.PACK_JSON || "[]");
+const pack = JSON.parse(fs.readFileSync(process.env.PACK_JSON_FILE, "utf8"));
 if (!Array.isArray(pack) || !pack[0] || !Array.isArray(pack[0].files)) {
   fail("Could not parse npm pack --dry-run --json output.");
 }
@@ -123,6 +124,99 @@ if (missing.length || extra.length) {
 console.log(`File whitelist OK (${actual.length} files).`);
 NODE
 
+echo "== static runtime dependency audit"
+node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const fail = (msg) => {
+  console.error(msg);
+  process.exit(1);
+};
+
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const declaredRuntimeDeps = {
+  ...(pkg.dependencies || {}),
+  ...(pkg.optionalDependencies || {}),
+};
+const declaredRuntimePeerDeps = {
+  ...(pkg.peerDependencies || {}),
+};
+const declaredRoots = new Set([
+  ...Object.keys(declaredRuntimeDeps),
+  ...Object.keys(declaredRuntimePeerDeps),
+]);
+
+const localFileBackedDeps = Object.entries(declaredRuntimeDeps)
+  .filter(([, version]) => String(version || "").startsWith("file:"))
+  .map(([name, version]) => `${name}=${String(version)}`);
+if (localFileBackedDeps.length > 0) {
+  fail(`Publishable runtime dependencies must not use file: specifiers: ${localFileBackedDeps.join(", ")}`);
+}
+
+const bundledEntries = [
+  ...((Array.isArray(pkg.bundleDependencies) ? pkg.bundleDependencies : []).map(String)),
+  ...((Array.isArray(pkg.bundledDependencies) ? pkg.bundledDependencies : []).map(String)),
+].filter(Boolean);
+if (bundledEntries.length > 0) {
+  fail(`Temporary bundleDependencies bridge should be retired: ${bundledEntries.join(", ")}`);
+}
+
+const runtimeRoots = ["extensions", "src"];
+const sourceFiles = [];
+for (const root of runtimeRoots) {
+  const fullRoot = path.resolve(root);
+  if (!fs.existsSync(fullRoot)) continue;
+  const stack = [fullRoot];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (/\.(?:[cm]?js|ts|mts|cts)$/.test(entry.name)) sourceFiles.push(fullPath);
+    }
+  }
+}
+
+const importSpecifiers = new Set();
+const patterns = [
+  /(?:import|export)\s+(?:[^;]*?\s+from\s+)?["']([^"']+)["']/g,
+  /import\(\s*["']([^"']+)["']\s*\)/g,
+];
+const toPackageRoot = (specifier) => {
+  if (!specifier || specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("node:")) {
+    return null;
+  }
+  if (specifier.startsWith("@")) {
+    const parts = specifier.split("/");
+    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : specifier;
+  }
+  return specifier.split("/", 1)[0];
+};
+
+for (const filePath of sourceFiles) {
+  const source = fs.readFileSync(filePath, "utf8");
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      const specifier = match[1];
+      const root = toPackageRoot(specifier);
+      if (root) importSpecifiers.add(root);
+    }
+  }
+}
+
+const missingDeclarations = [...importSpecifiers].filter((root) => !declaredRoots.has(root)).sort();
+if (missingDeclarations.length > 0) {
+  fail(`Missing runtime dependency declarations for bare imports: ${missingDeclarations.join(", ")}`);
+}
+
+console.log(`Runtime dependency audit OK (${importSpecifiers.size} bare import root(s)).`);
+NODE
+
 echo "== npm publish --dry-run"
 set +e
 PUBLISH_DRY_RUN_OUTPUT="$(npm publish --dry-run 2>&1)"
@@ -139,14 +233,21 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
 fi
 
 TEST_AGENT_DIR=""
+CLEANROOM_DIR=""
 TARBALL_PATH=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
       rm -rf "$TEST_AGENT_DIR"
     fi
+    if [[ -n "$CLEANROOM_DIR" && -d "$CLEANROOM_DIR" ]]; then
+      rm -rf "$CLEANROOM_DIR"
+    fi
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
+    fi
+    if [[ -n "$PACK_JSON_FILE" && -f "$PACK_JSON_FILE" ]]; then
+      rm -f "$PACK_JSON_FILE"
     fi
   fi
 }
@@ -156,6 +257,89 @@ echo "== npm pack"
 TARBALL="$(npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
+
+echo "== packed manifest dependency audit"
+TARBALL_PATH="$TARBALL_PATH" node <<'NODE'
+const { execFileSync } = require("node:child_process");
+
+const fail = (msg) => {
+  console.error(msg);
+  process.exit(1);
+};
+
+const packedManifest = JSON.parse(
+  execFileSync("tar", ["-xOf", process.env.TARBALL_PATH, "package/package.json"], {
+    encoding: "utf8",
+  }),
+);
+const dependencyFields = ["dependencies", "optionalDependencies", "peerDependencies"];
+for (const field of dependencyFields) {
+  const deps = packedManifest[field];
+  if (!deps || typeof deps !== "object" || Array.isArray(deps)) continue;
+  for (const [name, spec] of Object.entries(deps)) {
+    if (typeof spec === "string" && spec.startsWith("file:")) {
+      fail(`Packed manifest still contains file dependency ${field}.${name}=${spec}`);
+    }
+  }
+}
+
+const bundledEntries = [
+  ...((Array.isArray(packedManifest.bundleDependencies) ? packedManifest.bundleDependencies : []).map(String)),
+  ...((Array.isArray(packedManifest.bundledDependencies) ? packedManifest.bundledDependencies : []).map(String)),
+].filter(Boolean);
+if (bundledEntries.length > 0) {
+  fail(`Packed manifest still contains bundleDependencies: ${bundledEntries.join(", ")}`);
+}
+
+console.log("Packed manifest dependency audit OK.");
+NODE
+
+echo "== clean-room tarball install"
+CLEANROOM_DIR="$(mktemp -d /tmp/pi-extension-release-install-XXXXXX)"
+pushd "$CLEANROOM_DIR" >/dev/null
+npm init -y >/dev/null 2>&1
+npm install "$TARBALL_PATH" --ignore-scripts >/dev/null
+PACKAGE_NAME="$NAME" CLEANROOM_DIR="$CLEANROOM_DIR" node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+const { createRequire } = require("node:module");
+
+const fail = (msg) => {
+  console.error(msg);
+  process.exit(1);
+};
+
+const projectDir = process.env.CLEANROOM_DIR;
+const packageName = process.env.PACKAGE_NAME;
+const packageDir = path.join(projectDir, "node_modules", ...packageName.split("/"));
+const packageJsonPath = path.join(packageDir, "package.json");
+if (!fs.existsSync(packageJsonPath)) {
+  fail(`Installed package missing package.json: ${packageDir}`);
+}
+
+const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+const requireFromPackage = createRequire(packageJsonPath);
+const runtimeDeps = [
+  ...Object.keys(pkg.dependencies || {}),
+  ...Object.keys(pkg.optionalDependencies || {}),
+];
+for (const dep of runtimeDeps) {
+  try {
+    try {
+      requireFromPackage.resolve(dep);
+    } catch {
+      requireFromPackage.resolve(`${dep}/package.json`);
+    }
+  } catch (error) {
+    fail(
+      `Installed runtime dependency could not be resolved from clean-room install: ${dep} (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+}
+
+console.log(`Clean-room install OK (${runtimeDeps.length} runtime dependency/ies).`);
+NODE
+popd >/dev/null
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
@@ -174,7 +358,6 @@ else
 
   cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
 
-  # Allow override via environment variables for different provider configurations
   PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
   PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
   PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"

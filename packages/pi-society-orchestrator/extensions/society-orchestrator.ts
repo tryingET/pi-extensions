@@ -1,0 +1,637 @@
+/**
+ * Society Orchestrator — Cognitive-driven multi-agent orchestration
+ *
+ * Integrates:
+ * - society.db (canonical state, tasks, evidence, ontology)
+ * - prompt-vault (30+ cognitive tools)
+ * - agent-kernel (Rust CLI for MVCC operations)
+ *
+ * This is not a manager. This is not a supervisor.
+ * This is a cognitive orchestrator that thinks about HOW to think
+ * before dispatching agents to act.
+ *
+ * Usage:
+ *   /cognitive                     — List available cognitive tools
+ *   /agents-team                   — Select agent team
+ *   /ontology <concept>            — Query ontology
+ *   /evidence                      — Show evidence stats
+ *   /loops                         — List available loop types
+ *   /loop <type> <objective>       — Execute a loop
+ *
+ * Naming note:
+ *   The old loop label `mito` was retired because it conflicted with
+ *   Prof. Binner's MITO already used in the workspace. Use `strategic`
+ *   for the Mission → Intelligence → Tooling → Operations loop.
+ *
+ * Tools:
+ *   cognitive_dispatch             — Cognitive-first agent dispatch
+ *   society_query                  — Read-only diagnostic SQL against society.db
+ *   evidence_record                — Record evidence
+ *   ontology_context               — Get relevant ontology
+ *   loop_execute                   — Execute structured loops
+ */
+
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { Type } from "@sinclair/typebox";
+import { registerLoopCommands, registerLoopTools } from "../src/loops/engine.ts";
+import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
+import {
+  AGENT_TEAMS,
+  type AgentTeam,
+  autoSelectAgent,
+  resolveAgentForTeam,
+} from "../src/runtime/agent-routing.ts";
+import {
+  isBoundaryFailure,
+  isReadOnlySql,
+  querySqliteJsonAsync,
+} from "../src/runtime/boundaries.ts";
+import { getCognitiveToolByName, listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
+import {
+  type EvidenceEntry,
+  finalizeExecutionEffects,
+  recordEvidence,
+} from "../src/runtime/evidence.ts";
+import { getExecutionIcon } from "../src/runtime/execution-status.ts";
+import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/ontology.ts";
+import { buildCombinedSystemPrompt, spawnPiSubagent } from "../src/runtime/subagent.ts";
+import { createSessionTeamStore } from "../src/runtime/team-state.ts";
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const SOCIETY_DB =
+  process.env.SOCIETY_DB ||
+  process.env.AK_DB ||
+  path.join(os.homedir(), "ai-society", "society.db");
+const VAULT_DIR =
+  process.env.VAULT_DIR ||
+  path.join(os.homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db");
+const DEFAULT_AK_PATH = path.join(
+  os.homedir(),
+  "ai-society",
+  "softwareco",
+  "owned",
+  "agent-kernel",
+  "target",
+  "release",
+  "ak",
+);
+const AGENT_KERNEL =
+  process.env.AGENT_KERNEL || (fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak");
+
+// ============================================================================
+// DATABASE QUERIES
+// ============================================================================
+
+function querySociety<T>(sql: string, signal?: AbortSignal) {
+  return querySqliteJsonAsync<T>(SOCIETY_DB, sql, signal);
+}
+
+function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal) {
+  return recordEvidence(entry, signal, {
+    akPath: AGENT_KERNEL,
+    societyDb: SOCIETY_DB,
+  });
+}
+
+// ============================================================================
+// EXTENSION
+// ============================================================================
+
+export default function (pi: ExtensionAPI) {
+  const sessionTeams = createSessionTeamStore();
+  const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "society-orchestrator");
+
+  // Ensure sessions directory exists
+  if (!fs.existsSync(sessionsDir)) {
+    fs.mkdirSync(sessionsDir, { recursive: true });
+  }
+
+  // ===========================================================================
+  // TOOL: society_query
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "society_query",
+    label: "Society Query",
+    description: "Execute a read-only diagnostic SQL query against society.db.",
+    parameters: Type.Object({
+      query: Type.String({ description: "Read-only SQL query to execute" }),
+    }),
+    async execute(_toolCallId, params) {
+      const { query } = params as { query: string };
+
+      if (!isReadOnlySql(query)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "society_query only allows read-only SELECT/WITH/EXPLAIN/PRAGMA statements.",
+            },
+          ],
+          details: { ok: false, rowCount: 0, error: "read-only-query-required" },
+        };
+      }
+
+      const results = await querySociety<Record<string, unknown>>(query);
+      if (isBoundaryFailure(results)) {
+        return {
+          content: [{ type: "text", text: `society_query failed: ${results.error}` }],
+          details: { ok: false, rowCount: 0, error: results.error },
+        };
+      }
+
+      if (results.value.length === 0) {
+        return {
+          content: [{ type: "text", text: "No results found." }],
+          details: { ok: true, rowCount: 0, error: "" },
+        };
+      }
+
+      const output = JSON.stringify(results.value, null, 2);
+      const truncated = output.length > 8000 ? `${output.slice(0, 8000)}\n... [truncated]` : output;
+
+      return {
+        content: [{ type: "text", text: truncated }],
+        details: { ok: true, rowCount: results.value.length, error: "" },
+      };
+    },
+    renderCall(args, theme) {
+      const query = (args as { query?: string }).query || "";
+      const preview = query.length > 50 ? `${query.slice(0, 47)}...` : query;
+      return new Text(
+        theme.fg("toolTitle", theme.bold("society_query ")) + theme.fg("muted", preview),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, _theme) {
+      const text = result.content[0];
+      return new Text(text?.type === "text" ? text.text.slice(0, 500) : "", 0, 0);
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: cognitive_dispatch
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "cognitive_dispatch",
+    label: "Cognitive Dispatch",
+    description: `Dispatch an agent with cognitive tool injection. The system:
+1. Analyzes the context using meta-orchestration
+2. Selects the appropriate cognitive tool from the vault
+3. Injects that tool as the agent's system prompt
+4. Records the decision in the evidence ledger
+
+This is cognitive-first dispatch — think about HOW to think before acting.`,
+    parameters: Type.Object({
+      context: Type.String({ description: "The situation or problem context" }),
+      agent: Type.Optional(Type.String({ description: "Agent to use (default: auto-select)" })),
+      cognitive_tool: Type.Optional(
+        Type.String({ description: "Cognitive tool to inject (default: auto-select)" }),
+      ),
+    }),
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const { context, agent, cognitive_tool } = params as {
+        context: string;
+        agent?: string;
+        cognitive_tool?: string;
+      };
+
+      // Auto-select cognitive tool if not specified
+      let toolToUse = cognitive_tool;
+      if (!toolToUse) {
+        // Simple heuristic based on context keywords
+        const ctxLower = context.toLowerCase();
+        if (ctxLower.includes("bug") || ctxLower.includes("error") || ctxLower.includes("fail")) {
+          toolToUse = "inversion";
+        } else if (ctxLower.includes("review") || ctxLower.includes("check")) {
+          toolToUse = "audit";
+        } else if (ctxLower.includes("stuck") || ctxLower.includes("decide")) {
+          toolToUse = "nexus";
+        } else if (ctxLower.includes("explore") || ctxLower.includes("understand")) {
+          toolToUse = "telescopic";
+        } else {
+          toolToUse = "first-principles";
+        }
+      }
+
+      // Get the cognitive tool
+      const toolResult = await getCognitiveToolByName(VAULT_DIR, toolToUse, signal);
+      if (isBoundaryFailure(toolResult)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to load cognitive tool '${toolToUse}': ${toolResult.error}`,
+            },
+          ],
+          details: { ok: false, error: toolResult.error },
+        };
+      }
+
+      const tool = toolResult.value;
+      if (!tool) {
+        return {
+          content: [{ type: "text", text: `Cognitive tool not found: ${toolToUse}` }],
+          details: { ok: false, error: "tool-not-found" },
+        };
+      }
+
+      // Validate the selected/requested agent against the active team.
+      const requestedAgent = agent || autoSelectAgent(context);
+      const activeTeam = sessionTeams.getTeam(ctx);
+      const resolution = resolveAgentForTeam(requestedAgent, activeTeam);
+      if (!resolution.ok) {
+        return {
+          content: [{ type: "text", text: resolution.error }],
+          details: {
+            ok: false,
+            error: resolution.error,
+            requestedAgent,
+            activeTeam: resolution.team,
+            allowedAgents: resolution.allowedAgents,
+          },
+        };
+      }
+      const agentToUse = resolution.agent;
+
+      const agentDef = AGENT_PROFILES[agentToUse];
+      if (!agentDef) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Agent not found: ${agentToUse}. Available: ${Object.keys(AGENT_PROFILES).join(", ")}`,
+            },
+          ],
+          details: { ok: false },
+        };
+      }
+
+      // Create combined system prompt
+      const combinedPrompt = buildCombinedSystemPrompt({
+        agentSystemPrompt: agentDef.systemPrompt,
+        cognitiveToolContent: tool.content,
+        contextHeading: "OBJECTIVE",
+        contextBody: context,
+      });
+
+      const model = ctx.model
+        ? `${ctx.model.provider}/${ctx.model.id}`
+        : `openrouter/google/gemini-2.5-flash-preview`;
+      const sessionFile = path.join(sessionsDir, `${agentToUse}-${toolToUse}-${Date.now()}.json`);
+
+      // Spawn the agent
+      const result = await spawnPiSubagent({
+        tools: agentDef.tools,
+        systemPrompt: combinedPrompt,
+        objective: context,
+        model,
+        sessionFile,
+        signal,
+      });
+
+      const executionOutcome = await finalizeExecutionEffects({
+        result,
+        signal,
+        createEvidenceEntry: ({ status, success }) => ({
+          check_type: "cognitive:dispatch",
+          result: success ? "pass" : "fail",
+          details: {
+            tool: toolToUse,
+            agent: agentToUse,
+            context: context.slice(0, 100),
+            exitCode: result.exitCode,
+            status,
+            elapsed: result.elapsed,
+          },
+        }),
+        recordEvidence: writeEvidence,
+      });
+      const status = executionOutcome.status;
+      const icon = getExecutionIcon(result);
+      const evidenceOutcome = executionOutcome.evidence;
+      const summary = `${icon} [${agentToUse} + ${toolToUse}] ${status} in ${Math.round(result.elapsed / 1000)}s`;
+      const evidenceAkError = "akError" in evidenceOutcome ? evidenceOutcome.akError : undefined;
+      const evidenceSqlError = "sqlError" in evidenceOutcome ? evidenceOutcome.sqlError : undefined;
+      const evidenceDiagnostics = [
+        evidenceAkError ? `ak error: ${evidenceAkError.slice(0, 120)}` : undefined,
+        evidenceSqlError ? `sql error: ${evidenceSqlError.slice(0, 120)}` : undefined,
+      ].filter(Boolean);
+      const evidenceNote =
+        evidenceOutcome.via === "ak"
+          ? ""
+          : `\nEvidence path: ${evidenceOutcome.via}${evidenceDiagnostics.length > 0 ? ` (${evidenceDiagnostics.join("; ")})` : ""}`;
+
+      const truncated =
+        result.output.length > 6000
+          ? `${result.output.slice(0, 6000)}\n\n... [truncated]`
+          : result.output;
+
+      return {
+        content: [{ type: "text", text: `${summary}${evidenceNote}\n\n${truncated}` }],
+        details: {
+          agent: agentToUse,
+          cognitiveTool: toolToUse,
+          status,
+          elapsed: result.elapsed,
+          fullOutput: result.output,
+          evidenceOk: evidenceOutcome.ok,
+          evidenceVia: evidenceOutcome.via,
+          evidenceAkError: evidenceAkError,
+        },
+      };
+    },
+    renderCall(args, theme) {
+      const a = args as { context?: string; agent?: string; cognitive_tool?: string };
+      const ctx = a.context || "";
+      const preview = ctx.length > 40 ? `${ctx.slice(0, 37)}...` : ctx;
+      return new Text(
+        theme.fg("toolTitle", theme.bold("cognitive_dispatch ")) +
+          theme.fg("accent", a.agent || "auto") +
+          theme.fg("dim", " + ") +
+          theme.fg("accent", a.cognitive_tool || "auto") +
+          theme.fg("dim", " — ") +
+          theme.fg("muted", preview),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, theme) {
+      const details = result.details as
+        | { agent?: string; cognitiveTool?: string; status?: string; elapsed?: number }
+        | undefined;
+      if (!details) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text : "", 0, 0);
+      }
+
+      const icon = details.status === "done" ? "✓" : "✗";
+      const color = details.status === "done" ? "success" : "error";
+      const elapsed = Math.round((details.elapsed || 0) / 1000);
+      return new Text(
+        theme.fg(color, `${icon} ${details.agent} + ${details.cognitiveTool}`) +
+          theme.fg("dim", ` ${elapsed}s`),
+        0,
+        0,
+      );
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: evidence_record
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "evidence_record",
+    label: "Record Evidence",
+    description: "Record evidence in the society.db evidence ledger.",
+    parameters: Type.Object({
+      check_type: Type.String({
+        description: "Type of check (e.g., 'validation:test', 'cognitive:inversion')",
+      }),
+      result: Type.Union([Type.Literal("pass"), Type.Literal("fail"), Type.Literal("skip")]),
+      task_id: Type.Optional(Type.Number({ description: "Associated task ID" })),
+      details: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    }),
+    async execute(_toolCallId, params, signal) {
+      const outcome = await writeEvidence(params as EvidenceEntry & { task_id?: number }, signal);
+      const { check_type, result } = params as EvidenceEntry & {
+        task_id?: number;
+      };
+
+      const failureDiagnostics = [
+        outcome.akError ? `ak error: ${outcome.akError.slice(0, 200)}` : undefined,
+        outcome.sqlError ? `sql error: ${outcome.sqlError.slice(0, 200)}` : undefined,
+      ].filter(Boolean);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: outcome.ok
+              ? `Evidence recorded via ${outcome.via}: ${check_type} = ${result}`
+              : `Failed to record evidence (ak and SQL both failed). ${failureDiagnostics.join("; ") || "unknown failure"}`,
+          },
+        ],
+        details: {
+          ok: outcome.ok,
+          via: outcome.via,
+          akError: outcome.akError,
+          sqlError: outcome.sqlError,
+        },
+      };
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: ontology_context
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "ontology_context",
+    label: "Ontology Context",
+    description: "Get relevant ontology concepts for a company or concern.",
+    parameters: Type.Object({
+      concept: Type.Optional(Type.String({ description: "Specific concept to look up" })),
+      search: Type.Optional(Type.String({ description: "Search query" })),
+    }),
+    async execute(_toolCallId, params, signal) {
+      const { concept, search } = params as { concept?: string; search?: string };
+      const results = await lookupOntologyConcepts({ concept, search }, { signal });
+      if (isBoundaryFailure(results)) {
+        return {
+          content: [{ type: "text", text: `ontology_context failed: ${results.error}` }],
+          details: { ok: false, count: 0, error: results.error },
+        };
+      }
+
+      if (results.value.length === 0) {
+        return {
+          content: [{ type: "text", text: "No ontology concepts found." }],
+          details: { ok: true, count: 0, error: "" },
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: formatOntologyConcepts(results.value) }],
+        details: { ok: true, count: results.value.length, error: "" },
+      };
+    },
+  });
+
+  // ===========================================================================
+  // COMMANDS
+  // ===========================================================================
+
+  pi.registerCommand("cognitive", {
+    description: "List available cognitive tools from the vault",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const toolsResult = await listCognitiveTools(VAULT_DIR);
+      if (isBoundaryFailure(toolsResult)) {
+        ctx.ui.notify(`Failed to list cognitive tools: ${toolsResult.error}`, "error");
+        return;
+      }
+
+      const tools = toolsResult.value;
+      const output = tools.map((t) => `- \`${t.name}\` — ${t.description}`).join("\n");
+      await ctx.ui.editor(
+        "Cognitive Tools",
+        `# Available Cognitive Tools (${tools.length})\n\n${output}`,
+      );
+    },
+  });
+
+  pi.registerCommand("agents-team", {
+    description: "Select an agent team",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const options = Object.entries(AGENT_TEAMS).map(([name, agents]) => ({
+        value: name as AgentTeam,
+        label: `${name} — ${agents.join(", ")}`,
+      }));
+
+      const choice = await ctx.ui.select(
+        "Select Team",
+        options.map((o) => o.label),
+      );
+      if (choice === undefined) return;
+
+      const idx = options.findIndex((o) => o.label === choice);
+      if (idx >= 0) {
+        const team = options[idx].value;
+        const stored = sessionTeams.setTeam(ctx, team);
+        if (!stored) {
+          ctx.ui.notify(
+            "Cannot set team for this session because no session identity is available.",
+            "error",
+          );
+          return;
+        }
+        ctx.ui.notify(`Team: ${team} (${AGENT_TEAMS[team].join(", ")})`, "info");
+      }
+    },
+  });
+
+  pi.registerCommand("evidence", {
+    description: "Show recent evidence from society.db",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const results = await querySociety<{
+        check_type: string;
+        result: string;
+        created_at: string;
+      }>("SELECT check_type, result, created_at FROM evidence ORDER BY created_at DESC LIMIT 20");
+      if (isBoundaryFailure(results)) {
+        ctx.ui.notify(`Failed to query evidence: ${results.error}`, "error");
+        return;
+      }
+
+      if (results.value.length === 0) {
+        ctx.ui.notify("No evidence recorded yet.", "info");
+        return;
+      }
+
+      const output = results.value
+        .map((r) => `${r.created_at?.slice(0, 19) || "?"} | ${r.check_type} = ${r.result}`)
+        .join("\n");
+      await ctx.ui.editor("Evidence Ledger", output);
+    },
+  });
+
+  pi.registerCommand("ontology", {
+    description: "Search ontology concepts",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const search = args?.trim();
+      if (!search) {
+        ctx.ui.notify("Usage: /ontology <search>", "warning");
+        return;
+      }
+
+      const results = await lookupOntologyConcepts({ search, limit: 10 });
+      if (isBoundaryFailure(results)) {
+        ctx.ui.notify(`Failed to query ontology: ${results.error}`, "error");
+        return;
+      }
+
+      if (results.value.length === 0) {
+        ctx.ui.notify(`No concepts found for: ${search}`, "warning");
+        return;
+      }
+
+      await ctx.ui.editor("Ontology", formatOntologyConcepts(results.value));
+    },
+  });
+
+  // ===========================================================================
+  // LOOP ENGINE REGISTRATION
+  // ===========================================================================
+
+  // Register loop tools (loop_execute)
+  registerLoopTools(pi, undefined, VAULT_DIR, (agent, ctx) =>
+    resolveAgentForTeam(agent, sessionTeams.getTeam(ctx)),
+  );
+
+  // Register loop commands (/loop, /loops)
+  registerLoopCommands(pi);
+
+  // ===========================================================================
+  // SESSION START
+  // ===========================================================================
+
+  pi.on("session_start", async (_event, ctx) => {
+    if (!ctx.hasUI) return;
+
+    // Check connections
+    const dbOk = fs.existsSync(SOCIETY_DB);
+    const toolsResult = await listCognitiveTools(VAULT_DIR);
+    const vaultStatus = isBoundaryFailure(toolsResult)
+      ? `✗ (${toolsResult.error.slice(0, 120)})`
+      : `✓ (${toolsResult.value.length} cognitive tools)`;
+
+    const activeTeam = sessionTeams.getTeam(ctx);
+
+    ctx.ui.notify(
+      `Society Orchestrator\n` +
+        `DB: ${dbOk ? "✓" : "✗"} ${SOCIETY_DB}\n` +
+        `Vault: ${vaultStatus}\n` +
+        `Team: ${activeTeam}\n\n` +
+        `/cognitive          List cognitive tools\n` +
+        `/agents-team        Select team\n` +
+        `/evidence           Show evidence\n` +
+        `/ontology <query>   Search ontology\n` +
+        `/loops              List loop types\n` +
+        `/loop <type> <obj>  Execute loop`,
+      isBoundaryFailure(toolsResult) ? "warning" : "info",
+    );
+
+    // Footer
+    ctx.ui.setFooter((_tui, theme, _footerData) => ({
+      dispose: () => {},
+      invalidate() {},
+      render(width: number): string[] {
+        const model = ctx.model?.id || "no-model";
+        const activeTeam = sessionTeams.getTeam(ctx);
+        const left =
+          theme.fg("dim", ` ${model}`) + theme.fg("muted", " · ") + theme.fg("accent", `orchestra`);
+        const right = theme.fg("dim", `Team: ${activeTeam} `);
+        const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
+        return [truncateToWidth(left + pad + right, width)];
+      },
+    }));
+  });
+}

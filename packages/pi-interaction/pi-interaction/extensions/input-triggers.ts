@@ -258,7 +258,9 @@ export default function (pi: ExtensionAPI) {
       ctx,
       notifyMessage: "Interaction runtime enabled",
       factory: (tui: unknown, theme: unknown, keybindings: unknown) => {
-        return new TriggerEditor(tui, theme, keybindings, pi, ctx.ui) as unknown as CustomEditor;
+        return new TriggerEditor(tui, theme, keybindings, pi, ctx.ui, {
+          cwd: ctx.cwd,
+        }) as unknown as CustomEditor;
       },
     });
   });
@@ -326,6 +328,7 @@ export default function (pi: ExtensionAPI) {
       if (!ctx.hasUI) return;
 
       const diagnostics = broker.diagnostics() as TriggerDiagnosticsView[];
+      const editorDiagnostics = editorRegistry.diagnostics();
       const lines = [
         "# Trigger Diagnostics",
         "",
@@ -333,6 +336,14 @@ export default function (pi: ExtensionAPI) {
         `- Total triggers: ${diagnostics.length}`,
         `- Enabled: ${diagnostics.filter((d: TriggerDiagnosticsView) => d.enabled).length}`,
         `- Disabled: ${diagnostics.filter((d: TriggerDiagnosticsView) => !d.enabled).length}`,
+        "",
+        "## Editor runtime",
+        `- Owner: ${editorDiagnostics.ownerId}`,
+        `- Mounted: ${editorDiagnostics.mounted}`,
+        `- Mount count: ${editorDiagnostics.mountCount}`,
+        ...(editorDiagnostics.lastMountedAt
+          ? [`- Last mounted at: ${editorDiagnostics.lastMountedAt}`]
+          : []),
         "",
         "## Details",
         "",

@@ -1,53 +1,61 @@
 ---
-summary: "Trusted publishing runbook and common failure modes."
+summary: "Trusted publishing notes for the monorepo-hosted @tryinget/pi-interaction package."
 read_when:
-  - "Configuring npm OIDC trusted publishing for a new repository."
-  - "Debugging release-please or publish workflow failures."
+  - "Configuring npm OIDC trusted publishing for @tryinget/pi-interaction."
+  - "Debugging release/publish failures for the monorepo package path."
 system4d:
-  container: "Release automation reliability notes."
-  compass: "Use OIDC safely with predictable workflow behavior."
-  engine: "Configure -> validate -> release -> verify."
-  fog: "Provider policy and workflow permission mismatches can fail fast."
+  container: "Monorepo package trusted-publishing runbook."
+  compass: "Keep provenance and package metadata aligned with the canonical umbrella package path."
+  engine: "Confirm package metadata -> confirm repo settings -> validate package/root gates -> publish safely."
+  fog: "Most failures come from path drift, permissions drift, or confusing the package-group root with the publish target."
 ---
 
-# Trusted publishing runbook
+# Trusted publishing runbook (monorepo package mode)
 
 ## Baseline assumptions
 
-- Release tags are `vX.Y.Z`.
-- release-please and publish workflows run from GitHub Actions.
-- Publish workflow uses npm OIDC trusted publishing (no long-lived npm token in CI).
+- The canonical npm package is `@tryinget/pi-interaction`.
+- The canonical package directory is `packages/pi-interaction/pi-interaction`.
+- The package-group root is **not** the publish target.
+- Monorepo release orchestration now lives at repo root in component mode.
+- The current safe path is documented in [release-workflow.md](release-workflow.md).
 
-## Required GitHub settings
+## Package-level requirements
 
-- Actions policy must allow used marketplace actions.
-- Workflow permissions must be `Read and write`.
-- "Allow GitHub Actions to create and approve pull requests" must be enabled.
+In `packages/pi-interaction/pi-interaction/package.json`:
 
-## Required workflow expectations
+- `repository.url` must point to the monorepo git URL
+- `repository.directory` must equal `packages/pi-interaction/pi-interaction`
+- `x-pi-template.releaseComponent` must equal `pi-interaction`
+- `x-pi-template.releaseConfigMode` should stay `component`
 
-- `release-please` workflow should not pass deprecated `command` input.
-- `release-please` should use pinned action SHA for reproducibility.
-- Publish workflow should avoid lockfile-dependent `setup-node` npm cache assumptions.
-- Publish workflow should run npm >= 11.5.1 for trusted publishing compatibility.
+## GitHub / npm expectations
 
-## First package publish bootstrap
+- GitHub Actions policy must allow the workflows/actions used for release/publish.
+- Repository workflow permissions must allow release automation to write when enabled.
+- npm trusted publisher binding must target the monorepo repository/workflow pair.
+- npm provenance must resolve back to the monorepo repository metadata.
 
-For a brand-new package name, npm trusted publisher setup is package-scoped.
-If package settings are unavailable yet, do one initial token-based publish,
-then configure trusted publisher and continue with OIDC-only CI publishes.
+## First publish bootstrap
+
+For a new package name, trusted publishing can require a package-level bootstrap step.
+If npm does not yet expose trusted publisher controls for `@tryinget/pi-interaction`:
+
+1. perform one intentional bootstrap publish
+2. configure the trusted publisher for the monorepo repo/workflow
+3. return to OIDC-only publishing
 
 ## Common failure modes
 
-1. **Workflow startup failure**: Actions policy blocks external actions.
-2. **release-please PR creation failure**: workflow permissions are read-only.
-3. **Tag mismatch**: release-please component tags differ from publish trigger expectation.
-4. **Publish setup failure**: npm cache expects lockfile that is not checked in.
-5. **Provenance verification failure (E422)**: `package.json` `repository.url` is missing or does not match the GitHub repository URL in provenance.
+1. `repository.directory` points at `packages/pi-interaction` instead of `packages/pi-interaction/pi-interaction`.
+2. Root/package docs drift and operators try to publish the package-group root.
+3. GitHub workflow permissions are read-only when release automation expects write.
+4. npm trusted publisher binding is attached to the wrong repo or workflow.
+5. Provenance verification fails because monorepo repository metadata and published package metadata diverge.
 
 ## Verification checklist
 
-- `release-please` run succeeds and can open/update release PR.
-- Release tag format matches publish trigger (`vX.Y.Z`).
-- Publish workflow completes with `npm publish --provenance --access public`.
-- No npm token secret is required in CI after trusted publisher is active.
+- `packages/pi-interaction/pi-interaction` passes `npm run release:check:quick`
+- package group/root validation passes per [release-workflow.md](release-workflow.md)
+- live `pi-interaction` + PTX validation passed
+- publish target is the umbrella package path, not the group root

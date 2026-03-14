@@ -1,3 +1,5 @@
+import { stripFrontmatter } from "./templateRenderer.js";
+
 function truncate(value, max = 90) {
   const text = String(value ?? "")
     .replace(/\s+/g, " ")
@@ -36,7 +38,7 @@ export function toVaultCandidates(templates) {
       label: `/vault:${template.name}`,
       detail:
         `[${facetLabel(template)}] ${governanceLabel(template)} — ${truncate(template.description || "")}`.trim(),
-      preview: truncate(template.content || "", 180),
+      preview: truncate(stripFrontmatter(template.content || ""), 180),
       source: "vault",
     }))
     .sort((a, b) => a.label.localeCompare(b.label));

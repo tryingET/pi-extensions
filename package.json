@@ -6,6 +6,9 @@
     "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
     "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
-    "check": "bash ./scripts/quality-gate.sh check"
+    "check": "bash ./scripts/quality-gate.sh check",
+    "release:components:list": "node ./scripts/release-components.mjs list",
+    "release:components:check": "node ./scripts/release-components.mjs validate",
+    "release:components:sync": "node ./scripts/release-components.mjs sync"
   }
 }

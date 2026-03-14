@@ -2,27 +2,40 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { toPtxCandidates } from "../src/ptxCandidateAdapter.js";
 
-test("toPtxCandidates keeps only prompt commands and normalizes contract", () => {
+test("toPtxCandidates keeps only prompt commands and preserves command metadata", () => {
   const commands = [
-    { name: "inversion", source: "prompt", description: "Shadow analysis" },
+    {
+      name: "inversion",
+      source: "prompt",
+      description: "Shadow analysis",
+      path: "/tmp/prompts/inversion.md",
+    },
     { name: "vault", source: "extension", description: "Vault command" },
-    { name: "nexus", source: "prompt", description: "Highest leverage intervention" },
+    {
+      name: "nexus",
+      source: "prompt",
+      description: "Highest leverage intervention",
+      path: "/tmp/prompts/nexus.md",
+    },
   ];
 
   const candidates = toPtxCandidates(commands);
 
   assert.equal(candidates.length, 2);
   assert.deepEqual(
-    candidates.map((candidate) => candidate.id),
+    candidates.map((candidate) => candidate.commandName),
     ["inversion", "nexus"],
   );
 
   assert.deepEqual(candidates[0], {
-    id: "inversion",
+    id: "inversion::/tmp/prompts/inversion.md",
     label: "/inversion",
     detail: "Shadow analysis",
     preview: undefined,
     source: "ptx",
+    commandName: "inversion",
+    commandPath: "/tmp/prompts/inversion.md",
+    commandDescription: "Shadow analysis",
   });
 });
 
@@ -32,10 +45,58 @@ test("toPtxCandidates truncates long descriptions deterministically", () => {
       name: "long-one",
       source: "prompt",
       description: "x".repeat(120),
+      path: "/tmp/prompts/long-one.md",
     },
   ];
 
   const [candidate] = toPtxCandidates(commands);
   assert.equal(candidate.detail.length, 80);
   assert.ok(candidate.detail.endsWith("..."));
+});
+
+test("toPtxCandidates excludes prompt commands without template paths from picker candidates", () => {
+  const commands = [
+    {
+      name: "analysis-router",
+      source: "prompt",
+      description: "Router without path",
+    },
+    {
+      name: "implementation-planning",
+      source: "prompt",
+      description: "Plan implementation work",
+      path: "/tmp/prompts/implementation-planning.md",
+    },
+  ];
+
+  const candidates = toPtxCandidates(commands);
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.commandName),
+    ["implementation-planning"],
+  );
+});
+
+test("toPtxCandidates disambiguates duplicate prompt names with origin detail and unique ids", () => {
+  const commands = [
+    {
+      name: "implementation-planning",
+      source: "prompt",
+      description: "Draft an implementation plan for a requested change",
+      path: "/repo-a/prompts/implementation-planning.md",
+    },
+    {
+      name: "implementation-planning",
+      source: "prompt",
+      description: "Draft an implementation plan for a requested change",
+      path: "/repo-b/prompts/implementation-planning.md",
+    },
+  ];
+
+  const candidates = toPtxCandidates(commands);
+
+  assert.equal(candidates.length, 2);
+  assert.notEqual(candidates[0].id, candidates[1].id);
+  assert.match(candidates[0].detail ?? "", /repo-a\/prompts\/implementation-planning\.md|repo-b\/prompts\/implementation-planning\.md/);
+  assert.match(candidates[1].detail ?? "", /repo-a\/prompts\/implementation-planning\.md|repo-b\/prompts\/implementation-planning\.md/);
+  assert.notEqual(candidates[0].detail, candidates[1].detail);
 });

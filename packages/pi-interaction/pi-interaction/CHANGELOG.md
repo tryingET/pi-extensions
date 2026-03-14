@@ -26,6 +26,7 @@ All notable changes to this project should be documented here.
 - Added runtime composition helpers: `createInteractionRuntime`, `getInteractionRuntime`, `resetInteractionRuntime`.
 - Pre-publish package rename to `@tryinget/pi-interaction` to align first public release with interaction-runtime scope.
 - Environment variable namespace now defaults to `PI_INTERACTION_*` while keeping `PI_INPUT_TRIGGERS_*` aliases for migration compatibility.
+- Release/security docs now point at the monorepo package path as the canonical publish target and describe the first release-safe workflow.
 
 ## [0.2.0] - 2026-03-05
 
@@ -114,6 +115,6 @@ All notable changes to this project should be documented here.
 #### Documentation
 
 - README.md with full API documentation
-- docs/dev/status.md for development status
+- README.md for durable package-group truth and NEXT_SESSION_PROMPT.md for the active handoff
 - docs/dev/EXTENSION_SOP.md for contribution guidelines
 - NEXT_SESSION_PROMPT.md for session handoff

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-v-in-tag": true,
+  "include-component-in-tag": true,
+  "separate-pull-requests": true,
+  "packages": {
+    "packages/pi-autonomous-session-control": {
+      "release-type": "node",
+      "component": "pi-autonomous-session-control"
+    },
+    "packages/pi-interaction/pi-editor-registry": {
+      "release-type": "node",
+      "component": "pi-editor-registry"
+    },
+    "packages/pi-interaction/pi-interaction": {
+      "release-type": "node",
+      "component": "pi-interaction"
+    },
+    "packages/pi-interaction/pi-interaction-kit": {
+      "release-type": "node",
+      "component": "pi-interaction-kit"
+    },
+    "packages/pi-interaction/pi-trigger-adapter": {
+      "release-type": "node",
+      "component": "pi-trigger-adapter"
+    },
+    "packages/pi-ontology-workflows": {
+      "release-type": "node",
+      "component": "pi-ontology-workflows"
+    },
+    "packages/pi-prompt-template-accelerator": {
+      "release-type": "node",
+      "component": "pi-prompt-template-accelerator"
+    },
+    "packages/pi-society-orchestrator": {
+      "release-type": "node",
+      "component": "pi-society-orchestrator"
+    },
+    "packages/pi-vault-client": {
+      "release-type": "node",
+      "component": "pi-vault-client"
+    }
+  }
+}

@@ -11,6 +11,7 @@ system4d:
 
 # Strategic goals
 
-1. Establish predictable extension release cadence.
-2. Maintain clear operational docs and SOPs.
-3. Keep structure validation and hooks passing by default.
+1. Harden PTX core behavior under adversarial review.
+2. Preserve deterministic, explainable prompt selection and argument inference.
+3. Keep runtime surface area PTX-focused and low-maintenance.
+4. Keep docs, tests, and validation aligned with actual package behavior.

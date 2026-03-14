@@ -9,11 +9,22 @@
     "url": "git+https://github.com/tryingET/pi-extensions.git",
     "directory": "packages/pi-prompt-template-accelerator"
   },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-prompt-template-accelerator",
   "keywords": [
     "pi-package",
     "pi-extension",
     "pi-prompt-template-accelerator"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
@@ -27,7 +38,9 @@
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
-    "release:check:quick": "npm pack --dry-run"
+    "release:check:quick": "npm pack --dry-run",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
   },
   "pi": {
     "extensions": [
@@ -36,6 +49,12 @@
     "prompts": [
       "./prompts"
     ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-prompt-template-accelerator",
+    "releaseComponent": "pi-prompt-template-accelerator",
+    "releaseConfigMode": "component"
   },
   "dependencies": {
     "@tryinget/pi-interaction": "file:../pi-interaction/pi-interaction",

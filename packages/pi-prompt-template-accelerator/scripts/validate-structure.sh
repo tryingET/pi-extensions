@@ -13,24 +13,10 @@ required_files=(
   "CONTRIBUTING.md"
   "AGENTS.md"
   ".copier-answers.yml"
+  "package.json"
+  "package-lock.json"
   "prek.toml"
-  ".github/CODEOWNERS"
-  ".github/dependabot.yml"
-  ".github/pull_request_template.md"
-  ".github/VOUCHED.td"
-  ".github/ISSUE_TEMPLATE/bug-report.yml"
-  ".github/ISSUE_TEMPLATE/feature-request.yml"
-  ".github/ISSUE_TEMPLATE/docs.yml"
-  ".github/ISSUE_TEMPLATE/config.yml"
-  ".github/workflows/ci.yml"
-  ".github/workflows/release-please.yml"
-  ".github/workflows/publish.yml"
-  ".github/workflows/vouch-check-pr.yml"
-  ".github/workflows/vouch-manage.yml"
-  ".release-please-config.json"
-  ".release-please-manifest.json"
   "docs/org/operating_model.md"
-  "docs/org/project-docs-intake.questions.json"
   "docs/project/foundation.md"
   "docs/project/vision.md"
   "docs/project/incentives.md"
@@ -38,49 +24,36 @@ required_files=(
   "docs/project/skills.md"
   "docs/project/strategic_goals.md"
   "docs/project/tactical_goals.md"
-  "docs/dev/status.md"
   "docs/dev/CONTRIBUTING.md"
   "docs/dev/EXTENSION_SOP.md"
-  ".pi/extensions/startup-intake-router.ts"
-  ".pi/prompts/init-project-docs.md"
-  "scripts/sync-to-live.sh"
+  "extensions/ptx.ts"
   "scripts/install-hooks.sh"
-  "scripts/init-project-docs.sh"
   "scripts/docs-list.sh"
+  "scripts/quality-gate.sh"
   "scripts/validate-structure.sh"
-  ".githooks/pre-commit"
   "prompts/implementation-planning.md"
   "prompts/security-review.md"
-  "prompts/init-project-docs.md"
 )
 
 required_dirs=(
-  ".github"
-  ".github/workflows"
-  ".github/ISSUE_TEMPLATE"
   "docs/org"
   "docs/dev/plans"
   "examples"
   "external"
+  "extensions"
   "ontology"
   "policy"
   "scripts"
   "src"
   "tests"
-  ".pi"
-  ".pi/extensions"
-  ".pi/prompts"
-  ".githooks"
   "prompts"
 )
 
 required_executables=(
-  "scripts/sync-to-live.sh"
   "scripts/install-hooks.sh"
-  "scripts/init-project-docs.sh"
   "scripts/docs-list.sh"
+  "scripts/quality-gate.sh"
   "scripts/validate-structure.sh"
-  ".githooks/pre-commit"
 )
 
 errors=0
@@ -119,68 +92,70 @@ for copier_key in "_src_path:" "repo_name:" "command_name:"; do
   fi
 done
 
-placeholder_pattern='\{username\}|\{repo\}|\{discordInvite\}|\{@twitter\}'
-placeholder_hits="$(grep -R -nE "$placeholder_pattern" .github || true)"
-if [[ -n "$placeholder_hits" ]]; then
-  echo "Unresolved placeholders found under .github:" >&2
-  echo "$placeholder_hits" >&2
-  ((errors+=1))
-fi
+if [[ -d ".github" ]]; then
+  placeholder_pattern='\{username\}|\{repo\}|\{discordInvite\}|\{@twitter\}'
+  placeholder_hits="$(grep -R -nE "$placeholder_pattern" .github || true)"
+  if [[ -n "$placeholder_hits" ]]; then
+    echo "Unresolved placeholders found under .github:" >&2
+    echo "$placeholder_hits" >&2
+    ((errors+=1))
+  fi
 
-vouch_ref="5713ce1baedf75e2f830afa3dac813a9c48bff12"
-if ! grep -q "mitchellh/vouch/action/check-pr@${vouch_ref}" ".github/workflows/vouch-check-pr.yml"; then
-  echo "vouch-check-pr workflow must pin mitchellh/vouch/action/check-pr to ${vouch_ref}" >&2
-  ((errors+=1))
-fi
+  vouch_ref="5713ce1baedf75e2f830afa3dac813a9c48bff12"
+  if [[ -f ".github/workflows/vouch-check-pr.yml" ]] && ! grep -q "mitchellh/vouch/action/check-pr@${vouch_ref}" ".github/workflows/vouch-check-pr.yml"; then
+    echo "vouch-check-pr workflow must pin mitchellh/vouch/action/check-pr to ${vouch_ref}" >&2
+    ((errors+=1))
+  fi
 
-if ! grep -q "mitchellh/vouch/action/manage-by-issue@${vouch_ref}" ".github/workflows/vouch-manage.yml"; then
-  echo "vouch-manage workflow must pin mitchellh/vouch/action/manage-by-issue to ${vouch_ref}" >&2
-  ((errors+=1))
-fi
+  if [[ -f ".github/workflows/vouch-manage.yml" ]] && ! grep -q "mitchellh/vouch/action/manage-by-issue@${vouch_ref}" ".github/workflows/vouch-manage.yml"; then
+    echo "vouch-manage workflow must pin mitchellh/vouch/action/manage-by-issue to ${vouch_ref}" >&2
+    ((errors+=1))
+  fi
 
-if grep -n "@main" .github/workflows/vouch-*.yml >/dev/null 2>&1; then
-  echo "vouch workflows must not use @main refs" >&2
-  ((errors+=1))
-fi
+  if compgen -G ".github/workflows/vouch-*.yml" >/dev/null && grep -n "@main" .github/workflows/vouch-*.yml >/dev/null 2>&1; then
+    echo "vouch workflows must not use @main refs" >&2
+    ((errors+=1))
+  fi
 
-if ! grep -q "pull_request_target" ".github/workflows/vouch-check-pr.yml"; then
-  echo "vouch-check-pr workflow must trigger on pull_request_target" >&2
-  ((errors+=1))
-fi
+  if [[ -f ".github/workflows/vouch-check-pr.yml" ]]; then
+    if ! grep -q "pull_request_target" ".github/workflows/vouch-check-pr.yml"; then
+      echo "vouch-check-pr workflow must trigger on pull_request_target" >&2
+      ((errors+=1))
+    fi
+    if ! grep -q "require-vouch" ".github/workflows/vouch-check-pr.yml"; then
+      echo "vouch-check-pr workflow must set require-vouch" >&2
+      ((errors+=1))
+    fi
+    if ! grep -q "auto-close" ".github/workflows/vouch-check-pr.yml"; then
+      echo "vouch-check-pr workflow must set auto-close" >&2
+      ((errors+=1))
+    fi
+  fi
 
-if ! grep -q "require-vouch" ".github/workflows/vouch-check-pr.yml"; then
-  echo "vouch-check-pr workflow must set require-vouch" >&2
-  ((errors+=1))
-fi
+  if [[ -f ".github/workflows/vouch-manage.yml" ]]; then
+    if ! grep -q "issue_comment" ".github/workflows/vouch-manage.yml"; then
+      echo "vouch-manage workflow must trigger on issue_comment" >&2
+      ((errors+=1))
+    fi
+    if ! grep -q "concurrency:" ".github/workflows/vouch-manage.yml" || ! grep -q "group: vouch-manage" ".github/workflows/vouch-manage.yml"; then
+      echo "vouch-manage workflow must define serialized concurrency" >&2
+      ((errors+=1))
+    fi
+    if ! grep -q "vouched-file: .github/VOUCHED.td" ".github/workflows/vouch-manage.yml"; then
+      echo "vouch-manage workflow must target .github/VOUCHED.td" >&2
+      ((errors+=1))
+    fi
+  fi
 
-if ! grep -q "auto-close" ".github/workflows/vouch-check-pr.yml"; then
-  echo "vouch-check-pr workflow must set auto-close" >&2
-  ((errors+=1))
-fi
+  if [[ -f ".github/CODEOWNERS" ]] && grep -q "@your-github-handle" ".github/CODEOWNERS"; then
+    echo ".github/CODEOWNERS must not keep @your-github-handle placeholder" >&2
+    ((errors+=1))
+  fi
 
-if ! grep -q "issue_comment" ".github/workflows/vouch-manage.yml"; then
-  echo "vouch-manage workflow must trigger on issue_comment" >&2
-  ((errors+=1))
-fi
-
-if ! grep -q "concurrency:" ".github/workflows/vouch-manage.yml" || ! grep -q "group: vouch-manage" ".github/workflows/vouch-manage.yml"; then
-  echo "vouch-manage workflow must define serialized concurrency" >&2
-  ((errors+=1))
-fi
-
-if ! grep -q "vouched-file: .github/VOUCHED.td" ".github/workflows/vouch-manage.yml"; then
-  echo "vouch-manage workflow must target .github/VOUCHED.td" >&2
-  ((errors+=1))
-fi
-
-if grep -q "@your-github-handle" ".github/CODEOWNERS"; then
-  echo ".github/CODEOWNERS must not keep @your-github-handle placeholder" >&2
-  ((errors+=1))
-fi
-
-if ! grep -Eq "^github:[A-Za-z0-9][A-Za-z0-9-]*" ".github/VOUCHED.td"; then
-  echo ".github/VOUCHED.td must include at least one github maintainer entry" >&2
-  ((errors+=1))
+  if [[ -f ".github/VOUCHED.td" ]] && ! grep -Eq "^github:[A-Za-z0-9][A-Za-z0-9-]*" ".github/VOUCHED.td"; then
+    echo ".github/VOUCHED.td must include at least one github maintainer entry" >&2
+    ((errors+=1))
+  fi
 fi
 
 if command -v node >/dev/null 2>&1; then
@@ -192,16 +167,6 @@ const fail = (msg) => {
   console.error(msg);
   failed = true;
 };
-
-try {
-  const qPath = "docs/org/project-docs-intake.questions.json";
-  const q = JSON.parse(fs.readFileSync(qPath, "utf8"));
-  if (!q.title || !Array.isArray(q.questions) || q.questions.length === 0) {
-    fail(`Invalid interview questions file: ${qPath}`);
-  }
-} catch (error) {
-  fail(`Failed to parse interview questions file: ${error.message}`);
-}
 
 try {
   const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
@@ -234,13 +199,13 @@ try {
   }
 
   const checkScript = p.scripts?.check;
-  if (checkScript !== "bash ./scripts/validate-structure.sh") {
-    fail("package.json scripts.check must be 'bash ./scripts/validate-structure.sh'");
+  if (!["bash ./scripts/validate-structure.sh", "npm run quality:ci"].includes(checkScript)) {
+    fail("package.json scripts.check must be 'bash ./scripts/validate-structure.sh' or 'npm run quality:ci'");
   }
 
   const testScript = p.scripts?.test;
-  if (testScript !== "bash ./scripts/validate-structure.sh") {
-    fail("package.json scripts.test must be 'bash ./scripts/validate-structure.sh'");
+  if (!["bash ./scripts/validate-structure.sh", "bash ./scripts/quality-gate.sh test"].includes(testScript)) {
+    fail("package.json scripts.test must be 'bash ./scripts/validate-structure.sh' or 'bash ./scripts/quality-gate.sh test'");
   }
 
   const docsListScript = p.scripts?.["docs:list"];
@@ -258,24 +223,56 @@ try {
     fail("package.json scripts.docs:list:json must be 'bash ./scripts/docs-list.sh --json'");
   }
 
-  const rpConfig = JSON.parse(fs.readFileSync(".release-please-config.json", "utf8"));
-  if (rpConfig["include-v-in-tag"] !== true) {
-    fail(".release-please-config.json must set include-v-in-tag=true");
+  const versionPattern = /^\d+\.\d+\.\d+([-.][0-9A-Za-z.]+)?$/;
+  const templateMeta = p["x-pi-template"] || {};
+  if (templateMeta.scaffoldMode !== "simple-package") {
+    fail("package.json x-pi-template.scaffoldMode must be 'simple-package'");
   }
-  if (!rpConfig.packages || !rpConfig.packages["."]) {
-    fail(".release-please-config.json must include packages['.']");
+  if (templateMeta.workspacePath !== "packages/pi-prompt-template-accelerator") {
+    fail("package.json x-pi-template.workspacePath must match packages/pi-prompt-template-accelerator");
+  }
+  if (templateMeta.releaseComponent !== "pi-prompt-template-accelerator") {
+    fail("package.json x-pi-template.releaseComponent must be 'pi-prompt-template-accelerator'");
+  }
+  if (templateMeta.releaseConfigMode !== "component") {
+    fail("package.json x-pi-template.releaseConfigMode must be 'component'");
   }
 
-  const rpManifest = JSON.parse(fs.readFileSync(".release-please-manifest.json", "utf8"));
-  if (!rpManifest["."]) {
-    fail(".release-please-manifest.json must include '.' version entry");
+  const rootReleaseComponentsPath = "../../scripts/release-components.mjs";
+  if (!fs.existsSync(rootReleaseComponentsPath)) {
+    fail(`Missing root release component helper: ${rootReleaseComponentsPath}`);
   }
-  const versionPattern = /^\d+\.\d+\.\d+([-.][0-9A-Za-z.]+)?$/;
-  if (!versionPattern.test(rpManifest["."])) {
-    fail(".release-please-manifest.json '.' entry must match X.Y.Z");
+
+  const rootRpConfigPath = "../../.release-please-config.json";
+  const rootRpManifestPath = "../../.release-please-manifest.json";
+  if (!fs.existsSync(rootRpConfigPath)) {
+    fail(`Missing root release-please config: ${rootRpConfigPath}`);
   }
-  if (rpManifest["."] !== p.version) {
-    fail(".release-please-manifest.json '.' entry must match package.json version");
+  if (!fs.existsSync(rootRpManifestPath)) {
+    fail(`Missing root release-please manifest: ${rootRpManifestPath}`);
+  }
+
+  const rpConfig = JSON.parse(fs.readFileSync(rootRpConfigPath, "utf8"));
+  if (rpConfig["include-v-in-tag"] !== true) {
+    fail("root .release-please-config.json must set include-v-in-tag=true");
+  }
+  if (rpConfig["include-component-in-tag"] !== true) {
+    fail("root .release-please-config.json must set include-component-in-tag=true for monorepo component tags");
+  }
+  if (!rpConfig.packages || !rpConfig.packages["packages/pi-prompt-template-accelerator"]) {
+    fail("root .release-please-config.json must include packages/pi-prompt-template-accelerator");
+  }
+
+  const rpManifest = JSON.parse(fs.readFileSync(rootRpManifestPath, "utf8"));
+  const manifestVersion = rpManifest["packages/pi-prompt-template-accelerator"];
+  if (!manifestVersion) {
+    fail("root .release-please-manifest.json must include packages/pi-prompt-template-accelerator");
+  }
+  if (!versionPattern.test(manifestVersion)) {
+    fail("root .release-please-manifest.json entry must match X.Y.Z");
+  }
+  if (manifestVersion !== p.version) {
+    fail("root .release-please-manifest.json entry must match package.json version");
   }
 } catch (error) {
   fail(`Failed to validate package/release metadata: ${error.message}`);

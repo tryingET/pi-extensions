@@ -11,8 +11,6 @@ system4d:
 
 # Vision
 
-Deliver a dependable extension package that is easy to understand, validate, and evolve.
+PTX should feel fast, predictable, and boring in the best way: the right prompt is selected, context is inferred deterministically, and failures stay explicit.
 
-Project purpose for this repository is scoped to extension delivery and maintenance.
-It aligns with, but is distinct from, organization purpose documented in [Organization operating model](../org/operating_model.md).
-For the project-level concept map, see [Project foundation model](foundation.md).
+The package should strengthen operator trust by reducing hidden magic, shrinking runtime surface area, and keeping repo-local startup interview automation out of the active path.

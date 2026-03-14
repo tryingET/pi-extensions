@@ -8,10 +8,32 @@ import { parseTemplateArgHints } from "./parseTemplateArgHints.js";
 import { resolvePromptTemplate } from "./resolvePromptTemplate.js";
 import { resolveTemplatePolicy } from "./ptxPolicyConfig.js";
 
+function normalizeTemplateCommandOverride(value) {
+  if (!value || typeof value !== "object") return undefined;
+
+  const name = typeof value.name === "string" ? value.name.trim().replace(/^\/+/, "") : "";
+  if (!name) return undefined;
+
+  const normalized = {
+    name,
+    source: "prompt",
+  };
+
+  if (typeof value.description === "string" && value.description.trim().length > 0) {
+    normalized.description = value.description.trim();
+  }
+
+  if (typeof value.path === "string" && value.path.trim().length > 0) {
+    normalized.path = value.path.trim();
+  }
+
+  return normalized;
+}
+
 /**
  * Build a deterministic transform plan for a raw slash command.
  */
-export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConfig }) {
+export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConfig, templateCommandOverride }) {
   let parsed;
   try {
     parsed = parseRawCommand(rawText);
@@ -26,14 +48,36 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
     return { status: "not-slash-command" };
   }
 
-  const templateCommand = resolvePromptTemplate(pi.getCommands(), parsed.commandName);
-  if (!templateCommand) {
+  const normalizedOverride = normalizeTemplateCommandOverride(templateCommandOverride);
+  const templateResolution =
+    normalizedOverride && normalizedOverride.name === parsed.commandName
+      ? {
+          status: "ok",
+          templateCommand: normalizedOverride,
+          matches: [normalizedOverride],
+          prefillableMatches: normalizedOverride.path ? [normalizedOverride] : [],
+          resolution: "override",
+        }
+      : resolvePromptTemplate(pi.getCommands(), parsed.commandName);
+
+  if (templateResolution.status === "ambiguous") {
+    return {
+      status: "template-name-ambiguous",
+      parsed,
+      matches: templateResolution.matches,
+      prefillableMatches: templateResolution.prefillableMatches,
+      resolution: templateResolution.resolution,
+    };
+  }
+
+  if (templateResolution.status !== "ok") {
     return {
       status: "non-template-command",
       parsed,
     };
   }
 
+  const templateCommand = templateResolution.templateCommand;
   const policy = resolveTemplatePolicy(parsed.commandName, policyConfig);
   if (!policy.allowed) {
     return {
@@ -41,6 +85,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
       parsed,
       templateCommand,
       policy,
+      resolution: templateResolution.resolution,
     };
   }
 
@@ -50,6 +95,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
       parsed,
       templateCommand,
       policy,
+      resolution: templateResolution.resolution,
     };
   }
 
@@ -62,6 +108,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
       parsed,
       templateCommand,
       policy,
+      resolution: templateResolution.resolution,
       error,
     };
   }
@@ -82,6 +129,7 @@ export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConf
     parsed,
     templateCommand,
     policy,
+    resolution: templateResolution.resolution,
     usage,
     hints,
     inferred,

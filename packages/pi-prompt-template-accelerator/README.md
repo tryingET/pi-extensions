@@ -47,6 +47,9 @@ Hint-aware: reads template lines to infer slot types from keywords.
 
 - `$$ /<partial>` opens the PTX fuzzy picker.
 - `/ptx-select [partial]` opens the same picker explicitly.
+- PTX picker candidates now include only prompt commands with a usable template path, so picker selection stays aligned with the PTX contract of producing a fully prefilled command.
+- When multiple packages expose the same prompt name, PTX now carries the exact selected prompt metadata and adds origin detail to duplicate entries so the chosen template stays stable.
+- Use `/ptx-debug-commands [query]` to inspect visible prompt commands, paths, and inferred arg contracts.
 - Mode is reported in notifications:
   - `mode=fzf` when `fzf` ranking is available
   - `mode=fallback` when deterministic in-app ranking is used
@@ -55,6 +58,9 @@ Hint-aware: reads template lines to infer slot types from keywords.
 
 The extension no longer installs a custom editor component, so it can coexist with other extensions without `setEditorComponent` conflicts.
 In non-UI mode, malformed `$$` input is surfaced as deterministic transform text (usage/parse errors) instead of being silently swallowed.
+Context inference now treats `sessionManager` / `getBranch()` as optional so trigger-style live-picker contexts can still build PTX suggestions without crashing.
+Live picker selections now preserve the exact selected prompt command metadata instead of re-resolving only by slash-command name, which avoids duplicate-name drift across installed packages.
+If you type a direct `$$ /name` invocation for a prompt command that PTX cannot read or fully resolve (for example missing `path`, metadata drift, or live fallback conditions), PTX now prefills the raw slash command instead of leaving the editor empty.
 
 ## Files
 
@@ -74,6 +80,22 @@ Works great with cognitive trigger templates like:
 - `/morning` — Start-of-day alignment
 
 See `~/ai-society/softwareco/infra/workstation/prompts/triggers/` for the full set.
+
+## Current package truth
+
+- Primary UX: `$$ /<partial>` routes through the PTX fuzzy selector (`fzf --filter` when available, deterministic fallback otherwise)
+- Command UX: `/ptx-select [query]` opens the same selector explicitly
+- Current prefill behavior is still **deterministic** and code-driven at suggestion time
+  - the active model is **not** currently used to generate PTX arg suggestions
+- Trigger/live-picker hardening in place:
+  - missing `sessionManager` / `getBranch()` no longer crashes context inference
+  - duplicate prompt names are disambiguated and preserve exact selected prompt identity
+  - picker candidates include only prompt commands with a usable template path
+- Diagnostics available:
+  - `/ptx-debug-commands [query]`
+  - `/ptx-fzf-spike`
+- Current semantic ceiling:
+  - PTX objective extraction is still heuristic and may fall back to `"<MUST_REPLACE_PRIMARY_OBJECTIVE>"` when no trustworthy objective is available
 
 ## Repository checks
 
@@ -106,40 +128,49 @@ npm run test:smoke:non-ui
   - ensure prompt templates are loaded (avoid `--no-prompt-templates`)
 - `No prompt template selected (no-prompt-templates)`
   - there are no prompt commands in the current session
+- `No prompt template selected (no-prefillable-prompt-templates)`
+  - prompt commands exist, but none expose a usable template path for PTX picker prefill
 - `Cannot read template: ...`
   - the selected template path is unavailable/unreadable
+- `PTX Debug Commands`
+  - use `/ptx-debug-commands [query]` to inspect which visible prompt commands are prefillable and what arg contracts they expose
 
 ## Release + security baseline
 
-This scaffold defaults to **release-please** for single-package release PR + tag flow (`vX.Y.Z`) and npm trusted publishing via OIDC.
+This package now uses the **root-owned monorepo release control plane** in component mode.
+It gets its own independent release-please PRs/tags/releases, but the workflows/config live at monorepo root.
 
-Included files:
+Relevant root-owned files:
 
-- [CI workflow](.github/workflows/ci.yml)
-- [release-please workflow](.github/workflows/release-please.yml)
-- [publish workflow](.github/workflows/publish.yml)
-- [Dependabot config](.github/dependabot.yml)
-- [CODEOWNERS](.github/CODEOWNERS)
-- [release-please config](.release-please-config.json)
-- [release-please manifest](.release-please-manifest.json)
+- [CI workflow](../../.github/workflows/ci.yml)
+- [release-please workflow](../../.github/workflows/release-please.yml)
+- [release-check workflow](../../.github/workflows/release-check.yml)
+- [publish workflow](../../.github/workflows/publish.yml)
+- [release-please config](../../.release-please-config.json)
+- [release-please manifest](../../.release-please-manifest.json)
+- [root component helper](../../scripts/release-components.mjs)
 - [Security policy](SECURITY.md)
 
-Before first production release:
+Current component tag shape:
 
-1. Confirm/adjust owners in [.github/CODEOWNERS](.github/CODEOWNERS).
+- `pi-prompt-template-accelerator-vX.Y.Z`
+
+Before first production release under root automation:
+
+1. Confirm/adjust owners in [../../.github/CODEOWNERS](../../.github/CODEOWNERS).
 2. Enable branch protection on `main`.
-3. Configure npm Trusted Publishing for this repo + [publish workflow](.github/workflows/publish.yml).
-4. Merge release PR from release-please, then publish from GitHub release.
+3. Configure npm Trusted Publishing for the monorepo repo + [root publish workflow](../../.github/workflows/publish.yml).
+4. Let root release-please open the component release PR, then publish from the GitHub release.
 
 ## Issue + PR intake baseline
 
 Included files:
 
-- [Bug report form](.github/ISSUE_TEMPLATE/bug-report.yml)
-- [Feature request form](.github/ISSUE_TEMPLATE/feature-request.yml)
-- [Docs request form](.github/ISSUE_TEMPLATE/docs.yml)
-- [Issue template config](.github/ISSUE_TEMPLATE/config.yml)
-- [PR template](.github/pull_request_template.md)
+- [Bug report form](../../.github/ISSUE_TEMPLATE/bug-report.yml)
+- [Feature request form](../../.github/ISSUE_TEMPLATE/feature-request.yml)
+- [Docs request form](../../.github/ISSUE_TEMPLATE/docs.yml)
+- [Issue template config](../../.github/ISSUE_TEMPLATE/config.yml)
+- [PR template](../../.github/pull_request_template.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Support guide](SUPPORT.md)
 - [Top-level contributing guide](CONTRIBUTING.md)
@@ -148,9 +179,9 @@ Included files:
 
 Included files:
 
-- [Vouched contributors list](.github/VOUCHED.td)
-- [PR trust gate workflow](.github/workflows/vouch-check-pr.yml)
-- [Issue-comment trust management workflow](.github/workflows/vouch-manage.yml)
+- [Vouched contributors list](../../.github/VOUCHED.td)
+- [PR trust gate workflow](../../.github/workflows/vouch-check-pr.yml)
+- [Issue-comment trust management workflow](../../.github/workflows/vouch-manage.yml)
 
 Default behavior:
 
@@ -161,7 +192,7 @@ Default behavior:
 
 Bootstrap step:
 
-- Confirm/adjust entries in [.github/VOUCHED.td](.github/VOUCHED.td) before enforcing production policy.
+- Confirm/adjust entries in [../../.github/VOUCHED.td](../../.github/VOUCHED.td) before enforcing production policy.
 
 ## Docs discovery
 
@@ -204,30 +235,52 @@ npm add -D @j178/prek
 npm install -g @j178/prek
 ```
 
-## Startup interview flow (project-local)
+## Project docs maintenance
 
-- [`.pi/extensions/startup-intake-router.ts`](.pi/extensions/startup-intake-router.ts) watches the first non-command message in a session.
-- It converts your startup intent into a prefilled command:
-  - `/init-project-docs "<your intent>"`
-- [`.pi/prompts/init-project-docs.md`](.pi/prompts/init-project-docs.md) then drives the `interview` tool using [docs/org/project-docs-intake.questions.json](docs/org/project-docs-intake.questions.json).
+This package no longer ships a repo-local startup-intake layer.
+Maintain organization and project docs directly in `docs/org/` and `docs/project/`.
 
-Utility commands:
+## Live package activation
 
-- `/startup-intake-router-status`
-- `/startup-intake-router-reset`
+Install the package into Pi from its local package path:
 
-## Live sync helper
+```bash
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
+```
 
-Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy extension entrypoints plus
-shared `src/` modules into `~/.pi/agent/extensions/pi-prompt-template-accelerator/`.
+Then in Pi:
 
-Optional flags:
+1. run `/reload`
+2. verify with a real command or tool call from this package
 
-- `--with-prompts`
-- `--with-policy`
-- `--all` (prompts + policy)
+## Task management and handoff authority
 
-After sync, run `/reload` in pi.
+- Use `NEXT_SESSION_PROMPT.md` as the active handoff for this package.
+- Do **not** keep a separate package-local status snapshot document.
+- For canonical task/evidence/work-item authority, use Agent Kernel (`ak`) instead of ad-hoc markdown tracking:
+  - [agent-kernel README](../agent-kernel/README.md)
+  - [DB-first work-items runbook](../agent-kernel/docs/project/db-first-work-items-runbook.md)
+  - [Issue-tracker placement and AK boundary ADR](../agent-kernel/docs/adr/0007-issue-tracker-placement-and-ak-boundary.md)
+- Operational rule borrowed from agent-kernel:
+  - use the handoff file as the active fresh-context artifact, not as a second status database
+- This package currently does **not** maintain a `governance/work-items.json` projection.
+  - if you need task tracking, use AK DB task/evidence commands directly
+
+Example AK flow for this package:
+
+```bash
+cd ~/ai-society/softwareco/owned/agent-kernel
+source ./.ak-env-v2
+
+./scripts/ak-v2.sh task create \
+  --repo /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator \
+  "<task title>"
+
+./scripts/ak-v2.sh task ready
+./scripts/ak-v2.sh task claim <id> --agent <agent-id> --lease 3600
+./scripts/ak-v2.sh evidence record --task <id> --check-type validation:workspace --result pass
+./scripts/ak-v2.sh task complete <id> --result '{"summary":"done"}'
+```
 
 ## Docs map
 
@@ -242,4 +295,4 @@ After sync, run `/reload` in pi.
 - [Contributor guide](docs/dev/CONTRIBUTING.md)
 - [Extension SOP](docs/dev/EXTENSION_SOP.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)
-- [Status](docs/dev/status.md)
+- [Agent Kernel task/work-item authority](../agent-kernel/README.md)

@@ -70,19 +70,26 @@ interface VaultOps {
   escapeSql: (str: string) => string;
 }
 
+type CreateVariantResult = { ok: true; variant: PromptVariant } | { ok: false; error: string };
+
+function formatEvaluatorError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function createVariant(
   vault: VaultOps,
   name: string,
   content: string,
   description?: string,
-): PromptVariant {
-  const id = `var_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+): CreateVariantResult {
+  const createdAt = Date.now();
+  const id = `var_${createdAt}_${Math.random().toString(36).slice(2, 8)}`;
+  const escapedId = vault.escapeSql(id);
   const escapedContent = vault.escapeSql(content);
   const escapedDesc = vault.escapeSql(description || "");
   const escapedName = vault.escapeSql(name);
 
-  // Ensure table exists
-  vault.exec(
+  const tableReady = vault.exec(
     `CREATE TABLE IF NOT EXISTS prompt_variants (
       id VARCHAR(64) PRIMARY KEY,
       name VARCHAR(128),
@@ -91,13 +98,34 @@ function createVariant(
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
   );
+  if (!tableReady) {
+    return { ok: false, error: "Failed to ensure prompt_variants table exists" };
+  }
 
-  vault.exec(
-    `INSERT INTO prompt_variants (id, name, content, description, created_at) VALUES ('${id}', '${escapedName}', '${escapedContent}', '${escapedDesc}', NOW())`,
+  const inserted = vault.exec(
+    `INSERT INTO prompt_variants (id, name, content, description, created_at) VALUES ('${escapedId}', '${escapedName}', '${escapedContent}', '${escapedDesc}', NOW())`,
   );
-  vault.commit(`Add prompt variant: ${name}`);
+  if (!inserted) {
+    return { ok: false, error: `Failed to insert prompt variant: ${name}` };
+  }
 
-  return { id, name, content, description, createdAt: Date.now() };
+  try {
+    vault.commit(`Add prompt variant: ${name}`);
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Failed to commit prompt variant '${name}': ${formatEvaluatorError(error)}`,
+    };
+  }
+
+  const persisted = vault.queryJson(
+    `SELECT id FROM prompt_variants WHERE id = '${escapedId}' LIMIT 1`,
+  );
+  if ((persisted?.rows || []).length !== 1) {
+    return { ok: false, error: `Prompt variant was not persisted: ${name}` };
+  }
+
+  return { ok: true, variant: { id, name, content, description, createdAt } };
 }
 
 function listVariants(vault: VaultOps): PromptVariant[] {
@@ -295,13 +323,20 @@ Use to systematically improve prompts through experimentation.`,
           };
         }
 
-        const variant = createVariant(
+        const created = createVariant(
           vault,
           params.name as string,
           params.content as string,
           params.description as string | undefined,
         );
+        if (!created.ok) {
+          return {
+            content: [{ type: "text", text: `Error: ${created.error}` }],
+            details: { ok: false, error: created.error },
+          };
+        }
 
+        const variant = created.variant;
         return {
           content: [{ type: "text", text: `Created variant: ${variant.name} (${variant.id})` }],
           details: { ok: true, variant },

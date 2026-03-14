@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: aab9bf0
+_src_path: /home/tryinget/ai-society/softwareco/owned/pi-extensions-template
+command_name: activity-strip
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-activity-strip
+release_config_mode: none
+repo_name: pi-activity-strip
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-activity-strip

@@ -6,6 +6,33 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { resetBroker, TriggerBroker } from "../src/TriggerBroker.js";
 
+function makeApi(sessionKey) {
+  return {
+    setText: () => {},
+    insertText: () => {},
+    notify: () => {},
+    select: async () => null,
+    confirm: async () => false,
+    input: async () => null,
+    getText: () => "",
+    close: () => {},
+    ctx: sessionKey ? { sessionKey } : {},
+  };
+}
+
+function contextFromText(text, sessionKey) {
+  return {
+    fullText: text,
+    textBeforeCursor: text,
+    textAfterCursor: "",
+    cursorLine: 0,
+    cursorColumn: text.length,
+    totalLines: 1,
+    isLive: true,
+    ...(sessionKey ? { sessionKey } : {}),
+  };
+}
+
 describe("TriggerBroker", () => {
   let broker;
 
@@ -368,6 +395,54 @@ describe("TriggerBroker", () => {
       // High priority fires first (and only one fires due to early return)
       assert.strictEqual(order.length, 1);
       assert.strictEqual(order[0], "high");
+    });
+
+    it("should fire a debounced trigger with the API captured for that dispatch", async () => {
+      const seenSessionKeys = [];
+      broker.register({
+        id: "test",
+        description: "Test",
+        match: "$$ /",
+        debounceMs: 20,
+        handler: async (_match, _context, api) => {
+          seenSessionKeys.push(api.ctx.sessionKey);
+        },
+      });
+
+      const apiA = makeApi("editor-a");
+      const apiB = makeApi("editor-b");
+      broker.setAPI(apiA);
+
+      const pending = broker.checkAndFire(contextFromText("$$ /", "editor-a"), apiA);
+      broker.setAPI(apiB);
+
+      await pending;
+
+      assert.deepEqual(seenSessionKeys, ["editor-a"]);
+    });
+
+    it("should isolate debounce timers by trigger id and session key", async () => {
+      const seenSessionKeys = [];
+      broker.register({
+        id: "test",
+        description: "Test",
+        match: "$$ /",
+        debounceMs: 20,
+        handler: async (_match, _context, api) => {
+          seenSessionKeys.push(api.ctx.sessionKey);
+        },
+      });
+
+      const apiA = makeApi("editor-a");
+      const apiB = makeApi("editor-b");
+      const [firedA, firedB] = await Promise.all([
+        broker.checkAndFire(contextFromText("$$ /", "editor-a"), apiA),
+        broker.checkAndFire(contextFromText("$$ /", "editor-b"), apiB),
+      ]);
+
+      assert.equal(firedA, true);
+      assert.equal(firedB, true);
+      assert.deepEqual(seenSessionKeys.sort(), ["editor-a", "editor-b"]);
     });
   });
 });

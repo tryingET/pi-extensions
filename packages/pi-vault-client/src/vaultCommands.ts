@@ -1,31 +1,186 @@
+import type { Message, TextContent } from "@mariozechner/pi-ai";
 import { runFzfProbe } from "./fuzzySelector.js";
-import type { PiExtension, VaultModuleRuntime } from "./vaultTypes.js";
+import {
+  createPreparedExecutionToken,
+  formatVaultReceipt,
+  receiptVisibleToCompany,
+  stripPreparedExecutionMarkers,
+  withPreparedExecutionMarker,
+} from "./vaultReceipts.js";
+import { formatVaultReplayReport, replayVaultExecutionById } from "./vaultReplay.js";
+import { buildRoutePrompt, getRoutePromptShapeForChannel } from "./vaultRoute.js";
+import type {
+  PiExtension,
+  Template,
+  VaultModuleRuntime,
+  VaultPreparedExecutionCandidate,
+  VaultReceiptManager,
+} from "./vaultTypes.js";
+
+const COMMAND_READ_CONTEXT_ERROR =
+  "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
 
 function notifyPrepared(
   runtime: VaultModuleRuntime,
-  templateName: string,
+  template: {
+    name: string;
+    artifact_kind: string;
+    control_mode: string;
+    formalization_level: string;
+  },
   contextSuffix: string,
   selectionMessage: string,
   ctx: { hasUI: boolean; ui: { notify: (message: string, level?: string) => void } },
 ): void {
-  const template = runtime.loadVaultTemplate(templateName);
-  if (!template || !ctx.hasUI) return;
+  if (!ctx.hasUI) return;
   ctx.ui.notify(
-    `Prepared: ${template.name} (${runtime.facetLabel(template)})${contextSuffix} — ${selectionMessage}`,
+    `Prepared: ${template.name} (${runtime.facetLabel(template)})${contextSuffix} - ${selectionMessage}`,
     "info",
   );
 }
 
+function formatVaultTemplateRenderError(templateName: string, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `Vault template render failed (${templateName}): ${message}`;
+}
+
+function formatSchemaMismatchMessage(
+  runtime: Pick<VaultModuleRuntime, "checkSchemaCompatibilityDetailed">,
+): string {
+  const report = runtime.checkSchemaCompatibilityDetailed();
+  const parts = [
+    `expected=${report.expectedVersion}`,
+    `actual=${report.actualVersion ?? "unknown"}`,
+  ];
+  if (report.missingPromptTemplateColumns.length > 0)
+    parts.push(`prompt_templates:[${report.missingPromptTemplateColumns.join(", ")}]`);
+  if (report.missingExecutionColumns.length > 0)
+    parts.push(`executions:[${report.missingExecutionColumns.join(", ")}]`);
+  if (report.missingFeedbackColumns.length > 0)
+    parts.push(`feedback:[${report.missingFeedbackColumns.join(", ")}]`);
+  return `Vault schema mismatch (${parts.join("; ")}). Use /vault-check or vault_schema_diagnostics.`;
+}
+
+function resolveCommandCompanyContext(
+  runtime: Pick<VaultModuleRuntime, "resolveCurrentCompanyContext" | "getCurrentCompany">,
+  ctx: { cwd?: string },
+): { ok: true; currentCompany: string; companySource: string } | { ok: false; error: string } {
+  const companyContext =
+    typeof runtime.resolveCurrentCompanyContext === "function"
+      ? runtime.resolveCurrentCompanyContext(ctx.cwd)
+      : {
+          company: runtime.getCurrentCompany(ctx.cwd),
+          source: ctx.cwd ? `cwd:${ctx.cwd}` : "fallback:getCurrentCompany",
+        };
+  if (companyContext.source === "contract-default") {
+    return { ok: false, error: COMMAND_READ_CONTEXT_ERROR };
+  }
+  return {
+    ok: true,
+    currentCompany: companyContext.company,
+    companySource: companyContext.source,
+  };
+}
+
+function toTemplateSnapshot(template: Template) {
+  return {
+    id: template.id,
+    name: template.name,
+    version: template.version,
+    artifact_kind: template.artifact_kind,
+    control_mode: template.control_mode,
+    formalization_level: template.formalization_level,
+    owner_company: template.owner_company,
+    visibility_companies: [...template.visibility_companies],
+  };
+}
+
+function queuePreparedExecution(
+  receipts: VaultReceiptManager | undefined,
+  candidate: Omit<VaultPreparedExecutionCandidate, "execution_token">,
+): string {
+  if (!receipts) return candidate.prepared.text;
+  const executionToken = createPreparedExecutionToken();
+  receipts.queuePreparedExecution({
+    ...candidate,
+    execution_token: executionToken,
+  });
+  return withPreparedExecutionMarker(candidate.prepared.text, executionToken);
+}
+
+function getUserMessageText(message: Message): string | null {
+  if (!message || message.role !== "user") return null;
+  if (typeof message.content === "string") return message.content;
+  if (!Array.isArray(message.content)) return null;
+  const textParts = message.content
+    .filter((item): item is TextContent => item?.type === "text")
+    .map((item) => item.text);
+  return textParts.length > 0 ? textParts.join("\n") : null;
+}
+
+function resolvePreparedRoutePrompt(
+  runtime: VaultModuleRuntime,
+  metaTemplate: Template,
+  options: {
+    context: string;
+    currentCompany: string;
+    cwd?: string;
+    channel: "slash-command" | "input-transform";
+  },
+) {
+  const shape = getRoutePromptShapeForChannel(options.channel);
+  if (!shape) {
+    return {
+      ok: false as const,
+      error: `Unsupported route replay channel: ${options.channel}`,
+    };
+  }
+  const prepared = runtime.prepareVaultPrompt(metaTemplate, {
+    context: options.context,
+    currentCompany: options.currentCompany,
+    cwd: options.cwd,
+    appendContextSection: false,
+  });
+  if (!prepared.ok) {
+    return {
+      ok: false as const,
+      error: formatVaultTemplateRenderError(metaTemplate.name, prepared.error),
+    };
+  }
+  return {
+    ok: true as const,
+    prepared,
+    prompt: buildRoutePrompt(prepared.prepared, options.context, shape),
+  };
+}
+
 async function resolveVaultTemplateSelection(
   runtime: VaultModuleRuntime,
-  ctx: { hasUI: boolean; ui?: { notify: (message: string, level?: string) => void } },
+  ctx: { hasUI: boolean; cwd?: string; ui?: { notify: (message: string, level?: string) => void } },
   query: string,
+  currentCompany: string,
 ) {
-  const exactMatch = query.trim() ? runtime.loadVaultTemplate(query.trim()) : null;
+  const exactMatchResult = query.trim()
+    ? runtime.getTemplateDetailed(query.trim(), {
+        currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      })
+    : { ok: true, value: null, error: null as null };
+  if (!exactMatchResult.ok) {
+    return {
+      template: null,
+      modeMessage: "selection mode=exact",
+      selectionMode: "exact",
+      selectionReason: `lookup-error:${exactMatchResult.error}`,
+    } as const;
+  }
+  const exactMatch = exactMatchResult.value;
   if (exactMatch) {
     return {
       template: exactMatch,
       modeMessage: "selection mode=exact",
+      selectionMode: "exact",
       selectionReason: "exact-match",
     } as const;
   }
@@ -35,41 +190,152 @@ async function resolveVaultTemplateSelection(
     return {
       template: null,
       modeMessage: runtime.selectionModeMessage(selection),
+      selectionMode: selection.mode === "fzf" ? "picker-fzf" : "picker-fallback",
       selectionReason: selection.reason ?? "no-selection",
     } as const;
   }
 
-  const template = runtime.loadVaultTemplate(selection.selected.id);
+  const templateResult = runtime.getTemplateDetailed(selection.selected.id, {
+    currentCompany,
+    cwd: ctx.cwd,
+    requireExplicitCompany: true,
+  });
   return {
-    template,
+    template: templateResult.ok ? templateResult.value : null,
     modeMessage: runtime.selectionModeMessage(selection),
-    selectionReason: selection.reason ?? selection.mode,
+    selectionMode: selection.mode === "fzf" ? "picker-fzf" : "picker-fallback",
+    selectionReason: templateResult.ok
+      ? (selection.reason ?? selection.mode)
+      : `lookup-error:${templateResult.error}`,
   } as const;
 }
 
-export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRuntime): void {
+export function registerVaultCommands(
+  pi: PiExtension,
+  runtime: VaultModuleRuntime,
+  receipts?: VaultReceiptManager,
+): void {
+  if (receipts) {
+    pi.on("message_end", async (event, ctx) => {
+      const messageText = getUserMessageText(event.message as Message);
+      if (!messageText) return;
+      const finalized = receipts.finalizePreparedExecution(messageText, ctx.model?.id || "unknown");
+      if (finalized.status === "error") {
+        const warning = `Vault execution receipt failed: ${finalized.message}`;
+        if (ctx.hasUI) ctx.ui.notify(warning, "warning");
+        else console.warn(warning);
+      }
+    });
+
+    pi.on("context", async (event) => ({
+      messages: event.messages.map((message) => {
+        if (!message || message.role !== "user") return message;
+        if (typeof message.content === "string") {
+          return {
+            ...message,
+            content: stripPreparedExecutionMarkers(message.content),
+          };
+        }
+        if (!Array.isArray(message.content)) return message;
+        return {
+          ...message,
+          content: message.content.map((item) =>
+            item?.type === "text"
+              ? {
+                  ...item,
+                  text: stripPreparedExecutionMarkers(item.text),
+                }
+              : item,
+          ),
+        };
+      }),
+    }));
+  }
+
   pi.on("input", async (event, ctx) => {
     if (event.source === "extension") return { action: "continue" };
     const text = event.text.trim();
+    const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+    const schemaMismatchMessage = schemaReport.ok ? "" : formatSchemaMismatchMessage(runtime);
+
+    if (
+      !schemaReport.ok &&
+      /^\/(vault(?::|\s|$)|vault-search\b|route\b|next-10-expert-suggestions\b)/.test(text)
+    ) {
+      if (ctx.hasUI) {
+        ctx.ui.notify(schemaMismatchMessage, "warning");
+        return { action: "handled" };
+      }
+      return { action: "transform", text: schemaMismatchMessage };
+    }
 
     if (text.startsWith("/next-10-expert-suggestions")) {
-      const grounded = runtime.buildGroundedNext10Prompt(text);
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
+      }
+      const grounded = runtime.buildGroundedNext10Prompt(text, {
+        cwd: ctx.cwd,
+        currentCompany: companyContext.currentCompany,
+      });
       if (!grounded.ok) {
         const reason = "reason" in grounded ? grounded.reason : "Grounding unavailable";
         if (ctx.hasUI) {
           ctx.ui.notify(reason, "error");
           ctx.ui.setEditorText(reason);
+          return { action: "handled" };
         }
-        return { action: "handled" };
+        return { action: "transform", text: reason };
       }
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "grounding",
+          channel: "input-transform",
+          selection_mode: "fixed-template",
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(grounded.template),
+        company: {
+          current_company: grounded.currentCompany,
+          company_source: grounded.companySource,
+        },
+        render: {
+          engine: grounded.prepared.engine,
+          explicit_engine: grounded.prepared.explicitEngine,
+          context_appended: grounded.prepared.contextAppended,
+          append_context_section: false,
+          used_render_keys: grounded.prepared.usedRenderKeys,
+        },
+        prepared: { text: grounded.prompt },
+        replay_safe_inputs: grounded.replaySafeInputs,
+        input_context: grounded.inputContext,
+      });
       if (ctx.hasUI)
         ctx.ui.notify("Grounded via Prompt Vault: frameworks pre-resolved and injected", "info");
-      return { action: "transform", text: grounded.prompt };
+      return { action: "transform", text: preparedPrompt };
     }
 
     const vaultSelectionInput = runtime.parseVaultSelectionInput(text);
     if (vaultSelectionInput) {
-      const resolved = await resolveVaultTemplateSelection(runtime, ctx, vaultSelectionInput.query);
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
+      }
+      const resolved = await resolveVaultTemplateSelection(
+        runtime,
+        ctx,
+        vaultSelectionInput.query,
+        companyContext.currentCompany,
+      );
       if (!resolved.template) {
         if (ctx.hasUI) {
           const reason = resolved.selectionReason ? ` (${resolved.selectionReason})` : "";
@@ -84,20 +350,54 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
 
       if (ctx.hasUI) {
         ctx.ui.notify(
-          `Loaded: ${resolved.template.name} (${runtime.facetLabel(resolved.template)}) — ${resolved.modeMessage}`,
+          `Loaded: ${resolved.template.name} (${runtime.facetLabel(resolved.template)}) - ${resolved.modeMessage}`,
           "info",
         );
       }
-      if (resolved.template.id)
-        runtime.logExecution(
-          resolved.template.id,
-          resolved.template.name,
-          ctx.model?.id || "unknown",
-          vaultSelectionInput.context,
-        );
+      const prepared = runtime.prepareVaultPrompt(resolved.template, {
+        context: vaultSelectionInput.context,
+        currentCompany: companyContext.currentCompany,
+      });
+      if (!prepared.ok) {
+        const message = formatVaultTemplateRenderError(resolved.template.name, prepared.error);
+        if (ctx.hasUI) {
+          ctx.ui.notify(message, "error");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: message };
+      }
+
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: text.startsWith("/vault:") ? "/vault:" : "/vault",
+          channel: "input-transform",
+          selection_mode: resolved.selectionMode,
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(resolved.template),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: prepared.engine,
+          explicit_engine: prepared.explicitEngine,
+          context_appended: prepared.contextAppended,
+          append_context_section: true,
+          used_render_keys: prepared.usedRenderKeys,
+        },
+        prepared: { text: prepared.prepared },
+        replay_safe_inputs: {
+          kind: "vault-selection",
+          query: vaultSelectionInput.query,
+          context: vaultSelectionInput.context,
+        },
+        input_context: vaultSelectionInput.context,
+      });
       return {
         action: "transform",
-        text: runtime.buildVaultPrompt(resolved.template, vaultSelectionInput.context),
+        text: preparedPrompt,
       };
     }
 
@@ -107,16 +407,33 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
         if (ctx.hasUI) ctx.ui.notify("Usage: /vault-search <query>", "warning");
         return { action: "handled" };
       }
-      const templates = runtime.searchTemplates(query);
-      const queryError = runtime.getVaultQueryError();
-      if (queryError) {
-        const message = `Vault search failed: ${queryError}`;
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
+      }
+      const currentCompany = companyContext.currentCompany;
+      const templatesResult = runtime.searchTemplatesDetailed(
+        query,
+        {
+          currentCompany,
+          cwd: ctx.cwd,
+          requireExplicitCompany: true,
+        },
+        { includeContent: false },
+      );
+      if (!templatesResult.ok) {
+        const message = `Vault search failed: ${templatesResult.error}`;
         if (ctx.hasUI) {
           ctx.ui.notify(message, "error");
           return { action: "handled" };
         }
         return { action: "transform", text: message };
       }
+      const templates = templatesResult.value;
       if (templates.length === 0) {
         if (ctx.hasUI) ctx.ui.notify(`No templates found for: ${query}`, "warning");
         return { action: "handled" };
@@ -124,48 +441,96 @@ export function registerVaultCommands(pi: PiExtension, runtime: VaultModuleRunti
       const output = [
         `# Search Results: "${query}"`,
         "",
-        `- current_company: ${runtime.getCurrentCompany()}`,
+        `- current_company: ${currentCompany}`,
         "",
         ...templates
           .map((t) => runtime.formatTemplateDetails(t, false))
           .join("\n\n---\n\n")
           .split("\n"),
       ].join("\n");
-      if (ctx.hasUI) await ctx.ui.editor("Search Results", output);
-      return { action: "handled" };
+      if (ctx.hasUI) {
+        await ctx.ui.editor("Search Results", output);
+        return { action: "handled" };
+      }
+      return { action: "transform", text: output };
     }
 
     if (text.startsWith("/route ")) {
       const context = text.slice(7).trim();
-      const meta = runtime.getTemplate("meta-orchestration");
-      if (!meta) {
-        if (ctx.hasUI) ctx.ui.notify("meta-orchestration template not found", "error");
-        return { action: "handled" };
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(companyContext.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: companyContext.error };
       }
-      const prompt = `${meta.content}
-
----
-
-## ROUTING REQUEST
-
-Analyze this situation and determine:
-1. Which PHASE this is in
-2. Which FORMALIZATION level (0-4)
-3. Which cognitive tool(s) to apply
-4. The command to invoke
-
-Context: ${context}
-
-Output format:
-\`\`\`
-PHASE: [phase]
-LEVEL: [0-4]
-TOOLS: [tool1, tool2]
-COMMAND: /vault:[tool]
-REASONING: [why these tools]
-\`\`\`
-`;
-      return { action: "transform", text: prompt };
+      const metaResult = runtime.getTemplateDetailed("meta-orchestration", {
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      });
+      if (!metaResult.ok) {
+        const message = `meta-orchestration lookup failed: ${metaResult.error}`;
+        if (ctx.hasUI) {
+          ctx.ui.notify(message, "error");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: message };
+      }
+      const meta = metaResult.value;
+      if (!meta) {
+        const message = "meta-orchestration template not found";
+        if (ctx.hasUI) {
+          ctx.ui.notify(message, "error");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: message };
+      }
+      const preparedRoutePrompt = resolvePreparedRoutePrompt(runtime, meta, {
+        context,
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        channel: "input-transform",
+      });
+      if (!preparedRoutePrompt.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(preparedRoutePrompt.error, "error");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: preparedRoutePrompt.error };
+      }
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/route",
+          channel: "input-transform",
+          selection_mode: "fixed-template",
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(meta),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: preparedRoutePrompt.prepared.engine,
+          explicit_engine: preparedRoutePrompt.prepared.explicitEngine,
+          context_appended: preparedRoutePrompt.prepared.contextAppended,
+          append_context_section: false,
+          used_render_keys: preparedRoutePrompt.prepared.usedRenderKeys,
+        },
+        prepared: { text: preparedRoutePrompt.prompt },
+        replay_safe_inputs: {
+          kind: "route-request",
+          context,
+        },
+        input_context: context,
+      });
+      return {
+        action: "transform",
+        text: preparedPrompt,
+      };
     }
 
     return { action: "continue" };
@@ -175,28 +540,70 @@ REASONING: [why these tools]
     description: "Load an exact visible vault template or open the picker",
     handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
       const parsed = runtime.splitVaultQueryAndContext(args.trim());
-      const resolved = await resolveVaultTemplateSelection(runtime, ctx, parsed.query);
+      const resolved = await resolveVaultTemplateSelection(
+        runtime,
+        ctx,
+        parsed.query,
+        companyContext.currentCompany,
+      );
       if (!resolved.template)
         return ctx.ui.notify(
           `No vault template selected${resolved.selectionReason ? ` (${resolved.selectionReason})` : ""}.`,
           "warning",
         );
-      ctx.ui.setEditorText(runtime.buildVaultPrompt(resolved.template, parsed.context));
+
+      const prepared = runtime.prepareVaultPrompt(resolved.template, {
+        context: parsed.context,
+        currentCompany: companyContext.currentCompany,
+      });
+      if (!prepared.ok) {
+        return ctx.ui.notify(
+          formatVaultTemplateRenderError(resolved.template.name, prepared.error),
+          "error",
+        );
+      }
+
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/vault",
+          channel: "slash-command",
+          selection_mode: resolved.selectionMode,
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(resolved.template),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: prepared.engine,
+          explicit_engine: prepared.explicitEngine,
+          context_appended: prepared.contextAppended,
+          append_context_section: true,
+          used_render_keys: prepared.usedRenderKeys,
+        },
+        prepared: { text: prepared.prepared },
+        replay_safe_inputs: {
+          kind: "vault-selection",
+          query: parsed.query,
+          context: parsed.context,
+        },
+        input_context: parsed.context,
+      });
+      ctx.ui.setEditorText(preparedPrompt);
       notifyPrepared(
         runtime,
-        resolved.template.name,
+        resolved.template,
         parsed.context ? " + context" : "",
         resolved.modeMessage,
         ctx,
       );
-      if (resolved.template.id)
-        runtime.logExecution(
-          resolved.template.id,
-          resolved.template.name,
-          ctx.model?.id || "unknown",
-          parsed.context,
-        );
     },
   });
 
@@ -204,31 +611,115 @@ REASONING: [why these tools]
     description: "Route context to best cognitive tool via meta-orchestration",
     handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
       const context = args.trim();
       if (!context) return ctx.ui.notify("Usage: /route <describe your situation>", "warning");
-      const meta = runtime.getTemplate("meta-orchestration");
+      const metaResult = runtime.getTemplateDetailed("meta-orchestration", {
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      });
+      if (!metaResult.ok) {
+        return ctx.ui.notify(`meta-orchestration lookup failed: ${metaResult.error}`, "error");
+      }
+      const meta = metaResult.value;
       if (!meta) return ctx.ui.notify("meta-orchestration template not found", "error");
-      ctx.ui.setEditorText(`${meta.content}
-
----
-
-## ROUTING REQUEST
-
-Analyze this situation and determine:
-1. Which PHASE this is in
-2. Which FORMALIZATION level (0-4)
-3. Which cognitive tool(s) to apply
-
-Context: ${context}
-
-Output:
-PHASE: [phase]
-LEVEL: [0-4]
-TOOLS: [tool1, tool2]
-COMMAND: /vault:[tool]
-REASONING: [why]
-`);
+      const preparedRoutePrompt = resolvePreparedRoutePrompt(runtime, meta, {
+        context,
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        channel: "slash-command",
+      });
+      if (!preparedRoutePrompt.ok) {
+        return ctx.ui.notify(preparedRoutePrompt.error, "error");
+      }
+      const preparedPrompt = queuePreparedExecution(receipts, {
+        queued_at: new Date().toISOString(),
+        invocation: {
+          surface: "/route",
+          channel: "slash-command",
+          selection_mode: "fixed-template",
+          llm_tool_call: null,
+        },
+        template: toTemplateSnapshot(meta),
+        company: {
+          current_company: companyContext.currentCompany,
+          company_source: companyContext.companySource,
+        },
+        render: {
+          engine: preparedRoutePrompt.prepared.engine,
+          explicit_engine: preparedRoutePrompt.prepared.explicitEngine,
+          context_appended: preparedRoutePrompt.prepared.contextAppended,
+          append_context_section: false,
+          used_render_keys: preparedRoutePrompt.prepared.usedRenderKeys,
+        },
+        prepared: { text: preparedRoutePrompt.prompt },
+        replay_safe_inputs: {
+          kind: "route-request",
+          context,
+        },
+        input_context: context,
+      });
+      ctx.ui.setEditorText(preparedPrompt);
       ctx.ui.notify("Routing prompt ready. Press Enter to submit.", "info");
+    },
+  });
+
+  pi.registerCommand("vault-check", {
+    description: "Show vault schema, company-context, and visibility health",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+      const companyContext = runtime.resolveCurrentCompanyContext(ctx.cwd);
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      const schemaOk = schemaReport.ok;
+      const executionContext = { currentCompany: companyContext.company, cwd: ctx.cwd };
+      const templatesResult = schemaOk
+        ? runtime.listTemplatesDetailed(undefined, executionContext, { includeContent: false })
+        : { ok: true, value: [], error: null as null };
+      const metaResult = schemaOk
+        ? runtime.getTemplateDetailed("meta-orchestration", executionContext)
+        : { ok: true, value: null, error: null as null };
+      const next10Result = schemaOk
+        ? runtime.getTemplateDetailed("next-10-expert-suggestions", executionContext)
+        : { ok: true, value: null, error: null as null };
+      const queryError = !schemaOk
+        ? "schema-mismatch"
+        : !templatesResult.ok
+          ? templatesResult.error
+          : !metaResult.ok
+            ? metaResult.error
+            : !next10Result.ok
+              ? next10Result.error
+              : "none";
+      const templates = templatesResult.ok ? templatesResult.value : [];
+      const metaOrchestration = metaResult.ok ? metaResult.value : null;
+      const next10 = next10Result.ok ? next10Result.value : null;
+      const routerCount = templates.filter((template) => template.control_mode === "router").length;
+      const output = [
+        "# Vault Check",
+        "",
+        `- schema_required: ${schemaReport.expectedVersion}`,
+        `- schema_actual: ${schemaReport.actualVersion ?? "unknown"}`,
+        `- schema_status: ${schemaOk ? "ok" : "mismatch"}`,
+        `- missing_prompt_template_columns: ${schemaReport.missingPromptTemplateColumns.join(", ") || "none"}`,
+        `- missing_execution_columns: ${schemaReport.missingExecutionColumns.join(", ") || "none"}`,
+        `- missing_feedback_columns: ${schemaReport.missingFeedbackColumns.join(", ") || "none"}`,
+        `- current_company: ${companyContext.company}`,
+        `- company_source: ${companyContext.source}`,
+        `- query_error: ${queryError}`,
+        `- visible_active_templates: ${templates.length}`,
+        `- visible_router_templates: ${routerCount}`,
+        `- meta-orchestration: ${metaOrchestration ? `visible (${runtime.facetLabel(metaOrchestration)})` : "not visible"}`,
+        `- next-10-expert-suggestions: ${next10 ? `visible (${runtime.facetLabel(next10)})` : "not visible"}`,
+      ].join("\n");
+      await ctx.ui.editor("Vault Check", output);
+      ctx.ui.notify(
+        schemaOk ? "Vault check complete." : "Vault check found schema mismatch.",
+        schemaOk ? "info" : "warning",
+      );
     },
   });
 
@@ -236,7 +727,10 @@ REASONING: [why]
     description: "Run FZF viability probe for vault selector runtime",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
-      const probe = runFzfProbe();
+      const probe = runFzfProbe() as {
+        interactive: { status?: number | null; stderr?: string };
+        filter: { status?: number | null; stdout?: string; stderr?: string };
+      };
       await ctx.ui.editor(
         "Vault FZF Spike",
         [
@@ -265,50 +759,136 @@ REASONING: [why]
     },
   });
 
+  if (receipts) {
+    pi.registerCommand("vault-last-receipt", {
+      description: "Show the latest local vault execution receipt visible to the current company",
+      handler: async (_args, ctx) => {
+        if (!ctx.hasUI) return;
+        const companyContext = resolveCommandCompanyContext(runtime, ctx);
+        if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+        const receipt = receipts.listRecentReceipts({
+          currentCompany: companyContext.currentCompany,
+          limit: 1,
+        })[0];
+        if (!receipt)
+          return ctx.ui.notify(
+            "No local vault execution receipts recorded yet for the current company.",
+            "warning",
+          );
+        await ctx.ui.editor("Latest Vault Receipt", formatVaultReceipt(receipt));
+      },
+    });
+
+    pi.registerCommand("vault-receipt", {
+      description: "Show a local vault execution receipt by execution id",
+      handler: async (args, ctx) => {
+        if (!ctx.hasUI) return;
+        const companyContext = resolveCommandCompanyContext(runtime, ctx);
+        if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+        const executionId = Math.floor(Number(args.trim()));
+        if (!Number.isFinite(executionId) || executionId < 1) {
+          return ctx.ui.notify("Usage: /vault-receipt <execution_id>", "warning");
+        }
+        const receipt = receipts.readReceiptByExecutionId(executionId);
+        if (!receipt || !receiptVisibleToCompany(receipt, companyContext.currentCompany)) {
+          return ctx.ui.notify(
+            `No local receipt found for execution ${executionId} in the current company context.`,
+            "warning",
+          );
+        }
+        await ctx.ui.editor(`Vault Receipt ${executionId}`, formatVaultReceipt(receipt));
+      },
+    });
+
+    pi.registerCommand("vault-replay", {
+      description: "Replay a local vault execution receipt by execution id",
+      handler: async (args, ctx) => {
+        if (!ctx.hasUI) return;
+        const companyContext = resolveCommandCompanyContext(runtime, ctx);
+        if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+        const executionId = Math.floor(Number(args.trim()));
+        if (!Number.isFinite(executionId) || executionId < 1) {
+          return ctx.ui.notify("Usage: /vault-replay <execution_id>", "warning");
+        }
+        const receipt = receipts.readReceiptByExecutionId(executionId);
+        if (!receipt || !receiptVisibleToCompany(receipt, companyContext.currentCompany)) {
+          return ctx.ui.notify(
+            `No local receipt found for execution ${executionId} in the current company context.`,
+            "warning",
+          );
+        }
+        const report = replayVaultExecutionById(runtime, receipts, executionId, {
+          currentCompany: companyContext.currentCompany,
+          cwd: ctx.cwd,
+        });
+        await ctx.ui.editor(`Vault Replay ${executionId}`, formatVaultReplayReport(report));
+        ctx.ui.notify(`Vault replay status: ${report.status}`, "info");
+      },
+    });
+  }
+
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
-    const templates = runtime.listTemplates();
-    const queryError = runtime.getVaultQueryError();
-    if (queryError) {
-      ctx.ui.notify(`Vault unavailable: ${queryError}`, "warning");
+    const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+    if (!schemaReport.ok) {
+      ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
       return;
     }
+    const companyContext = runtime.resolveCurrentCompanyContext(ctx.cwd);
+    if (companyContext.source === "contract-default") {
+      ctx.ui.notify(COMMAND_READ_CONTEXT_ERROR, "warning");
+      return;
+    }
+    const executionContext = {
+      currentCompany: companyContext.company,
+      cwd: ctx.cwd,
+      requireExplicitCompany: true,
+    };
+    const templatesResult = runtime.listTemplatesDetailed(undefined, executionContext, {
+      includeContent: false,
+    });
+    if (!templatesResult.ok) {
+      ctx.ui.notify(`Vault unavailable: ${templatesResult.error}`, "warning");
+      return;
+    }
+    const templates = templatesResult.value;
     const cognitive = templates.filter((t) => t.artifact_kind === "cognitive").length;
     const procedure = templates.filter((t) => t.artifact_kind === "procedure").length;
     const session = templates.filter((t) => t.artifact_kind === "session").length;
+    const currentCompany = companyContext.company;
     ctx.ui.notify(
-      `Vault (${runtime.getCurrentCompany()}): ${cognitive} cognitive, ${procedure} procedure, ${session} session templates — /vault loads exact matches or opens picker; live /vault: uses shared interaction runtime`,
+      `Vault (${currentCompany}): ${cognitive} cognitive, ${procedure} procedure, ${session} session templates - /vault loads exact matches or opens picker; live /vault: uses shared interaction runtime`,
       "info",
     );
-  });
-
-  pi.on("session_shutdown", async () => {
-    runtime.commitVault("Log template executions");
   });
 
   pi.registerCommand("vault-stats", {
     description: "Show vault execution statistics",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
-      const result = runtime.queryVaultJson(`
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      if (!schemaReport.ok) return ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
+      const companyContext = resolveCommandCompanyContext(runtime, ctx);
+      if (!companyContext.ok) return ctx.ui.notify(companyContext.error, "warning");
+      const currentCompany = companyContext.currentCompany;
+      const result = runtime.queryVaultJsonDetailed(`
         SELECT pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level, COUNT(e.id) as uses, MAX(e.created_at) as last_used
         FROM prompt_templates pt
         LEFT JOIN executions e ON e.entity_type = 'template' AND e.entity_id = pt.id
-        WHERE pt.status = 'active' AND ${runtime.buildVisibilityPredicate()}
+        WHERE ${runtime.buildActiveVisibleTemplatePredicate(currentCompany, "pt")}
         GROUP BY pt.id, pt.name, pt.owner_company, pt.artifact_kind, pt.control_mode, pt.formalization_level
         ORDER BY uses DESC
         LIMIT 20
       `);
-      if (!result?.rows?.length) {
-        const error = runtime.getVaultQueryError();
-        return ctx.ui.notify(
-          error ? `Vault stats unavailable: ${error}` : "No execution data available",
-          "warning",
-        );
+      if (!result.ok) {
+        return ctx.ui.notify(`Vault stats unavailable: ${result.error}`, "warning");
+      }
+      if (!result.value.rows?.length) {
+        return ctx.ui.notify("No execution data available", "warning");
       }
       let output =
         "# Vault Execution Stats\n\n| Template | Owner | Facets | Uses | Last Used |\n|----------|-------|--------|------|----------|\n";
-      for (const row of result.rows)
+      for (const row of result.value.rows)
         output += `| ${row.name || ""} | ${row.owner_company || ""} | ${row.artifact_kind || ""}/${row.control_mode || ""}/${row.formalization_level || ""} | ${row.uses || 0} | ${String(row.last_used || "never").slice(0, 10)} |\n`;
       await ctx.ui.editor("Vault Stats", output);
     },

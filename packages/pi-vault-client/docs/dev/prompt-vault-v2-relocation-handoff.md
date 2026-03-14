@@ -1,19 +1,22 @@
 ---
-summary: "vault-client-side relocation handoff for Prompt Vault v2 support."
+summary: "Historical vault-client relocation handoff; current live client target is Prompt Vault schema v9."
 read_when:
-  - "Resuming vault-client work after the Prompt Vault v2 schema cutover."
-  - "Deciding whether to keep working in this standalone repo or switch to the new monorepo package home."
+  - "You need historical relocation context from the earlier Prompt Vault v2 transition."
+  - "You want archival provenance before following the current v9 cutover guidance."
 system4d:
-  container: "vault-client migration/relocation planning."
-  compass: "Preserve the Prompt Vault v2 understanding while avoiding more investment in the wrong repo shape."
-  engine: "Read shared Prompt Vault interface note -> identify new package home -> port concepts into the new architecture."
-  fog: "This standalone repo contains partial exploratory sync work and outdated assumptions such as direct pi-input-triggers coupling."
+  container: "Historical relocation note retained for provenance inside the monorepo package."
+  compass: "Do not let this archival note override the current Prompt Vault v9 boundary."
+  engine: "Use for history only -> follow current v9 package/docs/runtime guidance for implementation."
+  fog: "The risk is skimming this note and accidentally reviving superseded v2/v3 assumptions."
 ---
 
-# vault-client relocation handoff for Prompt Vault v2
+# Historical vault-client relocation handoff (superseded by v9 cutover)
+
+> Current implementation target: Prompt Vault schema v9.
+> Use [Prompt Vault v9 cutover](v9-cutover.md) plus the live Prompt Vault boundary docs before changing runtime behavior.
 
 ## Status of this standalone repo
-This repo is **not** the right long-term target for continuing the Prompt Vault v2 integration.
+This repo is **not** the right long-term target for continuing live Prompt Vault integration work.
 
 Why:
 - `vault-client` is moving to:
@@ -75,12 +78,12 @@ Then find:
    - slash command registration
    - tool registration
    - runtime sync/deploy path
-4. Port Prompt Vault v2 behavior from the shared Prompt Vault contract note.
+4. Port the current Prompt Vault behavior from the shared Prompt Vault contract note.
 5. Validate in the new package’s own quality gate.
 
 ## Porting rule
 Port these as concepts:
-- schema v3 fail-fast
+- hard fail-fast against the current live Prompt Vault schema/version boundary
 - facet-native template model
 - facet-native tool parameters and output labels
 - cognitive framework lookup via `artifact_kind = cognitive`

@@ -13,6 +13,15 @@ system4d:
 
 Umbrella/facade package for live interaction runtime behavior in pi.
 
+## Canonical package home
+
+This package lives in the `pi-extensions` monorepo at:
+
+- `packages/pi-interaction/pi-interaction`
+
+It is the canonical successor to the old standalone `pi-input-triggers` repo.
+The parent `packages/pi-interaction/` directory is a package-group shell, not the publish target.
+
 ## Package split (monorepo)
 
 `@tryinget/pi-interaction` now composes three subpackages:
@@ -69,6 +78,12 @@ registerPickerInteraction({
 - `/trigger-diag`
 - `/trigger-pick`
 - `/trigger-reload`
+
+## Release notes
+
+- Publish target: `packages/pi-interaction/pi-interaction`
+- Root/package release workflow: `../docs/dev/release-workflow.md`
+- Trusted publishing notes: `../docs/dev/trusted_publishing.md`
 
 ## Environment flags
 

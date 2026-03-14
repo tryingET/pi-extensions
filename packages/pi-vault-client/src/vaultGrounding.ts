@@ -1,8 +1,11 @@
+import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import type {
   FrameworkResolution,
+  GroundedNext10PromptResult,
   GroundingRuntime,
   ParsedDsl,
   Template,
+  VaultGroundingReplaySafeInputs,
   VaultRuntime,
 } from "./vaultTypes.js";
 
@@ -30,27 +33,6 @@ function parseCommandArgs(argsString: string): string[] {
 
   if (current) args.push(current);
   return args;
-}
-
-function substituteArgs(content: string, args: string[]): string {
-  let result = content;
-  result = result.replace(/\$(\d+)/g, (_, num) => args[parseInt(num, 10) - 1] ?? "");
-  result = result.replace(/\$\{@:(\d+)(?::(\d+))?\}/g, (_, startStr, lengthStr) => {
-    let start = parseInt(startStr, 10) - 1;
-    if (start < 0) start = 0;
-    if (lengthStr) return args.slice(start, start + parseInt(lengthStr, 10)).join(" ");
-    return args.slice(start).join(" ");
-  });
-
-  const allArgs = args.join(" ");
-  return result.replace(/\$ARGUMENTS/g, allArgs).replace(/\$@/g, allArgs);
-}
-
-function stripFrontmatter(raw: string): string {
-  if (!raw.startsWith("---\n")) return raw;
-  const end = raw.indexOf("\n---\n", 4);
-  if (end === -1) return raw;
-  return raw.slice(end + 5);
 }
 
 function parseExtrasDsl(raw: string): ParsedDsl {
@@ -118,14 +100,15 @@ function discoverFrameworks(
   runtime: VaultRuntime,
   objective: string,
   workflow: string,
+  currentCompany: string,
   limit = 5,
-): Template[] {
+): { ok: true; value: Template[] } | { ok: false; error: string } {
   const text = `${objective} ${workflow}`.toLowerCase();
   const tokens = text
     .split(/[^a-z0-9-]+/)
     .filter((t) => t.length >= 4)
     .slice(0, 6);
-  if (tokens.length === 0) return [];
+  if (tokens.length === 0) return { ok: true, value: [] };
 
   const like = tokens
     .map(
@@ -134,15 +117,15 @@ function discoverFrameworks(
     )
     .join(" OR ");
 
-  return runtime.parseTemplateRows(
-    runtime.queryVaultJson(
-      `SELECT id, name, description, content, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary
-       FROM prompt_templates
-       WHERE status = 'active' AND artifact_kind = 'cognitive' AND ${runtime.buildVisibilityPredicate()} AND (${like})
-       ORDER BY name
-       LIMIT ${limit}`,
-    ),
+  const result = runtime.queryVaultJsonDetailed(
+    `SELECT id, name, description, content, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary
+     FROM prompt_templates
+     WHERE ${runtime.buildActiveVisibleTemplatePredicate(currentCompany)} AND artifact_kind = 'cognitive' AND (${like})
+     ORDER BY name
+     LIMIT ${limit}`,
   );
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, value: runtime.parseTemplateRows(result.value) };
 }
 
 function resolveFrameworks(
@@ -150,15 +133,18 @@ function resolveFrameworks(
   objective: string,
   workflow: string,
   dsl: ParsedDsl,
-): FrameworkResolution {
+  currentCompany: string,
+): { ok: true; value: FrameworkResolution } | { ok: false; error: string } {
   const overrideNames = splitPipeValues(dsl.map.frameworks);
   const invalidOverrides: string[] = [];
   const exactCandidates = (
     overrideNames.length > 0 ? overrideNames : shortlistFrameworks(objective, workflow)
   ).slice(0, 3);
-  const exactRetrieved = runtime
-    .retrieveByNames(exactCandidates, true)
-    .filter((t) => t.artifact_kind === "cognitive");
+  const exactRetrievedResult = runtime.retrieveByNamesDetailed(exactCandidates, true, {
+    currentCompany,
+  });
+  if (!exactRetrievedResult.ok) return { ok: false, error: exactRetrievedResult.error };
+  const exactRetrieved = exactRetrievedResult.value.filter((t) => t.artifact_kind === "cognitive");
 
   if (overrideNames.length > 0) {
     const found = new Set(exactRetrieved.map((t) => t.name));
@@ -167,26 +153,37 @@ function resolveFrameworks(
 
   if (exactRetrieved.length >= 1) {
     return {
-      selected: exactRetrieved.slice(0, 3),
-      retrievalMethod:
-        overrideNames.length > 0 && exactRetrieved.length < exactCandidates.length
-          ? "mixed"
-          : "exact",
-      discoveryUsed: 0,
-      invalidOverrides,
+      ok: true,
+      value: {
+        selected: exactRetrieved.slice(0, 3),
+        retrievalMethod:
+          overrideNames.length > 0 && exactRetrieved.length < exactCandidates.length
+            ? "mixed"
+            : "exact",
+        discoveryUsed: 0,
+        invalidOverrides,
+      },
     };
   }
 
-  const discovered = discoverFrameworks(runtime, objective, workflow, 5).slice(0, 3);
+  const discoveredResult = discoverFrameworks(runtime, objective, workflow, currentCompany, 5);
+  if (!discoveredResult.ok) return discoveredResult;
+  const discovered = discoveredResult.value.slice(0, 3);
   if (discovered.length > 0) {
     return {
-      selected: discovered,
-      retrievalMethod: "discovery",
-      discoveryUsed: 1,
-      invalidOverrides,
+      ok: true,
+      value: {
+        selected: discovered,
+        retrievalMethod: "discovery",
+        discoveryUsed: 1,
+        invalidOverrides,
+      },
     };
   }
-  return { selected: [], retrievalMethod: "none", discoveryUsed: 1, invalidOverrides };
+  return {
+    ok: true,
+    value: { selected: [], retrievalMethod: "none", discoveryUsed: 1, invalidOverrides },
+  };
 }
 
 function buildNormalizedExtras(
@@ -194,7 +191,10 @@ function buildNormalizedExtras(
   selectedFrameworkNames: string[],
   retrieval: FrameworkResolution,
 ): string {
-  const map = { ...dsl.map, frameworks: selectedFrameworkNames.join("|") };
+  const map: Record<string, string> = {
+    ...dsl.map,
+    frameworks: selectedFrameworkNames.join("|"),
+  };
   delete map.triggers;
 
   if (retrieval.invalidOverrides.length > 0) {
@@ -221,7 +221,13 @@ function buildFrameworkGroundingAppendix(
   selected: Template[],
   retrieval: FrameworkResolution,
   dslWarnings: string[],
-): string {
+  renderOptions: {
+    currentCompany: string;
+    context: string;
+    args: string[];
+    data: Record<string, unknown>;
+  },
+): { ok: true; appendix: string } | { ok: false; reason: string } {
   let appendix = `\n\n## PRE-RESOLVED FRAMEWORK GROUNDING (authoritative: Prompt Vault)\n`;
   appendix += `- retrieval_method: ${retrieval.retrievalMethod}\n`;
   appendix += `- discovery_queries_used: ${retrieval.discoveryUsed}\n`;
@@ -233,18 +239,35 @@ function buildFrameworkGroundingAppendix(
 
   for (let i = 0; i < selected.length; i++) {
     const f = selected[i];
+    const prepared = prepareTemplateForExecutionCompat(f.content, {
+      currentCompany: renderOptions.currentCompany,
+      context: renderOptions.context,
+      args: renderOptions.args,
+      templateName: f.name,
+      data: renderOptions.data,
+      appendContextSection: false,
+      allowLegacyPiVarsAutoDetect: false,
+    });
+    if (!prepared.ok) {
+      return {
+        ok: false,
+        reason: `framework grounding render failed for ${f.name}: ${prepared.error}`,
+      };
+    }
+
     appendix += `\n### F${i + 1}: ${f.name}\n`;
     appendix += `Description: ${f.description || "(no description)"}\n`;
     appendix += `Governance: owner=${f.owner_company}; visible_to=${f.visibility_companies.join(", ")}\n`;
-    appendix += `\n${stripFrontmatter(f.content).trim()}\n`;
+    appendix += `\n${prepared.prepared.trim()}\n`;
   }
-  return appendix;
+  return { ok: true, appendix };
 }
 
 function buildGroundedNext10Prompt(
   runtime: VaultRuntime,
   commandText: string,
-): { ok: true; prompt: string } | { ok: false; reason: string } {
+  options: { cwd?: string; currentCompany?: string } = {},
+): GroundedNext10PromptResult {
   const spaceIndex = commandText.indexOf(" ");
   const argsString = spaceIndex === -1 ? "" : commandText.slice(spaceIndex + 1);
   const args = parseCommandArgs(argsString);
@@ -254,13 +277,39 @@ function buildGroundedNext10Prompt(
   const mode = modeRaw === "off" || modeRaw === "lite" || modeRaw === "full" ? modeRaw : "lite";
   const extrasRaw = args.slice(3).join(" ");
 
+  const companyResolution = options.currentCompany?.trim()
+    ? { company: options.currentCompany.trim(), source: "explicit:currentCompany" }
+    : runtime.resolveCurrentCompanyContext(options.cwd);
+  if (companyResolution.source === "contract-default") {
+    return {
+      ok: false,
+      reason:
+        "BLOCKED: explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.",
+    };
+  }
+  const currentCompany = companyResolution.company;
   const dsl = parseExtrasDsl(extrasRaw);
-  const resolved = resolveFrameworks(runtime, objective, workflow, dsl);
-  if (resolved.selected.length === 0) {
+  const resolved = resolveFrameworks(runtime, objective, workflow, dsl, currentCompany);
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: framework grounding lookup failed: ${resolved.error}`,
+    };
+  }
+  if (resolved.value.selected.length === 0) {
     return { ok: false, reason: "BLOCKED: framework grounding unavailable from Prompt Vault" };
   }
 
-  const template = runtime.getTemplate("next-10-expert-suggestions");
+  const templateResult = runtime.getTemplateDetailed("next-10-expert-suggestions", {
+    currentCompany,
+  });
+  if (!templateResult.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: next-10-expert-suggestions lookup failed: ${templateResult.error}`,
+    };
+  }
+  const template = templateResult.value;
   if (!template?.content) {
     return {
       ok: false,
@@ -268,21 +317,228 @@ function buildGroundedNext10Prompt(
     };
   }
 
-  const selectedNames = resolved.selected.map((f) => f.name);
-  const normalizedExtras = buildNormalizedExtras(dsl, selectedNames, resolved);
-  const substituted = substituteArgs(stripFrontmatter(template.content), [
+  const resolution = resolved.value;
+  const selectedNames = resolution.selected.map((f) => f.name);
+  const normalizedExtras = buildNormalizedExtras(dsl, selectedNames, resolution);
+  const frameworkArgs = [objective, workflow, mode, normalizedExtras];
+  const frameworkContext = [
+    `Objective: ${objective}`,
+    `Workflow: ${workflow}`,
+    `Mode: ${mode}`,
+    normalizedExtras ? `Extras: ${normalizedExtras}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const frameworkData = {
     objective,
     workflow,
     mode,
+    extras: normalizedExtras,
+  };
+  const prepared = prepareTemplateForExecutionCompat(template.content, {
+    args: frameworkArgs,
+    currentCompany,
+    templateName: template.name,
+    context: frameworkContext,
+    data: frameworkData,
+    appendContextSection: false,
+    allowLegacyPiVarsAutoDetect: true,
+  });
+  if (!prepared.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: next-10-expert-suggestions render failed: ${prepared.error}`,
+    };
+  }
+
+  const appendix = buildFrameworkGroundingAppendix(resolution.selected, resolution, dsl.warnings, {
+    currentCompany,
+    context: frameworkContext,
+    args: frameworkArgs,
+    data: frameworkData,
+  });
+  if (!appendix.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: ${appendix.reason}`,
+    };
+  }
+
+  return {
+    ok: true,
+    prompt: `${prepared.prepared}${appendix.appendix}`,
+    template,
+    prepared,
+    currentCompany,
+    companySource: companyResolution.source,
+    inputContext: frameworkContext,
+    replaySafeInputs: {
+      kind: "grounding-request",
+      command_text: commandText,
+      objective,
+      workflow,
+      mode,
+      extras: normalizedExtras,
+      framework_resolution: {
+        selected_names: selectedNames,
+        retrieval_method: resolution.retrievalMethod,
+        discovery_used: resolution.discoveryUsed,
+        invalid_overrides: [...resolution.invalidOverrides],
+        warnings: [...dsl.warnings],
+      },
+    },
+  };
+}
+
+export function rebuildGroundedNext10PromptFromReplayInputs(
+  runtime: VaultRuntime,
+  replaySafeInputs: VaultGroundingReplaySafeInputs,
+  options: { currentCompany: string; companySource?: string },
+): GroundedNext10PromptResult {
+  const currentCompany = String(options.currentCompany || "").trim();
+  if (!currentCompany) {
+    return {
+      ok: false,
+      reason: "BLOCKED: explicit company context is required for grounding replay",
+    };
+  }
+
+  const selectedNames = replaySafeInputs.framework_resolution.selected_names || [];
+  if (selectedNames.length === 0) {
+    return {
+      ok: false,
+      reason: "BLOCKED: grounding replay is missing stored framework_resolution.selected_names",
+    };
+  }
+
+  const frameworksResult = runtime.retrieveByNamesDetailed(selectedNames, true, {
+    currentCompany,
+    requireExplicitCompany: true,
+  });
+  if (!frameworksResult.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: framework grounding lookup failed: ${frameworksResult.error}`,
+    };
+  }
+  const retrievedByName = new Map(
+    frameworksResult.value
+      .filter((template) => template.artifact_kind === "cognitive")
+      .map((template) => [template.name, template] as const),
+  );
+  const selected = selectedNames
+    .map((name) => retrievedByName.get(name))
+    .filter((template): template is Template => Boolean(template));
+  const missingFrameworks = selectedNames.filter((name) => !retrievedByName.has(name));
+  if (missingFrameworks.length > 0) {
+    return {
+      ok: false,
+      reason: `BLOCKED: framework grounding unavailable from Prompt Vault: ${missingFrameworks.join(", ")}`,
+    };
+  }
+
+  const templateResult = runtime.getTemplateDetailed("next-10-expert-suggestions", {
+    currentCompany,
+    requireExplicitCompany: true,
+  });
+  if (!templateResult.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: next-10-expert-suggestions lookup failed: ${templateResult.error}`,
+    };
+  }
+  const template = templateResult.value;
+  if (!template?.content) {
+    return {
+      ok: false,
+      reason: "BLOCKED: next-10-expert-suggestions template unavailable in Prompt Vault",
+    };
+  }
+
+  const normalizedExtras = replaySafeInputs.extras || "";
+  const frameworkArgs = [
+    replaySafeInputs.objective,
+    replaySafeInputs.workflow,
+    replaySafeInputs.mode,
     normalizedExtras,
-  ]);
-  const appendix = buildFrameworkGroundingAppendix(resolved.selected, resolved, dsl.warnings);
-  return { ok: true, prompt: `${substituted}${appendix}` };
+  ];
+  const frameworkContext = [
+    `Objective: ${replaySafeInputs.objective}`,
+    `Workflow: ${replaySafeInputs.workflow}`,
+    `Mode: ${replaySafeInputs.mode}`,
+    normalizedExtras ? `Extras: ${normalizedExtras}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const frameworkData = {
+    objective: replaySafeInputs.objective,
+    workflow: replaySafeInputs.workflow,
+    mode: replaySafeInputs.mode,
+    extras: normalizedExtras,
+  };
+  const prepared = prepareTemplateForExecutionCompat(template.content, {
+    args: frameworkArgs,
+    currentCompany,
+    templateName: template.name,
+    context: frameworkContext,
+    data: frameworkData,
+    appendContextSection: false,
+    allowLegacyPiVarsAutoDetect: true,
+  });
+  if (!prepared.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: next-10-expert-suggestions render failed: ${prepared.error}`,
+    };
+  }
+
+  const appendix = buildFrameworkGroundingAppendix(
+    selected,
+    {
+      selected,
+      retrievalMethod: replaySafeInputs.framework_resolution.retrieval_method,
+      discoveryUsed: replaySafeInputs.framework_resolution.discovery_used,
+      invalidOverrides: [...replaySafeInputs.framework_resolution.invalid_overrides],
+    },
+    [...replaySafeInputs.framework_resolution.warnings],
+    {
+      currentCompany,
+      context: frameworkContext,
+      args: frameworkArgs,
+      data: frameworkData,
+    },
+  );
+  if (!appendix.ok) {
+    return {
+      ok: false,
+      reason: `BLOCKED: ${appendix.reason}`,
+    };
+  }
+
+  return {
+    ok: true,
+    prompt: `${prepared.prepared}${appendix.appendix}`,
+    template,
+    prepared,
+    currentCompany,
+    companySource: options.companySource || "explicit:currentCompany",
+    inputContext: frameworkContext,
+    replaySafeInputs: {
+      ...replaySafeInputs,
+      framework_resolution: {
+        selected_names: [...replaySafeInputs.framework_resolution.selected_names],
+        retrieval_method: replaySafeInputs.framework_resolution.retrieval_method,
+        discovery_used: replaySafeInputs.framework_resolution.discovery_used,
+        invalid_overrides: [...replaySafeInputs.framework_resolution.invalid_overrides],
+        warnings: [...replaySafeInputs.framework_resolution.warnings],
+      },
+    },
+  };
 }
 
 export function createGroundingRuntime(runtime: VaultRuntime): GroundingRuntime {
   return {
-    buildGroundedNext10Prompt: (commandText: string) =>
-      buildGroundedNext10Prompt(runtime, commandText),
+    buildGroundedNext10Prompt: (commandText: string, options) =>
+      buildGroundedNext10Prompt(runtime, commandText, options),
   };
 }

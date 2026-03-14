@@ -1,12 +1,12 @@
 ---
-summary: "Canonical monorepo-root handoff for pi-extensions."
+summary: "Canonical monorepo-root handoff for pi-extensions after stack-contract centralization and package-level local-override separation."
 read_when:
   - "Starting the next session at the pi-extensions monorepo root."
 system4d:
   container: "Session handoff artifact."
-  compass: "Keep root responsibilities explicit and package work aligned with the canonical monorepo control plane."
-  engine: "Validate root -> route to package/template work -> keep docs/release paths coherent."
-  fog: "Main risk is mixing root concerns with package concerns or reviving legacy standalone assumptions."
+  compass: "Keep root policy ownership explicit, route package/template work to the correct repo, and avoid copying policy into every package by habit."
+  engine: "Validate root -> review stack-contract policy surfaces -> route package/template/session-prompt work -> keep docs and handoffs coherent."
+  fog: "Main risks are confusing root policy with package-local overrides, over-templating tech-stack policy, or forgetting live verification work that still belongs to a package."
 ---
 
 # Next session prompt — pi-extensions monorepo root
@@ -31,36 +31,43 @@ system4d:
   - `./scripts/package-quality-gate.sh`
 - Package checks are orchestrated by:
   - `./scripts/ci/packages.sh`
-- Package-local quality gates now delegate to the root-owned implementation instead of owning full private copies.
-- Monorepo package template output in `~/ai-society/softwareco/owned/pi-extensions-template/` now references the root-owned package gate model.
-- Root/package ownership is documented in:
-  - `docs/project/root-capabilities.md`
+- Root-owned stack-contract review/policy surface now lives here:
+  - `docs/tech-stack.local.md`
+  - `scripts/validate-tech-stack-contract.mjs`
+- package-local divergence surface stays local to each repo/package:
+  - `docs/tech-stack.local.md`
+  - package-specific docs/manifests/scripts
+- `policy/stack-lane.json` is currently still present in some package repos and templates, but the next review should decide what truly belongs at root policy level vs local override level.
+- `pi-vault-client` phase-1 Nunjucks support is implemented; what remains there is **live end-to-end verification**, not a fresh implementation pass.
+- session/handoff prompt work is separate from root policy work and should route to:
+  - `packages/pi-prompt-template-accelerator/NEXT_SESSION_PROMPT.md`
+  - `packages/pi-prompt-template-accelerator/prompts/one-line-handoff.md`
+  - `packages/pi-prompt-template-accelerator/prompts/one-sentence-handoff.md`
 
 ## Completed in the last session
 
-- Restored the missing root `scripts/quality-gate.sh` wrapper.
-- Implemented the root-owned `scripts/package-quality-gate.sh` contract.
-- Rewired root `package.json` validation scripts to use the root wrapper.
-- Rewired `scripts/ci/packages.sh` to orchestrate top-level packages through the root-owned package gate.
-- Converted monorepo package quality-gate scripts into thin wrappers where applicable.
-- Updated root docs/handoff files so root validation truth points at the new canonical wrappers.
-- Updated `pi-extensions-template` monorepo-package quality-gate wrapper to search upward for the monorepo root gate instead of carrying a full private copy.
-- Updated ADR/spec/template docs to reflect the implemented root-gate model and the current structure-validation nuance.
-- Updated monorepo package template README guidance so root-level validation uses `bash ./scripts/package-quality-gate.sh ci <workspace>` instead of npm workspace assumptions.
-- Verified explicitly:
-  - `bash ./scripts/package-quality-gate.sh ci packages/pi-autonomous-session-control`
-  - `bash ./scripts/package-quality-gate.sh ci packages/pi-interaction --mode package-group`
-  - `bash ./scripts/package-quality-gate.sh ci packages/pi-prompt-template-accelerator`
-  - `bash ./scripts/package-quality-gate.sh ci packages/pi-vault-client`
-  - `bash ./scripts/quality-gate.sh pre-push`
+- Strengthened `tech-stack-core` review surfaces across the monorepo and related template work.
+- Added the root helper `scripts/validate-tech-stack-contract.mjs` to centralize stack-contract validation policy in this repo.
+- Reused that helper from stack-pinned packages instead of leaving each package to drift independently.
+- Updated root docs/handoff context so package-local files are treated as local override surfaces rather than the universal policy home.
+- Verified root/package checks after those changes.
 
 ## Continue with
 
-1. Keep root docs/review/validation surfaces consistent and DRY now that the root-owned package gate is canonical.
-2. Prepare monorepo-safe release/workflow decisions without copying standalone assumptions blindly.
-3. Continue aligning any remaining generated docs/contracts in `~/ai-society/softwareco/owned/pi-extensions-template/` with the implemented root-gate model.
-4. Route package-specific work to the relevant package `NEXT_SESSION_PROMPT.md`.
-5. Route template-specific work to `~/ai-society/softwareco/owned/pi-extensions-template/NEXT_SESSION_PROMPT.md`.
+1. Review whether `tech-stack-core` policy should stay centralized here while package/template outputs shrink to the **reduced form**:
+   - root repo owns policy and validation stance
+   - package repos/templates keep only the local override file where repo-specific divergence is needed
+2. Audit the current review surfaces in this repo before changing templates:
+   - `docs/tech-stack.local.md`
+   - `scripts/validate-tech-stack-contract.mjs`
+   - package-local `docs/tech-stack.local.md`
+   - package-local `policy/stack-lane.json` where still present
+3. Route template changes to:
+   - `~/ai-society/softwareco/owned/pi-extensions-template/NEXT_SESSION_PROMPT.md`
+4. Route Nunjucks live verification to:
+   - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/NEXT_SESSION_PROMPT.md`
+5. Route session/handoff prompt wording and prompt-template work to:
+   - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator/NEXT_SESSION_PROMPT.md`
 
 ## Must-pass checks
 

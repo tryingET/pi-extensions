@@ -29,10 +29,23 @@ import { getBroker } from "@tryinget/pi-trigger-adapter";
  *   cursorColumn: number,
  *   totalLines: number,
  *   isLive: boolean,
+ *   cwd?: string,
+ *   sessionKey?: string,
  * }} TriggerContext
  */
 
 const BaseCustomEditor = /** @type {any} */ (CustomEditor);
+let triggerEditorSessionCounter = 0;
+
+/** @param {any} editor */
+function isPasteInProgress(editor) {
+  return Boolean(editor && (editor.isInPaste || editor.pasteBuffer));
+}
+
+function createTriggerEditorSessionKey() {
+  triggerEditorSessionCounter += 1;
+  return `trigger-editor-${triggerEditorSessionCounter}`;
+}
 
 export class TriggerEditor extends BaseCustomEditor {
   /**
@@ -41,11 +54,15 @@ export class TriggerEditor extends BaseCustomEditor {
    * @param {any} keybindings
    * @param {unknown} pi
    * @param {TriggerEditorUI|undefined} ui
+   * @param {{ cwd?: string, sessionKey?: string }|undefined} sessionCtx
    */
-  constructor(tui, theme, keybindings, pi, ui) {
+  constructor(tui, theme, keybindings, pi, ui, sessionCtx) {
     super(tui, theme, keybindings);
     this.pi = pi;
     this.ui = ui;
+    this.sessionCtx = sessionCtx;
+    this.sessionKey = sessionCtx?.sessionKey || createTriggerEditorSessionKey();
+    this.triggerApi = undefined;
     /** @type {import("@tryinget/pi-trigger-adapter").TriggerBroker} */
     this.broker = getBroker();
     this.broker.setAPI(this.createAPI());
@@ -55,7 +72,9 @@ export class TriggerEditor extends BaseCustomEditor {
    * Create the TriggerAPI that handlers use to interact with the editor.
    */
   createAPI() {
-    return {
+    if (this.triggerApi) return this.triggerApi;
+
+    this.triggerApi = {
       /** @param {string} text */
       setText: (text) => {
         this.setText(text);
@@ -108,8 +127,14 @@ export class TriggerEditor extends BaseCustomEditor {
         // No-op for now
       },
 
-      ctx: this.pi,
+      ctx: {
+        pi: this.pi,
+        cwd: this.sessionCtx?.cwd,
+        sessionKey: this.sessionKey,
+      },
     };
+
+    return this.triggerApi;
   }
 
   /**
@@ -146,6 +171,8 @@ export class TriggerEditor extends BaseCustomEditor {
       cursorColumn: cursor.col,
       totalLines: lines.length,
       isLive,
+      cwd: this.sessionCtx?.cwd,
+      sessionKey: this.sessionKey,
     };
   }
 
@@ -156,8 +183,12 @@ export class TriggerEditor extends BaseCustomEditor {
   handleInput(data) {
     super.handleInput(data);
 
+    if (isPasteInProgress(this)) {
+      return;
+    }
+
     const context = this.getContext(true);
-    this.broker.checkAndFire(context).catch((error) => {
+    this.broker.checkAndFire(context, this.createAPI()).catch((error) => {
       console.error("[TriggerEditor] Error checking triggers:", error);
     });
   }
@@ -167,7 +198,7 @@ export class TriggerEditor extends BaseCustomEditor {
    */
   handleTabCompletion() {
     const context = this.getContext(true);
-    this.broker.checkAndFire(context).catch((error) => {
+    this.broker.checkAndFire(context, this.createAPI()).catch((error) => {
       console.error("[TriggerEditor] Error checking triggers on tab:", error);
     });
 

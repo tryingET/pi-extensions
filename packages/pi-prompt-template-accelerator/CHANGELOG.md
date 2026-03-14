@@ -29,10 +29,17 @@ All notable changes to this project should be documented here.
 - Fuzzy selector contract (`FuzzyCandidate`/`SelectionResult`) with FZF ranking + deterministic fallback (`src/fuzzySelector.js`).
 - Prompt adapter normalization layer for selector candidates (`src/ptxCandidateAdapter.js`) with unit tests.
 - `/ptx-select [query]` command for explicit template picking.
+- `/ptx-debug-commands [query]` to inspect visible prompt commands, paths, and inferred arg contracts.
 - `/ptx-fzf-spike` command to probe interactive vs filter-mode fzf viability.
 
 ### Changed
 
+- PTX now participates in the root-owned monorepo component release flow instead of carrying package-local release-please config/manifest files; release automation is now driven by root component metadata and component-scoped tags.
+- Package docs now treat `README.md` + `NEXT_SESSION_PROMPT.md` as the maintained package truth/handoff surface; `docs/dev/status.md` is removed, this package no longer keeps a separate markdown status snapshot, and Agent Kernel (`ak`) is referenced as canonical task/work-item authority for task tracking.
+- PTX context inference now treats `sessionManager` / `getBranch()` as optional so trigger-style live-picker contexts can build suggestions without crashing.
+- PTX live-picker selections now preserve exact selected prompt metadata instead of re-resolving only by slash-command name, avoiding duplicate-name drift across installed packages.
+- PTX picker candidates now include only prompt commands with a usable template path, keeping picker selection aligned with the fully-prefilled-command contract.
+- PTX now prefills the raw slash command only for direct `$$ /name` fallback when a prompt command cannot provide a readable template path or richer live transform cannot be built, avoiding empty-editor outcomes without weakening picker semantics.
 - Package migrated into `pi-extensions` monorepo under `packages/pi-prompt-template-accelerator`.
 - Live trigger bridge now targets pi-interaction split package surfaces:
   - primary: `@tryinget/pi-trigger-adapter`

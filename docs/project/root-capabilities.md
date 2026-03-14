@@ -40,8 +40,20 @@ system4d:
 - `.github/ISSUE_TEMPLATE/*`
 - `.github/dependabot.yml`
 - `.github/workflows/ci.yml`
+- `.github/workflows/release-check.yml`
+- `.github/workflows/release-please.yml`
+- `.github/workflows/publish.yml`
 - `.github/workflows/vouch-check-pr.yml`
 - `.github/workflows/vouch-manage.yml`
+
+### Release automation control plane
+- `.release-please-config.json`
+- `.release-please-manifest.json`
+- `scripts/release-components.mjs`
+- root component-mode release automation for publish-ready packages
+  - current source of truth: package metadata with `x-pi-template.releaseConfigMode=component`
+  - independent component PRs/tags/releases
+  - publish dispatch by component-scoped tag
 
 ### Monorepo root docs
 - `README.md`
@@ -64,7 +76,7 @@ system4d:
 - no root `biome.jsonc`
 - no root `.vscode/settings.json`
 - no claim that root is a full npm workspace manifest
-- no blind reuse of standalone-package release workflows (`release-please`, `publish`, package-scoped release-check`) until explicitly redesigned for monorepo use
+- no blind reuse of standalone-package release workflows; root release automation must stay explicitly redesigned for monorepo component mode
 
 ## Placement rule
 

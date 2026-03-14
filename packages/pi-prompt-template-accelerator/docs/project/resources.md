@@ -13,8 +13,8 @@ system4d:
 
 - [Extension entrypoint](../../extensions/ptx.ts)
 - [Prompt templates](../../prompts)
-- [Project-local router extension](../../.pi/extensions/startup-intake-router.ts)
 - [Organization operating model](../org/operating_model.md)
-- [Interview questions](../org/project-docs-intake.questions.json)
+- [Project foundation](foundation.md)
 - [Security policy](../../policy/security-policy.json)
+- [Quality gate wrapper](../../scripts/quality-gate.sh)
 - [Validation script](../../scripts/validate-structure.sh)

@@ -15,7 +15,7 @@ system4d:
 
 - Define scope: new trigger, handler feature, or integration?
 - Check `/triggers` command in live pi to see current state
-- Review `docs/dev/status.md` for current progress
+- Review `README.md` and `NEXT_SESSION_PROMPT.md` for current package-group truth and active work
 - Capture work in git issues or `NEXT_SESSION_PROMPT.md`
 
 ## 2) Implement
@@ -29,7 +29,7 @@ import { getBroker } from "@tryinget/pi-interaction";
 getBroker().register({
   id: "my-trigger",
   description: "Description",
-  match: /^pattern$/,  // Regex, string, or function
+  match: /^pattern$/,
   handler: async (match, context, api) => {
     const selected = await api.select("Title", ["A", "B"]);
     if (selected) api.setText(`result: ${selected}`);
@@ -41,10 +41,10 @@ getBroker().register({
 
 | File | Purpose |
 |------|---------|
-| `extensions/input-triggers.ts` | Main extension, commands, built-in triggers |
-| `src/TriggerBroker.js` | Core registry logic |
-| `src/TriggerEditor.js` | CustomEditor keystroke watching |
-| `tests/trigger-broker.test.mjs` | Unit tests |
+| `pi-interaction/extensions/input-triggers.ts` | Main umbrella extension entrypoint |
+| `pi-trigger-adapter/` | Trigger broker + picker registration package |
+| `pi-interaction-kit/` | Shared fuzzy/selection helpers |
+| `pi-editor-registry/` | Editor mounting/runtime ownership |
 
 ### Patterns
 
@@ -55,64 +55,71 @@ getBroker().register({
 ## 3) Verify
 
 ```bash
-# Run unit tests
-node --test tests/*.test.mjs
-
-# Quality check
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction
 npm run check
 
-# Manual testing in pi
-./scripts/sync-to-live.sh
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-interaction
+npm run fix
+npm run check
+npm run release:check:quick
+
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
+npm run check
+```
+
+### Manual testing in pi
+
+```bash
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-interaction
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator
 # Then in pi: /reload
-# Type: $$ /
+# Then test: /triggers and $$ /
 ```
 
 ### Test Checklist
 
-- [ ] New trigger appears in `/triggers` output
-- [ ] Trigger fires at correct pattern
-- [ ] Trigger doesn't fire on similar patterns
-- [ ] Handler API works (select, setText, etc.)
-- [ ] Debounce prevents rapid fires
-- [ ] Priority ordering is correct
+- [ ] `pi-interaction` commands appear in `/triggers` output
+- [ ] PTX trigger appears when both packages are loaded
+- [ ] `$$ /` opens the picker in a live session
+- [ ] Selection writes back into the editor
+- [ ] Similar non-matching input does not trigger unexpectedly
 
 ## 4) Release
 
+Use [release-workflow.md](release-workflow.md) as the source of truth.
+
+Minimum release gate:
+
 ```bash
-# Pre-release check
-npm run release:check
+cd ~/ai-society/softwareco/owned/pi-extensions
+npm run quality:pre-push
 
-# Sync to live for testing
-./scripts/sync-to-live.sh
-
-# Commit and push
-git add -A && git commit -m "feat: description"
-git push
-
-# Merge release-please PR when ready
-# Publish workflow runs automatically
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-interaction/pi-interaction
+npm run release:check:quick
+npm audit
 ```
 
 ## 5) Maintain
 
-- Monitor for conflicts with other `setEditorComponent` extensions
+- Monitor for conflicts with other trigger/editor extensions
 - Keep built-in triggers useful but minimal
-- Document new trigger patterns in README
-- Update `docs/dev/status.md` after changes
+- Document new trigger patterns in the umbrella README
+- Update `README.md` and `NEXT_SESSION_PROMPT.md` when package-group truth or active handoff changes
+- Keep release docs aligned with monorepo root/package ownership rules
 
 ## Troubleshooting
 
 ### Trigger not appearing
 1. Check `/triggers` command
 2. Check `/trigger-diag` for errors
-3. Verify registration code runs (add console.log)
+3. Verify registration code runs
 
 ### Conflicts with other extensions
-- Only one extension can use `setEditorComponent`
+- Only one extension can own the editor override path at a time
 - Set `PI_INTERACTION_LEGACY_MODE=1` to disable editor override
-- Integrate other extension's triggers into this broker
+- Integrate other extension's triggers into the shared broker where appropriate
 
-### Tests failing
-1. Check debounce timing in tests (150ms wait)
-2. Verify mock API has all required methods
-3. Check regex patterns match expected text
+### Release confusion
+1. Publish only `packages/pi-interaction/pi-interaction`
+2. Do not publish the `packages/pi-interaction` group root
+3. Re-check `repository.directory` and `x-pi-template` metadata before release

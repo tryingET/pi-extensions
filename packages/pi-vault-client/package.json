@@ -27,6 +27,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "build:runtime": "node ./scripts/build-runtime.mjs",
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
     "typecheck": "bash ./scripts/quality-gate.sh typecheck",
@@ -39,10 +40,12 @@
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "release:check": "bash ./scripts/release-check.sh",
-    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack && node ./scripts/build-runtime.mjs --quiet",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
   },
   "files": [
-    "extensions/vault.ts",
+    "extensions/vault.js",
     "src",
     "prompts",
     "examples",
@@ -51,7 +54,7 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/vault.ts"
+      "./extensions/vault.js"
     ],
     "prompts": [
       "./prompts"
@@ -64,6 +67,7 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
+    "@sinclair/typebox": "0.34.48",
     "@tryinget/pi-interaction-kit": "file:../pi-interaction/pi-interaction-kit",
     "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
   },
@@ -76,8 +80,8 @@
     "fast-xml-parser": "5.3.6"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"
   }
 }

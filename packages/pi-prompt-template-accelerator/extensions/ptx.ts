@@ -6,10 +6,12 @@
  * - Live integration: registers `$$ /...` picker through pi-interaction trigger surfaces when available
  */
 
+import { readFile } from "node:fs/promises";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { buildTransformedCommand } from "../src/buildTransformedCommand.js";
 import { runFzfProbe, selectFuzzyCandidate } from "../src/fuzzySelector.js";
 import { parseRawCommand, RawCommandParseError } from "../src/parseRawCommand.js";
+import { parseTemplatePlaceholders } from "../src/parseTemplatePlaceholders.js";
 import { planPromptTemplateTransform } from "../src/planPromptTemplateTransform.js";
 import { toPtxCandidates } from "../src/ptxCandidateAdapter.js";
 import { loadPtxPolicyConfig } from "../src/ptxPolicyConfig.js";
@@ -17,16 +19,49 @@ import { loadPtxPolicyConfig } from "../src/ptxPolicyConfig.js";
 const PREFIX = "$$";
 const LIVE_TRIGGER_ID = "ptx-template-picker";
 
-type PolicyConfig = Awaited<ReturnType<typeof loadPtxPolicyConfig>>["config"];
-
 type SelectorInvocation = {
   query: string;
   args: string[];
   rawAfterPrefix: string;
 };
 
+type TemplateCommandOverride = {
+  name: string;
+  source: "prompt";
+  description?: string;
+  path?: string;
+};
+
+type PtxTemplateCandidate = {
+  id: string;
+  label: string;
+  detail?: string;
+  source: string;
+  commandName?: string;
+  commandPath?: string;
+  commandDescription?: string;
+};
+
 function asErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function resolvePolicyLookupCwd(ctx: any): string {
+  const cwd = typeof ctx?.cwd === "string" ? ctx.cwd.trim() : "";
+  return cwd.length > 0 ? cwd : process.cwd();
+}
+
+function formatPolicyConfigError(configPath: string, error: unknown): string {
+  return `PTX policy config error at ${configPath}: ${asErrorMessage(error)}`;
+}
+
+function formatTemplateAmbiguityWarning(commandName: string, plan: {
+  matches?: unknown[];
+  prefillableMatches?: unknown[];
+}): string {
+  const totalCount = Array.isArray(plan.matches) ? plan.matches.length : 0;
+  const prefillableCount = Array.isArray(plan.prefillableMatches) ? plan.prefillableMatches.length : 0;
+  return `Template name is ambiguous: /${commandName} (${prefillableCount} prefillable matches, ${totalCount} total). Use picker or '/ptx-select ${commandName}'.`;
 }
 
 function parseSelectorInvocation(rawAfterPrefix: string): SelectorInvocation | null {
@@ -43,33 +78,90 @@ function parseSelectorInvocation(rawAfterPrefix: string): SelectorInvocation | n
   };
 }
 
+function buildRawFallbackCommand(commandName: string, providedArgs: string[]): string | undefined {
+  try {
+    return buildTransformedCommand(commandName, providedArgs);
+  } catch {
+    return undefined;
+  }
+}
+
+function candidateToTemplateCommand(candidate: PtxTemplateCandidate | null | undefined): TemplateCommandOverride | undefined {
+  const name = String(candidate?.commandName ?? candidate?.id ?? "")
+    .trim()
+    .replace(/^\/+/, "");
+
+  if (!name) return undefined;
+
+  const templateCommand: TemplateCommandOverride = {
+    name,
+    source: "prompt",
+  };
+
+  if (typeof candidate?.commandDescription === "string" && candidate.commandDescription.trim().length > 0) {
+    templateCommand.description = candidate.commandDescription.trim();
+  }
+
+  if (typeof candidate?.commandPath === "string" && candidate.commandPath.trim().length > 0) {
+    templateCommand.path = candidate.commandPath.trim();
+  }
+
+  return templateCommand;
+}
+
 async function buildTemplateSuggestion(options: {
   pi: ExtensionAPI;
   ctx: any;
   commandName: string;
   providedArgs: string[];
-  policyConfig: PolicyConfig;
+  templateCommand?: TemplateCommandOverride;
 }): Promise<{ transformed?: string; warning?: string }> {
   const rawText = buildTransformedCommand(options.commandName, options.providedArgs);
+  const policyLoad = await loadPtxPolicyConfig({ cwd: resolvePolicyLookupCwd(options.ctx) });
+
+  if (policyLoad.error) {
+    return {
+      warning: formatPolicyConfigError(policyLoad.configPath, policyLoad.error),
+    };
+  }
 
   const plan = await planPromptTemplateTransform({
     pi: options.pi,
     ctx: options.ctx,
     rawText,
-    policyConfig: options.policyConfig,
+    policyConfig: policyLoad.config,
+    templateCommandOverride: options.templateCommand,
   });
 
   switch (plan.status) {
     case "ok":
       return { transformed: plan.transformed };
     case "policy-blocked":
-      return { warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason})` };
+      return plan.policy.fallback === "passthrough"
+        ? {
+            transformed: rawText,
+            warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason}); inserted raw command without inferred args.`,
+          }
+        : { warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason}).` };
+    case "template-name-ambiguous":
+      return { warning: formatTemplateAmbiguityWarning(options.commandName, plan) };
     case "template-path-missing":
-      return { warning: `Template path unavailable: /${options.commandName}` };
+      return {
+        transformed: rawText,
+        warning: `Template path unavailable: /${options.commandName}; inserted raw command without inferred args.`,
+      };
     case "template-read-error":
-      return { warning: `Cannot read template: ${asErrorMessage(plan.error)}` };
+      return {
+        transformed: rawText,
+        warning: `Cannot read template: ${asErrorMessage(plan.error)}; inserted raw command without inferred args.`,
+      };
     case "non-template-command":
-      return { warning: `Template not found: /${options.commandName}` };
+      return options.templateCommand
+        ? {
+            transformed: rawText,
+            warning: `Template metadata drifted for /${options.commandName}; inserted raw command without inferred args.`,
+          }
+        : { warning: `Template not found: /${options.commandName}` };
     case "parse-error":
       return { warning: `PTX parse error: ${plan.error.message}` };
     case "not-slash-command":
@@ -89,15 +181,21 @@ async function pickTemplate(options: {
   query: string;
   title: string;
 }): Promise<{
-  selected: { id: string; label: string; detail?: string; source: string } | null;
+  selected: PtxTemplateCandidate | null;
   mode: "fzf" | "fallback";
   reason?: string;
 }> {
   const commands = options.pi.getCommands();
+  const promptCommands = commands.filter((command) => command && command.source === "prompt");
   const candidates = toPtxCandidates(commands);
 
   if (candidates.length === 0) {
-    const reason = commands.length === 0 ? "prompt-command-source-unavailable" : "no-prompt-templates";
+    const reason =
+      commands.length === 0
+        ? "prompt-command-source-unavailable"
+        : promptCommands.length === 0
+          ? "no-prompt-templates"
+          : "no-prefillable-prompt-templates";
     return { selected: null, mode: "fallback", reason };
   }
 
@@ -109,12 +207,65 @@ async function pickTemplate(options: {
   });
 }
 
+function formatArgContract(templateText: string): string {
+  const usage = parseTemplatePlaceholders(templateText);
+  const parts = [];
+  for (const index of usage.positionalIndexes) parts.push(`$${index}`);
+  if (usage.usesAllArgs) parts.push("$@");
+  for (const slice of usage.slices ?? []) {
+    parts.push(
+      slice.length
+        ? `${"${@:"}${slice.start}:${slice.length}}`
+        : `${"${@:"}${slice.start}}`,
+    );
+  }
+  return parts.length > 0 ? parts.join(", ") : "none";
+}
+
+async function inspectPromptCommands(commands: Array<Record<string, unknown>>) {
+  const promptCommands = commands.filter((command) => command && command.source === "prompt");
+  return await Promise.all(
+    promptCommands.map(async (command) => {
+      const name = String(command.name || "").trim();
+      const path = typeof command.path === "string" && command.path.trim() ? command.path.trim() : "";
+      if (!path) {
+        return {
+          name,
+          hasPath: "no",
+          argContract: "n/a",
+          path: "",
+          status: "not-prefillable (missing path)",
+        };
+      }
+
+      try {
+        const templateText = await readFile(path, "utf8");
+        return {
+          name,
+          hasPath: "yes",
+          argContract: formatArgContract(templateText),
+          path,
+          status: "prefillable",
+        };
+      } catch (error) {
+        return {
+          name,
+          hasPath: "yes",
+          argContract: "unreadable",
+          path,
+          status: `unreadable (${asErrorMessage(error)})`,
+        };
+      }
+    }),
+  );
+}
+
 async function loadTriggerSurface() {
   try {
-    return await import("@tryinget/pi-trigger-adapter");
+    return await import("@tryinget/pi-interaction");
   } catch {
     try {
-      return await import("@tryinget/pi-interaction");
+      return await import("@tryinget/pi-trigger-adapter");
     } catch {
       return null;
     }
@@ -123,7 +274,6 @@ async function loadTriggerSurface() {
 
 async function maybeRegisterLiveTrigger(options: {
   pi: ExtensionAPI;
-  getPolicyConfig: () => Promise<PolicyConfig>;
 }) {
   try {
     const inputTriggers = await loadTriggerSurface();
@@ -178,6 +328,7 @@ async function maybeRegisterLiveTrigger(options: {
       },
       loadCandidates: () => {
         const commands = options.pi.getCommands();
+        const promptCommands = commands.filter((command) => command && command.source === "prompt");
         const candidates = toPtxCandidates(commands);
         return {
           candidates,
@@ -186,31 +337,52 @@ async function maybeRegisterLiveTrigger(options: {
               ? undefined
               : commands.length === 0
                 ? "prompt-command-source-unavailable"
-                : "no-prompt-templates",
+                : promptCommands.length === 0
+                  ? "no-prompt-templates"
+                  : "no-prefillable-prompt-templates",
         };
       },
       selectTitle: ({ query }: { query: string }) =>
         query ? `PTX template picker (query: ${query})` : "PTX template picker",
       applySelection: async ({ selected, parsed, context, api }: any) => {
-        const policyConfig = await options.getPolicyConfig();
         const parsedArgs = Array.isArray(parsed?.meta?.parsedArgs) ? parsed.meta.parsedArgs : [];
         const contextArg = String(parsed?.context ?? "").trim();
         const providedArgs = contextArg ? [...parsedArgs, contextArg] : parsedArgs;
+        const selectedCandidate = selected as PtxTemplateCandidate | undefined;
+        const templateCommand = candidateToTemplateCommand(selectedCandidate);
+        const commandName = templateCommand?.name ?? String(selectedCandidate?.id ?? "").replace(/^\/+/, "").trim();
+        const rawFallback = commandName ? buildRawFallbackCommand(commandName, providedArgs) : undefined;
 
-        const suggestion = await buildTemplateSuggestion({
-          pi: options.pi,
-          ctx: context,
-          commandName: String(selected?.id ?? ""),
-          providedArgs,
-          policyConfig,
-        });
+        let suggestion;
+        try {
+          suggestion = await buildTemplateSuggestion({
+            pi: options.pi,
+            ctx: context,
+            commandName,
+            providedArgs,
+            templateCommand,
+          });
+        } catch (error) {
+          suggestion = {
+            transformed: rawFallback,
+            warning: rawFallback
+              ? `PTX live picker fallback for /${commandName}: ${asErrorMessage(error)}; inserted raw command without inferred args.`
+              : `PTX live picker error: ${asErrorMessage(error)}`,
+          };
+        }
 
         if (!suggestion.transformed) {
-          api?.notify?.(suggestion.warning ?? `Unable to build suggestion for /${selected?.id}`, "warning");
+          if (rawFallback) {
+            api?.setText?.(rawFallback);
+          }
+          api?.notify?.(suggestion.warning ?? `Unable to build suggestion for /${commandName}`, "warning");
           return;
         }
 
         api?.setText?.(suggestion.transformed);
+        if (suggestion.warning) {
+          api?.notify?.(suggestion.warning, "warning");
+        }
       },
       onNoCandidates: ({ reason, api }: any) => {
         const suffix = reason ? ` (${reason})` : "";
@@ -231,19 +403,11 @@ async function maybeRegisterLiveTrigger(options: {
 }
 
 export default function ptxExtension(pi: ExtensionAPI) {
-  let cachedPolicyConfig: PolicyConfig | null = null;
   let unregisterLivePicker: (() => void) | null = null;
-
-  const getPolicyConfig = async () => {
-    if (cachedPolicyConfig) return cachedPolicyConfig;
-    const loaded = await loadPtxPolicyConfig({ cwd: process.cwd() });
-    cachedPolicyConfig = loaded.config;
-    return cachedPolicyConfig;
-  };
 
   // Optional live trigger registration through pi-interaction trigger surfaces.
   // PTX remains fully functional in non-UI mode even when these packages are absent.
-  void maybeRegisterLiveTrigger({ pi, getPolicyConfig }).then((result) => {
+  void maybeRegisterLiveTrigger({ pi }).then((result) => {
     unregisterLivePicker = result.unregister;
   });
 
@@ -302,21 +466,42 @@ export default function ptxExtension(pi: ExtensionAPI) {
         return { action: "handled" as const };
       }
 
-      const suggestion = await buildTemplateSuggestion({
-        pi,
-        ctx,
-        commandName: selection.selected.id,
-        providedArgs: parsed.args,
-        policyConfig: await getPolicyConfig(),
-      });
+      const templateCommand = candidateToTemplateCommand(selection.selected);
+      const commandName = templateCommand?.name ?? String(selection.selected.id).replace(/^\/+/, "").trim();
+      const rawFallback = buildRawFallbackCommand(commandName, parsed.args);
+
+      let suggestion;
+      try {
+        suggestion = await buildTemplateSuggestion({
+          pi,
+          ctx,
+          commandName,
+          providedArgs: parsed.args,
+          templateCommand,
+        });
+      } catch (error) {
+        suggestion = {
+          transformed: rawFallback,
+          warning: rawFallback
+            ? `PTX fallback for /${commandName}: ${asErrorMessage(error)}; inserted raw command without inferred args.`
+            : `PTX error: ${asErrorMessage(error)}`,
+        };
+      }
 
       if (!suggestion.transformed) {
-        ctx.ui.notify(suggestion.warning ?? `Unable to build suggestion for /${selection.selected.id}`, "warning");
+        if (rawFallback) {
+          ctx.ui.setEditorText(rawFallback);
+        }
+        ctx.ui.notify(suggestion.warning ?? `Unable to build suggestion for /${commandName}`, "warning");
         return { action: "handled" as const };
       }
 
       ctx.ui.setEditorText(suggestion.transformed);
-      ctx.ui.notify(`Suggestion for /${selection.selected.id}. ${selectionModeMessage(selection)}.`, "info");
+      if (suggestion.warning) {
+        ctx.ui.notify(suggestion.warning, "warning");
+      } else {
+        ctx.ui.notify(`Suggestion for /${commandName}. ${selectionModeMessage(selection)}.`, "info");
+      }
       return { action: "handled" as const };
     }
 
@@ -325,7 +510,6 @@ export default function ptxExtension(pi: ExtensionAPI) {
       ctx,
       commandName: parsed.query,
       providedArgs: parsed.args,
-      policyConfig: await getPolicyConfig(),
     });
 
     if (!suggestion.transformed) {
@@ -365,21 +549,72 @@ export default function ptxExtension(pi: ExtensionAPI) {
         return;
       }
 
-      const suggestion = await buildTemplateSuggestion({
-        pi,
-        ctx,
-        commandName: selection.selected.id,
-        providedArgs: [],
-        policyConfig: await getPolicyConfig(),
-      });
+      const templateCommand = candidateToTemplateCommand(selection.selected);
+      const commandName = templateCommand?.name ?? String(selection.selected.id).replace(/^\/+/, "").trim();
+      const rawFallback = buildRawFallbackCommand(commandName, []);
+
+      let suggestion;
+      try {
+        suggestion = await buildTemplateSuggestion({
+          pi,
+          ctx,
+          commandName,
+          providedArgs: [],
+          templateCommand,
+        });
+      } catch (error) {
+        suggestion = {
+          transformed: rawFallback,
+          warning: rawFallback
+            ? `PTX fallback for /${commandName}: ${asErrorMessage(error)}; inserted raw command without inferred args.`
+            : `PTX error: ${asErrorMessage(error)}`,
+        };
+      }
 
       if (!suggestion.transformed) {
+        if (rawFallback) {
+          ctx.ui.setEditorText(rawFallback);
+        }
         ctx.ui.notify(suggestion.warning ?? "Unable to build PTX suggestion", "warning");
         return;
       }
 
       ctx.ui.setEditorText(suggestion.transformed);
-      ctx.ui.notify(`Prepared /${selection.selected.id}. ${selectionModeMessage(selection)}.`, "info");
+      if (suggestion.warning) {
+        ctx.ui.notify(suggestion.warning, "warning");
+      } else {
+        ctx.ui.notify(`Prepared /${commandName}. ${selectionModeMessage(selection)}.`, "info");
+      }
+    },
+  });
+
+  pi.registerCommand("ptx-debug-commands", {
+    description: "Inspect visible prompt commands, paths, and inferred arg contracts",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const query = args.trim().toLowerCase();
+      const inspected = await inspectPromptCommands(pi.getCommands());
+      const filtered = query
+        ? inspected.filter((row) => row.name.toLowerCase().includes(query) || row.path.toLowerCase().includes(query))
+        : inspected;
+
+      const output = [
+        "# PTX Visible Prompt Commands",
+        "",
+        `- query: ${query || "<none>"}`,
+        `- visible_prompt_commands: ${inspected.length}`,
+        `- prefillable_prompt_commands: ${inspected.filter((row) => row.status === "prefillable").length}`,
+        "",
+        "| Name | Prefillable | Arg Contract | Path | Status |",
+        "|---|---|---|---|---|",
+        ...filtered.map(
+          (row) =>
+            `| /${row.name} | ${row.hasPath} | ${row.argContract} | ${row.path || "-"} | ${row.status} |`,
+        ),
+      ].join("\n");
+
+      await ctx.ui.editor("PTX Debug Commands", output);
     },
   });
 

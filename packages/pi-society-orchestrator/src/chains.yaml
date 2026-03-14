@@ -1,0 +1,168 @@
+# Society Orchestrator Chains
+# Sequential pipelines with variable interpolation
+# $INPUT = previous step output, $ORIGINAL = user's initial prompt
+
+# =============================================================================
+# COGNITIVE-DRIVEN CHAINS
+# =============================================================================
+
+inversion-fix:
+  description: "Shadow analysis → targeted fix → verification"
+  steps:
+    - agent: scout
+      prompt: |
+        Apply INVERSION to find shadow bugs in: $INPUT
+        What must be true for this system to appear healthy while actually being sick?
+        Output: hidden bugs, pattern genera, limiting assumptions
+
+    - agent: builder
+      prompt: |
+        Fix the bugs found by inversion analysis.
+        Fix the specimen AND the genus (prevent entire class).
+        $INPUT
+
+    - agent: reviewer
+      prompt: |
+        Verify the fixes. Did inversion reveal all bugs?
+        Apply AUDIT tetrahedron (bugs/debt/smells/gaps).
+        $INPUT
+
+transcendent-iteration:
+  description: "DIAGNOSE → 100x → 100x → DISSOLVE → REBUILD → NAME DEBT"
+  steps:
+    - agent: scout
+      prompt: |
+        DIAGNOSE the ceiling:
+        1. Limiting assumption — What assumption limits this system most?
+        2. 100x precondition — What would have to be true for 100x improvement?
+        3. Avoided ugliness — What's the ugliest part being avoided?
+        
+        Target: $INPUT
+
+    - agent: builder
+      prompt: |
+        FIRST 100x: Attack the ceiling directly.
+        Delete more than you add. No abstraction layers.
+        
+        Diagnosis: $INPUT
+
+    - agent: reviewer
+      prompt: |
+        COMPOUND CHECK: Did Phase 2 make the system simpler or more complex?
+        - Easier = genuine improvement (compounding)
+        - Harder = fake transcendence (revert)
+        
+        $INPUT
+
+    - agent: builder
+      prompt: |
+        SECOND 100x: Attack the new ceiling revealed.
+        If compound check failed, try different approach.
+        
+        $INPUT
+
+    - agent: reviewer
+      prompt: |
+        NAME RESIDUAL DEBT:
+        - What's still imperfect?
+        - Why isn't it fixed?
+        - What would be needed?
+        
+        $INPUT
+
+# =============================================================================
+# STANDARD DEVELOPMENT CHAINS
+# =============================================================================
+
+explore-build-review:
+  description: "Scout → Build → Review cycle"
+  steps:
+    - agent: scout
+      prompt: "Explore and understand: $INPUT\n\nReport structure, patterns, key files."
+
+    - agent: builder
+      prompt: "Implement based on exploration:\n\n$INPUT"
+
+    - agent: reviewer
+      prompt: "Review for bugs, style, correctness:\n\n$INPUT"
+
+plan-build-verify:
+  description: "Plan → Build → Verify"
+  steps:
+    - agent: researcher
+      prompt: "Research and plan the approach for: $INPUT"
+
+    - agent: builder
+      prompt: "Implement the plan:\n\n$INPUT"
+
+    - agent: reviewer
+      prompt: "Verify implementation matches plan:\n\n$INPUT"
+
+# =============================================================================
+# QUALITY CHAINS
+# =============================================================================
+
+deep-review:
+  description: "Full adversarial review stack"
+  steps:
+    - agent: reviewer
+      prompt: |
+        Apply AUDIT tetrahedron to: $INPUT
+        - Bugs: correctness issues
+        - Debt: technical debt
+        - Smells: code smells
+        - Gaps: missing functionality
+
+    - agent: reviewer
+      prompt: |
+        Apply INVERSION (shadow analysis):
+        What bugs hide in success? What self-heals transiently?
+        $INPUT
+
+    - agent: reviewer
+      prompt: |
+        Apply INQUISITION (adversarial line-by-line):
+        Challenge every assumption. Question every pattern.
+        $INPUT
+
+# =============================================================================
+# LEARNING CHAINS
+# =============================================================================
+
+knowledge-crystallize:
+  description: "Extract patterns from completed work"
+  steps:
+    - agent: scout
+      prompt: "Analyze what was done and find patterns: $INPUT"
+
+    - agent: researcher
+      prompt: |
+        Crystallize learnings into reusable patterns:
+        - What worked? Why?
+        - What didn't work? Why?
+        - What patterns emerged?
+        - What should be avoided?
+        
+        $INPUT
+
+# =============================================================================
+# META CHAINS
+# =============================================================================
+
+meta-orchestrate:
+  description: "Determine phase, then execute appropriately"
+  steps:
+    - agent: researcher
+      prompt: |
+        Apply META-ORCHESTRATION to determine:
+        1. Which PHASE is this? (sensemaking, formalization, execution)
+        2. Which FORMALIZATION level? (0-4)
+        3. Which cognitive tools apply?
+        4. Which agents should be dispatched?
+        
+        Context: $INPUT
+
+    - agent: scout
+      prompt: |
+        Execute the recommended approach:
+        $INPUT

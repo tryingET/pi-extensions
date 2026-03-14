@@ -11,21 +11,9 @@ system4d:
 
 # Project foundation model
 
-```mermaid
-flowchart TD
-    ProjectPurpose("Project Purpose") -->|defines| ProjectMission("Project Mission")
-    ProjectMission -->|leads to| ProjectVision("Project Vision")
-    ProjectVision -->|is operationalized by| ProjectStrategicObjectives("Project Strategic Objectives")
-    ProjectPurpose -->|inspires| ProjectValues("Project Values")
-    ProjectValues -->|shape| ProjectEthics("Project Ethics")
-    ProjectValues -->|shape| ProjectCulture("Project Culture")
-    ProjectValues -->|are expressed in| ProjectCharter("Project Charter")
-    ProjectCharter -->|influences| ProjectEthics
-    ProjectEthics -->|guides behavior in| ProjectCulture
-    ProjectCulture -->|supports| ProjectStrategicObjectives
-```
-
-## Scope boundary
-
-- **Organization purpose** lives at org level and is documented in [Organization operating model](../org/operating_model.md).
-- **Project purpose** is repository-specific and can be narrower while staying aligned with organization strategy.
+- **Project Purpose:** Deliver a deterministic prompt-template accelerator for Pi that reduces setup friction without hiding context or decisions.
+- **Project Mission (current cycle):** Run a deep adversarial review of PTX using inversion, telescopic, nexus, audit, blast radius, escape hatch, and knowledge crystallization.
+- **Organization Alignment:** The broader organization purpose is documented in [Organization operating model](../org/operating_model.md). This project serves that purpose, but stays narrower and runtime-focused.
+- **Scope Boundary:** Active scope is PTX selection, argument inference, transform logic, docs, and tests. Repo-local startup-intake automation is out of scope.
+- **Hard Constraints:** Preserve deterministic behavior, explicit failure modes, reversibility, low extension-conflict risk, and compact documentation.
+- **Success Criteria:** Stable prompt prefills, safe non-UI degradation, clear manual docs maintenance, and passing repository validation.

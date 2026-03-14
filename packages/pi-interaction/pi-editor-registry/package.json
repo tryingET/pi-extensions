@@ -5,6 +5,13 @@
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
@@ -37,7 +44,9 @@
     "quality:pre-push": "bash ../../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
     "quality:ci": "bash ../../../scripts/package-quality-gate.sh ci . --mode simple-package",
     "check": "npm run quality:ci",
-    "release:check:quick": "npm pack --dry-run"
+    "prepack": "node ../scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../scripts/prepare-publish-manifest.mjs postpack",
+    "release:check:quick": "node ../scripts/release-check-package.mjs"
   },
   "files": [
     "index.js",

@@ -11,6 +11,7 @@ system4d:
 
 # Tactical goals
 
-1. Keep command implementation compile-ready.
-2. Add tests in `tests/` for new behaviors.
-3. Update docs and changelog alongside code changes.
+1. Review PTX error paths, duplicate-name handling, and non-UI behavior with the full adversarial stack.
+2. Maintain focused tests for transform and fallback regressions.
+3. Keep docs synchronized with actual runtime behavior.
+4. Run structure and quality checks before merge.

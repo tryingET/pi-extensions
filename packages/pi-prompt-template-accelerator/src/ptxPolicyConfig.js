@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const POLICY_VALUES = new Set(["allow", "block"]);
 const FALLBACK_VALUES = new Set(["passthrough", "block"]);
@@ -69,6 +69,18 @@ function normalizeTemplateOverrides(value) {
   return normalized;
 }
 
+function resolveBaseDir(cwd) {
+  if (typeof cwd === "string" && cwd.trim().length > 0) {
+    return resolve(cwd);
+  }
+
+  return process.cwd();
+}
+
+function isEnoentError(error) {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
+}
+
 export function normalizePtxPolicyConfig(input) {
   const raw = input && typeof input === "object" && !Array.isArray(input) ? input : {};
 
@@ -82,43 +94,57 @@ export function normalizePtxPolicyConfig(input) {
 }
 
 export async function loadPtxPolicyConfig({ cwd }) {
-  const baseDir = cwd || process.cwd();
-  const configPath = join(baseDir, ".pi", "ptx-config.json");
+  const baseDir = resolveBaseDir(cwd);
+  let currentDir = baseDir;
 
-  let rawText;
-  try {
-    rawText = await readFile(configPath, "utf8");
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      return {
-        configPath,
-        loadedFromFile: false,
-        config: normalizePtxPolicyConfig(DEFAULT_PTX_POLICY_CONFIG),
-      };
+  while (true) {
+    const configPath = join(currentDir, ".pi", "ptx-config.json");
+
+    let rawText;
+    try {
+      rawText = await readFile(configPath, "utf8");
+    } catch (error) {
+      if (!isEnoentError(error)) {
+        return {
+          configPath,
+          searchBaseDir: baseDir,
+          loadedFromFile: false,
+          config: normalizePtxPolicyConfig(DEFAULT_PTX_POLICY_CONFIG),
+          error,
+        };
+      }
+
+      const parentDir = dirname(currentDir);
+      if (parentDir === currentDir) {
+        return {
+          configPath: join(baseDir, ".pi", "ptx-config.json"),
+          searchBaseDir: baseDir,
+          loadedFromFile: false,
+          config: normalizePtxPolicyConfig(DEFAULT_PTX_POLICY_CONFIG),
+        };
+      }
+
+      currentDir = parentDir;
+      continue;
     }
 
-    return {
-      configPath,
-      loadedFromFile: false,
-      config: normalizePtxPolicyConfig(DEFAULT_PTX_POLICY_CONFIG),
-      error,
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(rawText);
-    return {
-      configPath,
-      loadedFromFile: true,
-      config: normalizePtxPolicyConfig(parsed),
-    };
-  } catch (error) {
-    return {
-      configPath,
-      loadedFromFile: false,
-      config: normalizePtxPolicyConfig(DEFAULT_PTX_POLICY_CONFIG),
-      error,
-    };
+    try {
+      const parsed = JSON.parse(rawText);
+      return {
+        configPath,
+        searchBaseDir: baseDir,
+        loadedFromFile: true,
+        config: normalizePtxPolicyConfig(parsed),
+      };
+    } catch (error) {
+      return {
+        configPath,
+        searchBaseDir: baseDir,
+        loadedFromFile: false,
+        config: normalizePtxPolicyConfig(DEFAULT_PTX_POLICY_CONFIG),
+        error,
+      };
+    }
   }
 }
 

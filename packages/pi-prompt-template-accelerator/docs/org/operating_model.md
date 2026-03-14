@@ -1,5 +1,5 @@
 ---
-summary: "Compact organization operating model and terminology."
+summary: "Compact organization purpose, direction, and operating principles."
 read_when:
   - "Aligning organization-level purpose, mission, and strategy."
 system4d:
@@ -11,24 +11,12 @@ system4d:
 
 # Organization operating model
 
-```mermaid
-flowchart TD
-    OrganizationPurpose("Organization Purpose") -->|defines| OrganizationMission("Organization Mission")
-    OrganizationMission -->|leads to| OrganizationVision("Organization Vision")
-    OrganizationVision -->|is operationalized by| StrategicObjectives("Strategic Objectives")
-    OrganizationPurpose -->|inspires| CoreValues("Core Values")
-    CoreValues -->|shape| EthicsPolicy("Ethics Policy")
-    CoreValues -->|shape| OrganizationCulture("Organization Culture")
-    CoreValues -->|are expressed in| OrganizationCharter("Organization Charter")
-    OrganizationCharter -->|influences| EthicsPolicy
-    EthicsPolicy -->|guides behavior in| OrganizationCulture
-    OrganizationCulture -->|supports| StrategicObjectives
-```
-
-## Compact terminology
-
-- **Organization Purpose**: why the organization exists.
-- **Organization Mission**: what the organization does now.
-- **Organization Vision**: target future state.
-- **Strategic Objectives**: measurable outcomes that realize the vision.
-- **Core Values / Ethics / Culture / Charter**: behavioral system that supports strategy.
+- **Organization Purpose:** Build dependable AI-assisted engineering workflows that increase leverage without sacrificing safety or clarity.
+- **Organization Mission:** Deliver practical extensions, prompts, and operating practices that make Pi-based work more reliable, auditable, and easier to maintain.
+- **Organization Vision:** A lean tooling organization known for deterministic automation, concise handoffs, and safe operator trust.
+- **Strategic Objectives:**
+  1. Standardize repeatable extension delivery and validation.
+  2. Reduce operator friction with strong defaults and compact docs.
+  3. Keep security, rollback thinking, and reviewability in the normal workflow.
+  4. Prefer simple, low-maintenance designs over novelty.
+- **Core Values:** clarity, determinism, reversibility, ruthless review, and small validated changes.

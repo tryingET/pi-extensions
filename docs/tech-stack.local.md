@@ -42,8 +42,17 @@ Repo-local emphasis:
   - no root `.vscode/settings.json`
   - package repos/groups own their own formatter/editor settings
 - Package-level stack specifics remain owned by each package/group under `packages/`.
+- Common package-local pi-ts companions stay package-scoped rather than becoming root defaults:
+  - `fast-check`
+  - `@cucumber/cucumber`
+  - `nunjucks`
 
 Practical rule:
 
 - Use root commands for monorepo-wide validation.
 - Use package-local `npm run check` when working inside a specific package.
+- Treat package-local stack metadata as the executable contract surface:
+  - `policy/stack-lane.json`
+  - `docs/tech-stack.local.md`
+  - root helper `scripts/validate-tech-stack-contract.mjs`
+  - optional `tech-stack-core show <lane> --prefer-repo` smoke checks when available

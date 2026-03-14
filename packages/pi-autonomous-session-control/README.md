@@ -124,30 +124,28 @@ It enforces structure validation, Biome lint checks, optional TypeScript typeche
 
 ## Release + security baseline
 
-This scaffold defaults to **release-please** for single-package release PR + tag flow (`vX.Y.Z`), npm trusted publishing via OIDC, and deterministic release artifact checks.
+This package now uses the **root-owned monorepo release control plane** in component mode.
+It keeps its own independent release cadence, but the workflows/config live at monorepo root.
 
-Included files:
+Relevant root-owned files:
 
-- [CI workflow](.github/workflows/ci.yml)
-- [release-check workflow](.github/workflows/release-check.yml)
-- [release-please workflow](.github/workflows/release-please.yml)
-- [publish workflow](.github/workflows/publish.yml)
+- [CI workflow](../../.github/workflows/ci.yml)
+- [release-check workflow](../../.github/workflows/release-check.yml)
+- [release-please workflow](../../.github/workflows/release-please.yml)
+- [publish workflow](../../.github/workflows/publish.yml)
+- [release-please config](../../.release-please-config.json)
+- [release-please manifest](../../.release-please-manifest.json)
+- [root component helper](../../scripts/release-components.mjs)
 - [release-check script](scripts/release-check.sh)
-- [Dependabot config](.github/dependabot.yml)
-- [CODEOWNERS](.github/CODEOWNERS)
-- [release-please config](.release-please-config.json)
-- [release-please manifest](.release-please-manifest.json)
 - [Security policy](SECURITY.md)
 
-Trusted-publishing defaults captured in this scaffold:
+Trusted-publishing defaults now relevant to this package:
 
-- release-please uses `vX.Y.Z` tags (`include-component-in-tag: false`) to align with publish trigger logic.
-- release-please action is pinned to an immutable v4.4.0 SHA.
-- publish workflow and release-check workflow both upgrade npm (`>=11.5.1`) for consistent trusted publishing behavior.
-- setup-node uses `package-manager-cache: false` to avoid implicit caching behavior changes from setup-node v5+.
-- setup-node v6 / setup-python v6 / upload-artifact v6 require Actions Runner `>=2.327.1` on self-hosted runners (GitHub-hosted runners already satisfy this).
-- release-check script tolerates npm `already published version` dry-run responses for post-release idempotency.
-- package metadata must include `repository.url` matching the GitHub repo for npm provenance verification.
+- release tags are component-scoped (`pi-autonomous-session-control-vX.Y.Z`)
+- root release-please action is pinned to an immutable v4.4.0 SHA
+- root publish and release-check workflows both upgrade npm (`>=11.5.1`) for consistent trusted publishing behavior
+- setup-node uses `package-manager-cache: false` to avoid implicit caching behavior changes from setup-node v5+
+- package metadata must include `repository.url` matching the GitHub repo for npm provenance verification
 
 Recommended before release:
 
@@ -160,17 +158,17 @@ npm run release:check:quick
 Optional: add an executable `scripts/release-smoke.sh` for extension-specific smoke checks.
 `release-check.sh` will run it with isolated `PI_CODING_AGENT_DIR` and `PACKAGE_SPEC` env vars.
 
-Before first production release:
+Before first production release under root automation:
 
-1. Confirm/adjust owners in [.github/CODEOWNERS](.github/CODEOWNERS).
+1. Confirm/adjust owners in [../../.github/CODEOWNERS](../../.github/CODEOWNERS).
 2. Enable branch protection on `main`.
 3. Confirm GitHub Actions repo settings:
    - workflow permissions: `Read and write`
    - allow GitHub Actions to create/approve PRs
    - allowed actions policy permits marketplace actions used by workflows
-4. Configure npm Trusted Publishing for this repo + [publish workflow](.github/workflows/publish.yml).
+4. Configure npm Trusted Publishing for the monorepo repo + [root publish workflow](../../.github/workflows/publish.yml).
 5. If this is a brand-new npm package, perform one bootstrap token publish first, then add the trusted publisher in npm package settings.
-6. Merge release PR from release-please, then publish from GitHub release.
+6. Let root release-please open the component release PR, then publish from the GitHub release.
 
 ## Issue + PR intake baseline
 
@@ -302,18 +300,18 @@ Persistence behavior:
 - Snapshot format is schema-versioned (`schemaVersion: 1`) and validated on load
 - Malformed snapshots fail safe (tool remains usable; snapshot is repaired on next successful scoped persistence)
 
-## Live sync helper
+## Live package activation
 
-Use [scripts/sync-to-live.sh](scripts/sync-to-live.sh) to copy extension entrypoints plus
-shared `src/` modules into `~/.pi/agent/extensions/pi-autonomous-session-control/`.
+Install the package into Pi from its local package path:
 
-Optional flags:
+```bash
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
+```
 
-- `--with-prompts`
-- `--with-policy`
-- `--all` (prompts + policy)
+Then in Pi:
 
-After sync, run `/reload` in pi.
+1. run `/reload`
+2. verify with a real command or tool call from this package
 
 ## Docs map
 

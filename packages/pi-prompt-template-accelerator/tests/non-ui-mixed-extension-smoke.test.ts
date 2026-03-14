@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { getBroker, resetBroker } from "@tryinget/pi-trigger-adapter";
 import ptxExtension from "../extensions/ptx.ts";
 
 type InputEvent = { source: "user" | "extension"; text: string };
@@ -20,6 +21,13 @@ function createNonUiContext(cwd: string) {
         return [];
       },
     },
+  };
+}
+
+function createTriggerLikeContext(cwd: string) {
+  return {
+    hasUI: false,
+    cwd,
   };
 }
 
@@ -77,6 +85,18 @@ async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promis
       },
     );
   });
+}
+
+async function waitForLiveTrigger(id: string, timeoutMs = 1500): Promise<void> {
+  const broker = getBroker();
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (broker.get(id)) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error(`Timed out waiting for live trigger: ${id}`);
 }
 
 async function runInputPipeline(
@@ -208,6 +228,270 @@ test("non-UI: optional rest args (${@:4}) are omitted when no extras are inferre
       assert.doesNotMatch(result.text ?? "", /"none"/);
     },
   );
+});
+
+test("non-UI: trigger-like context without sessionManager still builds PTX suggestion", async () => {
+  await withTempTemplate("Task: $1\nContext: $2\n", async (templatePath, cwd) => {
+    const commands = [
+      {
+        name: "workflow",
+        source: "prompt",
+        description: "Workflow template",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(
+        handlers,
+        '$$ /workflow "fix trigger live picker"',
+        createTriggerLikeContext(cwd),
+      ),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text ?? "", /^\/workflow\s+"fix trigger live picker"\s+"[^"]+"\s*$/);
+  });
+});
+
+test("non-UI: prompt command without template path falls back to prefilling raw slash command", async () => {
+  const commands = [
+    {
+      name: "analysis-router",
+      source: "prompt",
+      description: "Router template without file path",
+    },
+  ];
+
+  const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+  const result = await runWithTimeout(
+    runInputPipeline(handlers, "$$ /analysis-router", createTriggerLikeContext(process.cwd())),
+    2000,
+  );
+
+  assert.equal(result.action, "transform");
+  assert.equal(result.text, "/analysis-router");
+});
+
+test("non-UI: duplicate prompt names use the single prefillable match deterministically", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-single-prefillable-"));
+  const templatePath = path.join(tempDir, "same.md");
+  await writeFile(templatePath, "Task: $1\nContext: $2\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "same",
+        source: "prompt",
+        description: "missing path first",
+      },
+      {
+        name: "same",
+        source: "prompt",
+        description: "valid second",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, '$$ /same "fix this"', createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text ?? "", /^\/same\s+"fix this"\s+"[^"]+"\s*$/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("non-UI: duplicate prefillable prompt names return explicit ambiguity", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-ambiguous-"));
+  const templateA = path.join(tempDir, "same-a.md");
+  const templateB = path.join(tempDir, "same-b.md");
+  await writeFile(templateA, "Task: $1\n", "utf8");
+  await writeFile(templateB, "Context: $2\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "same",
+        source: "prompt",
+        description: "first duplicate",
+        path: templateA,
+      },
+      {
+        name: "same",
+        source: "prompt",
+        description: "second duplicate",
+        path: templateB,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, "$$ /same", createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.equal(
+      result.text,
+      "Template name is ambiguous: /same (2 prefillable matches, 2 total). Use picker or '/ptx-select same'.",
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("non-UI: PTX policy is loaded from ctx.cwd and honors passthrough fallback", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-policy-cwd-"));
+  const templatePath = path.join(tempDir, "blocked.md");
+  await mkdir(path.join(tempDir, ".pi"), { recursive: true });
+  await writeFile(
+    path.join(tempDir, ".pi", "ptx-config.json"),
+    JSON.stringify({ templates: { blocked: { policy: "block", fallback: "passthrough" } } }),
+    "utf8",
+  );
+  await writeFile(templatePath, "Task: $1\nContext: $2\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "blocked",
+        source: "prompt",
+        description: "blocked template",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, '$$ /blocked "x"', createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.equal(result.text, '/blocked "x"');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("non-UI: invalid repo-local PTX policy config returns deterministic error", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "ptx-policy-invalid-"));
+  const templatePath = path.join(tempDir, "allowed.md");
+  await mkdir(path.join(tempDir, ".pi"), { recursive: true });
+  await writeFile(path.join(tempDir, ".pi", "ptx-config.json"), "{ not valid json", "utf8");
+  await writeFile(templatePath, "Task: $1\n", "utf8");
+
+  try {
+    const commands = [
+      {
+        name: "allowed",
+        source: "prompt",
+        description: "allowed template",
+        path: templatePath,
+      },
+    ];
+
+    const handlers = createRuntime({ commands, extensions: [ptxExtension] });
+    const result = await runWithTimeout(
+      runInputPipeline(handlers, '$$ /allowed "x"', createNonUiContext(tempDir)),
+      2000,
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text ?? "", /^PTX policy config error at .*\.pi\/ptx-config\.json:/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("live trigger: duplicate prompt names keep selected command identity and prefill transformed command", async () => {
+  const previousPath = process.env.PATH;
+  process.env.PATH = "/__missing_fzf_path__";
+  resetBroker();
+
+  try {
+    await withTempTemplate("Create an implementation plan for this request: $@\n", async (templatePath, cwd) => {
+      const commands = [
+        {
+          name: "implementation-planning",
+          source: "prompt",
+          description: "Draft an implementation plan for a requested change",
+        },
+        {
+          name: "implementation-planning",
+          source: "prompt",
+          description: "Draft an implementation plan for a requested change",
+          path: templatePath,
+        },
+      ];
+
+      const pi = {
+        on() {
+          // Input handlers are not needed for broker-driven live trigger verification.
+        },
+        registerCommand() {
+          // Not needed for this test.
+        },
+        getCommands() {
+          return commands;
+        },
+        async exec() {
+          return { code: 1, stdout: "", stderr: "" };
+        },
+      };
+
+      ptxExtension(pi as any);
+      await waitForLiveTrigger("ptx-template-picker");
+
+      const broker = getBroker();
+      let editorText = "";
+      const notifications: Array<{ message: string; level?: string }> = [];
+
+      broker.setAPI({
+        setText(text: string) {
+          editorText = text;
+        },
+        async select(_title: string, options: string[]) {
+          return options.find((option) => !option.includes("no template path")) ?? options[0] ?? null;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      });
+
+      const input = "$$ /implementation-planning";
+      await runWithTimeout(
+        broker.checkAndFire({
+          fullText: input,
+          textBeforeCursor: input,
+          textAfterCursor: "",
+          cursorLine: 0,
+          cursorColumn: input.length,
+          totalLines: 1,
+          isLive: true,
+          cwd,
+          sessionKey: "ptx-live-duplicate-test",
+        }),
+        2500,
+      );
+
+      assert.match(editorText, /^\/implementation-planning\s+"<MUST_REPLACE_PRIMARY_OBJECTIVE>"$/);
+      assert.equal(
+        notifications.some((entry) => /Unable to build suggestion|Template not found/.test(entry.message)),
+        false,
+      );
+    });
+  } finally {
+    process.env.PATH = previousPath;
+    resetBroker();
+  }
 });
 
 test("mixed-extension non-UI smoke: both load orders handle '$$ /...' and '/vault...' without hanging", async () => {
