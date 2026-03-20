@@ -36,6 +36,7 @@
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "npm run quality:ci",
     "test": "npm run quality:ci",
+    "test:compat:live-trigger-contract": "node --test tests/shared-trigger-broker.test.mjs tests/vault-live-trigger-contract.test.mjs tests/vault-query-regression.test.mjs",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",

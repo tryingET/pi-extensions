@@ -330,8 +330,10 @@ test("vault live trigger is registered through shared interaction helper", () =>
 });
 
 test("vault live trigger allows bare /vault: and prompts for filter", () => {
+  assert.match(TYPES_SOURCE, /const\s+LIVE_VAULT_TRIGGER_DEBOUNCE_MS\s*=\s*150/);
   assert.match(TYPES_SOURCE, /const\s+LIVE_VAULT_MIN_QUERY\s*=\s*0/);
   assert.match(PICKER_SOURCE, /match:\s*\/\^\\\/vault:\(\.\*\)\$\//);
+  assert.match(PICKER_SOURCE, /debounceMs:\s*LIVE_VAULT_TRIGGER_DEBOUNCE_MS/);
   assert.match(PICKER_SOURCE, /promptForQueryWhenEmpty:\s*true/);
   assert.match(PICKER_SOURCE, /queryPromptTitle:\s*"Filter vault templates"/);
   assert.match(PICKER_SOURCE, /maxOptions:\s*25/);

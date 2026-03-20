@@ -105,7 +105,7 @@ Current `/vault` behavior:
 - `/vault` opens the full picker
 - `/vault <exact-name>` loads the exact exported-and-visible match directly
 - `/vault <fuzzy-query>` falls back to picker mode with the query applied
-- live `/vault:` uses the shared interaction runtime and allows bare `/vault:` with a follow-up filter prompt
+- live `/vault:` uses the shared interaction runtime, applies a short debounce (`150ms`) to avoid rapid-fire picker churn, and allows bare `/vault:` with a follow-up filter prompt
 - visibility-sensitive slash-command reads (`/vault`, `/vault:`, `/vault-search`, `/route`, grounding) now fail closed when no explicit company context is available
   - set `PI_COMPANY` or invoke from a company-scoped cwd
   - cwd inference now matches exact workspace/company path segments (for example `ai-society/softwareco/...`) instead of arbitrary substrings; if your checkout path is ambiguous, set `PI_COMPANY`

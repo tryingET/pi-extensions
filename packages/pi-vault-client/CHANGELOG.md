@@ -24,6 +24,8 @@ All notable changes to this project should be documented here.
 
 ### Changed
 
+- live `/vault:` trigger registration now uses a non-zero debounce (`150ms`) so the shared interaction runtime does not rapid-fire picker work on every keystroke.
+- the live-trigger compatibility lane now includes a broker-driven executable `/vault:` contract test instead of relying only on source-text regression assertions.
 - Prompt Vault compatibility is now documented as schema `v9` only.
 - startup behavior is now documented as diagnostic-mode-on-mismatch rather than total extension disappearance.
 - `NEXT_SESSION_PROMPT.md` now reflects the current post-cutover state and routes PTX/Prompt Vault-doc work to the correct repo.
