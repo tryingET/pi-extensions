@@ -35,6 +35,7 @@
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "npm run quality:ci",
     "test:smoke:non-ui": "node --import tsx --test tests/non-ui-mixed-extension-smoke.test.ts",
+    "test:compat:interaction-runtime": "npm run test:smoke:non-ui",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
