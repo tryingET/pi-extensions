@@ -1,0 +1,169 @@
+name: compatibility-canary
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Canary profile to run"
+        required: false
+        default: current
+        type: choice
+        options:
+          - current
+          - upgrade
+      host_version:
+        description: "Exact @mariozechner/pi-coding-agent version for upgrade runs"
+        required: false
+        type: string
+      changelog_ref:
+        description: "Exact reviewed changelog anchor (tag/commit/diff URL) for upgrade runs"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      profile: ${{ steps.profile.outputs.value }}
+      host_version: ${{ steps.host.outputs.version }}
+      review_anchor: ${{ steps.host.outputs.review_anchor }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - id: profile
+        name: Select canary profile
+        env:
+          WORKFLOW_PROFILE: ${{ inputs.profile }}
+        run: |
+          profile="${WORKFLOW_PROFILE:-current}"
+          if [ -z "$profile" ]; then
+            profile="current"
+          fi
+          echo "value=$profile" >> "$GITHUB_OUTPUT"
+
+      - name: Validate canary manifest
+        run: node ./scripts/pi-host-compatibility-canary.mjs validate
+
+      - id: host
+        name: Resolve exact host contract
+        env:
+          WORKFLOW_PROFILE: ${{ steps.profile.outputs.value }}
+          PI_HOST_COMPAT_HOST_VERSION: ${{ inputs.host_version }}
+          PI_HOST_COMPAT_CHANGELOG_REF: ${{ inputs.changelog_ref }}
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const { execFileSync } = require("node:child_process");
+
+          const profile = process.env.WORKFLOW_PROFILE;
+          const payload = JSON.parse(
+            execFileSync(
+              process.execPath,
+              [
+                "./scripts/pi-host-compatibility-canary.mjs",
+                "resolve-host",
+                "--profile",
+                profile,
+                "--json",
+              ],
+              { encoding: "utf8" },
+            ),
+          );
+
+          console.log(`version=${payload.host.version}`);
+          console.log(`review_anchor=${payload.host.reviewAnchor}`);
+          NODE
+
+      - id: matrix
+        name: Build scenario matrix
+        env:
+          PI_HOST_COMPAT_PROFILE: ${{ steps.profile.outputs.value }}
+          PI_HOST_COMPAT_HOST_VERSION: ${{ steps.host.outputs.version }}
+          PI_HOST_COMPAT_CHANGELOG_REF: ${{ steps.host.outputs.review_anchor }}
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const { execFileSync } = require("node:child_process");
+
+          const profile = process.env.PI_HOST_COMPAT_PROFILE || "current";
+          const payload = JSON.parse(
+            execFileSync(
+              process.execPath,
+              [
+                "./scripts/pi-host-compatibility-canary.mjs",
+                "list",
+                "--profile",
+                profile,
+                "--json",
+              ],
+              { encoding: "utf8" },
+            ),
+          );
+
+          const include = payload.scenarios.map((scenario) => ({
+            id: scenario.id,
+            title: scenario.title,
+            cwd: scenario.cwd,
+          }));
+
+          if (include.length === 0) {
+            throw new Error(`No canary scenarios resolved for profile '${profile}'.`);
+          }
+
+          console.log("matrix<<EOF");
+          console.log(JSON.stringify({ include }));
+          console.log("EOF");
+          NODE
+
+  run-scenario:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    name: ${{ matrix.id }}
+    env:
+      PI_HOST_COMPAT_PROFILE: ${{ needs.discover.outputs.profile }}
+      PI_HOST_COMPAT_SCENARIO: ${{ matrix.id }}
+      PI_HOST_COMPAT_HOST_VERSION: ${{ needs.discover.outputs.host_version }}
+      PI_HOST_COMPAT_CHANGELOG_REF: ${{ needs.discover.outputs.review_anchor }}
+      PI_HOST_VERSION: ${{ needs.discover.outputs.host_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install scenario dependencies
+        working-directory: ${{ matrix.cwd }}
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install --package-lock-only --ignore-scripts
+            npm ci
+          fi
+
+      - name: Run canary scenario against exact host contract
+        run: |
+          node ./scripts/pi-host-compatibility-canary.mjs run \
+            --profile "$PI_HOST_COMPAT_PROFILE" \
+            --scenario "$PI_HOST_COMPAT_SCENARIO" \
+            --fail-fast

@@ -26,6 +26,14 @@ if [ -f "./scripts/release-components.test.mjs" ]; then
   node --test ./scripts/release-components.test.mjs
 fi
 
+if [ -f "./scripts/pi-host-compatibility-canary.test.mjs" ]; then
+  node --test ./scripts/pi-host-compatibility-canary.test.mjs
+fi
+
 if [ -x "./scripts/ci/packages.sh" ]; then
   ./scripts/ci/packages.sh
+fi
+
+if [ "${PI_HOST_COMPAT_CANARY:-0}" = "1" ] && [ -f "./scripts/pi-host-compatibility-canary.mjs" ]; then
+  node ./scripts/pi-host-compatibility-canary.mjs run --profile "${PI_HOST_COMPAT_PROFILE:-current}"
 fi

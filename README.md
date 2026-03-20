@@ -1,3 +1,10 @@
+---
+summary: "Monorepo root overview and operator entrypoint for pi-extensions."
+read_when:
+  - "Starting work at the pi-extensions monorepo root."
+  - "Looking for root-level validation, canary, and governance commands."
+---
+
 # pi-extensions
 
 Software Company monorepo workspace.
@@ -40,6 +47,14 @@ npm run quality:pre-commit
 npm run quality:pre-push
 npm run quality:ci
 npm run check
+npm run compat:canary:list          # list host-compatibility scenarios + exact host contract
+npm run compat:canary               # local mirror of the dedicated compatibility-canary workflow (auto-aligns scenario packages to the pinned host contract)
+PI_HOST_COMPAT_CANARY=1 ./scripts/ci/full.sh   # optional local full-lane mirror
+# explicit upgrade candidate
+PI_HOST_COMPAT_HOST_VERSION=0.61.0 PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/badlogic/pi-mono/compare/v0.60.0...v0.61.0' npm run compat:canary -- --profile upgrade
+
+# dedicated CI signal
+# GitHub Actions: .github/workflows/compatibility-canary.yml
 
 # local feedback bootstrap
 bash ./scripts/install-hooks.sh
@@ -86,6 +101,12 @@ Use `tpl-package` from your L1 templates to add packages:
 - Ontology: `ontology/`
 - Root capability registry:
   - `docs/project/root-capabilities.md`
+- Pi host compatibility canary:
+  - `policy/pi-host-compatibility-canary.json`
+  - `docs/project/pi-host-compatibility-canary.md`
+  - `scripts/pi-host-compatibility-canary.mjs`
+  - `.github/workflows/compatibility-canary.yml`
+  - upstream trigger bridge lives in `~/ai-society/softwareco/contrib/scripts/pi-mono-compatibility-relay.sh`
 - Legacy standalone repo shutdown workflow:
   - `docs/project/legacy-package-deprecation-workflow.md`
 - Legacy transition backlog:

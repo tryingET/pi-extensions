@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "hostPackage": "@mariozechner/pi-coding-agent",
+  "hostCompanionPackages": [
+    "@mariozechner/pi-ai",
+    "@mariozechner/pi-tui"
+  ],
+  "trackedChangelog": "https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md",
+  "defaultProfile": "current",
+  "profiles": {
+    "current": {
+      "description": "Run against the root-owned pinned Pi host contract to confirm the extension monorepo still matches present reality.",
+      "host": {
+        "version": "0.57.1",
+        "reviewAnchor": "npm:@mariozechner/pi-coding-agent@0.57.1"
+      }
+    },
+    "upgrade": {
+      "description": "Run against an explicit candidate Pi host release to validate upgrade readiness before repo-wide dependency bumps or rollout.",
+      "host": {
+        "versionFromEnv": "PI_HOST_COMPAT_HOST_VERSION",
+        "reviewAnchorFromEnv": "PI_HOST_COMPAT_CHANGELOG_REF"
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "interaction-runtime-coexistence",
+      "title": "pi-interaction + PTX coexistence smoke",
+      "owner": "monorepo-root",
+      "why": "Protect the brownfield interaction-runtime path where PTX depends on pi-interaction trigger surfaces without taking editor ownership itself.",
+      "profiles": ["current", "upgrade"],
+      "packages": [
+        "packages/pi-interaction",
+        "packages/pi-prompt-template-accelerator"
+      ],
+      "upstreamSurfaces": [
+        "custom editor mount semantics",
+        "shared trigger broker behavior",
+        "input transform flow"
+      ],
+      "cwd": "packages/pi-prompt-template-accelerator",
+      "command": ["npm", "run", "test:compat:interaction-runtime"],
+      "notes": "Seed canary uses the deterministic non-UI mixed-extension smoke already maintained by PTX."
+    },
+    {
+      "id": "vault-live-trigger-contract",
+      "title": "pi-vault-client live trigger contract",
+      "owner": "monorepo-root",
+      "why": "Protect the cross-package live-trigger seam between pi-vault-client and pi-interaction support packages without requiring a full vault session.",
+      "profiles": ["current", "upgrade"],
+      "packages": [
+        "packages/pi-interaction",
+        "packages/pi-vault-client"
+      ],
+      "upstreamSurfaces": [
+        "shared trigger broker behavior",
+        "live trigger registration",
+        "picker fallback contract"
+      ],
+      "cwd": "packages/pi-vault-client",
+      "command": ["npm", "run", "test:compat:live-trigger-contract"]
+    },
+    {
+      "id": "parallel-tool-event-correlation",
+      "title": "ASC parallel tool event correlation",
+      "owner": "monorepo-root",
+      "why": "Protect the extension most exposed to Pi 0.58 parallel tool-call semantics by proving tool_call/tool_result correlation still preserves actual bash command tracking.",
+      "profiles": ["current", "upgrade"],
+      "packages": [
+        "packages/pi-autonomous-session-control"
+      ],
+      "upstreamSurfaces": [
+        "tool_call preflight ordering",
+        "tool_result correlation",
+        "parallel tool execution"
+      ],
+      "cwd": "packages/pi-autonomous-session-control",
+      "command": ["npm", "run", "test:compat:parallel-tool-events"]
+    }
+  ]
+}

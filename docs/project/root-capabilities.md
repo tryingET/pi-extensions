@@ -20,12 +20,21 @@ system4d:
   - `npm run quality:pre-push`
   - `npm run quality:ci`
   - `npm run check`
-- Shell implementation:
+  - `npm run compat:canary:list`
+  - `npm run compat:canary`
+  - `npm run compat:canary:validate`
+- Shell / script implementation:
   - `scripts/quality-gate.sh`
   - `scripts/ci/smoke.sh`
   - `scripts/ci/full.sh`
   - `scripts/ci/packages.sh`
   - `scripts/package-quality-gate.sh`
+  - `scripts/pi-host-compatibility-canary.mjs`
+- Dedicated CI workflow:
+  - `.github/workflows/compatibility-canary.yml`
+- Root-owned compatibility contract:
+  - `policy/pi-host-compatibility-canary.json`
+  - exact host version + review anchor resolution for each canary profile
 
 ### Local feedback bootstrap
 - `.githooks/pre-commit`
