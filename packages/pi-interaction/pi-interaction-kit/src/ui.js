@@ -123,17 +123,61 @@ let Input = /** @type {InputCtor} */ (DefaultInput);
 let truncateToWidth = defaultTruncateToWidth;
 let visibleWidth = defaultVisibleWidth;
 
+const KEY_NAME_ALIASES = {
+  selectUp: ["tui.select.up", "selectUp"],
+  selectDown: ["tui.select.down", "selectDown"],
+  selectPageUp: ["tui.select.pageUp", "selectPageUp"],
+  selectPageDown: ["tui.select.pageDown", "selectPageDown"],
+  selectConfirm: ["tui.select.confirm", "selectConfirm"],
+  selectCancel: ["tui.select.cancel", "selectCancel"],
+  deleteCharBackward: ["tui.editor.deleteCharBackward", "deleteCharBackward"],
+  deleteCharForward: ["tui.editor.deleteCharForward", "deleteCharForward"],
+};
+
+/** @param {EditorKeybindings} keybindings @param {string} data @param {keyof typeof KEY_NAME_ALIASES} keyName */
+function matchesBinding(keybindings, data, keyName) {
+  return KEY_NAME_ALIASES[keyName].some((alias) => {
+    try {
+      return keybindings.matches(data, alias);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** @param {keyof typeof KEY_NAME_ALIASES} keyName */
+function resolveEditorKeyLabel(keyName) {
+  let fallback = KEY_NAME_ALIASES[keyName][0];
+
+  for (const alias of KEY_NAME_ALIASES[keyName]) {
+    const resolved = editorKey(alias);
+    if (typeof resolved !== "string" || resolved.length === 0) continue;
+    if (resolved !== alias) return resolved;
+    fallback = resolved;
+  }
+
+  return fallback;
+}
+
 /** @type {() => EditorKeybindings} */
 let getEditorKeybindings = () => {
   /** @type {Record<string, string[]>} */
   const keyMap = {
+    "tui.select.up": ["\u001b[A"],
     selectUp: ["\u001b[A"],
+    "tui.select.down": ["\u001b[B"],
     selectDown: ["\u001b[B"],
+    "tui.select.pageUp": ["\u001b[5~"],
     selectPageUp: ["\u001b[5~"],
+    "tui.select.pageDown": ["\u001b[6~"],
     selectPageDown: ["\u001b[6~"],
+    "tui.select.confirm": ["\r", "\n"],
     selectConfirm: ["\r", "\n"],
+    "tui.select.cancel": ["\u001b"],
     selectCancel: ["\u001b"],
+    "tui.editor.deleteCharBackward": ["\x7f", "\b"],
     deleteCharBackward: ["\x7f", "\b"],
+    "tui.editor.deleteCharForward": ["\x1b[3~"],
     deleteCharForward: ["\x1b[3~"],
   };
 
@@ -145,20 +189,27 @@ let getEditorKeybindings = () => {
       if (kitty && kitty.eventType === 3) return false;
 
       switch (keyName) {
+        case "tui.select.up":
         case "selectUp":
           return isArrowSequence(data, "A");
+        case "tui.select.down":
         case "selectDown":
           return isArrowSequence(data, "B");
+        case "tui.select.pageUp":
         case "selectPageUp":
           return PAGE_UP_RE.test(data);
+        case "tui.select.pageDown":
         case "selectPageDown":
           return PAGE_DOWN_RE.test(data);
+        case "tui.select.confirm":
         case "selectConfirm":
           return Boolean(kitty && kitty.codepoint === 13);
+        case "tui.select.cancel":
         case "selectCancel":
           return Boolean(
             kitty && (kitty.codepoint === 27 || (kitty.codepoint === 91 && kitty.modifier >= 5)),
           );
+        case "tui.editor.deleteCharBackward":
         case "deleteCharBackward":
           return Boolean(
             kitty &&
@@ -166,6 +217,7 @@ let getEditorKeybindings = () => {
                 kitty.codepoint === 127 ||
                 (kitty.codepoint === 104 && kitty.modifier >= 5)),
           );
+        case "tui.editor.deleteCharForward":
         case "deleteCharForward":
           return isDeleteSequence(data);
         default:
@@ -276,27 +328,27 @@ class InteractiveFuzzySelector extends BaseContainer {
   handleInput(data) {
     const kb = getEditorKeybindings();
 
-    if (kb.matches(data, "selectUp")) {
+    if (matchesBinding(kb, data, "selectUp")) {
       if (this.filtered.length > 0)
         this.selectedIndex =
           this.selectedIndex === 0 ? this.filtered.length - 1 : this.selectedIndex - 1;
       return;
     }
 
-    if (kb.matches(data, "selectDown")) {
+    if (matchesBinding(kb, data, "selectDown")) {
       if (this.filtered.length > 0)
         this.selectedIndex =
           this.selectedIndex === this.filtered.length - 1 ? 0 : this.selectedIndex + 1;
       return;
     }
 
-    if (kb.matches(data, "selectPageUp")) {
+    if (matchesBinding(kb, data, "selectPageUp")) {
       if (this.filtered.length > 0)
         this.selectedIndex = Math.max(0, this.selectedIndex - this.maxVisible);
       return;
     }
 
-    if (kb.matches(data, "selectPageDown")) {
+    if (matchesBinding(kb, data, "selectPageDown")) {
       if (this.filtered.length > 0)
         this.selectedIndex = Math.min(
           this.filtered.length - 1,
@@ -305,18 +357,18 @@ class InteractiveFuzzySelector extends BaseContainer {
       return;
     }
 
-    if (kb.matches(data, "selectConfirm")) {
+    if (matchesBinding(kb, data, "selectConfirm")) {
       const current = this.filtered[this.selectedIndex];
       if (current) this.onSelect?.(current);
       return;
     }
 
-    if (kb.matches(data, "selectCancel")) {
+    if (matchesBinding(kb, data, "selectCancel")) {
       this.onCancel?.();
       return;
     }
 
-    if (data === "\x7f" || data === "\b" || kb.matches(data, "deleteCharBackward")) {
+    if (data === "\x7f" || data === "\b" || matchesBinding(kb, data, "deleteCharBackward")) {
       const before = this.input.getValue();
       this.input.handleInput("\x7f");
       const after = this.input.getValue();
@@ -327,7 +379,7 @@ class InteractiveFuzzySelector extends BaseContainer {
       return;
     }
 
-    if (data === "\x1b[3~" || kb.matches(data, "deleteCharForward")) {
+    if (data === "\x1b[3~" || matchesBinding(kb, data, "deleteCharForward")) {
       const before = this.input.getValue();
       this.input.handleInput("\x7f");
       const after = this.input.getValue();
@@ -420,10 +472,10 @@ class InteractiveFuzzySelector extends BaseContainer {
         lines.push(boxLine(`  (${this.selectedIndex + 1}/${total})`, innerWidth, side));
     }
 
-    const up = prettyKey(editorKey("selectUp"));
-    const down = prettyKey(editorKey("selectDown"));
-    const confirm = prettyKey(editorKey("selectConfirm"));
-    const cancel = prettyKey(editorKey("selectCancel"));
+    const up = prettyKey(resolveEditorKeyLabel("selectUp"));
+    const down = prettyKey(resolveEditorKeyLabel("selectDown"));
+    const confirm = prettyKey(resolveEditorKeyLabel("selectConfirm"));
+    const cancel = prettyKey(resolveEditorKeyLabel("selectCancel"));
     lines.push(
       boxLine(` ${up} ${down} navigate • ${confirm} select • ${cancel} cancel`, innerWidth, side),
     );
