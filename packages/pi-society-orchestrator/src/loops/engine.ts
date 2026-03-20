@@ -594,6 +594,12 @@ Available loops:
 
 Each phase injects the appropriate cognitive tool and dispatches an agent.
 Results are recorded to diary/ and evidence ledger.`,
+    promptSnippet:
+      "Run a structured cognitive loop such as ooda, strategic, kaizen, adkar, or transcendent.",
+    promptGuidelines: [
+      "Use loop_execute when the user needs a multi-phase reasoning and execution pattern rather than a single step.",
+      "Choose the loop that matches the decision structure instead of inventing an ad-hoc sequence.",
+    ],
     parameters: Type.Object({
       loop: Type.Union(
         [

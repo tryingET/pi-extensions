@@ -50,6 +50,11 @@ import {
 import { registerSubagentDashboard } from "./self/subagent-dashboard.ts";
 import type { SelfState } from "./self/types.ts";
 
+type CompatToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0] & {
+  promptSnippet?: string;
+  promptGuidelines?: string[];
+};
+
 // ============================================================================
 // EXTENSION SESSION STATE HELPERS
 // ============================================================================
@@ -194,7 +199,7 @@ function registerSelfTool(
   state: SelfState,
   memoryLifecycle: SelfMemoryLifecycle,
 ): void {
-  pi.registerTool({
+  const tool: CompatToolDefinition = {
     name: "self",
     label: "Self-Perception Mirror",
     description: `Query your own operational state. Ask questions about what you've done, what patterns you're in, and what you've learned.
@@ -208,6 +213,12 @@ Examples:
 - self({ query: "Mark as trap: [description]" })
 
 This is a mirror, not a manager. You ask, you receive, you decide.`,
+    promptSnippet:
+      "Inspect your current execution state, progress, memory, loops, and recent operations.",
+    promptGuidelines: [
+      "Use self when you need to verify what work has actually happened before planning the next step.",
+      "Use self for loop checks, progress checks, file-touch summaries, and explicit remember/mark-trap directives.",
+    ],
     parameters: Type.Object({
       query: Type.String({
         description:
@@ -218,11 +229,14 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       await memoryLifecycle.ready;
 
+      const typedParams = params as { query: string; context?: Record<string, unknown> };
       const context =
-        params.context && typeof params.context === "object" && !Array.isArray(params.context)
-          ? (params.context as Record<string, unknown>)
+        typedParams.context &&
+        typeof typedParams.context === "object" &&
+        !Array.isArray(typedParams.context)
+          ? typedParams.context
           : undefined;
-      const response = resolveQuery({ query: params.query, context }, state);
+      const response = resolveQuery({ query: typedParams.query, context }, state);
 
       if (response.intent === "crystallization" || response.intent === "protection") {
         try {
@@ -251,7 +265,9 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         },
       };
     },
-  });
+  };
+
+  pi.registerTool(tool);
 }
 
 // ============================================================================

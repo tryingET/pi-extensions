@@ -298,6 +298,11 @@ Actions:
 - run_test: Execute A/B test with judge evaluation
 
 Use to systematically improve prompts through experimentation.`,
+    promptSnippet: "A/B test prompt variants and compare them with judge-based evaluation.",
+    promptGuidelines: [
+      "Use prompt_eval when improving prompt wording or structure is the task itself.",
+      "List variants before running tests if you are not sure which variant IDs exist.",
+    ],
     parameters: Type.Object({
       action: Type.Union([
         Type.Literal("create_variant"),

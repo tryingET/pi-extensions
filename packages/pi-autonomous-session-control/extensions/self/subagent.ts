@@ -36,6 +36,11 @@ export {
 };
 export type { SubagentState, SubagentDef, SubagentResult, SubagentSpawner };
 
+type CompatToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0] & {
+  promptSnippet?: string;
+  promptGuidelines?: string[];
+};
+
 interface SubagentResultDetails {
   profile?: string;
   objective?: string;
@@ -58,7 +63,7 @@ export function registerSubagentTool(
   modelProvider: () => string,
   spawner: SubagentSpawner = spawnSubagent,
 ): void {
-  pi.registerTool({
+  const tool: CompatToolDefinition = {
     name: "dispatch_subagent",
     label: "Dispatch Subagent",
     description: `Spawn a specialized subagent to work on a specific objective. Subagents run in parallel and return their results.
@@ -82,6 +87,12 @@ Prompt envelope (optional):
 - prompt_name / prompt_content / prompt_tags / prompt_source
 - If prompt_content is provided, it is prepended deterministically to the effective system prompt.
 - Provenance is returned in details as prompt_name, prompt_source, prompt_tags, prompt_applied.`,
+    promptSnippet:
+      "Spawn a focused subagent for parallel investigation, review, testing, or research.",
+    promptGuidelines: [
+      "Use dispatch_subagent when parallel work will reduce risk or latency versus doing the investigation yourself inline.",
+      "Pick the narrowest profile and objective that will produce a useful intermediate result you can inspect before proceeding.",
+    ],
     parameters: Type.Object({
       profile: Type.Union(
         [
@@ -332,7 +343,9 @@ Prompt envelope (optional):
 
       return new Text(header, 0, 0);
     },
-  });
+  };
+
+  pi.registerTool(tool);
 }
 
 export { registerSubagentCommands } from "./subagent-commands.ts";

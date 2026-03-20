@@ -133,6 +133,10 @@ export function registerVaultDiagnosticsTool(pi, runtime) {
 
 Use when /vault or vault tools may be unavailable due to schema drift.
 Reports expected vs actual schema version plus missing prompt/execution/feedback columns.`,
+        promptSnippet: "Inspect Prompt Vault schema compatibility for this runtime.",
+        promptGuidelines: [
+            "Use vault_schema_diagnostics when vault tools may be failing due to local schema drift.",
+        ],
         parameters: Type.Object({}),
         async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
             const executionContext = resolveToolExecutionContext(runtime, ctx);
@@ -179,6 +183,11 @@ Examples:
 - vault_query({ artifact_kind: ["session"] })
 - vault_query({ intent_text: "simplify and make retrieval feel almost alien" })
 - vault_query({ controlled_vocabulary: { routing_context: ["review_followup"] }, include_governance: true })`,
+        promptSnippet: "Query Prompt Vault templates by facets, vocabulary, and intent.",
+        promptGuidelines: [
+            "Use vault_query to discover candidate templates before retrieving or executing a specific one.",
+            "Keep visibility company aligned with the active company context; cross-company overrides fail closed.",
+        ],
         parameters: Type.Object({
             artifact_kind: Type.Optional(Type.Array(Type.String())),
             control_mode: Type.Optional(Type.Array(Type.String())),
@@ -325,6 +334,10 @@ Examples:
 Use when you know the exact template names and need their content.
 Retrieval is filtered by current visibility context.
 Example: vault_retrieve({ names: ["inversion", "nexus"], include_content: true })`,
+        promptSnippet: "Retrieve Prompt Vault templates by exact name.",
+        promptGuidelines: [
+            "Use vault_retrieve after you already know the exact template names you need.",
+        ],
         parameters: Type.Object({
             names: Type.Array(Type.String(), { description: "Template names to retrieve" }),
             include_content: Type.Optional(Type.Boolean({ description: "Include full content (default: true)" })),
@@ -408,6 +421,10 @@ Use to inspect the governed contract surfaces before querying or inserting templ
 This output reflects Prompt Vault contracts rather than ad-hoc row-derived tags.
 
 Example: vault_vocabulary()`,
+        promptSnippet: "List the governed vocabulary and contract values used by Prompt Vault.",
+        promptGuidelines: [
+            "Use vault_vocabulary before inserts or updates when you need canonical governed values.",
+        ],
         parameters: Type.Object({}),
         async execute() {
             const vocab = runtime.getVocabulary();
@@ -445,6 +462,11 @@ Fails closed when the exact template name already exists; use vault_update for e
 
 Example:
 - vault_insert({ name: "my-router", content: "...", artifact_kind: "procedure", control_mode: "router", formalization_level: "structured", owner_company: "core", visibility_companies: ["core", "software"], controlled_vocabulary: { routing_context: "review_followup", activity_phase: "post_review", input_artifact: "review_findings", transition_target_type: "framework_mode", selection_principles: ["constraint_preserving"], output_commitment: "exact_next_prompt" } })`,
+        promptSnippet: "Insert a new governed Prompt Vault template.",
+        promptGuidelines: [
+            "Use vault_insert only for new templates; use vault_update for existing names.",
+            "Confirm ontology facets and visibility settings before mutating shared vault state.",
+        ],
         parameters: Type.Object({
             name: Type.String({ description: "Template name (unique identifier)" }),
             content: Type.String({ description: "Template content (markdown)" }),
@@ -530,6 +552,10 @@ This first slice avoids fuzzy matching, bulk mutation, rename behavior, and owne
 
 Example:
 - vault_update({ name: "my-router", description: "Refined router guidance", controlled_vocabulary: { selection_principles: ["constraint_preserving", "minimal_change"] } })`,
+        promptSnippet: "Update an existing Prompt Vault template in place by exact name.",
+        promptGuidelines: [
+            "Use vault_update for in-place refinement of an existing template instead of reinserting it.",
+        ],
         parameters: Type.Object({
             name: Type.String({ description: "Template name to update (exact match)" }),
             content: Type.Optional(Type.String({ description: "Updated template content (markdown)" })),
@@ -588,6 +614,10 @@ Example:
 
 Uses the local receipt replay core to classify match, drift, or unavailable without inventing new replay semantics.
 Example: vault_replay({ execution_id: 42 })`,
+        promptSnippet: "Replay a local Prompt Vault execution receipt by exact execution ID.",
+        promptGuidelines: [
+            "Use vault_replay when you need to inspect local execution drift or verify a prior vault run.",
+        ],
         parameters: Type.Object({
             execution_id: Type.Number({ description: "Exact execution id to replay" }),
         }),
@@ -645,6 +675,10 @@ Example: vault_replay({ execution_id: 42 })`,
 
 Use before vault_rate so feedback can bind to a specific execution instead of a template name.
 Example: vault_executions({ template_name: "nexus", limit: 10 })`,
+        promptSnippet: "List recent visible Prompt Vault executions with exact execution IDs.",
+        promptGuidelines: [
+            "Use vault_executions before vault_rate so feedback binds to a specific execution.",
+        ],
         parameters: Type.Object({
             template_name: Type.Optional(Type.String({ description: "Optional exact template name filter" })),
             limit: Type.Optional(Type.Number({ description: "Max results (default: 20)" })),
@@ -789,6 +823,10 @@ Use vault_executions first, then pass the exact execution_id so feedback binds t
 Rating: 1-5 (1=poor, 5=excellent)
 
 Example: vault_rate({ execution_id: 42, rating: 4, success: true, notes: "Found root cause quickly" })`,
+        promptSnippet: "Rate a specific Prompt Vault execution after use.",
+        promptGuidelines: [
+            "Use vault_rate only after identifying the exact execution with vault_executions.",
+        ],
         parameters: Type.Object({
             execution_id: Type.Number({ description: "Exact execution id to rate" }),
             rating: Type.Number({ description: "Rating 1-5" }),

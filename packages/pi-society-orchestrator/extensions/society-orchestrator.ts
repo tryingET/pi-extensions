@@ -121,6 +121,11 @@ export default function (pi: ExtensionAPI) {
     name: "society_query",
     label: "Society Query",
     description: "Execute a read-only diagnostic SQL query against society.db.",
+    promptSnippet: "Run a read-only diagnostic SQL query against society.db.",
+    promptGuidelines: [
+      "Use society_query for diagnostic reads against society.db instead of inventing schema details.",
+      "Keep queries read-only and reasonably scoped so results stay inspectable.",
+    ],
     parameters: Type.Object({
       query: Type.String({ description: "Read-only SQL query to execute" }),
     }),
@@ -191,6 +196,12 @@ export default function (pi: ExtensionAPI) {
 4. Records the decision in the evidence ledger
 
 This is cognitive-first dispatch — think about HOW to think before acting.`,
+    promptSnippet:
+      "Dispatch an agent with an injected cognitive tool chosen for the current problem.",
+    promptGuidelines: [
+      "Use cognitive_dispatch when the main risk is choosing the wrong thinking pattern, not just the wrong action.",
+      "Provide enough situation context for tool and agent selection to be meaningful.",
+    ],
     parameters: Type.Object({
       context: Type.String({ description: "The situation or problem context" }),
       agent: Type.Optional(Type.String({ description: "Agent to use (default: auto-select)" })),
@@ -394,6 +405,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     name: "evidence_record",
     label: "Record Evidence",
     description: "Record evidence in the society.db evidence ledger.",
+    promptSnippet: "Record a pass/fail/skip evidence entry in the society evidence ledger.",
+    promptGuidelines: [
+      "Use evidence_record after a meaningful check or execution outcome you want preserved in the ledger.",
+    ],
     parameters: Type.Object({
       check_type: Type.String({
         description: "Type of check (e.g., 'validation:test', 'cognitive:inversion')",
@@ -440,6 +455,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     name: "ontology_context",
     label: "Ontology Context",
     description: "Get relevant ontology concepts for a company or concern.",
+    promptSnippet: "Retrieve ontology concepts relevant to a company, concern, or search term.",
+    promptGuidelines: [
+      "Use ontology_context when you need governed vocabulary or concept grounding before making society-level decisions.",
+    ],
     parameters: Type.Object({
       concept: Type.Optional(Type.String({ description: "Specific concept to look up" })),
       search: Type.Optional(Type.String({ description: "Search query" })),
