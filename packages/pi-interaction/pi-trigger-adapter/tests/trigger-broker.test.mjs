@@ -444,5 +444,32 @@ describe("TriggerBroker", () => {
       assert.equal(firedB, true);
       assert.deepEqual(seenSessionKeys.sort(), ["editor-a", "editor-b"]);
     });
+
+    it("should settle superseded debounce promises and only fire the latest input per session", async () => {
+      const seenInputs = [];
+      broker.register({
+        id: "test",
+        description: "Test",
+        match: /^\/vault:(.*)$/,
+        debounceMs: 20,
+        handler: async (match, _context, api) => {
+          seenInputs.push({
+            query: match.groups?.[0] ?? "",
+            sessionKey: api.ctx.sessionKey,
+          });
+        },
+      });
+
+      const api = makeApi("editor-a");
+      broker.setAPI(api);
+
+      const firstPending = broker.checkAndFire(contextFromText("/vault:n", "editor-a"), api);
+      const secondPending = broker.checkAndFire(contextFromText("/vault:nex", "editor-a"), api);
+      const [firstResult, secondResult] = await Promise.all([firstPending, secondPending]);
+
+      assert.equal(firstResult, false);
+      assert.equal(secondResult, true);
+      assert.deepEqual(seenInputs, [{ query: "nex", sessionKey: "editor-a" }]);
+    });
   });
 });

@@ -151,7 +151,7 @@ export class TriggerBroker {
     });
     /** @type {Map<string, RegisteredTrigger>} */
     this.triggers = new Map();
-    /** @type {Map<string, ReturnType<typeof setTimeout>>} */
+    /** @type {Map<string, { timeout: ReturnType<typeof setTimeout>, resolve: (value: boolean) => void }>} */
     this.debounceTimers = new Map();
     /** @type {TriggerAPI|null} */
     this.api = null;
@@ -203,9 +203,10 @@ export class TriggerBroker {
    */
   clearDebounceTimersForTrigger(triggerId) {
     const prefix = `${triggerId}::`;
-    for (const [key, timer] of this.debounceTimers.entries()) {
+    for (const [key, entry] of this.debounceTimers.entries()) {
       if (key === triggerId || key.startsWith(prefix)) {
-        clearTimeout(timer);
+        clearTimeout(entry.timeout);
+        entry.resolve(false);
         this.debounceTimers.delete(key);
       }
     }
@@ -347,18 +348,19 @@ export class TriggerBroker {
           const debounceKey = this.buildDebounceKey(trigger.id, context, dispatchApi);
           const existing = this.debounceTimers.get(debounceKey);
           if (existing) {
-            clearTimeout(existing);
+            clearTimeout(existing.timeout);
+            existing.resolve(false);
+            this.debounceTimers.delete(debounceKey);
           }
 
           return new Promise((resolve) => {
-            this.debounceTimers.set(
-              debounceKey,
-              setTimeout(async () => {
-                this.debounceTimers.delete(debounceKey);
-                const fired = await this.fireTrigger(trigger, match, context, dispatchApi);
-                resolve(fired);
-              }, debounceMs),
-            );
+            const timeout = setTimeout(async () => {
+              this.debounceTimers.delete(debounceKey);
+              const fired = await this.fireTrigger(trigger, match, context, dispatchApi);
+              resolve(fired);
+            }, debounceMs);
+
+            this.debounceTimers.set(debounceKey, { timeout, resolve });
           });
         } else {
           return this.fireTrigger(trigger, match, context, dispatchApi);
@@ -486,8 +488,9 @@ export class TriggerBroker {
    * Clear all triggers.
    */
   clear() {
-    for (const timer of this.debounceTimers.values()) {
-      clearTimeout(timer);
+    for (const entry of this.debounceTimers.values()) {
+      clearTimeout(entry.timeout);
+      entry.resolve(false);
     }
     this.debounceTimers.clear();
     this.triggers.clear();
