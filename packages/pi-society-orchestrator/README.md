@@ -30,6 +30,20 @@ This package was scaffolded from [`../pi-extensions-template`](../pi-extensions-
 
 That means the package is still carrying some brownfield transition code while it converges toward the layered architecture above.
 
+## Workspace placement
+
+For workspace-level placement and source hierarchy, read:
+- `~/ai-society/holdingco/governance-kernel/docs/core/definitions/ai-society-stack-map.md`
+- `~/ai-society/holdingco/governance-kernel/docs/core/definitions/s3-governance-semantics.md`
+- `~/ai-society/holdingco/governance-kernel/docs/dev/loops-plugin-system.md`
+- `~/ai-society/softwareco/owned/agent-kernel/docs/project/ai-society-convergence-architecture.md`
+
+Important distinction:
+- this package owns **package-local coordination/control-plane behavior**
+- `pi-autonomous-session-control` owns the stronger **execution-plane runtime**
+- FCOS/loops registry docs in governance-kernel own the **workspace-wide loop/control-board model**
+- MITO/S3.0 semantics live in governance-kernel definitions and source-linked docs, not in this package by itself
+
 ## Phase A architecture findings
 
 Before any new UI or extraction moves, Phase A capability discovery established that:

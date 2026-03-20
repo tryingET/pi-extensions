@@ -15,6 +15,19 @@ Monorepo-home package for subagent lifecycle hardening, failure recovery, and op
 
 Canonical package path: `packages/pi-autonomous-session-control`
 
+## Workspace placement
+
+For workspace-level placement and ownership boundaries, read:
+- `~/ai-society/holdingco/governance-kernel/docs/core/definitions/ai-society-stack-map.md`
+- `~/ai-society/softwareco/owned/agent-kernel/docs/project/ai-society-convergence-architecture.md`
+- `~/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator/docs/decisions/2026-03-10-control-plane-boundaries.md`
+
+Short version:
+- this package is the strongest current **Pi-side execution/runtime owner**
+- it is not the canonical society-state authority (`ak`/AK own that)
+- it is not the workspace-wide control board (FCOS/governance-kernel own that)
+- package-local control-plane coordination belongs in `pi-society-orchestrator`
+
 ## Quickstart
 
 1. Install dependencies:
