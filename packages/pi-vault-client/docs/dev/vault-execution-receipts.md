@@ -22,6 +22,8 @@ Canonical queue state and detailed task payloads now live in Agent Kernel task r
 ### Implementation status snapshot
 As of the current package runtime:
 
+For the bounded v4 initiative-facing authority read, also see [V4 runtime-receipts runtime-target binding](./v4-runtime-receipts-runtime-target-binding.md). That note preserves the current truth that `pi-vault-client` remains canonical for receipt/runtime behavior while AK-visible bindings stay projection-only.
+
 - receipt types, builder helpers, and a local JSONL sink are implemented
 - `logExecution()` returns concrete execution metadata including `execution_id`
 - `/vault`, live `/vault:`, `/route`, and grounding emit local receipts after execution binding

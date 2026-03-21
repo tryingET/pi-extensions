@@ -339,6 +339,7 @@ npm run docs:list:json
 - [Project resources](docs/project/resources.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
 - [Vault execution receipts architecture](docs/dev/vault-execution-receipts.md)
+- [V4 runtime-receipts runtime-target binding](docs/dev/v4-runtime-receipts-runtime-target-binding.md)
 - [Prompt Vault v9 cutover](docs/dev/v9-cutover.md)
 - [Historical Prompt Vault relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
 - [Live render-engine validation](docs/dev/live-render-engine-validation.md)
@@ -348,4 +349,5 @@ npm run docs:list:json
 - [Replay surface diary](diary/2026-03-12-vre-09-replay-surface.md)
 - [Replay docs/tests diary](diary/2026-03-12-vre-10-docs-tests.md)
 - [Previous receipt hardening diary](diary/2026-03-12-receipt-hardening.md)
+- [V4 runtime-receipts binding diary](diary/2026-03-21-v4-runtime-receipts-runtime-target-binding.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)
