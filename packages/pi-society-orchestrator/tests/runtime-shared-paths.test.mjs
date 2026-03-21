@@ -317,7 +317,43 @@ printf '%s' '{"type":"message_end","message":{"role":"assistant","content":[{"ty
   }
 });
 
-test("spawnPiSubagent surfaces malformed event streams explicitly", async () => {
+test("spawnPiSubagent ignores non-JSON stdout noise when assistant completes cleanly", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-noisy-"));
+  const piPath = path.join(tempDir, "pi");
+  const sessionFile = path.join(tempDir, "session.json");
+  const previousPath = process.env.PATH;
+
+  fs.writeFileSync(
+    piPath,
+    `#!/usr/bin/env bash
+printf '\nchanged 1 package in 123ms\n\n'
+printf '%s\n' '{"type":"session","version":3,"id":"x","timestamp":"2026-03-21T00:00:00.000Z","cwd":"/tmp"}'
+printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"coherent output"}],"stopReason":"stop"}}'
+`,
+  );
+  fs.chmodSync(piPath, 0o755);
+
+  try {
+    process.env.PATH = `${tempDir}:${previousPath || ""}`;
+    const result = await spawnPiSubagent({
+      tools: "read",
+      systemPrompt: "ROLE: test",
+      objective: "Say hello",
+      model: "mock/provider",
+      sessionFile,
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.assistantStopReason, "stop");
+    assert.equal(result.output, "coherent output");
+    assert.match(result.stderr || "", /Ignored 1 non-JSON stdout line/);
+  } finally {
+    process.env.PATH = previousPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnPiSubagent surfaces malformed JSON event streams explicitly", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-malformed-"));
   const piPath = path.join(tempDir, "pi");
   const sessionFile = path.join(tempDir, "session.json");
@@ -326,7 +362,7 @@ test("spawnPiSubagent surfaces malformed event streams explicitly", async () => 
   fs.writeFileSync(
     piPath,
     `#!/usr/bin/env bash
-printf '%s' 'not-json'
+printf '%s' '{not-json'
 `,
   );
   fs.chmodSync(piPath, 0o755);
@@ -344,6 +380,40 @@ printf '%s' 'not-json'
     assert.equal(result.exitCode, 1);
     assert.match(result.output, /Failed to parse 1 pi JSON event line/);
     assert.match(result.stderr || "", /Failed to parse 1 pi JSON event line/);
+  } finally {
+    process.env.PATH = previousPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnPiSubagent propagates assistant stop-reason failures even when pi exits zero", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-stopreason-"));
+  const piPath = path.join(tempDir, "pi");
+  const sessionFile = path.join(tempDir, "session.json");
+  const previousPath = process.env.PATH;
+
+  fs.writeFileSync(
+    piPath,
+    `#!/usr/bin/env bash
+printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}}'
+`,
+  );
+  fs.chmodSync(piPath, 0o755);
+
+  try {
+    process.env.PATH = `${tempDir}:${previousPath || ""}`;
+    const result = await spawnPiSubagent({
+      tools: "read",
+      systemPrompt: "ROLE: test",
+      objective: "Say hello",
+      model: "mock/provider",
+      sessionFile,
+    });
+
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.assistantStopReason, "error");
+    assert.equal(result.assistantErrorMessage, "boom");
+    assert.equal(result.output, "boom");
   } finally {
     process.env.PATH = previousPath;
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -554,14 +624,19 @@ test("session team store refuses to persist team selections without session iden
   assert.equal(store.getTeam(undefined), "full");
 });
 
-test("execution status classifier treats timeout and abort as failures", () => {
+test("execution status classifier treats transport and assistant stop reasons as failures", () => {
   assert.equal(getExecutionStatus({ exitCode: 0 }), "done");
   assert.equal(getExecutionStatus({ exitCode: 0, timedOut: true }), "timed_out");
   assert.equal(getExecutionStatus({ exitCode: 0, aborted: true }), "aborted");
   assert.equal(getExecutionStatus({ exitCode: 1 }), "error");
+  assert.equal(getExecutionStatus({ exitCode: 0, assistantStopReason: "stop" }), "done");
+  assert.equal(getExecutionStatus({ exitCode: 0, assistantStopReason: "error" }), "error");
+  assert.equal(getExecutionStatus({ exitCode: 0, assistantStopReason: "aborted" }), "aborted");
+  assert.equal(getExecutionStatus({ exitCode: 0, assistantStopReason: "toolUse" }), "error");
   assert.equal(isExecutionSuccess({ exitCode: 0 }), true);
   assert.equal(isExecutionSuccess({ exitCode: 0, timedOut: true }), false);
   assert.equal(isExecutionSuccess({ exitCode: 0, aborted: true }), false);
+  assert.equal(isExecutionSuccess({ exitCode: 0, assistantStopReason: "error" }), false);
 });
 
 test("finalizeExecutionEffects skips evidence writes for aborted executions", async () => {

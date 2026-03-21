@@ -1,3 +1,4 @@
+import type { AssistantStopReason, ExecutionLike } from "./execution-status.ts";
 import { superviseProcess } from "./process-supervisor.ts";
 
 export interface SpawnPiSubagentParams {
@@ -12,13 +13,10 @@ export interface SpawnPiSubagentParams {
   maxEventBufferBytes?: number;
 }
 
-export interface SpawnPiSubagentResult {
+export interface SpawnPiSubagentResult extends ExecutionLike {
   output: string;
-  exitCode: number;
   elapsed: number;
   stderr?: string;
-  aborted?: boolean;
-  timedOut?: boolean;
   outputTruncated?: boolean;
 }
 
@@ -48,28 +46,48 @@ function consumePiEventLine(params: {
   line: string;
   appendTextDelta: (value: string) => void;
   setFinalAssistantText: (value: string) => void;
-}): string | undefined {
-  if (!params.line.trim()) {
-    return undefined;
+  setFinalAssistantState: (state: {
+    stopReason?: AssistantStopReason;
+    errorMessage?: string;
+  }) => void;
+}): { parseError?: string; ignoredNonJsonLine?: string } {
+  const trimmed = params.line.trim();
+  if (!trimmed) {
+    return {};
+  }
+
+  if (!trimmed.startsWith("{")) {
+    return { ignoredNonJsonLine: trimmed };
   }
 
   try {
-    const event = JSON.parse(params.line);
+    const event = JSON.parse(trimmed);
     if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
       params.appendTextDelta(event.assistantMessageEvent.delta || "");
-      return undefined;
+      return {};
     }
 
     if (event.type === "message_end" && event.message?.role === "assistant") {
+      params.setFinalAssistantState({
+        stopReason:
+          typeof event.message.stopReason === "string"
+            ? (event.message.stopReason as AssistantStopReason)
+            : undefined,
+        errorMessage:
+          typeof event.message.errorMessage === "string" ? event.message.errorMessage : undefined,
+      });
+
       const text = extractAssistantText(event.message.content);
       if (text) {
         params.setFinalAssistantText(text);
       }
     }
 
-    return undefined;
+    return {};
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    return {
+      parseError: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -125,8 +143,12 @@ export async function spawnPiSubagent(
   let stdoutBuffer = "";
   let streamedAssistantText = "";
   let finalAssistantText = "";
+  let finalAssistantStopReason: AssistantStopReason | undefined;
+  let finalAssistantErrorMessage: string | undefined;
   let assistantOutputTruncated = false;
   const parseErrors: string[] = [];
+  const ignoredNonJsonStdoutLines: string[] = [];
+  let ignoredNonJsonStdoutCount = 0;
 
   const appendAssistantText = (value: string) => {
     const bounded = appendBoundedString(streamedAssistantText, value, maxOutputChars);
@@ -138,6 +160,26 @@ export async function spawnPiSubagent(
     const bounded = appendBoundedString("", value, maxOutputChars);
     finalAssistantText = bounded.value;
     assistantOutputTruncated = assistantOutputTruncated || bounded.truncated;
+  };
+
+  const setFinalAssistantState = (state: {
+    stopReason?: AssistantStopReason;
+    errorMessage?: string;
+  }) => {
+    finalAssistantStopReason = state.stopReason;
+    finalAssistantErrorMessage = state.errorMessage;
+  };
+
+  const handlePiEventParse = (parsed: { parseError?: string; ignoredNonJsonLine?: string }) => {
+    if (parsed.parseError) {
+      parseErrors.push(parsed.parseError);
+    }
+    if (parsed.ignoredNonJsonLine) {
+      ignoredNonJsonStdoutCount += 1;
+      if (ignoredNonJsonStdoutLines.length < 3) {
+        ignoredNonJsonStdoutLines.push(parsed.ignoredNonJsonLine.slice(0, 200));
+      }
+    }
   };
 
   const result = await superviseProcess({
@@ -160,32 +202,39 @@ export async function spawnPiSubagent(
       stdoutBuffer = lines.pop() || "";
 
       for (const line of lines) {
-        const parseError = consumePiEventLine({
-          line,
-          appendTextDelta: appendAssistantText,
-          setFinalAssistantText,
-        });
-        if (parseError) {
-          parseErrors.push(parseError);
-        }
+        handlePiEventParse(
+          consumePiEventLine({
+            line,
+            appendTextDelta: appendAssistantText,
+            setFinalAssistantText,
+            setFinalAssistantState,
+          }),
+        );
       }
     },
   });
 
   if (stdoutBuffer.trim()) {
-    const parseError = consumePiEventLine({
-      line: stdoutBuffer,
-      appendTextDelta: appendAssistantText,
-      setFinalAssistantText,
-    });
-    if (parseError) {
-      parseErrors.push(parseError);
-    }
+    handlePiEventParse(
+      consumePiEventLine({
+        line: stdoutBuffer,
+        appendTextDelta: appendAssistantText,
+        setFinalAssistantText,
+        setFinalAssistantState,
+      }),
+    );
   }
 
   const parseErrorSummary =
     parseErrors.length > 0 ? `Failed to parse ${parseErrors.length} pi JSON event line(s).` : "";
   const parseErrorDetails = parseErrors.slice(0, 3).join("\n");
+  const ignoredStdoutSummary =
+    ignoredNonJsonStdoutCount > 0
+      ? `Ignored ${ignoredNonJsonStdoutCount} non-JSON stdout line(s) while parsing pi JSON mode.`
+      : "";
+  const ignoredStdoutDetails = ignoredNonJsonStdoutLines
+    .map((line) => `stdout noise: ${line}`)
+    .join("\n");
   const truncationSummary = [
     result.stdoutTruncated ? "Process stdout capture truncated." : "",
     result.stderrTruncated ? "Process stderr capture truncated." : "",
@@ -193,14 +242,25 @@ export async function spawnPiSubagent(
   ]
     .filter(Boolean)
     .join("\n");
-  const combinedStderr = [result.stderr, parseErrorSummary, parseErrorDetails, truncationSummary]
+  const combinedStderr = [
+    result.stderr,
+    ignoredStdoutSummary,
+    ignoredStdoutDetails,
+    parseErrorSummary,
+    parseErrorDetails,
+    truncationSummary,
+  ]
     .filter(Boolean)
     .join("\n");
   const fallbackOutput = result.aborted
     ? "Subagent aborted."
     : result.timedOut
       ? `Subagent timed out after ${params.timeoutMs ?? DEFAULT_PI_SUBAGENT_TIMEOUT_MS}ms.`
-      : combinedStderr || `pi exited with code ${result.exitCode}`;
+      : finalAssistantStopReason === "error"
+        ? finalAssistantErrorMessage || combinedStderr || `pi exited with code ${result.exitCode}`
+        : finalAssistantStopReason === "aborted"
+          ? finalAssistantErrorMessage || "Subagent aborted."
+          : combinedStderr || `pi exited with code ${result.exitCode}`;
 
   const protocolFailed = parseErrors.length > 0;
   const protocolAwareOutput = protocolFailed
@@ -211,14 +271,22 @@ export async function spawnPiSubagent(
   const output = assistantOutputTruncated
     ? `${protocolAwareOutput}\n\n...[assistant output truncated]`
     : protocolAwareOutput;
+  const semanticExitCode =
+    finalAssistantStopReason === "error"
+      ? 1
+      : finalAssistantStopReason === "aborted"
+        ? 130
+        : result.exitCode;
 
   return {
     output,
-    exitCode: protocolFailed ? 1 : result.exitCode,
+    exitCode: protocolFailed ? 1 : semanticExitCode,
     elapsed: result.elapsed,
     stderr: combinedStderr || undefined,
-    aborted: result.aborted,
+    aborted: result.aborted || finalAssistantStopReason === "aborted",
     timedOut: result.timedOut,
+    assistantStopReason: finalAssistantStopReason,
+    assistantErrorMessage: finalAssistantErrorMessage,
     outputTruncated: assistantOutputTruncated || result.stdoutTruncated || result.stderrTruncated,
   };
 }
