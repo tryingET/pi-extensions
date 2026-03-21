@@ -1,4 +1,8 @@
-import type { AssistantStopReason, ExecutionLike } from "./execution-status.ts";
+import {
+  type AssistantStopReason,
+  type ExecutionLike,
+  isAssistantStopReason,
+} from "./execution-status.ts";
 import { superviseProcess } from "./process-supervisor.ts";
 
 export interface SpawnPiSubagentParams {
@@ -26,6 +30,8 @@ const DEFAULT_PI_OUTPUT_CHARS =
   Number.parseInt(process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS || "", 10) || 64_000;
 const DEFAULT_PI_EVENT_BUFFER_BYTES =
   Number.parseInt(process.env.PI_ORCH_SUBAGENT_EVENT_BUFFER_BYTES || "", 10) || 256 * 1024;
+const ASSISTANT_ERROR_EXIT_CODE = 1;
+const ASSISTANT_ABORT_EXIT_CODE = 130;
 
 function extractAssistantText(content: unknown): string {
   if (!Array.isArray(content)) {
@@ -68,19 +74,30 @@ function consumePiEventLine(params: {
     }
 
     if (event.type === "message_end" && event.message?.role === "assistant") {
-      params.setFinalAssistantState({
-        stopReason:
-          typeof event.message.stopReason === "string"
-            ? (event.message.stopReason as AssistantStopReason)
-            : undefined,
-        errorMessage:
-          typeof event.message.errorMessage === "string" ? event.message.errorMessage : undefined,
-      });
+      const rawStopReason = event.message.stopReason;
+      const stopReason =
+        rawStopReason === undefined
+          ? undefined
+          : isAssistantStopReason(rawStopReason)
+            ? rawStopReason
+            : null;
 
       const text = extractAssistantText(event.message.content);
       if (text) {
         params.setFinalAssistantText(text);
       }
+
+      if (stopReason === null) {
+        return {
+          parseError: `Unknown assistant stop reason from pi JSON protocol: ${String(rawStopReason)}`,
+        };
+      }
+
+      params.setFinalAssistantState({
+        stopReason,
+        errorMessage:
+          typeof event.message.errorMessage === "string" ? event.message.errorMessage : undefined,
+      });
     }
 
     return {};
@@ -88,6 +105,40 @@ function consumePiEventLine(params: {
     return {
       parseError: error instanceof Error ? error.message : String(error),
     };
+  }
+}
+
+function getAssistantProtocolFallbackOutput(params: {
+  stopReason?: AssistantStopReason;
+  errorMessage?: string;
+  combinedStderr: string;
+  transportExitCode: number;
+}): string {
+  switch (params.stopReason) {
+    case "error":
+      return (
+        params.errorMessage ||
+        params.combinedStderr ||
+        "Assistant reported an error before producing a final response."
+      );
+    case "aborted":
+      return params.errorMessage || "Assistant aborted execution.";
+    case "length":
+      return (
+        params.errorMessage ||
+        "Assistant stopped because it hit its response length limit before producing a final response."
+      );
+    case "toolUse":
+      return (
+        params.errorMessage || "Assistant stopped for tool use before producing a final response."
+      );
+    case "stop":
+    case undefined:
+      return params.combinedStderr || `pi exited with code ${params.transportExitCode}`;
+    default: {
+      const exhaustive: never = params.stopReason;
+      return exhaustive;
+    }
   }
 }
 
@@ -256,11 +307,12 @@ export async function spawnPiSubagent(
     ? "Subagent aborted."
     : result.timedOut
       ? `Subagent timed out after ${params.timeoutMs ?? DEFAULT_PI_SUBAGENT_TIMEOUT_MS}ms.`
-      : finalAssistantStopReason === "error"
-        ? finalAssistantErrorMessage || combinedStderr || `pi exited with code ${result.exitCode}`
-        : finalAssistantStopReason === "aborted"
-          ? finalAssistantErrorMessage || "Subagent aborted."
-          : combinedStderr || `pi exited with code ${result.exitCode}`;
+      : getAssistantProtocolFallbackOutput({
+          stopReason: finalAssistantStopReason,
+          errorMessage: finalAssistantErrorMessage,
+          combinedStderr,
+          transportExitCode: result.exitCode,
+        });
 
   const protocolFailed = parseErrors.length > 0;
   const protocolAwareOutput = protocolFailed
@@ -273,20 +325,41 @@ export async function spawnPiSubagent(
     : protocolAwareOutput;
   const semanticExitCode =
     finalAssistantStopReason === "error"
-      ? 1
+      ? ASSISTANT_ERROR_EXIT_CODE
       : finalAssistantStopReason === "aborted"
-        ? 130
+        ? ASSISTANT_ABORT_EXIT_CODE
         : result.exitCode;
+  const protocolErrorMessage = [parseErrorSummary, parseErrorDetails].filter(Boolean).join("\n");
 
   return {
     output,
     exitCode: protocolFailed ? 1 : semanticExitCode,
     elapsed: result.elapsed,
     stderr: combinedStderr || undefined,
-    aborted: result.aborted || finalAssistantStopReason === "aborted",
+    aborted: result.aborted,
     timedOut: result.timedOut,
     assistantStopReason: finalAssistantStopReason,
     assistantErrorMessage: finalAssistantErrorMessage,
+    executionState: {
+      transport: {
+        kind: "transport",
+        exitCode: result.exitCode,
+        aborted: result.aborted,
+        timedOut: result.timedOut,
+      },
+      protocol: protocolFailed
+        ? {
+            kind: "assistant_protocol_parse_error",
+            errorMessage: protocolErrorMessage || "Failed to parse pi JSON event stream.",
+          }
+        : finalAssistantStopReason
+          ? {
+              kind: "assistant_protocol",
+              stopReason: finalAssistantStopReason,
+              errorMessage: finalAssistantErrorMessage,
+            }
+          : undefined,
+    },
     outputTruncated: assistantOutputTruncated || result.stdoutTruncated || result.stderrTruncated,
   };
 }

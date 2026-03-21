@@ -411,9 +411,163 @@ printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],
     });
 
     assert.equal(result.exitCode, 1);
+    assert.equal(result.aborted, false);
     assert.equal(result.assistantStopReason, "error");
     assert.equal(result.assistantErrorMessage, "boom");
     assert.equal(result.output, "boom");
+    assert.equal(result.executionState?.transport.aborted, false);
+    assert.deepEqual(result.executionState?.protocol, {
+      kind: "assistant_protocol",
+      stopReason: "error",
+      errorMessage: "boom",
+    });
+  } finally {
+    process.env.PATH = previousPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnPiSubagent keeps assistant aborts distinct from transport aborts", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-assistant-abort-"));
+  const piPath = path.join(tempDir, "pi");
+  const sessionFile = path.join(tempDir, "session.json");
+  const previousPath = process.env.PATH;
+
+  fs.writeFileSync(
+    piPath,
+    `#!/usr/bin/env bash
+printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"aborted","errorMessage":"cancelled by policy"}}'
+`,
+  );
+  fs.chmodSync(piPath, 0o755);
+
+  try {
+    process.env.PATH = `${tempDir}:${previousPath || ""}`;
+    const result = await spawnPiSubagent({
+      tools: "read",
+      systemPrompt: "ROLE: test",
+      objective: "Say hello",
+      model: "mock/provider",
+      sessionFile,
+    });
+
+    assert.equal(result.exitCode, 130);
+    assert.equal(result.aborted, false);
+    assert.equal(result.assistantStopReason, "aborted");
+    assert.equal(result.output, "cancelled by policy");
+    assert.equal(getExecutionStatus(result), "aborted");
+    assert.equal(result.executionState?.transport.aborted, false);
+    assert.deepEqual(result.executionState?.protocol, {
+      kind: "assistant_protocol",
+      stopReason: "aborted",
+      errorMessage: "cancelled by policy",
+    });
+  } finally {
+    process.env.PATH = previousPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnPiSubagent returns semantic output for assistant length stops", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-length-stop-"));
+  const piPath = path.join(tempDir, "pi");
+  const sessionFile = path.join(tempDir, "session.json");
+  const previousPath = process.env.PATH;
+
+  fs.writeFileSync(
+    piPath,
+    `#!/usr/bin/env bash
+printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"length"}}'
+`,
+  );
+  fs.chmodSync(piPath, 0o755);
+
+  try {
+    process.env.PATH = `${tempDir}:${previousPath || ""}`;
+    const result = await spawnPiSubagent({
+      tools: "read",
+      systemPrompt: "ROLE: test",
+      objective: "Say hello",
+      model: "mock/provider",
+      sessionFile,
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.assistantStopReason, "length");
+    assert.equal(getExecutionStatus(result), "error");
+    assert.match(result.output, /response length limit/i);
+  } finally {
+    process.env.PATH = previousPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnPiSubagent returns semantic output for assistant tool-use stops", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-tooluse-stop-"));
+  const piPath = path.join(tempDir, "pi");
+  const sessionFile = path.join(tempDir, "session.json");
+  const previousPath = process.env.PATH;
+
+  fs.writeFileSync(
+    piPath,
+    `#!/usr/bin/env bash
+printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"toolUse"}}'
+`,
+  );
+  fs.chmodSync(piPath, 0o755);
+
+  try {
+    process.env.PATH = `${tempDir}:${previousPath || ""}`;
+    const result = await spawnPiSubagent({
+      tools: "read",
+      systemPrompt: "ROLE: test",
+      objective: "Say hello",
+      model: "mock/provider",
+      sessionFile,
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.assistantStopReason, "toolUse");
+    assert.equal(getExecutionStatus(result), "error");
+    assert.match(result.output, /tool use before producing a final response/i);
+  } finally {
+    process.env.PATH = previousPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnPiSubagent fails closed on unknown assistant stop reasons", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-unknown-stopreason-"));
+  const piPath = path.join(tempDir, "pi");
+  const sessionFile = path.join(tempDir, "session.json");
+  const previousPath = process.env.PATH;
+
+  fs.writeFileSync(
+    piPath,
+    `#!/usr/bin/env bash
+printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"partial"}],"stopReason":"futureReason"}}'
+`,
+  );
+  fs.chmodSync(piPath, 0o755);
+
+  try {
+    process.env.PATH = `${tempDir}:${previousPath || ""}`;
+    const result = await spawnPiSubagent({
+      tools: "read",
+      systemPrompt: "ROLE: test",
+      objective: "Say hello",
+      model: "mock/provider",
+      sessionFile,
+    });
+
+    assert.equal(result.exitCode, 1);
+    assert.match(result.output, /Failed to parse 1 pi JSON event line/);
+    assert.match(result.stderr || "", /Unknown assistant stop reason/);
+    assert.deepEqual(result.executionState?.protocol, {
+      kind: "assistant_protocol_parse_error",
+      errorMessage:
+        "Failed to parse 1 pi JSON event line(s).\nUnknown assistant stop reason from pi JSON protocol: futureReason",
+    });
   } finally {
     process.env.PATH = previousPath;
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -624,7 +778,7 @@ test("session team store refuses to persist team selections without session iden
   assert.equal(store.getTeam(undefined), "full");
 });
 
-test("execution status classifier treats transport and assistant stop reasons as failures", () => {
+test("execution status classifier honors explicit transport/protocol precedence", () => {
   assert.equal(getExecutionStatus({ exitCode: 0 }), "done");
   assert.equal(getExecutionStatus({ exitCode: 0, timedOut: true }), "timed_out");
   assert.equal(getExecutionStatus({ exitCode: 0, aborted: true }), "aborted");
@@ -633,6 +787,34 @@ test("execution status classifier treats transport and assistant stop reasons as
   assert.equal(getExecutionStatus({ exitCode: 0, assistantStopReason: "error" }), "error");
   assert.equal(getExecutionStatus({ exitCode: 0, assistantStopReason: "aborted" }), "aborted");
   assert.equal(getExecutionStatus({ exitCode: 0, assistantStopReason: "toolUse" }), "error");
+  assert.equal(
+    getExecutionStatus({
+      exitCode: 0,
+      executionState: {
+        transport: { kind: "transport", exitCode: 0, aborted: false, timedOut: false },
+        protocol: {
+          kind: "assistant_protocol_parse_error",
+          errorMessage: "bad frame",
+        },
+      },
+    }),
+    "error",
+  );
+  assert.equal(
+    getExecutionStatus({
+      exitCode: 99,
+      aborted: true,
+      assistantStopReason: "stop",
+      executionState: {
+        transport: { kind: "transport", exitCode: 0, aborted: false, timedOut: false },
+        protocol: {
+          kind: "assistant_protocol",
+          stopReason: "aborted",
+        },
+      },
+    }),
+    "aborted",
+  );
   assert.equal(isExecutionSuccess({ exitCode: 0 }), true);
   assert.equal(isExecutionSuccess({ exitCode: 0, timedOut: true }), false);
   assert.equal(isExecutionSuccess({ exitCode: 0, aborted: true }), false);
