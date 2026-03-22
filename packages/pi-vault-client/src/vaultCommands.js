@@ -26,6 +26,35 @@ function formatSchemaMismatchMessage(runtime) {
         parts.push(`feedback:[${report.missingFeedbackColumns.join(", ")}]`);
     return `Vault schema mismatch (${parts.join("; ")}). Use /vault-check or vault_schema_diagnostics.`;
 }
+function resolveDoltExecutionEnvironmentSnapshot(runtime) {
+    if (typeof runtime.getDoltExecutionEnvironment !== "function") {
+        return {
+            status: "unavailable",
+            source: "runtime-missing",
+            tempDir: "unknown",
+            attempts: "runtime-missing",
+        };
+    }
+    try {
+        const environment = runtime.getDoltExecutionEnvironment();
+        return {
+            status: "ok",
+            source: environment.source,
+            tempDir: environment.tempDir,
+            attempts: environment.attempts
+                .map((attempt) => `${attempt.source}:${attempt.ok ? "ok" : `error=${attempt.error || "unknown"}`}`)
+                .join("; ") || "none",
+        };
+    }
+    catch (error) {
+        return {
+            status: "error",
+            source: "resolution-failed",
+            tempDir: "unknown",
+            attempts: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
 function resolveCommandCompanyContext(runtime, ctx) {
     const companyContext = typeof runtime.resolveCurrentCompanyContext === "function"
         ? runtime.resolveCurrentCompanyContext(ctx.cwd)
@@ -579,6 +608,7 @@ export function registerVaultCommands(pi, runtime, receipts) {
                 return;
             const companyContext = runtime.resolveCurrentCompanyContext(ctx.cwd);
             const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+            const doltEnvironment = resolveDoltExecutionEnvironmentSnapshot(runtime);
             const schemaOk = schemaReport.ok;
             const executionContext = { currentCompany: companyContext.company, cwd: ctx.cwd };
             const templatesResult = schemaOk
@@ -614,6 +644,10 @@ export function registerVaultCommands(pi, runtime, receipts) {
                 `- missing_feedback_columns: ${schemaReport.missingFeedbackColumns.join(", ") || "none"}`,
                 `- current_company: ${companyContext.company}`,
                 `- company_source: ${companyContext.source}`,
+                `- dolt_temp_status: ${doltEnvironment.status}`,
+                `- dolt_temp_source: ${doltEnvironment.source}`,
+                `- dolt_temp_dir: ${doltEnvironment.tempDir}`,
+                `- dolt_temp_attempts: ${doltEnvironment.attempts}`,
                 `- query_error: ${queryError}`,
                 `- visible_active_templates: ${templates.length}`,
                 `- visible_router_templates: ${routerCount}`,

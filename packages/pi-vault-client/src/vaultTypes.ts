@@ -446,6 +446,20 @@ export interface SchemaCompatibilityReport {
   missingFeedbackColumns: string[];
 }
 
+export interface DoltExecutionEnvironmentAttempt {
+  source: string;
+  path: string;
+  ok: boolean;
+  created?: boolean;
+  error?: string;
+}
+
+export interface DoltExecutionEnvironment {
+  tempDir: string;
+  source: string;
+  attempts: DoltExecutionEnvironmentAttempt[];
+}
+
 export interface VaultRuntime {
   queryVaultJson: (sql: string) => DoltJsonResult | null;
   queryVaultJsonDetailed: (sql: string) => VaultResult<DoltJsonResult>;
@@ -547,6 +561,7 @@ export interface VaultRuntime {
     model: string,
     inputContext?: string,
   ) => VaultExecutionLogResult;
+  getDoltExecutionEnvironment: () => DoltExecutionEnvironment;
   checkSchemaCompatibilityDetailed: () => SchemaCompatibilityReport;
   checkSchemaVersion: () => boolean;
 }

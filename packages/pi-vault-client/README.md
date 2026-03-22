@@ -187,6 +187,24 @@ Schema compatibility now requires Prompt Vault schema `9`, `prompt_templates.ver
 `/vault-check` now reports expected vs actual schema version plus missing prompt/execution/feedback columns when the boundary is broken.
 When schema compatibility fails, the extension stays loaded in diagnostic mode so `/vault-check` and `vault_schema_diagnostics()` remain available even while vault query/mutation surfaces stay gated.
 
+## Dolt temp-dir contract
+
+Vault Dolt subprocesses resolve a writable temp directory in this order:
+
+1. `PI_VAULT_TMPDIR`
+2. `${VAULT_DIR}/.dolt/tmp`
+3. `${VAULT_DIR}/.tmp`
+4. `os.tmpdir()`
+
+Notes:
+
+- the resolver probes actual writability by creating and removing a temp directory before Dolt runs, so inode exhaustion and bad paths fail fast
+- if an explicit `PI_VAULT_TMPDIR` is invalid, Vault falls back to the next viable candidate instead of failing closed immediately
+- `/vault-check` and `vault_schema_diagnostics()` now report the resolved Dolt temp status/source/path plus probe attempts
+- if a Vault error mentions `Dolt temp dir: ...`, inspect both bytes and inodes on host temp storage
+  - `df -h /tmp`
+  - `df -i /tmp`
+
 ## Isolated live validation
 
 For a headless schema-diagnostic call that remains available even during schema mismatch:
@@ -282,7 +300,7 @@ Current execution behavior:
 - session-sensitive company resolution is pinned through explicit `ctx.cwd` handoff and session tracking instead of relying only on ambient process cwd
 - for visibility-sensitive live verification, pin `PI_COMPANY` instead of relying on cwd inference alone
 
-See [live render-engine validation](docs/dev/live-render-engine-validation.md) for installed-package verification evidence, and [legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md) for the operator migration boundary.
+See [live render-engine validation](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/live-render-engine-validation.md) for installed-package verification evidence, and [legacy render-engine rollout](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/legacy-render-engine-rollout.md) for the operator migration boundary.
 
 ## Live package activation
 
@@ -307,7 +325,9 @@ npm run release:check
 That release gate now covers:
 
 - `npm pack --dry-run --json`
+- portable doc-surface validation for shared markdown and published README links
 - static runtime dependency audit for bare imports
+- packed-manifest dependency rewrite validation
 - clean-room tarball install
 - `pi install` tarball registration check
 - installed-package extension registration smoke
@@ -332,22 +352,24 @@ npm run docs:list:json
 
 ## Docs map
 
-- [Organization operating model](docs/org/operating_model.md)
-- [Project foundation](docs/project/foundation.md)
-- [Project vision](docs/project/vision.md)
-- [Project incentives](docs/project/incentives.md)
-- [Project resources](docs/project/resources.md)
-- [Trusted publishing runbook](docs/dev/trusted_publishing.md)
-- [Vault execution receipts architecture](docs/dev/vault-execution-receipts.md)
-- [V4 runtime-receipts runtime-target binding](docs/dev/v4-runtime-receipts-runtime-target-binding.md)
-- [Prompt Vault v9 cutover](docs/dev/v9-cutover.md)
-- [Historical Prompt Vault relocation handoff](docs/dev/prompt-vault-v2-relocation-handoff.md)
-- [Live render-engine validation](docs/dev/live-render-engine-validation.md)
-- [Legacy render-engine rollout](docs/dev/legacy-render-engine-rollout.md)
-- [Company-context hardening diary](diary/2026-03-12-company-context-hardening.md)
-- [Replay core diary](diary/2026-03-12-vre-08-replay-core.md)
-- [Replay surface diary](diary/2026-03-12-vre-09-replay-surface.md)
-- [Replay docs/tests diary](diary/2026-03-12-vre-10-docs-tests.md)
-- [Previous receipt hardening diary](diary/2026-03-12-receipt-hardening.md)
-- [V4 runtime-receipts binding diary](diary/2026-03-21-v4-runtime-receipts-runtime-target-binding.md)
-- [Next session prompt](NEXT_SESSION_PROMPT.md)
+Repository docs for this package live in the monorepo and are linked below through stable GitHub URLs so the published package README stays portable too.
+
+- [Organization operating model](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/org/operating_model.md)
+- [Project foundation](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/foundation.md)
+- [Project vision](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/vision.md)
+- [Project incentives](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/incentives.md)
+- [Project resources](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/resources.md)
+- [Trusted publishing runbook](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/trusted_publishing.md)
+- [Vault execution receipts architecture](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/vault-execution-receipts.md)
+- [V4 runtime-receipts runtime-target binding](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/v4-runtime-receipts-runtime-target-binding.md)
+- [Prompt Vault v9 cutover](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/v9-cutover.md)
+- [Historical Prompt Vault relocation handoff](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/prompt-vault-v2-relocation-handoff.md)
+- [Live render-engine validation](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/live-render-engine-validation.md)
+- [Legacy render-engine rollout](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/legacy-render-engine-rollout.md)
+- [Company-context hardening diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-company-context-hardening.md)
+- [Replay core diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-vre-08-replay-core.md)
+- [Replay surface diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-vre-09-replay-surface.md)
+- [Replay docs/tests diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-vre-10-docs-tests.md)
+- [Previous receipt hardening diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-receipt-hardening.md)
+- [V4 runtime-receipts binding diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-21-v4-runtime-receipts-runtime-target-binding.md)
+- [Next session prompt](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/NEXT_SESSION_PROMPT.md)

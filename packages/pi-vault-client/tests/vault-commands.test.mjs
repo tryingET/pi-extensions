@@ -787,3 +787,78 @@ test("non-UI /route surfaces shared render failures instead of emitting raw temp
     assert.match(result.text, /Unsupported Nunjucks syntax/);
   });
 });
+
+test("vault-check reports dolt temp environment diagnostics", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+    const editors = [];
+    const notifications = [];
+
+    registerVaultCommands(pi, {
+      resolveCurrentCompanyContext(cwd) {
+        return {
+          company: "software",
+          source: `cwd:${cwd}`,
+        };
+      },
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: true,
+          expectedVersion: 9,
+          actualVersion: 9,
+          missingPromptTemplateColumns: [],
+          missingExecutionColumns: [],
+          missingFeedbackColumns: [],
+        };
+      },
+      getDoltExecutionEnvironment() {
+        return {
+          tempDir: "/tmp/pi-vault",
+          source: "env:PI_VAULT_TMPDIR",
+          attempts: [
+            {
+              source: "env:PI_VAULT_TMPDIR",
+              path: "/tmp/pi-vault",
+              ok: true,
+              created: false,
+            },
+          ],
+        };
+      },
+      listTemplatesDetailed() {
+        return { ok: true, value: [makeTemplate({ control_mode: "router" })], error: null };
+      },
+      getTemplateDetailed(name) {
+        if (name === "meta-orchestration") return { ok: true, value: makeTemplate(), error: null };
+        return { ok: true, value: null, error: null };
+      },
+      facetLabel(template) {
+        return `${template.artifact_kind}/${template.control_mode}/${template.formalization_level}`;
+      },
+    });
+
+    const command = pi.commands.get("vault-check");
+    assert.ok(command);
+    await command.handler("", {
+      hasUI: true,
+      cwd: "/tmp/softwareco/owned/demo",
+      ui: {
+        async editor(title, text) {
+          editors.push({ title, text });
+        },
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    const text = editors[0]?.text || "";
+    assert.match(text, /# Vault Check/);
+    assert.match(text, /dolt_temp_status: ok/);
+    assert.match(text, /dolt_temp_source: env:PI_VAULT_TMPDIR/);
+    assert.match(text, /dolt_temp_dir: \/tmp\/pi-vault/);
+    assert.match(text, /dolt_temp_attempts: env:PI_VAULT_TMPDIR:ok/);
+    assert.match(notifications[0]?.message || "", /Vault check complete/);
+  });
+});

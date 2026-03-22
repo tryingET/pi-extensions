@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -59,11 +59,13 @@ async function withTempVaultRuntime(runTest) {
   const originalVaultDir = process.env.VAULT_DIR;
   const originalPromptVaultRoot = process.env.PROMPT_VAULT_ROOT;
   const originalPiCompany = process.env.PI_COMPANY;
+  const originalPiVaultTmpDir = process.env.PI_VAULT_TMPDIR;
 
   try {
     process.env.VAULT_DIR = repoDir;
     process.env.PROMPT_VAULT_ROOT = path.dirname(path.dirname(PROMPT_VAULT_SCHEMA));
     delete process.env.PI_COMPANY;
+    delete process.env.PI_VAULT_TMPDIR;
 
     return await runTest({
       repoDir,
@@ -78,8 +80,67 @@ async function withTempVaultRuntime(runTest) {
     else process.env.PROMPT_VAULT_ROOT = originalPromptVaultRoot;
     if (originalPiCompany === undefined) delete process.env.PI_COMPANY;
     else process.env.PI_COMPANY = originalPiCompany;
+    if (originalPiVaultTmpDir === undefined) delete process.env.PI_VAULT_TMPDIR;
+    else process.env.PI_VAULT_TMPDIR = originalPiVaultTmpDir;
   }
 }
+
+test("vault runtime prefers repo-local temp before falling back to host tmp", async () => {
+  await withTempVaultRuntime(async ({ importModule, repoDir }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    const environment = runtime.getDoltExecutionEnvironment();
+    assert.match(environment.source, /^vault:\./);
+    assert.notEqual(environment.source, "os.tmpdir()");
+    assert.equal(environment.attempts.at(-1)?.ok, true);
+    if (environment.source === "vault:.tmp") {
+      assert.equal(existsSync(path.join(repoDir, ".tmp")), true);
+    }
+    assert.equal(runtime.checkSchemaVersion(), true);
+  });
+});
+
+test("vault runtime honors explicit PI_VAULT_TMPDIR when it is writable", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const explicitRoot = mkdtempSync(path.join(os.tmpdir(), "pi-vault-explicit-tmp-"));
+    const explicitTempDir = path.join(explicitRoot, "nested", "vault-tmp");
+
+    try {
+      process.env.PI_VAULT_TMPDIR = explicitTempDir;
+      const { createVaultRuntime } = await importModule("src/vaultDb.js");
+      const runtime = createVaultRuntime();
+
+      const environment = runtime.getDoltExecutionEnvironment();
+      assert.equal(environment.source, "env:PI_VAULT_TMPDIR");
+      assert.equal(environment.tempDir, explicitTempDir);
+      assert.equal(environment.attempts[0]?.source, "env:PI_VAULT_TMPDIR");
+      assert.equal(environment.attempts[0]?.ok, true);
+      assert.equal(environment.attempts[0]?.created, true);
+      assert.equal(runtime.checkSchemaVersion(), true);
+    } finally {
+      rmSync(explicitRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test("vault runtime falls back from an invalid PI_VAULT_TMPDIR to repo-local temp", async () => {
+  await withTempVaultRuntime(async ({ importModule, repoDir }) => {
+    process.env.PI_VAULT_TMPDIR = path.join(repoDir, ".dolt", "config.json", "blocked-child");
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    const environment = runtime.getDoltExecutionEnvironment();
+    assert.match(environment.source, /^vault:\./);
+    assert.notEqual(environment.source, "env:PI_VAULT_TMPDIR");
+    assert.notEqual(environment.source, "os.tmpdir()");
+    assert.equal(environment.attempts[0]?.source, "env:PI_VAULT_TMPDIR");
+    assert.equal(environment.attempts[0]?.ok, false);
+    assert.match(String(environment.attempts[0]?.error), /ENOTDIR|not a directory/i);
+    assert.equal(environment.attempts.at(-1)?.ok, true);
+    assert.equal(runtime.checkSchemaVersion(), true);
+  });
+});
 
 test("vault runtime supports end-to-end execution-bound feedback in a real temp dolt repo", async () => {
   await withTempVaultRuntime(async ({ importModule }) => {

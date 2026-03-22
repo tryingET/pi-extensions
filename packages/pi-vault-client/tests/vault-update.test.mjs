@@ -423,6 +423,20 @@ test("vault_schema_diagnostics reports detailed compatibility in headless tool m
           missingFeedbackColumns: [],
         };
       },
+      getDoltExecutionEnvironment() {
+        return {
+          tempDir: "/tmp/pi-vault",
+          source: "vault:.dolt/tmp",
+          attempts: [
+            {
+              source: "vault:.dolt/tmp",
+              path: "/tmp/pi-vault",
+              ok: true,
+              created: false,
+            },
+          ],
+        };
+      },
       resolveCurrentCompanyContext(cwd) {
         return {
           company: cwd?.includes("softwareco") ? "software" : "core",
@@ -445,7 +459,12 @@ test("vault_schema_diagnostics reports detailed compatibility in headless tool m
     assert.match(text, /missing_prompt_template_columns: controlled_vocabulary/);
     assert.match(text, /missing_execution_columns: output_capture_mode, output_text/);
     assert.match(text, /current_company: software/);
+    assert.match(text, /dolt_temp_status: ok/);
+    assert.match(text, /dolt_temp_source: vault:.dolt\/tmp/);
+    assert.match(text, /dolt_temp_dir: \/tmp\/pi-vault/);
     assert.deepEqual(result.details.ok, false);
+    assert.equal(result.details.doltTempStatus, "ok");
+    assert.equal(result.details.doltTempSource, "vault:.dolt/tmp");
   });
 });
 

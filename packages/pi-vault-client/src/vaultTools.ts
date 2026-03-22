@@ -147,12 +147,53 @@ function buildToolMutationContext(ctx: unknown): VaultMutationContext {
   };
 }
 
+function resolveDoltExecutionEnvironmentSnapshot(
+  runtime: Partial<Pick<VaultRuntime, "getDoltExecutionEnvironment">>,
+): {
+  status: string;
+  source: string;
+  tempDir: string;
+  attempts: string;
+} {
+  if (typeof runtime.getDoltExecutionEnvironment !== "function") {
+    return {
+      status: "unavailable",
+      source: "runtime-missing",
+      tempDir: "unknown",
+      attempts: "runtime-missing",
+    };
+  }
+  try {
+    const environment = runtime.getDoltExecutionEnvironment();
+    return {
+      status: "ok",
+      source: environment.source,
+      tempDir: environment.tempDir,
+      attempts:
+        environment.attempts
+          .map(
+            (attempt) =>
+              `${attempt.source}:${attempt.ok ? "ok" : `error=${attempt.error || "unknown"}`}`,
+          )
+          .join("; ") || "none",
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      source: "resolution-failed",
+      tempDir: "unknown",
+      attempts: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 function formatSchemaDiagnosticsReport(
   runtime: VaultRuntime,
   currentCompany: string,
   currentCompanySource: string,
 ): string {
   const report = runtime.checkSchemaCompatibilityDetailed();
+  const doltEnvironment = resolveDoltExecutionEnvironmentSnapshot(runtime);
   return [
     "# Vault Schema Diagnostics",
     "",
@@ -164,6 +205,10 @@ function formatSchemaDiagnosticsReport(
     `- missing_feedback_columns: ${report.missingFeedbackColumns.join(", ") || "none"}`,
     `- current_company: ${currentCompany}`,
     `- current_company_source: ${currentCompanySource}`,
+    `- dolt_temp_status: ${doltEnvironment.status}`,
+    `- dolt_temp_source: ${doltEnvironment.source}`,
+    `- dolt_temp_dir: ${doltEnvironment.tempDir}`,
+    `- dolt_temp_attempts: ${doltEnvironment.attempts}`,
   ].join("\n");
 }
 
@@ -188,6 +233,7 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
         executionContext.companySource,
       );
       const report = runtime.checkSchemaCompatibilityDetailed();
+      const doltEnvironment = resolveDoltExecutionEnvironmentSnapshot(runtime);
       return {
         content: [{ type: "text", text: output }],
         details: {
@@ -199,6 +245,10 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
           missingFeedbackColumns: report.missingFeedbackColumns,
           currentCompany: executionContext.currentCompany,
           currentCompanySource: executionContext.companySource,
+          doltTempStatus: doltEnvironment.status,
+          doltTempSource: doltEnvironment.source,
+          doltTempDir: doltEnvironment.tempDir,
+          doltTempAttempts: doltEnvironment.attempts,
         },
       };
     },

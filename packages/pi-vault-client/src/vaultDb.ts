@@ -1,5 +1,16 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { resolveCompanyContext } from "./companyContext.js";
 import { rateTemplate as executeFeedbackRating } from "./vaultFeedback.js";
 import {
@@ -21,6 +32,7 @@ import {
   CONTROL_MODES,
   CONTROLLED_VOCABULARY_DIMENSIONS,
   DEFAULT_VAULT_QUERY_LIMIT,
+  type DoltExecutionEnvironment,
   type DoltJsonResult,
   FORMALIZATION_LEVELS,
   type GovernedContracts,
@@ -58,12 +70,135 @@ function formatVaultError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function runDolt(args: string[], maxBuffer = DEFAULT_DOLT_MAX_BUFFER): string {
-  return execFileSync("dolt", args, {
-    cwd: VAULT_DIR,
-    encoding: "utf-8",
-    maxBuffer,
+function normalizeTempDirPath(tempDir: string): string {
+  return path.resolve(String(tempDir || "").trim());
+}
+
+function dedupeTempDirCandidates(
+  candidates: Array<{ source: string; path: string; create: boolean }>,
+): Array<{ source: string; path: string; create: boolean }> {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    if (seen.has(candidate.path)) return false;
+    seen.add(candidate.path);
+    return true;
   });
+}
+
+function buildDoltTempDirCandidates(): Array<{ source: string; path: string; create: boolean }> {
+  const explicitTempDir = process.env.PI_VAULT_TMPDIR?.trim();
+  return dedupeTempDirCandidates(
+    [
+      explicitTempDir
+        ? {
+            source: "env:PI_VAULT_TMPDIR",
+            path: normalizeTempDirPath(explicitTempDir),
+            create: true,
+          }
+        : null,
+      {
+        source: "vault:.dolt/tmp",
+        path: normalizeTempDirPath(path.join(VAULT_DIR, ".dolt", "tmp")),
+        create: false,
+      },
+      {
+        source: "vault:.tmp",
+        path: normalizeTempDirPath(path.join(VAULT_DIR, ".tmp")),
+        create: true,
+      },
+      {
+        source: "os.tmpdir()",
+        path: normalizeTempDirPath(os.tmpdir()),
+        create: false,
+      },
+    ].filter((candidate): candidate is { source: string; path: string; create: boolean } =>
+      Boolean(candidate),
+    ),
+  );
+}
+
+function probeDoltTempDir(candidate: { source: string; path: string; create: boolean }): {
+  source: string;
+  path: string;
+  ok: true;
+  created: boolean;
+} {
+  const existedBefore = existsSync(candidate.path);
+  if (candidate.create && !existedBefore) {
+    mkdirSync(candidate.path, { recursive: true });
+  }
+  accessSync(candidate.path, constants.R_OK | constants.W_OK);
+  const probePath = mkdtempSync(path.join(candidate.path, "pi-vault-dolt-"));
+  rmSync(probePath, { recursive: true, force: true });
+  return {
+    source: candidate.source,
+    path: candidate.path,
+    ok: true,
+    created: candidate.create && !existedBefore,
+  };
+}
+
+function formatDoltExecutionEnvironmentError(
+  attempts: DoltExecutionEnvironment["attempts"],
+): string {
+  const details = attempts
+    .map((attempt) => {
+      const status = attempt.ok ? "ok" : `error=${attempt.error || "unknown"}`;
+      return `${attempt.source} (${attempt.path}) -> ${status}`;
+    })
+    .join("; ");
+  return `Failed to resolve writable temp dir for dolt (VAULT_DIR=${VAULT_DIR}). Tried: ${details}`;
+}
+
+function resolveDoltExecutionEnvironment(): DoltExecutionEnvironment {
+  const attempts: DoltExecutionEnvironment["attempts"] = [];
+  for (const candidate of buildDoltTempDirCandidates()) {
+    try {
+      const probe = probeDoltTempDir(candidate);
+      attempts.push(probe);
+      return {
+        tempDir: candidate.path,
+        source: candidate.source,
+        attempts,
+      };
+    } catch (error) {
+      attempts.push({
+        source: candidate.source,
+        path: candidate.path,
+        ok: false,
+        error: formatVaultError(error),
+      });
+    }
+  }
+  throw new Error(formatDoltExecutionEnvironmentError(attempts));
+}
+
+function buildDoltProcessEnv(tempDir: string): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    TMPDIR: tempDir,
+    TMP: tempDir,
+    TEMP: tempDir,
+  };
+}
+
+function runDolt(args: string[], maxBuffer = DEFAULT_DOLT_MAX_BUFFER): string {
+  const doltExecutionEnvironment = resolveDoltExecutionEnvironment();
+  try {
+    return execFileSync("dolt", args, {
+      cwd: VAULT_DIR,
+      encoding: "utf-8",
+      maxBuffer,
+      env: buildDoltProcessEnv(doltExecutionEnvironment.tempDir),
+    });
+  } catch (error) {
+    throw new Error(
+      `${formatVaultError(error)}\nDolt temp dir: ${doltExecutionEnvironment.tempDir} (${doltExecutionEnvironment.source})`,
+      {
+        cause: error instanceof Error ? error : undefined,
+      },
+    );
+  }
 }
 
 function queryVaultJsonDetailed(
@@ -898,6 +1033,10 @@ function logExecution(
   } as const;
 }
 
+function getDoltExecutionEnvironment(): DoltExecutionEnvironment {
+  return resolveDoltExecutionEnvironment();
+}
+
 function checkSchemaCompatibilityDetailed() {
   return computeSchemaCompatibilityDetailed(queryVaultJson);
 }
@@ -939,6 +1078,7 @@ export function createVaultRuntime(): VaultRuntime {
     updateTemplate,
     rateTemplate,
     logExecution,
+    getDoltExecutionEnvironment,
     checkSchemaCompatibilityDetailed,
     checkSchemaVersion,
   };
