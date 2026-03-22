@@ -1,0 +1,69 @@
+{
+  "name": "@tryinget/pi-runtime-registry",
+  "version": "0.1.0",
+  "description": "Shared runtime instance registry for pi-interaction extensions",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-interaction/pi-runtime-registry"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-interaction/pi-runtime-registry",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "interaction-runtime",
+    "runtime-registry"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "bash ../../../scripts/package-quality-gate.sh fix . --mode simple-package",
+    "lint": "bash ../../../scripts/package-quality-gate.sh lint . --mode simple-package",
+    "typecheck": "bash ../../../scripts/package-quality-gate.sh typecheck . --mode simple-package",
+    "test": "bash ../../../scripts/package-quality-gate.sh test . --mode simple-package",
+    "quality:pre-commit": "bash ../../../scripts/package-quality-gate.sh pre-commit . --mode simple-package",
+    "quality:pre-push": "bash ../../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
+    "quality:ci": "bash ../../../scripts/package-quality-gate.sh ci . --mode simple-package",
+    "check": "npm run quality:ci",
+    "prepack": "node ../scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../scripts/prepare-publish-manifest.mjs postpack",
+    "release:check:quick": "node ../scripts/release-check-package.mjs"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src"
+  ],
+  "x-pi-template": {
+    "scaffoldMode": "monorepo-package",
+    "workspacePath": "packages/pi-interaction/pi-runtime-registry",
+    "releaseComponent": "pi-runtime-registry",
+    "releaseConfigMode": "component"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@types/node": "22.14.0",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {}
+}

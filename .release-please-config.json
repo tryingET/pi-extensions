@@ -21,6 +21,10 @@
       "release-type": "node",
       "component": "pi-interaction-kit"
     },
+    "packages/pi-interaction/pi-runtime-registry": {
+      "release-type": "node",
+      "component": "pi-runtime-registry"
+    },
     "packages/pi-interaction/pi-trigger-adapter": {
       "release-type": "node",
       "component": "pi-trigger-adapter"
