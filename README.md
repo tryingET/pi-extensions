@@ -123,8 +123,10 @@ Use `tpl-package` from your L1 templates to add packages:
 - Repo-local stack note:
   - `docs/tech-stack.local.md`
 - Package stack contract surface:
-  - package-local `policy/stack-lane.json`
-  - package-local `docs/tech-stack.local.md`
+  - reduced-form target: package-local `docs/tech-stack.local.md` only when a package has a real local override
+  - current audit + routing note: `docs/project/tech-stack-review-surfaces.md`
+  - live audit command: `npm run tech-stack:review-surfaces`
+  - package-local `policy/stack-lane.json` remains present in some existing packages and is tracked by the audit
   - root helper `scripts/validate-tech-stack-contract.mjs`
   - package-local `AGENTS.md` / `docs/project/resources.md`
 - Upstream lane CLI:

@@ -30,6 +30,7 @@ system4d:
   - `scripts/ci/packages.sh`
   - `scripts/package-quality-gate.sh`
   - `scripts/pi-host-compatibility-canary.mjs`
+  - `scripts/tech-stack-review-surfaces.mjs`
 - Dedicated CI workflow:
   - `.github/workflows/compatibility-canary.yml`
 - Root-owned compatibility contract:
@@ -72,6 +73,7 @@ system4d:
 - `SECURITY.md`
 - `SUPPORT.md`
 - `docs/tech-stack.local.md`
+- `docs/project/tech-stack-review-surfaces.md`
 
 ## Root does not own
 

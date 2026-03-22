@@ -7,6 +7,7 @@
     "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "bash ./scripts/quality-gate.sh check",
+    "tech-stack:review-surfaces": "node ./scripts/tech-stack-review-surfaces.mjs",
     "compat:canary": "node ./scripts/pi-host-compatibility-canary.mjs run",
     "compat:canary:list": "node ./scripts/pi-host-compatibility-canary.mjs list",
     "compat:canary:validate": "node ./scripts/pi-host-compatibility-canary.mjs validate",

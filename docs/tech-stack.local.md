@@ -51,8 +51,12 @@ Practical rule:
 
 - Use root commands for monorepo-wide validation.
 - Use package-local `npm run check` when working inside a specific package.
-- Treat package-local stack metadata as the executable contract surface:
-  - `policy/stack-lane.json`
-  - `docs/tech-stack.local.md`
-  - root helper `scripts/validate-tech-stack-contract.mjs`
-  - optional `tech-stack-core show <lane> --prefer-repo` smoke checks when available
+- Treat root policy + audit as the review surface of record:
+  - root-owned stance: `docs/tech-stack.local.md`
+  - root validator: `scripts/validate-tech-stack-contract.mjs`
+  - live package audit: `npm run tech-stack:review-surfaces`
+  - current package state + routing notes: `docs/project/tech-stack-review-surfaces.md`
+- Reduced-form target for package/template outputs:
+  - keep package-local `docs/tech-stack.local.md` only when a package has a real local override
+  - treat package-local `policy/stack-lane.json` as legacy/full-surface state until package/template follow-up intentionally removes it
+  - optional `tech-stack-core show <lane> --prefer-repo` smoke checks stay available when package validation still pins the upstream lane explicitly
