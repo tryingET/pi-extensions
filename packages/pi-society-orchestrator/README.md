@@ -24,6 +24,12 @@ The target architecture for this package is:
 - `pi-vault-client` owns prompt-vault access and governance
 - `pi-autonomous-session-control` owns subagent execution/runtime behavior
 
+Current-truth note:
+- this package should still be treated as the **current package-local coordination/control-plane owner**, not the already-complete final runtime
+- the broader target shape is now described in `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-03-21-rfc-governed-delegated-cognition-runtime.md`
+- that RFC treats today's ASC + orchestrator split as a truthful precursor to a future Pi-native governed delegated cognition runtime, while keeping AK as canonical lineage/runtime authority and `society.v2.db` as the durable substrate
+- in that target shape, Pi remains the outer governed execution host while DSPy programs may act as inner cognition runtimes inside selected governed run phases, with DSPx providing the engineering/optimization/replay layer around them
+
 This package was scaffolded from [`../pi-extensions-template`](../pi-extensions-template/) and then populated from the existing live extension at:
 
 - `~/.pi/agent/extensions/society-orchestrator/`
@@ -39,10 +45,11 @@ For workspace-level placement and source hierarchy, read:
 - `~/ai-society/softwareco/owned/agent-kernel/docs/project/ai-society-convergence-architecture.md`
 
 Important distinction:
-- this package owns **package-local coordination/control-plane behavior**
-- `pi-autonomous-session-control` owns the stronger **execution-plane runtime**
+- this package owns **package-local coordination/control-plane behavior** in the current split
+- `pi-autonomous-session-control` owns the stronger **execution-plane runtime** in the current split
 - FCOS/loops registry docs in governance-kernel own the **workspace-wide loop/control-board model**
 - MITO/S3.0 semantics live in governance-kernel definitions and source-linked docs, not in this package by itself
+- the future governed delegated cognition runtime target should not be read back into this package as already-landed ownership before the successor architecture and runtime substrate actually exist
 
 ## Phase A architecture findings
 

@@ -36,6 +36,12 @@ Sequencing note:
 - the **prompt-plane seam** should be finalized only after the planned `pi-vault-client` NEXUS change lands: one explicit Vault execution boundary owning company-context resolution, shared template preparation, scoped persistence, and clean-room packaged-artifact smoke coverage
 - until that upstream boundary is implemented and reviewed, `pi-society-orchestrator` should proceed on all non-prompt-plane work and treat prompt-plane seam choice as intentionally pending rather than unresolved by neglect
 
+Long-term convergence note:
+- this ADR still governs the **current** package boundary truth: orchestrator remains the control-plane package and ASC remains the execution-plane owner
+- the broader target architecture is now captured in `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-03-21-rfc-governed-delegated-cognition-runtime.md`
+- that RFC defines a future Pi-native governed delegated cognition runtime as the orchestration V3 target, with Pi as the outer host runtime, DSPy as a first-class inner cognition runtime where selected, DSPx as the engineering/analysis layer, and AK as canonical runtime/lineage authority over the durable substrate in `society.v2.db`
+- until that future target is accepted and implemented, this ADR's ownership split remains the local architectural baseline for `pi-society-orchestrator`
+
 ## Expert review synthesis
 
 This proposal was strengthened using three domain lenses:
