@@ -124,6 +124,9 @@ if (missing.length || extra.length) {
 console.log(`File whitelist OK (${actual.length} files).`);
 NODE
 
+echo "== portable doc surface validation"
+node ./scripts/validate-portable-doc-surface.mjs --pack-json "$PACK_JSON_FILE"
+
 echo "== static runtime dependency audit"
 node <<'NODE'
 const fs = require("node:fs");
@@ -151,7 +154,9 @@ const localFileBackedDeps = Object.entries(declaredRuntimeDeps)
   .filter(([, version]) => String(version || "").startsWith("file:"))
   .map(([name, version]) => `${name}=${String(version)}`);
 if (localFileBackedDeps.length > 0) {
-  fail(`Publishable runtime dependencies must not use file: specifiers: ${localFileBackedDeps.join(", ")}`);
+  console.log(
+    `Working manifest uses local file-backed runtime deps; packed-manifest audit must prove publish-safe rewrite: ${localFileBackedDeps.join(", ")}`,
+  );
 }
 
 const bundledEntries = [

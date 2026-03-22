@@ -3,6 +3,7 @@
 import fs from "node:fs";
 
 import { validateTechStackContract } from "../../../scripts/validate-tech-stack-contract.mjs";
+import { validatePortableDocSurface } from "./validate-portable-doc-surface.mjs";
 
 let failed = false;
 const errors = [];
@@ -167,9 +168,17 @@ function validateStackLane() {
   });
 }
 
+function validatePortableDocs() {
+  const result = validatePortableDocSurface({ rootDir: process.cwd() });
+  for (const issue of result.issues) {
+    fail(issue);
+  }
+}
+
 function main() {
   validatePackageJson();
   validateStackLane();
+  validatePortableDocs();
 
   if (failed) {
     for (const error of errors) {
