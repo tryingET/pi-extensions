@@ -132,6 +132,7 @@ async function withVaultModules(run) {
         "src/vaultMutations.ts",
         "src/vaultFeedback.ts",
         "src/vaultDb.ts",
+        "src/doltDiagnostics.ts",
         "src/vaultTools.ts",
         "src/vaultReceipts.ts",
         "src/vaultReplay.ts",

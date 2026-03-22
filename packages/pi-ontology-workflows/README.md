@@ -272,13 +272,19 @@ Use these values when wiring monorepo-level release-please component maps.
 - [Project vision](docs/project/vision.md)
 - [Project resources](docs/project/resources.md)
 - [Architecture decision](docs/decisions/2026-03-14-stable-core-thin-adapters.md)
-- [Current status](docs/dev/status.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)
 
 ## Copier lifecycle policy
 
 - Keep `.copier-answers.yml` committed.
+- Do not edit `.copier-answers.yml` manually.
+- Run update/recopy from a clean destination repo (commit or stash pending changes first).
+- Use `copier update --trust` when `.copier-answers.yml` includes `_commit` and update is supported.
+- In non-interactive shells/CI, append `--defaults` to update/recopy.
+- Use `copier recopy --trust` when update is unavailable (for example local non-VCS source) or cannot reconcile cleanly.
+- After recopy, re-apply local deltas intentionally and run `npm run check`.
+itted.
 - Do not edit `.copier-answers.yml` manually.
 - Run update/recopy from a clean destination repo (commit or stash pending changes first).
 - Use `copier update --trust` when `.copier-answers.yml` includes `_commit` and update is supported.

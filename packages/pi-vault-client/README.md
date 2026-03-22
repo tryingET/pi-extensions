@@ -198,7 +198,8 @@ Vault Dolt subprocesses resolve a writable temp directory in this order:
 
 Notes:
 
-- the resolver probes actual writability by creating and removing a temp directory before Dolt runs, so inode exhaustion and bad paths fail fast
+- execution probes actual writability by creating and removing a temp directory before Dolt runs, so inode exhaustion and bad paths fail fast
+- diagnostic surfaces (`/vault-check`, `vault_schema_diagnostics()`) inspect the same candidate order without creating repo-local fallback directories
 - if an explicit `PI_VAULT_TMPDIR` is invalid, Vault falls back to the next viable candidate instead of failing closed immediately
 - `/vault-check` and `vault_schema_diagnostics()` now report the resolved Dolt temp status/source/path plus probe attempts
 - if a Vault error mentions `Dolt temp dir: ...`, inspect both bytes and inodes on host temp storage
@@ -325,7 +326,9 @@ npm run release:check
 That release gate now covers:
 
 - `npm pack --dry-run --json`
-- portable doc-surface validation for shared markdown and published README links
+- portable doc-surface validation for shared markdown in the working tree
+- packed-artifact markdown/link validation against the actual tarball contents
+- packed README immutability audit so published docs links do not float on `main`
 - static runtime dependency audit for bare imports
 - packed-manifest dependency rewrite validation
 - clean-room tarball install
@@ -353,6 +356,7 @@ npm run docs:list:json
 ## Docs map
 
 Repository docs for this package live in the monorepo and are linked below through stable GitHub URLs so the published package README stays portable too.
+During `prepack`, those GitHub blob links are pinned to the exact source commit used to build the artifact so the published README does not drift with later `main` changes.
 
 - [Organization operating model](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/org/operating_model.md)
 - [Project foundation](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/foundation.md)

@@ -29,7 +29,7 @@ Complete one bounded hardening pack from the deep-review NEXUS recommendation:
 4. `society_query` accepts valid read-only `WITH ... SELECT ...` diagnostics while still rejecting mutating or stacked SQL.
 5. `npm run release:check` installs the tarball into an isolated npm prefix instead of the user's default global npm package space.
 6. Regression tests cover the new boundary behavior.
-7. `README.md`, `docs/dev/status.md`, `CHANGELOG.md`, and `NEXT_SESSION_PROMPT.md` reflect the new state and remaining backlog.
+7. `README.md`, `CHANGELOG.md`, and `NEXT_SESSION_PROMPT.md` reflect the new state and remaining backlog.
 
 ## Chosen approach
 

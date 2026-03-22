@@ -99,6 +99,7 @@ async function withCommandModules(run) {
       prefix: "vault-commands-",
       files: [
         "src/vaultTypes.ts",
+        "src/doltDiagnostics.ts",
         "src/vaultCommands.ts",
         "src/vaultReceipts.ts",
         "src/vaultReplay.ts",

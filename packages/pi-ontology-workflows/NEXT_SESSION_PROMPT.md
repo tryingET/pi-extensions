@@ -27,7 +27,6 @@ The package is now fully scaffolded from `pi-extensions-template` and implements
 
 - `README.md`
 - `docs/decisions/2026-03-14-stable-core-thin-adapters.md`
-- `docs/dev/status.md`
 - `src/core/contracts.ts`
 - `src/core/inspect.ts`
 - `src/core/change.ts`

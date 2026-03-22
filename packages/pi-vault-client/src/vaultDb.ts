@@ -117,17 +117,68 @@ function buildDoltTempDirCandidates(): Array<{ source: string; path: string; cre
   );
 }
 
-function probeDoltTempDir(candidate: { source: string; path: string; create: boolean }): {
+function assertWritableDirectory(dirPath: string): void {
+  accessSync(dirPath, constants.R_OK | constants.W_OK | constants.X_OK);
+}
+
+function findNearestExistingDirectory(dirPath: string): string {
+  let current = normalizeTempDirPath(dirPath);
+  while (true) {
+    if (existsSync(current)) {
+      const stat = statSync(current);
+      if (!stat.isDirectory()) {
+        throw new Error(`Not a directory: ${current}`);
+      }
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      throw new Error(`No existing ancestor directory for ${dirPath}`);
+    }
+    current = parent;
+  }
+}
+
+function probeDoltTempDir(
+  candidate: { source: string; path: string; create: boolean },
+  probeMode: DoltExecutionEnvironment["probeMode"],
+): {
   source: string;
   path: string;
   ok: true;
-  created: boolean;
+  created?: boolean;
+  wouldCreate?: boolean;
 } {
   const existedBefore = existsSync(candidate.path);
+
+  if (!existedBefore && !candidate.create) {
+    throw new Error(`Directory does not exist: ${candidate.path}`);
+  }
+
+  if (probeMode === "inspect") {
+    if (existedBefore) {
+      assertWritableDirectory(candidate.path);
+      return {
+        source: candidate.source,
+        path: candidate.path,
+        ok: true,
+      };
+    }
+
+    const parentDir = findNearestExistingDirectory(path.dirname(candidate.path));
+    assertWritableDirectory(parentDir);
+    return {
+      source: candidate.source,
+      path: candidate.path,
+      ok: true,
+      wouldCreate: true,
+    };
+  }
+
   if (candidate.create && !existedBefore) {
     mkdirSync(candidate.path, { recursive: true });
   }
-  accessSync(candidate.path, constants.R_OK | constants.W_OK);
+  assertWritableDirectory(candidate.path);
   const probePath = mkdtempSync(path.join(candidate.path, "pi-vault-dolt-"));
   rmSync(probePath, { recursive: true, force: true });
   return {
@@ -140,25 +191,36 @@ function probeDoltTempDir(candidate: { source: string; path: string; create: boo
 
 function formatDoltExecutionEnvironmentError(
   attempts: DoltExecutionEnvironment["attempts"],
+  probeMode: DoltExecutionEnvironment["probeMode"],
 ): string {
   const details = attempts
     .map((attempt) => {
-      const status = attempt.ok ? "ok" : `error=${attempt.error || "unknown"}`;
+      const status = attempt.ok
+        ? attempt.created
+          ? "ok-created"
+          : attempt.wouldCreate
+            ? "ok-would-create"
+            : "ok"
+        : `error=${attempt.error || "unknown"}`;
       return `${attempt.source} (${attempt.path}) -> ${status}`;
     })
     .join("; ");
-  return `Failed to resolve writable temp dir for dolt (VAULT_DIR=${VAULT_DIR}). Tried: ${details}`;
+  return `Failed to resolve writable temp dir for dolt (probeMode=${probeMode}, VAULT_DIR=${VAULT_DIR}). Tried: ${details}`;
 }
 
-function resolveDoltExecutionEnvironment(): DoltExecutionEnvironment {
+function resolveDoltExecutionEnvironment(
+  options: { probeMode?: DoltExecutionEnvironment["probeMode"] } = {},
+): DoltExecutionEnvironment {
+  const probeMode = options.probeMode ?? "prepare";
   const attempts: DoltExecutionEnvironment["attempts"] = [];
   for (const candidate of buildDoltTempDirCandidates()) {
     try {
-      const probe = probeDoltTempDir(candidate);
+      const probe = probeDoltTempDir(candidate, probeMode);
       attempts.push(probe);
       return {
         tempDir: candidate.path,
         source: candidate.source,
+        probeMode,
         attempts,
       };
     } catch (error) {
@@ -170,7 +232,7 @@ function resolveDoltExecutionEnvironment(): DoltExecutionEnvironment {
       });
     }
   }
-  throw new Error(formatDoltExecutionEnvironmentError(attempts));
+  throw new Error(formatDoltExecutionEnvironmentError(attempts, probeMode));
 }
 
 function buildDoltProcessEnv(tempDir: string): NodeJS.ProcessEnv {
@@ -183,7 +245,7 @@ function buildDoltProcessEnv(tempDir: string): NodeJS.ProcessEnv {
 }
 
 function runDolt(args: string[], maxBuffer = DEFAULT_DOLT_MAX_BUFFER): string {
-  const doltExecutionEnvironment = resolveDoltExecutionEnvironment();
+  const doltExecutionEnvironment = resolveDoltExecutionEnvironment({ probeMode: "prepare" });
   try {
     return execFileSync("dolt", args, {
       cwd: VAULT_DIR,
@@ -1033,8 +1095,10 @@ function logExecution(
   } as const;
 }
 
-function getDoltExecutionEnvironment(): DoltExecutionEnvironment {
-  return resolveDoltExecutionEnvironment();
+function getDoltExecutionEnvironment(
+  options: { probeMode?: DoltExecutionEnvironment["probeMode"] } = {},
+): DoltExecutionEnvironment {
+  return resolveDoltExecutionEnvironment(options);
 }
 
 function checkSchemaCompatibilityDetailed() {

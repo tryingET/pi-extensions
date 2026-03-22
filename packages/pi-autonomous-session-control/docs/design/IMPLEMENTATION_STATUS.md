@@ -15,7 +15,7 @@ system4d:
 **Last updated:** 2026-03-05
 **Source docs:** `2026-03-04_SYSTEMS_ASSESSMENT.md`, `2026-03-04_TRANSCENDENT_ORCHESTRATION.md`
 
-Scope note: this matrix tracks orchestration proposals from the two design docs above. Self-memory lifecycle status is tracked in [Status](../dev/status.md).
+Scope note: this matrix tracks orchestration proposals from the two design docs above. Current self/runtime reality is tracked in [README](../../README.md).
 
 ## Summary
 

@@ -122,7 +122,7 @@ Phase A capability discovery across upstream Pi, `pi-interaction`, ASC, and `pi-
 |---|---|---|---|---|
 | Generic extension UI primitives | Upstream Pi / `pi-mono` | `extensions.md`, extension examples, `packages/tui/README.md` | trigger brokering, subagent lifecycle | Consume directly; do not invent a new wrapper package by default |
 | Interaction runtime | `pi-interaction` | package split docs + editor registry + picker/selection runtime | global widget/footer ownership; execution runtime | Use it for editor/trigger/picker behavior, not as a catch-all UI owner |
-| Execution runtime | ASC | `docs/dev/status.md` capability inventory | generic widget/footer ownership; prompt-vault governance | Keep subagent runtime ownership in ASC; prefer an ASC public contract first |
+| Execution runtime | ASC | `README.md` capability inventory | generic widget/footer ownership; prompt-vault governance | Keep subagent runtime ownership in ASC; prefer an ASC public contract first |
 | UX/pattern reference | `pi-vs-claude-code` | widget/footer/overlay examples | canonical runtime ownership | Borrow patterns only |
 | Coordination/control plane | `pi-society-orchestrator` | this ADR + backlog direction | raw data access, prompt-vault governance, execution runtime | Own loops, sequencing, escalation, synthesis |
 
@@ -464,7 +464,7 @@ Keep this ADR consistent with:
 - `README.md`
 - `../pi-autonomous-session-control/docs/project/nexus-native-addition.md`
 - `../pi-autonomous-session-control/docs/project/prompt-vault-integration-plan.md`
-- `../pi-autonomous-session-control/docs/dev/status.md`
+- `../pi-autonomous-session-control/README.md`
 - `../pi-vault-client/README.md`
 - `../../docs/project/root-capabilities.md`
 

@@ -110,7 +110,7 @@ node --test ./scripts/release-components.test.mjs
 
 Read these first before choosing the next change:
 - `README.md`
-- `docs/dev/status.md`
+- `README.md`
 - `docs/dev/plans/2026-03-11-hermetic-installed-release-smoke.md`
 - `docs/dev/plans/2026-03-11-unified-execution-evidence-contract.md`
 - `docs/dev/plans/2026-03-11-rocs-ontology-adapter.md`
@@ -175,7 +175,7 @@ npm run release:check
 
 ## Session checklist
 
-1. Read `AGENTS.md`, `docs/dev/status.md`, this handoff, and the runtime helpers listed above.
+1. Read `AGENTS.md`, `README.md`, this handoff, and the runtime helpers listed above.
 2. Pick one bounded pack only.
 3. If you surface a new finding, either resolve it in the same pass or add a full deferral contract.
 4. Run `npm run docs:list` if docs changed.

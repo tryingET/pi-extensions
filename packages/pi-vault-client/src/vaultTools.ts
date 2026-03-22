@@ -1,5 +1,6 @@
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
+import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";
 import { receiptVisibleToCompany } from "./vaultReceipts.js";
 import { formatVaultReplayReport, replayVaultExecutionById } from "./vaultReplay.js";
 import type {
@@ -145,46 +146,6 @@ function buildToolMutationContext(ctx: unknown): VaultMutationContext {
     ...(cwd ? { cwd } : {}),
     allowAmbientCwdFallback: false,
   };
-}
-
-function resolveDoltExecutionEnvironmentSnapshot(
-  runtime: Partial<Pick<VaultRuntime, "getDoltExecutionEnvironment">>,
-): {
-  status: string;
-  source: string;
-  tempDir: string;
-  attempts: string;
-} {
-  if (typeof runtime.getDoltExecutionEnvironment !== "function") {
-    return {
-      status: "unavailable",
-      source: "runtime-missing",
-      tempDir: "unknown",
-      attempts: "runtime-missing",
-    };
-  }
-  try {
-    const environment = runtime.getDoltExecutionEnvironment();
-    return {
-      status: "ok",
-      source: environment.source,
-      tempDir: environment.tempDir,
-      attempts:
-        environment.attempts
-          .map(
-            (attempt) =>
-              `${attempt.source}:${attempt.ok ? "ok" : `error=${attempt.error || "unknown"}`}`,
-          )
-          .join("; ") || "none",
-    };
-  } catch (error) {
-    return {
-      status: "error",
-      source: "resolution-failed",
-      tempDir: "unknown",
-      attempts: error instanceof Error ? error.message : String(error),
-    };
-  }
 }
 
 function formatSchemaDiagnosticsReport(

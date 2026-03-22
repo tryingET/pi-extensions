@@ -313,6 +313,12 @@ Persistence behavior:
 - Snapshot format is schema-versioned (`schemaVersion: 1`) and validated on load
 - Malformed snapshots fail safe (tool remains usable; snapshot is repaired on next successful scoped persistence)
 
+## Current runtime reality
+
+- `dispatch_subagent` is wired, bounded, and backed by session/status artifacts plus the read-only dashboard and inspection commands.
+- Prompt-envelope application, runtime compatibility checks, invariant summaries, failure-memory canary coverage, and Edge Contract Kernel adoption are all live.
+- Scoped self-memory persistence is in place; remaining forward-looking work should live in `README.md` + `NEXT_SESSION_PROMPT.md`, not a separate `status.md` mirror.
+
 ## Live package activation
 
 Install the package into Pi from its local package path:
@@ -341,4 +347,3 @@ Then in Pi:
 - [Extension SOP](docs/dev/EXTENSION_SOP.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
 - [Next session prompt](NEXT_SESSION_PROMPT.md)
-- [Status](docs/dev/status.md)

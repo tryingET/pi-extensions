@@ -26,7 +26,7 @@ Complete one bounded pack from `NEXT_SESSION_PROMPT.md`:
 3. Ontology lookup now resolves through `rocs-cli` against a configured ontology repo/workspace root.
 4. Search remains useful for concept ids, labels, and definition text.
 5. Deterministic package tests cover the new adapter path without depending on a live ROCS repo or network.
-6. `README.md`, `docs/dev/status.md`, `docs/dev/plans/2026-03-10-architecture-backlog.md`, and `NEXT_SESSION_PROMPT.md` reflect the completed ontology migration and the next remaining bounded work.
+6. `README.md`, `docs/dev/plans/2026-03-10-architecture-backlog.md`, and `NEXT_SESSION_PROMPT.md` reflect the completed ontology migration and the next remaining bounded work.
 
 ## Chosen approach
 

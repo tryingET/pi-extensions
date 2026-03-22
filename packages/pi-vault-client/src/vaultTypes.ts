@@ -451,12 +451,14 @@ export interface DoltExecutionEnvironmentAttempt {
   path: string;
   ok: boolean;
   created?: boolean;
+  wouldCreate?: boolean;
   error?: string;
 }
 
 export interface DoltExecutionEnvironment {
   tempDir: string;
   source: string;
+  probeMode: "inspect" | "prepare";
   attempts: DoltExecutionEnvironmentAttempt[];
 }
 
@@ -561,7 +563,9 @@ export interface VaultRuntime {
     model: string,
     inputContext?: string,
   ) => VaultExecutionLogResult;
-  getDoltExecutionEnvironment: () => DoltExecutionEnvironment;
+  getDoltExecutionEnvironment: (options?: {
+    probeMode?: "inspect" | "prepare";
+  }) => DoltExecutionEnvironment;
   checkSchemaCompatibilityDetailed: () => SchemaCompatibilityReport;
   checkSchemaVersion: () => boolean;
 }

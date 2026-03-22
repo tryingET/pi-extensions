@@ -124,7 +124,7 @@ if (missing.length || extra.length) {
 console.log(`File whitelist OK (${actual.length} files).`);
 NODE
 
-echo "== portable doc surface validation"
+echo "== portable doc surface validation (working tree)"
 node ./scripts/validate-portable-doc-surface.mjs --pack-json "$PACK_JSON_FILE"
 
 echo "== static runtime dependency audit"
@@ -239,6 +239,8 @@ fi
 
 TEST_AGENT_DIR=""
 CLEANROOM_DIR=""
+PACKED_ARTIFACT_DIR=""
+PACKED_TARBALL_JSON_FILE=""
 TARBALL_PATH=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
@@ -248,11 +250,17 @@ cleanup() {
     if [[ -n "$CLEANROOM_DIR" && -d "$CLEANROOM_DIR" ]]; then
       rm -rf "$CLEANROOM_DIR"
     fi
+    if [[ -n "$PACKED_ARTIFACT_DIR" && -d "$PACKED_ARTIFACT_DIR" ]]; then
+      rm -rf "$PACKED_ARTIFACT_DIR"
+    fi
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
     fi
     if [[ -n "$PACK_JSON_FILE" && -f "$PACK_JSON_FILE" ]]; then
       rm -f "$PACK_JSON_FILE"
+    fi
+    if [[ -n "$PACKED_TARBALL_JSON_FILE" && -f "$PACKED_TARBALL_JSON_FILE" ]]; then
+      rm -f "$PACKED_TARBALL_JSON_FILE"
     fi
   fi
 }
@@ -262,6 +270,52 @@ echo "== npm pack"
 TARBALL="$(npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
+
+PACKED_ARTIFACT_DIR="$(mktemp -d /tmp/pi-extension-packed-artifact-XXXXXX)"
+PACKED_TARBALL_JSON_FILE="$(mktemp /tmp/pi-vault-packed-json-XXXXXX.json)"
+tar -xzf "$TARBALL_PATH" -C "$PACKED_ARTIFACT_DIR"
+TARBALL_PATH="$TARBALL_PATH" PACKED_TARBALL_JSON_FILE="$PACKED_TARBALL_JSON_FILE" node <<'NODE'
+const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
+
+const files = execFileSync("tar", ["-tzf", process.env.TARBALL_PATH], { encoding: "utf8" })
+  .split("\n")
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .filter((line) => line.startsWith("package/"))
+  .map((line) => line.replace(/^package\//, ""))
+  .filter(Boolean)
+  .map((filePath) => ({ path: filePath }));
+
+fs.writeFileSync(process.env.PACKED_TARBALL_JSON_FILE, JSON.stringify([{ files }], null, 2));
+NODE
+
+echo "== portable doc surface validation (packed artifact)"
+node ./scripts/validate-portable-doc-surface.mjs --root-dir "$PACKED_ARTIFACT_DIR/package" --pack-json "$PACKED_TARBALL_JSON_FILE"
+
+echo "== packed README immutability audit"
+PACKAGE_ROOT="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).repository.directory")"
+PACKED_ARTIFACT_DIR="$PACKED_ARTIFACT_DIR" PACKAGE_ROOT="$PACKAGE_ROOT" node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const readmePath = path.join(process.env.PACKED_ARTIFACT_DIR, "package", "README.md");
+if (!fs.existsSync(readmePath)) {
+  console.error(`Packed artifact missing README.md: ${readmePath}`);
+  process.exit(1);
+}
+const readme = fs.readFileSync(readmePath, "utf8");
+const packageRoot = String(process.env.PACKAGE_ROOT || "").replace(/^\/+|\/+$/g, "");
+const mainBranchBlobPattern = new RegExp(
+  `https://github\\.com/[^\\s)]+/blob/main/${packageRoot.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}/`,
+  "i",
+);
+if (mainBranchBlobPattern.test(readme)) {
+  console.error("Packed README still contains branch-floating GitHub blob links under repository.directory.");
+  process.exit(1);
+}
+console.log("Packed README immutability audit OK.");
+NODE
 
 echo "== packed manifest dependency audit"
 TARBALL_PATH="$TARBALL_PATH" node <<'NODE'

@@ -39,6 +39,42 @@ test("validatePortableDocSurface rejects absolute filesystem markdown links", ()
   });
 });
 
+test("validatePortableDocSurface rejects reference-style absolute filesystem links", () => {
+  withTempDir((dir) => {
+    writeFile(path.join(dir, "README.md"), "See [bad][ref].\n\n[ref]: /home/tryinget/private.md\n");
+
+    const result = validatePortableDocSurface({ rootDir: dir });
+
+    assert.equal(result.ok, false);
+    assert.match(result.issues[0], /absolute filesystem markdown link is not portable/);
+  });
+});
+
+test("validatePortableDocSurface rejects angle-bracket destinations with spaces", () => {
+  withTempDir((dir) => {
+    writeFile(path.join(dir, "README.md"), "See [bad](<./docs/My Plan.md>).\n");
+
+    const result = validatePortableDocSurface({
+      rootDir: dir,
+      packJson: packJson(["README.md"]),
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(result.issues[0], /local link is not present in the packed artifact/);
+  });
+});
+
+test("validatePortableDocSurface rejects autolinked file URIs", () => {
+  withTempDir((dir) => {
+    writeFile(path.join(dir, "README.md"), "See <file:///home/tryinget/private.md>.\n");
+
+    const result = validatePortableDocSurface({ rootDir: dir });
+
+    assert.equal(result.ok, false);
+    assert.match(result.issues[0], /absolute filesystem markdown link is not portable/);
+  });
+});
+
 test("validatePortableDocSurface rejects README links absent from the packed artifact", () => {
   withTempDir((dir) => {
     writeFile(path.join(dir, "README.md"), "See [plan](docs/dev/plan.md).\n");
@@ -51,6 +87,43 @@ test("validatePortableDocSurface rejects README links absent from the packed art
 
     assert.equal(result.ok, false);
     assert.match(result.issues[0], /README\.md: local link is not present in the packed artifact/);
+  });
+});
+
+test("validatePortableDocSurface rejects shipped prompt markdown with absolute filesystem links", () => {
+  withTempDir((dir) => {
+    writeFile(path.join(dir, "README.md"), "# Docs\n");
+    writeFile(path.join(dir, "prompts/task.md"), "See [bad](/home/tryinget/private.md).\n");
+
+    const result = validatePortableDocSurface({
+      rootDir: dir,
+      packJson: packJson(["README.md", "prompts/task.md"]),
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(
+      result.issues[0],
+      /prompts\/task\.md: absolute filesystem markdown link is not portable/,
+    );
+  });
+});
+
+test("validatePortableDocSurface rejects local links from shipped prompt markdown when the target is not packed", () => {
+  withTempDir((dir) => {
+    writeFile(path.join(dir, "README.md"), "# Docs\n");
+    writeFile(path.join(dir, "prompts/task.md"), "See [plan](../docs/plan.md).\n");
+    writeFile(path.join(dir, "docs/plan.md"), "# Plan\n");
+
+    const result = validatePortableDocSurface({
+      rootDir: dir,
+      packJson: packJson(["README.md", "prompts/task.md"]),
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(
+      result.issues[0],
+      /prompts\/task\.md: local link is not present in the packed artifact/,
+    );
   });
 });
 

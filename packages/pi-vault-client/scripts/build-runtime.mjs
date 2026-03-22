@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -6,6 +7,12 @@ import ts from "typescript";
 const ROOT = process.cwd();
 const RUNTIME_ROOTS = ["extensions", "src"];
 const QUIET = process.argv.includes("--quiet");
+const BIOME_BIN = path.join(
+  ROOT,
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "biome.cmd" : "biome",
+);
 
 function walk(dir, files = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -43,5 +50,9 @@ for (const sourcePath of sourceFiles) {
   const outputPath = sourcePath.replace(/\.ts$/, ".js");
   mkdirSync(path.dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, transpiled, "utf8");
+  execFileSync(BIOME_BIN, ["format", "--write", "--no-errors-on-unmatched", outputPath], {
+    cwd: ROOT,
+    stdio: QUIET ? "ignore" : "inherit",
+  });
   if (!QUIET) console.log(path.relative(ROOT, outputPath));
 }

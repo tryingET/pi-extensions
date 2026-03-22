@@ -68,4 +68,4 @@ Transition to **architect** role for a minimal design patch:
 
 1. Define command payload union (`op` legacy + `action` workflow).
 2. Specify routing and context shim strategy for command handler.
-3. Enumerate tests + doc deltas (`README.md`, `docs/dev/status.md`, `CHANGELOG.md`).
+3. Enumerate tests + doc deltas (`README.md`, `CHANGELOG.md`).

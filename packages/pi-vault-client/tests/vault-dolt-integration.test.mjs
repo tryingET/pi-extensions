@@ -101,6 +101,21 @@ test("vault runtime prefers repo-local temp before falling back to host tmp", as
   });
 });
 
+test("inspect-mode dolt diagnostics do not create repo-local temp directories", async () => {
+  await withTempVaultRuntime(async ({ importModule, repoDir }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    assert.equal(existsSync(path.join(repoDir, ".tmp")), false);
+    const environment = runtime.getDoltExecutionEnvironment({ probeMode: "inspect" });
+
+    assert.equal(environment.probeMode, "inspect");
+    assert.equal(environment.source, "vault:.tmp");
+    assert.equal(environment.attempts.at(-1)?.wouldCreate, true);
+    assert.equal(existsSync(path.join(repoDir, ".tmp")), false);
+  });
+});
+
 test("vault runtime honors explicit PI_VAULT_TMPDIR when it is writable", async () => {
   await withTempVaultRuntime(async ({ importModule }) => {
     const explicitRoot = mkdtempSync(path.join(os.tmpdir(), "pi-vault-explicit-tmp-"));

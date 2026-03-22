@@ -39,7 +39,7 @@ Validated conclusions:
 |---|---|---|
 | Upstream Pi / `pi-mono` | `packages/coding-agent/docs/extensions.md`, `packages/coding-agent/examples/extensions/README.md`, `packages/coding-agent/examples/extensions/widget-placement.ts`, `custom-footer.ts`, `modal-editor.ts`, `overlay-test.ts`, `packages/tui/README.md` | Generic UI primitives are already upstream: `ctx.ui.setWidget(...)`, `ctx.ui.setFooter(...)`, `ctx.ui.custom(..., { overlay: true })`, `ctx.ui.setEditorComponent(...)`, overlay positioning, non-capturing overlays, and overlay focus handles |
 | `pi-interaction` | `README.md`, `docs/dev/package-boundary-architecture.md`, `pi-interaction/README.md`, `pi-interaction-kit/src/ui.js`, `pi-editor-registry/src/editorRegistry.js`, `pi-interaction/extensions/input-triggers.ts` | `pi-interaction` is a same-process interaction-runtime family: editor ownership, trigger broker, picker registration, fuzzy selection, and inline overlay selection flows |
-| ASC | `docs/dev/status.md` | ASC already owns `dispatch_subagent`, prompt envelope application, session lifecycle, runtime invariants, and dashboard/status artifacts |
+| ASC | `README.md` | ASC already owns `dispatch_subagent`, prompt envelope application, session lifecycle, runtime invariants, and dashboard/status artifacts |
 | `pi-vs-claude-code` | `README.md`, `extensions/subagent-widget.ts`, `extensions/tool-counter-widget.ts` | Rich widget/footer/overlay usage exists as reusable UX inspiration, but it is built on upstream Pi surfaces rather than defining a canonical runtime boundary |
 
 ## What Phase A resolved
@@ -110,7 +110,7 @@ It is **not** evidence that the pattern repo should become the runtime owner of 
 |---|---|---|---|---|
 | Generic extension UI primitives | Upstream Pi / `pi-mono` | Extension docs + examples + TUI overlay API | Trigger/runtime brokering, subagent lifecycle | Consume directly; do not wrap or extract by default |
 | Interaction runtime | `pi-interaction` | package split + editor registry + picker/selection code | Global widget/footer ownership; subagent execution runtime | Depend on it only when orchestrator truly needs editor/trigger/picker semantics |
-| Execution runtime | ASC | `docs/dev/status.md` capability inventory | Generic widget/footer ownership; prompt-vault governance | Keep subagent execution ownership there; pursue public contract first |
+| Execution runtime | ASC | `README.md` capability inventory | Generic widget/footer ownership; prompt-vault governance | Keep subagent execution ownership there; pursue public contract first |
 | UX/presentation patterns | `pi-vs-claude-code` | Pattern extensions using widgets/overlays/footers | Canonical package ownership | Borrow patterns only |
 | Coordination / control plane | `pi-society-orchestrator` | current ADR + backlog direction | Raw data access, prompt-vault governance, subagent runtime ownership | Own loops, sequencing, routing, escalation, synthesis |
 

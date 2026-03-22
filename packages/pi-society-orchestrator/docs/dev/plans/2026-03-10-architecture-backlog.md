@@ -72,7 +72,7 @@ Status update:
   2. **Read and compare canonical sources**
      - Commands:
        - `read ../pi-interaction/pi-interaction/README.md`
-       - `read ../pi-autonomous-session-control/docs/dev/status.md`
+       - `read ../pi-autonomous-session-control/README.md`
        - `read /home/tryinget/ai-society/softwareco/contrib/pi-mono/packages/coding-agent/docs/extensions.md`
        - `read /home/tryinget/ai-society/softwareco/contrib/pi-mono/packages/tui/README.md`
        - `read /home/tryinget/ai-society/softwareco/contrib/pi-vs-claude-code/README.md`

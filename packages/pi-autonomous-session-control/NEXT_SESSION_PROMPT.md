@@ -99,7 +99,7 @@ Reference decision note:
 - [Lock reservation + stale-lock behavior](extensions/self/subagent-session-name.ts)
 - [Dashboard data adapter](extensions/self/subagent-dashboard-data.ts)
 - [Dashboard widget + commands](extensions/self/subagent-dashboard.ts)
-- [Current status doc](docs/dev/status.md)
+- [Project README](README.md)
 - [Migration/dashboard decision note](docs/dev/monorepo-migration-dashboard-slice.md)
 - [Tests](tests/dispatch-subagent-diagnostics.test.mjs)
 - [Tests](tests/subagent-file-lock.test.mjs)

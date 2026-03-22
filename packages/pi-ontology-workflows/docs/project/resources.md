@@ -38,7 +38,7 @@ system4d:
 
 - [README](../../README.md)
 - [Architecture decision](../decisions/2026-03-14-stable-core-thin-adapters.md)
-- [Current status](../dev/status.md)
+- [Project README](../../README.md)
 - [Trusted publishing runbook](../dev/trusted_publishing.md)
 - [Validation script](../../scripts/validate-structure.sh)
 - [Security policy](../../policy/security-policy.json)

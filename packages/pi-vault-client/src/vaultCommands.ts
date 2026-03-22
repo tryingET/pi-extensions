@@ -1,4 +1,5 @@
 import type { Message, TextContent } from "@mariozechner/pi-ai";
+import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";
 import { runFzfProbe } from "./fuzzySelector.js";
 import {
   createPreparedExecutionToken,
@@ -59,46 +60,6 @@ function formatSchemaMismatchMessage(
   if (report.missingFeedbackColumns.length > 0)
     parts.push(`feedback:[${report.missingFeedbackColumns.join(", ")}]`);
   return `Vault schema mismatch (${parts.join("; ")}). Use /vault-check or vault_schema_diagnostics.`;
-}
-
-function resolveDoltExecutionEnvironmentSnapshot(
-  runtime: Partial<Pick<VaultModuleRuntime, "getDoltExecutionEnvironment">>,
-): {
-  status: string;
-  source: string;
-  tempDir: string;
-  attempts: string;
-} {
-  if (typeof runtime.getDoltExecutionEnvironment !== "function") {
-    return {
-      status: "unavailable",
-      source: "runtime-missing",
-      tempDir: "unknown",
-      attempts: "runtime-missing",
-    };
-  }
-  try {
-    const environment = runtime.getDoltExecutionEnvironment();
-    return {
-      status: "ok",
-      source: environment.source,
-      tempDir: environment.tempDir,
-      attempts:
-        environment.attempts
-          .map(
-            (attempt) =>
-              `${attempt.source}:${attempt.ok ? "ok" : `error=${attempt.error || "unknown"}`}`,
-          )
-          .join("; ") || "none",
-    };
-  } catch (error) {
-    return {
-      status: "error",
-      source: "resolution-failed",
-      tempDir: "unknown",
-      attempts: error instanceof Error ? error.message : String(error),
-    };
-  }
 }
 
 function resolveCommandCompanyContext(
