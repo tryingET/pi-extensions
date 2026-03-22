@@ -36,8 +36,8 @@ This note complements, rather than replaces:
 
 This repo-native note is the owner-repo follow-through named by the v4 fan-out material in Agent Kernel:
 
-- [Cross-Repo Fan-Out Pack — V4 Source→Artifact Graph Control Plane (Boundary-Note Wave)](/home/tryinget/ai-society/softwareco/owned/agent-kernel/docs/project/2026-03-21-cross-repo-fanout-v4-source-artifact-graph-control-plane-boundary-note-wave.md)
-- [Conformance Suite — V4 Source→Artifact Graph Control Plane (First Slice)](/home/tryinget/ai-society/softwareco/owned/agent-kernel/docs/project/2026-03-21-conformance-suite-v4-source-artifact-graph-control-plane-first-slice.md)
+- `agent-kernel/docs/project/2026-03-21-cross-repo-fanout-v4-source-artifact-graph-control-plane-boundary-note-wave.md`
+- `agent-kernel/docs/project/2026-03-21-conformance-suite-v4-source-artifact-graph-control-plane-first-slice.md`
 
 Those initiative artifacts stay coordination-only.
 They point back to this package for runtime-receipt authority rather than replacing it.
