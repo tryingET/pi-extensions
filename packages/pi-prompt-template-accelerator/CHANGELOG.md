@@ -31,6 +31,7 @@ All notable changes to this project should be documented here.
 - `/ptx-select [query]` command for explicit template picking.
 - `/ptx-debug-commands [query]` to inspect visible prompt commands, paths, and inferred arg contracts.
 - `/ptx-fzf-spike` command to probe interactive vs filter-mode fzf viability.
+- PTX runtime-registry bridge (`src/ptxRuntimeRegistry.js`) that registers prompt-template runtime ownership and observed model lifecycle in `@tryinget/pi-runtime-registry`.
 
 ### Changed
 

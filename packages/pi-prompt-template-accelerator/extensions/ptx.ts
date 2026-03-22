@@ -13,6 +13,12 @@ import { runFzfProbe, selectFuzzyCandidate } from "../src/fuzzySelector.js";
 import { parseRawCommand, RawCommandParseError } from "../src/parseRawCommand.js";
 import { parseTemplatePlaceholders } from "../src/parseTemplatePlaceholders.js";
 import { planPromptTemplateTransform } from "../src/planPromptTemplateTransform.js";
+import {
+  createInitialPtxModelLifecycleState,
+  observePtxModelSelection,
+  registerPtxCapabilityBridges,
+  unregisterPtxCapabilityBridges,
+} from "../src/ptxRuntimeRegistry.js";
 import { toPtxCandidates } from "../src/ptxCandidateAdapter.js";
 import { loadPtxPolicyConfig } from "../src/ptxPolicyConfig.js";
 
@@ -404,16 +410,47 @@ async function maybeRegisterLiveTrigger(options: {
 
 export default function ptxExtension(pi: ExtensionAPI) {
   let unregisterLivePicker: (() => void) | null = null;
+  let sessionActive = true;
+  let liveTriggerState = {
+    status: "pending",
+    reason: "initializing",
+  };
+  let modelLifecycleState = createInitialPtxModelLifecycleState();
+
+  registerPtxCapabilityBridges({
+    getCommands: () => pi.getCommands(),
+    getLiveTriggerState: () => liveTriggerState,
+    getModelLifecycleState: () => modelLifecycleState,
+  });
 
   // Optional live trigger registration through pi-interaction trigger surfaces.
   // PTX remains fully functional in non-UI mode even when these packages are absent.
   void maybeRegisterLiveTrigger({ pi }).then((result) => {
+    if (!sessionActive) {
+      result.unregister();
+      return;
+    }
+
     unregisterLivePicker = result.unregister;
+    liveTriggerState = {
+      status: result.reason === "registered" ? "registered" : "unavailable",
+      reason: result.reason,
+    };
+  });
+
+  pi.on("model_select", (event: any) => {
+    modelLifecycleState = observePtxModelSelection(modelLifecycleState, event?.model);
   });
 
   pi.on("session_shutdown", () => {
+    sessionActive = false;
     unregisterLivePicker?.();
     unregisterLivePicker = null;
+    liveTriggerState = {
+      status: "unregistered",
+      reason: "session-shutdown",
+    };
+    unregisterPtxCapabilityBridges();
   });
 
   pi.on("input", async (event, ctx) => {

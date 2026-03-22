@@ -67,6 +67,7 @@ If you type a direct `$$ /name` invocation for a prompt command that PTX cannot 
 - `extensions/ptx.ts` — main extension (selection + mapping flow)
 - `src/fuzzySelector.js` — shared selector contract + fzf/fallback ranking
 - `src/ptxCandidateAdapter.js` — prompt command → `FuzzyCandidate` adapter
+- `src/ptxRuntimeRegistry.js` — shared runtime-registry bridge for PTX ownership + model lifecycle introspection
 
 ## Cognitive triggers
 
@@ -91,6 +92,9 @@ See `~/ai-society/softwareco/infra/workstation/prompts/triggers/` for the full s
   - missing `sessionManager` / `getBranch()` no longer crashes context inference
   - duplicate prompt names are disambiguated and preserve exact selected prompt identity
   - picker candidates include only prompt commands with a usable template path
+- Shared runtime registry bridge:
+  - PTX registers prompt-template runtime ownership and observed model lifecycle in `@tryinget/pi-runtime-registry`
+  - PTX still reports `deterministic-only` suggestion mode and **does not** use the active model for slot filling today
 - Diagnostics available:
   - `/ptx-debug-commands [query]`
   - `/ptx-fzf-spike`

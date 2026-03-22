@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@tryinget/pi-interaction": "file:../pi-interaction/pi-interaction",
+    "@tryinget/pi-runtime-registry": "file:../pi-interaction/pi-runtime-registry",
     "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
   },
   "devDependencies": {
