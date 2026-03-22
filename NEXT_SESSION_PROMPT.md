@@ -1,7 +1,8 @@
 ---
-summary: "Canonical monorepo-root handoff for pi-extensions after stack-contract centralization and package-level local-override separation."
+summary: "Canonical monorepo-root bootstrap for pi-extensions: use AK as the task authority, run quality gates, and keep this file stable."
 read_when:
   - "Starting the next session at the pi-extensions monorepo root."
+  - "You need session bootstrap, authority order, and closeout rules."
 system4d:
   container: "Session handoff artifact."
   compass: "Keep root policy ownership explicit, route package/template work to the correct repo, and avoid copying policy into every package by habit."
@@ -11,49 +12,52 @@ system4d:
 
 # Next session prompt — pi-extensions monorepo root
 
-## Continue here
+## SESSION TRIGGER
+Reading this file means start immediately.
+Do not ask for permission to begin.
 
-- Monorepo root: `~/ai-society/softwareco/owned/pi-extensions`
+## AUTHORITATIVE ORDER
+Use these in this order:
 
-## Current truth
+1. **AK DB** — authoritative task queue / active-deferred work state
+2. **Latest diary entry** — exact session-local context (see `diary/` in root and packages)
+3. **Canonical docs** — policy/runtime detail for the area you are touching
+4. **This file** — stable bootstrap + durable guardrails only
 
+Do **not** treat this file as a live status database.
+
+## STABLE CONTEXT
+- Repo: `/home/tryinget/ai-society/softwareco/owned/pi-extensions`
+- Branch: `main`
+- Active DB: `~/ai-society/society.v2.db`
+- Preferred operator path: run `npm run *` scripts from repo root
+
+## CURRENT TRUTH
 - This repo is the canonical monorepo control plane for pi extensions.
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
   - `npm run quality:ci`
   - `npm run check`
-- Canonical root quality-gate wrapper lives in:
-  - `./scripts/quality-gate.sh`
-- Full root validation lives in:
-  - `./scripts/ci/full.sh`
-- Canonical package validation implementation lives in:
-  - `./scripts/package-quality-gate.sh`
-- Package checks are orchestrated by:
-  - `./scripts/ci/packages.sh`
-- Root-owned stack-contract review/policy surface now lives here:
+- Canonical root quality-gate wrapper: `./scripts/quality-gate.sh`
+- Full root validation: `./scripts/ci/full.sh`
+- Canonical package validation: `./scripts/package-quality-gate.sh`
+- Package checks orchestrated by: `./scripts/ci/packages.sh`
+- Root-owned stack-contract review/policy surface:
   - `docs/tech-stack.local.md`
   - `scripts/validate-tech-stack-contract.mjs`
-- package-local divergence surface stays local to each repo/package:
+- Package-local divergence surface stays local to each package:
   - `docs/tech-stack.local.md`
   - package-specific docs/manifests/scripts
-- `policy/stack-lane.json` is currently still present in some package repos and templates, but the next review should decide what truly belongs at root policy level vs local override level.
-- `pi-vault-client` phase-1 Nunjucks support is implemented; what remains there is **live end-to-end verification**, not a fresh implementation pass.
-- session/handoff prompt work is separate from root policy work and should route to:
-  - `packages/pi-prompt-template-accelerator/NEXT_SESSION_PROMPT.md`
-  - `packages/pi-prompt-template-accelerator/prompts/one-line-handoff.md`
-  - `packages/pi-prompt-template-accelerator/prompts/one-sentence-handoff.md`
 
-## Completed in the last session
+## DURABLE GUARDRAILS
+- Do **not** treat this file as a live status database; use AK for task state.
+- Do **not** confuse root policy with package-local overrides.
+- Do **not** copy tech-stack policy into every package by habit; root owns the stance.
+- Do **not** forget live verification work that still belongs to a specific package.
+- Do **not** bypass quality gates before committing.
 
-- Strengthened `tech-stack-core` review surfaces across the monorepo and related template work.
-- Added the root helper `scripts/validate-tech-stack-contract.mjs` to centralize stack-contract validation policy in this repo.
-- Reused that helper from stack-pinned packages instead of leaving each package to drift independently.
-- Updated root docs/handoff context so package-local files are treated as local override surfaces rather than the universal policy home.
-- Verified root/package checks after those changes.
-
-## Continue with
-
+## CONTINUE WITH
 1. Review whether `tech-stack-core` policy should stay centralized here while package/template outputs shrink to the **reduced form**:
    - root repo owns policy and validation stance
    - package repos/templates keep only the local override file where repo-specific divergence is needed
@@ -69,8 +73,17 @@ system4d:
 5. Route session/handoff prompt wording and prompt-template work to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator/NEXT_SESSION_PROMPT.md`
 
-## Must-pass checks
+## NEXT-SESSION START COMMANDS
+```bash
+cd ~/ai-society/softwareco/owned/pi-extensions
+git status --short
+git diff --name-only
+ak task ready -F json | jq '.[] | select(.repo | contains("pi-extensions"))'
+npm run quality:pre-commit
+npm run quality:pre-push
+```
 
+## MUST-PASS CHECKS
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions
 npm run quality:pre-commit
@@ -78,3 +91,12 @@ npm run quality:pre-push
 npm run quality:ci
 npm run check
 ```
+
+## SESSION-END RULE
+When ending a session:
+
+1. Write a diary entry (root `diary/` or package-local as appropriate)
+2. Run quality gates to verify clean state
+3. Commit the resulting handoff/doc changes
+4. Verify working tree is clean: `git status --short`
+5. Keep AK as the authority for task status / priority / readiness
