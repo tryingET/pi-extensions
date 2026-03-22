@@ -63,7 +63,9 @@ npm run check
 Notes:
 
 - `npm run check` regenerates the installed-package runtime `.js` artifacts before running the package gate.
+- `npm run test:compat:live-trigger-contract` is the focused validation lane for live `/vault:` behavior across the shared trigger broker, the `150ms` debounce contract, and picker fallback behavior.
 - `npm run release:check` proves publish-file determinism, static runtime import coverage, clean-room tarball install, and installed-package smoke.
+- if you want the root-owned Pi host compatibility canary for this same seam, run `npm run compat:canary -- --profile current --scenario vault-live-trigger-contract` from the monorepo root.
 - if you want to refresh the live-installable runtime without a full check, run `npm run build:runtime`.
 
 Or from monorepo root:
@@ -230,6 +232,19 @@ For a headless replay-boundary smoke keyed to an exact `execution_id`:
 PI_COMPANY=software \
 pi --no-extensions -e /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client -p \
   "Do not use bash or read. Call the custom tool named vault_replay exactly once with execution_id 999999. If the tool call succeeds and returns text mentioning both 'status: unavailable' and 'receipt-missing', reply with only SUCCESS. Otherwise reply with only FAILURE."
+```
+
+For the focused shared-runtime live-trigger contract (shared broker, `150ms` debounce, bare `/vault:` query prompt, picker fallback):
+
+```bash
+npm run test:compat:live-trigger-contract
+```
+
+For the root-owned Pi host compatibility canary scenario covering the same seam:
+
+```bash
+cd /home/tryinget/ai-society/softwareco/owned/pi-extensions
+npm run compat:canary -- --profile current --scenario vault-live-trigger-contract
 ```
 
 For interactive slash-command validation in an isolated runtime:

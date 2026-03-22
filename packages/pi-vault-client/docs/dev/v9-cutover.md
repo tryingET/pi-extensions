@@ -83,6 +83,25 @@ pi --no-extensions -e ~/ai-society/softwareco/owned/pi-extensions/packages/pi-va
   "Call vault_query with limit 1 and include_content false, then reply with only SUCCESS or FAILURE based on whether the tool call succeeded."
 ```
 
+### Focused live-trigger contract lane
+```bash
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client
+npm run test:compat:live-trigger-contract
+```
+
+This lane protects the shared `/vault:` seam specifically:
+- shared trigger broker behavior
+- live trigger registration
+- `150ms` debounce / rate-limiting contract
+- bare `/vault:` query-prompt behavior
+- picker fallback behavior
+
+### Root-owned compatibility canary scenario
+```bash
+cd ~/ai-society/softwareco/owned/pi-extensions
+npm run compat:canary -- --profile current --scenario vault-live-trigger-contract
+```
+
 ### Isolated interactive slash-command smoke
 ```bash
 export PI_COMPANY=software
@@ -99,5 +118,7 @@ A truthful v9 cutover is complete when all of the following are true:
 2. temp-Dolt integration passes against Prompt Vault schema v9
 3. isolated headless `vault_schema_diagnostics` smoke succeeds
 4. isolated headless `vault_query` smoke succeeds
-5. interactive `/vault-check` no longer reports a stale schema requirement
-6. `/vault` and `/vault:` exact-name paths work without schema-gating failures
+5. `npm run test:compat:live-trigger-contract` passes for the shared `/vault:` seam
+6. the root-owned `vault-live-trigger-contract` compatibility canary scenario passes
+7. interactive `/vault-check` no longer reports a stale schema requirement
+8. `/vault` and `/vault:` exact-name paths work without schema-gating failures
