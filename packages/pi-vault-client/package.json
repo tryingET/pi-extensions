@@ -70,6 +70,7 @@
   "dependencies": {
     "@sinclair/typebox": "0.34.48",
     "@tryinget/pi-interaction-kit": "file:../pi-interaction/pi-interaction-kit",
+    "@tryinget/pi-runtime-registry": "file:../pi-interaction/pi-runtime-registry",
     "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
   },
   "devDependencies": {

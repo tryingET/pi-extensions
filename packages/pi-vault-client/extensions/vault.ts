@@ -9,6 +9,7 @@ import { createVaultRuntime } from "../src/vaultDb.js";
 import { createGroundingRuntime } from "../src/vaultGrounding.js";
 import { createPickerRuntime } from "../src/vaultPicker.js";
 import { createVaultReceiptManager } from "../src/vaultReceipts.js";
+import { registerVaultCapabilityBridges } from "../src/vaultRuntimeRegistry.js";
 import { registerVaultDiagnosticsTool, registerVaultTools } from "../src/vaultTools.js";
 import { SCHEMA_VERSION, VAULT_DIR, VLLM_ENDPOINT, VLLM_MODEL } from "../src/vaultTypes.js";
 
@@ -26,6 +27,13 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
     ...pickerRuntime,
     ...groundingRuntime,
   };
+
+  registerVaultCapabilityBridges({
+    receiptManager,
+    summarizeTelemetry: pickerRuntime.summarizeLiveTriggerTelemetry,
+    getTelemetryStats: pickerRuntime.getLiveTriggerTelemetryStats,
+  });
+
   const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();
 
   registerVaultDiagnosticsTool(pi, vaultRuntime);

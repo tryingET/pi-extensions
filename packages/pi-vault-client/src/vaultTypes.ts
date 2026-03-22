@@ -573,6 +573,11 @@ export interface VaultRuntime {
 export interface PickerRuntime {
   recordLiveTriggerTelemetry: (event: Record<string, unknown>) => void;
   summarizeLiveTriggerTelemetry: () => string;
+  getLiveTriggerTelemetryStats: () => {
+    registrations: number;
+    failures: number;
+    eventCount: number;
+  };
   selectionModeMessage: (selection: SelectionResult) => string;
   splitVaultQueryAndContext: (rest: string) => { query: string; context: string };
   parseVaultSelectionInput: (text: string) => { query: string; context: string } | null;

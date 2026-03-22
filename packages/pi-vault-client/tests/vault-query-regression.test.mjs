@@ -23,6 +23,10 @@ const RENDERER_SOURCE = readFileSync(
 );
 const EXTENSION_SOURCE = readFileSync(new URL("../extensions/vault.ts", import.meta.url), "utf8");
 const RECEIPTS_SOURCE = readFileSync(new URL("../src/vaultReceipts.ts", import.meta.url), "utf8");
+const RUNTIME_REGISTRY_SOURCE = readFileSync(
+  new URL("../src/vaultRuntimeRegistry.ts", import.meta.url),
+  "utf8",
+);
 const FUZZY_SELECTOR_SOURCE = readFileSync(
   new URL("../src/fuzzySelector.js", import.meta.url),
   "utf8",
@@ -40,6 +44,12 @@ test("vault runtime targets Prompt Vault schema v9", () => {
   assert.match(DB_SOURCE, /checkSchemaCompatibilityDetailed as computeSchemaCompatibilityDetailed/);
   assert.match(EXTENSION_SOURCE, /registerVaultDiagnosticsTool\(pi, vaultRuntime\)/);
   assert.match(EXTENSION_SOURCE, /createVaultReceiptManager\(vaultRuntime\)/);
+  assert.match(EXTENSION_SOURCE, /registerVaultCapabilityBridges\(/);
+  assert.match(
+    EXTENSION_SOURCE,
+    /summarizeTelemetry: pickerRuntime\.summarizeLiveTriggerTelemetry/,
+  );
+  assert.match(EXTENSION_SOURCE, /getTelemetryStats: pickerRuntime\.getLiveTriggerTelemetryStats/);
   assert.match(EXTENSION_SOURCE, /registerVaultCommands\(pi, runtime, receiptManager\)/);
   assert.match(EXTENSION_SOURCE, /formatMissingColumns\("prompt_templates"/);
   assert.match(EXTENSION_SOURCE, /missingPromptTemplateColumns/);
@@ -48,6 +58,22 @@ test("vault runtime targets Prompt Vault schema v9", () => {
   assert.match(EXTENSION_SOURCE, /checkSchemaCompatibilityDetailed\(\)/);
   assert.match(EXTENSION_SOURCE, /expected=\$\{SCHEMA_VERSION\}/);
   assert.match(EXTENSION_SOURCE, /actual=\$\{schemaReport\.actualVersion \?\? "unknown"\}/);
+});
+
+test("vault runtime registry bridge stays scoped to receipts and live telemetry", () => {
+  assert.match(RUNTIME_REGISTRY_SOURCE, /VAULT_CAPABILITIES = \{/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /RECEIPTS: "vault:receipts"/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /TELEMETRY: "vault:telemetry"/);
+  assert.doesNotMatch(RUNTIME_REGISTRY_SOURCE, /TEMPLATES: "vault:templates"/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /registerVaultCapabilityBridges/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /readLatest/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /readByExecutionId/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /listRecent/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /summarize/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /getEventCount/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /getStats/);
+  assert.match(PICKER_SOURCE, /function\s+getLiveTriggerTelemetryStats\(/);
+  assert.match(PICKER_SOURCE, /getLiveTriggerTelemetryStats,/);
 });
 
 test("schema compatibility requires governed prompt columns plus execution capture/provenance and feedback binding", () => {

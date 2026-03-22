@@ -73,6 +73,18 @@ function summarizeLiveTriggerTelemetry(): string {
   return lines.join("\n");
 }
 
+function getLiveTriggerTelemetryStats(): {
+  registrations: number;
+  failures: number;
+  eventCount: number;
+} {
+  return {
+    registrations: liveTriggerTelemetry.registrations,
+    failures: liveTriggerTelemetry.registrationFailures,
+    eventCount: liveTriggerTelemetry.events.length,
+  };
+}
+
 function selectionModeMessage(selection: SelectionResult): string {
   if (selection.mode === "fzf") return "selection mode=fzf";
   return selection.reason
@@ -413,6 +425,7 @@ export function createPickerRuntime(
   return {
     recordLiveTriggerTelemetry,
     summarizeLiveTriggerTelemetry,
+    getLiveTriggerTelemetryStats,
     selectionModeMessage,
     splitVaultQueryAndContext,
     parseVaultSelectionInput,
