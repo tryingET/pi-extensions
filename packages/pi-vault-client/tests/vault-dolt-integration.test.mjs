@@ -400,7 +400,7 @@ test("vault runtime rejects forged local receipt identity when execution templat
   });
 });
 
-test("vault runtime centralizes active + company-visible reads independent of export_to_pi", async () => {
+test("vault runtime centralizes active + exported + company-visible reads", async () => {
   await withTempVaultRuntime(async ({ importModule, repoDir }) => {
     const { createVaultRuntime } = await importModule("src/vaultDb.js");
     const runtime = createVaultRuntime();
@@ -423,8 +423,7 @@ test("vault runtime centralizes active + company-visible reads independent of ex
     assert.equal(visible?.export_to_pi, true);
 
     const hidden = runtime.getTemplate("hidden-template", { currentCompany: "software" });
-    assert.ok(hidden);
-    assert.equal(hidden?.export_to_pi, false);
+    assert.equal(hidden, null);
 
     const listResult = runtime.listTemplatesDetailed(
       undefined,
@@ -435,7 +434,7 @@ test("vault runtime centralizes active + company-visible reads independent of ex
     if (!listResult.ok) return;
     assert.deepEqual(
       listResult.value.map((template) => template.name),
-      ["hidden-template", "visible-template"],
+      ["visible-template"],
     );
     assert.equal(listResult.value[0]?.content, "");
 
@@ -448,7 +447,7 @@ test("vault runtime centralizes active + company-visible reads independent of ex
     if (!searchResult.ok) return;
     assert.deepEqual(
       searchResult.value.map((template) => template.name),
-      ["hidden-template", "visible-template"],
+      ["visible-template"],
     );
 
     const retrieveResult = runtime.retrieveByNamesDetailed(
@@ -460,7 +459,7 @@ test("vault runtime centralizes active + company-visible reads independent of ex
     if (!retrieveResult.ok) return;
     assert.deepEqual(
       retrieveResult.value.map((template) => template.name),
-      ["hidden-template", "visible-template"],
+      ["visible-template"],
     );
 
     const queryResult = runtime.queryTemplatesDetailed({}, 10, false, {
@@ -471,7 +470,7 @@ test("vault runtime centralizes active + company-visible reads independent of ex
     if (!queryResult.ok) return;
     assert.deepEqual(
       queryResult.value.map((template) => template.name),
-      ["hidden-template", "visible-template"],
+      ["visible-template"],
     );
 
     const strictRead = runtime.listTemplatesDetailed(undefined, {
@@ -549,6 +548,37 @@ test("vault runtime refreshes governed contracts when ontology files change in-p
 
     assert.deepEqual(runtime.getContracts().ontology.facets.artifact_kind, ["session"]);
     assert.deepEqual(runtime.getContracts().ontology.facets.control_mode, ["loop"]);
+  } finally {
+    modules.cleanup();
+    rmSync(tempRoot, { recursive: true, force: true });
+    if (originalVaultDir === undefined) delete process.env.VAULT_DIR;
+    else process.env.VAULT_DIR = originalVaultDir;
+    if (originalPromptVaultRoot === undefined) delete process.env.PROMPT_VAULT_ROOT;
+    else process.env.PROMPT_VAULT_ROOT = originalPromptVaultRoot;
+  }
+});
+
+test("vault runtime fails closed when a governed contract file contains invalid JSON", async () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), "pi-vault-contracts-invalid-"));
+  const modules = createTranspiledVaultModules();
+  const originalVaultDir = process.env.VAULT_DIR;
+  const originalPromptVaultRoot = process.env.PROMPT_VAULT_ROOT;
+
+  try {
+    mkdirSync(path.join(tempRoot, "prompt-vault-db"), { recursive: true });
+    mkdirSync(path.join(tempRoot, "ontology"), { recursive: true });
+    writeFileSync(path.join(tempRoot, "ontology", "v2-contract.json"), "{invalid json", "utf8");
+
+    process.env.VAULT_DIR = path.join(tempRoot, "prompt-vault-db");
+    process.env.PROMPT_VAULT_ROOT = tempRoot;
+
+    const { createVaultRuntime } = await modules.importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+    assert.throws(() => runtime.getContracts(), /Invalid governed contract JSON/);
+    assert.deepEqual(runtime.resolveCurrentCompanyContext("/tmp/softwareco/owned/demo"), {
+      company: "software",
+      source: "cwd:/tmp/softwareco/owned/demo",
+    });
   } finally {
     modules.cleanup();
     rmSync(tempRoot, { recursive: true, force: true });

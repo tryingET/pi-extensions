@@ -109,10 +109,16 @@ test("registerVaultCapabilityBridges registers receipt and telemetry accessors w
 
   const receiptsAccessor = getVaultReceiptsAccessor();
   assert.ok(receiptsAccessor);
-  assert.equal(receiptsAccessor?.readLatest()?.execution_id, 42);
-  assert.equal(receiptsAccessor?.readByExecutionId(42)?.template.name, "nexus");
+  assert.equal(receiptsAccessor?.readLatest({ currentCompany: "software" })?.execution_id, 42);
+  assert.equal(
+    receiptsAccessor?.readByExecutionId(42, { currentCompany: "software" })?.template.name,
+    "nexus",
+  );
+  assert.equal(receiptsAccessor?.readLatest({}), null);
+  assert.equal(receiptsAccessor?.readByExecutionId(42, {}), null);
   assert.equal(receiptsAccessor?.listRecent({ currentCompany: "software" }).length, 1);
   assert.equal(receiptsAccessor?.listRecent({ currentCompany: "finance" }).length, 0);
+  assert.equal(receiptsAccessor?.listRecent({}).length, 0);
 
   const telemetryAccessor = getVaultTelemetryAccessor();
   assert.ok(telemetryAccessor);

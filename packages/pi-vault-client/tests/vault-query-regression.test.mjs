@@ -66,8 +66,13 @@ test("vault runtime registry bridge stays scoped to receipts and live telemetry"
   assert.match(RUNTIME_REGISTRY_SOURCE, /TELEMETRY: "vault:telemetry"/);
   assert.doesNotMatch(RUNTIME_REGISTRY_SOURCE, /TEMPLATES: "vault:templates"/);
   assert.match(RUNTIME_REGISTRY_SOURCE, /registerVaultCapabilityBridges/);
-  assert.match(RUNTIME_REGISTRY_SOURCE, /readLatest/);
-  assert.match(RUNTIME_REGISTRY_SOURCE, /readByExecutionId/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /readLatest\(options: \{ currentCompany\?: string \}\)/);
+  assert.match(
+    RUNTIME_REGISTRY_SOURCE,
+    /readByExecutionId\([\s\S]*options: \{ currentCompany\?: string \}/,
+  );
+  assert.match(RUNTIME_REGISTRY_SOURCE, /if \(!currentCompany\) return null/);
+  assert.match(RUNTIME_REGISTRY_SOURCE, /if \(!currentCompany\) return \[\]/);
   assert.match(RUNTIME_REGISTRY_SOURCE, /listRecent/);
   assert.match(RUNTIME_REGISTRY_SOURCE, /summarize/);
   assert.match(RUNTIME_REGISTRY_SOURCE, /getEventCount/);
@@ -124,6 +129,7 @@ test("vault_query uses centralized active + company-visible filtering with expli
     /JSON_SEARCH\(\$\{qualifyTemplateColumn\("visibility_companies", alias\)\}, 'one', '\$\{escapeSql\(company\)\}'\) IS NOT NULL/,
   );
   assert.match(DB_SOURCE, /function\s+buildActiveVisibleTemplatePredicate\(/);
+  assert.match(DB_SOURCE, /\$\{qualifyTemplateColumn\("export_to_pi", alias\)\} = true/);
   assert.doesNotMatch(DB_SOURCE, /function\s+buildPiVisibleTemplatePredicate\(/);
   assert.match(
     DB_SOURCE,
@@ -273,12 +279,28 @@ test("execution logging records the actual template version used and finalizes v
     RECEIPTS_SOURCE,
     /runtime\.logExecution\(candidate\.template, modelId, candidate\.input_context\)/,
   );
+  assert.match(DB_SOURCE, /output_capture_mode,/);
+  assert.match(DB_SOURCE, /output_text,/);
+  assert.match(DB_SOURCE, /'none',\s*\n\s*NULL,/);
   assert.match(COMMANDS_SOURCE, /pi\.on\("message_end"/);
   assert.match(COMMANDS_SOURCE, /receipts\.finalizePreparedExecution/);
   assert.match(RECEIPTS_SOURCE, /createPreparedExecutionToken/);
   assert.match(RECEIPTS_SOURCE, /withPreparedExecutionMarker/);
   assert.match(PICKER_SOURCE, /execution_token: executionToken/);
   assert.match(COMMANDS_SOURCE, /stripPreparedExecutionMarkers/);
+});
+
+test("governed contract parsing fails closed on invalid JSON", () => {
+  assert.match(DB_SOURCE, /Invalid governed contract JSON at/);
+  assert.doesNotMatch(DB_SOURCE, /catch \{\s*return fallback;\s*\}/);
+});
+
+test("receipt finalization persists through an emergency fallback sink before surfacing failure", () => {
+  assert.match(RECEIPTS_SOURCE, /buildDefaultFallbackReceiptsFile/);
+  assert.match(RECEIPTS_SOURCE, /fallbackSink/);
+  assert.match(RECEIPTS_SOURCE, /appendReceiptWithFallback/);
+  assert.match(RECEIPTS_SOURCE, /primary receipt sink failed/);
+  assert.match(RECEIPTS_SOURCE, /readReceiptsFromPaths/);
 });
 
 test("vault_query hides governance metadata by default and can opt in", () => {
@@ -377,9 +399,10 @@ test("vault check command reports detailed schema diagnostics plus company conte
   assert.doesNotMatch(DB_SOURCE, /activeSessionCwd/);
   assert.match(DB_SOURCE, /function\s+resolveCurrentCompanyContext\(cwd\?: string\)/);
   assert.match(DB_SOURCE, /resolveCompanyContext\(\{/);
+  assert.match(DB_SOURCE, /let defaultCompany = "core"/);
   assert.match(
     DB_SOURCE,
-    /defaultCompany: getContracts\(\)\.companyVisibility\.defaults\?\.owner_company \|\| "core"/,
+    /defaultCompany = getContracts\(\)\.companyVisibility\.defaults\?\.owner_company \|\| "core"/,
   );
   assert.match(COMPANY_CONTEXT_SOURCE, /export function resolveCompanyContext\(/);
   assert.match(COMPANY_CONTEXT_SOURCE, /export function inferCompanyFromCwd\(/);
