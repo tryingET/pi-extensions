@@ -22,13 +22,18 @@ import {
 const PICKER_READ_CONTEXT_ERROR =
   "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
 
-const liveTriggerTelemetry = {
-  registrations: 0,
-  registrationFailures: 0,
-  events: [] as LiveTriggerTelemetryEvent[],
-};
+function createLiveTriggerTelemetryState() {
+  return {
+    registrations: 0,
+    registrationFailures: 0,
+    events: [] as LiveTriggerTelemetryEvent[],
+  };
+}
 
-function recordLiveTriggerTelemetry(event: Record<string, unknown>): void {
+function recordLiveTriggerTelemetry(
+  telemetry: ReturnType<typeof createLiveTriggerTelemetryState>,
+  event: Record<string, unknown>,
+): void {
   const normalized: LiveTriggerTelemetryEvent = {
     timestamp: String(event.timestamp ?? new Date().toISOString()),
     event: String(event.event ?? "unknown"),
@@ -43,19 +48,20 @@ function recordLiveTriggerTelemetry(event: Record<string, unknown>): void {
     error: event.error ? String(event.error) : undefined,
   };
 
-  liveTriggerTelemetry.events.push(normalized);
-  if (liveTriggerTelemetry.events.length > LIVE_TRIGGER_TELEMETRY_LIMIT)
-    liveTriggerTelemetry.events.shift();
+  telemetry.events.push(normalized);
+  if (telemetry.events.length > LIVE_TRIGGER_TELEMETRY_LIMIT) telemetry.events.shift();
 }
 
-function summarizeLiveTriggerTelemetry(): string {
-  const recent = liveTriggerTelemetry.events.slice(-10);
+function summarizeLiveTriggerTelemetry(
+  telemetry: ReturnType<typeof createLiveTriggerTelemetryState>,
+): string {
+  const recent = telemetry.events.slice(-10);
   const lines = [
     "# Vault Live Trigger Telemetry",
     "",
-    `- registrations: ${liveTriggerTelemetry.registrations}`,
-    `- registration_failures: ${liveTriggerTelemetry.registrationFailures}`,
-    `- retained_events: ${liveTriggerTelemetry.events.length}`,
+    `- registrations: ${telemetry.registrations}`,
+    `- registration_failures: ${telemetry.registrationFailures}`,
+    `- retained_events: ${telemetry.events.length}`,
     "",
     "## Recent events",
   ];
@@ -73,15 +79,17 @@ function summarizeLiveTriggerTelemetry(): string {
   return lines.join("\n");
 }
 
-function getLiveTriggerTelemetryStats(): {
+function getLiveTriggerTelemetryStats(
+  telemetry: ReturnType<typeof createLiveTriggerTelemetryState>,
+): {
   registrations: number;
   failures: number;
   eventCount: number;
 } {
   return {
-    registrations: liveTriggerTelemetry.registrations,
-    failures: liveTriggerTelemetry.registrationFailures,
-    eventCount: liveTriggerTelemetry.events.length,
+    registrations: telemetry.registrations,
+    failures: telemetry.registrationFailures,
+    eventCount: telemetry.events.length,
   };
 }
 
@@ -158,6 +166,7 @@ async function pickVaultTemplate(
   runtime: VaultRuntime,
   ctx: UiContext,
   query: string,
+  telemetry: ReturnType<typeof createLiveTriggerTelemetryState>,
 ): Promise<SelectionResult> {
   const companyContext = resolvePickerCompanyContext(runtime, ctx);
   if (!companyContext.ok) {
@@ -193,7 +202,7 @@ async function pickVaultTemplate(
       : "Vault template picker (all templates)",
     ui: ctx.hasUI ? ctx.ui : undefined,
     maxOptions: Math.max(1, candidates.length),
-    telemetry: recordLiveTriggerTelemetry,
+    telemetry: (event) => recordLiveTriggerTelemetry(telemetry, event),
   })) as SelectionResult;
 }
 
@@ -223,7 +232,11 @@ function queuePreparedExecution(
   return withPreparedExecutionMarker(candidate.prepared.text, executionToken);
 }
 
-function registerVaultLiveTrigger(runtime: VaultRuntime, receipts?: VaultReceiptManager): void {
+function registerVaultLiveTrigger(
+  runtime: VaultRuntime,
+  telemetry: ReturnType<typeof createLiveTriggerTelemetryState>,
+  receipts?: VaultReceiptManager,
+): void {
   try {
     const registration = registerPickerInteraction({
       id: LIVE_VAULT_TRIGGER_ID,
@@ -391,26 +404,26 @@ function registerVaultLiveTrigger(runtime: VaultRuntime, receipts?: VaultReceipt
         const message = error instanceof Error ? error.message : String(error);
         api.notify?.(`Vault live picker failed: ${message}`, "error");
       },
-      telemetry: recordLiveTriggerTelemetry,
+      telemetry: (event) => recordLiveTriggerTelemetry(telemetry, event),
     });
 
     if (registration.success) {
-      liveTriggerTelemetry.registrations += 1;
-      recordLiveTriggerTelemetry({
+      telemetry.registrations += 1;
+      recordLiveTriggerTelemetry(telemetry, {
         event: "registration-success",
         triggerId: LIVE_VAULT_TRIGGER_ID,
       });
       return;
     }
-    liveTriggerTelemetry.registrationFailures += 1;
-    recordLiveTriggerTelemetry({
+    telemetry.registrationFailures += 1;
+    recordLiveTriggerTelemetry(telemetry, {
       event: "registration-failed",
       triggerId: LIVE_VAULT_TRIGGER_ID,
       reason: registration.error ?? "unknown",
     });
   } catch (error) {
-    liveTriggerTelemetry.registrationFailures += 1;
-    recordLiveTriggerTelemetry({
+    telemetry.registrationFailures += 1;
+    recordLiveTriggerTelemetry(telemetry, {
       event: "registration-error",
       triggerId: LIVE_VAULT_TRIGGER_ID,
       error: error instanceof Error ? error.message : String(error),
@@ -422,15 +435,16 @@ export function createPickerRuntime(
   runtime: VaultRuntime,
   receipts?: VaultReceiptManager,
 ): PickerRuntime {
+  const telemetry = createLiveTriggerTelemetryState();
   return {
-    recordLiveTriggerTelemetry,
-    summarizeLiveTriggerTelemetry,
-    getLiveTriggerTelemetryStats,
+    recordLiveTriggerTelemetry: (event) => recordLiveTriggerTelemetry(telemetry, event),
+    summarizeLiveTriggerTelemetry: () => summarizeLiveTriggerTelemetry(telemetry),
+    getLiveTriggerTelemetryStats: () => getLiveTriggerTelemetryStats(telemetry),
     selectionModeMessage,
     splitVaultQueryAndContext,
     parseVaultSelectionInput,
-    pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query),
-    registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime, receipts),
+    pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query, telemetry),
+    registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime, telemetry, receipts),
     prepareVaultPrompt: (template, options) => prepareVaultPrompt(runtime, template, options),
     loadVaultTemplate: (name, context) => loadVaultTemplate(runtime, name, context),
   };

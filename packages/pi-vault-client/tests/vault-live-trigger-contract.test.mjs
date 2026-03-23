@@ -64,6 +64,36 @@ function contextFromText(text, sessionKey = "vault-live-test") {
   };
 }
 
+test("picker telemetry stays instance-local across runtime creation", () => {
+  const runtime = createRuntime([createTemplate("nexus")]);
+  const first = createPickerRuntime(runtime);
+  const second = createPickerRuntime(runtime);
+
+  first.recordLiveTriggerTelemetry({ event: "first-instance" });
+  assert.deepEqual(first.getLiveTriggerTelemetryStats(), {
+    registrations: 0,
+    failures: 0,
+    eventCount: 1,
+  });
+  assert.deepEqual(second.getLiveTriggerTelemetryStats(), {
+    registrations: 0,
+    failures: 0,
+    eventCount: 0,
+  });
+
+  second.recordLiveTriggerTelemetry({ event: "second-instance" });
+  assert.deepEqual(first.getLiveTriggerTelemetryStats(), {
+    registrations: 0,
+    failures: 0,
+    eventCount: 1,
+  });
+  assert.deepEqual(second.getLiveTriggerTelemetryStats(), {
+    registrations: 0,
+    failures: 0,
+    eventCount: 1,
+  });
+});
+
 test("vault live trigger executes through the shared broker with exact runtime behavior", async () => {
   const previousPath = process.env.PATH;
   process.env.PATH = "/__missing_fzf_path__";

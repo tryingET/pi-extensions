@@ -732,6 +732,7 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
                     created_at: receipt.recorded_at,
                 });
             }
+            let partialError = "";
             const dbLimit = Math.max(1, limit - rowMap.size);
             if (dbLimit > 0) {
                 const templateFilter = templateName
@@ -768,6 +769,8 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
                         },
                     };
                 }
+                if (!result.ok)
+                    partialError = result.error;
                 if (result.ok) {
                     for (const row of result.value.rows || []) {
                         const executionId = Number(row.execution_id);
@@ -800,7 +803,12 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
                     },
                 };
             }
-            let output = "# Vault Executions\n\n| Execution ID | Template | Version | Owner | Facets | Model | Success | Created |\n|---|---|---:|---|---|---|---|---|\n";
+            let output = "# Vault Executions\n\n";
+            if (partialError) {
+                output += `> WARNING: executions DB query failed (${partialError}); showing local receipt-backed results only.\n\n`;
+            }
+            output +=
+                "| Execution ID | Template | Version | Owner | Facets | Model | Success | Created |\n|---|---|---:|---|---|---|---|---|\n";
             for (const row of rows) {
                 const successLabel = row.success === true ? "true" : row.success === false ? "false" : "unknown";
                 output += `| ${row.execution_id || ""} | ${row.template_name || ""} | ${row.entity_version || ""} | ${row.owner_company || ""} | ${row.artifact_kind || ""}/${row.control_mode || ""}/${row.formalization_level || ""} | ${row.model || ""} | ${successLabel} | ${String(row.created_at || "").slice(0, 19)} |\n`;
@@ -809,6 +817,8 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
                 content: [{ type: "text", text: output }],
                 details: {
                     ok: true,
+                    partial: Boolean(partialError),
+                    ...(partialError ? { error: partialError } : {}),
                     count: rows.length,
                     templateName: templateName || undefined,
                     currentCompany: executionContext.currentCompany,

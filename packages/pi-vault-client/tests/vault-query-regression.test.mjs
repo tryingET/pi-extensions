@@ -78,7 +78,7 @@ test("vault runtime registry bridge stays scoped to receipts and live telemetry"
   assert.match(RUNTIME_REGISTRY_SOURCE, /getEventCount/);
   assert.match(RUNTIME_REGISTRY_SOURCE, /getStats/);
   assert.match(PICKER_SOURCE, /function\s+getLiveTriggerTelemetryStats\(/);
-  assert.match(PICKER_SOURCE, /getLiveTriggerTelemetryStats,/);
+  assert.match(PICKER_SOURCE, /getLiveTriggerTelemetryStats:/);
 });
 
 test("schema compatibility requires governed prompt columns plus execution capture/provenance and feedback binding", () => {
@@ -374,7 +374,7 @@ test("vault live trigger is registered through shared interaction helper", () =>
   assert.match(PICKER_SOURCE, /function\s+registerVaultLiveTrigger\(/);
   assert.match(PICKER_SOURCE, /registerPickerInteraction\(\{/);
   assert.match(PICKER_SOURCE, /id:\s*LIVE_VAULT_TRIGGER_ID/);
-  assert.match(PICKER_SOURCE, /telemetry:\s*recordLiveTriggerTelemetry/);
+  assert.match(PICKER_SOURCE, /telemetry:\s*\(event\)\s*=>\s*recordLiveTriggerTelemetry/);
 });
 
 test("vault live trigger allows bare /vault: and prompts for filter", () => {

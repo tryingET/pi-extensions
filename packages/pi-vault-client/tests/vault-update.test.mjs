@@ -246,6 +246,75 @@ test("vault_executions and vault_rate use execution-bound provenance contracts",
   });
 });
 
+test("vault_executions warns when DB execution rows are unavailable but local receipts exist", async () => {
+  await withVaultModules(async ({ importModule }) => {
+    const { registerVaultTools } = await importModule("src/vaultTools.js");
+    const tools = new Map();
+    const pi = {
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+    };
+
+    registerVaultTools(
+      pi,
+      {
+        resolveCurrentCompanyContext(cwd) {
+          return {
+            company: cwd?.includes("softwareco") ? "software" : "core",
+            source: cwd ? `cwd:${cwd}` : "contract-default",
+          };
+        },
+        buildActiveVisibleTemplatePredicate() {
+          return "1 = 1";
+        },
+        escapeSql(value) {
+          return String(value);
+        },
+        queryVaultJsonDetailed() {
+          return { ok: false, value: null, error: "db-down" };
+        },
+      },
+      {
+        readReceiptByExecutionId() {
+          return null;
+        },
+        listRecentReceipts() {
+          return [
+            {
+              execution_id: 41,
+              template: {
+                name: "nexus",
+                version: 3,
+                owner_company: "software",
+                artifact_kind: "cognitive",
+                control_mode: "one_shot",
+                formalization_level: "structured",
+                visibility_companies: ["software"],
+              },
+              model: { id: "unit-model" },
+              recorded_at: "2026-03-22T00:00:00.000Z",
+            },
+          ];
+        },
+      },
+    );
+
+    const executionsTool = tools.get("vault_executions");
+    assert.ok(executionsTool);
+    const result = await executionsTool.execute("call-1", { limit: 5 }, undefined, undefined, {
+      cwd: "/tmp/softwareco/owned/demo",
+    });
+
+    const text = result.content[0]?.text || "";
+    assert.match(text, /WARNING: executions DB query failed \(db-down\)/);
+    assert.match(text, /\| 41 \| nexus \| 3 \| software \|/);
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.partial, true);
+    assert.equal(result.details.error, "db-down");
+  });
+});
+
 test("vault_replay tool surfaces drift and unavailable replay classifications", async () => {
   await withVaultModules(async ({ importModule }) => {
     const { registerVaultTools } = await importModule("src/vaultTools.js");

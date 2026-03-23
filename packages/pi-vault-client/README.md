@@ -137,6 +137,7 @@ Tool-query defaults:
   - by intent only: `vault_query({ intent_text: "simplify and make retrieval feel almost alien" })`
 - for exact feedback binding, inspect recent execution provenance first
   - `vault_executions({ template_name: "nexus", limit: 10 })`
+  - if Prompt Vault execution-row lookup fails but local receipts still exist, `vault_executions` now emits an explicit warning and marks the result as partial instead of silently presenting receipt-only success as full truth
 - local execution receipts now preserve immutable execution-bound template/company/render snapshots in package-owned JSONL
   - default spool path: `~/.pi/agent/state/pi-vault-client/vault-execution-receipts.jsonl`
   - emergency fallback spool path: `os.tmpdir()/pi-vault-client/vault-execution-receipts.fallback.jsonl`

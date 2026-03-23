@@ -5,12 +5,14 @@ import { toVaultCandidates } from "./vaultCandidateAdapter.js";
 import { createPreparedExecutionToken, withPreparedExecutionMarker } from "./vaultReceipts.js";
 import { LIVE_TRIGGER_TELEMETRY_LIMIT, LIVE_VAULT_MIN_QUERY, LIVE_VAULT_TRIGGER_DEBOUNCE_MS, LIVE_VAULT_TRIGGER_ID, } from "./vaultTypes.js";
 const PICKER_READ_CONTEXT_ERROR = "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
-const liveTriggerTelemetry = {
-    registrations: 0,
-    registrationFailures: 0,
-    events: [],
-};
-function recordLiveTriggerTelemetry(event) {
+function createLiveTriggerTelemetryState() {
+    return {
+        registrations: 0,
+        registrationFailures: 0,
+        events: [],
+    };
+}
+function recordLiveTriggerTelemetry(telemetry, event) {
     const normalized = {
         timestamp: String(event.timestamp ?? new Date().toISOString()),
         event: String(event.event ?? "unknown"),
@@ -24,18 +26,18 @@ function recordLiveTriggerTelemetry(event) {
         reason: event.reason ? String(event.reason) : undefined,
         error: event.error ? String(event.error) : undefined,
     };
-    liveTriggerTelemetry.events.push(normalized);
-    if (liveTriggerTelemetry.events.length > LIVE_TRIGGER_TELEMETRY_LIMIT)
-        liveTriggerTelemetry.events.shift();
+    telemetry.events.push(normalized);
+    if (telemetry.events.length > LIVE_TRIGGER_TELEMETRY_LIMIT)
+        telemetry.events.shift();
 }
-function summarizeLiveTriggerTelemetry() {
-    const recent = liveTriggerTelemetry.events.slice(-10);
+function summarizeLiveTriggerTelemetry(telemetry) {
+    const recent = telemetry.events.slice(-10);
     const lines = [
         "# Vault Live Trigger Telemetry",
         "",
-        `- registrations: ${liveTriggerTelemetry.registrations}`,
-        `- registration_failures: ${liveTriggerTelemetry.registrationFailures}`,
-        `- retained_events: ${liveTriggerTelemetry.events.length}`,
+        `- registrations: ${telemetry.registrations}`,
+        `- registration_failures: ${telemetry.registrationFailures}`,
+        `- retained_events: ${telemetry.events.length}`,
         "",
         "## Recent events",
     ];
@@ -57,11 +59,11 @@ function summarizeLiveTriggerTelemetry() {
     }
     return lines.join("\n");
 }
-function getLiveTriggerTelemetryStats() {
+function getLiveTriggerTelemetryStats(telemetry) {
     return {
-        registrations: liveTriggerTelemetry.registrations,
-        failures: liveTriggerTelemetry.registrationFailures,
-        eventCount: liveTriggerTelemetry.events.length,
+        registrations: telemetry.registrations,
+        failures: telemetry.registrationFailures,
+        eventCount: telemetry.events.length,
     };
 }
 function selectionModeMessage(selection) {
@@ -113,7 +115,7 @@ function prepareVaultPrompt(runtime, template, options = {}) {
 function loadVaultTemplate(runtime, name, context) {
     return runtime.getTemplate(name, context);
 }
-async function pickVaultTemplate(runtime, ctx, query) {
+async function pickVaultTemplate(runtime, ctx, query, telemetry) {
     const companyContext = resolvePickerCompanyContext(runtime, ctx);
     if (!companyContext.ok) {
         return { selected: null, mode: "fallback", reason: companyContext.reason };
@@ -143,7 +145,7 @@ async function pickVaultTemplate(runtime, ctx, query) {
             : "Vault template picker (all templates)",
         ui: ctx.hasUI ? ctx.ui : undefined,
         maxOptions: Math.max(1, candidates.length),
-        telemetry: recordLiveTriggerTelemetry,
+        telemetry: (event) => recordLiveTriggerTelemetry(telemetry, event),
     }));
 }
 function toTemplateSnapshot(template) {
@@ -168,7 +170,7 @@ function queuePreparedExecution(receipts, candidate) {
     });
     return withPreparedExecutionMarker(candidate.prepared.text, executionToken);
 }
-function registerVaultLiveTrigger(runtime, receipts) {
+function registerVaultLiveTrigger(runtime, telemetry, receipts) {
     try {
         const registration = registerPickerInteraction({
             id: LIVE_VAULT_TRIGGER_ID,
@@ -290,26 +292,26 @@ function registerVaultLiveTrigger(runtime, receipts) {
                 const message = error instanceof Error ? error.message : String(error);
                 api.notify?.(`Vault live picker failed: ${message}`, "error");
             },
-            telemetry: recordLiveTriggerTelemetry,
+            telemetry: (event) => recordLiveTriggerTelemetry(telemetry, event),
         });
         if (registration.success) {
-            liveTriggerTelemetry.registrations += 1;
-            recordLiveTriggerTelemetry({
+            telemetry.registrations += 1;
+            recordLiveTriggerTelemetry(telemetry, {
                 event: "registration-success",
                 triggerId: LIVE_VAULT_TRIGGER_ID,
             });
             return;
         }
-        liveTriggerTelemetry.registrationFailures += 1;
-        recordLiveTriggerTelemetry({
+        telemetry.registrationFailures += 1;
+        recordLiveTriggerTelemetry(telemetry, {
             event: "registration-failed",
             triggerId: LIVE_VAULT_TRIGGER_ID,
             reason: registration.error ?? "unknown",
         });
     }
     catch (error) {
-        liveTriggerTelemetry.registrationFailures += 1;
-        recordLiveTriggerTelemetry({
+        telemetry.registrationFailures += 1;
+        recordLiveTriggerTelemetry(telemetry, {
             event: "registration-error",
             triggerId: LIVE_VAULT_TRIGGER_ID,
             error: error instanceof Error ? error.message : String(error),
@@ -317,15 +319,16 @@ function registerVaultLiveTrigger(runtime, receipts) {
     }
 }
 export function createPickerRuntime(runtime, receipts) {
+    const telemetry = createLiveTriggerTelemetryState();
     return {
-        recordLiveTriggerTelemetry,
-        summarizeLiveTriggerTelemetry,
-        getLiveTriggerTelemetryStats,
+        recordLiveTriggerTelemetry: (event) => recordLiveTriggerTelemetry(telemetry, event),
+        summarizeLiveTriggerTelemetry: () => summarizeLiveTriggerTelemetry(telemetry),
+        getLiveTriggerTelemetryStats: () => getLiveTriggerTelemetryStats(telemetry),
         selectionModeMessage,
         splitVaultQueryAndContext,
         parseVaultSelectionInput,
-        pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query),
-        registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime, receipts),
+        pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query, telemetry),
+        registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime, telemetry, receipts),
         prepareVaultPrompt: (template, options) => prepareVaultPrompt(runtime, template, options),
         loadVaultTemplate: (name, context) => loadVaultTemplate(runtime, name, context),
     };
