@@ -30,9 +30,12 @@ export interface VaultTelemetryAccessor {
 }
 
 export interface VaultReceiptsAccessor {
-  readLatest(): VaultExecutionReceiptV1 | null;
-  readByExecutionId(executionId: number): VaultExecutionReceiptV1 | null;
-  listRecent(options?: {
+  readLatest(options: { currentCompany?: string }): VaultExecutionReceiptV1 | null;
+  readByExecutionId(
+    executionId: number,
+    options: { currentCompany?: string },
+  ): VaultExecutionReceiptV1 | null;
+  listRecent(options: {
     currentCompany?: string;
     templateName?: string;
     limit?: number;
@@ -54,10 +57,33 @@ export function createVaultTelemetryAccessor(options: {
 export function createVaultReceiptsAccessor(
   receiptManager: VaultReceiptManager,
 ): VaultReceiptsAccessor {
+  function requireCurrentCompany(options?: { currentCompany?: string }): string | null {
+    const currentCompany = String(options?.currentCompany || "").trim();
+    return currentCompany || null;
+  }
+
   return {
-    readLatest: () => receiptManager.readLatestReceipt(),
-    readByExecutionId: (executionId) => receiptManager.readReceiptByExecutionId(executionId),
-    listRecent: (options) => receiptManager.listRecentReceipts(options),
+    readLatest: (options) => {
+      const currentCompany = requireCurrentCompany(options);
+      if (!currentCompany) return null;
+      return receiptManager.listRecentReceipts({ currentCompany, limit: 1 })[0] || null;
+    },
+    readByExecutionId: (executionId, options) => {
+      const currentCompany = requireCurrentCompany(options);
+      if (!currentCompany) return null;
+      const receipt = receiptManager.readReceiptByExecutionId(executionId);
+      if (!receipt || !receipt.template.visibility_companies.includes(currentCompany)) return null;
+      return receipt;
+    },
+    listRecent: (options) => {
+      const currentCompany = requireCurrentCompany(options);
+      if (!currentCompany) return [];
+      return receiptManager.listRecentReceipts({
+        currentCompany,
+        templateName: options.templateName,
+        limit: options.limit,
+      });
+    },
   };
 }
 

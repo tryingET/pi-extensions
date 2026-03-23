@@ -526,8 +526,10 @@ function readJsonContract<T>(path: string, fallback: T): T {
   if (!existsSync(path)) return fallback;
   try {
     return JSON.parse(readFileSync(path, "utf8")) as T;
-  } catch {
-    return fallback;
+  } catch (error) {
+    throw new Error(
+      `Invalid governed contract JSON at ${path}: ${formatVaultError(error) || "parse failure"}`,
+    );
   }
 }
 
@@ -588,9 +590,15 @@ function getContracts(): GovernedContracts {
 }
 
 function resolveCurrentCompanyContext(cwd?: string): { company: string; source: string } {
+  let defaultCompany = "core";
+  try {
+    defaultCompany = getContracts().companyVisibility.defaults?.owner_company || "core";
+  } catch {
+    defaultCompany = "core";
+  }
   return resolveCompanyContext({
     cwd,
-    defaultCompany: getContracts().companyVisibility.defaults?.owner_company || "core",
+    defaultCompany,
   });
 }
 
@@ -635,6 +643,7 @@ function buildActiveVisibleTemplatePredicate(
 ): string {
   return [
     `${qualifyTemplateColumn("status", alias)} = 'active'`,
+    `${qualifyTemplateColumn("export_to_pi", alias)} = true`,
     buildVisibilityPredicate(company, alias),
   ].join(" AND ");
 }
@@ -1069,13 +1078,25 @@ function logExecution(
   const entityVersion = Number.isFinite(template.version) ? Number(template.version) : null;
   const createdAt = new Date().toISOString();
   const inserted = execVaultInsertWithId(`
-    INSERT INTO executions (entity_type, entity_id, entity_version, input_context, model, success, created_at)
+    INSERT INTO executions (
+      entity_type,
+      entity_id,
+      entity_version,
+      input_context,
+      model,
+      output_capture_mode,
+      output_text,
+      success,
+      created_at
+    )
     VALUES (
       'template',
       ${Number(template.id)},
       ${entityVersion == null ? "NULL" : entityVersion},
       '${escapedContext}',
       '${escapedModel}',
+      'none',
+      NULL,
       true,
       NOW()
     )

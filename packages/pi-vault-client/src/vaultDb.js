@@ -421,8 +421,8 @@ function readJsonContract(path, fallback) {
     try {
         return JSON.parse(readFileSync(path, "utf8"));
     }
-    catch {
-        return fallback;
+    catch (error) {
+        throw new Error(`Invalid governed contract JSON at ${path}: ${formatVaultError(error) || "parse failure"}`);
     }
 }
 function buildContractCacheKey(paths) {
@@ -480,9 +480,16 @@ function getContracts() {
     return cachedContracts;
 }
 function resolveCurrentCompanyContext(cwd) {
+    let defaultCompany = "core";
+    try {
+        defaultCompany = getContracts().companyVisibility.defaults?.owner_company || "core";
+    }
+    catch {
+        defaultCompany = "core";
+    }
     return resolveCompanyContext({
         cwd,
-        defaultCompany: getContracts().companyVisibility.defaults?.owner_company || "core",
+        defaultCompany,
     });
 }
 function getCurrentCompany(cwd) {
@@ -514,6 +521,7 @@ function buildVisibilityPredicate(company = getCurrentCompany(), alias) {
 function buildActiveVisibleTemplatePredicate(company = getCurrentCompany(), alias) {
     return [
         `${qualifyTemplateColumn("status", alias)} = 'active'`,
+        `${qualifyTemplateColumn("export_to_pi", alias)} = true`,
         buildVisibilityPredicate(company, alias),
     ].join(" AND ");
 }
@@ -827,13 +835,25 @@ function logExecution(template, model, inputContext) {
     const entityVersion = Number.isFinite(template.version) ? Number(template.version) : null;
     const createdAt = new Date().toISOString();
     const inserted = execVaultInsertWithId(`
-    INSERT INTO executions (entity_type, entity_id, entity_version, input_context, model, success, created_at)
+    INSERT INTO executions (
+      entity_type,
+      entity_id,
+      entity_version,
+      input_context,
+      model,
+      output_capture_mode,
+      output_text,
+      success,
+      created_at
+    )
     VALUES (
       'template',
       ${Number(template.id)},
       ${entityVersion == null ? "NULL" : entityVersion},
       '${escapedContext}',
       '${escapedModel}',
+      'none',
+      NULL,
       true,
       NOW()
     )

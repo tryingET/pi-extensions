@@ -26,10 +26,32 @@ export function createVaultTelemetryAccessor(options) {
   };
 }
 export function createVaultReceiptsAccessor(receiptManager) {
+  function requireCurrentCompany(options) {
+    const currentCompany = String(options?.currentCompany || "").trim();
+    return currentCompany || null;
+  }
   return {
-    readLatest: () => receiptManager.readLatestReceipt(),
-    readByExecutionId: (executionId) => receiptManager.readReceiptByExecutionId(executionId),
-    listRecent: (options) => receiptManager.listRecentReceipts(options),
+    readLatest: (options) => {
+      const currentCompany = requireCurrentCompany(options);
+      if (!currentCompany) return null;
+      return receiptManager.listRecentReceipts({ currentCompany, limit: 1 })[0] || null;
+    },
+    readByExecutionId: (executionId, options) => {
+      const currentCompany = requireCurrentCompany(options);
+      if (!currentCompany) return null;
+      const receipt = receiptManager.readReceiptByExecutionId(executionId);
+      if (!receipt || !receipt.template.visibility_companies.includes(currentCompany)) return null;
+      return receipt;
+    },
+    listRecent: (options) => {
+      const currentCompany = requireCurrentCompany(options);
+      if (!currentCompany) return [];
+      return receiptManager.listRecentReceipts({
+        currentCompany,
+        templateName: options.templateName,
+        limit: options.limit,
+      });
+    },
   };
 }
 export function registerVaultCapabilityBridges(options) {

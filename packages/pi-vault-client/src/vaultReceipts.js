@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { RENDER_ENGINES } from "./vaultTypes.js";
 const DEFAULT_PENDING_TTL_MS = 10 * 60 * 1000;
@@ -18,6 +18,9 @@ function ensureReceiptDirectory(filePath) {
 }
 function sha256(text) {
     return createHash("sha256").update(text, "utf8").digest("hex");
+}
+function buildDefaultFallbackReceiptsFile(filePath) {
+    return path.join(tmpdir(), "pi-vault-client", sha256(filePath).slice(0, 16), "vault-execution-receipts.fallback.jsonl");
 }
 function isStringArray(value) {
     return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -257,6 +260,22 @@ function readAllReceipts(filePath) {
         return [];
     }
 }
+function sortReceiptsNewestFirst(left, right) {
+    const recordedAtDelta = Date.parse(right.recorded_at) - Date.parse(left.recorded_at);
+    if (Number.isFinite(recordedAtDelta) && recordedAtDelta !== 0)
+        return recordedAtDelta;
+    return Number(right.execution_id) - Number(left.execution_id);
+}
+function readReceiptsFromPaths(filePaths) {
+    const deduped = new Map();
+    for (const filePath of filePaths) {
+        for (const receipt of readAllReceipts(filePath)) {
+            if (!deduped.has(receipt.execution_id))
+                deduped.set(receipt.execution_id, receipt);
+        }
+    }
+    return [...deduped.values()].sort(sortReceiptsNewestFirst);
+}
 function buildReceipt(candidate, execution, sentText) {
     return {
         schema_version: 1,
@@ -293,7 +312,13 @@ class JsonlVaultExecutionReceiptSink {
 }
 export function createVaultReceiptManager(runtime, options) {
     const filePath = options?.filePath || DEFAULT_RECEIPTS_FILE;
+    const fallbackFilePath = options?.fallbackFilePath || buildDefaultFallbackReceiptsFile(filePath);
     const sink = options?.sink || new JsonlVaultExecutionReceiptSink(filePath);
+    const fallbackSink = options?.fallbackSink === false
+        ? null
+        : options?.fallbackSink ||
+            (options?.sink ? null : new JsonlVaultExecutionReceiptSink(fallbackFilePath));
+    const receiptReadPaths = [filePath, ...(fallbackSink ? [fallbackFilePath] : [])].filter(Boolean);
     const pendingTtlMs = options?.pendingTtlMs ?? DEFAULT_PENDING_TTL_MS;
     const maxPending = options?.maxPending ?? DEFAULT_PENDING_LIMIT;
     const pending = [];
@@ -305,6 +330,32 @@ export function createVaultReceiptManager(runtime, options) {
         }
         if (pending.length > maxPending)
             pending.splice(0, pending.length - maxPending);
+    }
+    function appendReceiptWithFallback(receipt) {
+        try {
+            sink.append(receipt);
+            return { ok: true };
+        }
+        catch (primaryError) {
+            if (!fallbackSink) {
+                return {
+                    ok: false,
+                    message: primaryError instanceof Error ? primaryError.message : String(primaryError),
+                };
+            }
+            try {
+                fallbackSink.append(receipt);
+                return { ok: true };
+            }
+            catch (fallbackError) {
+                const primaryMessage = primaryError instanceof Error ? primaryError.message : String(primaryError);
+                const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+                return {
+                    ok: false,
+                    message: `primary receipt sink failed (${primaryMessage}); fallback receipt sink failed (${fallbackMessage})`,
+                };
+            }
+        }
     }
     return {
         spoolPath: filePath,
@@ -332,29 +383,27 @@ export function createVaultReceiptManager(runtime, options) {
             if (!execution.ok)
                 return { status: "error", message: execution.message };
             const receipt = buildReceipt(candidate, execution, resolved.text);
-            try {
-                sink.append(receipt);
-            }
-            catch (error) {
+            const appended = appendReceiptWithFallback(receipt);
+            if (!appended.ok) {
                 return {
                     status: "error",
-                    message: error instanceof Error ? error.message : String(error),
+                    message: `${appended.message} (execution_id=${execution.executionId})`,
                 };
             }
             return { status: "matched", execution, receipt };
         },
         readLatestReceipt() {
-            const receipts = readAllReceipts(filePath);
-            return receipts.at(-1) || null;
+            const receipts = readReceiptsFromPaths(receiptReadPaths);
+            return receipts[0] || null;
         },
         readReceiptByExecutionId(executionId) {
             const normalizedId = Math.floor(Number(executionId));
             if (!Number.isFinite(normalizedId) || normalizedId < 1)
                 return null;
-            const receipts = readAllReceipts(filePath);
-            for (let i = receipts.length - 1; i >= 0; i--) {
-                if (Number(receipts[i]?.execution_id) === normalizedId)
-                    return receipts[i];
+            const receipts = readReceiptsFromPaths(receiptReadPaths);
+            for (const receipt of receipts) {
+                if (Number(receipt.execution_id) === normalizedId)
+                    return receipt;
             }
             return null;
         },
@@ -363,10 +412,11 @@ export function createVaultReceiptManager(runtime, options) {
                 ? Math.max(1, Math.floor(Number(limit)))
                 : 20;
             const normalizedTemplateName = String(templateName || "").trim();
-            const receipts = readAllReceipts(filePath);
+            const receipts = readReceiptsFromPaths(receiptReadPaths);
             const results = [];
-            for (let i = receipts.length - 1; i >= 0 && results.length < normalizedLimit; i--) {
-                const receipt = receipts[i];
+            for (const receipt of receipts) {
+                if (results.length >= normalizedLimit)
+                    break;
                 if (!receiptVisibleToCompany(receipt, currentCompany))
                     continue;
                 if (normalizedTemplateName && receipt.template.name !== normalizedTemplateName)
