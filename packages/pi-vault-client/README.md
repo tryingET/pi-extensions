@@ -139,9 +139,11 @@ Tool-query defaults:
   - `vault_executions({ template_name: "nexus", limit: 10 })`
 - local execution receipts now preserve immutable execution-bound template/company/render snapshots in package-owned JSONL
   - default spool path: `~/.pi/agent/state/pi-vault-client/vault-execution-receipts.jsonl`
+  - emergency fallback spool path: `os.tmpdir()/pi-vault-client/vault-execution-receipts.fallback.jsonl`
   - override directory with `PI_VAULT_RECEIPTS_DIR`
   - queued prepared prompts now carry an opaque hidden execution marker so send-time binding does not rely on raw prompt-text equality
   - execution markers are stripped from user messages before the LLM sees them
+  - if the primary receipt sink is unavailable, Vault falls back to an emergency temp-backed receipt sink before surfacing a send-time warning
   - `vault_executions` prefers local receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
   - `vault_replay({ execution_id })` and `/vault-replay <execution_id>` now expose the local replay core directly with deterministic `match` / `drift` / `unavailable` reporting keyed to the exact execution id
 

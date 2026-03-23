@@ -439,6 +439,8 @@ Current default spool path:
 ~/.pi/agent/state/pi-vault-client/vault-execution-receipts.jsonl
 ```
 
+If the primary local sink is unavailable at send time, the runtime falls back to an emergency temp-backed JSONL spool derived from the primary spool identity so replayable provenance is still preserved.
+
 Override the parent directory with `PI_VAULT_RECEIPTS_DIR` when you need isolated test/runtime storage.
 
 Why:
