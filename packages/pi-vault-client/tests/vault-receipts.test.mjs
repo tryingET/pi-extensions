@@ -137,6 +137,85 @@ test("vault receipt manager finalizes prepared executions on send and persists l
   }
 });
 
+test("vault receipt manager rejects edited prepared prompts before execution logging", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "vault-receipts-edit-"));
+  let logged = 0;
+
+  try {
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution() {
+          logged += 1;
+          return {
+            ok: true,
+            executionId: 122,
+            templateId: 7,
+            entityVersion: 3,
+            createdAt: "2026-03-22T18:00:00.000Z",
+            model: "unit-model",
+            inputContext: "",
+          };
+        },
+      },
+      { filePath: path.join(tempDir, "vault-execution-receipts.jsonl") },
+    );
+
+    const executionToken = createPreparedExecutionToken();
+    receipts.queuePreparedExecution({
+      execution_token: executionToken,
+      queued_at: new Date().toISOString(),
+      invocation: {
+        surface: "/vault",
+        channel: "slash-command",
+        selection_mode: "exact",
+        llm_tool_call: null,
+      },
+      template: {
+        id: 7,
+        name: "nexus",
+        version: 3,
+        artifact_kind: "procedure",
+        control_mode: "one_shot",
+        formalization_level: "structured",
+        owner_company: "software",
+        visibility_companies: ["software"],
+      },
+      company: {
+        current_company: "software",
+        company_source: "explicit:test",
+      },
+      render: {
+        engine: "none",
+        explicit_engine: null,
+        context_appended: false,
+        append_context_section: true,
+        used_render_keys: [],
+      },
+      prepared: {
+        text: "hello",
+      },
+      replay_safe_inputs: {
+        kind: "vault-selection",
+        query: "nexus",
+        context: "",
+      },
+      input_context: "",
+    });
+
+    const finalized = receipts.finalizePreparedExecution(
+      withPreparedExecutionMarker("HELLO BUT DIFFERENT", executionToken),
+      "unit-model",
+    );
+
+    assert.equal(finalized.status, "rejected");
+    assert.equal(finalized.reason, "prepared-text-mismatch");
+    assert.equal(logged, 0);
+    assert.equal(receipts.readLatestReceipt(), null);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("vault receipt manager falls back to an emergency sink when the primary receipt sink fails", () => {
   const appended = [];
   let logged = 0;
@@ -221,4 +300,92 @@ test("vault receipt manager falls back to an emergency sink when the primary rec
   assert.equal(logged, 1);
   assert.equal(appended.length, 1);
   assert.equal(appended[0]?.execution_id, 123);
+});
+
+test("vault receipt manager reports degraded state when execution logs but every receipt sink fails", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "vault-receipts-degraded-"));
+  let logged = 0;
+
+  try {
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution(template, model, inputContext) {
+          logged += 1;
+          return {
+            ok: true,
+            executionId: 124,
+            templateId: template.id,
+            entityVersion: template.version,
+            createdAt: "2026-03-22T18:00:00.000Z",
+            model,
+            inputContext,
+          };
+        },
+      },
+      {
+        filePath: path.join(tempDir, "vault-execution-receipts.jsonl"),
+        sink: {
+          append() {
+            throw new Error("disk full");
+          },
+        },
+        fallbackSink: false,
+      },
+    );
+
+    const executionToken = createPreparedExecutionToken();
+    receipts.queuePreparedExecution({
+      execution_token: executionToken,
+      queued_at: new Date().toISOString(),
+      invocation: {
+        surface: "/vault",
+        channel: "slash-command",
+        selection_mode: "exact",
+        llm_tool_call: null,
+      },
+      template: {
+        id: 7,
+        name: "nexus",
+        version: 3,
+        artifact_kind: "procedure",
+        control_mode: "one_shot",
+        formalization_level: "structured",
+        owner_company: "software",
+        visibility_companies: ["software"],
+      },
+      company: {
+        current_company: "software",
+        company_source: "explicit:test",
+      },
+      render: {
+        engine: "none",
+        explicit_engine: null,
+        context_appended: false,
+        append_context_section: true,
+        used_render_keys: [],
+      },
+      prepared: {
+        text: "hello",
+      },
+      replay_safe_inputs: {
+        kind: "vault-selection",
+        query: "nexus",
+        context: "",
+      },
+      input_context: "",
+    });
+
+    const finalized = receipts.finalizePreparedExecution(
+      withPreparedExecutionMarker("hello", executionToken),
+      "unit-model",
+    );
+
+    assert.equal(finalized.status, "degraded");
+    assert.equal(finalized.reason, "receipt-persist-failed");
+    assert.equal(finalized.execution.executionId, 124);
+    assert.equal(logged, 1);
+    assert.equal(receipts.readLatestReceipt(), null);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });

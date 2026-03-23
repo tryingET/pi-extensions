@@ -352,6 +352,13 @@ export interface VaultReceiptManager {
   ) =>
     | { status: "matched"; execution: VaultExecutionLogResult; receipt: VaultExecutionReceiptV1 }
     | { status: "no-match" }
+    | { status: "rejected"; reason: "prepared-text-mismatch"; message: string }
+    | {
+        status: "degraded";
+        reason: "receipt-persist-failed";
+        execution: Extract<VaultExecutionLogResult, { ok: true }>;
+        message: string;
+      }
     | { status: "error"; message: string };
   readLatestReceipt: () => VaultExecutionReceiptV1 | null;
   readReceiptByExecutionId: (executionId: number) => VaultExecutionReceiptV1 | null;

@@ -44,6 +44,9 @@ Editor population alone is no longer treated as a successful execution.
 
 The current runtime correlates prepared prompts to sent prompts with an opaque hidden execution marker carried through the editor/transform path and stripped back out before the LLM sees user content.
 That marker replaced the earlier raw-text matching heuristic.
+Current integrity rule: the stripped sent prompt must still match the prepared prompt exactly.
+If an operator edits the prepared prompt before send, Vault rejects execution logging and local receipt persistence instead of attributing the edited send to the original template execution.
+If execution logging succeeds but every receipt sink fails, the runtime now surfaces that explicitly as a degraded finalization state.
 
 ## Current operator workflow
 

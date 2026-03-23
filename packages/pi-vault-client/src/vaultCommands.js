@@ -158,13 +158,17 @@ export function registerVaultCommands(pi, runtime, receipts) {
             if (!messageText)
                 return;
             const finalized = receipts.finalizePreparedExecution(messageText, ctx.model?.id || "unknown");
-            if (finalized.status === "error") {
-                const warning = `Vault execution receipt failed: ${finalized.message}`;
-                if (ctx.hasUI)
-                    ctx.ui.notify(warning, "warning");
-                else
-                    console.warn(warning);
-            }
+            if (finalized.status === "no-match" || finalized.status === "matched")
+                return;
+            const warning = finalized.status === "rejected"
+                ? `Vault execution receipt skipped: ${finalized.message}`
+                : finalized.status === "degraded"
+                    ? `Vault execution receipt degraded: ${finalized.message}`
+                    : `Vault execution receipt failed: ${finalized.message}`;
+            if (ctx.hasUI)
+                ctx.ui.notify(warning, "warning");
+            else
+                console.warn(warning);
         });
         pi.on("context", async (event) => ({
             messages: event.messages.map((message) => {

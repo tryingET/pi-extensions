@@ -237,6 +237,118 @@ test("live /vault: exact-name path transforms in non-UI mode without picker fall
   });
 });
 
+test("message_end warns when a prepared vault prompt was edited before send", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const { createVaultReceiptManager } = await importModule("src/vaultReceipts.js");
+    const pi = makePiStub();
+    const template = makeTemplate();
+    const notifications = [];
+    const logged = [];
+    const receiptDir = createPackageTempDir("receipts-");
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution(...args) {
+          logged.push(args);
+          return {
+            ok: true,
+            executionId: 45,
+            templateId: args[0].id,
+            entityVersion: args[0].version,
+            createdAt: "2026-03-11T12:00:05.000Z",
+            model: args[1],
+            inputContext: args[2] || "",
+          };
+        },
+      },
+      { filePath: path.join(receiptDir, "receipts.jsonl") },
+    );
+
+    registerVaultCommands(
+      pi,
+      {
+        checkSchemaCompatibilityDetailed() {
+          return {
+            ok: true,
+            expectedVersion: 9,
+            actualVersion: 9,
+            missingPromptTemplateColumns: [],
+            missingExecutionColumns: [],
+            missingFeedbackColumns: [],
+          };
+        },
+        parseVaultSelectionInput(text) {
+          return text.startsWith("/vault:") ? { query: text.slice(7), context: "" } : null;
+        },
+        getCurrentCompany() {
+          return "software";
+        },
+        getTemplateDetailed(name) {
+          assert.equal(name, "meta-orchestration");
+          return { ok: true, value: template, error: null };
+        },
+        async pickVaultTemplate() {
+          throw new Error("picker should not run for exact /vault: matches");
+        },
+        prepareVaultPrompt() {
+          return {
+            ok: true,
+            engine: "none",
+            explicitEngine: null,
+            body: "Reply with V9-OK",
+            hasFrontmatter: false,
+            error: null,
+            rendered: "Reply with V9-OK",
+            prepared: "Reply with V9-OK",
+            renderContext: {},
+            usedRenderKeys: [],
+            contextAppended: false,
+          };
+        },
+      },
+      receipts,
+    );
+
+    const inputHandler = pi.events.get("input");
+    const messageEndHandler = pi.events.get("message_end");
+    assert.equal(typeof inputHandler, "function");
+    assert.equal(typeof messageEndHandler, "function");
+
+    const result = await inputHandler(
+      { source: "interactive", text: "/vault:meta-orchestration" },
+      { hasUI: false, cwd: "/tmp/software/project", model: { id: "unit-model" } },
+    );
+
+    assert.equal(result.action, "transform");
+
+    await messageEndHandler(
+      {
+        type: "message_end",
+        message: {
+          role: "user",
+          content: result.text.replace("Reply with V9-OK", "Edited prompt"),
+        },
+      },
+      {
+        hasUI: true,
+        model: { id: "unit-model" },
+        ui: {
+          notify(message, level) {
+            notifications.push({ message, level });
+          },
+        },
+      },
+    );
+
+    assert.equal(logged.length, 0);
+    assert.deepEqual(notifications.at(-1), {
+      message:
+        "Vault execution receipt skipped: Prepared vault prompt was edited after preparation; skipped execution logging and local receipt persistence.",
+      level: "warning",
+    });
+  });
+});
+
 test("interactive /vault command loads exact-name templates into the editor", async () => {
   await withCommandModules(async ({ importModule }) => {
     const { registerVaultCommands } = await importModule("src/vaultCommands.js");

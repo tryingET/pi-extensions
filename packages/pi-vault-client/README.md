@@ -141,16 +141,19 @@ Tool-query defaults:
   - default spool path: `~/.pi/agent/state/pi-vault-client/vault-execution-receipts.jsonl`
   - emergency fallback spool path: `os.tmpdir()/pi-vault-client/vault-execution-receipts.fallback.jsonl`
   - override directory with `PI_VAULT_RECEIPTS_DIR`
-  - queued prepared prompts now carry an opaque hidden execution marker so send-time binding does not rely on raw prompt-text equality
+  - queued prepared prompts now carry an opaque hidden execution marker so send-time binding can verify the exact prepared prompt at send time
   - execution markers are stripped from user messages before the LLM sees them
+  - if the final sent prompt no longer matches the prepared prompt exactly, Vault skips execution logging and local receipt persistence instead of attributing the edited send to the original template
   - if the primary receipt sink is unavailable, Vault falls back to an emergency temp-backed receipt sink before surfacing a send-time warning
+  - if every receipt sink fails after execution logging succeeds, Vault now surfaces that as an explicit degraded send-time state instead of silently pretending receipt persistence succeeded
   - `vault_executions` prefers local receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
   - `vault_replay({ execution_id })` and `/vault-replay <execution_id>` now expose the local replay core directly with deterministic `match` / `drift` / `unavailable` reporting keyed to the exact execution id
 
 ### Receipt and replay operator workflow
 
 - receipts are execution-bound, not editor-bound
-  - prepare a prompt first, then send it as a real user message before expecting a local receipt or replayable `execution_id`
+  - prepare a prompt first, then send that prepared prompt as a real user message before expecting a local receipt or replayable `execution_id`
+  - if you materially edit the prepared prompt before send, Vault now skips execution logging/receipt persistence rather than recording a misleading template execution
 - use exact ids end to end
   - interactive: `/vault-last-receipt` to grab the latest visible receipt, then `/vault-receipt <execution_id>` or `/vault-replay <execution_id>`
   - headless/tooling: `vault_executions({ template_name, limit })` to enumerate exact ids, then `vault_replay({ execution_id })`

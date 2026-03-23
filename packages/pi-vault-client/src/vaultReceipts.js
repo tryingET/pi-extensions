@@ -379,6 +379,13 @@ export function createVaultReceiptManager(runtime, options) {
             if (matchIndex === -1)
                 return { status: "no-match" };
             const [candidate] = pending.splice(matchIndex, 1);
+            if (resolved.text !== candidate.prepared.text) {
+                return {
+                    status: "rejected",
+                    reason: "prepared-text-mismatch",
+                    message: "Prepared vault prompt was edited after preparation; skipped execution logging and local receipt persistence.",
+                };
+            }
             const execution = runtime.logExecution(candidate.template, modelId, candidate.input_context);
             if (!execution.ok)
                 return { status: "error", message: execution.message };
@@ -386,8 +393,10 @@ export function createVaultReceiptManager(runtime, options) {
             const appended = appendReceiptWithFallback(receipt);
             if (!appended.ok) {
                 return {
-                    status: "error",
-                    message: `${appended.message} (execution_id=${execution.executionId})`,
+                    status: "degraded",
+                    reason: "receipt-persist-failed",
+                    execution,
+                    message: `Execution ${execution.executionId} was logged, but local receipt persistence failed: ${appended.message}`,
                 };
             }
             return { status: "matched", execution, receipt };
