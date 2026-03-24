@@ -104,10 +104,11 @@ Kept commands:
 
 Current `/vault` behavior:
 
-- `/vault` opens the full picker
+- interactive `/vault` opens the full picker
+- headless `/vault` and bare headless `/vault:` now fail closed and require an exact name or fuzzy query instead of auto-selecting the first visible template
 - `/vault <exact-name>` loads the exact exported-and-visible match directly
 - `/vault <fuzzy-query>` falls back to picker mode with the query applied
-- live `/vault:` uses the shared interaction runtime, applies a short debounce (`150ms`) to avoid rapid-fire picker churn, and allows bare `/vault:` with a follow-up filter prompt
+- live `/vault:` uses the shared interaction runtime, applies a short debounce (`150ms`) to avoid rapid-fire picker churn, and allows bare `/vault:` with a follow-up filter prompt in interactive mode
 - visibility-sensitive slash-command reads (`/vault`, `/vault:`, `/vault-search`, `/route`, grounding) now fail closed when no explicit company context is available
   - set `PI_COMPANY` or invoke from a company-scoped cwd
   - cwd inference now matches exact workspace/company path segments (for example `ai-society/softwareco/...`) instead of arbitrary substrings; if your checkout path is ambiguous, set `PI_COMPANY`
@@ -140,8 +141,11 @@ Tool-query defaults:
   - if Prompt Vault execution-row lookup fails but local receipts still exist, `vault_executions` now emits an explicit warning and marks the result as partial instead of silently presenting receipt-only success as full truth
 - local execution receipts now preserve immutable execution-bound template/company/render snapshots in package-owned JSONL
   - default spool path: `~/.pi/agent/state/pi-vault-client/vault-execution-receipts.jsonl`
+  - receipt-auth key path: `~/.pi/agent/state/pi-vault-client/vault-execution-receipts.key`
   - emergency fallback spool path: `os.tmpdir()/pi-vault-client/vault-execution-receipts.fallback.jsonl`
   - override directory with `PI_VAULT_RECEIPTS_DIR`
+  - manager-written receipts are signed locally (`hmac-sha256`) so mutation-sensitive flows can distinguish trusted package receipts from unsigned/edited legacy JSONL lines
+  - receipt auth keys are provisioned lazily and enforced to local-only permissions (`0600`) instead of blocking extension startup when receipt state is unavailable
   - queued prepared prompts now carry an opaque hidden execution marker so send-time binding can verify the exact prepared prompt at send time
   - execution markers are stripped from user messages before the LLM sees them
   - if the final sent prompt no longer matches the prepared prompt exactly, Vault skips execution logging and local receipt persistence instead of attributing the edited send to the original template
@@ -165,6 +169,7 @@ Tool-query defaults:
 - visibility stays fail-closed
   - explicit company context is required for receipt inspection and replay surfaces
   - `/vault-receipt <execution_id>` and `/vault-replay <execution_id>` only open visible local receipts in the current company context
+  - replay eligibility now follows the receipt visibility snapshot rather than only the original execution company, so cross-company-visible receipts remain replayable from other visible companies
   - `vault_replay({ execution_id })` returns the same replay contract on the tool surface, and treats non-visible receipts as `receipt-missing` rather than leaking template identity
 
 Tool mutation surface:
@@ -186,7 +191,9 @@ Tool mutation surface:
 - `vault_rate({ execution_id, ... })` now binds feedback to an exact execution row instead of a template name.
   - use `vault_executions(...)` first to retrieve the exact `execution_id`
   - feedback insert succeeds only when exactly one feedback row is written for that execution
-  - when a local receipt exists for that execution, `vault_rate` uses the receipt's immutable visibility snapshot so later template archive drift does not block feedback for package-originated executions
+  - when a trusted local receipt exists for that execution, `vault_rate` can use the receipt's immutable visibility snapshot so later template archive drift does not block feedback for package-originated executions
+  - receipt trust is runtime-issued and internal to this package; callers cannot grant feedback authorization by passing a boolean flag or edited JSON alone
+  - unsigned/edited legacy receipt JSONL is still readable for inspection and replay, but no longer authorizes mutation-sensitive feedback visibility by itself
   - mutation still uses explicit company context so feedback writes do not silently inherit ambient process cwd
 
 Use `/vault-check` to inspect schema compatibility, resolved company context, and visibility of key shared templates in the interactive TUI.

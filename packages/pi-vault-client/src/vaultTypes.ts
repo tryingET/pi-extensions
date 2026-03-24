@@ -282,6 +282,12 @@ export interface VaultExecutionReceiptPreparedSnapshot {
   edited_after_prepare: boolean;
 }
 
+export interface VaultExecutionReceiptAuthSnapshot {
+  mode: "hmac-sha256";
+  key_id: string;
+  signature: string;
+}
+
 export interface VaultPreparedExecutionCandidate {
   execution_token: string;
   queued_at: string;
@@ -318,6 +324,7 @@ export interface VaultExecutionReceiptV1 {
   render: VaultExecutionReceiptRenderSnapshot;
   prepared: VaultExecutionReceiptPreparedSnapshot;
   replay_safe_inputs: VaultReplaySafeInputs;
+  auth?: VaultExecutionReceiptAuthSnapshot | null;
 }
 
 export interface VaultExecutionReceiptSink {
@@ -362,6 +369,7 @@ export interface VaultReceiptManager {
     | { status: "error"; message: string };
   readLatestReceipt: () => VaultExecutionReceiptV1 | null;
   readReceiptByExecutionId: (executionId: number) => VaultExecutionReceiptV1 | null;
+  readTrustedReceiptByExecutionId: (executionId: number) => VaultExecutionReceiptV1 | null;
   listRecentReceipts: (options?: {
     currentCompany?: string;
     templateName?: string;

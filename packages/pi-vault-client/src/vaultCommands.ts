@@ -336,6 +336,12 @@ export function registerVaultCommands(
         }
         return { action: "transform", text: companyContext.error };
       }
+      if (!ctx.hasUI && !vaultSelectionInput.query.trim()) {
+        return {
+          action: "transform",
+          text: "Headless /vault selection requires an exact name or fuzzy query. Bare /vault and /vault: need an interactive UI.",
+        };
+      }
       const resolved = await resolveVaultTemplateSelection(
         runtime,
         ctx,
@@ -407,10 +413,11 @@ export function registerVaultCommands(
       };
     }
 
-    if (text.startsWith("/vault-search ")) {
-      const query = text.slice(14).trim();
+    if (text === "/vault-search" || text.startsWith("/vault-search ")) {
+      const query = text === "/vault-search" ? "" : text.slice(14).trim();
       if (!query) {
         if (ctx.hasUI) ctx.ui.notify("Usage: /vault-search <query>", "warning");
+        else return { action: "transform", text: "Usage: /vault-search <query>" };
         return { action: "handled" };
       }
       const companyContext = resolveCommandCompanyContext(runtime, ctx);
@@ -461,8 +468,15 @@ export function registerVaultCommands(
       return { action: "transform", text: output };
     }
 
-    if (text.startsWith("/route ")) {
-      const context = text.slice(7).trim();
+    if (text === "/route" || text.startsWith("/route ")) {
+      const context = text === "/route" ? "" : text.slice(7).trim();
+      if (!context) {
+        if (ctx.hasUI) {
+          ctx.ui.notify("Usage: /route <describe your situation>", "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: "Usage: /route <describe your situation>" };
+      }
       const companyContext = resolveCommandCompanyContext(runtime, ctx);
       if (!companyContext.ok) {
         if (ctx.hasUI) {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -32,6 +32,255 @@ test("vault receipt manager ignores malformed receipt lines instead of crashing"
 
     assert.equal(receipts.readLatestReceipt(), null);
     assert.deepEqual(receipts.listRecentReceipts({ currentCompany: "software", limit: 5 }), []);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("vault receipt manager does not trust unsigned legacy receipts for mutation-sensitive reads", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "vault-receipts-legacy-"));
+
+  try {
+    const filePath = path.join(tempDir, "vault-execution-receipts.jsonl");
+    writeFileSync(
+      filePath,
+      `${JSON.stringify({
+        schema_version: 1,
+        receipt_kind: "vault_execution",
+        execution_id: 19,
+        recorded_at: "2026-03-22T18:00:00.000Z",
+        invocation: {
+          surface: "/vault",
+          channel: "slash-command",
+          selection_mode: "exact",
+          llm_tool_call: null,
+        },
+        template: {
+          id: 7,
+          name: "legacy",
+          version: 1,
+          artifact_kind: "procedure",
+          control_mode: "one_shot",
+          formalization_level: "structured",
+          owner_company: "software",
+          visibility_companies: ["software"],
+        },
+        company: {
+          current_company: "software",
+          company_source: "legacy:test",
+        },
+        model: { id: "unit-model" },
+        render: {
+          engine: "none",
+          explicit_engine: null,
+          context_appended: false,
+          append_context_section: true,
+          used_render_keys: [],
+        },
+        prepared: {
+          text: "legacy body",
+          sha256: "legacy",
+          edited_after_prepare: false,
+        },
+        replay_safe_inputs: {
+          kind: "vault-selection",
+          query: "legacy",
+          context: "",
+        },
+      })}\n`,
+      "utf8",
+    );
+
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution() {
+          return { ok: false, message: "unused" };
+        },
+      },
+      { filePath },
+    );
+
+    assert.equal(receipts.readReceiptByExecutionId(19)?.execution_id, 19);
+    assert.equal(receipts.readTrustedReceiptByExecutionId(19), null);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("vault receipt manager defers key provisioning until finalize and degrades cleanly when key paths are unwritable", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "vault-receipts-key-failure-"));
+  const lockedDir = path.join(tempDir, "locked");
+  mkdirSync(lockedDir, { recursive: true });
+  chmodSync(lockedDir, 0o500);
+
+  try {
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution() {
+          return {
+            ok: true,
+            executionId: 33,
+            templateId: 7,
+            entityVersion: 1,
+            createdAt: "2026-03-23T00:00:00.000Z",
+            model: "unit-model",
+            inputContext: "",
+          };
+        },
+      },
+      {
+        filePath: path.join(lockedDir, "vault-execution-receipts.jsonl"),
+        keyPath: path.join(lockedDir, "vault-execution-receipts.key"),
+        fallbackSink: false,
+      },
+    );
+
+    const executionToken = createPreparedExecutionToken();
+    receipts.queuePreparedExecution({
+      execution_token: executionToken,
+      queued_at: new Date().toISOString(),
+      invocation: {
+        surface: "/vault",
+        channel: "slash-command",
+        selection_mode: "exact",
+        llm_tool_call: null,
+      },
+      template: {
+        id: 7,
+        name: "meta-orchestration",
+        version: 1,
+        artifact_kind: "procedure",
+        control_mode: "one_shot",
+        formalization_level: "structured",
+        owner_company: "software",
+        visibility_companies: ["software"],
+      },
+      company: {
+        current_company: "software",
+        company_source: "explicit:test",
+      },
+      render: {
+        engine: "none",
+        explicit_engine: null,
+        context_appended: false,
+        append_context_section: true,
+        used_render_keys: [],
+      },
+      prepared: { text: "Prompt body" },
+      replay_safe_inputs: {
+        kind: "vault-selection",
+        query: "meta-orchestration",
+        context: "",
+      },
+      input_context: "",
+    });
+
+    const finalized = receipts.finalizePreparedExecution(
+      withPreparedExecutionMarker("Prompt body", executionToken),
+      "unit-model",
+    );
+    assert.equal(finalized.status, "degraded");
+    if (finalized.status === "degraded") {
+      assert.match(finalized.message, /Receipt signing key unavailable/);
+    }
+  } finally {
+    chmodSync(lockedDir, 0o700);
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("vault receipt manager prefers a signed duplicate over an unsigned primary duplicate", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "vault-receipts-trusted-duplicate-"));
+
+  try {
+    const filePath = path.join(tempDir, "vault-execution-receipts.jsonl");
+    const fallbackFilePath = path.join(tempDir, "vault-execution-receipts.fallback.jsonl");
+    const keyPath = path.join(tempDir, "vault-execution-receipts.key");
+    const receipts = createVaultReceiptManager(
+      {
+        logExecution() {
+          return {
+            ok: true,
+            executionId: 77,
+            templateId: 7,
+            entityVersion: 1,
+            createdAt: "2026-03-23T00:00:00.000Z",
+            model: "unit-model",
+            inputContext: "",
+          };
+        },
+      },
+      {
+        filePath,
+        fallbackFilePath,
+        keyPath,
+        sink: {
+          append() {
+            throw new Error("primary down");
+          },
+        },
+        fallbackSink: {
+          append(receipt) {
+            writeFileSync(fallbackFilePath, `${JSON.stringify(receipt)}\n`, "utf8");
+          },
+        },
+      },
+    );
+
+    const executionToken = createPreparedExecutionToken();
+    receipts.queuePreparedExecution({
+      execution_token: executionToken,
+      queued_at: new Date().toISOString(),
+      invocation: {
+        surface: "/vault",
+        channel: "slash-command",
+        selection_mode: "exact",
+        llm_tool_call: null,
+      },
+      template: {
+        id: 7,
+        name: "meta-orchestration",
+        version: 1,
+        artifact_kind: "procedure",
+        control_mode: "one_shot",
+        formalization_level: "structured",
+        owner_company: "software",
+        visibility_companies: ["software"],
+      },
+      company: {
+        current_company: "software",
+        company_source: "explicit:test",
+      },
+      render: {
+        engine: "none",
+        explicit_engine: null,
+        context_appended: false,
+        append_context_section: true,
+        used_render_keys: [],
+      },
+      prepared: { text: "Prompt body" },
+      replay_safe_inputs: {
+        kind: "vault-selection",
+        query: "meta-orchestration",
+        context: "",
+      },
+      input_context: "",
+    });
+
+    const finalized = receipts.finalizePreparedExecution(
+      withPreparedExecutionMarker("Prompt body", executionToken),
+      "unit-model",
+    );
+    assert.equal(finalized.status, "matched");
+    if (finalized.status !== "matched") return;
+
+    const unsignedDuplicate = { ...finalized.receipt };
+    delete unsignedDuplicate.auth;
+    writeFileSync(filePath, `${JSON.stringify(unsignedDuplicate)}\n`, "utf8");
+
+    const trusted = receipts.readTrustedReceiptByExecutionId(77);
+    assert.ok(trusted);
+    assert.equal(trusted?.auth?.mode, "hmac-sha256");
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -118,10 +367,21 @@ test("vault receipt manager finalizes prepared executions on send and persists l
     assert.equal(latest?.execution_id, 91);
     assert.equal(latest?.template.version, 3);
     assert.equal(latest?.model.id, "unit-model");
+    assert.equal(latest?.auth?.mode, "hmac-sha256");
+    assert.match(latest?.auth?.key_id || "", /^[a-f0-9]{16}$/);
 
     const byId = receipts.readReceiptByExecutionId(91);
     assert.ok(byId);
     assert.equal(byId?.company.current_company, "software");
+
+    const trustedById = receipts.readTrustedReceiptByExecutionId(91);
+    assert.ok(trustedById);
+    assert.equal(trustedById?.execution_id, 91);
+
+    const keyMode = (
+      statSync(path.join(tempDir, "vault-execution-receipts.key")).mode & 0o777
+    ).toString(8);
+    assert.equal(keyMode, "600");
 
     const visible = receipts.listRecentReceipts({ currentCompany: "software", limit: 5 });
     assert.equal(visible.length, 1);
@@ -131,6 +391,7 @@ test("vault receipt manager finalizes prepared executions on send and persists l
     const formatted = formatVaultReceipt(latest);
     assert.match(formatted, /# Vault Execution Receipt/);
     assert.match(formatted, /execution_id: 91/);
+    assert.match(formatted, /auth_mode: hmac-sha256/);
     assert.match(formatted, /Prepared Prompt/);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });

@@ -868,8 +868,10 @@ Example: vault_rate({ execution_id: 42, rating: 4, success: true, notes: "Found 
                     content: [{ type: "text", text: "rating must be between 1 and 5." }],
                     details: { ok: false },
                 };
-            const executionReceipt = receipts?.readReceiptByExecutionId(executionId) || null;
-            const result = runtime.rateTemplate(executionId, rating, params.success, params.notes || "", mutationContext, { executionReceipt });
+            const executionReceipt = receipts?.readTrustedReceiptByExecutionId?.(executionId) || null;
+            const result = runtime.rateTemplate(executionId, rating, params.success, params.notes || "", mutationContext, {
+                executionReceipt,
+            });
             return {
                 content: [{ type: "text", text: result.message }],
                 details: { ok: result.ok, executionId, rating, success: params.success },

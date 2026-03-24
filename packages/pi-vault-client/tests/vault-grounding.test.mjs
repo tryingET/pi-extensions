@@ -132,3 +132,117 @@ Fifth arg: $5`,
     );
   });
 });
+
+test("framework grounding validates all explicit framework overrides before truncating the rendered appendix", async () => {
+  await withGroundingModules(async ({ importModule }) => {
+    const { createGroundingRuntime } = await importModule("src/vaultGrounding.js");
+    const next10 = makeTemplate({
+      name: "next-10-expert-suggestions",
+      content: "Base prompt",
+    });
+    const frameworks = ["inversion", "telescopic", "nexus", "audit"].map((name) =>
+      makeTemplate({
+        name,
+        artifact_kind: "cognitive",
+        content: `${name} body`,
+      }),
+    );
+
+    const grounding = createGroundingRuntime({
+      getCurrentCompany() {
+        return "software";
+      },
+      retrieveByNamesDetailed(names) {
+        return {
+          ok: true,
+          value: frameworks.filter((framework) => names.includes(framework.name)),
+          error: null,
+        };
+      },
+      getTemplateDetailed(name) {
+        return {
+          ok: true,
+          value: name === "next-10-expert-suggestions" ? next10 : null,
+          error: null,
+        };
+      },
+      queryVaultJsonDetailed() {
+        throw new Error("discovery should not run when explicit overrides are requested");
+      },
+      parseTemplateRows() {
+        return [];
+      },
+      buildActiveVisibleTemplatePredicate() {
+        return "1 = 1";
+      },
+      escapeSql(value) {
+        return String(value);
+      },
+    });
+
+    const result = grounding.buildGroundedNext10Prompt(
+      '/next-10-expert-suggestions "ship templating" "workflow" lite "frameworks=inversion|telescopic|nexus|audit"',
+      { currentCompany: "software" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.prompt, /### F1: inversion/);
+    assert.match(result.prompt, /### F2: telescopic/);
+    assert.match(result.prompt, /### F3: nexus/);
+    assert.doesNotMatch(
+      result.prompt,
+      /Explicit framework override\(s\) not found or not visible: audit/,
+    );
+  });
+});
+
+test("framework grounding fails closed when explicit framework overrides are not visible", async () => {
+  await withGroundingModules(async ({ importModule }) => {
+    const { createGroundingRuntime } = await importModule("src/vaultGrounding.js");
+    const next10 = makeTemplate({
+      name: "next-10-expert-suggestions",
+      content: "Base prompt",
+    });
+
+    const grounding = createGroundingRuntime({
+      getCurrentCompany() {
+        return "software";
+      },
+      retrieveByNamesDetailed() {
+        return { ok: true, value: [], error: null };
+      },
+      getTemplateDetailed(name) {
+        return {
+          ok: true,
+          value: name === "next-10-expert-suggestions" ? next10 : null,
+          error: null,
+        };
+      },
+      queryVaultJsonDetailed() {
+        throw new Error("discovery should not run when explicit overrides are requested");
+      },
+      parseTemplateRows() {
+        return [];
+      },
+      buildActiveVisibleTemplatePredicate() {
+        return "1 = 1";
+      },
+      escapeSql(value) {
+        return String(value);
+      },
+    });
+
+    const result = grounding.buildGroundedNext10Prompt(
+      '/next-10-expert-suggestions "ship templating" "workflow" lite "frameworks=missing-framework"',
+      { currentCompany: "software" },
+    );
+
+    assert.deepEqual(result.ok, false);
+    if (result.ok) return;
+    assert.match(
+      result.reason,
+      /BLOCKED: framework grounding lookup failed: Explicit framework override\(s\) not found or not visible: missing-framework/,
+    );
+  });
+});

@@ -417,6 +417,45 @@ test("replay core reports unavailable for bad company context", async () => {
   });
 });
 
+test("replay core allows a different visible company when the receipt visibility snapshot permits it", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const { replayVaultExecutionReceipt } = await importModule("src/vaultReplay.js");
+    const runtime = createVaultRuntime();
+
+    const insertResult = runtime.insertTemplate(
+      "replay-cross-company-visible",
+      "Body",
+      "Replay visible across companies",
+      "procedure",
+      "one_shot",
+      "structured",
+      "software",
+      ["software", "finance"],
+      null,
+      { actorCompany: "software", allowAmbientCwdFallback: false },
+    );
+    assert.equal(insertResult.status, "ok");
+
+    const template = runtime.getTemplate("replay-cross-company-visible", {
+      currentCompany: "software",
+    });
+    assert.ok(template);
+    if (!template) return;
+
+    const receipt = makeBaseReceipt(template, "Body", {
+      company: {
+        current_company: "software",
+        company_source: "explicit:test",
+      },
+    });
+    const replay = replayVaultExecutionReceipt(runtime, receipt, { currentCompany: "finance" });
+    assert.equal(replay.status, "match");
+    assert.deepEqual(replay.reasons, []);
+    assert.equal(replay.current_company, "finance");
+  });
+});
+
 test("replay core reports unavailable for missing input contract", async () => {
   await withTempVaultRuntime(async ({ importModule }) => {
     const { createVaultRuntime } = await importModule("src/vaultDb.js");

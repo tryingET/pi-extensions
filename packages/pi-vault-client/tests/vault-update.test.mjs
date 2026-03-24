@@ -340,11 +340,11 @@ test("vault_replay tool surfaces drift and unavailable replay classifications", 
         expectedReasons: ["version-mismatch", "render-mismatch"],
       },
       {
-        currentCompany: "core",
+        currentCompany: "finance",
         receipt: makeReplayReceipt(baseTemplate, "Stable prompt"),
         templateResult: { ok: true, value: baseTemplate, error: null },
         expectedStatus: "unavailable",
-        expectedReasons: ["company-mismatch"],
+        expectedReasons: ["receipt-missing"],
       },
       {
         currentCompany: "software",

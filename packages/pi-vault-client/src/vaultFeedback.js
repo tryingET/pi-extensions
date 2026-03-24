@@ -1,4 +1,5 @@
 import { resolveMutationActorContext } from "./vaultMutations.js";
+import { receiptTrustedForAuthorization } from "./vaultReceipts.js";
 function validateRateTemplateInput(executionId, rating) {
     if (!Number.isFinite(executionId) || executionId < 1) {
         return "execution_id must be a positive integer.";
@@ -31,6 +32,7 @@ export function rateTemplate(executionId, rating, success, notes, context, optio
         };
     }
     const receipt = options?.executionReceipt ?? null;
+    const trustedReceipt = receiptTrustedForAuthorization(receipt);
     let templateName = "template";
     if (receipt) {
         if (Number(receipt.execution_id) !== normalizedExecutionId) {
@@ -54,6 +56,8 @@ export function rateTemplate(executionId, rating, success, notes, context, optio
                 message: `Execution receipt version mismatch for execution ${normalizedExecutionId}`,
             };
         }
+    }
+    if (receipt && trustedReceipt) {
         if (!receipt.template.visibility_companies.includes(actorContext.actorCompany)) {
             return {
                 ok: false,

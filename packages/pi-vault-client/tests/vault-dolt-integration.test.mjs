@@ -305,7 +305,9 @@ test("vault runtime can still rate an archived execution when a local receipt pr
         true,
         "still visible via receipt",
         { actorCompany: "software", allowAmbientCwdFallback: false },
-        { executionReceipt: finalized.receipt },
+        {
+          executionReceipt: finalized.receipt,
+        },
       );
       assert.equal(rating.ok, true);
       assert.match(rating.message, /Recorded rating 5\/5/);
@@ -397,6 +399,91 @@ test("vault runtime rejects forged local receipt identity when execution templat
     );
     assert.equal(rating.ok, false);
     assert.match(rating.message, /Execution receipt template mismatch/);
+  });
+});
+
+test("vault runtime ignores untrusted receipt visibility when current template visibility blocks feedback", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    const insertResult = runtime.insertTemplate(
+      "forge-visibility-check",
+      "body",
+      "desc",
+      "procedure",
+      "one_shot",
+      "structured",
+      "finance",
+      ["finance"],
+      null,
+      { actorCompany: "finance", allowAmbientCwdFallback: false },
+    );
+    assert.equal(insertResult.status, "ok");
+
+    const template = runtime.getTemplate("forge-visibility-check", { currentCompany: "finance" });
+    assert.ok(template);
+    if (!template) return;
+
+    const execution = runtime.logExecution(template, "unit-test-model", "ctx");
+    assert.equal(execution.ok, true);
+    if (!execution.ok) return;
+
+    const forgedReceipt = {
+      schema_version: 1,
+      receipt_kind: "vault_execution",
+      execution_id: execution.executionId,
+      recorded_at: execution.createdAt,
+      invocation: {
+        surface: "/vault",
+        channel: "slash-command",
+        selection_mode: "exact",
+        llm_tool_call: null,
+      },
+      template: {
+        id: template.id,
+        name: template.name,
+        version: template.version,
+        artifact_kind: template.artifact_kind,
+        control_mode: template.control_mode,
+        formalization_level: template.formalization_level,
+        owner_company: template.owner_company,
+        visibility_companies: ["software"],
+      },
+      company: {
+        current_company: "software",
+        company_source: "forged",
+      },
+      model: { id: "unit-test-model" },
+      render: {
+        engine: "none",
+        explicit_engine: null,
+        context_appended: false,
+        append_context_section: true,
+        used_render_keys: [],
+      },
+      prepared: {
+        text: "body",
+        sha256: "forged",
+        edited_after_prepare: false,
+      },
+      replay_safe_inputs: {
+        kind: "vault-selection",
+        query: template.name,
+        context: "",
+      },
+    };
+
+    const rating = runtime.rateTemplate(
+      execution.executionId,
+      5,
+      true,
+      "forged visibility",
+      { actorCompany: "software", allowAmbientCwdFallback: false },
+      { executionReceipt: forgedReceipt },
+    );
+    assert.equal(rating.ok, false);
+    assert.match(rating.message, /Template execution not found or not visible/);
   });
 });
 

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import { rebuildGroundedNext10PromptFromReplayInputs } from "./vaultGrounding.js";
+import { receiptVisibleToCompany } from "./vaultReceipts.js";
 import { getRoutePromptShapeForChannel, prepareRoutePrompt } from "./vaultRoute.js";
 const UNAVAILABLE_REASONS = new Set([
     "receipt-missing",
@@ -79,10 +80,9 @@ function finalizeReport(report) {
     return { ...report, status: "drift", reasons };
 }
 function resolveReplayCompanyContext(runtime, receipt, options) {
-    const receiptCompany = receipt.company.current_company;
     const explicitCompany = String(options?.currentCompany || "").trim();
     if (explicitCompany) {
-        if (explicitCompany !== receiptCompany) {
+        if (!receiptVisibleToCompany(receipt, explicitCompany)) {
             return {
                 ok: false,
                 report: finalizeReport(createBaseReport(receipt.execution_id, receipt, {
@@ -90,7 +90,7 @@ function resolveReplayCompanyContext(runtime, receipt, options) {
                     company_source: "explicit:currentCompany",
                     reasons: ["company-mismatch"],
                     notes: [
-                        `Replay requested under company ${explicitCompany}, but receipt recorded ${receiptCompany}.`,
+                        `Replay requested under company ${explicitCompany}, but receipt visibility is limited to [${receipt.template.visibility_companies.join(", ") || "(none)"}].`,
                     ],
                 })),
             };
@@ -104,7 +104,7 @@ function resolveReplayCompanyContext(runtime, receipt, options) {
     if (options?.cwd) {
         const resolved = runtime.resolveCurrentCompanyContext(options.cwd);
         if (resolved.source !== "contract-default") {
-            if (resolved.company !== receiptCompany) {
+            if (!receiptVisibleToCompany(receipt, resolved.company)) {
                 return {
                     ok: false,
                     report: finalizeReport(createBaseReport(receipt.execution_id, receipt, {
@@ -112,7 +112,7 @@ function resolveReplayCompanyContext(runtime, receipt, options) {
                         company_source: resolved.source,
                         reasons: ["company-mismatch"],
                         notes: [
-                            `Replay cwd resolved company ${resolved.company}, but receipt recorded ${receiptCompany}.`,
+                            `Replay cwd resolved company ${resolved.company}, but receipt visibility is limited to [${receipt.template.visibility_companies.join(", ") || "(none)"}].`,
                         ],
                     })),
                 };
@@ -126,7 +126,7 @@ function resolveReplayCompanyContext(runtime, receipt, options) {
     }
     return {
         ok: true,
-        currentCompany: receiptCompany,
+        currentCompany: receipt.company.current_company,
         companySource: receipt.company.company_source || "receipt:current_company",
     };
 }

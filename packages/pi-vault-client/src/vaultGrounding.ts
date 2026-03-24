@@ -136,32 +136,49 @@ function resolveFrameworks(
   currentCompany: string,
 ): { ok: true; value: FrameworkResolution } | { ok: false; error: string } {
   const overrideNames = splitPipeValues(dsl.map.frameworks);
-  const invalidOverrides: string[] = [];
-  const exactCandidates = (
-    overrideNames.length > 0 ? overrideNames : shortlistFrameworks(objective, workflow)
-  ).slice(0, 3);
+
+  if (overrideNames.length > 0) {
+    const exactRetrievedResult = runtime.retrieveByNamesDetailed(overrideNames, true, {
+      currentCompany,
+    });
+    if (!exactRetrievedResult.ok) return { ok: false, error: exactRetrievedResult.error };
+    const exactRetrieved = exactRetrievedResult.value.filter(
+      (t) => t.artifact_kind === "cognitive",
+    );
+    const found = new Set(exactRetrieved.map((t) => t.name));
+    const invalidOverrides = overrideNames.filter((name) => !found.has(name));
+    if (invalidOverrides.length > 0) {
+      return {
+        ok: false,
+        error: `Explicit framework override(s) not found or not visible: ${invalidOverrides.join(", ")}`,
+      };
+    }
+    return {
+      ok: true,
+      value: {
+        selected: exactRetrieved.slice(0, 3),
+        retrievalMethod: "exact",
+        discoveryUsed: 0,
+        invalidOverrides: [],
+      },
+    };
+  }
+
+  const exactCandidates = shortlistFrameworks(objective, workflow).slice(0, 3);
   const exactRetrievedResult = runtime.retrieveByNamesDetailed(exactCandidates, true, {
     currentCompany,
   });
   if (!exactRetrievedResult.ok) return { ok: false, error: exactRetrievedResult.error };
   const exactRetrieved = exactRetrievedResult.value.filter((t) => t.artifact_kind === "cognitive");
 
-  if (overrideNames.length > 0) {
-    const found = new Set(exactRetrieved.map((t) => t.name));
-    for (const name of overrideNames) if (!found.has(name)) invalidOverrides.push(name);
-  }
-
   if (exactRetrieved.length >= 1) {
     return {
       ok: true,
       value: {
         selected: exactRetrieved.slice(0, 3),
-        retrievalMethod:
-          overrideNames.length > 0 && exactRetrieved.length < exactCandidates.length
-            ? "mixed"
-            : "exact",
+        retrievalMethod: "exact",
         discoveryUsed: 0,
-        invalidOverrides,
+        invalidOverrides: [],
       },
     };
   }
@@ -176,13 +193,13 @@ function resolveFrameworks(
         selected: discovered,
         retrievalMethod: "discovery",
         discoveryUsed: 1,
-        invalidOverrides,
+        invalidOverrides: [],
       },
     };
   }
   return {
     ok: true,
-    value: { selected: [], retrievalMethod: "none", discoveryUsed: 1, invalidOverrides },
+    value: { selected: [], retrievalMethod: "none", discoveryUsed: 1, invalidOverrides: [] },
   };
 }
 

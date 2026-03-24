@@ -237,6 +237,44 @@ test("live /vault: exact-name path transforms in non-UI mode without picker fall
   });
 });
 
+test("bare /vault fails closed in non-UI mode instead of auto-selecting a template", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+
+    registerVaultCommands(pi, {
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: true,
+          expectedVersion: 9,
+          actualVersion: 9,
+          missingPromptTemplateColumns: [],
+          missingExecutionColumns: [],
+          missingFeedbackColumns: [],
+        };
+      },
+      resolveCurrentCompanyContext(cwd) {
+        return { company: "software", source: `cwd:${cwd}` };
+      },
+      parseVaultSelectionInput(text) {
+        return text === "/vault" ? { query: "", context: "" } : null;
+      },
+      async pickVaultTemplate() {
+        throw new Error("picker should not run for bare headless /vault");
+      },
+    });
+
+    const inputHandler = pi.events.get("input");
+    const result = await inputHandler(
+      { source: "interactive", text: "/vault" },
+      { hasUI: false, cwd: "/tmp/software/project" },
+    );
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text, /Headless \/vault selection requires an exact name or fuzzy query/);
+  });
+});
+
 test("message_end warns when a prepared vault prompt was edited before send", async () => {
   await withCommandModules(async ({ importModule }) => {
     const { registerVaultCommands } = await importModule("src/vaultCommands.js");
@@ -616,6 +654,48 @@ test("non-UI /vault-search returns transformed company-visible results", async (
     assert.match(result.text, /# Search Results: "demo"/);
     assert.match(result.text, /current_company: software/);
     assert.match(result.text, /DETAIL/);
+  });
+});
+
+test("bare non-UI /vault-search and /route return usage instead of falling through", async () => {
+  await withCommandModules(async ({ importModule }) => {
+    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+
+    registerVaultCommands(pi, {
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: true,
+          expectedVersion: 9,
+          actualVersion: 9,
+          missingPromptTemplateColumns: [],
+          missingExecutionColumns: [],
+          missingFeedbackColumns: [],
+        };
+      },
+      parseVaultSelectionInput() {
+        return null;
+      },
+    });
+
+    const inputHandler = pi.events.get("input");
+    const searchResult = await inputHandler(
+      { source: "interactive", text: "/vault-search" },
+      { hasUI: false, cwd: "/tmp/software/project" },
+    );
+    const routeResult = await inputHandler(
+      { source: "interactive", text: "/route" },
+      { hasUI: false, cwd: "/tmp/software/project" },
+    );
+
+    assert.deepEqual(searchResult, {
+      action: "transform",
+      text: "Usage: /vault-search <query>",
+    });
+    assert.deepEqual(routeResult, {
+      action: "transform",
+      text: "Usage: /route <describe your situation>",
+    });
   });
 });
 

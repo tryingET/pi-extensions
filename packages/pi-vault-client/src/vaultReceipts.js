@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync, } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { RENDER_ENGINES } from "./vaultTypes.js";
@@ -7,12 +7,14 @@ const DEFAULT_PENDING_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_PENDING_LIMIT = 64;
 const DEFAULT_RECEIPTS_FILE = path.join(process.env.PI_VAULT_RECEIPTS_DIR ||
     path.join(homedir(), ".pi", "agent", "state", "pi-vault-client"), "vault-execution-receipts.jsonl");
+const DEFAULT_RECEIPT_KEY_FILE = "vault-execution-receipts.key";
 const EXECUTION_MARKER_START = "\u2063\u2063\u2063";
 const EXECUTION_MARKER_END = "\u2064\u2064\u2064";
 const EXECUTION_MARKER_ZERO = "\u200b";
 const EXECUTION_MARKER_ONE = "\u200c";
 const EXECUTION_MARKER_REGEX = new RegExp(`${EXECUTION_MARKER_START}([${EXECUTION_MARKER_ZERO}${EXECUTION_MARKER_ONE}]+)${EXECUTION_MARKER_END}`, "g");
 const VALID_RENDER_ENGINES = new Set(RENDER_ENGINES);
+const TRUSTED_RECEIPT_AUTHORIZATION = Symbol.for("@tryinget/pi-vault-client/trusted-vault-receipt-authorization");
 function ensureReceiptDirectory(filePath) {
     mkdirSync(path.dirname(filePath), { recursive: true });
 }
@@ -21,6 +23,90 @@ function sha256(text) {
 }
 function buildDefaultFallbackReceiptsFile(filePath) {
     return path.join(tmpdir(), "pi-vault-client", sha256(filePath).slice(0, 16), "vault-execution-receipts.fallback.jsonl");
+}
+function buildDefaultReceiptKeyPath(filePath) {
+    return path.join(path.dirname(filePath), DEFAULT_RECEIPT_KEY_FILE);
+}
+function enforceSecureReceiptKeyMode(keyPath) {
+    const currentMode = statSync(keyPath).mode & 0o777;
+    if (currentMode !== 0o600)
+        chmodSync(keyPath, 0o600);
+}
+function loadOrCreateReceiptSigningKey(keyPath, createIfMissing) {
+    ensureReceiptDirectory(keyPath);
+    if (existsSync(keyPath)) {
+        enforceSecureReceiptKeyMode(keyPath);
+        return readFileSync(keyPath);
+    }
+    if (!createIfMissing) {
+        throw new Error(`Receipt signing key not found: ${keyPath}`);
+    }
+    const key = randomBytes(32);
+    try {
+        writeFileSync(keyPath, key, { mode: 0o600, flag: "wx" });
+    }
+    catch (error) {
+        if (error?.code !== "EEXIST")
+            throw error;
+    }
+    enforceSecureReceiptKeyMode(keyPath);
+    return readFileSync(keyPath);
+}
+function buildReceiptAuthKeyId(key) {
+    return sha256(key.toString("hex")).slice(0, 16);
+}
+function canonicalizeReceiptForAuth(receipt) {
+    return JSON.stringify({
+        schema_version: receipt.schema_version,
+        receipt_kind: receipt.receipt_kind,
+        execution_id: receipt.execution_id,
+        recorded_at: receipt.recorded_at,
+        invocation: receipt.invocation,
+        template: receipt.template,
+        company: receipt.company,
+        model: receipt.model,
+        render: receipt.render,
+        prepared: receipt.prepared,
+        replay_safe_inputs: receipt.replay_safe_inputs,
+    });
+}
+function buildReceiptAuthSignature(receipt, key) {
+    return createHmac("sha256", key)
+        .update(canonicalizeReceiptForAuth(receipt), "utf8")
+        .digest("hex");
+}
+function withReceiptAuth(receipt, key) {
+    return {
+        ...receipt,
+        auth: {
+            mode: "hmac-sha256",
+            key_id: buildReceiptAuthKeyId(key),
+            signature: buildReceiptAuthSignature(receipt, key),
+        },
+    };
+}
+function markReceiptTrustedForAuthorization(receipt) {
+    if (receiptTrustedForAuthorization(receipt))
+        return receipt;
+    Object.defineProperty(receipt, TRUSTED_RECEIPT_AUTHORIZATION, {
+        value: true,
+        enumerable: false,
+        configurable: false,
+        writable: false,
+    });
+    return receipt;
+}
+export function receiptTrustedForAuthorization(receipt) {
+    return Boolean(receipt && receipt[TRUSTED_RECEIPT_AUTHORIZATION]);
+}
+export function receiptHasTrustedAuth(receipt, key) {
+    if (!receipt.auth)
+        return false;
+    if (receipt.auth.mode !== "hmac-sha256")
+        return false;
+    if (receipt.auth.key_id !== buildReceiptAuthKeyId(key))
+        return false;
+    return buildReceiptAuthSignature(receipt, key) === receipt.auth.signature;
 }
 function isStringArray(value) {
     return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -137,6 +223,18 @@ function normalizeReceipt(value) {
     const replaySafeInputs = normalizeReceiptReplayInputs(value.replay_safe_inputs);
     if (!replaySafeInputs)
         return null;
+    const auth = value.auth == null
+        ? null
+        : isRecord(value.auth) &&
+            value.auth.mode === "hmac-sha256" &&
+            typeof value.auth.key_id === "string" &&
+            typeof value.auth.signature === "string"
+            ? {
+                mode: "hmac-sha256",
+                key_id: value.auth.key_id,
+                signature: value.auth.signature,
+            }
+            : null;
     return {
         schema_version: 1,
         receipt_kind: "vault_execution",
@@ -188,6 +286,7 @@ function normalizeReceipt(value) {
             edited_after_prepare: value.prepared.edited_after_prepare,
         },
         replay_safe_inputs: replaySafeInputs,
+        ...(auth ? { auth } : {}),
     };
 }
 function encodeExecutionToken(token) {
@@ -266,15 +365,16 @@ function sortReceiptsNewestFirst(left, right) {
         return recordedAtDelta;
     return Number(right.execution_id) - Number(left.execution_id);
 }
+function readAllReceiptsFromPaths(filePaths) {
+    return filePaths.flatMap((filePath) => readAllReceipts(filePath)).sort(sortReceiptsNewestFirst);
+}
 function readReceiptsFromPaths(filePaths) {
     const deduped = new Map();
-    for (const filePath of filePaths) {
-        for (const receipt of readAllReceipts(filePath)) {
-            if (!deduped.has(receipt.execution_id))
-                deduped.set(receipt.execution_id, receipt);
-        }
+    for (const receipt of readAllReceiptsFromPaths(filePaths)) {
+        if (!deduped.has(receipt.execution_id))
+            deduped.set(receipt.execution_id, receipt);
     }
-    return [...deduped.values()].sort(sortReceiptsNewestFirst);
+    return [...deduped.values()];
 }
 function buildReceipt(candidate, execution, sentText) {
     return {
@@ -313,15 +413,21 @@ class JsonlVaultExecutionReceiptSink {
 export function createVaultReceiptManager(runtime, options) {
     const filePath = options?.filePath || DEFAULT_RECEIPTS_FILE;
     const fallbackFilePath = options?.fallbackFilePath || buildDefaultFallbackReceiptsFile(filePath);
+    const primaryKeyPath = options?.keyPath || buildDefaultReceiptKeyPath(filePath);
     const sink = options?.sink || new JsonlVaultExecutionReceiptSink(filePath);
     const fallbackSink = options?.fallbackSink === false
         ? null
         : options?.fallbackSink ||
             (options?.sink ? null : new JsonlVaultExecutionReceiptSink(fallbackFilePath));
     const receiptReadPaths = [filePath, ...(fallbackSink ? [fallbackFilePath] : [])].filter(Boolean);
+    const keyPaths = [
+        primaryKeyPath,
+        ...(fallbackSink ? [buildDefaultReceiptKeyPath(fallbackFilePath)] : []),
+    ].filter((value, index, values) => values.indexOf(value) === index);
     const pendingTtlMs = options?.pendingTtlMs ?? DEFAULT_PENDING_TTL_MS;
     const maxPending = options?.maxPending ?? DEFAULT_PENDING_LIMIT;
     const pending = [];
+    let cachedReceiptSigningKey = null;
     function prunePending(now = Date.now()) {
         for (let i = pending.length - 1; i >= 0; i--) {
             const queuedAt = Date.parse(pending[i]?.queued_at || "");
@@ -357,6 +463,39 @@ export function createVaultReceiptManager(runtime, options) {
             }
         }
     }
+    function resolveReceiptSigningKey(createIfMissing) {
+        if (cachedReceiptSigningKey) {
+            return { ok: true, key: cachedReceiptSigningKey };
+        }
+        const errors = [];
+        for (const candidateKeyPath of keyPaths) {
+            try {
+                cachedReceiptSigningKey = loadOrCreateReceiptSigningKey(candidateKeyPath, createIfMissing);
+                return { ok: true, key: cachedReceiptSigningKey };
+            }
+            catch (error) {
+                errors.push(`${candidateKeyPath}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+        return {
+            ok: false,
+            message: `Receipt signing key unavailable: ${errors.join("; ") || "no key paths configured"}`,
+        };
+    }
+    function readReceiptSet() {
+        return readReceiptsFromPaths(receiptReadPaths);
+    }
+    function readAllReceiptCandidates() {
+        return readAllReceiptsFromPaths(receiptReadPaths);
+    }
+    function isTrustedReceipt(receipt) {
+        if (!receipt)
+            return false;
+        const keyResult = resolveReceiptSigningKey(false);
+        if (!keyResult.ok)
+            return false;
+        return receiptHasTrustedAuth(receipt, keyResult.key);
+    }
     return {
         spoolPath: filePath,
         queuePreparedExecution(candidate) {
@@ -389,7 +528,16 @@ export function createVaultReceiptManager(runtime, options) {
             const execution = runtime.logExecution(candidate.template, modelId, candidate.input_context);
             if (!execution.ok)
                 return { status: "error", message: execution.message };
-            const receipt = buildReceipt(candidate, execution, resolved.text);
+            const keyResult = resolveReceiptSigningKey(true);
+            if (!keyResult.ok) {
+                return {
+                    status: "degraded",
+                    reason: "receipt-persist-failed",
+                    execution,
+                    message: `Execution ${execution.executionId} was logged, but local receipt persistence failed: ${keyResult.message}`,
+                };
+            }
+            const receipt = markReceiptTrustedForAuthorization(withReceiptAuth(buildReceipt(candidate, execution, resolved.text), keyResult.key));
             const appended = appendReceiptWithFallback(receipt);
             if (!appended.ok) {
                 return {
@@ -402,17 +550,29 @@ export function createVaultReceiptManager(runtime, options) {
             return { status: "matched", execution, receipt };
         },
         readLatestReceipt() {
-            const receipts = readReceiptsFromPaths(receiptReadPaths);
+            const receipts = readReceiptSet();
             return receipts[0] || null;
         },
         readReceiptByExecutionId(executionId) {
             const normalizedId = Math.floor(Number(executionId));
             if (!Number.isFinite(normalizedId) || normalizedId < 1)
                 return null;
-            const receipts = readReceiptsFromPaths(receiptReadPaths);
+            const receipts = readReceiptSet();
             for (const receipt of receipts) {
                 if (Number(receipt.execution_id) === normalizedId)
                     return receipt;
+            }
+            return null;
+        },
+        readTrustedReceiptByExecutionId(executionId) {
+            const normalizedId = Math.floor(Number(executionId));
+            if (!Number.isFinite(normalizedId) || normalizedId < 1)
+                return null;
+            const receipts = readAllReceiptCandidates();
+            for (const receipt of receipts) {
+                if (Number(receipt.execution_id) === normalizedId && isTrustedReceipt(receipt)) {
+                    return markReceiptTrustedForAuthorization(receipt);
+                }
             }
             return null;
         },
@@ -464,6 +624,8 @@ export function formatVaultReceipt(receipt) {
         `- prepared_sha256: ${receipt.prepared.sha256}`,
         `- edited_after_prepare: ${receipt.prepared.edited_after_prepare ? "true" : "false"}`,
         `- replay_input_kind: ${receipt.replay_safe_inputs.kind}`,
+        `- auth_mode: ${receipt.auth?.mode ?? "none"}`,
+        `- auth_key_id: ${receipt.auth?.key_id ?? "none"}`,
     ];
     if (receipt.replay_safe_inputs.kind === "vault-selection") {
         lines.push(`- query: ${receipt.replay_safe_inputs.query || "(empty)"}`);

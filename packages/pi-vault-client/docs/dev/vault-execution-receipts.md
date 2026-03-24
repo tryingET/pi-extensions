@@ -25,6 +25,7 @@ As of the current package runtime:
 For the bounded v4 initiative-facing authority read, also see [V4 runtime-receipts runtime-target binding](./v4-runtime-receipts-runtime-target-binding.md). That note preserves the current truth that `pi-vault-client` remains canonical for receipt/runtime behavior while AK-visible bindings stay projection-only.
 
 - receipt types, builder helpers, and a local JSONL sink are implemented
+- manager-written local receipts now carry package-local `hmac-sha256` auth metadata so mutation-sensitive flows can distinguish trusted receipts from unsigned/edited JSONL lines
 - `logExecution()` returns concrete execution metadata including `execution_id`
 - `/vault`, live `/vault:`, `/route`, and grounding emit local receipts after execution binding
 - receipt inspection commands exist:
@@ -47,6 +48,8 @@ That marker replaced the earlier raw-text matching heuristic.
 Current integrity rule: the stripped sent prompt must still match the prepared prompt exactly.
 If an operator edits the prepared prompt before send, Vault rejects execution logging and local receipt persistence instead of attributing the edited send to the original template execution.
 If execution logging succeeds but every receipt sink fails, the runtime now surfaces that explicitly as a degraded finalization state.
+Trusted receipt auth is local to the package runtime: manager-written receipts are signed with a package-local key resolved from receipt-state paths, provisioned lazily, and enforced to local-only permissions (`0600`), while unsigned or tampered legacy JSONL lines remain readable for inspection/replay but are not trusted for mutation-sensitive authorization.
+Trusted authorization is runtime-issued rather than caller-asserted: mutation-sensitive paths may use a verified receipt snapshot, but passing edited JSON or a caller-side flag does not grant authorization by itself.
 
 ## Current operator workflow
 
@@ -73,6 +76,7 @@ If execution logging succeeds but every receipt sink fails, the runtime now surf
 ### Visibility and fail-closed behavior
 - receipt inspection and replay require explicit company context
 - `/vault-last-receipt`, `/vault-receipt <execution_id>`, and `/vault-replay <execution_id>` only expose receipts visible to the current company
+- replay eligibility follows the stored receipt visibility snapshot rather than only the original execution company, so cross-company-visible receipts remain replayable from other visible companies
 - non-visible receipts are treated as missing on replay surfaces rather than leaking template identity
   - interactive slash commands warn and stop
   - `vault_replay({ execution_id })` returns an `unavailable` report with reason `receipt-missing`

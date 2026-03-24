@@ -1,4 +1,5 @@
 import { resolveMutationActorContext } from "./vaultMutations.js";
+import { receiptTrustedForAuthorization } from "./vaultReceipts.js";
 import type {
   DoltJsonResult,
   VaultExecutionLogOptions,
@@ -58,6 +59,7 @@ export function rateTemplate(
   }
 
   const receipt = options?.executionReceipt ?? null;
+  const trustedReceipt = receiptTrustedForAuthorization(receipt);
   let templateName = "template";
   if (receipt) {
     if (Number(receipt.execution_id) !== normalizedExecutionId) {
@@ -85,6 +87,9 @@ export function rateTemplate(
         message: `Execution receipt version mismatch for execution ${normalizedExecutionId}`,
       };
     }
+  }
+
+  if (receipt && trustedReceipt) {
     if (!receipt.template.visibility_companies.includes(actorContext.actorCompany)) {
       return {
         ok: false,
