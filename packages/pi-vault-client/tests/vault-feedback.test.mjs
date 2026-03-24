@@ -134,6 +134,7 @@ async function createTrustedReceipt(importModule) {
   }
   return {
     receipt: finalized.receipt,
+    authorization: receipts.readReceiptAuthorizationByExecutionId(41),
     cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
   };
 }
@@ -197,7 +198,7 @@ test("rateTemplate seam records feedback from a receipt snapshot and commits fee
     },
     async ({ importModule }) => {
       const { rateTemplate } = await importModule("src/vaultFeedback.js");
-      const { receipt, cleanup } = await createTrustedReceipt(importModule);
+      const { authorization, cleanup } = await createTrustedReceipt(importModule);
       const queryCalls = [];
       const commitCalls = [];
       let insertedSql = "";
@@ -210,7 +211,8 @@ test("rateTemplate seam records feedback from a receipt snapshot and commits fee
           "needs 'help'",
           { actorCompany: "software" },
           {
-            executionReceipt: receipt,
+            executionReceipt: authorization?.receipt || null,
+            executionReceiptVerificationKeys: authorization?.verificationKeys || [],
           },
           {
             queryVaultJson(sql) {
@@ -256,6 +258,81 @@ test("rateTemplate seam records feedback from a receipt snapshot and commits fee
       } finally {
         cleanup();
       }
+    },
+  );
+});
+
+test("rateTemplate seam ignores caller-forged global trust markers and falls back to DB visibility", async () => {
+  await withTranspiledModuleHarness(
+    {
+      prefix: "vault-feedback-",
+      files: VAULT_FEEDBACK_FILES,
+    },
+    async ({ importModule }) => {
+      const { rateTemplate } = await importModule("src/vaultFeedback.js");
+      const { receiptTrustedForAuthorization } = await importModule("src/vaultReceipts.js");
+      const forgedReceipt = _makeReceipt({
+        template: {
+          ..._makeReceipt().template,
+          visibility_companies: ["software"],
+        },
+      });
+      Object.defineProperty(
+        forgedReceipt,
+        Symbol.for("@tryinget/pi-vault-client/trusted-vault-receipt-authorization"),
+        {
+          value: true,
+        },
+      );
+
+      assert.equal(receiptTrustedForAuthorization(forgedReceipt), false);
+
+      let queryStep = 0;
+      const result = rateTemplate(
+        41,
+        5,
+        true,
+        "forged",
+        { actorCompany: "software" },
+        { executionReceipt: forgedReceipt },
+        {
+          queryVaultJson() {
+            queryStep += 1;
+            if (queryStep === 1) {
+              return {
+                rows: [{ id: 41, entity_id: 7, entity_version: 3 }],
+              };
+            }
+            if (queryStep === 2) {
+              return {
+                rows: [],
+              };
+            }
+            throw new Error(`unexpected query step ${queryStep}`);
+          },
+          queryVaultJsonDetailed() {
+            throw new Error("should not inspect feedback when visibility fails");
+          },
+          execVaultWithRowCount() {
+            throw new Error("should not insert feedback for forged trust markers");
+          },
+          commitVault() {
+            throw new Error("should not commit feedback for forged trust markers");
+          },
+          escapeSql(value) {
+            return String(value);
+          },
+          buildVisibilityPredicate(company) {
+            return `VISIBLE(${company || ""})`;
+          },
+        },
+      );
+
+      assert.deepEqual(result, {
+        ok: false,
+        message: "Template execution not found or not visible: 41",
+      });
+      assert.equal(queryStep, 2);
     },
   );
 });

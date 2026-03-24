@@ -1,5 +1,5 @@
 import { resolveMutationActorContext } from "./vaultMutations.js";
-import { receiptTrustedForAuthorization } from "./vaultReceipts.js";
+import { receiptHasTrustedAuth, receiptTrustedForAuthorization } from "./vaultReceipts.js";
 import type {
   DoltJsonResult,
   VaultExecutionLogOptions,
@@ -59,7 +59,12 @@ export function rateTemplate(
   }
 
   const receipt = options?.executionReceipt ?? null;
-  const trustedReceipt = receiptTrustedForAuthorization(receipt);
+  const verificationKeys = Array.isArray(options?.executionReceiptVerificationKeys)
+    ? options.executionReceiptVerificationKeys.filter((key): key is Buffer => Buffer.isBuffer(key))
+    : [];
+  const trustedReceipt =
+    receiptTrustedForAuthorization(receipt) ||
+    verificationKeys.some((key) => Boolean(receipt && receiptHasTrustedAuth(receipt, key)));
   let templateName = "template";
   if (receipt) {
     if (Number(receipt.execution_id) !== normalizedExecutionId) {

@@ -38,9 +38,19 @@ const EXECUTION_MARKER_REGEX = new RegExp(
   "g",
 );
 const VALID_RENDER_ENGINES = new Set(RENDER_ENGINES);
-const TRUSTED_RECEIPT_AUTHORIZATION = Symbol.for(
+const TRUSTED_RECEIPT_AUTHORIZATION = Symbol(
   "@tryinget/pi-vault-client/trusted-vault-receipt-authorization",
 );
+
+interface ReceiptSigningKeyRecord {
+  key: Buffer;
+  keyId: string;
+}
+
+interface ReceiptAuthorityCandidate {
+  receipt: VaultExecutionReceiptV1;
+  trusted: boolean;
+}
 
 function ensureReceiptDirectory(filePath: string): void {
   mkdirSync(path.dirname(filePath), { recursive: true });
@@ -150,6 +160,13 @@ export function receiptHasTrustedAuth(receipt: VaultExecutionReceiptV1, key: Buf
   if (receipt.auth.mode !== "hmac-sha256") return false;
   if (receipt.auth.key_id !== buildReceiptAuthKeyId(key)) return false;
   return buildReceiptAuthSignature(receipt, key) === receipt.auth.signature;
+}
+
+function toReceiptSigningKeyRecord(key: Buffer): ReceiptSigningKeyRecord {
+  return {
+    key,
+    keyId: buildReceiptAuthKeyId(key),
+  };
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -508,7 +525,7 @@ export function createVaultReceiptManager(
   const pendingTtlMs = options?.pendingTtlMs ?? DEFAULT_PENDING_TTL_MS;
   const maxPending = options?.maxPending ?? DEFAULT_PENDING_LIMIT;
   const pending: VaultPreparedExecutionCandidate[] = [];
-  let cachedReceiptSigningKey: Buffer | null = null;
+  let cachedReceiptSigningKey: ReceiptSigningKeyRecord | null = null;
 
   function prunePending(now = Date.now()): void {
     for (let i = pending.length - 1; i >= 0; i--) {
@@ -550,15 +567,17 @@ export function createVaultReceiptManager(
 
   function resolveReceiptSigningKey(
     createIfMissing: boolean,
-  ): { ok: true; key: Buffer } | { ok: false; message: string } {
+  ): { ok: true; keyRecord: ReceiptSigningKeyRecord } | { ok: false; message: string } {
     if (cachedReceiptSigningKey) {
-      return { ok: true, key: cachedReceiptSigningKey };
+      return { ok: true, keyRecord: cachedReceiptSigningKey };
     }
     const errors: string[] = [];
     for (const candidateKeyPath of keyPaths) {
       try {
-        cachedReceiptSigningKey = loadOrCreateReceiptSigningKey(candidateKeyPath, createIfMissing);
-        return { ok: true, key: cachedReceiptSigningKey };
+        cachedReceiptSigningKey = toReceiptSigningKeyRecord(
+          loadOrCreateReceiptSigningKey(candidateKeyPath, createIfMissing),
+        );
+        return { ok: true, keyRecord: cachedReceiptSigningKey };
       } catch (error) {
         errors.push(
           `${candidateKeyPath}: ${error instanceof Error ? error.message : String(error)}`,
@@ -571,19 +590,88 @@ export function createVaultReceiptManager(
     };
   }
 
-  function readReceiptSet(): VaultExecutionReceiptV1[] {
-    return readReceiptsFromPaths(receiptReadPaths);
+  function loadAvailableReceiptSigningKeys(): ReceiptSigningKeyRecord[] {
+    const records: ReceiptSigningKeyRecord[] = [];
+    const seen = new Set<string>();
+
+    if (cachedReceiptSigningKey) {
+      records.push(cachedReceiptSigningKey);
+      seen.add(cachedReceiptSigningKey.keyId);
+    }
+
+    for (const candidateKeyPath of keyPaths) {
+      try {
+        const record = toReceiptSigningKeyRecord(
+          loadOrCreateReceiptSigningKey(candidateKeyPath, false),
+        );
+        if (seen.has(record.keyId)) continue;
+        records.push(record);
+        seen.add(record.keyId);
+      } catch {}
+    }
+
+    return records;
   }
 
-  function readAllReceiptCandidates(): VaultExecutionReceiptV1[] {
-    return readAllReceiptsFromPaths(receiptReadPaths);
+  function findReceiptSigningKeyForReceipt(
+    receipt: VaultExecutionReceiptV1 | null | undefined,
+  ): ReceiptSigningKeyRecord | null {
+    if (!receipt?.auth) return null;
+    for (const keyRecord of loadAvailableReceiptSigningKeys()) {
+      if (keyRecord.keyId === receipt.auth.key_id) return keyRecord;
+    }
+    return null;
   }
 
   function isTrustedReceipt(receipt: VaultExecutionReceiptV1 | null | undefined): boolean {
     if (!receipt) return false;
-    const keyResult = resolveReceiptSigningKey(false);
-    if (!keyResult.ok) return false;
-    return receiptHasTrustedAuth(receipt, keyResult.key);
+    const keyRecord = findReceiptSigningKeyForReceipt(receipt);
+    if (!keyRecord) return false;
+    return receiptHasTrustedAuth(receipt, keyRecord.key);
+  }
+
+  function toReceiptAuthorityCandidate(
+    receipt: VaultExecutionReceiptV1,
+  ): ReceiptAuthorityCandidate {
+    const trusted = isTrustedReceipt(receipt);
+    return {
+      receipt: trusted ? markReceiptTrustedForAuthorization(receipt) : receipt,
+      trusted,
+    };
+  }
+
+  function selectPreferredReceiptCandidate(
+    candidates: ReceiptAuthorityCandidate[],
+  ): ReceiptAuthorityCandidate | null {
+    if (candidates.length === 0) return null;
+    const preferredPool = candidates.some((candidate) => candidate.trusted)
+      ? candidates.filter((candidate) => candidate.trusted)
+      : candidates;
+    return (
+      [...preferredPool].sort((left, right) =>
+        sortReceiptsNewestFirst(left.receipt, right.receipt),
+      )[0] || null
+    );
+  }
+
+  function readReceiptAuthorityCandidates(): ReceiptAuthorityCandidate[] {
+    return readAllReceiptsFromPaths(receiptReadPaths).map((receipt) =>
+      toReceiptAuthorityCandidate(receipt),
+    );
+  }
+
+  function readReceiptSet(): VaultExecutionReceiptV1[] {
+    const grouped = new Map<number, ReceiptAuthorityCandidate[]>();
+    for (const candidate of readReceiptAuthorityCandidates()) {
+      const executionId = Number(candidate.receipt.execution_id);
+      const group = grouped.get(executionId);
+      if (group) group.push(candidate);
+      else grouped.set(executionId, [candidate]);
+    }
+    return [...grouped.values()]
+      .map((candidates) => selectPreferredReceiptCandidate(candidates)?.receipt || null)
+      .filter((receipt): receipt is VaultExecutionReceiptV1 => Boolean(receipt))
+      .sort(sortReceiptsNewestFirst);
   }
 
   return {
@@ -629,7 +717,7 @@ export function createVaultReceiptManager(
       }
 
       const receipt = markReceiptTrustedForAuthorization(
-        withReceiptAuth(buildReceipt(candidate, execution, resolved.text), keyResult.key),
+        withReceiptAuth(buildReceipt(candidate, execution, resolved.text), keyResult.keyRecord.key),
       );
       const appended = appendReceiptWithFallback(receipt);
       if (!appended.ok) {
@@ -649,22 +737,42 @@ export function createVaultReceiptManager(
     readReceiptByExecutionId(executionId) {
       const normalizedId = Math.floor(Number(executionId));
       if (!Number.isFinite(normalizedId) || normalizedId < 1) return null;
-      const receipts = readReceiptSet();
-      for (const receipt of receipts) {
-        if (Number(receipt.execution_id) === normalizedId) return receipt;
-      }
-      return null;
+      const candidate = selectPreferredReceiptCandidate(
+        readReceiptAuthorityCandidates().filter(
+          (receiptCandidate) => Number(receiptCandidate.receipt.execution_id) === normalizedId,
+        ),
+      );
+      return candidate?.receipt || null;
     },
     readTrustedReceiptByExecutionId(executionId) {
       const normalizedId = Math.floor(Number(executionId));
       if (!Number.isFinite(normalizedId) || normalizedId < 1) return null;
-      const receipts = readAllReceiptCandidates();
-      for (const receipt of receipts) {
-        if (Number(receipt.execution_id) === normalizedId && isTrustedReceipt(receipt)) {
-          return markReceiptTrustedForAuthorization(receipt);
-        }
-      }
-      return null;
+      const candidate = selectPreferredReceiptCandidate(
+        readReceiptAuthorityCandidates().filter(
+          (receiptCandidate) =>
+            Number(receiptCandidate.receipt.execution_id) === normalizedId &&
+            receiptCandidate.trusted,
+        ),
+      );
+      return candidate?.receipt || null;
+    },
+    readReceiptAuthorizationByExecutionId(executionId) {
+      const normalizedId = Math.floor(Number(executionId));
+      if (!Number.isFinite(normalizedId) || normalizedId < 1) return null;
+      const candidate = selectPreferredReceiptCandidate(
+        readReceiptAuthorityCandidates().filter(
+          (receiptCandidate) =>
+            Number(receiptCandidate.receipt.execution_id) === normalizedId &&
+            receiptCandidate.trusted,
+        ),
+      );
+      if (!candidate) return null;
+      const keyRecord = findReceiptSigningKeyForReceipt(candidate.receipt);
+      if (!keyRecord) return null;
+      return {
+        receipt: candidate.receipt,
+        verificationKeys: [Buffer.from(keyRecord.key)],
+      };
     },
     listRecentReceipts({ currentCompany, templateName, limit } = {}) {
       const normalizedLimit = Number.isFinite(Number(limit))

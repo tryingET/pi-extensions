@@ -299,6 +299,9 @@ test("vault runtime can still rate an archived execution when a local receipt pr
 
       runtime.execVault("UPDATE prompt_templates SET status='archived' WHERE name='receipt-demo'");
 
+      const receiptAuthorization = receipts.readReceiptAuthorizationByExecutionId(
+        finalized.receipt.execution_id,
+      );
       const rating = runtime.rateTemplate(
         finalized.receipt.execution_id,
         5,
@@ -306,7 +309,8 @@ test("vault runtime can still rate an archived execution when a local receipt pr
         "still visible via receipt",
         { actorCompany: "software", allowAmbientCwdFallback: false },
         {
-          executionReceipt: finalized.receipt,
+          executionReceipt: receiptAuthorization?.receipt || null,
+          executionReceiptVerificationKeys: receiptAuthorization?.verificationKeys || [],
         },
       );
       assert.equal(rating.ok, true);

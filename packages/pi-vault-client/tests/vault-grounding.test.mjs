@@ -133,7 +133,67 @@ Fifth arg: $5`,
   });
 });
 
-test("framework grounding validates all explicit framework overrides before truncating the rendered appendix", async () => {
+test("framework grounding preserves validated explicit framework override order without truncation", async () => {
+  await withGroundingModules(async ({ importModule }) => {
+    const { createGroundingRuntime } = await importModule("src/vaultGrounding.js");
+    const next10 = makeTemplate({
+      name: "next-10-expert-suggestions",
+      content: "Base prompt",
+    });
+    const frameworks = ["inversion", "telescopic", "nexus", "audit"].map((name) =>
+      makeTemplate({
+        name,
+        artifact_kind: "cognitive",
+        content: `${name} body`,
+      }),
+    );
+
+    const grounding = createGroundingRuntime({
+      getCurrentCompany() {
+        return "software";
+      },
+      retrieveByNamesDetailed(names) {
+        return {
+          ok: true,
+          value: frameworks.filter((framework) => names.includes(framework.name)),
+          error: null,
+        };
+      },
+      getTemplateDetailed(name) {
+        return {
+          ok: true,
+          value: name === "next-10-expert-suggestions" ? next10 : null,
+          error: null,
+        };
+      },
+      queryVaultJsonDetailed() {
+        throw new Error("discovery should not run when explicit overrides are requested");
+      },
+      parseTemplateRows() {
+        return [];
+      },
+      buildActiveVisibleTemplatePredicate() {
+        return "1 = 1";
+      },
+      escapeSql(value) {
+        return String(value);
+      },
+    });
+
+    const result = grounding.buildGroundedNext10Prompt(
+      '/next-10-expert-suggestions "ship templating" "workflow" lite "frameworks=inversion|telescopic|nexus"',
+      { currentCompany: "software" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.prompt, /### F1: inversion/);
+    assert.match(result.prompt, /### F2: telescopic/);
+    assert.match(result.prompt, /### F3: nexus/);
+  });
+});
+
+test("framework grounding fails closed when explicit framework overrides exceed the supported limit", async () => {
   await withGroundingModules(async ({ importModule }) => {
     const { createGroundingRuntime } = await importModule("src/vaultGrounding.js");
     const next10 = makeTemplate({
@@ -185,14 +245,11 @@ test("framework grounding validates all explicit framework overrides before trun
       { currentCompany: "software" },
     );
 
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.match(result.prompt, /### F1: inversion/);
-    assert.match(result.prompt, /### F2: telescopic/);
-    assert.match(result.prompt, /### F3: nexus/);
-    assert.doesNotMatch(
-      result.prompt,
-      /Explicit framework override\(s\) not found or not visible: audit/,
+    assert.deepEqual(result.ok, false);
+    if (result.ok) return;
+    assert.match(
+      result.reason,
+      /BLOCKED: framework grounding lookup failed: Explicit framework override limit is 3; received 4: inversion, telescopic, nexus, audit/,
     );
   });
 });

@@ -135,9 +135,15 @@ function resolveFrameworks(
   dsl: ParsedDsl,
   currentCompany: string,
 ): { ok: true; value: FrameworkResolution } | { ok: false; error: string } {
-  const overrideNames = splitPipeValues(dsl.map.frameworks);
+  const overrideNames = [...new Set(splitPipeValues(dsl.map.frameworks))];
 
   if (overrideNames.length > 0) {
+    if (overrideNames.length > 3) {
+      return {
+        ok: false,
+        error: `Explicit framework override limit is 3; received ${overrideNames.length}: ${overrideNames.join(", ")}`,
+      };
+    }
     const exactRetrievedResult = runtime.retrieveByNamesDetailed(overrideNames, true, {
       currentCompany,
     });
@@ -145,8 +151,10 @@ function resolveFrameworks(
     const exactRetrieved = exactRetrievedResult.value.filter(
       (t) => t.artifact_kind === "cognitive",
     );
-    const found = new Set(exactRetrieved.map((t) => t.name));
-    const invalidOverrides = overrideNames.filter((name) => !found.has(name));
+    const exactRetrievedByName = new Map(
+      exactRetrieved.map((template) => [template.name, template]),
+    );
+    const invalidOverrides = overrideNames.filter((name) => !exactRetrievedByName.has(name));
     if (invalidOverrides.length > 0) {
       return {
         ok: false,
@@ -156,7 +164,9 @@ function resolveFrameworks(
     return {
       ok: true,
       value: {
-        selected: exactRetrieved.slice(0, 3),
+        selected: overrideNames
+          .map((name) => exactRetrievedByName.get(name))
+          .filter((template): template is Template => Boolean(template)),
         retrievalMethod: "exact",
         discoveryUsed: 0,
         invalidOverrides: [],

@@ -1026,7 +1026,8 @@ Example: vault_rate({ execution_id: 42, rating: 4, success: true, notes: "Found 
           content: [{ type: "text", text: "rating must be between 1 and 5." }],
           details: { ok: false },
         };
-      const executionReceipt = receipts?.readTrustedReceiptByExecutionId?.(executionId) || null;
+      const receiptAuthorization =
+        receipts?.readReceiptAuthorizationByExecutionId?.(executionId) || null;
       const result = runtime.rateTemplate(
         executionId,
         rating,
@@ -1034,7 +1035,8 @@ Example: vault_rate({ execution_id: 42, rating: 4, success: true, notes: "Found 
         (params.notes as string) || "",
         mutationContext,
         {
-          executionReceipt,
+          executionReceipt: receiptAuthorization?.receipt || null,
+          executionReceiptVerificationKeys: receiptAuthorization?.verificationKeys || [],
         },
       );
       return {

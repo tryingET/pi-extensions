@@ -333,6 +333,7 @@ export interface VaultExecutionReceiptSink {
 
 export interface VaultExecutionLogOptions {
   executionReceipt?: VaultExecutionReceiptV1 | null;
+  executionReceiptVerificationKeys?: Buffer[];
 }
 
 export type VaultExecutionLogResult =
@@ -370,6 +371,10 @@ export interface VaultReceiptManager {
   readLatestReceipt: () => VaultExecutionReceiptV1 | null;
   readReceiptByExecutionId: (executionId: number) => VaultExecutionReceiptV1 | null;
   readTrustedReceiptByExecutionId: (executionId: number) => VaultExecutionReceiptV1 | null;
+  readReceiptAuthorizationByExecutionId: (executionId: number) => {
+    receipt: VaultExecutionReceiptV1;
+    verificationKeys: Buffer[];
+  } | null;
   listRecentReceipts: (options?: {
     currentCompany?: string;
     templateName?: string;

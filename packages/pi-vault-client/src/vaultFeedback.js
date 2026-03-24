@@ -1,5 +1,5 @@
 import { resolveMutationActorContext } from "./vaultMutations.js";
-import { receiptTrustedForAuthorization } from "./vaultReceipts.js";
+import { receiptHasTrustedAuth, receiptTrustedForAuthorization } from "./vaultReceipts.js";
 function validateRateTemplateInput(executionId, rating) {
     if (!Number.isFinite(executionId) || executionId < 1) {
         return "execution_id must be a positive integer.";
@@ -32,7 +32,11 @@ export function rateTemplate(executionId, rating, success, notes, context, optio
         };
     }
     const receipt = options?.executionReceipt ?? null;
-    const trustedReceipt = receiptTrustedForAuthorization(receipt);
+    const verificationKeys = Array.isArray(options?.executionReceiptVerificationKeys)
+        ? options.executionReceiptVerificationKeys.filter((key) => Buffer.isBuffer(key))
+        : [];
+    const trustedReceipt = receiptTrustedForAuthorization(receipt) ||
+        verificationKeys.some((key) => Boolean(receipt && receiptHasTrustedAuth(receipt, key)));
     let templateName = "template";
     if (receipt) {
         if (Number(receipt.execution_id) !== normalizedExecutionId) {

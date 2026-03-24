@@ -112,16 +112,22 @@ function discoverFrameworks(runtime, objective, workflow, currentCompany, limit 
     return { ok: true, value: runtime.parseTemplateRows(result.value) };
 }
 function resolveFrameworks(runtime, objective, workflow, dsl, currentCompany) {
-    const overrideNames = splitPipeValues(dsl.map.frameworks);
+    const overrideNames = [...new Set(splitPipeValues(dsl.map.frameworks))];
     if (overrideNames.length > 0) {
+        if (overrideNames.length > 3) {
+            return {
+                ok: false,
+                error: `Explicit framework override limit is 3; received ${overrideNames.length}: ${overrideNames.join(", ")}`,
+            };
+        }
         const exactRetrievedResult = runtime.retrieveByNamesDetailed(overrideNames, true, {
             currentCompany,
         });
         if (!exactRetrievedResult.ok)
             return { ok: false, error: exactRetrievedResult.error };
         const exactRetrieved = exactRetrievedResult.value.filter((t) => t.artifact_kind === "cognitive");
-        const found = new Set(exactRetrieved.map((t) => t.name));
-        const invalidOverrides = overrideNames.filter((name) => !found.has(name));
+        const exactRetrievedByName = new Map(exactRetrieved.map((template) => [template.name, template]));
+        const invalidOverrides = overrideNames.filter((name) => !exactRetrievedByName.has(name));
         if (invalidOverrides.length > 0) {
             return {
                 ok: false,
@@ -131,7 +137,9 @@ function resolveFrameworks(runtime, objective, workflow, dsl, currentCompany) {
         return {
             ok: true,
             value: {
-                selected: exactRetrieved.slice(0, 3),
+                selected: overrideNames
+                    .map((name) => exactRetrievedByName.get(name))
+                    .filter((template) => Boolean(template)),
                 retrievalMethod: "exact",
                 discoveryUsed: 0,
                 invalidOverrides: [],

@@ -821,6 +821,7 @@ test("vault_insert and vault_rate forward strict mutation context to the runtime
         },
         options: {
           executionReceipt: null,
+          executionReceiptVerificationKeys: [],
         },
       },
     ]);
