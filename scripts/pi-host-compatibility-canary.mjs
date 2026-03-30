@@ -238,6 +238,38 @@ function validateManifest(manifest, manifestPath) {
   };
 }
 
+function hasPackageJson(dirPath) {
+  return existsSync(path.join(dirPath, "package.json"));
+}
+
+function resolveDeclaredPackageTarget(packagePath) {
+  const packageAbs = path.resolve(ROOT, packagePath);
+  if (!hasPackageJson(packageAbs)) {
+    throw new Error(`Scenario package target is not a package root: ${packagePath}`);
+  }
+
+  return {
+    declaredPath: packagePath,
+    packagePath,
+    packageAbs,
+    mode: "package",
+  };
+}
+
+function resolveScenarioPackageTargets(scenario) {
+  const resolved = [];
+  const seen = new Set();
+
+  for (const declaredPath of scenario.packages) {
+    const target = resolveDeclaredPackageTarget(declaredPath);
+    if (seen.has(target.packageAbs)) continue;
+    seen.add(target.packageAbs);
+    resolved.push(target);
+  }
+
+  return resolved;
+}
+
 function selectScenarios(manifest, options) {
   const profile = options.profile ?? manifest.defaultProfile;
   if (!manifest.profiles[profile]) {
@@ -315,6 +347,20 @@ function readInstalledPackageVersion(cwd, packageName) {
   return typeof pkg.version === "string" ? pkg.version.trim() : null;
 }
 
+function readLockedPackageVersion(cwd, packageName) {
+  const packageLockPath = path.join(cwd, "package-lock.json");
+  if (!existsSync(packageLockPath)) {
+    return null;
+  }
+
+  const packageLock = JSON.parse(readFileSync(packageLockPath, "utf8"));
+  const packageKey = `node_modules/${packageName}`;
+  const lockedVersion = packageLock?.packages?.[packageKey]?.version;
+  return typeof lockedVersion === "string" && lockedVersion.trim().length > 0
+    ? lockedVersion.trim()
+    : null;
+}
+
 function describeHostAlignment(host, cwd) {
   const packageStates = [host.packageName, ...host.companionPackages].map((packageName) => {
     const installedVersion = readInstalledPackageVersion(cwd, packageName);
@@ -333,10 +379,107 @@ function describeHostAlignment(host, cwd) {
   };
 }
 
+function describeScenarioAlignment(host, scenario) {
+  const packageTargets = resolveScenarioPackageTargets(scenario);
+  const packages = packageTargets.map((target) => ({
+    ...target,
+    alignment: describeHostAlignment(host, target.packageAbs),
+  }));
+
+  return {
+    packages,
+    aligned: packages.every((entry) => entry.alignment.aligned),
+  };
+}
+
 function summarizeAlignment(alignment) {
   return alignment.packages
     .map((entry) => `${entry.packageName}=${entry.installedVersion ?? "missing"}`)
     .join(", ");
+}
+
+function snapshotHostPackages(cwd, host) {
+  return [host.packageName, ...host.companionPackages].map((packageName) => ({
+    packageName,
+    installedVersion: readInstalledPackageVersion(cwd, packageName),
+  }));
+}
+
+function snapshotLockedHostPackages(cwd, host) {
+  return [host.packageName, ...host.companionPackages].map((packageName) => ({
+    packageName,
+    installedVersion: readLockedPackageVersion(cwd, packageName),
+  }));
+}
+
+function snapshotTargetHostPackages(host) {
+  return [host.packageName, ...host.companionPackages].map((packageName) => ({
+    packageName,
+    installedVersion: host.version,
+  }));
+}
+
+function resolveRestoreSnapshot(cwd, host, fallbackSnapshot) {
+  const lockedSnapshot = snapshotLockedHostPackages(cwd, host);
+  const hasLockfile = existsSync(path.join(cwd, "package-lock.json"));
+  if (!hasLockfile) return fallbackSnapshot;
+  return lockedSnapshot;
+}
+
+function snapshotsMatch(expected, actual) {
+  if (!Array.isArray(expected) || !Array.isArray(actual) || expected.length !== actual.length) {
+    return false;
+  }
+
+  return expected.every((entry, index) => {
+    const candidate = actual[index];
+    return (
+      candidate &&
+      candidate.packageName === entry.packageName &&
+      candidate.installedVersion === entry.installedVersion
+    );
+  });
+}
+
+function summarizeSnapshot(snapshot) {
+  return snapshot
+    .map((entry) => `${entry.packageName}=${entry.installedVersion ?? "missing"}`)
+    .join(", ");
+}
+
+function buildInstallCommand(host) {
+  return [
+    "npm",
+    "install",
+    "--no-save",
+    "--package-lock=false",
+    ...hostInstallSpecifiers(host),
+  ];
+}
+
+function buildRestoreCommands(snapshot) {
+  const installSpecifiers = snapshot
+    .filter((entry) => typeof entry.installedVersion === "string" && entry.installedVersion.length > 0)
+    .map((entry) => `${entry.packageName}@${entry.installedVersion}`);
+  const uninstallPackages = snapshot
+    .filter((entry) => entry.installedVersion === null)
+    .map((entry) => entry.packageName);
+
+  const commands = [];
+  if (installSpecifiers.length > 0) {
+    commands.push([
+      "npm",
+      "install",
+      "--no-save",
+      "--package-lock=false",
+      ...installSpecifiers,
+    ]);
+  }
+  if (uninstallPackages.length > 0) {
+    commands.push(["npm", "uninstall", "--no-save", ...uninstallPackages]);
+  }
+
+  return commands;
 }
 
 function spawnCommand(command, args, options = {}) {
@@ -378,76 +521,261 @@ function spawnCommand(command, args, options = {}) {
 }
 
 async function ensureScenarioHost(host, scenario, options) {
-  const alignment = describeHostAlignment(host, scenario.cwdAbs);
-  const installArgs = [
-    "install",
-    "--no-save",
-    "--package-lock=false",
-    ...hostInstallSpecifiers(host),
-  ];
+  const scenarioAlignment = describeScenarioAlignment(host, scenario);
+  const targetSnapshot = snapshotTargetHostPackages(host);
+  const packagePreparations = scenarioAlignment.packages.map((entry) => {
+    const beforeSnapshot = snapshotHostPackages(entry.packageAbs, host);
+    const restoreSnapshot = resolveRestoreSnapshot(entry.packageAbs, host, beforeSnapshot);
+    return {
+      declaredPath: entry.declaredPath,
+      packagePath: entry.packagePath,
+      mode: entry.mode,
+      alignment: entry.alignment,
+      beforeSnapshot,
+      restoreSnapshot,
+      needsRestore: !snapshotsMatch(
+        restoreSnapshot,
+        entry.alignment.aligned ? beforeSnapshot : targetSnapshot,
+      ),
+      command: buildInstallCommand(host),
+    };
+  });
 
   if (options.dryRun) {
     return {
-      status: alignment.aligned ? "ready" : "dry-run",
+      status: scenarioAlignment.aligned ? "ready" : "dry-run",
       changed: false,
-      command: ["npm", ...installArgs],
-      alignment,
+      packages: packagePreparations,
+      alignment: {
+        packages: packagePreparations.map((entry) => ({
+          packagePath: entry.packagePath,
+          mode: entry.mode,
+          alignment: entry.alignment,
+        })),
+        aligned: scenarioAlignment.aligned,
+      },
     };
   }
 
-  if (alignment.aligned) {
+  if (scenarioAlignment.aligned) {
     return {
       status: "ready",
       changed: false,
-      command: ["npm", ...installArgs],
-      alignment,
+      packages: packagePreparations,
+      alignment: {
+        packages: packagePreparations.map((entry) => ({
+          packagePath: entry.packagePath,
+          mode: entry.mode,
+          alignment: entry.alignment,
+        })),
+        aligned: true,
+      },
     };
   }
 
-  if (!options.json) {
-    console.log(`    host: aligning to ${host.packageName}@${host.version}`);
-    console.log(`    host_before: ${summarizeAlignment(alignment)}`);
-  }
+  const changedPackages = [];
+  for (const entry of packagePreparations) {
+    const packageAbs = path.resolve(ROOT, entry.packagePath);
+    const installCommand = entry.command;
 
-  const installResult = await spawnCommand("npm", installArgs, {
-    cwd: scenario.cwdAbs,
-    env: process.env,
-    stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
-  });
+    if (entry.alignment.aligned) {
+      changedPackages.push({
+        declaredPath: entry.declaredPath,
+        packagePath: entry.packagePath,
+        mode: entry.mode,
+        changed: false,
+        beforeSnapshot: entry.beforeSnapshot,
+        restoreSnapshot: entry.restoreSnapshot,
+        needsRestore: entry.needsRestore,
+        afterAlignment: entry.alignment,
+        installCommand,
+      });
+      continue;
+    }
 
-  if (!installResult.ok) {
-    return {
-      status: "failed",
-      changed: false,
-      command: ["npm", ...installArgs],
-      alignment,
-      install: installResult,
-      error: `Failed to align host package set for ${scenario.id}`,
-    };
-  }
+    if (!options.json) {
+      console.log(`    host[${entry.packagePath}]: aligning to ${host.packageName}@${host.version}`);
+      console.log(`    host_before[${entry.packagePath}]: ${summarizeSnapshot(entry.beforeSnapshot)}`);
+    }
 
-  const postAlignment = describeHostAlignment(host, scenario.cwdAbs);
-  if (!postAlignment.aligned) {
-    return {
-      status: "failed",
+    const installResult = await spawnCommand(installCommand[0], installCommand.slice(1), {
+      cwd: packageAbs,
+      env: process.env,
+      stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
+    });
+
+    if (!installResult.ok) {
+      return {
+        status: "failed",
+        changed: changedPackages.some((pkg) => pkg.changed),
+        packages: [
+          ...changedPackages,
+          {
+            declaredPath: entry.declaredPath,
+            packagePath: entry.packagePath,
+            mode: entry.mode,
+            changed: false,
+            beforeSnapshot: entry.beforeSnapshot,
+            restoreSnapshot: entry.restoreSnapshot,
+            needsRestore: entry.needsRestore,
+            installCommand,
+            install: installResult,
+          },
+        ],
+        error: `Failed to align host package set for ${scenario.id} at ${entry.packagePath}`,
+      };
+    }
+
+    const afterAlignment = describeHostAlignment(host, packageAbs);
+    if (!afterAlignment.aligned) {
+      return {
+        status: "failed",
+        changed: true,
+        packages: [
+          ...changedPackages,
+          {
+            declaredPath: entry.declaredPath,
+            packagePath: entry.packagePath,
+            mode: entry.mode,
+            changed: true,
+            beforeSnapshot: entry.beforeSnapshot,
+            restoreSnapshot: entry.restoreSnapshot,
+            needsRestore: entry.needsRestore,
+            installCommand,
+            install: installResult,
+            afterAlignment,
+          },
+        ],
+        error: `Host package alignment verification failed for ${scenario.id} at ${entry.packagePath}: ${summarizeAlignment(afterAlignment)}`,
+      };
+    }
+
+    if (!options.json) {
+      console.log(`    host_after[${entry.packagePath}]: ${summarizeAlignment(afterAlignment)}`);
+    }
+
+    changedPackages.push({
+      declaredPath: entry.declaredPath,
+      packagePath: entry.packagePath,
+      mode: entry.mode,
       changed: true,
-      command: ["npm", ...installArgs],
-      alignment: postAlignment,
+      beforeSnapshot: entry.beforeSnapshot,
+      restoreSnapshot: entry.restoreSnapshot,
+      needsRestore: entry.needsRestore,
+      installCommand,
       install: installResult,
-      error: `Host package alignment verification failed for ${scenario.id}: ${summarizeAlignment(postAlignment)}`,
-    };
-  }
-
-  if (!options.json) {
-    console.log(`    host_after: ${summarizeAlignment(postAlignment)}`);
+      afterAlignment,
+    });
   }
 
   return {
     status: "prepared",
+    changed: changedPackages.some((entry) => entry.changed),
+    packages: changedPackages,
+    alignment: {
+      packages: changedPackages.map((entry) => ({
+        packagePath: entry.packagePath,
+        mode: entry.mode,
+        alignment: entry.afterAlignment,
+      })),
+      aligned: changedPackages.every((entry) => entry.afterAlignment?.aligned !== false),
+    },
+  };
+}
+
+async function restoreScenarioHost(host, hostPreparation, options) {
+  if (!hostPreparation) {
+    return {
+      status: "skipped",
+      changed: false,
+      packages: [],
+    };
+  }
+
+  const changedPackages = Array.isArray(hostPreparation.packages)
+    ? hostPreparation.packages.filter((entry) => entry.needsRestore)
+    : [];
+  if (changedPackages.length === 0) {
+    return {
+      status: "not-needed",
+      changed: false,
+      packages: [],
+    };
+  }
+
+  const restoredPackages = [];
+  for (const entry of changedPackages) {
+    const packageAbs = path.resolve(ROOT, entry.packagePath);
+    const restoreCommands = buildRestoreCommands(entry.restoreSnapshot ?? entry.beforeSnapshot ?? []);
+
+    if (!options.json) {
+      console.log(`    restore[${entry.packagePath}]: ${summarizeSnapshot(entry.restoreSnapshot ?? entry.beforeSnapshot ?? [])}`);
+    }
+
+    const commandResults = [];
+    for (const restoreCommand of restoreCommands) {
+      const restoreResult = await spawnCommand(restoreCommand[0], restoreCommand.slice(1), {
+        cwd: packageAbs,
+        env: process.env,
+        stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
+      });
+      commandResults.push({ command: restoreCommand, result: restoreResult });
+      if (!restoreResult.ok) {
+        return {
+          status: "failed",
+          changed: true,
+          packages: [
+            ...restoredPackages,
+            {
+              packagePath: entry.packagePath,
+              mode: entry.mode,
+              beforeSnapshot: entry.beforeSnapshot,
+              restoreSnapshot: entry.restoreSnapshot,
+              restoreCommands,
+              commandResults,
+            },
+          ],
+          error: `Failed to restore host package set at ${entry.packagePath}`,
+        };
+      }
+    }
+
+    const afterRestore = snapshotHostPackages(packageAbs, host);
+    if (!snapshotsMatch(entry.restoreSnapshot ?? entry.beforeSnapshot ?? [], afterRestore)) {
+      return {
+        status: "failed",
+        changed: true,
+        packages: [
+          ...restoredPackages,
+          {
+            packagePath: entry.packagePath,
+            mode: entry.mode,
+            beforeSnapshot: entry.beforeSnapshot,
+            restoreSnapshot: entry.restoreSnapshot,
+            restoreCommands,
+            commandResults,
+            afterRestore,
+          },
+        ],
+        error: `Host package restore verification failed at ${entry.packagePath}: expected ${summarizeSnapshot(entry.restoreSnapshot ?? entry.beforeSnapshot ?? [])}, got ${summarizeSnapshot(afterRestore)}`,
+      };
+    }
+
+    restoredPackages.push({
+      packagePath: entry.packagePath,
+      mode: entry.mode,
+      beforeSnapshot: entry.beforeSnapshot,
+      restoreSnapshot: entry.restoreSnapshot,
+      restoreCommands,
+      commandResults,
+      afterRestore,
+    });
+  }
+
+  return {
+    status: "restored",
     changed: true,
-    command: ["npm", ...installArgs],
-    alignment: postAlignment,
-    install: installResult,
+    packages: restoredPackages,
   };
 }
 
@@ -481,6 +809,11 @@ function listPayload(manifest, options) {
       owner: scenario.owner,
       why: scenario.why,
       packages: scenario.packages,
+      packageRoots: resolveScenarioPackageTargets(scenario).map((entry) => ({
+        declaredPath: entry.declaredPath,
+        packagePath: entry.packagePath,
+        mode: entry.mode,
+      })),
       upstreamSurfaces: scenario.upstreamSurfaces,
       cwd: scenario.cwd,
       command: scenario.command,
@@ -517,6 +850,9 @@ function printList(payload) {
     console.log(scenario.title);
     console.log(`- owner: ${scenario.owner}`);
     console.log(`- packages: ${scenario.packages.join(", ")}`);
+    if (Array.isArray(scenario.packageRoots) && scenario.packageRoots.length > 0) {
+      console.log(`- package_roots: ${scenario.packageRoots.map((entry) => entry.packagePath).join(", ")}`);
+    }
     console.log(`- upstream_surfaces: ${scenario.upstreamSurfaces.join(", ")}`);
     console.log(`- cwd: ${scenario.cwd}`);
     console.log(`- command: ${commandToString(scenario.command)}`);
@@ -547,6 +883,11 @@ function buildDryRunResult(scenario, host, hostPreparation) {
       version: host.version,
       reviewAnchor: host.reviewAnchor,
       preparation: hostPreparation,
+      restoration: {
+        status: "not-run",
+        changed: false,
+        packages: [],
+      },
     },
   };
 }
@@ -556,6 +897,11 @@ async function spawnScenario(scenario, host, options) {
   const hostPreparation = await ensureScenarioHost(host, scenario, options);
 
   if (hostPreparation.status === "failed") {
+    const restoration = await restoreScenarioHost(host, hostPreparation, options);
+    const error = restoration.status === "failed"
+      ? `${hostPreparation.error}; restore failed: ${restoration.error}`
+      : hostPreparation.error;
+
     return {
       id: scenario.id,
       title: scenario.title,
@@ -570,16 +916,14 @@ async function spawnScenario(scenario, host, options) {
       owner: scenario.owner,
       why: scenario.why,
       notes: scenario.notes,
-      error: hostPreparation.error,
+      error,
       host: {
         packageName: host.packageName,
         version: host.version,
         reviewAnchor: host.reviewAnchor,
         preparation: hostPreparation,
+        restoration,
       },
-      ...(options.json && hostPreparation.install
-        ? { stdout: hostPreparation.install.stdout, stderr: hostPreparation.install.stderr }
-        : {}),
     };
   }
 
@@ -588,25 +932,44 @@ async function spawnScenario(scenario, host, options) {
   }
 
   const stdio = options.json ? ["ignore", "pipe", "pipe"] : "inherit";
+  let execution = null;
+  let restoration = {
+    status: "skipped",
+    changed: false,
+    packages: [],
+  };
 
-  const execution = await spawnCommand(scenario.command[0], scenario.command.slice(1), {
-    cwd: scenario.cwdAbs,
-    env: {
-      ...process.env,
-      PI_HOST_COMPAT_PROFILE: options.profile,
-      PI_HOST_COMPAT_SCENARIO: scenario.id,
-      PI_HOST_VERSION: host.version,
-      PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
-    },
-    stdio,
-  });
+  try {
+    execution = await spawnCommand(scenario.command[0], scenario.command.slice(1), {
+      cwd: scenario.cwdAbs,
+      env: {
+        ...process.env,
+        PI_HOST_COMPAT_PROFILE: options.profile,
+        PI_HOST_COMPAT_SCENARIO: scenario.id,
+        PI_HOST_VERSION: host.version,
+        PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
+      },
+      stdio,
+    });
+  } finally {
+    restoration = await restoreScenarioHost(host, hostPreparation, options);
+  }
+
+  const restorationFailed = restoration.status === "failed";
+  const executionFailed = !execution?.ok;
+  const status = !execution || executionFailed || restorationFailed ? "failed" : "passed";
+  const error = restorationFailed
+    ? restoration.error
+    : executionFailed
+      ? `Scenario command failed for ${scenario.id}`
+      : undefined;
 
   return {
     id: scenario.id,
     title: scenario.title,
-    status: execution.ok ? "passed" : "failed",
-    exitCode: execution.exitCode,
-    signal: execution.signal,
+    status,
+    exitCode: restorationFailed ? 1 : execution?.exitCode ?? 1,
+    signal: execution?.signal ?? null,
     elapsedMs: Date.now() - startedAt,
     cwd: scenario.cwd,
     command: scenario.command,
@@ -615,13 +978,15 @@ async function spawnScenario(scenario, host, options) {
     owner: scenario.owner,
     why: scenario.why,
     notes: scenario.notes,
+    ...(error ? { error } : {}),
     host: {
       packageName: host.packageName,
       version: host.version,
       reviewAnchor: host.reviewAnchor,
       preparation: hostPreparation,
+      restoration,
     },
-    ...(options.json ? { stdout: execution.stdout, stderr: execution.stderr } : {}),
+    ...(options.json && execution ? { stdout: execution.stdout, stderr: execution.stderr } : {}),
   };
 }
 

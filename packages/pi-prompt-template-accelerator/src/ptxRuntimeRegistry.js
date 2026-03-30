@@ -7,6 +7,7 @@
  */
 
 import { getGlobalRuntimeRegistry } from "@tryinget/pi-runtime-registry";
+import { getCommandPath, getCommandSource } from "./commandProvenance.js";
 
 /** Capability IDs exposed by the PTX runtime registry bridge */
 export const PTX_CAPABILITIES = {
@@ -30,7 +31,7 @@ function normalizeText(value) {
 function normalizePromptCommand(command) {
   const name = normalizeText(command?.name);
   if (!name) return null;
-  const path = normalizeText(command?.path);
+  const path = getCommandPath(command);
 
   return {
     name,
@@ -45,7 +46,7 @@ function listPromptCommands(getCommands) {
   if (!Array.isArray(commands)) return [];
 
   return commands
-    .filter((command) => command && command.source === "prompt")
+    .filter((command) => command && getCommandSource(command) === "prompt")
     .map(normalizePromptCommand)
     .filter(Boolean);
 }

@@ -115,6 +115,6 @@ All notable changes to this project should be documented here.
 #### Documentation
 
 - README.md with full API documentation
-- README.md for durable package-group truth and NEXT_SESSION_PROMPT.md for the active handoff
+- README.md for durable package-group truth and `next_session_prompt.md` for the active handoff
 - docs/dev/EXTENSION_SOP.md for contribution guidelines
-- NEXT_SESSION_PROMPT.md for session handoff
+- `next_session_prompt.md` for session handoff

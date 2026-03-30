@@ -1,0 +1,10 @@
+{
+  "default": {
+    "maxRiskScore": 70,
+    "requireIntegrity": true,
+    "requireSignatures": false,
+    "allowNpmDiffFallback": false,
+    "minReleaseAgeHours": 0
+  },
+  "packages": {}
+}

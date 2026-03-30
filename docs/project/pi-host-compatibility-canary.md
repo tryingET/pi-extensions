@@ -45,11 +45,11 @@ Each profile resolves an **exact host contract** before any scenario runs:
 - companion package versions (`@mariozechner/pi-ai`, `@mariozechner/pi-tui`)
 - exact review anchor for the upstream changelog item / diff under review
 
-The runner auto-aligns each scenario package to that host contract before executing the scenario command.
-That removes split-brain validation where different package lockfiles silently test different Pi host versions.
+The manifest now declares explicit leaf package roots for each scenario. The runner validates those package roots, auto-aligns them to the selected host contract before executing the scenario command, and restores the prior host-package versions after the run.
+That removes directory-shape inference, keeps execution scope consistent with the declared seam, and reduces local environment contamination after upgrade checks.
 
 ### `current`
-Run against the root-owned pinned host contract recorded in `policy/pi-host-compatibility-canary.json`.
+Run against the root-owned pinned host contract recorded in `policy/pi-host-compatibility-canary.json`. This is the canary baseline contract, not a claim that every checked-in package tree already matches it.
 
 ### `upgrade`
 Run against an explicit candidate Pi host release supplied via:

@@ -1,5 +1,27 @@
 const PREFIX_PATTERNS = [/^(\s*\$\$\s+)/, /^(\s*\/ptx-preview\s+)/];
 
+function isPromiseLike(value) {
+  return Boolean(value && typeof value.then === "function");
+}
+
+function normalizeAutocompleteSuggestions(suggestions) {
+  if (!suggestions || typeof suggestions !== "object") return null;
+  if (!Array.isArray(suggestions.items)) return null;
+
+  return {
+    items: suggestions.items,
+    prefix: typeof suggestions.prefix === "string" ? suggestions.prefix : "",
+  };
+}
+
+function normalizeMaybeAsyncSuggestions(result) {
+  if (isPromiseLike(result)) {
+    return result.then((value) => normalizeAutocompleteSuggestions(value));
+  }
+
+  return normalizeAutocompleteSuggestions(result);
+}
+
 function getAutocompleteAdaptationPrefixForLine(line, cursorCol) {
   const textBeforeCursor = line.slice(0, cursorCol);
 
@@ -38,13 +60,22 @@ export class DollarPrefixAutocompleteProvider {
     this.inner = inner;
   }
 
-  getSuggestions(lines, cursorLine, cursorCol) {
+  getSuggestions(lines, cursorLine, cursorCol, options) {
     const adaptation = getDollarSlashAdaptation(lines, cursorLine, cursorCol);
     if (!adaptation) {
-      return this.inner.getSuggestions(lines, cursorLine, cursorCol);
+      return normalizeMaybeAsyncSuggestions(
+        this.inner.getSuggestions(lines, cursorLine, cursorCol, options),
+      );
     }
 
-    return this.inner.getSuggestions(adaptation.adaptedLines, cursorLine, adaptation.adaptedCursorCol);
+    return normalizeMaybeAsyncSuggestions(
+      this.inner.getSuggestions(
+        adaptation.adaptedLines,
+        cursorLine,
+        adaptation.adaptedCursorCol,
+        options,
+      ),
+    );
   }
 
   applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
@@ -80,10 +111,16 @@ export class DollarPrefixAutocompleteProvider {
 
     const adaptation = getDollarSlashAdaptation(lines, cursorLine, cursorCol);
     if (!adaptation) {
-      return this.inner.getForceFileSuggestions(lines, cursorLine, cursorCol);
+      return normalizeMaybeAsyncSuggestions(this.inner.getForceFileSuggestions(lines, cursorLine, cursorCol));
     }
 
-    return this.inner.getForceFileSuggestions(adaptation.adaptedLines, cursorLine, adaptation.adaptedCursorCol);
+    return normalizeMaybeAsyncSuggestions(
+      this.inner.getForceFileSuggestions(
+        adaptation.adaptedLines,
+        cursorLine,
+        adaptation.adaptedCursorCol,
+      ),
+    );
   }
 
   shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {

@@ -13,6 +13,7 @@ import { runFzfProbe, selectFuzzyCandidate } from "../src/fuzzySelector.js";
 import { parseRawCommand, RawCommandParseError } from "../src/parseRawCommand.js";
 import { parseTemplatePlaceholders } from "../src/parseTemplatePlaceholders.js";
 import { planPromptTemplateTransform } from "../src/planPromptTemplateTransform.js";
+import { getCommandPath, isPromptCommand } from "../src/commandProvenance.js";
 import {
   createInitialPtxModelLifecycleState,
   observePtxModelSelection,
@@ -46,6 +47,17 @@ type PtxTemplateCandidate = {
   commandName?: string;
   commandPath?: string;
   commandDescription?: string;
+};
+
+type PromptCommandLike = {
+  name?: unknown;
+  description?: unknown;
+  path?: unknown;
+  source?: unknown;
+  sourceInfo?: {
+    source?: unknown;
+    path?: unknown;
+  } | null;
 };
 
 function asErrorMessage(error: unknown): string {
@@ -192,7 +204,7 @@ async function pickTemplate(options: {
   reason?: string;
 }> {
   const commands = options.pi.getCommands();
-  const promptCommands = commands.filter((command) => command && command.source === "prompt");
+  const promptCommands = commands.filter((command) => isPromptCommand(command as PromptCommandLike));
   const candidates = toPtxCandidates(commands);
 
   if (candidates.length === 0) {
@@ -229,11 +241,11 @@ function formatArgContract(templateText: string): string {
 }
 
 async function inspectPromptCommands(commands: Array<Record<string, unknown>>) {
-  const promptCommands = commands.filter((command) => command && command.source === "prompt");
+  const promptCommands = commands.filter((command) => isPromptCommand(command as PromptCommandLike));
   return await Promise.all(
     promptCommands.map(async (command) => {
       const name = String(command.name || "").trim();
-      const path = typeof command.path === "string" && command.path.trim() ? command.path.trim() : "";
+      const path = getCommandPath(command as PromptCommandLike) ?? "";
       if (!path) {
         return {
           name,
@@ -334,7 +346,7 @@ async function maybeRegisterLiveTrigger(options: {
       },
       loadCandidates: () => {
         const commands = options.pi.getCommands();
-        const promptCommands = commands.filter((command) => command && command.source === "prompt");
+        const promptCommands = commands.filter((command) => isPromptCommand(command as PromptCommandLike));
         const candidates = toPtxCandidates(commands);
         return {
           candidates,

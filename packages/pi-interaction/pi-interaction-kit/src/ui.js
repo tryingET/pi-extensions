@@ -123,40 +123,29 @@ let Input = /** @type {InputCtor} */ (DefaultInput);
 let truncateToWidth = defaultTruncateToWidth;
 let visibleWidth = defaultVisibleWidth;
 
-const KEY_NAME_ALIASES = {
-  selectUp: ["tui.select.up", "selectUp"],
-  selectDown: ["tui.select.down", "selectDown"],
-  selectPageUp: ["tui.select.pageUp", "selectPageUp"],
-  selectPageDown: ["tui.select.pageDown", "selectPageDown"],
-  selectConfirm: ["tui.select.confirm", "selectConfirm"],
-  selectCancel: ["tui.select.cancel", "selectCancel"],
-  deleteCharBackward: ["tui.editor.deleteCharBackward", "deleteCharBackward"],
-  deleteCharForward: ["tui.editor.deleteCharForward", "deleteCharForward"],
+const KEY_NAMES = {
+  selectUp: "tui.select.up",
+  selectDown: "tui.select.down",
+  selectPageUp: "tui.select.pageUp",
+  selectPageDown: "tui.select.pageDown",
+  selectConfirm: "tui.select.confirm",
+  selectCancel: "tui.select.cancel",
+  deleteCharBackward: "tui.editor.deleteCharBackward",
+  deleteCharForward: "tui.editor.deleteCharForward",
 };
 
-/** @param {EditorKeybindings} keybindings @param {string} data @param {keyof typeof KEY_NAME_ALIASES} keyName */
+/** @param {EditorKeybindings} keybindings @param {string} data @param {keyof typeof KEY_NAMES} keyName */
 function matchesBinding(keybindings, data, keyName) {
-  return KEY_NAME_ALIASES[keyName].some((alias) => {
-    try {
-      return keybindings.matches(data, alias);
-    } catch {
-      return false;
-    }
-  });
+  try {
+    return keybindings.matches(data, KEY_NAMES[keyName]);
+  } catch {
+    return false;
+  }
 }
 
-/** @param {keyof typeof KEY_NAME_ALIASES} keyName */
+/** @param {keyof typeof KEY_NAMES} keyName */
 function resolveEditorKeyLabel(keyName) {
-  let fallback = KEY_NAME_ALIASES[keyName][0];
-
-  for (const alias of KEY_NAME_ALIASES[keyName]) {
-    const resolved = editorKey(alias);
-    if (typeof resolved !== "string" || resolved.length === 0) continue;
-    if (resolved !== alias) return resolved;
-    fallback = resolved;
-  }
-
-  return fallback;
+  return editorKey(KEY_NAMES[keyName]);
 }
 
 /** @type {() => EditorKeybindings} */
@@ -164,21 +153,13 @@ let getEditorKeybindings = () => {
   /** @type {Record<string, string[]>} */
   const keyMap = {
     "tui.select.up": ["\u001b[A"],
-    selectUp: ["\u001b[A"],
     "tui.select.down": ["\u001b[B"],
-    selectDown: ["\u001b[B"],
     "tui.select.pageUp": ["\u001b[5~"],
-    selectPageUp: ["\u001b[5~"],
     "tui.select.pageDown": ["\u001b[6~"],
-    selectPageDown: ["\u001b[6~"],
     "tui.select.confirm": ["\r", "\n"],
-    selectConfirm: ["\r", "\n"],
     "tui.select.cancel": ["\u001b"],
-    selectCancel: ["\u001b"],
     "tui.editor.deleteCharBackward": ["\x7f", "\b"],
-    deleteCharBackward: ["\x7f", "\b"],
     "tui.editor.deleteCharForward": ["\x1b[3~"],
-    deleteCharForward: ["\x1b[3~"],
   };
 
   return {
@@ -190,27 +171,20 @@ let getEditorKeybindings = () => {
 
       switch (keyName) {
         case "tui.select.up":
-        case "selectUp":
           return isArrowSequence(data, "A");
         case "tui.select.down":
-        case "selectDown":
           return isArrowSequence(data, "B");
         case "tui.select.pageUp":
-        case "selectPageUp":
           return PAGE_UP_RE.test(data);
         case "tui.select.pageDown":
-        case "selectPageDown":
           return PAGE_DOWN_RE.test(data);
         case "tui.select.confirm":
-        case "selectConfirm":
           return Boolean(kitty && kitty.codepoint === 13);
         case "tui.select.cancel":
-        case "selectCancel":
           return Boolean(
             kitty && (kitty.codepoint === 27 || (kitty.codepoint === 91 && kitty.modifier >= 5)),
           );
         case "tui.editor.deleteCharBackward":
-        case "deleteCharBackward":
           return Boolean(
             kitty &&
               (kitty.codepoint === 8 ||
@@ -218,7 +192,6 @@ let getEditorKeybindings = () => {
                 (kitty.codepoint === 104 && kitty.modifier >= 5)),
           );
         case "tui.editor.deleteCharForward":
-        case "deleteCharForward":
           return isDeleteSequence(data);
         default:
           return false;

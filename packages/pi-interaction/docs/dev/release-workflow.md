@@ -91,7 +91,7 @@ Then in pi:
 4. type `$$ /`
 5. confirm the live picker opens and selection writes back into the editor
 
-Record any live-only drift in `NEXT_SESSION_PROMPT.md` before release.
+Record any live-only drift in `next_session_prompt.md` before release.
 
 ## Root validation gate
 
@@ -127,5 +127,5 @@ Only proceed when all are true:
 ## Follow-up after release
 
 - update `README.md`
-- update `NEXT_SESSION_PROMPT.md`
+- update `next_session_prompt.md`
 - keep root/package release ownership notes aligned with `docs/project/root-capabilities.md`

@@ -1,16 +1,31 @@
+import { getCommandPath, getCommandSource } from "./commandProvenance.js";
+
 function normalizeCommandName(value) {
   if (typeof value !== "string") return "";
   return value.trim().replace(/^\/+/, "");
 }
 
+function normalizePromptCommand(command) {
+  if (!command || typeof command !== "object") return command;
+
+  const normalized = { ...command };
+  const source = getCommandSource(command);
+  const path = getCommandPath(command);
+
+  if (source) normalized.source = source;
+  if (path) normalized.path = path;
+
+  return normalized;
+}
+
 function hasTemplatePath(command) {
-  return typeof command?.path === "string" && command.path.trim().length > 0;
+  return typeof getCommandPath(command) === "string";
 }
 
 function isPromptCommandMatch(command, commandName) {
   return Boolean(
     command &&
-      command.source === "prompt" &&
+      getCommandSource(command) === "prompt" &&
       normalizeCommandName(command.name) === commandName,
   );
 }
@@ -26,7 +41,9 @@ function isPromptCommandMatch(command, commandName) {
 export function resolvePromptTemplate(commands, commandName) {
   const normalizedName = normalizeCommandName(commandName);
   const matches = Array.isArray(commands)
-    ? commands.filter((command) => isPromptCommandMatch(command, normalizedName))
+    ? commands
+        .map((command) => normalizePromptCommand(command))
+        .filter((command) => isPromptCommandMatch(command, normalizedName))
     : [];
 
   if (matches.length === 0) {

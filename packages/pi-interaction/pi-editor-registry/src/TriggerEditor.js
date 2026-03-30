@@ -3,6 +3,9 @@
  * Watches keystrokes and fires triggers when patterns match.
  */
 
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
 import { CustomEditor } from "@mariozechner/pi-coding-agent";
 import { getBroker } from "@tryinget/pi-trigger-adapter";
 
@@ -34,7 +37,23 @@ import { getBroker } from "@tryinget/pi-trigger-adapter";
  * }} TriggerContext
  */
 
+/**
+ * @typedef {{
+ *   items: any[],
+ *   prefix: string,
+ * }} AutocompleteSuggestions
+ */
+
+/**
+ * @typedef {{
+ *   force: boolean,
+ *   explicitTab: boolean,
+ * }} AutocompleteRequestOptions
+ */
+
 const BaseCustomEditor = /** @type {any} */ (CustomEditor);
+/** @type {Promise<any>|undefined} */
+let selectListConstructorPromise;
 let triggerEditorSessionCounter = 0;
 
 /** @param {any} editor */
@@ -47,7 +66,47 @@ function createTriggerEditorSessionKey() {
   return `trigger-editor-${triggerEditorSessionCounter}`;
 }
 
+/** @param {unknown} value */
+function isPromiseLike(value) {
+  const maybePromise = /** @type {{ then?: unknown }|null|undefined} */ (value);
+  return Boolean(maybePromise && typeof maybePromise.then === "function");
+}
+
+/** @param {unknown} suggestions @returns {AutocompleteSuggestions|null} */
+function normalizeAutocompleteSuggestions(suggestions) {
+  if (!suggestions || typeof suggestions !== "object") return null;
+
+  const candidate = /** @type {{ items?: unknown, prefix?: unknown }} */ (suggestions);
+  if (!Array.isArray(candidate.items)) return null;
+
+  return {
+    items: candidate.items,
+    prefix: typeof candidate.prefix === "string" ? candidate.prefix : "",
+  };
+}
+
+async function loadSelectListConstructor() {
+  if (!selectListConstructorPromise) {
+    selectListConstructorPromise = (async () => {
+      const piCodingAgentEntry = fileURLToPath(
+        import.meta.resolve("@mariozechner/pi-coding-agent"),
+      );
+      const piCodingAgentRoot = path.resolve(path.dirname(piCodingAgentEntry), "..");
+      const piScopeRoot = path.resolve(piCodingAgentRoot, "..");
+      const piTuiEntry = path.join(piScopeRoot, "pi-tui", "dist", "index.js");
+      const module = await import(pathToFileURL(piTuiEntry).href);
+      return module.SelectList;
+    })();
+  }
+
+  return selectListConstructorPromise;
+}
+
 export class TriggerEditor extends BaseCustomEditor {
+  /** @type {number} */ autocompleteRequestId;
+  /** @type {AbortController|undefined} */ autocompleteAbort;
+  /** @type {unknown} */ lastAction;
+
   /**
    * @param {any} tui
    * @param {any} theme
@@ -63,6 +122,8 @@ export class TriggerEditor extends BaseCustomEditor {
     this.sessionCtx = sessionCtx;
     this.sessionKey = sessionCtx?.sessionKey || createTriggerEditorSessionKey();
     this.triggerApi = undefined;
+    this.autocompleteRequestId = 0;
+    this.autocompleteAbort = undefined;
     /** @type {import("@tryinget/pi-trigger-adapter").TriggerBroker} */
     this.broker = getBroker();
     this.broker.setAPI(this.createAPI());
@@ -176,14 +237,229 @@ export class TriggerEditor extends BaseCustomEditor {
     };
   }
 
+  cancelAutocompleteRequest() {
+    this.autocompleteRequestId += 1;
+    this.autocompleteAbort?.abort();
+    this.autocompleteAbort = undefined;
+  }
+
+  cancelAutocomplete() {
+    this.cancelAutocompleteRequest();
+    super.cancelAutocomplete?.();
+  }
+
+  /**
+   * @param {number} requestId
+   * @param {AbortController} controller
+   * @param {string} snapshotText
+   * @param {number} snapshotLine
+   * @param {number} snapshotCol
+   */
+  isAutocompleteRequestCurrent(requestId, controller, snapshotText, snapshotLine, snapshotCol) {
+    return (
+      !controller.signal.aborted &&
+      requestId === this.autocompleteRequestId &&
+      this.getText() === snapshotText &&
+      this.state?.cursorLine === snapshotLine &&
+      this.state?.cursorCol === snapshotCol
+    );
+  }
+
+  /**
+   * @param {AutocompleteRequestOptions} options
+   * @param {AbortController} controller
+   * @returns {Promise<AutocompleteSuggestions|null>}
+   */
+  async getAutocompleteSuggestions(options, controller) {
+    const provider = this.autocompleteProvider;
+    if (!provider) return null;
+
+    const lines = this.state?.lines ?? [];
+    const cursorLine = this.state?.cursorLine ?? 0;
+    const cursorCol = this.state?.cursorCol ?? 0;
+
+    let result;
+    if (options.force && typeof provider.getForceFileSuggestions === "function") {
+      result = provider.getForceFileSuggestions(lines, cursorLine, cursorCol);
+    } else {
+      result = provider.getSuggestions(lines, cursorLine, cursorCol, {
+        signal: controller.signal,
+        force: options.force,
+      });
+    }
+
+    return normalizeAutocompleteSuggestions(isPromiseLike(result) ? await result : result);
+  }
+
+  /**
+   * @param {AutocompleteSuggestions} suggestions
+   * @param {"regular"|"force"} mode
+   */
+  async applyAutocompleteSuggestions(suggestions, mode) {
+    const SelectList = await loadSelectListConstructor();
+    this.autocompletePrefix = suggestions.prefix;
+    this.autocompleteList = new SelectList(
+      suggestions.items,
+      this.autocompleteMaxVisible,
+      this.theme.selectList,
+    );
+    this.autocompleteState = mode;
+  }
+
+  /**
+   * @param {number} requestId
+   * @param {AbortController} controller
+   * @param {string} snapshotText
+   * @param {number} snapshotLine
+   * @param {number} snapshotCol
+   * @param {AutocompleteRequestOptions} options
+   */
+  async runAutocompleteRequest(
+    requestId,
+    controller,
+    snapshotText,
+    snapshotLine,
+    snapshotCol,
+    options,
+  ) {
+    const provider = this.autocompleteProvider;
+    if (!provider) return;
+
+    let suggestions;
+    try {
+      suggestions = await this.getAutocompleteSuggestions(options, controller);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      console.error("[TriggerEditor] Error resolving autocomplete suggestions:", error);
+      this.cancelAutocomplete();
+      this.tui?.requestRender?.();
+      return;
+    }
+
+    if (
+      !this.isAutocompleteRequestCurrent(
+        requestId,
+        controller,
+        snapshotText,
+        snapshotLine,
+        snapshotCol,
+      )
+    ) {
+      return;
+    }
+
+    this.autocompleteAbort = undefined;
+
+    if (!suggestions || suggestions.items.length === 0) {
+      super.cancelAutocomplete?.();
+      this.tui?.requestRender?.();
+      return;
+    }
+
+    if (options.force && options.explicitTab && suggestions.items.length === 1) {
+      const item = suggestions.items[0];
+      this.pushUndoSnapshot?.();
+      this.lastAction = null;
+      const result = this.autocompleteProvider.applyCompletion(
+        this.state.lines,
+        this.state.cursorLine,
+        this.state.cursorCol,
+        item,
+        suggestions.prefix,
+      );
+      this.state.lines = result.lines;
+      this.state.cursorLine = result.cursorLine;
+      this.setCursorCol?.(result.cursorCol);
+      if (this.onChange) this.onChange(this.getText());
+      this.tui?.requestRender?.();
+      return;
+    }
+
+    await this.applyAutocompleteSuggestions(suggestions, options.force ? "force" : "regular");
+    this.tui?.requestRender?.();
+  }
+
+  /** @param {AutocompleteRequestOptions} options */
+  requestAutocomplete(options) {
+    const provider = this.autocompleteProvider;
+    if (!provider) return;
+
+    if (options.force) {
+      const shouldTrigger =
+        !provider.shouldTriggerFileCompletion ||
+        provider.shouldTriggerFileCompletion(
+          this.state.lines,
+          this.state.cursorLine,
+          this.state.cursorCol,
+        );
+      if (!shouldTrigger) return;
+    }
+
+    this.cancelAutocompleteRequest();
+
+    const controller = new AbortController();
+    this.autocompleteAbort = controller;
+    const requestId = ++this.autocompleteRequestId;
+    const snapshotText = this.getText();
+    const snapshotLine = this.state.cursorLine;
+    const snapshotCol = this.state.cursorCol;
+
+    void this.runAutocompleteRequest(
+      requestId,
+      controller,
+      snapshotText,
+      snapshotLine,
+      snapshotCol,
+      options,
+    );
+  }
+
+  tryTriggerAutocomplete(explicitTab = false) {
+    this.requestAutocomplete({ force: false, explicitTab });
+  }
+
+  forceFileAutocomplete(explicitTab = false) {
+    this.requestAutocomplete({ force: true, explicitTab });
+  }
+
+  updateAutocomplete() {
+    if (!this.autocompleteState || !this.autocompleteProvider) return;
+    this.requestAutocomplete({ force: this.autocompleteState === "force", explicitTab: false });
+  }
+
+  /** @param {string} data */
+  isInterruptInput(data) {
+    const keybindings = this.keybindings;
+    if (!keybindings || typeof keybindings.matches !== "function") return false;
+
+    return keybindings.matches(data, "app.interrupt");
+  }
+
   /**
    * Override handleInput to check triggers on keystroke.
    * @param {string} data
    */
   handleInput(data) {
+    if (this.isInterruptInput(data)) {
+      if (this.isShowingAutocomplete?.()) {
+        this.cancelAutocomplete();
+        return;
+      }
+
+      const handler = this.onEscape ?? this.actionHandlers?.get?.("app.interrupt");
+      if (handler) {
+        handler();
+        return;
+      }
+    }
+
     super.handleInput(data);
 
     if (isPasteInProgress(this)) {
+      return;
+    }
+
+    if (this.isInterruptInput(data)) {
       return;
     }
 
@@ -202,7 +478,16 @@ export class TriggerEditor extends BaseCustomEditor {
       console.error("[TriggerEditor] Error checking triggers on tab:", error);
     });
 
-    super.handleTabCompletion();
+    if (!this.autocompleteProvider) return;
+
+    const currentLine = this.state.lines[this.state.cursorLine] || "";
+    const beforeCursor = currentLine.slice(0, this.state.cursorCol);
+
+    if (this.isInSlashCommandContext(beforeCursor) && !beforeCursor.trimStart().includes(" ")) {
+      this.tryTriggerAutocomplete(true);
+    } else {
+      this.forceFileAutocomplete(true);
+    }
   }
 
   /**

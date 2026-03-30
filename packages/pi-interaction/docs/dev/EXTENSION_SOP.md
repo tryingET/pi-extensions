@@ -15,8 +15,8 @@ system4d:
 
 - Define scope: new trigger, handler feature, or integration?
 - Check `/triggers` command in live pi to see current state
-- Review `README.md` and `NEXT_SESSION_PROMPT.md` for current package-group truth and active work
-- Capture work in git issues or `NEXT_SESSION_PROMPT.md`
+- Review `README.md` and `next_session_prompt.md` for current package-group truth and active work
+- Capture work in git issues or `next_session_prompt.md`
 
 ## 2) Implement
 
@@ -104,7 +104,7 @@ npm audit
 - Monitor for conflicts with other trigger/editor extensions
 - Keep built-in triggers useful but minimal
 - Document new trigger patterns in the umbrella README
-- Update `README.md` and `NEXT_SESSION_PROMPT.md` when package-group truth or active handoff changes
+- Update `README.md` and `next_session_prompt.md` when package-group truth or active handoff changes
 - Keep release docs aligned with monorepo root/package ownership rules
 
 ## Troubleshooting

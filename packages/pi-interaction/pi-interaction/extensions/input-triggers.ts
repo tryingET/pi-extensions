@@ -59,6 +59,27 @@ type TriggerPickerEntry = {
   pickerDetail?: string;
 };
 
+type PromptCommandLike = {
+  name?: unknown;
+  source?: unknown;
+  sourceInfo?: {
+    source?: unknown;
+  } | null;
+};
+
+function getCommandSource(command: PromptCommandLike | null | undefined): string | undefined {
+  const sourceInfoSource = command?.sourceInfo?.source;
+  if (typeof sourceInfoSource === "string" && sourceInfoSource.trim().length > 0) {
+    return sourceInfoSource.trim();
+  }
+
+  if (typeof command?.source === "string" && command.source.trim().length > 0) {
+    return command.source.trim();
+  }
+
+  return undefined;
+}
+
 function getEnv(...names: string[]): string | undefined {
   for (const name of names) {
     const value = process.env[name];
@@ -110,7 +131,7 @@ function registerExampleTriggers(broker: ReturnType<typeof getBroker>, pi: Exten
     loadCandidates: () => {
       const templates = pi
         .getCommands()
-        .filter((command) => command.source === "prompt")
+        .filter((command) => getCommandSource(command as PromptCommandLike) === "prompt")
         .map((command) => ({
           id: command.name,
           label: `/${command.name}`,

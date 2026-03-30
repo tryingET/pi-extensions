@@ -1,3 +1,5 @@
+import { getCommandPath, getCommandSource } from "./commandProvenance.js";
+
 function truncate(value, max = 80) {
   const text = String(value ?? "").replace(/\s+/g, " ").trim();
   if (!text) return "";
@@ -21,7 +23,7 @@ function summarizePath(value) {
 
 function buildCandidateId(command, index) {
   const name = String(command?.name ?? "").trim();
-  const normalizedPath = normalizePath(command?.path);
+  const normalizedPath = normalizePath(getCommandPath(command));
   if (normalizedPath) return `${name}::${normalizedPath}`;
   return `${name}::index:${index}`;
 }
@@ -30,7 +32,7 @@ function buildCandidateDetail(command, duplicateNames) {
   const baseDetail = truncate(command.description || "prompt template");
   if (!duplicateNames.has(command.name)) return baseDetail;
 
-  const origin = summarizePath(command.path);
+  const origin = summarizePath(getCommandPath(command));
   if (origin) {
     return truncate(`${baseDetail} · ${origin}`, 110);
   }
@@ -44,10 +46,10 @@ export function toPtxCandidates(commands) {
   const promptCommands = commands.filter(
     (command) =>
       command &&
-      command.source === "prompt" &&
+      getCommandSource(command) === "prompt" &&
       typeof command.name === "string" &&
       command.name.trim().length > 0 &&
-      normalizePath(command.path),
+      normalizePath(getCommandPath(command)),
   );
 
   const nameCounts = new Map();
@@ -68,7 +70,7 @@ export function toPtxCandidates(commands) {
       preview: undefined,
       source: "ptx",
       commandName: command.name,
-      commandPath: normalizePath(command.path),
+      commandPath: normalizePath(getCommandPath(command)),
       commandDescription:
         typeof command.description === "string" && command.description.trim().length > 0
           ? command.description.trim()

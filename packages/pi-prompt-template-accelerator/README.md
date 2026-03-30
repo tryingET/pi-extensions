@@ -23,10 +23,10 @@ Then type `$$ /inv` (or `$$ /`) to open the fuzzy selector, choose a prompt temp
 
 ## How it works
 
-1. Build prompt-template candidates from `pi.getCommands()` (`source === "prompt"`)
+1. Build prompt-template candidates from `pi.getCommands()` (`sourceInfo.source === "prompt"`, with legacy `source` fallback)
 2. Rank candidates via `fzf --filter` when available (fallback deterministic ranker otherwise)
 3. Let user choose from selector (`$$ /query` or `/ptx-select [query]`)
-4. Read the selected template file from `cmd.path`
+4. Read the selected template file from `cmd.sourceInfo.path` (with legacy `cmd.path` fallback)
 5. Parse placeholder usage (`$1`, `$2`, `$@`, `${@:N}`)
 6. Parse line hints around placeholders for slot inference
 7. Infer context deterministically from environment (repo, cwd, branch, objective)

@@ -43,3 +43,29 @@ test("resolvePromptTemplate returns explicit ambiguity for multiple prefillable 
   assert.equal(resolution.resolution, "duplicate-name");
   assert.equal(resolution.prefillableMatches.length, 2);
 });
+
+test("resolvePromptTemplate supports sourceInfo-only prompt command metadata", () => {
+  const resolution = resolvePromptTemplate(
+    [
+      {
+        name: "nexus",
+        sourceInfo: {
+          source: "prompt",
+          path: "/tmp/nexus.md",
+        },
+      },
+      {
+        name: "vault",
+        sourceInfo: {
+          source: "extension",
+        },
+      },
+    ],
+    "nexus",
+  );
+
+  assert.equal(resolution.status, "ok");
+  assert.equal(resolution.resolution, "unique-match");
+  assert.equal(resolution.templateCommand?.source, "prompt");
+  assert.equal(resolution.templateCommand?.path, "/tmp/nexus.md");
+});

@@ -34,8 +34,8 @@ test("compatibility canary resolves the exact current host contract", () => {
   const result = runJson(["resolve-host", "--profile", "current"]);
   assert.equal(result.profile, "current");
   assert.equal(result.host.packageName, "@mariozechner/pi-coding-agent");
-  assert.equal(result.host.version, "0.57.1");
-  assert.equal(result.host.reviewAnchor, "npm:@mariozechner/pi-coding-agent@0.57.1");
+  assert.equal(result.host.version, "0.58.4");
+  assert.equal(result.host.reviewAnchor, "npm:@mariozechner/pi-coding-agent@0.58.4");
   assert.ok(result.host.companionPackages.includes("@mariozechner/pi-tui"));
 });
 
@@ -57,7 +57,28 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
 });
 
-test("compatibility canary dry-run can target a single scenario with host preparation details", () => {
+test("compatibility canary list uses explicit leaf package roots from the manifest", () => {
+  const result = runJson(["list", "--profile", "current"]);
+  const interactionScenario = result.scenarios.find(
+    (scenario) => scenario.id === "interaction-runtime-coexistence",
+  );
+
+  assert.ok(interactionScenario);
+  assert.ok(Array.isArray(interactionScenario.packageRoots));
+  assert.deepEqual(
+    interactionScenario.packageRoots.map((entry) => entry.packagePath),
+    [
+      "packages/pi-interaction/pi-editor-registry",
+      "packages/pi-interaction/pi-interaction",
+      "packages/pi-interaction/pi-interaction-kit",
+      "packages/pi-interaction/pi-runtime-registry",
+      "packages/pi-interaction/pi-trigger-adapter",
+      "packages/pi-prompt-template-accelerator",
+    ],
+  );
+});
+
+test("compatibility canary dry-run can target a single scenario with package-set host preparation details", () => {
   const result = runJson([
     "run",
     "--dry-run",
@@ -68,7 +89,7 @@ test("compatibility canary dry-run can target a single scenario with host prepar
   ]);
 
   assert.equal(result.profile, "current");
-  assert.equal(result.host.version, "0.57.1");
+  assert.equal(result.host.version, "0.58.4");
   assert.equal(result.summary.selected, 1);
   assert.equal(result.summary.failed, 0);
   assert.equal(result.results[0].id, "vault-live-trigger-contract");
@@ -78,14 +99,19 @@ test("compatibility canary dry-run can target a single scenario with host prepar
     "run",
     "test:compat:live-trigger-contract",
   ]);
-  assert.deepEqual(result.results[0].host.preparation.command, [
-    "npm",
-    "install",
-    "--no-save",
-    "--package-lock=false",
-    "@mariozechner/pi-coding-agent@0.57.1",
-    "@mariozechner/pi-ai@0.57.1",
-    "@mariozechner/pi-tui@0.57.1",
-  ]);
+  assert.ok(Array.isArray(result.results[0].host.preparation.packages));
+  assert.equal(result.results[0].host.preparation.packages.length, 4);
+  for (const entry of result.results[0].host.preparation.packages) {
+    assert.deepEqual(entry.command, [
+      "npm",
+      "install",
+      "--no-save",
+      "--package-lock=false",
+      "@mariozechner/pi-coding-agent@0.58.4",
+      "@mariozechner/pi-ai@0.58.4",
+      "@mariozechner/pi-tui@0.58.4",
+    ]);
+  }
   assert.ok(["dry-run", "ready"].includes(result.results[0].host.preparation.status));
+  assert.equal(result.results[0].host.restoration.status, "not-run");
 });

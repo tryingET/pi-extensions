@@ -1,5 +1,9 @@
 /**
  * Lightweight editor ownership registry for interaction runtime mounting.
+ *
+ * Note: this helper only mounts an editor factory and records diagnostics.
+ * App-level key handling (for example Esc/app.interrupt) remains the host
+ * editor's responsibility via pi's CustomEditor wiring.
  */
 
 /**

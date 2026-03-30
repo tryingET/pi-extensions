@@ -100,3 +100,30 @@ test("toPtxCandidates disambiguates duplicate prompt names with origin detail an
   assert.match(candidates[1].detail ?? "", /repo-a\/prompts\/implementation-planning\.md|repo-b\/prompts\/implementation-planning\.md/);
   assert.notEqual(candidates[0].detail, candidates[1].detail);
 });
+
+test("toPtxCandidates supports sourceInfo-only prompt command metadata", () => {
+  const commands = [
+    {
+      name: "nexus",
+      description: "Highest leverage intervention",
+      sourceInfo: {
+        source: "prompt",
+        path: "/tmp/prompts/nexus.md",
+      },
+    },
+    {
+      name: "vault",
+      description: "Vault command",
+      sourceInfo: {
+        source: "extension",
+      },
+    },
+  ];
+
+  const candidates = toPtxCandidates(commands);
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].commandName, "nexus");
+  assert.equal(candidates[0].commandPath, "/tmp/prompts/nexus.md");
+  assert.equal(candidates[0].commandDescription, "Highest leverage intervention");
+});

@@ -102,6 +102,40 @@ test("registerPtxCapabilityBridges exposes prompt-template ownership and observe
   assert.equal(promptAccessor?.getRuntimeState().liveTrigger.reason, "trigger-surface-unavailable");
 });
 
+test("registerPtxCapabilityBridges supports sourceInfo-only prompt command metadata", () => {
+  resetGlobalRuntimeRegistry();
+
+  registerPtxCapabilityBridges({
+    getCommands: () => [
+      {
+        name: "implementation-planning",
+        description: "Draft an implementation plan",
+        sourceInfo: {
+          source: "prompt",
+          path: "/tmp/implementation-planning.md",
+        },
+      },
+      {
+        name: "vault",
+        description: "Vault command",
+        sourceInfo: {
+          source: "extension",
+        },
+      },
+    ],
+    getLiveTriggerState: () => ({ status: "registered", reason: "registered" }),
+    getModelLifecycleState: () => createInitialPtxModelLifecycleState(),
+  });
+
+  const promptAccessor = getPtxPromptTemplateAccessor();
+  assert.ok(promptAccessor);
+  assert.equal(promptAccessor?.listPromptCommands().length, 1);
+  assert.equal(promptAccessor?.listPromptCommands()[0].path, "/tmp/implementation-planning.md");
+  assert.equal(promptAccessor?.listPrefillablePromptCommands().length, 1);
+
+  unregisterPtxCapabilityBridges();
+});
+
 test("unregisterPtxCapabilityBridges removes PTX registry entries", () => {
   resetGlobalRuntimeRegistry();
 

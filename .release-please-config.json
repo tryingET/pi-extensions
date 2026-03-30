@@ -9,6 +9,10 @@
       "release-type": "node",
       "component": "pi-autonomous-session-control"
     },
+    "packages/pi-context-overlay": {
+      "release-type": "node",
+      "component": "pi-context-overlay"
+    },
     "packages/pi-interaction/pi-editor-registry": {
       "release-type": "node",
       "component": "pi-editor-registry"
@@ -28,6 +32,10 @@
     "packages/pi-interaction/pi-trigger-adapter": {
       "release-type": "node",
       "component": "pi-trigger-adapter"
+    },
+    "packages/pi-little-helpers": {
+      "release-type": "node",
+      "component": "pi-little-helpers"
     },
     "packages/pi-ontology-workflows": {
       "release-type": "node",

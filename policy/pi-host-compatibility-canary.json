@@ -9,10 +9,10 @@
   "defaultProfile": "current",
   "profiles": {
     "current": {
-      "description": "Run against the root-owned pinned Pi host contract to confirm the extension monorepo still matches present reality.",
+      "description": "Run against the root-owned pinned Pi host contract that defines the current canary baseline for this monorepo.",
       "host": {
-        "version": "0.57.1",
-        "reviewAnchor": "npm:@mariozechner/pi-coding-agent@0.57.1"
+        "version": "0.58.4",
+        "reviewAnchor": "npm:@mariozechner/pi-coding-agent@0.58.4"
       }
     },
     "upgrade": {
@@ -31,7 +31,11 @@
       "why": "Protect the brownfield interaction-runtime path where PTX depends on pi-interaction trigger surfaces without taking editor ownership itself.",
       "profiles": ["current", "upgrade"],
       "packages": [
-        "packages/pi-interaction",
+        "packages/pi-interaction/pi-editor-registry",
+        "packages/pi-interaction/pi-interaction",
+        "packages/pi-interaction/pi-interaction-kit",
+        "packages/pi-interaction/pi-runtime-registry",
+        "packages/pi-interaction/pi-trigger-adapter",
         "packages/pi-prompt-template-accelerator"
       ],
       "upstreamSurfaces": [
@@ -50,7 +54,9 @@
       "why": "Protect the cross-package live-trigger seam between pi-vault-client and pi-interaction support packages without requiring a full vault session.",
       "profiles": ["current", "upgrade"],
       "packages": [
-        "packages/pi-interaction",
+        "packages/pi-interaction/pi-interaction-kit",
+        "packages/pi-interaction/pi-runtime-registry",
+        "packages/pi-interaction/pi-trigger-adapter",
         "packages/pi-vault-client"
       ],
       "upstreamSurfaces": [

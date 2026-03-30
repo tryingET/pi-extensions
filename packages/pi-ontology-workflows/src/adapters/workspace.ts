@@ -30,13 +30,14 @@ export function createWorkspacePort(): WorkspacePort {
         inferCompany(currentRepoPath) ??
         normalizeCompanyAlias(process.env.PI_COMPANY?.trim()) ??
         undefined;
+      const currentRepoKind = classifyRepo(currentRepoPath, workspaceRoot, currentCompany);
       return {
         cwd: path.resolve(cwd),
         workspaceRoot,
         workspaceRefMode: resolveWorkspaceRefMode(),
         currentRepoPath,
-        currentRepoHasOntology: hasOntologyManifest(currentRepoPath),
-        currentRepoKind: classifyRepo(currentRepoPath, workspaceRoot, currentCompany),
+        currentRepoHasOntology: hasOntologyManifest(currentRepoPath, currentRepoKind),
+        currentRepoKind,
         currentCompany,
       };
     },
@@ -76,8 +77,24 @@ function findRepoRoot(start: string): string | undefined {
   }
 }
 
-function hasOntologyManifest(repoPath: string): boolean {
-  return existsSync(path.join(repoPath, "ontology", "manifest.yaml"));
+function getOntologyManifestCandidates(repoPath: string, repoKind?: RepoKind): string[] {
+  const nestedManifest = path.join(repoPath, "ontology", "manifest.yaml");
+  if (repoKind === "company") {
+    return [path.join(repoPath, "manifest.yaml"), nestedManifest];
+  }
+  return [nestedManifest];
+}
+
+function hasOntologyManifest(repoPath: string, repoKind?: RepoKind): boolean {
+  return getOntologyManifestCandidates(repoPath, repoKind).some((candidate) =>
+    existsSync(candidate),
+  );
+}
+
+function getOntologyManifestHint(repoPath: string, repoKind?: RepoKind): string {
+  return getOntologyManifestCandidates(repoPath, repoKind)
+    .map((candidate) => path.relative(repoPath, candidate) || "manifest.yaml")
+    .join(" or ");
 }
 
 function inferCompany(inputPath: string): string | undefined {
@@ -224,8 +241,10 @@ function ensureOntologyTarget(
   if (!existsSync(repoPath)) {
     throw new Error(`ontology target repo does not exist: ${repoPath}`);
   }
-  if (!hasOntologyManifest(repoPath)) {
-    throw new Error(`ontology target repo is missing ontology/manifest.yaml: ${repoPath}`);
+  if (!hasOntologyManifest(repoPath, repoKind)) {
+    throw new Error(
+      `ontology target repo is missing ${getOntologyManifestHint(repoPath, repoKind)}: ${repoPath}`,
+    );
   }
   if (requestedScope === "company" && repoKind !== "company") {
     throw new Error(`scope=company resolved to a non-company ontology repo: ${repoPath}`);

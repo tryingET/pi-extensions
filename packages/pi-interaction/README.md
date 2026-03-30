@@ -79,7 +79,7 @@ Use:
 
 - [Release workflow](docs/dev/release-workflow.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
-- [Next session prompt](NEXT_SESSION_PROMPT.md)
+- [Next session prompt](next_session_prompt.md)
 
 ## Canonical rollout plan
 
