@@ -43,23 +43,39 @@ The script enumerates every package root under `packages/` and reports whether i
 
 - package-local `docs/tech-stack.local.md`
 - package-local `policy/stack-lane.json`
+- package role (`package-root` vs `package-group-root`)
+- scaffold mode when `x-pi-template.scaffoldMode` is present
 
 ## Current audit snapshot
 
-Audited on 2026-03-22.
+Audited on 2026-03-30.
+
+Snapshot summary:
+
+- package roots audited: `14`
+- legacy-full: `8`
+- reduced-form: `1`
+- policy-only: `0`
+- no local surface: `5`
 
 ### Legacy full surface (`docs/tech-stack.local.md` + `policy/stack-lane.json`)
 
 - `packages/pi-activity-strip`
 - `packages/pi-autonomous-session-control`
+- `packages/pi-context-overlay`
 - `packages/pi-interaction/pi-interaction`
+- `packages/pi-little-helpers`
 - `packages/pi-ontology-workflows`
 - `packages/pi-society-orchestrator`
 - `packages/pi-vault-client`
 
 ### Reduced-form package-local surface (`docs/tech-stack.local.md` only)
 
-- `packages/pi-interaction`
+- `packages/pi-interaction` (`package-group-root`)
+
+### Policy-only package-local surface (`policy/stack-lane.json` only)
+
+- none
 
 ### No package-local tech-stack review surface today
 
@@ -90,3 +106,9 @@ It makes the current state explicit so template and package follow-up can distin
 - packages that still rely on the older full surface
 - package roots already closer to reduced form
 - package members with no local tech-stack review surface at all
+
+Notable refresh outcome for the current alignment wave:
+
+- recent package/template alignment leaves `packages/pi-context-overlay` and `packages/pi-little-helpers` in the same legacy-full bucket as the older simple-package roots
+- no package is currently in a `policy-only` intermediate state
+- the only reduced-form local surface is still the `packages/pi-interaction` package-group root

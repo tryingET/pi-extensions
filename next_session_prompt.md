@@ -40,7 +40,7 @@ Do **not** treat this file as a live status database.
   - `docs/project/tactical_goals.md`
   - `docs/project/operating_plan.md`
 - Latest root diary pointer:
-  - `diary/2026-03-30--docs-root-direction-decomposition-wave.md`
+  - `diary/2026-03-30--refresh-tech-stack-review-surface-audit.md`
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
@@ -70,8 +70,7 @@ Do **not** treat this file as a live status database.
    - `docs/project/strategic_goals.md`
    - `docs/project/tactical_goals.md`
    - `docs/project/operating_plan.md`
-2. Execute the active root operating slices already materialized in AK:
-   - `#596` refresh the live tech-stack review surface audit after recent package/template alignment
+2. Execute the remaining active root operating slice already materialized in AK:
    - `#597` define the root-side reduced-form migration contract for the remaining legacy-full package surfaces
 3. Use the canonical root evidence/orientation docs while doing that work:
    - `docs/tech-stack.local.md`
