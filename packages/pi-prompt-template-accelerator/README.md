@@ -49,7 +49,7 @@ Hint-aware: reads template lines to infer slot types from keywords.
 - `/ptx-select [partial]` opens the same picker explicitly.
 - PTX picker candidates now include only prompt commands with a usable template path, so picker selection stays aligned with the PTX contract of producing a fully prefilled command.
 - When multiple packages expose the same prompt name, PTX now carries the exact selected prompt metadata and adds origin detail to duplicate entries so the chosen template stays stable.
-- Use `/ptx-debug-commands [query]` to inspect visible prompt commands, paths, and inferred arg contracts.
+- Use `/ptx-debug-commands [query]` in a UI session to inspect visible prompt commands, paths, and inferred arg contracts.
 - Mode is reported in notifications:
   - `mode=fzf` when `fzf` ranking is available
   - `mode=fallback` when deterministic in-app ranking is used
@@ -96,7 +96,7 @@ See `~/ai-society/softwareco/infra/workstation/prompts/triggers/` for the full s
   - PTX registers prompt-template runtime ownership and observed model lifecycle in `@tryinget/pi-runtime-registry`
   - PTX still reports `deterministic-only` suggestion mode and **does not** use the active model for slot filling today
 - Diagnostics available:
-  - `/ptx-debug-commands [query]`
+  - `/ptx-debug-commands [query]` (UI sessions only)
   - `/ptx-fzf-spike`
 - Current semantic ceiling:
   - PTX objective extraction is still heuristic and may fall back to `"<MUST_REPLACE_PRIMARY_OBJECTIVE>"` when no trustworthy objective is available
@@ -128,16 +128,19 @@ npm run test:smoke:non-ui
   - the token after `$$` must be a non-empty slash command (for example `$$ /inv`, not `$$ /`)
 - `No prompt template selected (fzf-not-installed)`
   - install `fzf`, or keep using fallback ranking mode
-- `No prompt template selected (prompt-command-source-unavailable)`
-  - ensure prompt templates are loaded (avoid `--no-prompt-templates`)
-- `No prompt template selected (no-prompt-templates)`
-  - there are no prompt commands in the current session
-- `No prompt template selected (no-prefillable-prompt-templates)`
-  - prompt commands exist, but none expose a usable template path for PTX picker prefill
+- `No prompt templates available (prompt-command-source-unavailable)`
+  - PTX could not inspect any commands from `pi.getCommands()`
+  - confirm prompt-template discovery is enabled for this session (avoid `--no-prompt-templates`), then reload
+- `No prompt templates available (no-prompt-templates)`
+  - PTX can see commands, but none are prompt-template commands in this session
+  - verify the expected templates are loaded, then use `/ptx-debug-commands [query]` in a UI session to inspect visible prompt commands and paths
+- `No prompt templates available (no-prefillable-prompt-templates)`
+  - prompt commands are visible, but none expose a usable template path for PTX picker prefill
+  - use `/ptx-debug-commands [query]` in a UI session to inspect path/status drift
 - `Cannot read template: ...`
   - the selected template path is unavailable/unreadable
 - `PTX Debug Commands`
-  - use `/ptx-debug-commands [query]` to inspect which visible prompt commands are prefillable and what arg contracts they expose
+  - `/ptx-debug-commands [query]` is UI-only and shows which visible prompt commands are prefillable plus their arg contracts/path status
 
 ## Release + security baseline
 

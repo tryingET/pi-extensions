@@ -41,6 +41,7 @@ All notable changes to this project should be documented here.
 - PTX live-picker selections now preserve exact selected prompt metadata instead of re-resolving only by slash-command name, avoiding duplicate-name drift across installed packages.
 - PTX picker candidates now include only prompt commands with a usable template path, keeping picker selection aligned with the fully-prefilled-command contract.
 - PTX now prefills the raw slash command only for direct `$$ /name` fallback when a prompt command cannot provide a readable template path or richer live transform cannot be built, avoiding empty-editor outcomes without weakening picker semantics.
+- PTX no-candidate warnings now distinguish prompt-command discovery failure, missing prompt-template commands, and non-prefillable prompt-template metadata drift, with actionable guidance that points operators to `/ptx-debug-commands [query]` in UI sessions when appropriate.
 - Package migrated into `pi-extensions` monorepo under `packages/pi-prompt-template-accelerator`.
 - Live trigger bridge now targets pi-interaction split package surfaces:
   - primary: `@tryinget/pi-trigger-adapter`

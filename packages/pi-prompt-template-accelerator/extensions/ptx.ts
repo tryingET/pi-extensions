@@ -21,6 +21,10 @@ import {
   unregisterPtxCapabilityBridges,
 } from "../src/ptxRuntimeRegistry.js";
 import { toPtxCandidates } from "../src/ptxCandidateAdapter.js";
+import {
+  formatNoPromptTemplateAvailabilityWarning,
+  formatNoPromptTemplateSelectionWarning,
+} from "../src/ptxNoCandidateMessage.js";
 import { loadPtxPolicyConfig } from "../src/ptxPolicyConfig.js";
 
 const PREFIX = "$$";
@@ -403,8 +407,7 @@ async function maybeRegisterLiveTrigger(options: {
         }
       },
       onNoCandidates: ({ reason, api }: any) => {
-        const suffix = reason ? ` (${reason})` : "";
-        api?.notify?.(`No prompt templates available${suffix}.`, "warning");
+        api?.notify?.(formatNoPromptTemplateAvailabilityWarning(reason), "warning");
       },
       onError: ({ error, api }: any) => {
         api?.notify?.(`PTX live picker error: ${asErrorMessage(error)}`, "error");
@@ -510,8 +513,7 @@ export default function ptxExtension(pi: ExtensionAPI) {
       });
 
       if (!selection.selected) {
-        const reason = selection.reason ? ` (${selection.reason})` : "";
-        ctx.ui.notify(`No prompt template selected${reason}.`, "warning");
+        ctx.ui.notify(formatNoPromptTemplateSelectionWarning(selection.reason), "warning");
         return { action: "handled" as const };
       }
 
@@ -593,8 +595,7 @@ export default function ptxExtension(pi: ExtensionAPI) {
       });
 
       if (!selection.selected) {
-        const reason = selection.reason ? ` (${selection.reason})` : "";
-        ctx.ui.notify(`No prompt template selected${reason}.`, "warning");
+        ctx.ui.notify(formatNoPromptTemplateSelectionWarning(selection.reason), "warning");
         return;
       }
 
