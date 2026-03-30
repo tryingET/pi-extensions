@@ -404,4 +404,4 @@ During `prepack`, those GitHub blob links are pinned to the exact source commit 
 - [Replay docs/tests diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-vre-10-docs-tests.md)
 - [Previous receipt hardening diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-receipt-hardening.md)
 - [V4 runtime-receipts binding diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-21-v4-runtime-receipts-runtime-target-binding.md)
-- [Next session prompt](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/NEXT_SESSION_PROMPT.md)
+- [Next session prompt](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/next_session_prompt.md)

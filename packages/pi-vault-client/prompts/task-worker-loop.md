@@ -38,7 +38,7 @@ The trailing input must be a JSON object with this shape:
   "context_docs": [
     "README.md",
     "docs/dev/vault-execution-receipts.md",
-    "NEXT_SESSION_PROMPT.md"
+    "next_session_prompt.md"
   ],
   "agent_id": "pi-vault-worker",
   "mode": "execute",

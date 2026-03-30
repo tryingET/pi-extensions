@@ -427,7 +427,7 @@ That artifact can live in Prompt Vault docs or governance tracking, but it shoul
 
 - [Live render-engine validation](live-render-engine-validation.md) records installed-package evidence for current behavior.
 - [README](../../README.md) describes the runtime contract seen by package users.
-- [Next session prompt](../../NEXT_SESSION_PROMPT.md) tracks the remaining implementation work around tool context and rollout handling.
+- [Next session prompt](../../next_session_prompt.md) tracks the remaining implementation work around tool context and rollout handling.
 
 ## Success condition for the rollout boundary
 

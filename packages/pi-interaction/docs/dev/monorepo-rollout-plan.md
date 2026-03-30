@@ -219,7 +219,7 @@ The runtime should additionally own:
    - Merge intentionally (do not blindly overwrite) for high-context files:
      - `README.md`
      - `AGENTS.md`
-     - `NEXT_SESSION_PROMPT.md` / handoff prompt equivalents
+     - `next_session_prompt.md` / handoff prompt equivalents
 
 6. Align profile defaults with governance intent.
    - Use tpl-template profile policy as baseline (`internal-governed` default for release-enabled internal repos unless explicitly public).

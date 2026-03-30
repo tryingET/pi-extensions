@@ -40,7 +40,7 @@ These are product implementation, not scaffold drift:
 
 These were updated to fit monorepo-package reality better:
 - `README.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`
 - `docs/dev/trusted_publishing.md`
 
 ## Remaining deliberate differences from bare scaffold

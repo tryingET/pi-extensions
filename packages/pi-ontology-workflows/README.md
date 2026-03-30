@@ -273,7 +273,7 @@ Use these values when wiring monorepo-level release-please component maps.
 - [Project resources](docs/project/resources.md)
 - [Architecture decision](docs/decisions/2026-03-14-stable-core-thin-adapters.md)
 - [Trusted publishing runbook](docs/dev/trusted_publishing.md)
-- [Next session prompt](NEXT_SESSION_PROMPT.md)
+- [Next session prompt](next_session_prompt.md)
 
 ## Copier lifecycle policy
 

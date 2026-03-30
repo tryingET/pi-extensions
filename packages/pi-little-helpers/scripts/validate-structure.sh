@@ -13,7 +13,7 @@ required_files=(
   ".vscode/settings.json"
   ".copier-answers.yml"
   "package.json"
-  "NEXT_SESSION_PROMPT.md"
+  "next_session_prompt.md"
   "docs/org/operating_model.md"
   "docs/project/foundation.md"
   "docs/project/vision.md"

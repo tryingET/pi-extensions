@@ -30,7 +30,7 @@ system4d:
 - `docs/dev/status.md` is gone.
 - Package truth now lives in:
   - `README.md` for durable repo/operator guidance
-  - `NEXT_SESSION_PROMPT.md` for active fresh-context handoff
+  - `next_session_prompt.md` for active fresh-context handoff
 - Package docs/scripts were updated to stop referring to a package-local status snapshot:
   - `README.md`
   - `docs/dev/EXTENSION_SOP.md`
@@ -170,7 +170,7 @@ After verifying a stable live runtime, should PTX remain deterministic-only for 
 - `src/ptxCandidateAdapter.js`
 - `tests/non-ui-mixed-extension-smoke.test.ts`
 - `README.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`
 - `../agent-kernel/README.md`
 
 ## Success condition for the next slice

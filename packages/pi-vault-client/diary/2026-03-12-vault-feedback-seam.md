@@ -25,7 +25,7 @@ system4d:
 - added focused direct seam coverage in `tests/vault-feedback.test.mjs`
 - updated transpiled runtime test harness file lists so `src/vaultDb.ts` imports continue to work under isolated test harnesses
 - updated the architecture regression test to guard the new feedback seam instead of assuming feedback mutation logic still lives in `src/vaultDb.ts`
-- updated `NEXT_SESSION_PROMPT.md` so future work touching `src/vaultDb.ts` or mutation resolution also reads this diary and the focused feedback tests
+- updated `next_session_prompt.md` so future work touching `src/vaultDb.ts` or mutation resolution also reads this diary and the focused feedback tests
 - updated `biome.jsonc` to ignore generated `src/vaultFeedback.js`
 
 ## Why

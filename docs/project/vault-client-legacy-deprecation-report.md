@@ -127,7 +127,7 @@ Legacy paths now owned by `packages/pi-vault-client`:
 - `AGENTS.md`
 - `CHANGELOG.md`
 - `LICENSE`
-- `NEXT_SESSION_PROMPT.md` (canonical package handoff)
+- `next_session_prompt.md` (canonical package handoff)
 - `README.md`
 - `biome.jsonc`
 - `docs/`
@@ -151,7 +151,7 @@ Legacy paths now owned by `packages/pi-vault-client`:
 Useful historical context preserved only in the final archive:
 - legacy standalone repo layout as a historical artifact
 - standalone-only release/workflow metadata no longer appropriate for package-local ownership
-- the rewritten legacy `NEXT_SESSION_PROMPT.md` deprecation handoff
+- the rewritten legacy `next_session_prompt.md` deprecation handoff
 - old relocation handoff doc:
   - `docs/dev/prompt-vault-v2-relocation-handoff.md`
 

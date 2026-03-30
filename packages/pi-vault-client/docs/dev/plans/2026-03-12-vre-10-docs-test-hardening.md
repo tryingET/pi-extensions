@@ -45,6 +45,6 @@ Complete the receipts/replay backlog by hardening operator-facing docs and focus
 - `docs/dev/vault-execution-receipts.md`
 - `docs/dev/plans/2026-03-12-vre-10-docs-test-hardening.md`
 - `diary/2026-03-12-vre-10-docs-tests.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`
 - `tests/vault-replay.test.mjs`
 - `tests/vault-commands.test.mjs`

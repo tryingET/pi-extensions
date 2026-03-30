@@ -59,7 +59,7 @@ Reason: the new report-format and missing-receipt assertions stay adjacent to th
   - `drift`
   - `unavailable`
   - non-visible-as-missing behavior on interactive and headless surfaces
-- `NEXT_SESSION_PROMPT.md` now points future sessions at fresh AK truth instead of another pinned VRE slice.
+- `next_session_prompt.md` now points future sessions at fresh AK truth instead of another pinned VRE slice.
 
 ## Recommended next slice
 Do **not** assume another receipts/replay task exists.

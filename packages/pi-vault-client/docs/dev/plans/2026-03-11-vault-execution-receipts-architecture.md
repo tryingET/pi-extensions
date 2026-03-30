@@ -28,4 +28,4 @@ Author `docs/dev/vault-execution-receipts.md` as the v1 architecture note for ad
 
 ## Planned files
 - `docs/dev/vault-execution-receipts.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`

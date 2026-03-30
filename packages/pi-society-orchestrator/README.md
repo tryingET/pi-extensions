@@ -109,7 +109,7 @@ Primary tools and commands exposed by the imported extension include:
 - Runtime hardening is in place for agent/team routing, shared execution/evidence policy, timeout-bound supervised lower-plane calls, and `rocs-cli`-backed ontology resolution.
 - Installed-package `release:check` now proves timeout/truncation/team-mismatch behavior through a deterministic headless harness against the installed tarball.
 - Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, raw society read/query migration is not finished, and interactive `/reload` parity is still outside the routine release-check harness.
-- Keep this package's current truth in `README.md` + `NEXT_SESSION_PROMPT.md`, not a separate `status.md` mirror.
+- Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Quickstart
 

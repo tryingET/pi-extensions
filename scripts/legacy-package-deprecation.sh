@@ -11,7 +11,7 @@ Usage:
 Commands:
   inspect            Emit a JSON summary for legacy-repo shutdown planning.
   relocate-sessions  Dry-run by default; with --execute, move the Pi session-history dir.
-  render-handoff     Print a deprecation handoff for the legacy NEXT_SESSION_PROMPT.md.
+  render-handoff     Print a deprecation handoff for the legacy next_session_prompt.md.
 
 Notes:
   - Session directory names are derived from the full absolute cwd path.
@@ -288,7 +288,7 @@ case "$command" in
     printf '    "validate canonical package or package-group",\n'
     printf '    "validate monorepo root",\n'
     printf '    "classify legacy files into moved-to-root, moved-to-package, archive-only, runtime-junk, safe-to-delete",\n'
-    printf '    "rewrite legacy NEXT_SESSION_PROMPT.md as deprecation handoff",\n'
+    printf '    "rewrite legacy next_session_prompt.md as deprecation handoff",\n'
     printf '    "relocate Pi session history using full-path-derived session directory names",\n'
     printf '    "create exactly one final tar.gz archive before deletion"\n'
     printf '  ]\n'

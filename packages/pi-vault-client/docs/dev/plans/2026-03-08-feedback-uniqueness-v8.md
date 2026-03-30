@@ -1,7 +1,7 @@
 ---
 summary: "Plan for closing the execution-bound feedback uniqueness gap via Prompt Vault schema v8 and client compatibility updates."
 read_when:
-  - "Implementing the remaining execution-feedback correctness item from pi-vault-client NEXT_SESSION_PROMPT.md"
+  - "Implementing the remaining execution-feedback correctness item from pi-vault-client next_session_prompt.md"
 system4d:
   container: "Cross-repo closeout plan spanning Prompt Vault schema and pi-vault-client compatibility."
   compass: "Land schema-level feedback uniqueness without reopening solved client-runtime ambiguity."
@@ -12,7 +12,7 @@ system4d:
 # Plan: feedback uniqueness via Prompt Vault schema v8
 
 ## Scope
-Close the last correctness gap called out in `NEXT_SESSION_PROMPT.md` by enforcing **one feedback row per execution** at the Prompt Vault schema layer, then align `pi-vault-client` with the new schema version.
+Close the last correctness gap called out in `next_session_prompt.md` by enforcing **one feedback row per execution** at the Prompt Vault schema layer, then align `pi-vault-client` with the new schema version.
 
 ## Acceptance criteria
 - Prompt Vault schema adds a DB-enforced uniqueness guarantee on `feedback.execution_id`.
@@ -46,4 +46,4 @@ Close the last correctness gap called out in `NEXT_SESSION_PROMPT.md` by enforci
 - `src/vaultCommands.ts`
 - `src/vaultTools.ts`
 - `tests/vault-query-regression.test.mjs`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`

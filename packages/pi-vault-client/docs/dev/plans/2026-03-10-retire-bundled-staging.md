@@ -31,4 +31,4 @@ Remove the temporary `bundleDependencies` + `prepare-publish-manifest.mjs` bridg
 - `tests/vault-commands.test.mjs`
 - `tests/vault-query-regression.test.mjs`
 - `README.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`

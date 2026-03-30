@@ -18,7 +18,7 @@ system4d:
   - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-context-overlay`
 - Monorepo root context:
   - use `~/ai-society/softwareco/owned/pi-extensions/AGENTS.md` plus package-local handoff/docs
-  - there is currently no root-level `NEXT_SESSION_PROMPT.md`
+  - there is currently no root-level `next_session_prompt.md`
 
 ## Current truth
 

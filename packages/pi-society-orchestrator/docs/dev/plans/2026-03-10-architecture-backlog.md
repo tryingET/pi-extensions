@@ -118,12 +118,12 @@ Status update:
 
 1. Created this planning artifact.
 2. Drafted a proposed ADR for control-plane boundaries.
-3. Updated `NEXT_SESSION_PROMPT.md` to point the next session at the new architecture artifacts.
+3. Updated `next_session_prompt.md` to point the next session at the new architecture artifacts.
 4. Ran `npm run check` after doc updates.
 5. Inventoried current local raw access points in `extensions/society-orchestrator.ts`.
 6. Added a dedicated Phase A discovery artifact for UI/runtime capability mapping.
 7. Updated the backlog + HTN to make information gathering explicit before new UI/extraction decisions.
-8. Updated `NEXT_SESSION_PROMPT.md` again so the next session starts with Phase A capability discovery.
+8. Updated `next_session_prompt.md` again so the next session starts with Phase A capability discovery.
 9. Validated Phase A against upstream Pi docs/examples, `pi-interaction` package boundaries/runtime code, ASC status, and `pi-vs-claude-code` pattern extensions.
 10. Published an explicit ownership matrix separating generic UI, interaction runtime, execution runtime, pattern reuse, and control-plane ownership.
 11. Re-scoped package docs toward a coordination/control-plane charter.

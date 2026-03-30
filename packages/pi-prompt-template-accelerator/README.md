@@ -262,7 +262,7 @@ Then in Pi:
 
 ## Task management and handoff authority
 
-- Use `NEXT_SESSION_PROMPT.md` as the active handoff for this package.
+- Use `next_session_prompt.md` as the active handoff for this package.
 - Do **not** keep a separate package-local status snapshot document.
 - For canonical task/evidence/work-item authority, use Agent Kernel (`ak`) instead of ad-hoc markdown tracking:
   - [agent-kernel README](../agent-kernel/README.md)
@@ -301,5 +301,5 @@ source ./.ak-env-v2
 - [Tactical goals](docs/project/tactical_goals.md)
 - [Contributor guide](docs/dev/CONTRIBUTING.md)
 - [Extension SOP](docs/dev/EXTENSION_SOP.md)
-- [Next session prompt](NEXT_SESSION_PROMPT.md)
+- [Next session prompt](next_session_prompt.md)
 - [Agent Kernel task/work-item authority](../agent-kernel/README.md)

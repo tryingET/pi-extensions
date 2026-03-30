@@ -21,4 +21,4 @@ Ship one useful command behavior end-to-end.
 2. Implement logic in `extensions/`.
 3. Add tests in `tests/`.
 4. Run `npm run check`.
-5. Update `README.md`, `NEXT_SESSION_PROMPT.md`, and `CHANGELOG.md` as needed.
+5. Update `README.md`, `next_session_prompt.md`, and `CHANGELOG.md` as needed.

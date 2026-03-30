@@ -14,7 +14,7 @@ system4d:
 
 ## Scope
 
-Complete the bounded execution-contract pack from `NEXT_SESSION_PROMPT.md`:
+Complete the bounded execution-contract pack from `next_session_prompt.md`:
 - unify timeout / abort / protocol-failure semantics
 - unify evidence recording / fallback eligibility across direct dispatch and loops
 - avoid caller-specific interpretation drift

@@ -25,7 +25,7 @@ Move `packages/pi-prompt-template-accelerator` onto the root-owned monorepo rele
 ## Planned files
 - `package.json`
 - `README.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`
 - `CHANGELOG.md`
 - `scripts/validate-structure.sh`
 - `.release-please-config.json` (delete)

@@ -26,7 +26,7 @@ system4d:
 - added focused direct seam coverage in `tests/vault-mutations.test.mjs`
 - updated transpiled runtime test harness file lists so `src/vaultDb.ts` imports continue to work under isolated test harnesses
 - updated the architecture regression test to guard the new mutation seam instead of assuming the helper bodies still live inside `src/vaultDb.ts`
-- updated `NEXT_SESSION_PROMPT.md` so future work touching `src/vaultDb.ts` or mutation resolution also reads this diary and the focused mutation tests
+- updated `next_session_prompt.md` so future work touching `src/vaultDb.ts` or mutation resolution also reads this diary and the focused mutation tests
 - updated `biome.jsonc` to ignore generated `src/vaultMutations.js`
 
 ## Why

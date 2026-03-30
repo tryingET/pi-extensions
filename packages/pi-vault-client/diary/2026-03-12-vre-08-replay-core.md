@@ -62,7 +62,7 @@ It reuses the stored `framework_resolution.selected_names` snapshot so replay st
 - `README.md`
 - `docs/dev/vault-execution-receipts.md`
 - `docs/dev/plans/2026-03-12-vre-08-replay-core.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`
 
 ## Validation run
 Focused proof before the full package gate:

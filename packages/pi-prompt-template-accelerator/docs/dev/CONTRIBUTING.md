@@ -30,7 +30,7 @@ system4d:
 
 - Use Agent Kernel (`ak`) as the canonical task/evidence/work-item authority when tracking work for this package.
 - This package does **not** maintain a `governance/work-items.json` projection.
-- Keep `README.md` + `NEXT_SESSION_PROMPT.md` current instead of recreating a separate package-local status document.
+- Keep `README.md` + `next_session_prompt.md` current instead of recreating a separate package-local status document.
 
 ## Copier policy
 

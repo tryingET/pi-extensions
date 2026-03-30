@@ -78,9 +78,9 @@ Route follow-up work as follows:
 - template output changes:
   - `~/ai-society/softwareco/owned/pi-extensions-template/NEXT_SESSION_PROMPT.md`
 - Nunjucks live verification:
-  - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/NEXT_SESSION_PROMPT.md`
+  - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/next_session_prompt.md`
 - session/handoff prompt wording and prompt-template work:
-  - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator/NEXT_SESSION_PROMPT.md`
+  - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator/next_session_prompt.md`
 
 ## Practical interpretation
 

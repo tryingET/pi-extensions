@@ -50,4 +50,4 @@ Implement internal replay-core helpers for local receipt replay by `execution_id
 - `tests/vault-replay.test.mjs`
 - `docs/dev/vault-execution-receipts.md`
 - `diary/2026-03-12-vre-08-replay-core.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`

@@ -178,4 +178,4 @@ If you want this for all current tabs:
 - [Project vision](docs/project/vision.md)
 - [Project resources](docs/project/resources.md)
 - [Verification notes](docs/project/verification.md)
-- [Next session prompt](NEXT_SESSION_PROMPT.md)
+- [Next session prompt](next_session_prompt.md)

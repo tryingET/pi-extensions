@@ -1,7 +1,7 @@
 ---
 summary: "Bounded plan for replacing the provider/auth-dependent installed-package smoke with a headless installed-runtime harness."
 read_when:
-  - "Implementing the hermetic installed-runtime smoke slice from NEXT_SESSION_PROMPT.md."
+  - "Implementing the hermetic installed-runtime smoke slice from next_session_prompt.md."
   - "Reviewing why release-check no longer needs ambient Pi auth or a live provider host for installed-package smoke."
 system4d:
   container: "Single-slice execution plan for release-smoke hardening."
@@ -14,7 +14,7 @@ system4d:
 
 ## Scope
 
-Complete only the first bounded pack from `NEXT_SESSION_PROMPT.md`:
+Complete only the first bounded pack from `next_session_prompt.md`:
 - make installed-package release smoke more hermetic
 - preserve proof for timeout, truncation, and team-mismatch behavior
 - remove dependency on ambient Pi auth and real provider execution for this smoke layer

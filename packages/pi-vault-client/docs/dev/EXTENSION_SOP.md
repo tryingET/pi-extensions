@@ -43,4 +43,4 @@ system4d:
 
 - Monitor regressions and user feedback.
 - Re-run validation after dependency/script changes.
-- Keep `README.md`, the relevant architecture notes in `docs/dev/`, repo-local `diary/` entries, and `NEXT_SESSION_PROMPT.md` current.
+- Keep `README.md`, the relevant architecture notes in `docs/dev/`, repo-local `diary/` entries, and `next_session_prompt.md` current.

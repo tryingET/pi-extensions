@@ -192,7 +192,7 @@ Fallback only if needed:
 
 ### 5. Rewrite the legacy handoff before deletion
 
-The legacy repo's `NEXT_SESSION_PROMPT.md` must become a short deprecation handoff.
+The legacy repo's `next_session_prompt.md` must become a short deprecation handoff.
 
 It should say:
 - canonical monorepo root path
@@ -201,7 +201,7 @@ It should say:
 - legacy repo is pending archive-and-delete workflow only
 
 Helper option:
-- `scripts/legacy-package-deprecation.sh render-handoff ...` prints a reusable deprecation handoff body that can be dropped into `NEXT_SESSION_PROMPT.md`
+- `scripts/legacy-package-deprecation.sh render-handoff ...` prints a reusable deprecation handoff body that can be dropped into `next_session_prompt.md`
 
 ### 6. Create exactly one archival artifact
 
@@ -249,7 +249,7 @@ Only then should the legacy repo be removed.
 - [ ] inventory diff created
 - [ ] legacy paths classified
 - [ ] Pi session history relocated using `old absolute path -> new absolute path`
-- [ ] legacy `NEXT_SESSION_PROMPT.md` rewritten as deprecation handoff
+- [ ] legacy `next_session_prompt.md` rewritten as deprecation handoff
 - [ ] one-shot `tar.gz` archive created and checked
 - [ ] canonical package validation passes
 - [ ] monorepo root validation passes
@@ -264,7 +264,7 @@ Only then should the legacy repo be removed.
 - [ ] inventory diff created
 - [ ] legacy paths classified with `root vs group-root vs child-package` ownership
 - [ ] Pi session history relocated using `old absolute path -> new absolute path`
-- [ ] legacy `NEXT_SESSION_PROMPT.md` rewritten as deprecation handoff
+- [ ] legacy `next_session_prompt.md` rewritten as deprecation handoff
 - [ ] one-shot `tar.gz` archive created and checked
 - [ ] canonical group/package validation passes
 - [ ] monorepo root validation passes

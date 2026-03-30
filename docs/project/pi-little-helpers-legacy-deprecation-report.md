@@ -87,7 +87,7 @@ Result:
 
 ## Legacy handoff rewrite
 
-Before archival/deletion, the legacy repo `NEXT_SESSION_PROMPT.md` was rewritten to a deprecation handoff that points operators to the canonical package path and forbids further implementation in the legacy folder.
+Before archival/deletion, the legacy repo `next_session_prompt.md` was rewritten to a deprecation handoff that points operators to the canonical package path and forbids further implementation in the legacy folder.
 
 ## Final archive artifact
 

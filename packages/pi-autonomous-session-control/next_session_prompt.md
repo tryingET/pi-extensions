@@ -50,7 +50,7 @@ Implemented improvements:
   - `canonicalOnlyFiles`
   - session-relocation plan + recommended action
   - ownership/classification outline for deterministic shutdown work
-- added `../../scripts/legacy-package-deprecation.sh render-handoff` to generate a deprecation handoff body for legacy `NEXT_SESSION_PROMPT.md`
+- added `../../scripts/legacy-package-deprecation.sh render-handoff` to generate a deprecation handoff body for legacy `next_session_prompt.md`
 - updated workflow docs in:
   - `../../docs/project/legacy-package-deprecation-workflow.md`
   - `../../docs/project/legacy-transition-backlog.md`

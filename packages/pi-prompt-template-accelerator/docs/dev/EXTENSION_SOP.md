@@ -40,5 +40,5 @@ system4d:
 
 - Monitor regressions and user feedback.
 - Re-run validation after dependency/script changes.
-- Keep `README.md` and `NEXT_SESSION_PROMPT.md` current.
+- Keep `README.md` and `next_session_prompt.md` current.
 - Use Agent Kernel (`ak`) as the canonical task/work-item authority when task tracking is needed; avoid inventing a second markdown status database.

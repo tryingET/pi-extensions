@@ -33,7 +33,7 @@ All notable changes to this project should be documented here.
 
 - Simplified README: removed scaffold template language, added install instructions.
 - Fixed EXTENSION_SOP.md: removed reference to deleted plans directory.
-- Updated NEXT_SESSION_PROMPT.md with current state.
+- Updated next_session_prompt.md with current state.
 
 ## [0.1.1](https://github.com/tryingET/pi-little-helpers/compare/v0.1.0...v0.1.1) (2026-02-27)
 

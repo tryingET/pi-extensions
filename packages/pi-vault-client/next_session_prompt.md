@@ -2,7 +2,7 @@
 summary: "Executable next-session launcher for pi-vault-client: reconstruct truth from commands, start from the post-VRE baseline, and execute the next ready AK task without reopening already-landed receipt/replay work unless validation proves regression."
 read_when:
   - "Starting the next focused session in packages/pi-vault-client."
-  - "Using @NEXT_SESSION_PROMPT.md as the launcher prompt instead of a passive handoff note."
+  - "Using @next_session_prompt.md as the launcher prompt instead of a passive handoff note."
 system4d:
   container: "Command-first launcher for the next ready pi-vault-client task after the VRE backlog closure."
   compass: "Prefer regenerated truth over stale prose, keep work task-local, and treat the receipt/replay backlog as landed baseline rather than open implementation work."
@@ -10,7 +10,7 @@ system4d:
   fog: "Main risks are trusting stale queue/session state, reopening VRE-02..10 without fresh evidence, or widening a local package task into unrelated Prompt Vault or AK changes."
 ---
 
-# NEXT_SESSION_PROMPT.md
+# next_session_prompt.md
 
 ## EXECUTION CONTRACT
 
@@ -93,7 +93,7 @@ Read at minimum:
 3. `diary/2026-03-12-vre-10-docs-tests.md`
 4. `diary/2026-03-12-vre-09-replay-surface.md`
 5. `diary/2026-03-12-vre-08-replay-core.md`
-6. `NEXT_SESSION_PROMPT.md`
+6. `next_session_prompt.md`
 
 If the ready task touches a different subsystem more directly, add the most relevant docs/source/tests for that subsystem before editing.
 

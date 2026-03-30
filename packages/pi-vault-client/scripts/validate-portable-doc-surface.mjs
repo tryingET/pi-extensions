@@ -7,7 +7,7 @@ import MarkdownIt from "markdown-it";
 const markdownParser = new MarkdownIt({ linkify: true });
 const DEFAULT_SOURCE_ROOTS = [
   "README.md",
-  "NEXT_SESSION_PROMPT.md",
+  "next_session_prompt.md",
   "docs",
   "diary",
   "prompts",

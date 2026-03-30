@@ -43,4 +43,4 @@ system4d:
 
 - Monitor regressions and user feedback.
 - Re-run validation after dependency/script changes.
-- Keep `README.md` and `NEXT_SESSION_PROMPT.md` current.
+- Keep `README.md` and `next_session_prompt.md` current.

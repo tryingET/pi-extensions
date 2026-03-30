@@ -21,4 +21,4 @@ Stop PTX from crashing when live-picker or trigger-style contexts do not provide
 2. Guard context inference so `sessionManager` / `getBranch()` are optional.
 3. Add a regression test using a trigger-like context with no `sessionManager`.
 4. Run `npm run check` and relevant smoke tests.
-5. Update `README.md`, `CHANGELOG.md`, and `NEXT_SESSION_PROMPT.md` to reflect the fix and next truthful priority.
+5. Update `README.md`, `CHANGELOG.md`, and `next_session_prompt.md` to reflect the fix and next truthful priority.
