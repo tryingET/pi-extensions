@@ -131,13 +131,15 @@ Status update:
 13. Drafted an ASC-owned public execution contract proposal at `docs/project/2026-03-10-rfc-asc-public-execution-contract.md`.
 14. Routed `cognitive_dispatch` evidence recording through a shared `ak`-first helper instead of a direct raw SQL insert, while keeping an explicit SQL fallback path.
 15. Aligned `runAk(...)` to the extension's configured society DB (`SOCIETY_DB`/`AK_DB`) so canonical-path evidence writes do not silently target a different database than the remaining raw paths.
+16. Moved `/evidence` onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper in `src/runtime/society.ts`.
 
 ## Immediate next leaves after Phase A
 
 1. Review/socialize the drafted ASC-owned public execution contract proposal and turn it into either an ASC implementation slice or an upstream/internal issue.
-2. Continue with the **remaining raw society read/query family** (`society_query`, `/evidence`) now that ontology reads are on the `rocs-cli` adapter path.
-3. Keep presentation helpers local unless a second real consumer proves extraction pressure.
-4. Continue to defer prompt-plane seam selection until the upstream `pi-vault-client` boundary lands.
+2. Decide whether the remaining `society_query` diagnostic exception should survive until a canonical AK read/query surface exists or be tightened further.
+3. Revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only evidence writes.
+4. Keep presentation helpers local unless a second real consumer proves extraction pressure.
+5. Continue to defer prompt-plane seam selection until the upstream `pi-vault-client` boundary lands.
 
 ## Execution-plane implementation checklist
 
@@ -151,7 +153,7 @@ Status update:
 
 | Current location | Current behavior | Intended canonical replacement | Status |
 |---|---|---|---|
-| `extensions/society-orchestrator.ts` (`society_query`, `/evidence`) | `SOCIETY_DB` + `querySociety` against raw sqlite for read-side diagnostics and evidence listing | `ak`-backed society-state adapter / explicit diagnostic exception if truly needed | pending |
+| `extensions/society-orchestrator.ts` + `src/runtime/society.ts` (`society_query`, `/evidence`) | `/evidence` now uses `ak evidence search`; `society_query` remains a dedicated raw sqlite diagnostic exception helper | canonical AK read/query surface when it exists; until then keep only the bounded diagnostic exception | partial |
 | `src/runtime/cognitive-tools.ts` | local prompt-vault lookup via `dolt sql` | deferred prompt-plane review against upstream `pi-vault-client` Vault execution boundary | deferred-upstream |
 | `src/runtime/evidence.ts` | evidence writes now route through shared `recordEvidence(...)` with `ak` first and explicit SQL fallback | canonical `ak` evidence path only (or explicit audited fallback) | partial |
 | `extensions/society-orchestrator.ts` + `src/runtime/ontology.ts` | ontology reads now resolve through shared ROCS build/id-index artifacts instead of local SQL table assumptions | `rocs-cli`-backed ontology adapter | complete |

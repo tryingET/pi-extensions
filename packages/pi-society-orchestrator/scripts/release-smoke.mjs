@@ -5,6 +5,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  assertDirectoriesMatchExactly,
+  settingsPackagesContainSpec,
+} from "./release-smoke-helpers.mjs";
 
 const agentDir = process.env.PI_CODING_AGENT_DIR;
 const packageSpec = process.env.PACKAGE_SPEC;
@@ -16,9 +20,8 @@ const settingsPath = path.join(agentDir, "settings.json");
 assert.ok(fs.existsSync(settingsPath), `Missing settings.json: ${settingsPath}`);
 
 const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const configuredPackages = Array.isArray(settings.packages) ? settings.packages : [];
 assert.ok(
-  configuredPackages.includes(packageSpec),
+  settingsPackagesContainSpec(settings, packageSpec),
   `Expected ${packageSpec} in ${settingsPath} packages[]`,
 );
 
@@ -50,9 +53,11 @@ assert.ok(
   `Installed package.json missing: ${installedPackageJsonPath}`,
 );
 
-assertInstalledPackageMatchesTarball({
-  tarballPackageDir,
-  installedPackageDir,
+assertDirectoriesMatchExactly({
+  expectedDir: tarballPackageDir,
+  actualDir: installedPackageDir,
+  actualLabel: "installed package",
+  ignoredPathSegments: ["node_modules"],
 });
 
 const importRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-release-smoke-import-"));
@@ -367,51 +372,6 @@ function resolveLocalTarballPath(spec) {
   }
 
   return spec.slice("npm:".length);
-}
-
-function assertInstalledPackageMatchesTarball(params) {
-  const tarballFiles = listRelativeFiles(params.tarballPackageDir);
-  assert.ok(tarballFiles.length > 0, "Expected tarball to contain packaged files");
-
-  for (const relativePath of tarballFiles) {
-    const tarballFilePath = path.join(params.tarballPackageDir, relativePath);
-    const installedFilePath = path.join(params.installedPackageDir, relativePath);
-
-    assert.ok(
-      fs.existsSync(installedFilePath),
-      `Installed package missing tarball file: ${relativePath}`,
-    );
-
-    const tarballContent = fs.readFileSync(tarballFilePath);
-    const installedContent = fs.readFileSync(installedFilePath);
-    assert.equal(
-      Buffer.compare(tarballContent, installedContent),
-      0,
-      `Installed package content drifted from tarball for ${relativePath}`,
-    );
-  }
-}
-
-function listRelativeFiles(rootDir) {
-  const files = [];
-  const queue = [""];
-
-  while (queue.length > 0) {
-    const relativeDir = queue.shift();
-    const absoluteDir = path.join(rootDir, relativeDir || ".");
-    for (const entry of fs.readdirSync(absoluteDir, { withFileTypes: true })) {
-      const relativePath = relativeDir ? path.join(relativeDir, entry.name) : entry.name;
-      if (entry.isDirectory()) {
-        queue.push(relativePath);
-        continue;
-      }
-      if (entry.isFile()) {
-        files.push(relativePath);
-      }
-    }
-  }
-
-  return files.sort();
 }
 
 function readNonEmptyLines(filePath) {

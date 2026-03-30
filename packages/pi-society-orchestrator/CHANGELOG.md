@@ -28,6 +28,7 @@ All notable changes to this project should be documented here.
 - Replaced package-local `docs/dev/` usage with `docs/project/` + `docs/adr/` nomenclature and updated package handoff/README links accordingly.
 - Clarified monorepo AK task/work-item guidance in AGENTS/README: use the repo-root `./scripts/ak.sh` wrapper (or `../../scripts/ak.sh` from this package) instead of treating a package folder as an independent repo root.
 - Updated the package template in parallel so new monorepo package scaffolds inherit the same docs placement and AK-wrapper guidance.
+- Moved `/evidence` off raw sqlite reads onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper.
 
 ## [0.1.0] - 2026-02-08
 

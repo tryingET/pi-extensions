@@ -743,6 +743,15 @@ test("session team store persists team selections by session key", () => {
   assert.equal(store.getTeam(otherCtx), "full");
 });
 
+test("session team store preserves team selections across session identity shape changes", () => {
+  const store = createSessionTeamStore();
+  const sessionManager = { id: "session-a" };
+
+  assert.equal(store.setTeam({ sessionManager }, "quality"), true);
+  assert.equal(store.getTeam({ sessionManager, sessionKey: "session-key-a" }), "quality");
+  assert.equal(store.getTeam({ sessionKey: "session-key-a" }), "quality");
+});
+
 test("session team store evicts the oldest session key when capacity is exceeded", () => {
   const store = createSessionTeamStore("full", { maxSessionKeys: 2 });
 

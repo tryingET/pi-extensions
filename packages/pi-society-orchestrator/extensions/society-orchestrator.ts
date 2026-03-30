@@ -14,7 +14,7 @@
  *   /cognitive                     — List available cognitive tools
  *   /agents-team                   — Select agent team
  *   /ontology <concept>            — Query ontology
- *   /evidence                      — Show evidence stats
+ *   /evidence                      — Show recent evidence via ak evidence search
  *   /loops                         — List available loop types
  *   /loop <type> <objective>       — Execute a loop
  *
@@ -25,7 +25,7 @@
  *
  * Tools:
  *   cognitive_dispatch             — Cognitive-first agent dispatch
- *   society_query                  — Read-only diagnostic SQL against society.db
+ *   society_query                  — Bounded read-only diagnostic SQL against society.db
  *   evidence_record                — Record evidence
  *   ontology_context               — Get relevant ontology
  *   loop_execute                   — Execute structured loops
@@ -45,11 +45,7 @@ import {
   autoSelectAgent,
   resolveAgentForTeam,
 } from "../src/runtime/agent-routing.ts";
-import {
-  isBoundaryFailure,
-  isReadOnlySql,
-  querySqliteJsonAsync,
-} from "../src/runtime/boundaries.ts";
+import { isBoundaryFailure } from "../src/runtime/boundaries.ts";
 import { getCognitiveToolByName, listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
 import {
   type EvidenceEntry,
@@ -58,6 +54,7 @@ import {
 } from "../src/runtime/evidence.ts";
 import { getExecutionIcon } from "../src/runtime/execution-status.ts";
 import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/ontology.ts";
+import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
 import { buildCombinedSystemPrompt, spawnPiSubagent } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore } from "../src/runtime/team-state.ts";
 
@@ -86,12 +83,8 @@ const AGENT_KERNEL =
   process.env.AGENT_KERNEL || (fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak");
 
 // ============================================================================
-// DATABASE QUERIES
+// RUNTIME ADAPTERS
 // ============================================================================
-
-function querySociety<T>(sql: string, signal?: AbortSignal) {
-  return querySqliteJsonAsync<T>(SOCIETY_DB, sql, signal);
-}
 
 function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal) {
   return recordEvidence(entry, signal, {
@@ -120,8 +113,8 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "society_query",
     label: "Society Query",
-    description: "Execute a read-only diagnostic SQL query against society.db.",
-    promptSnippet: "Run a read-only diagnostic SQL query against society.db.",
+    description: "Execute a bounded read-only diagnostic SQL query against society.db.",
+    promptSnippet: "Run a bounded read-only diagnostic SQL query against society.db.",
     promptGuidelines: [
       "Use society_query for diagnostic reads against society.db instead of inventing schema details.",
       "Keep queries read-only and reasonably scoped so results stay inspectable.",
@@ -129,33 +122,38 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       query: Type.String({ description: "Read-only SQL query to execute" }),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, signal) {
       const { query } = params as { query: string };
 
-      if (!isReadOnlySql(query)) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "society_query only allows read-only SELECT/WITH/EXPLAIN/PRAGMA statements.",
-            },
-          ],
-          details: { ok: false, rowCount: 0, error: "read-only-query-required" },
-        };
-      }
-
-      const results = await querySociety<Record<string, unknown>>(query);
+      const results = await runSocietyDiagnosticQuery<Record<string, unknown>>(
+        query,
+        {
+          akPath: AGENT_KERNEL,
+          societyDb: SOCIETY_DB,
+        },
+        signal,
+      );
       if (isBoundaryFailure(results)) {
         return {
           content: [{ type: "text", text: `society_query failed: ${results.error}` }],
-          details: { ok: false, rowCount: 0, error: results.error },
+          details: {
+            ok: false,
+            rowCount: 0,
+            error: results.error,
+            boundedDiagnosticException: true,
+          },
         };
       }
 
       if (results.value.length === 0) {
         return {
           content: [{ type: "text", text: "No results found." }],
-          details: { ok: true, rowCount: 0, error: "" },
+          details: {
+            ok: true,
+            rowCount: 0,
+            error: "",
+            boundedDiagnosticException: true,
+          },
         };
       }
 
@@ -164,7 +162,12 @@ export default function (pi: ExtensionAPI) {
 
       return {
         content: [{ type: "text", text: truncated }],
-        details: { ok: true, rowCount: results.value.length, error: "" },
+        details: {
+          ok: true,
+          rowCount: results.value.length,
+          error: "",
+          boundedDiagnosticException: true,
+        },
       };
     },
     renderCall(args, theme) {
@@ -544,29 +547,32 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   });
 
   pi.registerCommand("evidence", {
-    description: "Show recent evidence from society.db",
+    description: "Show recent evidence via ak evidence search",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
-      const results = await querySociety<{
-        check_type: string;
-        result: string;
-        created_at: string;
-      }>("SELECT check_type, result, created_at FROM evidence ORDER BY created_at DESC LIMIT 20");
+      const results = await previewRecentEvidence(
+        {
+          akPath: AGENT_KERNEL,
+          societyDb: SOCIETY_DB,
+        },
+        undefined,
+        20,
+      );
       if (isBoundaryFailure(results)) {
         ctx.ui.notify(`Failed to query evidence: ${results.error}`, "error");
         return;
       }
 
-      if (results.value.length === 0) {
+      if (results.value.entryCount === 0) {
         ctx.ui.notify("No evidence recorded yet.", "info");
         return;
       }
 
-      const output = results.value
-        .map((r) => `${r.created_at?.slice(0, 19) || "?"} | ${r.check_type} = ${r.result}`)
-        .join("\n");
-      await ctx.ui.editor("Evidence Ledger", output);
+      const suffix = results.value.truncated
+        ? `\n\n… showing latest 20 of ${results.value.entryCount} evidence rows from ak evidence search.`
+        : "";
+      await ctx.ui.editor("Evidence Ledger", `${results.value.text}${suffix}`);
     },
   });
 

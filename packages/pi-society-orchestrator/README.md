@@ -92,23 +92,24 @@ The runtime extension surface still uses the existing `society-orchestrator` ide
 
 Primary tools and commands exposed by the imported extension include:
 
-- `society_query` (read-only diagnostic SQL only; read-only `WITH ... SELECT ...`, `SELECT`, `EXPLAIN`, and non-mutating `PRAGMA` forms are allowed)
+- `society_query` (explicit bounded diagnostic SQL exception only; read-only `WITH ... SELECT ...`, `SELECT`, `EXPLAIN`, and non-mutating `PRAGMA` forms are allowed)
 - `cognitive_dispatch`
 - `evidence_record`
 - `ontology_context` (now resolved through the sanctioned `rocs-cli` adapter path instead of the local `society.db` ontology table)
 - `loop_execute`
 - `/cognitive`
 - `/agents-team` (session-identity-scoped team selection for direct-dispatch and loop agents; incompatible loop/team combinations now fail explicitly instead of silently swapping roles)
-- `/evidence`
+- `/evidence` (recent evidence preview via `ak evidence search`)
 - `/ontology <query>`
 - `/loops`
 - `/loop <type> <objective>`
 
 ## Current runtime reality
 
-- Runtime hardening is in place for agent/team routing, shared execution/evidence policy, timeout-bound supervised lower-plane calls, and `rocs-cli`-backed ontology resolution.
+- Runtime hardening is in place for agent/team routing, shared execution/evidence policy, timeout-bound supervised lower-plane calls, `rocs-cli`-backed ontology resolution, and a dedicated society runtime helper for the residual read-side boundary.
+- `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
 - Installed-package `release:check` now proves timeout/truncation/team-mismatch behavior through a deterministic headless harness against the installed tarball.
-- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, raw society read/query migration is not finished, and interactive `/reload` parity is still outside the routine release-check harness.
+- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, and interactive `/reload` parity is still outside the routine release-check harness.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Quickstart
@@ -172,6 +173,7 @@ The runtime now also shares package-local helpers for:
 - abortable, timeout-bound, capture-bounded child-process supervision for `ak` and Pi subagents
 - explicit `societyDb` targeting for `ak`-backed runtime paths so ambient `AK_DB` does not silently override the configured package DB target
 - subagent prompt composition + spawn behavior across direct dispatch and loop execution
+- explicit society-read boundary helpers: `society_query` goes through a dedicated diagnostic exception helper, while `/evidence` now previews recent entries through `ak evidence search`
 
 Session team identity precedence is now explicit:
 1. `ctx.sessionKey`

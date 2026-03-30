@@ -190,22 +190,20 @@ JSON
   PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX" pi install "$PACKAGE_SPEC"
 
   echo "== verify tarball package recorded in settings"
-  TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
+  TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node --input-type=module <<'NODE'
+import fs from "node:fs";
+import path from "node:path";
+import { settingsPackagesContainSpec } from "./scripts/release-smoke-helpers.mjs";
+
 const settingsPath = path.join(process.env.TEST_AGENT_DIR, "settings.json");
 const packageSpec = process.env.PACKAGE_SPEC;
 const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const packages = Array.isArray(settings.packages) ? settings.packages : [];
-const found = packages.some((entry) => {
-  if (typeof entry === "string") return entry === packageSpec;
-  if (entry && typeof entry === "object") return entry.source === packageSpec;
-  return false;
-});
-if (!found) {
+
+if (!settingsPackagesContainSpec(settings, packageSpec)) {
   console.error(`Could not find ${packageSpec} in settings.packages`);
   process.exit(1);
 }
+
 console.log("Tarball package entry present in settings.packages.");
 NODE
 

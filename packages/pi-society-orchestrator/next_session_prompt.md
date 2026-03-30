@@ -1,5 +1,5 @@
 ---
-summary: "Handoff prompt for pi-society-orchestrator after the fail-closed routing, session-identity, execution-status, resource/lifecycle hardening, headless installed-runtime smoke, unified execution/evidence, rocs-backed ontology-adapter, lower-plane boundary hardening, and docs/AGENTS monorepo-alignment passes. The next bounded work is the remaining architecture convergence."
+summary: "Handoff prompt for pi-society-orchestrator after the fail-closed routing, session-identity, execution-status, resource/lifecycle hardening, headless installed-runtime smoke, unified execution/evidence, rocs-backed ontology-adapter, lower-plane boundary hardening, docs/AGENTS monorepo-alignment, and society-read boundary-exception passes. The next bounded work is the narrower remaining architecture convergence."
 read_when:
   - "Starting the next focused package-development session."
 system4d:
@@ -13,10 +13,10 @@ system4d:
 
 ## Session objective
 
-Resume after the **fail-closed routing + session-identity + execution-status + resource/lifecycle hardening + headless installed-runtime smoke + unified execution/evidence + rocs-backed ontology adapter + lower-plane boundary hardening** passes.
+Resume after the **fail-closed routing + session-identity + execution-status + resource/lifecycle hardening + headless installed-runtime smoke + unified execution/evidence + rocs-backed ontology adapter + lower-plane boundary hardening + society-read boundary exception** passes.
 
 The next bounded work is:
-1. continue the remaining architecture-convergence backlog from the now-completed ontology slice
+1. continue the narrower remaining architecture-convergence backlog now that `/evidence` is on AK and only the `society_query` diagnostic exception remains on raw sqlite
 
 ## What is now true
 
@@ -27,9 +27,10 @@ The next bounded work is:
   - Pi subagent spawning
   - `ak` execution
 - runtime `sqlite3`, `dolt`, and `rocs-cli` reads now flow through async, timeout-bound supervised helper boundaries instead of synchronous runtime `execFileSync` calls.
-- `society_query` is now a read-only diagnostic surface; mutating SQL and mutating `PRAGMA` forms are rejected, and valid read-only `WITH ... SELECT ...` diagnostics are now accepted.
+- `society_query` is now an explicit bounded diagnostic surface routed through `src/runtime/society.ts`; mutating SQL and mutating `PRAGMA` forms are rejected, and valid read-only `WITH ... SELECT ...` diagnostics are now accepted.
 - `ontology_context` and `/ontology` now resolve through a shared `rocs-cli` adapter path that consumes ROCS build/index artifacts instead of querying the local `society.db` ontology table directly.
 - deterministic ROCS adapter coverage now exists in `tests/ontology-adapter.test.mjs` for concept-id, label, definition-text, failure-path, and timeout behavior.
+- `/evidence` now reads through `ak evidence search` instead of raw sqlite evidence queries.
 - prompt-vault lookup still uses package-local Dolt access, but through shared helper boundaries instead of ad hoc call sites, and cognitive-tool lookup by name is now cognitive-only.
 - explicit `societyDb` targeting now outranks ambient `AK_DB` for `ak`-backed runtime paths.
 
@@ -103,7 +104,7 @@ The installed-package smoke harness now:
 - asserts expected direct-dispatch evidence-write argv in the fake `ak` path
 - no longer depends on `~/.pi/agent/auth.json` or a live provider-backed prompt execution host
 
-Monorepo/root release-component validation was not rerun for this ontology-only slice; rerun it if the next session touches root release wiring:
+Monorepo/root release-component validation was not rerun for this package-only society-read slice; rerun it if the next session touches root release wiring:
 
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions
@@ -121,10 +122,12 @@ Read these first before choosing the next change:
 - `docs/project/2026-03-11-rfc-rocs-ontology-adapter.md`
 - `src/runtime/execution-status.ts`
 - `docs/project/2026-03-12-lower-plane-boundary-hardening.md`
+- `docs/project/2026-03-30-society-read-boundary-exception.md`
 - `src/runtime/evidence.ts`
 - `src/runtime/ak.ts`
 - `src/runtime/boundaries.ts`
 - `src/runtime/ontology.ts`
+- `src/runtime/society.ts`
 - `src/runtime/process-supervisor.ts`
 - `src/runtime/subagent.ts`
 - `src/runtime/team-state.ts`
@@ -133,6 +136,7 @@ Read these first before choosing the next change:
 - `tests/runtime-shared-paths.test.mjs`
 - `tests/cognitive-tools.test.mjs`
 - `tests/ontology-adapter.test.mjs`
+- `tests/society-runtime.test.mjs`
 - `scripts/release-check.sh`
 - `scripts/release-smoke.mjs`
 
@@ -145,7 +149,7 @@ Then re-open the broader architecture artifacts if the next session finishes the
 ## Immediate focus order
 
 1. **Resume broader architecture convergence**
-   - continue with the remaining raw society read/query family (`society_query`, `/evidence`) toward a sanctioned `ak`-backed path or an explicitly bounded diagnostic exception
+   - decide whether the remaining `society_query` raw sqlite path should survive as a bounded diagnostic exception until AK grows a truthful canonical read/query surface, or be tightened further
    - revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only behavior
    - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
 2. **Optional parity hardening after architecture work is scoped**
@@ -157,7 +161,7 @@ Then re-open the broader architecture artifacts if the next session finishes the
 |---|---|---|---|---|---|
 | Installed-package release-check smoke is now headless and isolated from the default global npm package space, but routine release validation still does not prove interactive `/reload` parity in a normal Pi host session | The installed-package harness now verifies installed extension behavior without auth/provider drift or default-global npm mutation, but it intentionally drives tools/commands through a stub instead of exercising full interactive host lifecycle behavior | `pi-society-orchestrator` package maintainer | decision to add a separate live-host parity check or accept the current split between deterministic release smoke and manual interactive verification | before `0.2.0` behavior freeze | release-check can still miss host-only integration drift around reload/session wiring even when installed-package smoke is green |
 | `recordEvidence(...)` still has SQL fallback | Package hardening is much stronger, but removing fallback now still exceeds risk tolerance before a broader confidence pass on `ak`-only evidence writes | `pi-society-orchestrator` package maintainer | successful broader live/runtime proof of `ak evidence record` sufficiency | 2026-03-17 | evidence semantics can still drift from the canonical adapter path |
-| `society_query` and `/evidence` still use raw society DB reads | Injection/mutation hardening and async supervised sqlite boundaries are now in place, but the package still owns a temporary sqlite read surface until a canonical read/query boundary exists | `pi-society-orchestrator` package maintainer with `agent-kernel` maintainer review | decision on canonical society read/query boundary | 2026-03-24 | read-side schema drift and continued raw DB coupling |
+| `society_query` still uses a bounded raw society DB read exception | `/evidence` now uses `ak evidence search`, but `society_query` still depends on a narrow raw sqlite diagnostic path until a truthful canonical read/query boundary exists | `pi-society-orchestrator` package maintainer with `agent-kernel` maintainer review | decision on canonical society read/query boundary or explicit retention/removal of the diagnostic exception | 2026-03-31 | residual read-side schema drift and continued raw DB coupling for one escape hatch |
 | ROCS adapter defaults currently assume the local SoftwareCo ontology repo and `--workspace-ref-mode loose` | The sanctioned adapter is now in place, but the runtime still carries a local usability/default-policy choice that has not yet been ratified as the long-term canonical ROCS resolution contract for orchestrator | `pi-society-orchestrator` package maintainer with `rocs-cli` maintainer review | decision on strict-vs-loose ROCS workspace resolution policy for orchestrator | 2026-03-24 | ontology lookups can drift from tagged refs in mixed local worktrees even though they no longer depend on raw SQL shape |
 | Prompt-vault access still uses local Dolt queries | Shared helper boundaries now exist, but canonical prompt-plane ownership still depends on the upstream `pi-vault-client` execution boundary | `pi-society-orchestrator` package maintainer with `pi-vault-client` maintainer review | reviewed upstream `pi-vault-client` Vault execution boundary | 2026-03-24 | prompt-plane ownership drift and future schema/behavior drift risk |
 | `src/runtime/boundaries.ts` now centralizes more async boundary logic and the read-only SQL classifier in one file | The file is coherent after the boundary-hardening slice, but further growth will make runtime command supervision, sqlite/dolt adapters, and SQL classification harder to reason about in one place | `pi-society-orchestrator` package maintainer | next boundary-family addition or the `society_query` / `/evidence` canonical-adapter migration | before the next lower-plane boundary slice after 2026-03-24 | future boundary changes become slower and more error-prone if command runner + backend adapters + SQL classifier keep accreting together |

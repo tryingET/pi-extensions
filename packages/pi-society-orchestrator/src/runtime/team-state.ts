@@ -38,6 +38,15 @@ export function createSessionTeamStore(
           refreshSessionKey(teamsBySessionKey, sessionKey, team);
           return team;
         }
+
+        const carrier = getSessionCarrier(ctx);
+        const carrierTeam = carrier ? teamsBySessionManager.get(carrier) : undefined;
+        if (carrierTeam) {
+          refreshSessionKey(teamsBySessionKey, sessionKey, carrierTeam);
+          evictOverflowSessionKeys(teamsBySessionKey, maxSessionKeys);
+          return carrierTeam;
+        }
+
         return defaultTeam;
       }
 
