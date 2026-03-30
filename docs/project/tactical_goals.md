@@ -19,26 +19,31 @@ Active strategic goal:
 
 | Rank | Tactical goal | Importance | Urgency | Difficulty | State | Notes |
 |---|---|---:|---:|---:|---|---|
-| 1 | Publish the next root-owned reduced-form migration wave with live AK coverage | 5 | 5 | 2 | **active** | This was the missing direction-to-execution link: root truth existed, but the next active wave was not decomposed into operating slices and live tasks. |
-| 2 | Refresh the live audit/migration classification for package-local tech-stack surfaces | 4 | 4 | 2 | next | Root needs a fresh classification before more reduction work is routed or removed. |
-| 3 | Lock the root-side migration contract for remaining legacy-full surfaces and exact routing boundaries | 5 | 3 | 3 | next | Needed so template/package follow-up stays explicit instead of copying policy ad hoc. |
+| 1 | Publish the initial root-owned reduced-form migration wave and stable bootstrap | 5 | 5 | 2 | done | Completed by `#595`–`#597`; this closed the missing root direction/contract layer. |
+| 2 | Classify remaining legacy-full package surfaces into truthful target states and routed next candidates | 5 | 4 | 2 | **active** | The root audit still groups eight packages as `legacy-full`, but seven docs are identical boilerplate and one child package doc is distinct; the next root wave is to turn that into explicit target-state truth. |
+| 3 | Materialize the first minimal package-local reduction queue from the refreshed classification | 4 | 3 | 3 | next | After classification, create only the smallest routed package wave that truly follows instead of a blanket migration backlog. |
 
 ## Active tactical goal
 
-### TG1 — Publish the next root-owned reduced-form migration wave with live AK coverage
+### TG2 — Classify remaining legacy-full package surfaces into truthful target states and routed next candidates
 
 Definition of done:
-- root direction docs exist and agree with repo reality
+- root audit distinguishes boilerplate `legacy-full` surfaces from packages with a real local override candidate
+- each remaining `legacy-full` package has a provisional target state (`none` or `reduced-form`) and a routed next-owner note recorded at root
 - the active root operating slices are explicit in [operating_plan.md](operating_plan.md)
 - those slices have authoritative AK coverage
-- stable bootstrap docs point to the active direction chain instead of leaving it implicit
+
+## Completed tactical goal
+
+### TG1 — Publish the initial root-owned reduced-form migration wave and stable bootstrap
+
+Completed by:
+- `#595` seed direction docs + stable bootstrap pointers
+- `#596` refresh live audit truth
+- `#597` lock the root-side migration contract and routing boundaries
 
 ## Not active yet
 
-### TG2 — Refresh the live audit/migration classification for package-local tech-stack surfaces
+### TG3 — Materialize the first minimal package-local reduction queue from the refreshed classification
 
-This becomes active after TG1 because the repo first needed a truthful decomposition chain before the next audit pass should be treated as the live wave.
-
-### TG3 — Lock the root-side migration contract for remaining legacy-full surfaces and exact routing boundaries
-
-This remains next because the contract should be written against a refreshed audit and a now-explicit operating layer rather than from memory.
+This remains next because the repo should first publish per-package target-state truth at the root before creating package-local follow-up beyond the smallest justified set.

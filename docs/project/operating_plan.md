@@ -10,31 +10,31 @@ system4d:
   fog: "The main risk is duplicating task bodies here or mixing non-active tactical goals into the same operating queue."
 ---
 
-# Operating plan — TG1 active wave
+# Operating plan — TG2 active wave
 
 Active tactical goal:
-- [TG1 in tactical_goals.md](tactical_goals.md#tg1--publish-the-next-root-owned-reduced-form-migration-wave-with-live-ak-coverage)
+- [TG2 in tactical_goals.md](tactical_goals.md#tg2--classify-remaining-legacy-full-package-surfaces-into-truthful-target-states-and-routed-next-candidates)
 
 ## Operating slices
 
 | Order | AK task | State | Deliverable |
 |---|---:|---|---|
-| 1 | `#595` | done | Seed root direction decomposition docs and stable bootstrap pointers for the reduced-form policy wave. |
-| 2 | `#596` | done | Refresh the live tech-stack review surface audit after recent package/template alignment and update the canonical root audit note. |
-| 3 | `#597` | done | Define the root-side reduced-form migration contract for the remaining legacy-full package surfaces and record exact routing boundaries. |
+| 1 | `#601` | ready | Audit the eight remaining `legacy-full` package surfaces and separate boilerplate inheritance from real local override candidates. |
+| 2 | `#602` | pending on `#601` | Refresh the root audit with per-package target-state classification (`none` vs `reduced-form`) and routed next-candidate notes. |
+| 3 | `#603` | pending on `#602` | Publish the minimal package-reduction queue from the refreshed classification and update stable handoff/diary pointers. |
 
 ## Interpretation
 
 - This file intentionally tracks only the active tactical goal.
-- `#597` completed the remaining root-local execution slice in this wave.
-- Deferred package-boundary tasks `#268` and `#269` remain context, not the current root operating wave.
-- Package/template follow-up may still exist, but it should now route through the contract instead of extending this root wave ad hoc.
+- `#601` is the only ready slice; `#602` and `#603` are intentionally dependency-gated so AK exposes only the next active root slice.
+- TG1's initial doc/contract wave (`#595`–`#597`) is complete and no longer needs additional root backlog padding.
+- Deferred runtime-registry tasks `#268` and `#269` remain context, not the active root tech-stack wave.
 
 ## HTN
 
 - `G0` — keep the pi-extensions root control plane explicit and executable
   - `SG1` — finish reduced-form root policy centralization
-    - `TG1` — publish the next root-owned reduced-form migration wave with live AK coverage
-      - `#595` seed direction docs + stable bootstrap pointers
-      - `#596` refresh live audit truth
-      - `#597` define root-side migration contract and routing boundaries
+    - `TG2` — classify remaining legacy-full package surfaces into truthful target states and routed next candidates
+      - `#601` audit remaining legacy-full package docs for real local overrides vs boilerplate
+      - `#602` refresh root audit with per-package target-state classification
+      - `#603` publish the minimal package-reduction queue and root handoff update

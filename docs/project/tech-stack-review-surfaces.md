@@ -86,6 +86,21 @@ Snapshot summary:
 - `packages/pi-interaction/pi-trigger-adapter`
 - `packages/pi-prompt-template-accelerator`
 
+## Classification signal for the next root-owned wave
+
+A quick content-diff pass over the current `legacy-full` docs shows that the bucket is not uniform:
+
+- the following seven package-local `docs/tech-stack.local.md` files are byte-identical boilerplate copies of the same simple-package note (`sha256:04a5fb…`):
+  - `packages/pi-activity-strip`
+  - `packages/pi-autonomous-session-control`
+  - `packages/pi-context-overlay`
+  - `packages/pi-little-helpers`
+  - `packages/pi-ontology-workflows`
+  - `packages/pi-society-orchestrator`
+  - `packages/pi-vault-client`
+- `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` is the only distinct child-package doc in the `legacy-full` set and still carries a package-specific typecheck/validation note.
+- This means the next root-owned wave is not another generic contract pass; it is to classify each remaining `legacy-full` package toward `none` vs `reduced-form` and then route only the smallest truthful package-local follow-up set.
+
 ## Routing notes
 
 Use this audit before changing generated outputs.
