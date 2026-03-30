@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "0ec674c9985875b315bae0929b102b04c1f4c666"
-created_at: "2026-03-30T17:28:46Z"
+created_at: "2026-03-30T17:29:38Z"
 intent: "Add packaged helper extensions and harden Pi host compatibility across the monorepo"
 files:
   - ".pi/prompts/commit.md"
@@ -152,7 +152,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
