@@ -141,7 +141,7 @@ Package-local:
 - `tests/subagent-dashboard-data.test.mjs`
 - `README.md`
 - `docs/dev/monorepo-migration-dashboard-slice.md`
-- `NEXT_SESSION_PROMPT.md`
+- `next_session_prompt.md`
 
 Monorepo root:
 - `../../scripts/legacy-package-deprecation.sh`

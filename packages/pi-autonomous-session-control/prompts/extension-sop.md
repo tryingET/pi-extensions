@@ -19,5 +19,5 @@ Requirements:
 - In **Maintain**, include a complexity check for `extensions/self.ts` and explicitly decide:
   - keep as-is, or
   - perform/refactor-plan module split under `src/`.
-- If a refactor is deferred, record a concrete trigger and follow-up task in `NEXT_SESSION_PROMPT.md`.
+- If a refactor is deferred, record a concrete trigger and follow-up task in `next_session_prompt.md`.
 - Keep behavior changes and docs/changelog updates in sync.
