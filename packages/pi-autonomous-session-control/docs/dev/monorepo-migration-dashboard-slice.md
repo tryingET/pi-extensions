@@ -85,6 +85,7 @@ The current widget/commands focus on read-only operator visibility:
 - persistent widget with counts + recent sessions
 - statuses surfaced: `running`, `done`, `error`, `timeout`, `abandoned`
 - objective preview + recency + recommended action hint
+- inspection remains artifact-backed and read-only; `/subagent-inspect <session-name>` now renders derived lifecycle metadata, artifact paths, safety notes, and the raw status sidecar without mutating session state
 - commands:
   - `/subagent-dashboard`
   - `/subagent-inspect <session-name>`

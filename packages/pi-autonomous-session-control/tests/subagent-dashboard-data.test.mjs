@@ -3,7 +3,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createSubagentDashboardSnapshot } from "../extensions/self/subagent-dashboard-data.ts";
+import {
+  createSubagentDashboardSnapshot,
+  createSubagentSessionInspection,
+} from "../extensions/self/subagent-dashboard-data.ts";
 import { getSessionStatusPath } from "../extensions/self/subagent-session.ts";
 
 async function writeStatus(sessionsDir, sessionName, status, updatedAt, objective) {
@@ -86,6 +89,79 @@ test("createSubagentDashboardSnapshot truncates long objectives and respects row
     assert.equal(snapshot.rows[0].sessionName, "running-now");
     assert.match(snapshot.rows[0].objectivePreview, /…$/);
     assert.match(snapshot.rows[0].recommendedActionHint, /monitor/i);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentSessionInspection summarizes lifecycle metadata and artifact paths", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-"));
+  const updatedAt = "2026-03-06T11:59:00.000Z";
+
+  try {
+    await writeFile(
+      getSessionStatusPath(sessionsDir, "done-session"),
+      JSON.stringify({
+        sessionName: "done-session",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:58:00.000Z",
+        updatedAt,
+        objective: "Review the migrated dashboard slice and capture next steps",
+        exitCode: 0,
+        elapsed: 61_000,
+      }),
+    );
+    await writeFile(join(sessionsDir, "done-session.json"), '{"session":true}\n');
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "done-session", {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(inspection.found, true);
+    assert.equal(inspection.status, "done");
+    assert.equal(inspection.ageLabel, "1m ago");
+    assert.equal(inspection.elapsedLabel, "1m 1s");
+    assert.equal(inspection.exitCode, 0);
+    assert.equal(inspection.pidState, "not-applicable");
+    assert.equal(inspection.sessionArtifact.exists, true);
+    assert.equal(inspection.statusArtifact.exists, true);
+    assert.match(inspection.recommendedActionHint, /review outcome/i);
+    assert.equal(inspection.warnings.length, 0);
+    assert.match(inspection.rawStatusJson, /"done-session"/);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentSessionInspection suggests recent sessions when the requested name is missing", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-missing-"));
+
+  try {
+    await writeStatus(
+      sessionsDir,
+      "analysis-run-2",
+      "error",
+      "2026-03-06T12:05:00.000Z",
+      "Inspect a failed subagent run and decide whether retry is safe.",
+    );
+    await writeStatus(
+      sessionsDir,
+      "review-run-1",
+      "done",
+      "2026-03-06T12:00:00.000Z",
+      "Summarize the completed review results.",
+    );
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "analysis", {
+      now: Date.parse("2026-03-06T12:06:00.000Z"),
+    });
+
+    assert.equal(inspection.found, false);
+    assert.match(inspection.recommendedActionHint, /inspect artifact paths/i);
+    assert.deepEqual(inspection.recentSessionSuggestions, ["analysis-run-2", "review-run-1"]);
+    assert.match(inspection.warnings.join("\n"), /missing status sidecar/i);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

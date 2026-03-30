@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -7,7 +5,10 @@ import type {
   ThemeColor,
 } from "@mariozechner/pi-coding-agent";
 import type { Component } from "@mariozechner/pi-tui";
-import { createSubagentDashboardSnapshot } from "./subagent-dashboard-data.ts";
+import {
+  createSubagentDashboardSnapshot,
+  createSubagentSessionInspection,
+} from "./subagent-dashboard-data.ts";
 import type { SubagentState } from "./subagent-session.ts";
 
 const DASHBOARD_WIDGET_KEY = "subagent-ops-dashboard";
@@ -75,28 +76,92 @@ function buildDashboardLines(width: number, theme: DashboardTheme, sessionsDir: 
 }
 
 function sessionArtifactSummary(sessionsDir: string, sessionName: string): string {
-  const statusPath = join(sessionsDir, `${sessionName}.status.json`);
-  const sessionPath = join(sessionsDir, `${sessionName}.json`);
+  const inspection = createSubagentSessionInspection(sessionsDir, sessionName);
   const sections: string[] = [`# Subagent Session: ${sessionName}`, ""];
 
-  if (existsSync(statusPath)) {
-    sections.push("## Status sidecar");
-    sections.push("```json");
-    sections.push(readFileSync(statusPath, "utf-8").trim() || "{}");
-    sections.push("```");
+  if (!inspection.found) {
+    sections.push("No matching session artifacts were found.");
     sections.push("");
-  } else {
-    sections.push(`- Missing status sidecar: ${statusPath}`);
+    sections.push("## Lookup");
+    sections.push(`- Sessions dir: ${sessionsDir}`);
+    sections.push(`- Expected status sidecar: ${inspection.statusArtifact.path}`);
+    sections.push(`- Expected session file: ${inspection.sessionArtifact.path}`);
+    sections.push("");
+
+    if (inspection.recentSessionSuggestions.length > 0) {
+      sections.push("## Recent sessions");
+      for (const suggestion of inspection.recentSessionSuggestions) {
+        sections.push(`- ${suggestion}`);
+      }
+      sections.push("");
+    }
+
+    sections.push("Try an exact session name from `/subagent-dashboard` before retrying.");
+    return sections.join("\n");
+  }
+
+  sections.push("## Summary");
+  sections.push(`- Status: ${inspection.status ?? "unknown"}`);
+  if (inspection.updatedAt) {
+    sections.push(
+      `- Updated: ${inspection.updatedAt}${inspection.ageLabel ? ` (${inspection.ageLabel})` : ""}`,
+    );
+  }
+  if (inspection.createdAt) {
+    sections.push(`- Created: ${inspection.createdAt}`);
+  }
+  if (inspection.objective) {
+    sections.push(`- Objective: ${inspection.objective}`);
+  }
+  sections.push(`- Recommended action: ${inspection.recommendedActionHint}`);
+  if (typeof inspection.pid === "number") {
+    const pidDetails =
+      inspection.pidState === "alive" || inspection.pidState === "dead"
+        ? ` (pid state: ${inspection.pidState})`
+        : inspection.pidState === "not-applicable"
+          ? " (pid state: not applicable)"
+          : "";
+    sections.push(`- PID: ${inspection.pid}${pidDetails}`);
+  }
+  if (typeof inspection.ppid === "number") {
+    sections.push(`- Parent PID: ${inspection.ppid}`);
+  }
+  if (inspection.elapsedLabel) {
+    sections.push(`- Elapsed: ${inspection.elapsedLabel}`);
+  }
+  if (typeof inspection.exitCode === "number") {
+    sections.push(`- Exit code: ${inspection.exitCode}`);
+  }
+  sections.push("");
+
+  sections.push("## Artifact paths");
+  sections.push(
+    `- Status sidecar: ${inspection.statusArtifact.path}${inspection.statusArtifact.exists ? "" : " (missing)"}`,
+  );
+  sections.push(
+    `- Session file: ${inspection.sessionArtifact.path}${inspection.sessionArtifact.exists ? "" : " (missing)"}`,
+  );
+  if (typeof inspection.sessionArtifact.bytes === "number") {
+    sections.push(`- Session bytes: ${inspection.sessionArtifact.bytes}`);
+  }
+  if (inspection.sessionArtifact.modifiedAt) {
+    sections.push(`- Session modified: ${inspection.sessionArtifact.modifiedAt}`);
+  }
+  sections.push("");
+
+  if (inspection.warnings.length > 0) {
+    sections.push("## Safety notes");
+    for (const warning of inspection.warnings) {
+      sections.push(`- ${warning}`);
+    }
     sections.push("");
   }
 
-  if (existsSync(sessionPath)) {
-    sections.push("## Session file");
-    sections.push(`- Path: ${sessionPath}`);
-    sections.push(`- Bytes: ${readFileSync(sessionPath, "utf-8").length}`);
-    sections.push("");
-  } else {
-    sections.push(`- Missing session file: ${sessionPath}`);
+  if (inspection.rawStatusJson) {
+    sections.push("## Raw status sidecar");
+    sections.push("```json");
+    sections.push(inspection.rawStatusJson || "{}");
+    sections.push("```");
     sections.push("");
   }
 
@@ -166,6 +231,7 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
           lines.push(`- Updated: ${row.updatedAt} (${row.ageLabel})`);
           lines.push(`- Objective: ${row.objectivePreview}`);
           lines.push(`- Recommended action: ${row.recommendedActionHint}`);
+          lines.push(`- Inspect: /subagent-inspect ${row.sessionName}`);
           lines.push("");
         }
       }
@@ -177,7 +243,7 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
   });
 
   pi.registerCommand("subagent-inspect", {
-    description: "Open raw artifacts for a specific subagent session",
+    description: "Open a derived inspection summary for a specific subagent session",
     handler: async (args, ctx) => {
       const sessionName = args.trim();
       if (!sessionName) {

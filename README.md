@@ -61,6 +61,7 @@ bash ./scripts/install-hooks.sh
 
 # legacy standalone repo deprecation helpers
 ./scripts/legacy-package-deprecation.sh inspect --legacy ~/programming/pi-extensions/<legacy> --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target>
+./scripts/legacy-package-deprecation.sh render-handoff --legacy ~/programming/pi-extensions/<legacy> --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target>
 ./scripts/legacy-package-deprecation.sh relocate-sessions --legacy ~/programming/pi-extensions/<legacy> --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target>
 ```
 

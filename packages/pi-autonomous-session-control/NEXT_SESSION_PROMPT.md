@@ -1,248 +1,165 @@
 ---
-summary: "Session handoff after the monorepo migration and first read-only subagent operations dashboard slice."
+summary: "Handoff after deepening read-only subagent inspection and turning the legacy repo shutdown flow into a reusable scripted/documented asset."
 read_when:
   - "Starting the next session in packages/pi-autonomous-session-control"
-  - "Before changing subagent lifecycle, dashboard behavior, or interactive recovery actions"
+  - "Before changing subagent dashboard behavior, interactive recovery actions, or legacy migration/deprecation workflow"
 system4d:
-  container: "Canonical-home handoff for pi-autonomous-session-control."
-  compass: "Keep the hardened control plane stable while deciding whether to add safe interactive recovery actions."
-  engine: "Read current control-plane + dashboard state -> validate artifact model assumptions -> extend only where lifecycle safety remains obvious."
-  fog: "The major trap now is adding action wiring that bypasses or weakens the recovered/abandoned/lock semantics that were just stabilized."
+  container: "Canonical-home handoff for pi-autonomous-session-control after the richer inspect + deprecation workflow pass."
+  compass: "Keep lifecycle safety obvious, keep the dashboard artifact-backed, and keep legacy shutdown repeatable."
+  engine: "Start from the read-only artifact model -> only add actions that route through existing lifecycle paths -> keep deprecation tooling deterministic."
+  fog: "The main trap is still bypassing hardened session semantics with convenience actions or drifting back into ad-hoc legacy cleanup."
 ---
 
 # Next Session Prompt
 
 ## Mission
 
-The canonical home move is complete.
+This package now has a stronger **read-only operator inspection surface** and the monorepo now has a more concrete **legacy repo deprecation workflow asset**.
 
-Next focus should cover **two parallel outcomes in one fast-paced session**:
-- refine the operator experience around the new read-only dashboard, and only add interactive recovery actions if they can be proven safe against the current lifecycle guarantees
-- crystallize the **package transition + deprecation workflow** for legacy extension folders under `~/programming/pi-extensions/`, so future migrations and deletions can be executed quickly and safely
+The next session should only widen behavior where safety remains obvious:
+- either add one clearly safe recovery affordance that still delegates to existing lifecycle/session semantics
+- or apply and tighten the new deprecation workflow against the next real legacy repo under `~/programming/pi-extensions/`
 
-## Current state
+## What landed this session
 
-### Canonical home
+### Dashboard / operator experience
 
-- Package path: `~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control`
-- Template lineage: generated from `~/ai-society/softwareco/owned/pi-extensions-template/` in `monorepo-package` mode, then brownfield code was migrated into it
-- Source of truth is now this monorepo package, not the legacy standalone repo
+The dashboard stayed **read-only**.
 
-### Completed in the last session
+Implemented improvements:
+- added richer session inspection data modeling in `extensions/self/subagent-dashboard-data.ts`
+- `/subagent-inspect <session-name>` now renders:
+  - derived lifecycle metadata
+  - artifact paths
+  - PID state for running sessions
+  - elapsed / exit-code context when present
+  - safety notes/warnings
+  - raw status sidecar JSON
+  - recent-session suggestions when the requested session is missing
+- `/subagent-dashboard` now includes an explicit inspect command hint per recent session row
+- added focused tests for the richer inspection behavior in `tests/subagent-dashboard-data.test.mjs`
 
-| Category | Changes |
-|----------|---------|
-| **Monorepo move** | Created `packages/pi-autonomous-session-control` from the package template and migrated the existing extension there |
-| **Monorepo contract repair** | Restored monorepo-package validation scripts (`quality-gate`, `validate-structure`, `release-check`) and aligned package metadata with `x-pi-template` |
-| **Architecture decision** | Kept one package, but introduced an explicit package-local UI/data boundary instead of splitting into subpackages |
-| **Dashboard adapter** | Added [extensions/self/subagent-dashboard-data.ts](extensions/self/subagent-dashboard-data.ts) to summarize status sidecars into operator-facing rows |
-| **Dashboard widget** | Added [extensions/self/subagent-dashboard.ts](extensions/self/subagent-dashboard.ts) for the persistent read-only widget plus `/subagent-dashboard` and `/subagent-inspect <session-name>` |
-| **Lifecycle preservation** | Existing finalization, stale-lock recovery, abandonment reconciliation, and status accounting behavior were preserved through the move |
-| **Test harness repair** | Updated self-tool harness stubs and session-start expectations after introducing the dashboard session-start hook |
-| **Validation** | Package-local `npm run check` passes; monorepo root `./scripts/ci/full.sh` passes |
+### Legacy deprecation workflow asset
 
-## New architecture/process work completed this session
+The reusable workflow is now stronger at monorepo root.
 
-These docs were added and should be treated as the current design baseline for monorepo package handling:
+Implemented improvements:
+- `../../scripts/legacy-package-deprecation.sh inspect` now emits:
+  - `sharedRelativeFiles`
+  - `legacyOnlyFiles`
+  - `canonicalOnlyFiles`
+  - session-relocation plan + recommended action
+  - ownership/classification outline for deterministic shutdown work
+- added `../../scripts/legacy-package-deprecation.sh render-handoff` to generate a deprecation handoff body for legacy `NEXT_SESSION_PROMPT.md`
+- updated workflow docs in:
+  - `../../docs/project/legacy-package-deprecation-workflow.md`
+  - `../../docs/project/legacy-transition-backlog.md`
+  - `../../README.md`
 
-- Monorepo ADR: `~/ai-society/softwareco/owned/pi-extensions/docs/decisions/package-topology-and-quality-gate.md`
-- Monorepo interface spec: `~/ai-society/softwareco/owned/pi-extensions/docs/project/package-quality-gate-interface.md`
-- Template mode redesign note: `~/ai-society/softwareco/owned/pi-extensions-template/docs/decisions/package-topology-modes.md`
+## Structural decisions still in force
 
-Core takeaway:
-- package topology should be described as **simple-package** vs **package-group**
-- package validation should move toward one monorepo-root implementation instead of package-local duplicated gates
-- `pi-extensions-template` must be updated intentionally, not forgotten, because it currently still encodes older naming/duplication assumptions
+- Keep this package a **single package with internal seams**, not a package-group.
+- Keep the dashboard **artifact-backed**; do not invent a second state model.
+- Keep interactive recovery deferred unless it composes with the current dispatcher/session/finalization paths.
+- Keep legacy repo shutdown **one-shot archive + delete**, not iterative backup sprawl.
 
-## Structural decision
+## Brownfield anchors to preserve
 
-Use a **single package with internal seams**, not a split package group yet.
+- `extensions/self/subagent.ts`
+- `extensions/self/subagent-spawn.ts`
+- `extensions/self/subagent-session.ts`
+- `extensions/self/subagent-session-name.ts`
+- `extensions/self/subagent-dashboard-data.ts`
+- `extensions/self/subagent-dashboard.ts`
+- `tests/dispatch-subagent-diagnostics.test.mjs`
+- `tests/subagent-file-lock.test.mjs`
+- `tests/subagent-session.test.mjs`
+- `tests/subagent-dashboard-data.test.mjs`
+- `../../scripts/legacy-package-deprecation.sh`
+- `../../docs/project/legacy-package-deprecation-workflow.md`
 
-Current seam map:
-- control plane / persistence: [extensions/self/subagent*.ts](extensions/self)
-- dashboard data adapter: [extensions/self/subagent-dashboard-data.ts](extensions/self/subagent-dashboard-data.ts)
-- dashboard rendering + commands: [extensions/self/subagent-dashboard.ts](extensions/self/subagent-dashboard.ts)
+## Recommended next slices
 
-Why:
-- `pi-interaction` was useful as a meta-pattern for keeping entrypoints thin and separating UI-facing code from runtime/control logic
-- but this package does not yet have enough proven reusable surfaces to justify sibling publishable packages
-- package-local seams give the design benefit without multi-package release churn
+### Option A — one safe interactive recovery affordance
 
-Reference decision note:
-- [docs/dev/monorepo-migration-dashboard-slice.md](docs/dev/monorepo-migration-dashboard-slice.md)
+Only proceed if the action is obviously lifecycle-safe.
 
-## What was reused vs rejected from prior art
+Best candidates:
+- prefill/copy a resume command or resume hint without mutating artifacts directly
+- guided inspect-to-resume flow that still hands off to existing commands/tool paths
+- cleanup affordance that delegates to existing cleanup/session logic rather than bypassing it
 
-### Reused from `pi-interaction`
+Avoid for now:
+- direct in-widget retry/resume buttons
+- direct artifact mutation shortcuts
+- any path that can skip stale-lock, abandonment, or finalization guarantees
 
-- thin extension entrypoint wiring specialized modules
-- explicit boundary between UI-facing behavior and lower-level runtime/control-plane code
-- package-local composition before cross-package generalization
+### Option B — apply the deprecation workflow to the next legacy repo
 
-### Reused from `pi-vs-claude-code`
+Good candidate outcome:
+- pick the next repo from `../../docs/project/legacy-transition-backlog.md`
+- use `../../scripts/legacy-package-deprecation.sh inspect ...`
+- use `render-handoff` for the legacy handoff rewrite
+- relocate Pi session history using full-path-derived folder names
+- create one final `tar.gz` archive
+- delete the legacy repo only after validation
 
-- persistent above-editor widget pattern
-- compact status-first dashboard rows
-- read-only first slice before interactive orchestration actions
+## Validation evidence from this session
 
-### Rejected for now
+### Package-local
 
-- per-subagent streaming widget instances
-- agent-team style orchestration state separate from the artifact model
-- split subpackages / umbrella runtime pattern
-
-## Brownfield anchor points to preserve
-
-- [Subagent dispatcher](extensions/self/subagent.ts)
-- [Subagent spawn lifecycle](extensions/self/subagent-spawn.ts)
-- [Session state + status sidecars](extensions/self/subagent-session.ts)
-- [Lock reservation + stale-lock behavior](extensions/self/subagent-session-name.ts)
-- [Dashboard data adapter](extensions/self/subagent-dashboard-data.ts)
-- [Dashboard widget + commands](extensions/self/subagent-dashboard.ts)
-- [Project README](README.md)
-- [Migration/dashboard decision note](docs/dev/monorepo-migration-dashboard-slice.md)
-- [Tests](tests/dispatch-subagent-diagnostics.test.mjs)
-- [Tests](tests/subagent-file-lock.test.mjs)
-- [Tests](tests/subagent-session.test.mjs)
-- [Tests](tests/subagent-dashboard-data.test.mjs)
-
-## Hard constraints
-
-- Do **not** weaken exit/close finalization guarantees.
-- Do **not** regress stale-lock reclamation, live-lock protection, status sidecars, or abandoned-session reconciliation.
-- Do **not** introduce a second source of truth for subagent state; the widget should continue reading session/status artifacts.
-- If interactive actions are added, they must compose with the current artifact/control-plane semantics rather than bypass them.
-- Prefer additive package-local modules over premature generalization into new packages.
-
-## Recommended next slice
-
-### Option A — stay read-only but improve inspection depth
-
-Good if action safety is still unclear.
-
-Possible work:
-- richer `/subagent-inspect` output
-- selected-row details pane or expanded dashboard command output
-- stronger recency/age formatting
-- better objective/status heuristics
-
-### Option B — add one safe interactive recovery path
-
-Only if proven safe.
-
-Most plausible candidates:
-- a command that copies or pre-fills a resume hint for a selected session
-- a guided inspect-to-resume flow that does **not** mutate artifacts directly
-- a cleanup affordance that delegates to existing cleanup/session commands rather than inventing new lifecycle paths
-
-Avoid for now unless safety is obvious:
-- direct in-widget resume/retry buttons
-- artifact mutation shortcuts that skip the existing dispatcher/session code paths
-
-## Legacy package deprecation workflow to include next session
-
-This is now an explicit required outcome for future migrations from `~/programming/pi-extensions/`.
-
-### Goal
-
-Make legacy repo/package shutdown fast, repeatable, and low-risk after canonical work has moved into `~/ai-society/softwareco/owned/pi-extensions/`.
-
-### Required workflow shape
-
-1. **Verify canonical ownership transfer**
-   - monorepo root owns shared `.github` / hooks / CI / governance concerns
-   - canonical package or package-group owns runtime code, tests, package docs, and package metadata
-
-2. **Classify legacy contents with an explicit checklist**
-   - moved to monorepo root
-   - moved to canonical package
-   - archive-only context
-   - runtime/editor junk
-   - safe to delete
-
-3. **Use structured inventory comparison**
-   - use `jq`-friendly inventories/diffs when comparing legacy vs canonical trees
-   - keep the workflow deterministic enough to repeat across many extensions
-
-4. **Create exactly one archival artifact for the legacy repo**
-   - use a single `tar.gz` snapshot
-   - do **not** create iterative backup folders
-   - archive should represent the final legacy state at deletion time
-
-5. **Relocate legacy Pi session history intentionally**
-   - inspect relevant session folders under `~/.pi/agent/sessions/`
-   - default preference: rename/relocate the cwd-derived session folder so history follows the canonical package path
-   - derive the target folder name from the **actual canonical destination path**, not from the old package basename
-   - this matters for semantic renames and restructures (for example old `pi-input-triggers` -> canonical `packages/pi-interaction`)
-   - verify the path-normalization rule once and keep the relocation deterministic
-   - only fall back to archiving session history if relocation semantics are unclear or unsafe
-
-6. **Rewrite legacy handoff before deletion**
-   - legacy `NEXT_SESSION_PROMPT.md` should become a short archive/deprecation handoff
-   - point operators to the canonical monorepo root/package paths
-   - make clear that implementation must not continue in the legacy folder
-
-7. **Delete only after validation + archive verification**
-   - canonical package validation passes
-   - monorepo root validation passes
-   - repo archive exists and was sanity-checked
-   - Pi session history relocation was either completed successfully or explicitly downgraded to a fallback archive decision
-
-### Checklist to produce next session
-
-Create a concrete reusable checklist or doc/script flow that works for future deprecations in:
-
-- `~/programming/pi-extensions/*`
-
-It should distinguish at least:
-- simple-package migrations
-- package-group migrations
-- root-owned assets vs package-owned assets
-- one-shot archive-and-delete flow
-- legacy Pi session history handling (`relocate` by default, archive only as fallback)
-- path-based session-folder relocation using `old canonical path -> new canonical path`, not naive name matching
-
-### Strong recommendation
-
-The next session should try to turn this into a reusable workflow asset, not just a one-off remembered process.
-Possible homes:
-- monorepo docs under `~/ai-society/softwareco/owned/pi-extensions/docs/`
-- template/operator docs under `~/ai-society/softwareco/owned/pi-extensions-template/docs/`
-- a helper script if the contract becomes stable enough
-
-## Recommended execution order for next session
-
-1. Read the three new topology/quality-gate docs first.
-2. Decide whether to implement `scripts/package-quality-gate.sh` now or finish the deprecation workflow doc/checklist first.
-3. If touching dashboard behavior, keep the slice small and lifecycle-safe.
-4. If touching migration/deprecation workflow, make it reusable across multiple legacy extensions.
-5. End with explicit validation evidence and an updated handoff.
-
-## Validation
-
-Package-local:
+Passed:
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
 npm run check
 ```
 
-Monorepo root:
+### Monorepo root
+
+Passed:
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions
 ./scripts/ci/full.sh
 ```
 
-## Session checkpoint template
+### Docs discovery / extra checks
 
-At end of next session, update:
-- whether the dashboard remained read-only or gained a safe action
-- what artifact assumptions were validated explicitly
-- what was decided for `simple-package` vs `package-group` workflow execution
-- what deprecation/archive workflow asset was created or refined for `~/programming/pi-extensions/*`
-- whether the workflow now explicitly uses one-shot `tar.gz` archives
-- whether legacy `~/.pi/agent/sessions/` history was successfully relocated using the real canonical destination path, or had to fall back to archive handling
-- files changed
-- package-local validation output
-- monorepo-root validation output
-- remaining gap to trustworthy interactive recovery
-- remaining gap to fast, repeatable legacy package deprecation
+Passed:
+```bash
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
+npm run docs:list
+```
+
+Additional note:
+- `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict` at monorepo root still fails because of **pre-existing unrelated metadata debt** in other repo files (missing front matter / `read_when` in multiple existing docs/prompts/README surfaces). This session did not resolve that wider repo issue.
+
+## Files changed this session
+
+Package-local:
+- `extensions/self/subagent-dashboard-data.ts`
+- `extensions/self/subagent-dashboard.ts`
+- `tests/subagent-dashboard-data.test.mjs`
+- `README.md`
+- `docs/dev/monorepo-migration-dashboard-slice.md`
+- `NEXT_SESSION_PROMPT.md`
+
+Monorepo root:
+- `../../scripts/legacy-package-deprecation.sh`
+- `../../docs/project/legacy-package-deprecation-workflow.md`
+- `../../docs/project/legacy-transition-backlog.md`
+- `../../README.md`
+
+## Remaining gaps
+
+### Gap to trustworthy interactive recovery
+
+Still unresolved:
+- no mutation-capable dashboard action has yet been proven safe
+- no explicit resume helper exists that demonstrates safe composition with current lifecycle semantics
+- no UI action has been validated against abandoned-session + stale-lock edge cases
+
+### Gap to fast, repeatable legacy package shutdown
+
+Improved but not finished:
+- the helper now gives deterministic inspection + handoff rendering, but it still does **not** automate classification, safe merge of conflicting session-history dirs, or archive/delete orchestration
+- the workflow should now be tested on the next real legacy repo to verify the contract holds outside the `pi-autonomous-session-control` migration

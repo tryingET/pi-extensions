@@ -53,7 +53,7 @@ For the remaining set, do this per package:
 
 Do **not** try to archive/delete all seven manually from memory.
 
-Use the helper script first:
+Use the helper script first (inventory diff + session relocation plan + handoff rendering):
 
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions

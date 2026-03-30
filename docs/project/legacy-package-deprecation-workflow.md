@@ -120,6 +120,9 @@ Required comparison buckets:
 Recommended inventory sources:
 - `find ... -type f | sort`
 - JSON inventories via `scripts/legacy-package-deprecation.sh inspect ...`
+  - includes `sharedRelativeFiles`, `legacyOnlyFiles`, `canonicalOnlyFiles`
+  - includes the computed session-relocation plan and recommended action
+  - includes a reusable ownership/classification outline for `moved-to-root`, `moved-to-package`, `archive-only`, `runtime-junk`, `safe-to-delete`
 - explicit path maps for `legacy path -> canonical destination`
 
 ### 3. Classify legacy contents with an explicit checklist
@@ -196,6 +199,9 @@ It should say:
 - canonical package/group path
 - implementation must not continue in the legacy folder
 - legacy repo is pending archive-and-delete workflow only
+
+Helper option:
+- `scripts/legacy-package-deprecation.sh render-handoff ...` prints a reusable deprecation handoff body that can be dropped into `NEXT_SESSION_PROMPT.md`
 
 ### 6. Create exactly one archival artifact
 
@@ -279,18 +285,23 @@ cd ~/ai-society/softwareco/owned/pi-extensions
   --legacy ~/programming/pi-extensions/<legacy> \
   --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target>
 
-# 3. dry-run the Pi session-history relocation
+# 3. render the legacy handoff body before deletion
+./scripts/legacy-package-deprecation.sh render-handoff \
+  --legacy ~/programming/pi-extensions/<legacy> \
+  --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target>
+
+# 4. dry-run the Pi session-history relocation
 ./scripts/legacy-package-deprecation.sh relocate-sessions \
   --legacy ~/programming/pi-extensions/<legacy> \
   --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target>
 
-# 4. execute relocation once verified
+# 5. execute relocation once verified
 ./scripts/legacy-package-deprecation.sh relocate-sessions \
   --legacy ~/programming/pi-extensions/<legacy> \
   --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target> \
   --execute
 
-# 5. archive once
+# 6. archive once
 cd ~/programming/pi-extensions
 tar -czf <legacy>-final-archive.tar.gz <legacy>
 ```
@@ -301,8 +312,8 @@ Treat the command block as a skeleton only; always apply the classification and 
 
 This workflow does not yet guarantee:
 - automatic inventory classification
-- automatic session-folder name computation by script
 - automatic safe merge of conflicting session-history directories
+- automatic archive creation/deletion orchestration end-to-end
 
 Those can be scripted later once enough migrations confirm the contract.
 

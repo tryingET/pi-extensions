@@ -287,7 +287,7 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 
 **Dashboard commands:**
 - `/subagent-dashboard` — open a read-only summary of recent subagent sessions
-- `/subagent-inspect <session-name>` — open raw status/session artifact pointers for a specific session
+- `/subagent-inspect <session-name>` — open a derived inspection summary with lifecycle metadata, artifact paths, safety notes, and the raw status sidecar for a specific session
 
 **Example:**
 ```bash
