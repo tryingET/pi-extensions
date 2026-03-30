@@ -36,6 +36,10 @@ scripts/         # CI/utility scripts
 ./scripts/rocs.sh --doctor
 ./scripts/rocs.sh version
 
+# AK task / work-item wrapper
+./scripts/ak.sh --doctor
+./scripts/ak.sh task ready
+
 # CI lanes / canonical root validation
 ./scripts/quality-gate.sh pre-commit   # canonical root quality-gate wrapper
 ./scripts/quality-gate.sh pre-push
@@ -97,6 +101,9 @@ Use `tpl-package` from your L1 templates to add packages:
 
 ## Governance
 
+- AK task/work-item operations should go through the repo-root wrapper `./scripts/ak.sh`.
+  - From package directories, call the ancestor wrapper (for example `../../scripts/ak.sh ...`).
+- New package-local architecture/process docs should use `docs/project/` for dated RFCs/runbooks/notes and `docs/adr/` for adopted decisions; avoid creating new package-local `docs/dev/` trees.
 - Work items: `governance/work-items.json`
 - Policies: `policy/`
 - Ontology: `ontology/`

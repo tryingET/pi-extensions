@@ -62,10 +62,10 @@ Before any new UI or extraction moves, Phase A capability discovery established 
 
 Primary architecture artifacts:
 
-- [Architecture backlog](docs/dev/plans/2026-03-10-architecture-backlog.md)
-- [Phase A UI capability discovery](docs/dev/plans/2026-03-10-ui-capability-discovery.md)
-- [ASC public execution contract proposal](docs/dev/plans/2026-03-10-asc-public-execution-contract.md)
-- [Control-plane boundaries ADR](docs/decisions/2026-03-10-control-plane-boundaries.md)
+- [Architecture backlog](docs/project/2026-03-10-architecture-convergence-backlog.md)
+- [Phase A UI capability discovery](docs/project/2026-03-10-ui-capability-discovery.md)
+- [ASC public execution contract proposal](docs/project/2026-03-10-rfc-asc-public-execution-contract.md)
+- [Control-plane boundaries ADR](docs/adr/0001-control-plane-boundaries.md)
 
 ## Imported source layout
 
@@ -141,6 +141,26 @@ npm run check
 ```
 
 `npm run check` now exercises package-local typechecking and regression tests in addition to lint/structure/package validation.
+
+## AK task/work-item operations
+
+This package is a monorepo member, not a git root.
+Use the monorepo-root AK wrapper for task/work-item operations:
+
+```bash
+# from the pi-extensions repo root
+./scripts/ak.sh --doctor
+./scripts/ak.sh task ready
+
+# from this package directory
+../../scripts/ak.sh --doctor
+../../scripts/ak.sh task show <id> -F json
+```
+
+For package-local architecture/process docs, prefer:
+- `docs/project/` for dated RFCs, runbooks, and evidence/progress notes
+- `docs/adr/` for adopted architecture decisions
+- avoid new `docs/dev/` trees
 
 The runtime now also shares package-local helpers for:
 - no-shell lower-plane command execution (`sqlite3`, `dolt`, `ak`, `rocs-cli`)

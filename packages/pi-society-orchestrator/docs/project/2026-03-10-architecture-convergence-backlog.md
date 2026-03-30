@@ -38,7 +38,7 @@ Phase A is now explicit in package docs and architecture notes:
 
 Status update:
 
-- `B1` complete in substance via `docs/dev/plans/2026-03-10-ui-capability-discovery.md`
+- `B1` complete in substance via `docs/project/2026-03-10-ui-capability-discovery.md`
 - `B2` complete in substance via the discovery matrix + ADR update path
 - `B5` complete in substance via the README/control-plane charter refresh
 
@@ -68,7 +68,7 @@ Status update:
 - **Validation:** discovery covers upstream generic UI, interaction runtime, execution runtime, and pattern repos separately
 - Leaf actions:
   1. **Create Phase A discovery artifact**
-     - File change: `docs/dev/plans/2026-03-10-ui-capability-discovery.md`
+     - File change: `docs/project/2026-03-10-ui-capability-discovery.md`
   2. **Read and compare canonical sources**
      - Commands:
        - `read ../pi-interaction/pi-interaction/README.md`
@@ -77,18 +77,18 @@ Status update:
        - `read /home/tryinget/ai-society/softwareco/contrib/pi-mono/packages/tui/README.md`
        - `read /home/tryinget/ai-society/softwareco/contrib/pi-vs-claude-code/README.md`
   3. **Convert evidence into a UI/runtime ownership matrix**
-     - File change: append matrix findings to `docs/decisions/2026-03-10-control-plane-boundaries.md`
+     - File change: append matrix findings to `docs/adr/0001-control-plane-boundaries.md`
 
 #### T2 — Lock execution-plane direction after Phase A (`B3`, `B10`)
 - **Depends on:** T1
 - **Validation:** execution seam avoids private source imports, keeps dependency graph acyclic, and does not confuse UI helpers with runtime lifecycle ownership
 - Leaf actions:
   1. **Record execution-plane decision and criteria**
-     - File change: upkeep `docs/decisions/2026-03-10-control-plane-boundaries.md`
+     - File change: upkeep `docs/adr/0001-control-plane-boundaries.md`
   2. **Draft ASC public execution contract proposal**
-     - File change: `docs/dev/plans/2026-03-10-asc-public-execution-contract.md`
+     - File change: `docs/project/2026-03-10-rfc-asc-public-execution-contract.md`
   3. **Record the rule for presentation helpers**
-     - File change: append to `docs/decisions/2026-03-10-control-plane-boundaries.md`
+     - File change: append to `docs/adr/0001-control-plane-boundaries.md`
 
 #### T3 — Canonicalize backend adapters not blocked on upstream vault work (`B4`, `B5`)
 - **Depends on:** T1, T2
@@ -97,7 +97,7 @@ Status update:
   1. **Inventory current local access points**
      - Command: `rg -n "sqlite3|dolt sql|society.db|ontology WHERE|queryVaultJson|querySociety|execSociety" extensions src -g '!node_modules'`
   2. **Map each access point to a canonical replacement or deferred upstream review**
-     - File change: add migration ledger to `docs/dev/plans/2026-03-10-architecture-backlog.md`
+     - File change: add migration ledger to `docs/project/2026-03-10-architecture-convergence-backlog.md`
   3. **Open code slice to route one boundary at a time**
      - File changes: `extensions/society-orchestrator.ts`, `src/loops/engine.ts`
 
@@ -106,11 +106,11 @@ Status update:
 - **Validation:** rollout path has rollback instructions; harness plan proves chosen seams without private imports
 - Leaf actions:
   1. **Record prompt-plane deferral and review gate**
-     - File change: upkeep seam section in `docs/decisions/2026-03-10-control-plane-boundaries.md`
+     - File change: upkeep seam section in `docs/adr/0001-control-plane-boundaries.md`
   2. **Draft seam-level rollout plan**
-     - File change: append rollout section to `docs/dev/plans/2026-03-10-architecture-backlog.md`
+     - File change: append rollout section to `docs/project/2026-03-10-architecture-convergence-backlog.md`
   3. **Draft contract harness design**
-     - File change: append harness section to `docs/dev/plans/2026-03-10-architecture-backlog.md`
+     - File change: append harness section to `docs/project/2026-03-10-architecture-convergence-backlog.md`
   4. **Run package validation after doc/code changes**
      - Command: `npm run check`
 
@@ -128,7 +128,7 @@ Status update:
 10. Published an explicit ownership matrix separating generic UI, interaction runtime, execution runtime, pattern reuse, and control-plane ownership.
 11. Re-scoped package docs toward a coordination/control-plane charter.
 12. Updated the session handoff so the next slice starts from the completed Phase A picture instead of rediscovering it.
-13. Drafted an ASC-owned public execution contract proposal at `docs/dev/plans/2026-03-10-asc-public-execution-contract.md`.
+13. Drafted an ASC-owned public execution contract proposal at `docs/project/2026-03-10-rfc-asc-public-execution-contract.md`.
 14. Routed `cognitive_dispatch` evidence recording through a shared `ak`-first helper instead of a direct raw SQL insert, while keeping an explicit SQL fallback path.
 15. Aligned `runAk(...)` to the extension's configured society DB (`SOCIETY_DB`/`AK_DB`) so canonical-path evidence writes do not silently target a different database than the remaining raw paths.
 

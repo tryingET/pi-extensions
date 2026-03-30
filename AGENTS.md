@@ -27,6 +27,13 @@ Do not duplicate:
 - Put package-specific validation and workflow details in each package's docs, scripts, and manifests.
 - Keep package-local AGENTS files minimal and package-scoped.
 - Treat package folders as monorepo members, not independent repos, unless explicitly documented otherwise.
+- For AK task/work-item operations in this monorepo, use the repo-root wrapper `./scripts/ak.sh`.
+  - From a package directory, call the ancestor wrapper (for example `../../scripts/ak.sh ...`).
+  - Do not invent package-local AK wrappers or treat a package folder as its own repo identity.
+- For new package-local documentation, prefer:
+  - `docs/project/` for dated RFCs, runbooks, evidence notes, and implementation guidance
+  - `docs/adr/` for adopted architectural decisions
+  - avoid creating new `docs/dev/` trees
 - Keep the package stack contract explicit:
   - `policy/stack-lane.json` pins the `tech-stack-core` lane
   - `docs/tech-stack.local.md` records repo-local overrides
@@ -48,6 +55,7 @@ Do not duplicate:
 1. `docs/_core/` (if present)
 2. `docs/org_context/` (if present)
 3. `docs/project/`
-4. `docs/decisions/`
-5. relevant package docs
-6. relevant package manifests/scripts
+4. `docs/adr/` (if present)
+5. `docs/decisions/` (legacy, if present)
+6. relevant package docs
+7. relevant package manifests/scripts

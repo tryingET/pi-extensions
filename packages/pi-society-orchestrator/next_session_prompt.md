@@ -1,5 +1,5 @@
 ---
-summary: "Handoff prompt for pi-society-orchestrator after the fail-closed routing, session-identity, execution-status, resource/lifecycle hardening, headless installed-runtime smoke, unified execution/evidence, rocs-backed ontology-adapter, and lower-plane boundary hardening passes. The next bounded work is the remaining architecture convergence."
+summary: "Handoff prompt for pi-society-orchestrator after the fail-closed routing, session-identity, execution-status, resource/lifecycle hardening, headless installed-runtime smoke, unified execution/evidence, rocs-backed ontology-adapter, lower-plane boundary hardening, and docs/AGENTS monorepo-alignment passes. The next bounded work is the remaining architecture convergence."
 read_when:
   - "Starting the next focused package-development session."
 system4d:
@@ -70,6 +70,11 @@ The next bounded work is:
 - subagent assistant-output capture is bounded.
 - oversized unterminated Pi event buffers now fail explicitly instead of growing forever.
 
+### Docs/AGENTS shape now matches monorepo reality better
+- package-local docs now use `docs/project/` for dated RFCs/runbooks/notes and `docs/adr/` for adopted decisions instead of a package-local `docs/dev/` tree.
+- package AGENTS/README now state explicitly that AK task/work-item operations for this package must go through the monorepo-root wrapper (`./scripts/ak.sh` from repo root, `../../scripts/ak.sh` from this package).
+- the package template was updated in parallel so new monorepo package scaffolds inherit the same docs placement and AK-wrapper guidance.
+
 ### Release/runtime verification is now more hermetic
 Package-local validation rerun for the current state:
 
@@ -109,13 +114,13 @@ node --test ./scripts/release-components.test.mjs
 ## Primary artifacts to read first
 
 Read these first before choosing the next change:
+- `AGENTS.md`
 - `README.md`
-- `README.md`
-- `docs/dev/plans/2026-03-11-hermetic-installed-release-smoke.md`
-- `docs/dev/plans/2026-03-11-unified-execution-evidence-contract.md`
-- `docs/dev/plans/2026-03-11-rocs-ontology-adapter.md`
+- `docs/project/2026-03-11-hermetic-installed-release-smoke.md`
+- `docs/project/2026-03-11-rfc-unified-execution-evidence-contract.md`
+- `docs/project/2026-03-11-rfc-rocs-ontology-adapter.md`
 - `src/runtime/execution-status.ts`
-- `docs/dev/plans/2026-03-12-lower-plane-boundary-hardening.md`
+- `docs/project/2026-03-12-lower-plane-boundary-hardening.md`
 - `src/runtime/evidence.ts`
 - `src/runtime/ak.ts`
 - `src/runtime/boundaries.ts`
@@ -132,10 +137,10 @@ Read these first before choosing the next change:
 - `scripts/release-smoke.mjs`
 
 Then re-open the broader architecture artifacts if the next session finishes the bounded cleanup pack:
-- `docs/dev/plans/2026-03-10-architecture-backlog.md`
-- `docs/dev/plans/2026-03-10-ui-capability-discovery.md`
-- `docs/dev/plans/2026-03-10-asc-public-execution-contract.md`
-- `docs/decisions/2026-03-10-control-plane-boundaries.md`
+- `docs/project/2026-03-10-architecture-convergence-backlog.md`
+- `docs/project/2026-03-10-ui-capability-discovery.md`
+- `docs/project/2026-03-10-rfc-asc-public-execution-contract.md`
+- `docs/adr/0001-control-plane-boundaries.md`
 
 ## Immediate focus order
 
@@ -171,6 +176,9 @@ Then re-open the broader architecture artifacts if the next session finishes the
 npm run docs:list
 npm run check
 npm run release:check
+
+# when task/work-item state matters, use the monorepo-root AK wrapper
+../../scripts/ak.sh --doctor
 ```
 
 ## Session checklist
