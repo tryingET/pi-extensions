@@ -76,7 +76,7 @@ Use this audit before changing generated outputs.
 Route follow-up work as follows:
 
 - template output changes:
-  - `~/ai-society/softwareco/owned/pi-extensions-template/NEXT_SESSION_PROMPT.md`
+  - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
 - Nunjucks live verification:
   - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/next_session_prompt.md`
 - session/handoff prompt wording and prompt-template work:

@@ -67,7 +67,7 @@ Do **not** treat this file as a live status database.
    - package-local `docs/tech-stack.local.md`
    - package-local `policy/stack-lane.json` where still present
 3. Route template changes to:
-   - `~/ai-society/softwareco/owned/pi-extensions-template/NEXT_SESSION_PROMPT.md`
+   - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
 4. Route Nunjucks live verification to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/next_session_prompt.md`
 5. Route session/handoff prompt wording and prompt-template work to:
