@@ -147,6 +147,16 @@ Use `tpl-package` from your L1 templates to add packages:
   - `SECURITY.md`
   - `SUPPORT.md`
 
+## Direction chain
+
+Use these root direction surfaces in order when planning the next active root wave:
+
+- `docs/project/vision.md`
+- `docs/project/strategic_goals.md`
+- `docs/project/tactical_goals.md`
+- `docs/project/operating_plan.md`
+- `next_session_prompt.md`
+
 ## Diary
 
 Capture sessions in `diary/YYYY-MM-DD--type-scope-summary.md`.

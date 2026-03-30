@@ -34,6 +34,13 @@ Do **not** treat this file as a live status database.
 
 ## CURRENT TRUTH
 - This repo is the canonical monorepo control plane for pi extensions.
+- The root direction chain is now explicit:
+  - `docs/project/vision.md`
+  - `docs/project/strategic_goals.md`
+  - `docs/project/tactical_goals.md`
+  - `docs/project/operating_plan.md`
+- Latest root diary pointer:
+  - `diary/2026-03-30--docs-root-direction-decomposition-wave.md`
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
@@ -58,19 +65,23 @@ Do **not** treat this file as a live status database.
 - Do **not** bypass quality gates before committing.
 
 ## CONTINUE WITH
-1. Review whether `tech-stack-core` policy should stay centralized here while package/template outputs shrink to the **reduced form**:
-   - root repo owns policy and validation stance
-   - package repos/templates keep only the local override file where repo-specific divergence is needed
-2. Audit the current review surfaces in this repo before changing templates:
+1. Re-enter the active direction chain before touching root policy:
+   - `docs/project/vision.md`
+   - `docs/project/strategic_goals.md`
+   - `docs/project/tactical_goals.md`
+   - `docs/project/operating_plan.md`
+2. Execute the active root operating slices already materialized in AK:
+   - `#596` refresh the live tech-stack review surface audit after recent package/template alignment
+   - `#597` define the root-side reduced-form migration contract for the remaining legacy-full package surfaces
+3. Use the canonical root evidence/orientation docs while doing that work:
    - `docs/tech-stack.local.md`
+   - `docs/project/tech-stack-review-surfaces.md`
    - `scripts/validate-tech-stack-contract.mjs`
-   - package-local `docs/tech-stack.local.md`
-   - package-local `policy/stack-lane.json` where still present
-3. Route template changes to:
+4. Route template changes to:
    - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
-4. Route Nunjucks live verification to:
+5. Route Nunjucks live verification to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/next_session_prompt.md`
-5. Route session/handoff prompt wording and prompt-template work to:
+6. Route session/handoff prompt wording and prompt-template work to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator/next_session_prompt.md`
 
 ## NEXT-SESSION START COMMANDS
@@ -78,7 +89,8 @@ Do **not** treat this file as a live status database.
 cd ~/ai-society/softwareco/owned/pi-extensions
 git status --short
 git diff --name-only
-ak task ready -F json | jq '.[] | select(.repo | contains("pi-extensions"))'
+./scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'
+./scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:5]'
 npm run quality:pre-commit
 npm run quality:pre-push
 ```
