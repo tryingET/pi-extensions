@@ -20,6 +20,13 @@ The next session should only widen behavior where safety remains obvious:
 - either add one clearly safe recovery affordance that still delegates to existing lifecycle/session semantics
 - or apply and tighten the new deprecation workflow against the next real legacy repo under `~/programming/pi-extensions/`
 
+Operator override:
+- if the operator explicitly chooses the **cross-package ASC public execution-contract** slice, switch to the orchestrator-owned packet docs first instead of rediscovering the boundary from package-local notes alone:
+  - `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
+  - `../pi-society-orchestrator/docs/adr/2026-03-11-control-plane-boundaries.md`
+  - `../pi-society-orchestrator/docs/project/2026-03-10-rfc-asc-public-execution-contract.md`
+- in that override path, the intended implementation order is: public runtime seam first -> parity harness second -> orchestrator adoption/removal of duplicate runtime third
+
 ## What landed this session
 
 ### Dashboard / operator experience
@@ -103,6 +110,18 @@ Good candidate outcome:
 - relocate Pi session history using full-path-derived folder names
 - create one final `tar.gz` archive
 - delete the legacy repo only after validation
+
+### Option C — execute the cross-package ASC public execution-contract wave
+
+Use this only when the operator explicitly chooses the execution-boundary packet.
+
+Start from:
+- `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
+
+Then execute in order:
+1. publish the ASC public runtime seam
+2. add parity coverage against `dispatch_subagent`
+3. let orchestrator consume that seam instead of its duplicate runtime path
 
 ## Validation evidence from this session
 

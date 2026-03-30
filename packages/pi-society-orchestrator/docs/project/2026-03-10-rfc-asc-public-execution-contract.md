@@ -12,6 +12,20 @@ system4d:
 
 # ASC public execution contract proposal
 
+## Role in the packet
+
+This RFC is the **seam-shaping document** under the adopted boundary decision in [../adr/2026-03-11-control-plane-boundaries.md](../adr/2026-03-11-control-plane-boundaries.md).
+
+Use it together with:
+- the central map: [subagent-execution-boundary-map.md](subagent-execution-boundary-map.md)
+- the discovery evidence: [2026-03-10-ui-capability-discovery.md](2026-03-10-ui-capability-discovery.md)
+- the migration backlog: [2026-03-10-architecture-convergence-backlog.md](2026-03-10-architecture-convergence-backlog.md)
+
+Interpretation rule:
+- the ADR answers **who owns the execution plane**
+- this RFC answers **what the first supported public seam should look like**
+- the backlog / AK tasks answer **what to implement next**
+
 ## A) Proposal summary
 
 `pi-autonomous-session-control` should expose a small, stable **public execution contract** for non-UI consumers so `pi-society-orchestrator` can reuse ASC-owned subagent execution behavior without either duplicating runtime logic or importing private `extensions/self/*` internals. The smallest useful change is to promote the existing `dispatch_subagent` runtime path into a package-level public entrypoint that keeps ASC as the execution-plane owner, preserves current tool behavior, and leaves extraction to a future shared runtime package only if the public contract cannot be made clean without leaking `self`-specific concerns.
@@ -19,10 +33,10 @@ system4d:
 ## B) Current behavior and limitation
 
 - Current behavior:
-  - `pi-society-orchestrator` currently carries its own local execution runtime in `extensions/society-orchestrator.ts`:
-    - local `AGENT_PROFILES`
-    - local `spawnSubagent(...)`
-    - local session-file handling for spawned Pi subprocesses
+  - `pi-society-orchestrator` currently carries its own local execution runtime in `src/runtime/subagent.ts`, consumed from `extensions/society-orchestrator.ts` and `src/loops/engine.ts`:
+    - local `buildCombinedSystemPrompt(...)`
+    - local `spawnPiSubagent(...)`
+    - local Pi subprocess/session-file handling for spawned execution
   - ASC already owns the stronger execution-plane implementation in `pi-autonomous-session-control`:
     - `dispatch_subagent` tool registration in `extensions/self/subagent.ts`
     - spawn lifecycle in `extensions/self/subagent-spawn.ts`
@@ -33,6 +47,7 @@ system4d:
     - `package.json` ships `extensions/self.ts` and `extensions/self/`
     - `extensions/self.ts` composes delegation runtime internally via `registerDelegationRuntime(...)`
     - there is no documented package-level public non-tool execution entrypoint for downstream consumers
+    - there is also no package-level `exports` contract or published runtime-oriented file whitelist for this seam yet
 - Limitation:
   - `pi-society-orchestrator` cannot currently consume ASC execution behavior through a supported package seam.
   - That leaves two bad options:

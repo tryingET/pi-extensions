@@ -25,6 +25,10 @@ Establish an evidence-based capability map before deciding whether any subagent 
 
 **Phase A is complete for this slice.**
 
+This document is the **evidence layer** in the subagent execution-boundary packet.
+If you need the full packet map, start with [subagent-execution-boundary-map.md](subagent-execution-boundary-map.md).
+The adopted boundary decision lives in [../adr/2026-03-11-control-plane-boundaries.md](../adr/2026-03-11-control-plane-boundaries.md); this file exists to justify that placement, not to replace it.
+
 Validated conclusions:
 
 1. Upstream Pi / `pi-mono` already owns the generic extension UI primitives we need for widgets, footers, overlays, and custom editors.

@@ -20,13 +20,29 @@ Canonical package path: `packages/pi-autonomous-session-control`
 For workspace-level placement and ownership boundaries, read:
 - `~/ai-society/holdingco/governance-kernel/docs/core/definitions/ai-society-stack-map.md`
 - `~/ai-society/softwareco/owned/agent-kernel/docs/project/ai-society-convergence-architecture.md`
-- `~/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator/docs/decisions/2026-03-10-control-plane-boundaries.md`
+- `~/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
+- `~/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator/docs/adr/2026-03-11-control-plane-boundaries.md`
 
 Short version:
 - this package is the strongest current **Pi-side execution/runtime owner**
 - it is not the canonical society-state authority (`ak`/AK own that)
 - it is not the workspace-wide control board (FCOS/governance-kernel own that)
 - package-local control-plane coordination belongs in `pi-society-orchestrator`
+
+## Cross-package execution-boundary packet
+
+If the work is about **how ASC should expose its runtime to `pi-society-orchestrator`**, start with the orchestrator-owned packet docs:
+
+- `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
+- `../pi-society-orchestrator/docs/adr/2026-03-11-control-plane-boundaries.md`
+- `../pi-society-orchestrator/docs/project/2026-03-10-rfc-asc-public-execution-contract.md`
+- `../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
+
+Interpretation:
+- the ADR decides that ASC remains the execution-plane owner
+- the RFC describes the first public runtime seam ASC should expose
+- the backlog / AK tasks describe the implementation order
+- this package README describes the current runtime owner reality, not the seam design by itself
 
 ## Quickstart
 

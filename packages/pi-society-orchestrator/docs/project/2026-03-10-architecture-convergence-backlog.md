@@ -26,6 +26,11 @@ Converge `packages/pi-society-orchestrator` toward a clean layered architecture 
 
 Prompt-plane finalization is intentionally **deferred** until the upstream `pi-vault-client` NEXUS slice lands its explicit Vault execution boundary. Work that does **not** depend on that boundary should proceed now.
 
+## Packet map
+
+If you are here specifically for the subagent/runtime boundary, do **not** start by rereading this file in isolation.
+Start with [subagent-execution-boundary-map.md](subagent-execution-boundary-map.md), then move outward to the evidence note, ADR, RFC, and finally this backlog.
+
 ## Phase A completion snapshot — 2026-03-10
 
 Phase A is now explicit in package docs and architecture notes:
@@ -48,7 +53,7 @@ Status update:
 |---|---|---:|---:|---:|---|---|
 | B1 | Run Phase A capability discovery across `pi-mono`, `pi-interaction`, ASC, and `pi-vs-claude-code` | 5 | 5 | 2 | Q1 | Needed before any confident UI/extraction decision |
 | B2 | Publish a UI/runtime ownership matrix separating generic UI, interaction runtime, execution runtime, and control plane | 5 | 5 | 3 | Q1 | Converts discovery into durable architecture truth |
-| B3 | Implement the chosen execution-plane path: ASC-owned public execution contract first, extraction only as fallback | 5 | 4 | 3 | Q1 | Still the right execution-plane direction, but after Phase A evidence is explicit |
+| B3 | Implement the chosen execution-plane path: ASC-owned public execution contract first, extraction only as fallback | 5 | 4 | 3 | Q1 | Still the right execution-plane direction; after packet reconciliation it now decomposes cleanly into AK tasks `#604` -> `#605` -> `#606` |
 | B4 | Replace local raw society/ontology access with canonical adapters (`ak`, `rocs-cli`) | 5 | 4 | 4 | Q1 | Can proceed without prompt-plane finalization |
 | B5 | Re-scope orchestrator charter/README to coordination-only and reference generic upstream UI primitives instead of implying local ownership | 4 | 4 | 2 | Q1 | Prevents new drift while discovery/contract work proceeds |
 | B6 | Review the upstream `pi-vault-client` Vault execution boundary after it lands, then choose the prompt-plane seam | 5 | 2 | 4 | Q2 | Intentionally blocked on upstream implementation |
@@ -77,18 +82,18 @@ Status update:
        - `read /home/tryinget/ai-society/softwareco/contrib/pi-mono/packages/tui/README.md`
        - `read /home/tryinget/ai-society/softwareco/contrib/pi-vs-claude-code/README.md`
   3. **Convert evidence into a UI/runtime ownership matrix**
-     - File change: append matrix findings to `docs/adr/0001-control-plane-boundaries.md`
+     - File change: append matrix findings to `docs/adr/2026-03-11-control-plane-boundaries.md`
 
 #### T2 — Lock execution-plane direction after Phase A (`B3`, `B10`)
 - **Depends on:** T1
 - **Validation:** execution seam avoids private source imports, keeps dependency graph acyclic, and does not confuse UI helpers with runtime lifecycle ownership
 - Leaf actions:
   1. **Record execution-plane decision and criteria**
-     - File change: upkeep `docs/adr/0001-control-plane-boundaries.md`
+     - File change: upkeep `docs/adr/2026-03-11-control-plane-boundaries.md`
   2. **Draft ASC public execution contract proposal**
      - File change: `docs/project/2026-03-10-rfc-asc-public-execution-contract.md`
   3. **Record the rule for presentation helpers**
-     - File change: append to `docs/adr/0001-control-plane-boundaries.md`
+     - File change: append to `docs/adr/2026-03-11-control-plane-boundaries.md`
 
 #### T3 — Canonicalize backend adapters not blocked on upstream vault work (`B4`, `B5`)
 - **Depends on:** T1, T2
@@ -106,7 +111,7 @@ Status update:
 - **Validation:** rollout path has rollback instructions; harness plan proves chosen seams without private imports
 - Leaf actions:
   1. **Record prompt-plane deferral and review gate**
-     - File change: upkeep seam section in `docs/adr/0001-control-plane-boundaries.md`
+     - File change: upkeep seam section in `docs/adr/2026-03-11-control-plane-boundaries.md`
   2. **Draft seam-level rollout plan**
      - File change: append rollout section to `docs/project/2026-03-10-architecture-convergence-backlog.md`
   3. **Draft contract harness design**
@@ -117,7 +122,7 @@ Status update:
 ## Immediate safe leaves executed in this planning slice
 
 1. Created this planning artifact.
-2. Drafted a proposed ADR for control-plane boundaries.
+2. Drafted the first version of the control-plane boundaries ADR.
 3. Updated `next_session_prompt.md` to point the next session at the new architecture artifacts.
 4. Ran `npm run check` after doc updates.
 5. Inventoried current local raw access points in `extensions/society-orchestrator.ts`.
@@ -133,13 +138,31 @@ Status update:
 15. Aligned `runAk(...)` to the extension's configured society DB (`SOCIETY_DB`/`AK_DB`) so canonical-path evidence writes do not silently target a different database than the remaining raw paths.
 16. Moved `/evidence` onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper in `src/runtime/society.ts`.
 
-## Immediate next leaves after Phase A
+## Immediate next leaves after packet reconciliation
 
-1. Review/socialize the drafted ASC-owned public execution contract proposal and turn it into either an ASC implementation slice or an upstream/internal issue.
-2. Decide whether the remaining `society_query` diagnostic exception should survive until a canonical AK read/query surface exists or be tightened further.
-3. Revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only evidence writes.
-4. Keep presentation helpers local unless a second real consumer proves extraction pressure.
-5. Continue to defer prompt-plane seam selection until the upstream `pi-vault-client` boundary lands.
+1. Execute `#604` and publish the ASC public execution contract as a real package-level seam.
+2. Execute `#605` and prove parity between the new runtime seam and `dispatch_subagent` tool behavior.
+3. Execute `#606` and cut orchestrator over to the ASC-owned runtime so the duplicate execution path can retire.
+4. Continue the narrower remaining society/evidence cleanup separately; do not let it reopen the execution-plane ownership question.
+5. Keep presentation helpers local unless a second real consumer proves extraction pressure.
+6. Continue to defer prompt-plane seam selection until the upstream `pi-vault-client` boundary lands.
+
+## Current execution-plane packet after docs reconciliation
+
+AK is the execution authority for the current subagent/runtime wave:
+
+1. `#604` — expose the ASC public execution contract for non-tool consumers
+2. `#605` — add the parity harness proving the new runtime path matches `dispatch_subagent`
+3. `#606` — adopt the ASC runtime in orchestrator and retire the duplicate path
+
+Dependency order:
+
+```text
+#604 -> #605 -> #606
+```
+
+This is the smallest truthful execution-plane wave implied by the ADR + RFC packet.
+It intentionally does **not** start with dashboard polish, a new UI-helper package, or orchestrator-side UX refinement.
 
 ## Execution-plane implementation checklist
 

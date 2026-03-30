@@ -1,12 +1,12 @@
 ---
-summary: "Proposed capability ownership, dependency rules, seam matrix, and migration policy for society-orchestrator, ASC, vault-client, ak, and rocs-cli."
-status: proposed
+summary: "Accepted capability ownership, dependency rules, seam matrix, and migration policy for society-orchestrator, ASC, vault-client, ak, and rocs-cli."
+status: accepted
 read_when:
   - "Before refactoring pi-society-orchestrator architecture."
   - "When deciding whether a capability belongs in orchestrator, ASC, vault-client, or canonical CLIs."
   - "When reviewing cross-package dependency direction or public seam design."
 system4d:
-  container: "Package-local proposed ADR for cross-package architecture boundaries."
+  container: "Package-local ADR for cross-package architecture boundaries."
   compass: "Keep orchestration strategic while other packages own their canonical planes."
   engine: "state problem -> evaluate forces -> assign ownership -> define seams -> specify fitness checks -> sequence migration."
   fog: "The biggest risk is duplicate local implementations that bypass canonical contracts."
@@ -16,7 +16,24 @@ system4d:
 
 ## Status
 
-Proposed.
+Accepted as the package-level boundary decision.
+
+Implementation is still incomplete.
+This ADR is the **decision layer**, not the claim that every seam below is already landed in code.
+
+## How to read this ADR with the supporting packet
+
+If the subagent/runtime-boundary packet feels scattered, start here:
+
+- central map: [`docs/project/subagent-execution-boundary-map.md`](../project/subagent-execution-boundary-map.md)
+- evidence: [`docs/project/2026-03-10-ui-capability-discovery.md`](../project/2026-03-10-ui-capability-discovery.md)
+- seam proposal: [`docs/project/2026-03-10-rfc-asc-public-execution-contract.md`](../project/2026-03-10-rfc-asc-public-execution-contract.md)
+- migration/HTN: [`docs/project/2026-03-10-architecture-convergence-backlog.md`](../project/2026-03-10-architecture-convergence-backlog.md)
+
+Chronology note:
+- the discovery note and RFC were authored first
+- this ADR first landed on 2026-03-11 and now explicitly incorporates those inputs instead of competing with them
+- the current implementation gap remains real: orchestrator still has a duplicate subagent runtime path and ASC still needs the public execution contract proposed by the RFC
 
 ## Executive summary
 

@@ -60,12 +60,13 @@ Before any new UI or extraction moves, Phase A capability discovery established 
 - `pi-vs-claude-code` is best treated as a UX/pattern repo, not a canonical runtime owner
 - ASC remains the strongest execution-plane owner for subagent lifecycle/runtime concerns
 
-Primary architecture artifacts:
+Primary execution-boundary packet:
 
-- [Architecture backlog](docs/project/2026-03-10-architecture-convergence-backlog.md)
-- [Phase A UI capability discovery](docs/project/2026-03-10-ui-capability-discovery.md)
-- [ASC public execution contract proposal](docs/project/2026-03-10-rfc-asc-public-execution-contract.md)
-- [Control-plane boundaries ADR](docs/adr/0001-control-plane-boundaries.md)
+- [Subagent execution-boundary map](docs/project/subagent-execution-boundary-map.md) — central entrypoint for what is evidence vs decision vs seam proposal vs backlog
+- [Phase A UI capability discovery](docs/project/2026-03-10-ui-capability-discovery.md) — evidence for package placement
+- [Control-plane boundaries ADR](docs/adr/2026-03-11-control-plane-boundaries.md) — adopted boundary decision
+- [ASC public execution contract proposal](docs/project/2026-03-10-rfc-asc-public-execution-contract.md) — preferred first seam under the ADR
+- [Architecture backlog](docs/project/2026-03-10-architecture-convergence-backlog.md) — migration order and HTN
 
 ## Imported source layout
 
