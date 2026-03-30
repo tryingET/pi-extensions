@@ -21,13 +21,14 @@ Active tactical goal:
 |---|---:|---|---|
 | 1 | `#595` | done | Seed root direction decomposition docs and stable bootstrap pointers for the reduced-form policy wave. |
 | 2 | `#596` | done | Refresh the live tech-stack review surface audit after recent package/template alignment and update the canonical root audit note. |
-| 3 | `#597` | ready | Define the root-side reduced-form migration contract for the remaining legacy-full package surfaces and record exact routing boundaries. |
+| 3 | `#597` | done | Define the root-side reduced-form migration contract for the remaining legacy-full package surfaces and record exact routing boundaries. |
 
 ## Interpretation
 
 - This file intentionally tracks only the active tactical goal.
-- `#597` is the remaining ready root-local execution slice in this wave.
+- `#597` completed the remaining root-local execution slice in this wave.
 - Deferred package-boundary tasks `#268` and `#269` remain context, not the current root operating wave.
+- Package/template follow-up may still exist, but it should now route through the contract instead of extending this root wave ad hoc.
 
 ## HTN
 

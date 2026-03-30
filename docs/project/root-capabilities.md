@@ -74,6 +74,7 @@ system4d:
 - `SUPPORT.md`
 - `docs/tech-stack.local.md`
 - `docs/project/tech-stack-review-surfaces.md`
+- `docs/project/reduced-form-migration-contract.md`
 
 ## Root does not own
 

@@ -133,8 +133,10 @@ Use `tpl-package` from your L1 templates to add packages:
 - Package stack contract surface:
   - reduced-form target: package-local `docs/tech-stack.local.md` only when a package has a real local override
   - current audit + routing note: `docs/project/tech-stack-review-surfaces.md`
+  - migration contract + exact boundaries: `docs/project/reduced-form-migration-contract.md`
   - live audit command: `npm run tech-stack:review-surfaces`
-  - package-local `policy/stack-lane.json` remains present in some existing packages and is tracked by the audit
+  - package-local `policy/stack-lane.json` remains present in some existing packages and is tracked as legacy/full-surface state until routed follow-up removes it truthfully
+  - `policy-only` is not an accepted target state
   - root helper `scripts/validate-tech-stack-contract.mjs`
   - package-local `AGENTS.md` / `docs/project/resources.md`
 - Upstream lane CLI:

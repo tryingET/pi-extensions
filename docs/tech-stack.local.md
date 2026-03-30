@@ -56,7 +56,9 @@ Practical rule:
   - root validator: `scripts/validate-tech-stack-contract.mjs`
   - live package audit: `npm run tech-stack:review-surfaces`
   - current package state + routing notes: `docs/project/tech-stack-review-surfaces.md`
+  - migration contract + exact boundaries: `docs/project/reduced-form-migration-contract.md`
 - Reduced-form target for package/template outputs:
   - keep package-local `docs/tech-stack.local.md` only when a package has a real local override
   - treat package-local `policy/stack-lane.json` as legacy/full-surface state until package/template follow-up intentionally removes it
+  - do not treat `policy-only` as an acceptable end state; local policy metadata should disappear with the same change that lands the truthful reduced-form or no-local-surface target
   - optional `tech-stack-core show <lane> --prefer-repo` smoke checks stay available when package validation still pins the upstream lane explicitly

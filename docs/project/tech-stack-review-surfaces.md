@@ -24,6 +24,7 @@ Current root-owned sources of truth:
 
 - `docs/tech-stack.local.md`
 - `scripts/validate-tech-stack-contract.mjs`
+- [reduced-form-migration-contract.md](reduced-form-migration-contract.md)
 
 ## Live audit command
 
@@ -91,6 +92,8 @@ Use this audit before changing generated outputs.
 
 Route follow-up work as follows:
 
+- root migration contract + exact boundaries:
+  - [reduced-form-migration-contract.md](reduced-form-migration-contract.md)
 - template output changes:
   - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
 - Nunjucks live verification:
@@ -101,11 +104,13 @@ Route follow-up work as follows:
 ## Practical interpretation
 
 This audit does **not** by itself remove package-local `policy/stack-lane.json` from existing packages.
+The accepted steady states and routing boundaries are defined in [reduced-form-migration-contract.md](reduced-form-migration-contract.md).
 It makes the current state explicit so template and package follow-up can distinguish:
 
 - packages that still rely on the older full surface
 - package roots already closer to reduced form
 - package members with no local tech-stack review surface at all
+- surfaces that still need routed package/template follow-up before `policy/stack-lane.json` can disappear truthfully
 
 Notable refresh outcome for the current alignment wave:
 
