@@ -142,6 +142,7 @@ const result = await runtime.execute(
 What this seam guarantees:
 - the same core execution logic now backs both `dispatch_subagent` and public runtime consumers
 - prompt-envelope application, lifecycle invariants, session-name reservation, and result shaping stay ASC-owned
+- a dedicated parity harness now proves those shared semantics stay aligned across the public runtime and the tool path
 - downstream consumers should prefer `pi-autonomous-session-control/execution` over private `extensions/self/*` imports
 
 Companion package doc:

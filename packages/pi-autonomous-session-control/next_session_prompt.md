@@ -1,23 +1,28 @@
 ---
-summary: "Handoff after landing the ASC public execution contract for non-tool consumers and wiring dispatch_subagent onto the same shared runtime."
+summary: "Handoff after landing the ASC public execution contract and parity harness proving the public runtime stays aligned with dispatch_subagent."
 read_when:
   - "Starting the next session in packages/pi-autonomous-session-control"
   - "Before changing the public execution seam, dispatch_subagent behavior, or cross-package orchestrator integration"
 system4d:
   container: "Canonical-home handoff for pi-autonomous-session-control after the public execution-contract slice."
-  compass: "Keep ASC as the execution-plane owner, keep the public seam minimal, and prove parity before orchestrator cutover."
-  engine: "Re-enter the execution-boundary packet -> preserve the shared runtime seam -> add proof/harnesses before downstream adoption."
-  fog: "The main trap is widening the seam with self/UI leakage or cutting orchestrator over before parity is explicit."
+  compass: "Keep ASC as the execution-plane owner, keep the public seam minimal, and preserve the parity proof while orchestrator cuts over."
+  engine: "Re-enter the execution-boundary packet -> preserve the shared runtime seam -> use the parity harness as the guardrail for orchestrator adoption."
+  fog: "The main trap is widening the seam with self/UI leakage or changing runtime semantics without extending the parity proof."
 ---
 
 # Next Session Prompt
 
 ## Mission
 
-The first cross-package ASC execution-boundary slice is now implemented:
+The first two cross-package ASC execution-boundary slices are now implemented:
 - ASC exposes a supported package-level public runtime entrypoint at `pi-autonomous-session-control/execution`
-- `dispatch_subagent` now composes the same shared execution core instead of carrying a private-only execution path
-- the next truthful wave is to **prove parity** and then let orchestrator adopt the seam
+- `dispatch_subagent` composes the same shared execution core instead of carrying a private-only execution path
+- a dedicated parity harness now proves both paths stay aligned for the promised shared behavior:
+  - prompt-envelope application
+  - rate-limit / invariant failures
+  - session-name reservation behavior
+  - result / provenance shaping
+- the next truthful wave is to let orchestrator adopt the seam and retire its duplicate runtime path
 
 Start from the orchestrator-owned packet docs before changing the seam again:
 - `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
@@ -26,29 +31,30 @@ Start from the orchestrator-owned packet docs before changing the seam again:
 - `../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
 
 Execution order still in force:
-1. public runtime seam
-2. parity harness against `dispatch_subagent`
+1. public runtime seam ✅
+2. parity harness against `dispatch_subagent` ✅
 3. orchestrator adoption / duplicate-runtime retirement
 
 ## What landed this session
 
-### Public execution contract
+### Public runtime parity harness
 
 Implemented:
-- added the shared runtime core in `extensions/self/subagent-runtime.ts`
-- added the package-level public entrypoint `execution.ts`
-- added a supported registration helper `registerDispatchSubagentTool(...)`
-- updated `extensions/self/subagent.ts` so the tool path now delegates to the shared runtime core
-- added focused tests for the new consumer-facing seam in `tests/public-execution-contract.test.mjs`
+- added `tests/public-execution-parity.test.mjs`
+- built one parity harness that executes both the public runtime and the actual `dispatch_subagent` tool path against the same injected spawner expectations
+- covered the shared behavior that downstream consumers are allowed to rely on:
+  - prompt-envelope application
+  - rate-limit / invariant failures
+  - live lock collision suffixing
+  - concurrent same-name reservation behavior
+  - shaped updates/results/provenance
 
-### Package metadata + docs
+### Docs + handoff refresh
 
 Implemented:
-- updated `package.json` publish surface / exports so `./execution` is an intentional package entrypoint
-- documented the seam in:
-  - `README.md`
-  - `docs/project/public-execution-contract.md`
-- refreshed this handoff to make `#605` the next active slice
+- updated `README.md` to make the parity guarantee explicit at the package overview level
+- updated `docs/project/public-execution-contract.md` so the first two AK slices are now documented as complete
+- refreshed this handoff to make `#606` the next active slice instead of leaving parity as an implied follow-up
 
 ## Structural decisions still in force
 
@@ -67,6 +73,7 @@ Implemented:
 - `extensions/self/subagent-session.ts`
 - `extensions/self/subagent-session-name.ts`
 - `tests/public-execution-contract.test.mjs`
+- `tests/public-execution-parity.test.mjs`
 - `tests/dispatch-subagent.test.mjs`
 - `tests/dispatch-subagent-diagnostics.test.mjs`
 - `../pi-society-orchestrator/src/runtime/subagent.ts`
@@ -74,28 +81,24 @@ Implemented:
 
 ## Recommended next slices
 
-### Option A — parity harness (`#605`) **default next move**
+### Option A — orchestrator cutover (`#606`) **default next move**
 
-Prove that the public runtime and `dispatch_subagent` tool path behave the same where they are supposed to.
-
-Good target:
-- one harness that exercises both paths against the same injected spawner expectations
-- explicit assertions for:
-  - prompt-envelope application
-  - rate-limit / invariant failures
-  - session-name reservation behavior
-  - result/provenance shaping
-
-Avoid:
-- silently duplicating tests without one parity intent
-- claiming behavioral equivalence only from separate happy-path tests
-
-### Option B — orchestrator cutover (`#606`) only after parity is real
-
-Once parity is explicit:
+Now that parity is explicit:
 - let `pi-society-orchestrator` consume `pi-autonomous-session-control/execution`
 - remove the duplicate long-term runtime path in `../pi-society-orchestrator/src/runtime/subagent.ts`
+- add the smallest consumer-side proof that the cutover works without private ASC imports
 - keep the migration additive/reversible until the duplicate path is truly unnecessary
+
+Avoid:
+- widening `execution.ts` preemptively before the cutover proves a real gap
+- letting orchestrator keep a shadow runtime path “just in case” after parity already exists
+
+### Option B — extend the seam only if orchestrator cutover proves a real missing contract
+
+Only if `#606` exposes a genuine gap:
+- add the smallest ASC-owned runtime addition needed by the consumer
+- extend `tests/public-execution-parity.test.mjs` first so the tool path and public runtime remain locked together
+- keep dashboard/UI concerns out of the public seam
 
 ### Option C — return to local ASC-only UX/deprecation work only if operator redirects
 
@@ -109,6 +112,13 @@ Passed:
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
 npm run docs:list
+node --test tests/public-execution-parity.test.mjs
+npm run check
+
+cd ~/ai-society/softwareco/owned/pi-extensions
+npm run quality:pre-commit
+npm run quality:pre-push
+npm run quality:ci
 npm run check
 ```
 
@@ -119,30 +129,26 @@ Additional note:
 ## Files changed this session
 
 Package-local:
-- `execution.ts`
-- `extensions/self/subagent-runtime.ts`
-- `extensions/self/subagent.ts`
-- `tests/public-execution-contract.test.mjs`
-- `package.json`
+- `tests/public-execution-parity.test.mjs`
 - `README.md`
 - `docs/project/public-execution-contract.md`
 - `next_session_prompt.md`
 
 Repo-level:
-- `diary/2026-03-30--feat-asc-public-execution-contract.md`
+- `diary/2026-03-30--feat-asc-public-runtime-parity-harness.md`
 
 ## Remaining gaps
 
 ### Gap to trustworthy downstream adoption
 
 Still unresolved:
-- no dedicated parity harness yet proves the public runtime matches `dispatch_subagent`
 - orchestrator still carries its duplicate runtime path
 - no end-to-end consumer test yet demonstrates cutover without private imports
+- the parity harness currently proves the ASC side only; `#606` must convert that proof into an actual downstream consumer cutover
 
 ### Gap to minimal public-seam discipline
 
 Watch for drift:
 - avoid adding dashboard/UI concerns to `execution.ts`
 - avoid expanding the public contract with convenience exports that are really package internals
-- avoid changing runtime result semantics independently of the tool path
+- avoid changing runtime result semantics independently of the tool path without updating `tests/public-execution-parity.test.mjs`

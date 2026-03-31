@@ -1,5 +1,5 @@
 ---
-summary: "Implemented public execution contract for non-tool consumers of ASC subagent runtime behavior."
+summary: "Implemented ASC public execution contract plus parity proof that the public runtime matches dispatch_subagent behavior where equivalence is promised."
 read_when:
   - "You need the supported package-level seam for reusing ASC subagent execution without private imports."
   - "You are integrating pi-autonomous-session-control with pi-society-orchestrator or another downstream runtime consumer."
@@ -74,13 +74,21 @@ This contract does **not** make the following public by implication:
 
 ## Current migration position
 
-This lands the first execution-boundary slice in the AK sequence:
+This now covers the first two execution-boundary slices in the AK sequence:
 
 ```text
-#604 publish ASC public execution seam
-#605 prove parity between tool path and public runtime
+#604 publish ASC public execution seam ✅
+#605 prove parity between tool path and public runtime ✅
 #606 cut orchestrator over to the ASC seam and retire the duplicate runtime
 ```
+
+Current proof shape:
+- `tests/public-execution-contract.test.mjs` proves the supported package entrypoint exists and can bind the tool surface
+- `tests/public-execution-parity.test.mjs` proves the public runtime and `dispatch_subagent` stay aligned for:
+  - prompt-envelope application
+  - rate-limit / invariant failures
+  - session-name reservation behavior
+  - result / provenance shaping
 
 ## Validation anchors
 
@@ -88,4 +96,5 @@ This lands the first execution-boundary slice in the AK sequence:
 - `extensions/self/subagent-runtime.ts`
 - `extensions/self/subagent.ts`
 - `tests/public-execution-contract.test.mjs`
+- `tests/public-execution-parity.test.mjs`
 - `tests/dispatch-subagent.test.mjs`
