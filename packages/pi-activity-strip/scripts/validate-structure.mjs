@@ -141,9 +141,6 @@ function validatePackageJson() {
     if (!p.files.includes("policy/security-policy.json")) {
       fail("package.json files must include 'policy/security-policy.json'");
     }
-    if (!p.files.includes("policy/stack-lane.json")) {
-      fail("package.json files must include 'policy/stack-lane.json'");
-    }
 
     for (const entry of ext) {
       const normalized = entry.replace(/^\.\//, "");
@@ -154,26 +151,8 @@ function validatePackageJson() {
   }
 }
 
-function validateStackLane() {
-  const stackLane = readJsonSafe("policy/stack-lane.json");
-  if (!stackLane) {
-    fail("Failed to parse policy/stack-lane.json");
-    return;
-  }
-
-  if (stackLane.lane !== "ts") {
-    fail("policy/stack-lane.json lane must be 'ts'");
-  }
-
-  const laneName = stackLane.tech_stack_core?.lane;
-  if (laneName !== "pi-ts") {
-    fail("policy/stack-lane.json tech_stack_core.lane must be 'pi-ts'");
-  }
-}
-
 function main() {
   validatePackageJson();
-  validateStackLane();
 
   if (failed) {
     for (const error of errors) {

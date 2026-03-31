@@ -81,7 +81,6 @@ system4d:
 
 | Package path | Topology | Provisional target state | Audit basis | Routed owner |
 |---|---|---|---|---|
-| `packages/pi-activity-strip` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-activity-strip` |
 | `packages/pi-autonomous-session-control` | monorepo-package root | `none` | same boilerplate doc copy; no distinct local override recorded at root | package-local follow-up in `packages/pi-autonomous-session-control` |
 | `packages/pi-context-overlay` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-context-overlay` |
 | `packages/pi-interaction/pi-interaction` | package member under reduced-form group root | `reduced-form` | distinct child-package doc (`sha256:ce50c7…d6fa`) still carries a package-specific typecheck/validation note | package-local follow-up in `packages/pi-interaction/pi-interaction` with group-root context |
@@ -89,6 +88,8 @@ system4d:
 | `packages/pi-ontology-workflows` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-ontology-workflows` |
 | `packages/pi-society-orchestrator` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-society-orchestrator` |
 | `packages/pi-vault-client` | simple-package root with adjacent template-verification responsibility | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); adjacent verification routing does not by itself justify a local stack doc | package-local follow-up in `packages/pi-vault-client` plus template-verification lane when scaffold defaults change |
+
+`#634` has already landed the first simple-package `none` pilot in `packages/pi-activity-strip`, so that package is no longer part of the current `legacy-full` set.
 
 ## Non-goals of this contract
 

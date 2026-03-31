@@ -20,15 +20,16 @@ Active tactical goal:
 | Order | AK task | State | Deliverable |
 |---|---:|---|---|
 | 1 | `#603` | done | Published the minimal routed package-reduction queue and refreshed the stable root handoff/diary pointers. |
-| 2 | `#634` | ready | Prove the generic simple-package `none` reduction path in `packages/pi-activity-strip` by removing both local tech-stack surfaces and refreshing the root audit afterward. |
-| 3 | `#635` | pending on `#634` | Extend the proven `none` reduction path to the monorepo-package root at `packages/pi-autonomous-session-control`. |
+| 2 | `#634` | done | Proved the generic simple-package `none` reduction path in `packages/pi-activity-strip` by removing both local tech-stack surfaces and refreshing the root audit afterward. |
+| 3 | `#635` | ready | Extend the proven `none` reduction path to the monorepo-package root at `packages/pi-autonomous-session-control`. |
 | 4 | `#636` | pending on `#635` | Convert `packages/pi-interaction/pi-interaction` to truthful `reduced-form` by removing only `policy/stack-lane.json` while preserving the child-package doc override. |
 
 ## Interpretation
 
 - This file intentionally tracks only the active tactical goal.
-- `#603` completed the root-owned queue-publication slice; `#634` is now the only ready repo-local pilot slice in the reduced-form migration wave.
-- The queue is intentionally minimal: one simple-package `none` pilot, one monorepo-package `none` pilot, and the only `reduced-form` child-package case.
+- `#603` completed the root-owned queue-publication slice, and `#634` has now completed the first simple-package `none` pilot.
+- `#635` is now the only ready repo-local pilot slice still open in the reduced-form migration wave.
+- The queue remains intentionally minimal: one simple-package `none` pilot, one monorepo-package `none` pilot, and the only `reduced-form` child-package case.
 - Deferred runtime-registry tasks `#268` and `#269` remain context, not the active root tech-stack wave.
 
 ## HTN

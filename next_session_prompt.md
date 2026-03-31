@@ -39,17 +39,18 @@ Do **not** treat this file as a live status database.
   - `docs/project/strategic_goals.md`
   - `docs/project/tactical_goals.md`
   - `docs/project/operating_plan.md`
-- The root-owned classification wave under SG1 is published; the next active repo-local wave is the first minimal routed package-reduction queue.
+- The root-owned classification wave under SG1 is published, and the first minimal routed package-reduction queue is now partially landed.
 - Current migration signal:
-  - the root audit still shows `8` `legacy-full` package surfaces and `1` `reduced-form` package-local surface
-  - seven of the remaining `legacy-full` package-local docs are identical boilerplate copies headed toward `none`
+  - the root audit now shows `7` `legacy-full` package surfaces and `1` `reduced-form` package-local surface
+  - `packages/pi-activity-strip` has moved to the `none` steady state after the first simple-package pilot
+  - six of the remaining `legacy-full` package-local docs are still identical boilerplate copies headed toward `none`
   - `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` remains the only distinct child-package doc headed toward `reduced-form`
-  - the first minimal routed queue is now explicit in AK:
-    - `#634` `packages/pi-activity-strip` — simple-package `none` pilot
-    - `#635` `packages/pi-autonomous-session-control` — monorepo-package `none` pilot
-    - `#636` `packages/pi-interaction/pi-interaction` — child-package `reduced-form` pilot
+  - the first minimal routed queue is explicit in AK with one completed slice:
+    - `#634` `packages/pi-activity-strip` — done simple-package `none` pilot
+    - `#635` `packages/pi-autonomous-session-control` — next monorepo-package `none` pilot
+    - `#636` `packages/pi-interaction/pi-interaction` — child-package `reduced-form` pilot after `#635`
 - Latest root diary pointer:
-  - `diary/2026-03-31--root-minimal-package-reduction-queue.md`
+  - `diary/2026-03-31--pi-activity-strip-none-surface-pilot.md`
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
