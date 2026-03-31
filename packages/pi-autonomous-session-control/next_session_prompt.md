@@ -117,11 +117,11 @@ Verification layers are now explicit:
 
 ## Recommended next slices
 
-### Option A — automated seam guardrails (`#627`) **default next move**
+### Option A — time-boxed seam review trigger prep (`#628`) **default next move**
 
-Now that failure taxonomy is normalized and the bundled bridge lifecycle is decided in `../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`:
-- add automated guardrails against private ASC imports and orchestrator-local runtime revival
-- keep the slice bounded and grounded in the charter/contract packet
+Automated seam guardrails are now landed, so the next truthful stewardship step is:
+- prepare the explicit time-boxed seam review follow-up after release evidence accumulates
+- keep the slice bounded and grounded in the charter/contract packet rather than reopening seam ownership
 
 ### Option B — return to other ASC-local work only if operator redirects
 
@@ -153,17 +153,16 @@ npm run check
 
 - `packages/pi-autonomous-session-control/README.md`
 - `packages/pi-autonomous-session-control/docs/project/public-execution-contract.md`
+- `packages/pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md`
 - `packages/pi-autonomous-session-control/next_session_prompt.md`
 - `packages/pi-society-orchestrator/README.md`
 - `packages/pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
 - `packages/pi-society-orchestrator/next_session_prompt.md`
-- `diary/2026-03-31--normalize-execution-failure-taxonomy.md`
+- `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs`
+- `diary/2026-03-31--execution-seam-guardrails.md`
 
 ## Remaining gaps
 
 Still unresolved:
-- automated guardrails against private ASC imports and local-runtime revival (`#627`)
-
-Later work stays blocked in order:
-- time-boxed seam review after release evidence accumulates (`#628`, now unblocked on the bridge-lifecycle side)
+- time-boxed seam review after release evidence accumulates (`#628`)
 - expand consumer inventory only if a second real external runtime consumer appears (`#629`)

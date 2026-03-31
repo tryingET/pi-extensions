@@ -163,8 +163,8 @@ Then re-open the broader architecture artifacts if the next session finishes the
    - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
 2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
    - start from `docs/project/subagent-execution-boundary-map.md`, `docs/project/2026-03-31-execution-seam-charter.md`, and `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
-   - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, and `#625` as landed history, not active backlog
-   - choose the next bounded stewardship slice from the current ready/dependent set: automated guardrails (`#627`), then the later seam-review/consumer-inventory follow-ups (`#628`, `#629`)
+   - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, `#625`, and `#627` as landed history, not active backlog
+   - choose the next bounded stewardship slice from the current ready/dependent set: seam-review follow-up (`#628`), then the later consumer-inventory pass (`#629`)
 3. **Optional parity hardening after architecture work is scoped**
    - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
 

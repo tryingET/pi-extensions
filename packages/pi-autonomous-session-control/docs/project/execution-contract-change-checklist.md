@@ -64,8 +64,9 @@ This layer proves the supported seam semantics owned by ASC.
 Run this whenever the orchestrator adapter, orchestration decisions derived from `result.details`, or consumer-visible timeout/truncation/abort truth changes:
 
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs`
+- `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs`
 
-This layer proves the narrow consumer still composes the ASC seam truthfully inside repo-local source.
+This layer proves the narrow consumer still composes the ASC seam truthfully inside repo-local source and that private-import / duplicate-runtime drift remains fail-closed.
 
 ### Layer C — Installed-package smoke / packaging truth
 
