@@ -17,7 +17,7 @@ Resume after the **fail-closed routing + session-identity + execution-status + r
 
 The next bounded work is:
 1. continue the narrower remaining architecture-convergence backlog now that `/evidence` is on AK and only the `society_query` diagnostic exception remains on raw sqlite
-2. if the operator explicitly revisits the execution seam, treat the main cutover as landed and focus only on the remaining publish/install bridge instead of reopening runtime ownership
+2. if the operator explicitly revisits the execution seam, treat the main cutover as landed history and continue the post-cutover stewardship packet (`#623` -> `#627`) instead of reopening runtime ownership
 
 ## What is now true
 
@@ -118,6 +118,7 @@ Read these first before choosing the next change:
 - `AGENTS.md`
 - `README.md`
 - `docs/project/subagent-execution-boundary-map.md` (when the operator is asking about subagent/runtime ownership or the ASC public execution seam)
+- `docs/project/2026-03-31-execution-seam-charter.md` (when the question is why the seam exists, how small it should stay, or what follow-up is still legitimate)
 - `docs/project/2026-03-11-hermetic-installed-release-smoke.md`
 - `docs/project/2026-03-11-rfc-unified-execution-evidence-contract.md`
 - `docs/project/2026-03-11-rfc-rocs-ontology-adapter.md`
@@ -154,10 +155,10 @@ Then re-open the broader architecture artifacts if the next session finishes the
    - decide whether the remaining `society_query` raw sqlite path should survive as a bounded diagnostic exception until AK grows a truthful canonical read/query surface, or be tightened further
    - revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only behavior
    - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
-2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover packet**
-   - start from `docs/project/subagent-execution-boundary-map.md`
-   - treat `#604 -> #605 -> #606` as landed history, not active backlog
-   - focus only on the remaining bundled publish/install bridge or any real post-cutover seam gap
+2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
+   - start from `docs/project/subagent-execution-boundary-map.md` and `docs/project/2026-03-31-execution-seam-charter.md`
+   - treat `#604 -> #605 -> #606` and `#622` as landed history, not active backlog
+   - choose the next bounded stewardship slice from the current ready/dependent set: execution-change checklist (`#623`), verification split (`#624`), bundled publish/install bridge lifecycle (`#625`), failure taxonomy (`#626`), or automated guardrails (`#627`)
 3. **Optional parity hardening after architecture work is scoped**
    - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
 
