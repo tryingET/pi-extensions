@@ -113,7 +113,8 @@ Primary tools and commands exposed by the imported extension include:
 - The adapter now also preserves ASC execution truth needed for orchestration decisions: assistant stop reasons, protocol parse failures, abort propagation, and truncation metadata are forwarded instead of being collapsed into transport-only success.
 - `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
 - Installed-package `release:check` now proves timeout/truncation/team-mismatch behavior through a deterministic headless harness against the installed tarball, including the current bundled `pi-autonomous-session-control` publish bridge.
-- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the bundled ASC publish bridge still needs a longer-term release story, and interactive `/reload` parity is still outside the routine release-check harness.
+- That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md).
+- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, and interactive `/reload` parity is still outside the routine release-check harness.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Quickstart
@@ -214,4 +215,4 @@ bash ./scripts/package-quality-gate.sh ci packages/pi-society-orchestrator
 - The package ships `src/` because the extension entrypoint imports runtime modules from there.
 - `session_start` guards UI-only behavior with `ctx.hasUI` so non-UI runs stay safer.
 - The package was renamed early to the `pi-society-orchestrator` canonical package identity to avoid later naming churn.
-- The execution-plane/public-contract cutover is now landed; the current convergence priority is the remaining society/prompt adapter migration plus retiring the temporary bundled ASC publish bridge without reopening ownership of the execution plane.
+- The execution-plane/public-contract cutover is now landed; the current convergence priority is the remaining society/prompt adapter migration plus the post-cutover stewardship queue (`#626` onward) while the bundled ASC bridge remains governed by the documented lifecycle note rather than open-ended cleanup.

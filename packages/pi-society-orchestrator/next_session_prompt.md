@@ -17,7 +17,7 @@ Resume after the **fail-closed routing + session-identity + execution-status + r
 
 The next bounded work is:
 1. continue the narrower remaining architecture-convergence backlog now that `/evidence` is on AK and only the `society_query` diagnostic exception remains on raw sqlite
-2. if the operator explicitly revisits the execution seam, treat the main cutover as landed history and continue the remaining post-cutover stewardship packet (`#625` -> `#627`) instead of reopening runtime ownership
+2. if the operator explicitly revisits the execution seam, treat the main cutover plus the bundled-bridge lifecycle decision as landed history and continue the remaining post-cutover stewardship packet (`#626` -> `#629`) instead of reopening runtime ownership
 
 ## What is now true
 
@@ -68,8 +68,9 @@ The next bounded work is:
 
 ### Execution-boundary cutover landed
 - `cognitive_dispatch` and `loop_execute` now consume ASC's public execution contract instead of the old orchestrator-local spawn/process path.
-- installed-package release validation now bundles `pi-autonomous-session-control` into the orchestrator tarball so the public seam remains installable before a longer-term registry/dependency story exists.
+- installed-package release validation now bundles `pi-autonomous-session-control` into the orchestrator tarball so the public seam remains installable before a registry-backed dependency cutover exists.
 - `scripts/release-check.sh` and `scripts/release-smoke.mjs` now account for that bundled-package bridge while still proving timeout/truncation/team-mismatch behavior against the installed tarball.
+- the bridge lifecycle, exit criteria, and review trigger are now explicit in `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`; bundling remains temporary rather than open-ended.
 - seam verification layers are now explicit: ASC package-local tests prove contract semantics, `tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter, and `npm run release:check` proves packaged/imported install behavior.
 
 ### Docs/AGENTS shape now matches monorepo reality better
@@ -122,6 +123,7 @@ Read these first before choosing the next change:
 - `README.md`
 - `docs/project/subagent-execution-boundary-map.md` (when the operator is asking about subagent/runtime ownership or the ASC public execution seam)
 - `docs/project/2026-03-31-execution-seam-charter.md` (when the question is why the seam exists, how small it should stay, or what follow-up is still legitimate)
+- `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md` (when the question is how long bundling may remain or what evidence retires it)
 - `docs/project/2026-03-11-hermetic-installed-release-smoke.md`
 - `docs/project/2026-03-11-rfc-unified-execution-evidence-contract.md`
 - `docs/project/2026-03-11-rfc-rocs-ontology-adapter.md`
@@ -159,9 +161,9 @@ Then re-open the broader architecture artifacts if the next session finishes the
    - revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only behavior
    - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
 2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
-   - start from `docs/project/subagent-execution-boundary-map.md` and `docs/project/2026-03-31-execution-seam-charter.md`
-   - treat `#604 -> #605 -> #606`, `#622`, `#623`, and `#624` as landed history, not active backlog
-   - choose the next bounded stewardship slice from the current ready/dependent set: bundled publish/install bridge lifecycle (`#625`), failure taxonomy (`#626`), or automated guardrails (`#627`)
+   - start from `docs/project/subagent-execution-boundary-map.md`, `docs/project/2026-03-31-execution-seam-charter.md`, and `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
+   - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, and `#625` as landed history, not active backlog
+   - choose the next bounded stewardship slice from the current ready/dependent set: failure taxonomy (`#626`) or automated guardrails (`#627`)
 3. **Optional parity hardening after architecture work is scoped**
    - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
 
@@ -170,7 +172,7 @@ Then re-open the broader architecture artifacts if the next session finishes the
 | Finding | Rationale | Owner | Trigger | Deadline | Blast Radius |
 |---|---|---|---|---|---|
 | Installed-package release-check smoke is now headless and isolated from the default global npm package space, but routine release validation still does not prove interactive `/reload` parity in a normal Pi host session | The installed-package harness now verifies installed extension behavior without auth/provider drift or default-global npm mutation, but it intentionally drives tools/commands through a stub instead of exercising full interactive host lifecycle behavior | `pi-society-orchestrator` package maintainer | decision to add a separate live-host parity check or accept the current split between deterministic release smoke and manual interactive verification | before `0.2.0` behavior freeze | release-check can still miss host-only integration drift around reload/session wiring even when installed-package smoke is green |
-| Orchestrator tarballs currently bundle `pi-autonomous-session-control` | The execution-plane cutover is landed, but the public seam package is not yet consumed through a longer-term publish/install contract, so orchestrator currently ships a bundled ASC bridge and the installed-package smoke harness has to lift that bundle out of `node_modules` for direct import | `pi-society-orchestrator` package maintainer with `pi-autonomous-session-control` maintainer review | decision on the durable publish/install story for the ASC public seam | before `0.2.0` behavior freeze | package size, install topology, and smoke-harness complexity stay higher than ideal even though runtime ownership is now correct |
+| Orchestrator tarballs currently bundle `pi-autonomous-session-control` | The bridge lifecycle is now decided: keep bundling only as a temporary installability shim until ASC has registry-backed release evidence and orchestrator can remove bundle lifting in one truthful cutover; see `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md` | `pi-society-orchestrator` package maintainer with `pi-autonomous-session-control` maintainer review | first ASC publish evidence, any packaging change that would prolong bundling, or the pre-`0.2.0` behavior-freeze review | before `0.2.0` behavior freeze | package size, install topology, and smoke-harness complexity stay higher than ideal until the cutover lands, but the bridge no longer lacks exit criteria |
 | `recordEvidence(...)` still has SQL fallback | Package hardening is much stronger, but removing fallback now still exceeds risk tolerance before a broader confidence pass on `ak`-only evidence writes | `pi-society-orchestrator` package maintainer | successful broader live/runtime proof of `ak evidence record` sufficiency | 2026-03-17 | evidence semantics can still drift from the canonical adapter path |
 | `society_query` still uses a bounded raw society DB read exception | `/evidence` now uses `ak evidence search`, but `society_query` still depends on a narrow raw sqlite diagnostic path until a truthful canonical read/query boundary exists | `pi-society-orchestrator` package maintainer with `agent-kernel` maintainer review | decision on canonical society read/query boundary or explicit retention/removal of the diagnostic exception | 2026-03-31 | residual read-side schema drift and continued raw DB coupling for one escape hatch |
 | ROCS adapter defaults currently assume the local SoftwareCo ontology repo and `--workspace-ref-mode loose` | The sanctioned adapter is now in place, but the runtime still carries a local usability/default-policy choice that has not yet been ratified as the long-term canonical ROCS resolution contract for orchestrator | `pi-society-orchestrator` package maintainer with `rocs-cli` maintainer review | decision on strict-vs-loose ROCS workspace resolution policy for orchestrator | 2026-03-24 | ontology lookups can drift from tagged refs in mixed local worktrees even though they no longer depend on raw SQL shape |

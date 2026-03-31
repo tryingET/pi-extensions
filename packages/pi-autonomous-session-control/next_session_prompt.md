@@ -28,6 +28,7 @@ Treat the original execution packet as landed history:
 4. first stewardship/docs pass for transport-safety truth and seam justification (`#622`) ✅
 5. execution-contract change checklist (`#623`) ✅
 6. verification-layer split between package-local contract truth and installed-package smoke (`#624`) ✅
+7. bundled publish/install bridge lifecycle decision and exit criteria (`#625`) ✅
 
 The next truthful wave is still **post-cutover seam stewardship**, not ownership debate.
 
@@ -37,6 +38,7 @@ Re-enter the post-cutover packet before changing the seam again:
 - `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
 - `../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md`
 - `../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
+- `../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
 - `docs/project/public-execution-contract.md`
 - `README.md`
 
@@ -88,6 +90,7 @@ The post-cutover stewardship docs are now in place:
 - seam charter: `../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md`
 - consumer map + packet index: `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
 - backlog with scored stewardship slices: `../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
+- bundled bridge lifecycle note: `../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
 - ASC-side contract truth: `docs/project/public-execution-contract.md`
 - seam-change checklist: `docs/project/execution-contract-change-checklist.md`
 
@@ -107,21 +110,14 @@ Verification layers are now explicit:
 
 ## Recommended next slices
 
-### Option A — bundled publish/install bridge lifecycle (`#625`) **default next move**
+### Option A — failure taxonomy or automated seam guardrails (`#626`, `#627`) **default next move**
 
-If the next question is release topology:
-- decide how long the temporary bundled ASC bridge should remain
-- define the exit criteria and review trigger
-- keep that decision narrow so it does not reopen runtime ownership
-
-### Option B — failure taxonomy or automated seam guardrails (`#626`, `#627`)
-
-Only if the operator explicitly prefers code-facing hardening next:
+Now that the bundled bridge lifecycle is decided in `../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`:
 - normalize failure taxonomy exposed through execution results
 - or add automated guardrails against private ASC imports and orchestrator-local runtime revival
 - keep either slice bounded and grounded in the charter/contract packet
 
-### Option C — return to other ASC-local work only if operator redirects
+### Option B — return to other ASC-local work only if operator redirects
 
 Safe only if the operator explicitly leaves the execution-boundary/stewardship wave.
 Do not drift back into local UX or dashboard work by default.
@@ -151,15 +147,15 @@ npm run check
 
 - `packages/pi-autonomous-session-control/next_session_prompt.md`
 - `packages/pi-society-orchestrator/next_session_prompt.md`
-- `diary/2026-03-31--docs-execution-seam-verification-layer-split.md`
+- `packages/pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
+- `diary/2026-03-31--docs-bundled-asc-bridge-lifecycle.md`
 
 ## Remaining gaps
 
 Still unresolved:
-- durable lifecycle decision for the bundled ASC publish/install bridge (`#625`)
 - normalized failure taxonomy across ASC and orchestrator result surfaces (`#626`)
 - automated guardrails against private ASC imports and local-runtime revival (`#627`)
 
 Later work stays blocked in order:
-- time-boxed seam review after release evidence accumulates (`#628`)
+- time-boxed seam review after release evidence accumulates (`#628`, now unblocked on the bridge-lifecycle side)
 - expand consumer inventory only if a second real external runtime consumer appears (`#629`)

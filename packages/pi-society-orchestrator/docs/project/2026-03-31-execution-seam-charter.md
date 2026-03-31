@@ -91,6 +91,7 @@ Run an explicit seam review when:
 
 - a second external consumer asks for new capabilities
 - packaging/release pressure forces the seam to widen
+- the trigger in [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md) fires for retiring the temporary installability bridge
 - installed-package smoke starts diverging from the package-local contract or consumer tests
 - one to two release cycles have passed with enough evidence to judge whether the seam is still earning its keep
 
@@ -108,5 +109,6 @@ Current answer:
 - [Subagent execution-boundary map](subagent-execution-boundary-map.md)
 - [ASC public execution contract RFC](2026-03-10-rfc-asc-public-execution-contract.md)
 - [Architecture convergence backlog](2026-03-10-architecture-convergence-backlog.md)
+- [Bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md)
 - [ASC public execution contract](../../pi-autonomous-session-control/docs/project/public-execution-contract.md)
 - [Execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md)

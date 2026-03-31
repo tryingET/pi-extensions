@@ -98,8 +98,8 @@ ASC already owns the stronger runtime behaviors:
 
 The ownership seam is now implemented and the publish/install cleanup for the current packaging model is in place:
 
-- orchestrator currently bundles `pi-autonomous-session-control` into its tarball to keep the public seam installable before a longer-term registry/dependency story exists
-- installed-package smoke now validates the real packaged import graph, including bundled ASC plus host-peer linking for Pi runtime packages
+- orchestrator currently bundles `pi-autonomous-session-control` into its tarball as a temporary installability bridge; the allowed lifetime, exit criteria, and review trigger now live in [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md)
+- installed-package smoke now validates the real packaged import graph, including bundled ASC plus host-peer linking for Pi runtime packages while that bridge remains active
 - the seam charter now defines the explicit anti-drift justification, supported scope, guardrails, and removal criteria
 - post-cutover work should only extend the seam if a real consumer gap appears, not because the original ownership question is still open
 

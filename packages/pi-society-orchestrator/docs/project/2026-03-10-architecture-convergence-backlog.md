@@ -182,7 +182,7 @@ Goal for this wave:
 | SB3 | Promote transport-safety invariants to named contract truth | 5 | 4 | 3 | Q1 | Prevents parity-only testing from hiding shared defects |
 | SB4 | Add seam-change guardrails against private ASC imports and orchestrator-local runtime revival | 4 | 4 | 2 | Q1 | Stops architectural backsliding |
 | SB5 | Split verification policy into package-local contract checks vs installed-package smoke | 5 | 3 | 2 | Q2 | Implemented via the explicit ASC contract / orchestrator consumer / installed-package verification-layer split |
-| SB6 | Decide how long the bundled ASC publish/install bridge should remain | 5 | 3 | 3 | Q2 | Important, but not a same-day blocker |
+| SB6 | Decide how long the bundled ASC publish/install bridge should remain | 5 | 3 | 3 | Q2 | Implemented via [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md); actual bridge removal remains a later cutover |
 | SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Implemented via [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) |
 | SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Improves operator/debug truth without reopening ownership |
 | SB9 | Schedule a time-boxed seam review after release evidence accumulates | 4 | 2 | 1 | Q2 | Keeps the seam evidence-driven instead of permanent-by-default |
@@ -196,13 +196,15 @@ Goal for this wave:
 4. Recorded this scored post-cutover backlog so future work starts from stewardship rather than re-litigating seam existence.
 5. Added the companion [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) so future seam edits stay tied to real failure modes and the current proof obligations.
 6. Split verification policy explicitly across ASC contract tests, orchestrator repo-local consumer tests, and installed-package smoke so packaging proof no longer masquerades as contract truth.
+7. Added the [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md) note so the temporary packaging shim now has explicit exit criteria and a review trigger.
 
 ## Execution-plane implementation checklist
 
 - [x] Define the ASC public execution contract surface (runtime primitives only; no `self`-specific consumer imports)
 - [x] Decide whether ASC can expose that surface via package exports without leaking extension bootstrapping concerns
 - [x] Plan and land orchestrator adoption against that contract
-- [ ] Keep the temporary bundled publish/install bridge only until a more durable release story exists
+- [x] Decide and document how long the temporary bundled publish/install bridge may remain
+- [ ] Remove the bridge once the lifecycle exit criteria in [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md) are satisfied
 - [x] Deprecate orchestrator-local duplicate dispatch paths after the replacement seam is proven
 
 ## Current raw access inventory and migration ledger
