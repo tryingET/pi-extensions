@@ -66,6 +66,11 @@ These invariants are currently anchored by:
 - `tests/dispatch-subagent-diagnostics.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 
+## Change checklist
+
+Before modifying this seam, run the companion [execution contract change checklist](execution-contract-change-checklist.md).
+It keeps future changes tied to real consumer gaps, the named negative-path guardrails, and the current proof packet across ASC and `pi-society-orchestrator`.
+
 ## Minimal usage
 
 ```ts

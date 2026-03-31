@@ -183,7 +183,7 @@ Goal for this wave:
 | SB4 | Add seam-change guardrails against private ASC imports and orchestrator-local runtime revival | 4 | 4 | 2 | Q1 | Stops architectural backsliding |
 | SB5 | Split verification policy into package-local contract checks vs installed-package smoke | 5 | 3 | 2 | Q2 | Same seam, different truth layers |
 | SB6 | Decide how long the bundled ASC publish/install bridge should remain | 5 | 3 | 3 | Q2 | Important, but not a same-day blocker |
-| SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Cheap leverage after the recent hardening |
+| SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Implemented via [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) |
 | SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Improves operator/debug truth without reopening ownership |
 | SB9 | Schedule a time-boxed seam review after release evidence accumulates | 4 | 2 | 1 | Q2 | Keeps the seam evidence-driven instead of permanent-by-default |
 | SB10 | Expand consumer inventory only if a second real external caller appears | 3 | 1 | 2 | Q4 | Useful later, not now |
@@ -194,6 +194,7 @@ Goal for this wave:
 2. Linked the charter from [subagent-execution-boundary-map.md](subagent-execution-boundary-map.md).
 3. Updated [ASC public execution contract](../../pi-autonomous-session-control/docs/project/public-execution-contract.md) to state why the seam exists and which transport-safety invariants it carries.
 4. Recorded this scored post-cutover backlog so future work starts from stewardship rather than re-litigating seam existence.
+5. Added the companion [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) so future seam edits stay tied to real failure modes and the current proof obligations.
 
 ## Execution-plane implementation checklist
 

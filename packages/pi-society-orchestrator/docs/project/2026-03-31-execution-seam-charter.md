@@ -70,6 +70,8 @@ Any future seam change should preserve these rules:
    - abort propagation, bounded output/event buffering, lifecycle uniqueness, and hard I/O failure surfacing must stay covered
 5. **Installed-package truth matters**
    - seam changes are not complete until package-local checks and installed-package smoke both stay green
+6. **Run the seam-change checklist before modifying the contract**
+   - use the companion [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) before widening, narrowing, or re-shaping the public runtime
 
 ## Removal criteria
 
@@ -104,3 +106,4 @@ Current answer:
 - [ASC public execution contract RFC](2026-03-10-rfc-asc-public-execution-contract.md)
 - [Architecture convergence backlog](2026-03-10-architecture-convergence-backlog.md)
 - [ASC public execution contract](../../pi-autonomous-session-control/docs/project/public-execution-contract.md)
+- [Execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md)
