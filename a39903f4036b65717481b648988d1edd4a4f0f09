@@ -3,32 +3,21 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "a39903f4036b65717481b648988d1edd4a4f0f09"
-created_at: "2026-03-31T10:43:40Z"
+created_at: "2026-03-31T10:44:25Z"
 intent: "feat(orchestrator): adopt ASC execution truth, abort propagation, and seam charter"
 files:
-  - "packages/pi-society-orchestrator/README.md"
-  - "packages/pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md"
-  - "packages/pi-society-orchestrator/docs/project/2026-03-10-rfc-asc-public-execution-contract.md"
-  - "packages/pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md"
-  - "packages/pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md"
-  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
-  - "packages/pi-society-orchestrator/package-lock.json"
-  - "packages/pi-society-orchestrator/package.json"
-  - "packages/pi-society-orchestrator/scripts/release-smoke.mjs"
-  - "packages/pi-society-orchestrator/src/loops/engine.ts"
-  - "packages/pi-society-orchestrator/src/runtime/subagent.ts"
-  - "packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs"
+  - "."
 validation:
   fast_gate:
-    command: "npm --prefix packages/pi-society-orchestrator test"
+    command: "see group fast gate"
     status: "pass"
   full_gate:
     command: "npm --prefix packages/pi-prompt-template-accelerator test && npm --prefix packages/pi-interaction/pi-interaction test && npm --prefix packages/pi-vault-client test && npm --prefix packages/pi-autonomous-session-control test && npm --prefix packages/pi-society-orchestrator test"
-    status: "pending"
+    status: "pass"
 group:
-  index: 5
+  index: 0
   total: 5
-  rationale: "Adopt ASC execution truth for orchestrator: abort, assistant stop reasons, execution state, host-peer smoke, seam charter"
+  rationale: "full gate rewrite after all commits passed"
 links:
   diary:
     - "."
