@@ -329,7 +329,7 @@ Current execution behavior:
 - session-sensitive company resolution is pinned through explicit `ctx.cwd` handoff and session tracking instead of relying only on ambient process cwd
 - for visibility-sensitive live verification, pin `PI_COMPANY` instead of relying on cwd inference alone
 
-See [live render-engine validation](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/live-render-engine-validation.md) for installed-package verification evidence, and [legacy render-engine rollout](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/legacy-render-engine-rollout.md) for the operator migration boundary.
+See [live render-engine validation](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/live-render-engine-validation.md) for installed-package verification evidence, and [legacy render-engine rollout](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/legacy-render-engine-rollout.md) for the operator migration boundary.
 
 ## Live package activation
 
@@ -386,22 +386,22 @@ npm run docs:list:json
 Repository docs for this package live in the monorepo and are linked below through stable GitHub URLs so the published package README stays portable too.
 During `prepack`, those GitHub blob links are pinned to the exact source commit used to build the artifact so the published README does not drift with later `main` changes.
 
-- [Organization operating model](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/org/operating_model.md)
-- [Project foundation](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/foundation.md)
-- [Project vision](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/vision.md)
-- [Project incentives](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/incentives.md)
-- [Project resources](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/project/resources.md)
-- [Trusted publishing runbook](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/trusted_publishing.md)
-- [Vault execution receipts architecture](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/vault-execution-receipts.md)
-- [V4 runtime-receipts runtime-target binding](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/v4-runtime-receipts-runtime-target-binding.md)
-- [Prompt Vault v9 cutover](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/v9-cutover.md)
-- [Historical Prompt Vault relocation handoff](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/prompt-vault-v2-relocation-handoff.md)
-- [Live render-engine validation](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/live-render-engine-validation.md)
-- [Legacy render-engine rollout](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/docs/dev/legacy-render-engine-rollout.md)
-- [Company-context hardening diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-company-context-hardening.md)
-- [Replay core diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-vre-08-replay-core.md)
-- [Replay surface diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-vre-09-replay-surface.md)
-- [Replay docs/tests diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-vre-10-docs-tests.md)
-- [Previous receipt hardening diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-12-receipt-hardening.md)
-- [V4 runtime-receipts binding diary](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/diary/2026-03-21-v4-runtime-receipts-runtime-target-binding.md)
-- [Next session prompt](https://github.com/tryingET/pi-extensions/blob/main/packages/pi-vault-client/next_session_prompt.md)
+- [Organization operating model](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/org/operating_model.md)
+- [Project foundation](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/project/foundation.md)
+- [Project vision](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/project/vision.md)
+- [Project incentives](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/project/incentives.md)
+- [Project resources](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/project/resources.md)
+- [Trusted publishing runbook](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/trusted_publishing.md)
+- [Vault execution receipts architecture](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/vault-execution-receipts.md)
+- [V4 runtime-receipts runtime-target binding](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/v4-runtime-receipts-runtime-target-binding.md)
+- [Prompt Vault v9 cutover](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/v9-cutover.md)
+- [Historical Prompt Vault relocation handoff](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/prompt-vault-v2-relocation-handoff.md)
+- [Live render-engine validation](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/live-render-engine-validation.md)
+- [Legacy render-engine rollout](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/docs/dev/legacy-render-engine-rollout.md)
+- [Company-context hardening diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-12-company-context-hardening.md)
+- [Replay core diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-12-vre-08-replay-core.md)
+- [Replay surface diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-12-vre-09-replay-surface.md)
+- [Replay docs/tests diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-12-vre-10-docs-tests.md)
+- [Previous receipt hardening diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-12-receipt-hardening.md)
+- [V4 runtime-receipts binding diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-21-v4-runtime-receipts-runtime-target-binding.md)
+- [Next session prompt](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/next_session_prompt.md)
