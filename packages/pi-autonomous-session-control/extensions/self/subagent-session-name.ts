@@ -33,6 +33,21 @@ function getLockPath(sessionName: string, sessionsDir: string): string {
   return join(sessionsDir, `${sessionName}.lock`);
 }
 
+function getSessionJsonPath(sessionName: string, sessionsDir: string): string {
+  return join(sessionsDir, `${sessionName}.json`);
+}
+
+function getSessionStatusPath(sessionName: string, sessionsDir: string): string {
+  return join(sessionsDir, `${sessionName}.status.json`);
+}
+
+function sessionArtifactExists(sessionName: string, sessionsDir: string): boolean {
+  return (
+    existsSync(getSessionJsonPath(sessionName, sessionsDir)) ||
+    existsSync(getSessionStatusPath(sessionName, sessionsDir))
+  );
+}
+
 function processIsAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -93,19 +108,37 @@ function tryRemoveStaleLock(lockPath: string): boolean {
   }
 }
 
+function formatFsError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function acquireSessionNameLock(sessionName: string, sessionsDir: string): (() => void) | null {
   const lockPath = getLockPath(sessionName, sessionsDir);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const fd = openSync(lockPath, "wx");
-      const payload: SessionLockPayload = {
-        pid: process.pid,
-        ppid: process.ppid,
-        sessionName,
-        createdAt: new Date().toISOString(),
-      };
-      writeFileSync(fd, JSON.stringify(payload), "utf-8");
+      try {
+        const payload: SessionLockPayload = {
+          pid: process.pid,
+          ppid: process.ppid,
+          sessionName,
+          createdAt: new Date().toISOString(),
+        };
+        writeFileSync(fd, JSON.stringify(payload), "utf-8");
+      } catch (error) {
+        try {
+          closeSync(fd);
+        } catch {
+          // Best effort cleanup.
+        }
+        try {
+          unlinkSync(lockPath);
+        } catch {
+          // Best effort cleanup.
+        }
+        throw error;
+      }
       closeSync(fd);
 
       return () => {
@@ -115,7 +148,16 @@ function acquireSessionNameLock(sessionName: string, sessionsDir: string): (() =
           // Best effort cleanup.
         }
       };
-    } catch {
+    } catch (error) {
+      const errorCode =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as NodeJS.ErrnoException).code || "")
+          : "";
+
+      if (errorCode !== "EEXIST") {
+        throw new Error(`Failed to create session lock '${lockPath}': ${formatFsError(error)}`);
+      }
+
       if (!tryRemoveStaleLock(lockPath)) {
         return null;
       }
@@ -141,7 +183,7 @@ export function reserveUniqueSessionName(
   while (true) {
     if (
       (options.useInMemoryReservation && reservedSessionNames.has(candidate)) ||
-      existsSync(join(sessionsDir, `${candidate}.json`))
+      sessionArtifactExists(candidate, sessionsDir)
     ) {
       suffix++;
       const suffixStr = `-${suffix}`;

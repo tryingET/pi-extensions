@@ -103,6 +103,8 @@ function recommendedActionHint(status: SubagentSessionStatus["status"]): string 
       return "Inspect failure context before retrying.";
     case "timeout":
       return "Retry with a narrower objective or longer timeout.";
+    case "aborted":
+      return "Confirm cancellation intent before rerunning.";
     case "abandoned":
       return "Decide whether to resume, rerun, or clean up.";
   }
@@ -197,6 +199,7 @@ export function createSubagentDashboardSnapshot(
     done: 0,
     error: 0,
     timeout: 0,
+    aborted: 0,
     abandoned: 0,
   };
 

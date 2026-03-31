@@ -1,25 +1,26 @@
-export type {
-  AscExecutionRuntime,
-  DispatchSubagentDetails,
-  DispatchSubagentProfile,
-  DispatchSubagentRequest,
-  SubagentDef,
-  SubagentResult,
-  SubagentSpawner,
-  SubagentState,
-} from "./extensions/self/subagent.ts";
+export { SUBAGENT_PROFILES } from "./extensions/self/subagent-profiles.ts";
+export {
+  type AscExecutionRuntime,
+  type AscExecutionRuntimeOptions,
+  createAscExecutionRuntime,
+  type DispatchSubagentDetails,
+  type DispatchSubagentExecutionResult,
+  type DispatchSubagentExecutionUpdate,
+  type DispatchSubagentProfile,
+  type DispatchSubagentRequest,
+  type DispatchSubagentStatus,
+} from "./extensions/self/subagent-runtime.ts";
+export type { SubagentState } from "./extensions/self/subagent-session.ts";
 export {
   clearSubagentSessions,
-  createAscExecutionRuntime,
   createSubagentState,
-  registerDispatchSubagentTool,
-  SUBAGENT_PROFILES,
+} from "./extensions/self/subagent-session.ts";
+export {
+  type AssistantStopReason,
+  type ExecutionState,
+  type SubagentDef,
+  type SubagentResult,
+  type SubagentSpawner,
   spawnSubagent,
   spawnSubagentWithSpawn,
-} from "./extensions/self/subagent.ts";
-export type {
-  AscExecutionRuntimeOptions,
-  DispatchSubagentExecutionResult,
-  DispatchSubagentExecutionUpdate,
-  DispatchSubagentStatus,
-} from "./extensions/self/subagent-runtime.ts";
+} from "./extensions/self/subagent-spawn.ts";

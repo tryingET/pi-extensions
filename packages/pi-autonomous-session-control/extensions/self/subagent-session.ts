@@ -28,7 +28,7 @@ export interface SessionCleanupOptions {
 
 export interface SubagentSessionStatus {
   sessionName: string;
-  status: "running" | "done" | "error" | "timeout" | "abandoned";
+  status: "running" | "done" | "error" | "timeout" | "aborted" | "abandoned";
   pid: number;
   ppid: number;
   createdAt: string;
@@ -231,6 +231,32 @@ export function canSpawnSubagent(state: SubagentState): boolean {
   return state.activeCount < state.maxConcurrent;
 }
 
+export interface SubagentExecutionSlotReservation {
+  release(): void;
+}
+
+export function reserveSubagentExecutionSlot(
+  state: SubagentState,
+): SubagentExecutionSlotReservation | null {
+  if (!canSpawnSubagent(state)) {
+    return null;
+  }
+
+  state.activeCount += 1;
+  let released = false;
+
+  return {
+    release() {
+      if (released) {
+        return;
+      }
+      released = true;
+      state.activeCount = Math.max(0, state.activeCount - 1);
+      state.completedCount += 1;
+    },
+  };
+}
+
 export function getSubagentStats(state: SubagentState): {
   active: number;
   completed: number;
@@ -248,6 +274,7 @@ export function getSubagentStats(state: SubagentState): {
     done: 0,
     error: 0,
     timeout: 0,
+    aborted: 0,
     abandoned: 0,
   };
 

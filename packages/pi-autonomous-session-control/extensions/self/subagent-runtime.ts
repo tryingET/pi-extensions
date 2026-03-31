@@ -8,9 +8,15 @@ import {
 } from "./subagent-edge-contract.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import { applyPromptEnvelope } from "./subagent-prompt-envelope.ts";
-import { canSpawnSubagent, createSubagentState, type SubagentState } from "./subagent-session.ts";
+import {
+  createSubagentState,
+  reserveSubagentExecutionSlot,
+  type SubagentState,
+} from "./subagent-session.ts";
 import { reserveUniqueSessionName } from "./subagent-session-name.ts";
 import {
+  type AssistantStopReason,
+  type ExecutionState,
   type SubagentDef,
   type SubagentResult,
   type SubagentSpawner,
@@ -18,7 +24,7 @@ import {
 } from "./subagent-spawn.ts";
 
 export type DispatchSubagentProfile = keyof typeof SUBAGENT_PROFILES | "custom";
-export type DispatchSubagentStatus = "done" | "error" | "timeout" | "spawning";
+export type DispatchSubagentStatus = "done" | "error" | "timeout" | "aborted" | "spawning";
 
 export interface DispatchSubagentRequest {
   profile: DispatchSubagentProfile;
@@ -40,6 +46,13 @@ export interface DispatchSubagentDetails {
   elapsed?: number;
   exitCode?: number;
   fullOutput?: string;
+  stderr?: string;
+  outputTruncated?: boolean;
+  timedOut?: boolean;
+  aborted?: boolean;
+  assistantStopReason?: AssistantStopReason;
+  assistantErrorMessage?: string;
+  executionState?: ExecutionState;
   prompt_name?: string;
   prompt_source?: string;
   prompt_tags?: string[];
@@ -76,6 +89,7 @@ export interface AscExecutionRuntime {
     request: DispatchSubagentRequest,
     ctx: { cwd: string },
     onUpdate?: (update: DispatchSubagentExecutionUpdate) => void,
+    signal?: AbortSignal,
   ): Promise<DispatchSubagentExecutionResult>;
 }
 
@@ -85,6 +99,7 @@ export async function executeDispatchSubagentRequest(options: {
   modelProvider: () => string;
   ctx: { cwd: string };
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
+  signal?: AbortSignal;
   spawner?: SubagentSpawner;
 }): Promise<DispatchSubagentExecutionResult> {
   const normalizedParams = normalizeDispatchParams(options.request);
@@ -128,7 +143,8 @@ export async function executeDispatchSubagentRequest(options: {
     };
   }
 
-  if (!canSpawnSubagent(options.state)) {
+  const executionSlot = reserveSubagentExecutionSlot(options.state);
+  if (!executionSlot) {
     return {
       ok: false,
       text: `Maximum concurrent subagents reached (${options.state.maxConcurrent}). Wait for existing subagents to complete.`,
@@ -155,40 +171,53 @@ export async function executeDispatchSubagentRequest(options: {
     reservationsEnabled &&
     process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES?.trim().toLowerCase() !== "false";
 
-  const sessionReservation = reserveUniqueSessionName(
-    name || profile,
-    options.state.sessionsDir,
-    options.state.reservedSessionNames,
-    {
-      useInMemoryReservation: reservationsEnabled,
-      useFileLockReservation,
-    },
-  );
-
-  const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
-
-  const def: SubagentDef = {
-    name: sessionReservation.sessionName,
-    objective: safeObjective,
-    tools: tools || profileDef?.tools || "read,bash",
-    systemPrompt: promptEnvelope.systemPrompt,
-    sessionFile: join(options.state.sessionsDir, `${sessionReservation.sessionName}.json`),
-    timeout: timeoutMs,
-  };
-
-  options.onUpdate?.({
-    text: `Dispatching ${profile} subagent...`,
-    details: {
-      profile: profile as DispatchSubagentProfile,
-      objective: safeObjective,
-      status: "spawning",
-    },
-  });
-
   const spawner = options.spawner ?? spawnSubagent;
+  let sessionReservation:
+    | {
+        sessionName: string;
+        release: () => void;
+      }
+    | undefined;
   let result: SubagentResult;
   try {
-    result = await spawner(def, options.modelProvider(), options.ctx, options.state);
+    sessionReservation = reserveUniqueSessionName(
+      name || profile,
+      options.state.sessionsDir,
+      options.state.reservedSessionNames,
+      {
+        useInMemoryReservation: reservationsEnabled,
+        useFileLockReservation,
+      },
+    );
+
+    const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
+
+    const def: SubagentDef = {
+      name: sessionReservation.sessionName,
+      objective: safeObjective,
+      tools: tools || profileDef?.tools || "read,bash",
+      systemPrompt: promptEnvelope.systemPrompt,
+      sessionFile: join(options.state.sessionsDir, `${sessionReservation.sessionName}.json`),
+      timeout: timeoutMs,
+      executionSlotReserved: true,
+    };
+
+    options.onUpdate?.({
+      text: `Dispatching ${profile} subagent...`,
+      details: {
+        profile: profile as DispatchSubagentProfile,
+        objective: safeObjective,
+        status: "spawning",
+      },
+    });
+
+    result = await spawner(
+      def,
+      options.modelProvider(),
+      options.ctx,
+      options.state,
+      options.signal,
+    );
   } catch (error) {
     result = {
       output: `Error spawning subagent: ${error instanceof Error ? error.message : String(error)}`,
@@ -197,7 +226,8 @@ export async function executeDispatchSubagentRequest(options: {
       status: "error",
     };
   } finally {
-    sessionReservation.release();
+    sessionReservation?.release();
+    executionSlot.release();
   }
 
   const lifecycleInvariants = validateSubagentLifecycle(options.state);
@@ -219,9 +249,13 @@ export async function executeDispatchSubagentRequest(options: {
   const normalizedOutput =
     result.output.trim().length > 0
       ? result.output
-      : result.status === "error"
-        ? `Subagent exited with code ${result.exitCode} without output.`
-        : result.output;
+      : result.status === "done"
+        ? result.output
+        : result.status === "aborted"
+          ? "Subagent aborted."
+          : result.status === "timeout"
+            ? "Subagent timed out without output."
+            : `Subagent exited with code ${result.exitCode} without output.`;
   const truncated =
     normalizedOutput.length > 8000
       ? `${normalizedOutput.slice(0, 8000)}\n\n... [truncated]`
@@ -242,6 +276,13 @@ export async function executeDispatchSubagentRequest(options: {
       elapsed: result.elapsed,
       exitCode: result.exitCode,
       fullOutput: result.output,
+      stderr: result.stderr,
+      outputTruncated: result.outputTruncated,
+      timedOut: result.timedOut,
+      aborted: result.aborted,
+      assistantStopReason: result.assistantStopReason,
+      assistantErrorMessage: result.assistantErrorMessage,
+      executionState: result.executionState,
       prompt_name: promptEnvelope.prompt_name,
       prompt_source: promptEnvelope.prompt_source,
       prompt_tags: promptEnvelope.prompt_tags,
@@ -267,13 +308,14 @@ export function createAscExecutionRuntime(
 
   return {
     state,
-    execute(request, ctx, onUpdate) {
+    execute(request, ctx, onUpdate, signal) {
       return executeDispatchSubagentRequest({
         request,
         state,
         modelProvider: options.modelProvider,
         ctx,
         onUpdate,
+        signal,
         spawner: options.spawner,
       });
     },

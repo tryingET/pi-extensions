@@ -37,6 +37,14 @@ function normalizeCapturedDef(def) {
   };
 }
 
+function createDeferred() {
+  let resolve;
+  const promise = new Promise((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
+}
+
 async function withEnv(overrides, fn) {
   const previous = new Map();
 
@@ -301,6 +309,78 @@ test("public runtime parity: concurrent same-name requests reserve the same uniq
 
     assert.deepEqual(toolSessionFiles, runtimeSessionFiles);
     assert.deepEqual(runtimeSessionFiles, ["same-1.json", "same.json"]);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("public runtime parity: runtime-owned concurrency reservations apply to custom spawners", async () => {
+  const runtimeGate = createDeferred();
+  const toolGate = createDeferred();
+  const harness = await createParityHarness({
+    stateOptions: { maxConcurrent: 1 },
+    spawner: async (def) => {
+      if (def.objective === "runtime-held") {
+        await runtimeGate.promise;
+      }
+      if (def.objective === "tool-held") {
+        await toolGate.promise;
+      }
+      return {
+        output: def.objective,
+        exitCode: 0,
+        elapsed: 25,
+        status: "done",
+      };
+    },
+  });
+
+  try {
+    const runtimeFirstPromise = executeRuntime(harness, {
+      profile: "reviewer",
+      objective: "runtime-held",
+      name: "runtime-held",
+    });
+    const runtimeSecond = await executeRuntime(harness, {
+      profile: "reviewer",
+      objective: "runtime-second",
+      name: "runtime-second",
+    });
+
+    assert.equal(runtimeSecond.ok, false);
+    assert.equal(runtimeSecond.details.reason, "rate_limited");
+    assert.equal(harness.runtimeDefs.length, 1);
+
+    runtimeGate.resolve();
+    const runtimeFirst = await runtimeFirstPromise;
+    assert.equal(runtimeFirst.details.status, "done");
+
+    const toolFirstPromise = executeTool(
+      harness,
+      {
+        profile: "reviewer",
+        objective: "tool-held",
+        name: "tool-held",
+      },
+      "tc-parity-held",
+    );
+    const toolSecond = await executeTool(
+      harness,
+      {
+        profile: "reviewer",
+        objective: "tool-second",
+        name: "tool-second",
+      },
+      "tc-parity-second",
+    );
+
+    assert.equal(toolSecond.ok, false);
+    assert.equal(toolSecond.details.reason, "rate_limited");
+    assert.equal(harness.toolDefs.length, 1);
+
+    toolGate.resolve();
+    const toolFirst = await toolFirstPromise;
+    assert.equal(toolFirst.details.status, "done");
   } finally {
     await harness.cleanup();
   }

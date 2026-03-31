@@ -14,30 +14,57 @@ system4d:
 
 ## Supported entrypoint
 
-Use the package-level entrypoint:
+Use the package-level headless entrypoint:
 
 ```ts
-import {
-  createAscExecutionRuntime,
-  registerDispatchSubagentTool,
-} from "pi-autonomous-session-control/execution";
+import { createAscExecutionRuntime } from "pi-autonomous-session-control/execution";
 ```
 
 Current intent:
 - `createAscExecutionRuntime(...)` is the supported non-UI execution seam
-- `registerDispatchSubagentTool(...)` is the optional ASC-owned helper that binds the same runtime into the `dispatch_subagent` tool surface
+- the `dispatch_subagent` tool continues to bind the same runtime internally, but helper-level tool registration is intentionally not part of the headless public entrypoint
 - consumers should stop treating `extensions/self/*` as their integration API
+- the companion seam charter explains why this seam exists at all and when it should be reconsidered: [Execution seam charter](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md)
+
+## Why this seam exists
+
+This seam exists because downstream runtime consumers such as `pi-society-orchestrator` need **programmatic access** to ASC-owned execution behavior.
+
+Without a supported seam, there are only two bad alternatives:
+- duplicate the runtime in the consumer
+- import ASC private internals from `extensions/self/*`
+
+The seam is therefore an anti-drift boundary, not a goal by itself.
 
 ## What the runtime owns
 
 The public runtime preserves the existing ASC execution-plane behavior:
 - request normalization and invariant checks
+- runtime-owned concurrency reservation before spawn so `maxConcurrent` applies even to custom spawners
 - prompt-envelope application
 - session-name reservation and artifact-backed session lifecycle
 - subagent spawn execution
 - result shaping used by `dispatch_subagent`
+- assistant protocol semantics (`message_end` stop reasons, parse failures, timeout/abort state)
+- abort propagation through an optional `AbortSignal`
 
 This keeps the tool path and the non-tool consumer path on the same core execution logic.
+
+## Transport-safety invariants
+
+The public execution seam now also carries explicit transport-safety expectations:
+
+- optional `AbortSignal` propagation from consumer to subagent spawn path
+- bounded assistant output capture with truncation signaling
+- bounded raw JSON event buffering for malformed/no-newline stdout
+- session-name reservation that treats status sidecars as occupied artifacts
+- explicit hard failure when lock creation fails for permanent filesystem reasons
+
+These invariants are currently anchored by:
+- `tests/public-execution-contract.test.mjs`
+- `tests/public-execution-parity.test.mjs`
+- `tests/dispatch-subagent-diagnostics.test.mjs`
+- `tests/subagent-file-lock.test.mjs`
 
 ## Minimal usage
 
@@ -49,12 +76,16 @@ const runtime = createAscExecutionRuntime({
   modelProvider: () => "openai-codex/gpt-5.3-codex-spark",
 });
 
+const controller = new AbortController();
+
 const result = await runtime.execute(
   {
     profile: "reviewer",
     objective: "Review the staged changes for risk and missing tests.",
   },
   { cwd: process.cwd() },
+  undefined,
+  controller.signal,
 );
 ```
 
@@ -63,6 +94,7 @@ Useful properties:
 - `result.ok` tells the consumer whether execution completed successfully
 - `result.text` preserves the human-readable execution summary
 - `result.details` carries structured status / provenance data
+- `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification
 
 ## Non-goals
 
@@ -87,6 +119,7 @@ Current proof shape:
 - `tests/public-execution-parity.test.mjs` proves the public runtime and `dispatch_subagent` stay aligned for:
   - prompt-envelope application
   - rate-limit / invariant failures
+  - runtime-owned concurrency reservation for custom spawners
   - session-name reservation behavior
   - result / provenance shaping
 

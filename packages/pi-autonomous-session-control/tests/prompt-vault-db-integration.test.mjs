@@ -28,7 +28,7 @@ function loadTemplateFromVault() {
         "-r",
         "json",
         "-q",
-        "SELECT name, content, tags FROM prompt_templates WHERE status = 'active' LIMIT 1",
+        "SELECT name, content FROM prompt_templates WHERE status = 'active' LIMIT 1",
       ],
       {
         cwd: vaultDir,
@@ -46,7 +46,7 @@ function loadTemplateFromVault() {
     return {
       name: row.name,
       content: row.content,
-      tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
+      tags: [],
       source: "prompt-vault-db",
     };
   } catch {

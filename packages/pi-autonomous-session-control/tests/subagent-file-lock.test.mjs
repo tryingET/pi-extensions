@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import {
   clearSubagentSessions,
   createSubagentState,
@@ -279,6 +281,79 @@ test("dispatch_subagent does not reclaim live locks solely due to age", async ()
     } else {
       process.env.PI_SUBAGENT_LOCK_STALE_AFTER_MS = previousStaleAfter;
     }
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("dispatch_subagent treats status-only session artifacts as occupied names", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-status-artifact-"));
+
+  try {
+    await writeFile(
+      join(sessionsDir, "same.status.json"),
+      JSON.stringify({
+        sessionName: "same",
+        status: "error",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+
+    const capturedDefs = [];
+    const { tool } = createHarness(sessionsDir, capturedDefs);
+
+    await tool.execute(
+      "tc-status-artifact",
+      { profile: "reviewer", objective: "Review", name: "same" },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(capturedDefs.length, 1);
+    assert.match(capturedDefs[0].sessionFile, /same-1\.json$/);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("reserveUniqueSessionName surfaces permanent lock creation failures instead of spinning", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-lock-readonly-"));
+  const moduleUrl = pathToFileURL(
+    join(process.cwd(), "extensions/self/subagent-session-name.ts"),
+  ).href;
+  const script = [
+    `import { reserveUniqueSessionName } from ${JSON.stringify(moduleUrl)};`,
+    "try {",
+    "  reserveUniqueSessionName('same', process.env.TEST_SESSIONS_DIR, new Set(), { useInMemoryReservation: true, useFileLockReservation: true });",
+    "  process.exit(0);",
+    "} catch (error) {",
+    "  console.error(error instanceof Error ? error.message : String(error));",
+    "  process.exit(11);",
+    "}",
+  ].join("\n");
+
+  try {
+    await chmod(sessionsDir, 0o500);
+
+    let childError;
+    try {
+      execFileSync("node", ["--input-type=module", "-e", script], {
+        env: { ...process.env, TEST_SESSIONS_DIR: sessionsDir },
+        encoding: "utf8",
+        timeout: 1000,
+      });
+    } catch (error) {
+      childError = error;
+    }
+
+    assert.ok(childError, "expected read-only lock acquisition to fail");
+    assert.equal(childError.status, 11);
+    assert.match(childError.stderr, /Failed to create session lock/);
+  } finally {
+    await chmod(sessionsDir, 0o700);
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });

@@ -39,6 +39,7 @@ export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState)
           `done=${stats.statusCounts.done}`,
           `error=${stats.statusCounts.error}`,
           `timeout=${stats.statusCounts.timeout}`,
+          `aborted=${stats.statusCounts.aborted}`,
           `abandoned=${stats.statusCounts.abandoned}`,
         ].join(", ");
         ctx.ui.notify(

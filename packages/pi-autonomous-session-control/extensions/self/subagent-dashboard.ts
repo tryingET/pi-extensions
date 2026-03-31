@@ -33,6 +33,8 @@ function renderStatus(status: string): { icon: string; color: ThemeColor } {
       return { icon: "✗", color: "error" };
     case "timeout":
       return { icon: "◷", color: "warning" };
+    case "aborted":
+      return { icon: "⊘", color: "warning" };
     case "abandoned":
       return { icon: "◌", color: "warning" };
     default:
@@ -52,6 +54,7 @@ function buildDashboardLines(width: number, theme: DashboardTheme, sessionsDir: 
     theme.fg("dim", ` done=${snapshot.counts.done}`),
     theme.fg("dim", ` error=${snapshot.counts.error}`),
     theme.fg("dim", ` timeout=${snapshot.counts.timeout}`),
+    theme.fg("dim", ` aborted=${snapshot.counts.aborted}`),
     theme.fg("dim", ` abandoned=${snapshot.counts.abandoned}`),
   ].join("");
 
@@ -216,6 +219,7 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
         `- Done: ${snapshot.counts.done}`,
         `- Error: ${snapshot.counts.error}`,
         `- Timeout: ${snapshot.counts.timeout}`,
+        `- Aborted: ${snapshot.counts.aborted}`,
         `- Abandoned: ${snapshot.counts.abandoned}`,
         "",
         "## Recent sessions",

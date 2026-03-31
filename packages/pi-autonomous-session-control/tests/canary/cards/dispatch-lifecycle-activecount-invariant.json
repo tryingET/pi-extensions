@@ -7,7 +7,7 @@
   },
   "spawner": {
     "mode": "set_active_count_before_return",
-    "activeCount": 2,
+    "activeCount": 3,
     "result": {
       "output": "forced",
       "exitCode": 0,

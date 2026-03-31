@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
-import { createAscExecutionRuntime, registerDispatchSubagentTool } from "../execution.ts";
+import { pathToFileURL } from "node:url";
+import { createAscExecutionRuntime } from "../execution.ts";
+import { registerDispatchSubagentTool } from "../extensions/self/subagent.ts";
 
 test("createAscExecutionRuntime exposes the ASC execution contract for non-tool consumers", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-"));
@@ -83,6 +85,104 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
     assert.deepEqual(result.details.prompt_tags, ["phase:execution", "scope:public-contract"]);
     assert.equal(result.details.fullOutput, "runtime ok");
     assert.match(result.text, /^✓ \[custom\] done in 1s/);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("execution entrypoint stays headless-importable without package-local node_modules", async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "asc-public-runtime-headless-"));
+  const packageRoot = join(fixtureRoot, "package");
+  const requiredFiles = [
+    "execution.ts",
+    "extensions/self/edge-contract-kernel.ts",
+    "extensions/self/resolvers/helpers.ts",
+    "extensions/self/subagent-edge-contract.ts",
+    "extensions/self/subagent-profiles.ts",
+    "extensions/self/subagent-prompt-envelope.ts",
+    "extensions/self/subagent-runtime.ts",
+    "extensions/self/subagent-session-name.ts",
+    "extensions/self/subagent-session.ts",
+    "extensions/self/subagent-spawn.ts",
+  ];
+
+  try {
+    for (const relativePath of requiredFiles) {
+      const sourcePath = join(process.cwd(), relativePath);
+      const destinationPath = join(packageRoot, relativePath);
+      await mkdir(dirname(destinationPath), { recursive: true });
+      await cp(sourcePath, destinationPath);
+    }
+
+    await import(`${pathToFileURL(join(packageRoot, "execution.ts")).href}?headless=${Date.now()}`);
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test("createAscExecutionRuntime forwards AbortSignal to the ASC spawner", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-signal-"));
+  let capturedSignal;
+
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => "test/model",
+    spawner: async (_def, _model, _ctx, _state, signal) => {
+      capturedSignal = signal;
+      return {
+        output: "signal ok",
+        exitCode: 0,
+        elapsed: 50,
+        status: "done",
+      };
+    },
+  });
+
+  try {
+    const controller = new AbortController();
+    const result = await runtime.execute(
+      {
+        profile: "reviewer",
+        objective: "Verify signal forwarding",
+      },
+      { cwd: process.cwd() },
+      undefined,
+      controller.signal,
+    );
+
+    assert.equal(capturedSignal, controller.signal);
+    assert.equal(result.details.status, "done");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createAscExecutionRuntime shapes timeout results without output deterministically", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-timeout-"));
+
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => "test/model",
+    spawner: async () => ({
+      output: "",
+      exitCode: 124,
+      elapsed: 500,
+      status: "timeout",
+    }),
+  });
+
+  try {
+    const result = await runtime.execute(
+      {
+        profile: "reviewer",
+        objective: "Verify timeout shaping",
+      },
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.details.status, "timeout");
+    assert.match(result.text, /Subagent timed out without output\./);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

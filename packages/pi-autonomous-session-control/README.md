@@ -130,18 +130,22 @@ const runtime = createAscExecutionRuntime({
   modelProvider: () => "openai-codex/gpt-5.3-codex-spark",
 });
 
+const controller = new AbortController();
+
 const result = await runtime.execute(
   {
     profile: "reviewer",
     objective: "Review the staged changes for risk and missing tests.",
   },
   { cwd: process.cwd() },
+  undefined,
+  controller.signal,
 );
 ```
 
 What this seam guarantees:
 - the same core execution logic now backs both `dispatch_subagent` and public runtime consumers
-- prompt-envelope application, lifecycle invariants, session-name reservation, and result shaping stay ASC-owned
+- prompt-envelope application, lifecycle invariants, runtime-owned concurrency reservation, session-name reservation, result shaping, assistant protocol classification, and abort propagation stay ASC-owned
 - a dedicated parity harness now proves those shared semantics stay aligned across the public runtime and the tool path
 - downstream consumers should prefer `pi-autonomous-session-control/execution` over private `extensions/self/*` imports
 
@@ -327,7 +331,7 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 **Session artifact notes:**
 - Local session files in `./.pi-subagent-sessions` are runtime artifacts and are gitignored by default.
 - Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.
-- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|abandoned`; dead running sessions are reconciled to `abandoned` on next startup.
+- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned`; dead running sessions are reconciled to `abandoned` on next startup.
 - `subagent-status` now reports counts by terminal/runtime status for faster operator diagnosis.
 - A persistent read-only widget now surfaces recent subagent sessions, recency, and recommended action hints above the editor.
 - If you want long-horizon analysis/retention, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`).

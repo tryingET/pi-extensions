@@ -1,13 +1,11 @@
 /** Subagent dispatcher for the `dispatch_subagent` tool. */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { shapeToolResult } from "./edge-contract-kernel.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import {
   type AscExecutionRuntime,
   createAscExecutionRuntime,
-  type DispatchSubagentDetails,
   type DispatchSubagentProfile,
   type DispatchSubagentRequest,
 } from "./subagent-runtime.ts";
@@ -17,6 +15,8 @@ import {
   type SubagentState,
 } from "./subagent-session.ts";
 import {
+  type AssistantStopReason,
+  type ExecutionState,
   type SubagentDef,
   type SubagentResult,
   type SubagentSpawner,
@@ -34,9 +34,10 @@ export {
 };
 export type {
   AscExecutionRuntime,
-  DispatchSubagentDetails,
+  AssistantStopReason,
   DispatchSubagentProfile,
   DispatchSubagentRequest,
+  ExecutionState,
   SubagentDef,
   SubagentResult,
   SubagentSpawner,
@@ -47,8 +48,6 @@ type CompatToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0] & {
   promptSnippet?: string;
   promptGuidelines?: string[];
 };
-
-type RenderOptions = { isPartial?: boolean; expanded?: boolean };
 
 export function registerDispatchSubagentTool(pi: ExtensionAPI, runtime: AscExecutionRuntime): void {
   const tool: CompatToolDefinition = {
@@ -136,6 +135,7 @@ Prompt envelope (optional):
               });
             }
           : undefined,
+        _signal ?? undefined,
       );
 
       return shapeToolResult({
@@ -143,54 +143,6 @@ Prompt envelope (optional):
         text: result.text,
         details: result.details as Record<string, unknown>,
       });
-    },
-
-    renderCall(args, theme) {
-      const a = args as { profile?: string; objective?: string };
-      const profile = a.profile || "?";
-      const objective = a.objective || "";
-      const preview = objective.length > 50 ? `${objective.slice(0, 47)}...` : objective;
-      return new Text(
-        theme.fg("toolTitle", theme.bold("dispatch_subagent ")) +
-          theme.fg("accent", profile) +
-          theme.fg("dim", " — ") +
-          theme.fg("muted", preview),
-        0,
-        0,
-      );
-    },
-
-    renderResult(result, options, theme) {
-      const details = result.details as DispatchSubagentDetails | undefined;
-      if (!details) {
-        const text = result.content[0];
-        return new Text(text?.type === "text" ? text.text : "", 0, 0);
-      }
-
-      const opts = options as RenderOptions;
-      if (opts.isPartial || details.status === "spawning") {
-        return new Text(
-          theme.fg("accent", `● ${details.profile}`) + theme.fg("dim", " working..."),
-          0,
-          0,
-        );
-      }
-
-      const icon = details.status === "done" ? "✓" : "✗";
-      const color = details.status === "done" ? "success" : "error";
-      const elapsed = typeof details.elapsed === "number" ? Math.round(details.elapsed / 1000) : 0;
-      const header =
-        theme.fg(color, `${icon} ${details.profile}`) + theme.fg("dim", ` ${elapsed}s`);
-
-      if (opts.expanded && details.fullOutput) {
-        const output =
-          details.fullOutput.length > 4000
-            ? `${details.fullOutput.slice(0, 4000)}\n... [truncated]`
-            : details.fullOutput;
-        return new Text(`${header}\n${theme.fg("muted", output)}`, 0, 0);
-      }
-
-      return new Text(header, 0, 0);
     },
   };
 
