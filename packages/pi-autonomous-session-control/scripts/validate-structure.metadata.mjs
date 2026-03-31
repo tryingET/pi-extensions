@@ -2,7 +2,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { validateTechStackContract } from "../../../scripts/validate-tech-stack-contract.mjs";
 
 let failed = false;
 const fail = (msg) => {
@@ -278,9 +277,6 @@ try {
     if (!p.files.includes("policy/security-policy.json")) {
       fail("package.json files must include 'policy/security-policy.json'");
     }
-    if (!p.files.includes("policy/stack-lane.json")) {
-      fail("package.json files must include 'policy/stack-lane.json'");
-    }
 
     for (const entry of ext) {
       const normalized = entry.replace(/^\.\//, "");
@@ -345,15 +341,6 @@ try {
   if (manifestVersion !== p.version) {
     fail("root .release-please-manifest.json entry must match package.json version");
   }
-
-  validateTechStackContract({
-    policyPath: "policy/stack-lane.json",
-    expectedLane: "ts",
-    expectedTechStackLane: "pi-ts",
-    requirePinnedRef: "sha40",
-    smokeMode: process.env.PI_TECH_STACK_SMOKE === "0" ? "off" : "if-available",
-    fail,
-  });
 
   validateBiomeIgnoreGovernance(".");
 } catch (error) {

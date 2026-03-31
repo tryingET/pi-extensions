@@ -114,9 +114,9 @@ For npm publishing, `package.json` uses a `files` whitelist so required runtime 
 - `prompts/`
 - `examples/`
 - `policy/security-policy.json`
-- `policy/stack-lane.json`
 
 If your extension also needs extra runtime assets, add them to `files` intentionally.
+Shared tech-stack policy now stays root-owned rather than shipping a package-local stack metadata file.
 
 ### Public execution contract
 
@@ -191,8 +191,9 @@ It enforces structure validation, Biome lint checks, optional TypeScript typeche
   - `npm run fix` (auto-fix)
   - `npm run lint` (check-only)
   - `npm run typecheck`
-- lane metadata:
-  - [policy/stack-lane.json](policy/stack-lane.json)
+- root-owned stack review surface:
+  - [../../docs/tech-stack.local.md](../../docs/tech-stack.local.md)
+  - [../../docs/project/reduced-form-migration-contract.md](../../docs/project/reduced-form-migration-contract.md)
 
 ## Release + security baseline
 
@@ -297,7 +298,7 @@ TypeScript lane reference for pi extensions:
 uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo
 ```
 
-Pinned lane metadata lives in [policy/stack-lane.json](policy/stack-lane.json).
+Shared lane stance for this monorepo now lives at root in [../../docs/tech-stack.local.md](../../docs/tech-stack.local.md).
 
 ## Copier lifecycle policy
 
@@ -399,7 +400,6 @@ Then in Pi:
 - [Project vision](docs/project/vision.md)
 - [Project incentives](docs/project/incentives.md)
 - [Project resources](docs/project/resources.md)
-- [Tech stack local override](docs/tech-stack.local.md)
 - [Project skills](docs/project/skills.md)
 - [ASC public execution contract](docs/project/public-execution-contract.md)
 - [Strategic goals](docs/project/strategic_goals.md)
