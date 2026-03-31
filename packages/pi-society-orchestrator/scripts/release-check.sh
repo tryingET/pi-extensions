@@ -39,6 +39,12 @@ const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const filesEntries = Array.isArray(pkg.files)
   ? pkg.files.map((entry) => normalize(String(entry).trim())).filter(Boolean)
   : [];
+const bundledPrefixes = [
+  ...((Array.isArray(pkg.bundleDependencies) ? pkg.bundleDependencies : []).map(String)),
+  ...((Array.isArray(pkg.bundledDependencies) ? pkg.bundledDependencies : []).map(String)),
+]
+  .map((entry) => normalize(`node_modules/${entry}/`))
+  .filter(Boolean);
 
 if (filesEntries.length === 0) {
   fail("package.json must define a non-empty files array for deterministic publish artifacts.");
@@ -104,11 +110,17 @@ for (const prefix of expectedPatternPrefixes) {
     missing.push(`${prefix}*`);
   }
 }
+for (const prefix of bundledPrefixes) {
+  if (!actual.some((filePath) => filePath.startsWith(prefix))) {
+    missing.push(`${prefix}*`);
+  }
+}
 
 const extra = actual.filter((filePath) => {
   if (expectedExact.has(filePath)) return false;
   if (expectedDirPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
   if (expectedPatternPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
+  if (bundledPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
   if (allowByAlwaysIncluded(filePath)) return false;
   return true;
 });

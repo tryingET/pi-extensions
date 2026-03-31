@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import extension from "../extensions/society-orchestrator.ts";
 import { BUILT_IN_PLUGINS, registerLoopTools } from "../src/loops/engine.ts";
+import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
 import {
   AGENT_TEAMS,
   resolveAgentForTeam,
@@ -15,7 +16,11 @@ import { runAkCommand, runAkCommandAsync } from "../src/runtime/ak.ts";
 import { finalizeExecutionEffects, recordEvidence } from "../src/runtime/evidence.ts";
 import { getExecutionStatus, isExecutionSuccess } from "../src/runtime/execution-status.ts";
 import { superviseProcess } from "../src/runtime/process-supervisor.ts";
-import { buildCombinedSystemPrompt, spawnPiSubagent } from "../src/runtime/subagent.ts";
+import {
+  buildCombinedSystemPrompt,
+  createOrchestratorSubagentExecutor,
+  toExecutionLike,
+} from "../src/runtime/subagent.ts";
 import { createSessionTeamStore } from "../src/runtime/team-state.ts";
 
 test("runAkCommand injects AK_DB when environment does not provide one", () => {
@@ -285,405 +290,74 @@ test("buildCombinedSystemPrompt preserves agent role, cognitive tool, and object
   assert.match(prompt, /## LOOP\nphase=check/);
 });
 
-test("spawnPiSubagent flushes a final unterminated JSON event", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"final output without newline"}]}}'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
+test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orchestrator dispatch", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-asc-runtime-"));
+  const calls = [];
 
   try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
+    const executor = createOrchestratorSubagentExecutor({
+      sessionsDir: tempDir,
+      spawner: async (def, model, ctx, state) => {
+        calls.push({ def, model, ctx, state });
+        return {
+          output: "delegated answer",
+          exitCode: 0,
+          elapsed: 1500,
+          status: "done",
+        };
+      },
     });
 
-    assert.equal(result.exitCode, 0);
-    assert.equal(result.output, "final output without newline");
+    const result = await executor.execute({
+      agentProfile: AGENT_PROFILES.reviewer,
+      cognitiveToolName: "audit",
+      cognitiveToolContent: "FRAMEWORK: audit deeply",
+      objective: "Review the evidence trail",
+      model: "mock/provider",
+      cwd: "/tmp/worktree",
+      contextHeading: "OBJECTIVE",
+      contextBody: "Review the evidence trail",
+      extraSections: ["## LOOP\nphase=orient"],
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.details.status, "done");
+    assert.equal(result.details.fullOutput, "delegated answer");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].model, "mock/provider");
+    assert.equal(calls[0].ctx.cwd, "/tmp/worktree");
+    assert.equal(calls[0].state.sessionsDir, tempDir);
+    assert.equal(calls[0].def.name, "reviewer-audit");
+    assert.equal(calls[0].def.tools, AGENT_PROFILES.reviewer.tools);
+    assert.match(calls[0].def.systemPrompt || "", /You are a code reviewer agent/);
+    assert.match(calls[0].def.systemPrompt || "", /FRAMEWORK: audit deeply/);
+    assert.match(calls[0].def.systemPrompt || "", /## OBJECTIVE\n\nReview the evidence trail/);
+    assert.match(calls[0].def.systemPrompt || "", /## LOOP\nphase=orient/);
+    assert.match(result.text, /\[custom\] done/);
   } finally {
-    process.env.PATH = previousPath;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test("spawnPiSubagent ignores non-JSON stdout noise when assistant completes cleanly", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-noisy-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
+test("toExecutionLike preserves timeout semantics from the ASC public runtime", () => {
+  const execution = toExecutionLike({
+    ok: false,
+    text: "timed out",
+    details: {
+      status: "timeout",
+      exitCode: 124,
+      elapsed: 2000,
+      fullOutput: "timed out",
+    },
+  });
 
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '\nchanged 1 package in 123ms\n\n'
-printf '%s\n' '{"type":"session","version":3,"id":"x","timestamp":"2026-03-21T00:00:00.000Z","cwd":"/tmp"}'
-printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"coherent output"}],"stopReason":"stop"}}'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-    });
-
-    assert.equal(result.exitCode, 0);
-    assert.equal(result.assistantStopReason, "stop");
-    assert.equal(result.output, "coherent output");
-    assert.match(result.stderr || "", /Ignored 1 non-JSON stdout line/);
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent surfaces malformed JSON event streams explicitly", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-malformed-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s' '{not-json'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-    });
-
-    assert.equal(result.exitCode, 1);
-    assert.match(result.output, /Failed to parse 1 pi JSON event line/);
-    assert.match(result.stderr || "", /Failed to parse 1 pi JSON event line/);
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent propagates assistant stop-reason failures even when pi exits zero", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-stopreason-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}}'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-    });
-
-    assert.equal(result.exitCode, 1);
-    assert.equal(result.aborted, false);
-    assert.equal(result.assistantStopReason, "error");
-    assert.equal(result.assistantErrorMessage, "boom");
-    assert.equal(result.output, "boom");
-    assert.equal(result.executionState?.transport.aborted, false);
-    assert.deepEqual(result.executionState?.protocol, {
-      kind: "assistant_protocol",
-      stopReason: "error",
-      errorMessage: "boom",
-    });
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent keeps assistant aborts distinct from transport aborts", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-assistant-abort-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"aborted","errorMessage":"cancelled by policy"}}'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-    });
-
-    assert.equal(result.exitCode, 130);
-    assert.equal(result.aborted, false);
-    assert.equal(result.assistantStopReason, "aborted");
-    assert.equal(result.output, "cancelled by policy");
-    assert.equal(getExecutionStatus(result), "aborted");
-    assert.equal(result.executionState?.transport.aborted, false);
-    assert.deepEqual(result.executionState?.protocol, {
-      kind: "assistant_protocol",
-      stopReason: "aborted",
-      errorMessage: "cancelled by policy",
-    });
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent returns semantic output for assistant length stops", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-length-stop-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"length"}}'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-    });
-
-    assert.equal(result.exitCode, 0);
-    assert.equal(result.assistantStopReason, "length");
-    assert.equal(getExecutionStatus(result), "error");
-    assert.match(result.output, /response length limit/i);
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent returns semantic output for assistant tool-use stops", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-tooluse-stop-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"toolUse"}}'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-    });
-
-    assert.equal(result.exitCode, 0);
-    assert.equal(result.assistantStopReason, "toolUse");
-    assert.equal(getExecutionStatus(result), "error");
-    assert.match(result.output, /tool use before producing a final response/i);
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent fails closed on unknown assistant stop reasons", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-unknown-stopreason-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"partial"}],"stopReason":"futureReason"}}'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-    });
-
-    assert.equal(result.exitCode, 1);
-    assert.match(result.output, /Failed to parse 1 pi JSON event line/);
-    assert.match(result.stderr || "", /Unknown assistant stop reason/);
-    assert.deepEqual(result.executionState?.protocol, {
-      kind: "assistant_protocol_parse_error",
-      errorMessage:
-        "Failed to parse 1 pi JSON event line(s).\nUnknown assistant stop reason from pi JSON protocol: futureReason",
-    });
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent respects abort signals", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-abort-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-sleep 2
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 20);
-
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-      signal: controller.signal,
-    });
-
-    assert.equal(result.aborted, true);
-    assert.match(result.output, /aborted/i);
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent bounds assistant output and marks truncation", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-truncated-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-  const longText = "x".repeat(64);
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s' ${JSON.stringify(
-      JSON.stringify({
-        type: "message_end",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text: longText }],
-        },
-      }),
-    )}
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-      maxOutputChars: 16,
-    });
-
-    assert.equal(result.outputTruncated, true);
-    assert.match(result.output, /assistant output truncated/);
-    assert.ok(result.output.startsWith("x".repeat(16)));
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("spawnPiSubagent fails when an event line exceeds the buffer limit without a newline", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-subagent-buffer-"));
-  const piPath = path.join(tempDir, "pi");
-  const sessionFile = path.join(tempDir, "session.json");
-  const previousPath = process.env.PATH;
-
-  fs.writeFileSync(
-    piPath,
-    `#!/usr/bin/env bash
-printf '%s' '0123456789abcdefghijklmnopqrstuvwxyz'
-`,
-  );
-  fs.chmodSync(piPath, 0o755);
-
-  try {
-    process.env.PATH = `${tempDir}:${previousPath || ""}`;
-    const result = await spawnPiSubagent({
-      tools: "read",
-      systemPrompt: "ROLE: test",
-      objective: "Say hello",
-      model: "mock/provider",
-      sessionFile,
-      maxEventBufferBytes: 8,
-    });
-
-    assert.equal(result.exitCode, 1);
-    assert.match(result.stderr || "", /event buffer exceeded 8 bytes/);
-  } finally {
-    process.env.PATH = previousPath;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
+  assert.deepEqual(execution, {
+    output: "timed out",
+    exitCode: 124,
+    elapsed: 2000,
+    timedOut: true,
+  });
+  assert.equal(getExecutionStatus(execution), "timed_out");
 });
 
 test("full team includes every registered agent profile", () => {

@@ -65,6 +65,7 @@ const importablePackageDir = path.join(importRoot, "package");
 const importNodeModulesPath = path.join(importRoot, "node_modules");
 fs.symlinkSync(npmGlobalRoot, importNodeModulesPath, "dir");
 fs.cpSync(installedPackageDir, importablePackageDir, { recursive: true });
+liftBundledDependencies(importablePackageDir);
 
 const extensionPath = path.join(importablePackageDir, extensionEntry.replace(/^\.\//, ""));
 assert.ok(fs.existsSync(extensionPath), `Importable extension entry missing: ${extensionPath}`);
@@ -87,6 +88,35 @@ fs.writeFileSync(societyDbPath, "");
 function writeExecutable(filePath, content) {
   fs.writeFileSync(filePath, content);
   fs.chmodSync(filePath, 0o755);
+}
+
+function liftBundledDependencies(packageDir) {
+  const manifestPath = path.join(packageDir, "package.json");
+  if (!fs.existsSync(manifestPath)) return;
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const bundled = [
+    ...(Array.isArray(manifest.bundleDependencies) ? manifest.bundleDependencies : []).map(String),
+    ...(Array.isArray(manifest.bundledDependencies) ? manifest.bundledDependencies : []).map(
+      String,
+    ),
+  ];
+
+  if (bundled.length === 0) return;
+
+  const liftedRoot = path.join(packageDir, ".bundled-dependencies");
+  fs.mkdirSync(liftedRoot, { recursive: true });
+
+  for (const dependencyName of bundled) {
+    const pathSegments = dependencyName.split("/");
+    const bundledPath = path.join(packageDir, "node_modules", ...pathSegments);
+    if (!fs.existsSync(bundledPath)) continue;
+
+    const liftedPath = path.join(liftedRoot, ...pathSegments);
+    fs.mkdirSync(path.dirname(liftedPath), { recursive: true });
+    fs.renameSync(bundledPath, liftedPath);
+    fs.symlinkSync(liftedPath, bundledPath, "dir");
+  }
 }
 
 function seedVault(dir) {
@@ -156,12 +186,22 @@ sleep 2
     writeExecutable(
       fakePiPath,
       `#!/usr/bin/env bash
-printf '%s' ${JSON.stringify(
+printf '%s\n' ${JSON.stringify(
+        JSON.stringify({
+          type: "message_update",
+          assistantMessageEvent: {
+            type: "text_delta",
+            delta: longText,
+          },
+        }),
+      )}
+printf '%s\n' ${JSON.stringify(
         JSON.stringify({
           type: "message_end",
           message: {
             role: "assistant",
             content: [{ type: "text", text: longText }],
+            stopReason: "stop",
           },
         }),
       )}

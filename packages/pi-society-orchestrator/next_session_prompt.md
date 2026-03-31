@@ -13,10 +13,11 @@ system4d:
 
 ## Session objective
 
-Resume after the **fail-closed routing + session-identity + execution-status + resource/lifecycle hardening + headless installed-runtime smoke + unified execution/evidence + rocs-backed ontology adapter + lower-plane boundary hardening + society-read boundary exception** passes.
+Resume after the **fail-closed routing + session-identity + execution-status + resource/lifecycle hardening + headless installed-runtime smoke + unified execution/evidence + rocs-backed ontology adapter + lower-plane boundary hardening + society-read boundary exception + ASC public-runtime cutover** passes.
 
 The next bounded work is:
 1. continue the narrower remaining architecture-convergence backlog now that `/evidence` is on AK and only the `society_query` diagnostic exception remains on raw sqlite
+2. if the operator explicitly revisits the execution seam, treat the main cutover as landed and focus only on the remaining publish/install bridge instead of reopening runtime ownership
 
 ## What is now true
 
@@ -24,8 +25,10 @@ The next bounded work is:
 - `cognitive_dispatch` and loop execution share package-local runtime helpers for:
   - agent/team routing
   - subagent prompt composition
-  - Pi subagent spawning
+  - ASC public execution-runtime dispatch
   - `ak` execution
+- orchestrator no longer carries a second local Pi-subagent spawn/runtime implementation; `src/runtime/subagent.ts` is now a consumer-side adapter over `pi-autonomous-session-control/execution`.
+- the adapter still preserves package-local timeout/output policy (`PI_ORCH_SUBAGENT_TIMEOUT_MS`, `PI_ORCH_SUBAGENT_OUTPUT_CHARS`) around the ASC-owned seam so release smoke and operator-visible behavior stay truthful during the cutover.
 - runtime `sqlite3`, `dolt`, and `rocs-cli` reads now flow through async, timeout-bound supervised helper boundaries instead of synchronous runtime `execFileSync` calls.
 - `society_query` is now an explicit bounded diagnostic surface routed through `src/runtime/society.ts`; mutating SQL and mutating `PRAGMA` forms are rejected, and valid read-only `WITH ... SELECT ...` diagnostics are now accepted.
 - `ontology_context` and `/ontology` now resolve through a shared `rocs-cli` adapter path that consumes ROCS build/index artifacts instead of querying the local `society.db` ontology table directly.
@@ -62,14 +65,11 @@ The next bounded work is:
   - non-abort, non-timeout `ak` evidence failure => SQL fallback eligible
   - aborted/timed-out evidence-write attempts => fail closed without SQL fallback
 - loops now carry semantic per-phase status instead of inferring success from raw `exitCode` alone.
-- malformed Pi event streams now surface as failures instead of success-shaped output.
 
-### Process lifecycle hardening landed
-- `ak` execution is abortable and timeout-bound.
-- Pi subagent execution is abortable and timeout-bound.
-- child-process stdout/stderr capture is bounded.
-- subagent assistant-output capture is bounded.
-- oversized unterminated Pi event buffers now fail explicitly instead of growing forever.
+### Execution-boundary cutover landed
+- `cognitive_dispatch` and `loop_execute` now consume ASC's public execution contract instead of the old orchestrator-local spawn/process path.
+- installed-package release validation now bundles `pi-autonomous-session-control` into the orchestrator tarball so the public seam remains installable before a longer-term registry/dependency story exists.
+- `scripts/release-check.sh` and `scripts/release-smoke.mjs` now account for that bundled-package bridge while still proving timeout/truncation/team-mismatch behavior against the installed tarball.
 
 ### Docs/AGENTS shape now matches monorepo reality better
 - package-local docs now use `docs/project/` for dated RFCs/runbooks/notes and `docs/adr/` for adopted decisions instead of a package-local `docs/dev/` tree.
@@ -154,10 +154,10 @@ Then re-open the broader architecture artifacts if the next session finishes the
    - decide whether the remaining `society_query` raw sqlite path should survive as a bounded diagnostic exception until AK grows a truthful canonical read/query surface, or be tightened further
    - revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only behavior
    - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
-2. **If the operator explicitly chooses the subagent/runtime seam, switch to the execution-boundary packet**
+2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover packet**
    - start from `docs/project/subagent-execution-boundary-map.md`
-   - treat `#604 -> #605 -> #606` as the current minimal execution wave
-   - do not rediscover the ADR/RFC split or reopen helper-package debates before the ASC public runtime seam exists
+   - treat `#604 -> #605 -> #606` as landed history, not active backlog
+   - focus only on the remaining bundled publish/install bridge or any real post-cutover seam gap
 3. **Optional parity hardening after architecture work is scoped**
    - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
 
@@ -166,6 +166,7 @@ Then re-open the broader architecture artifacts if the next session finishes the
 | Finding | Rationale | Owner | Trigger | Deadline | Blast Radius |
 |---|---|---|---|---|---|
 | Installed-package release-check smoke is now headless and isolated from the default global npm package space, but routine release validation still does not prove interactive `/reload` parity in a normal Pi host session | The installed-package harness now verifies installed extension behavior without auth/provider drift or default-global npm mutation, but it intentionally drives tools/commands through a stub instead of exercising full interactive host lifecycle behavior | `pi-society-orchestrator` package maintainer | decision to add a separate live-host parity check or accept the current split between deterministic release smoke and manual interactive verification | before `0.2.0` behavior freeze | release-check can still miss host-only integration drift around reload/session wiring even when installed-package smoke is green |
+| Orchestrator tarballs currently bundle `pi-autonomous-session-control` | The execution-plane cutover is landed, but the public seam package is not yet consumed through a longer-term publish/install contract, so orchestrator currently ships a bundled ASC bridge and the installed-package smoke harness has to lift that bundle out of `node_modules` for direct import | `pi-society-orchestrator` package maintainer with `pi-autonomous-session-control` maintainer review | decision on the durable publish/install story for the ASC public seam | before `0.2.0` behavior freeze | package size, install topology, and smoke-harness complexity stay higher than ideal even though runtime ownership is now correct |
 | `recordEvidence(...)` still has SQL fallback | Package hardening is much stronger, but removing fallback now still exceeds risk tolerance before a broader confidence pass on `ak`-only evidence writes | `pi-society-orchestrator` package maintainer | successful broader live/runtime proof of `ak evidence record` sufficiency | 2026-03-17 | evidence semantics can still drift from the canonical adapter path |
 | `society_query` still uses a bounded raw society DB read exception | `/evidence` now uses `ak evidence search`, but `society_query` still depends on a narrow raw sqlite diagnostic path until a truthful canonical read/query boundary exists | `pi-society-orchestrator` package maintainer with `agent-kernel` maintainer review | decision on canonical society read/query boundary or explicit retention/removal of the diagnostic exception | 2026-03-31 | residual read-side schema drift and continued raw DB coupling for one escape hatch |
 | ROCS adapter defaults currently assume the local SoftwareCo ontology repo and `--workspace-ref-mode loose` | The sanctioned adapter is now in place, but the runtime still carries a local usability/default-policy choice that has not yet been ratified as the long-term canonical ROCS resolution contract for orchestrator | `pi-society-orchestrator` package maintainer with `rocs-cli` maintainer review | decision on strict-vs-loose ROCS workspace resolution policy for orchestrator | 2026-03-24 | ontology lookups can drift from tagged refs in mixed local worktrees even though they no longer depend on raw SQL shape |

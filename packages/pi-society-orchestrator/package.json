@@ -77,5 +77,11 @@
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"
-  }
+  },
+  "dependencies": {
+    "pi-autonomous-session-control": "file:../pi-autonomous-session-control"
+  },
+  "bundleDependencies": [
+    "pi-autonomous-session-control"
+  ]
 }

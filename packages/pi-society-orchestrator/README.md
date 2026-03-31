@@ -108,9 +108,11 @@ Primary tools and commands exposed by the imported extension include:
 ## Current runtime reality
 
 - Runtime hardening is in place for agent/team routing, shared execution/evidence policy, timeout-bound supervised lower-plane calls, `rocs-cli`-backed ontology resolution, and a dedicated society runtime helper for the residual read-side boundary.
+- `cognitive_dispatch` and `loop_execute` now route subagent execution through ASC's public execution contract via `src/runtime/subagent.ts` instead of carrying a second local spawn/runtime implementation.
+- The orchestrator-side adapter still preserves package-local timeout/output policy (`PI_ORCH_SUBAGENT_TIMEOUT_MS`, `PI_ORCH_SUBAGENT_OUTPUT_CHARS`) around the ASC-owned seam so installed-package behavior stays truthful during the cutover.
 - `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
-- Installed-package `release:check` now proves timeout/truncation/team-mismatch behavior through a deterministic headless harness against the installed tarball.
-- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, and interactive `/reload` parity is still outside the routine release-check harness.
+- Installed-package `release:check` now proves timeout/truncation/team-mismatch behavior through a deterministic headless harness against the installed tarball, including the current bundled `pi-autonomous-session-control` publish bridge.
+- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the bundled ASC publish bridge still needs a longer-term release story, and interactive `/reload` parity is still outside the routine release-check harness.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Quickstart
@@ -188,8 +190,8 @@ Additional runtime knobs:
 - `PI_ORCH_DEFAULT_AGENT_TEAM` — default team for sessions without explicit selection (validated; invalid values fall back to `full`)
 - `PI_ORCH_MAX_SESSION_KEYS` — max retained session-key entries before oldest-key eviction
 - `PI_ORCH_PROCESS_CAPTURE_BYTES` — bounded stdout/stderr capture limit for supervised child processes
-- `PI_ORCH_SUBAGENT_OUTPUT_CHARS` — bounded assistant-output capture for Pi subagents
-- `PI_ORCH_SUBAGENT_EVENT_BUFFER_BYTES` — max unterminated event-buffer size before protocol failure
+- `PI_ORCH_SUBAGENT_TIMEOUT_MS` — default timeout forwarded through the ASC public execution request when orchestrator dispatch does not set an explicit timeout
+- `PI_ORCH_SUBAGENT_OUTPUT_CHARS` — bounded subagent output preserved on the orchestrator side after ASC runtime execution completes
 - `PI_ORCH_ONTOLOGY_REPO` — ontology repo passed to `rocs build` (defaults to `~/ai-society/softwareco/ontology`)
 - `PI_ORCH_ROCS_PROJECT` — local `rocs-cli` project used when invoking `uv --project ... run rocs`
 - `PI_ORCH_ROCS_BIN` — direct `rocs`/wrapper executable override for ontology resolution
@@ -209,4 +211,4 @@ bash ./scripts/package-quality-gate.sh ci packages/pi-society-orchestrator
 - The package ships `src/` because the extension entrypoint imports runtime modules from there.
 - `session_start` guards UI-only behavior with `ctx.hasUI` so non-UI runs stay safer.
 - The package was renamed early to the `pi-society-orchestrator` canonical package identity to avoid later naming churn.
-- The current convergence priority is execution-plane/public-contract work plus the remaining society/prompt adapter migration; prompt-plane seam finalization stays deferred until the upstream `pi-vault-client` execution boundary lands.
+- The execution-plane/public-contract cutover is now landed; the current convergence priority is the remaining society/prompt adapter migration plus retiring the temporary bundled ASC publish bridge without reopening ownership of the execution plane.

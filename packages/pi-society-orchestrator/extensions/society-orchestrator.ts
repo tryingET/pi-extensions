@@ -55,7 +55,7 @@ import {
 import { getExecutionIcon } from "../src/runtime/execution-status.ts";
 import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/ontology.ts";
 import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
-import { buildCombinedSystemPrompt, spawnPiSubagent } from "../src/runtime/subagent.ts";
+import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore } from "../src/runtime/team-state.ts";
 
 // ============================================================================
@@ -105,6 +105,8 @@ export default function (pi: ExtensionAPI) {
   if (!fs.existsSync(sessionsDir)) {
     fs.mkdirSync(sessionsDir, { recursive: true });
   }
+
+  const subagentExecutor = createOrchestratorSubagentExecutor({ sessionsDir });
 
   // ===========================================================================
   // TOOL: society_query
@@ -290,28 +292,21 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         };
       }
 
-      // Create combined system prompt
-      const combinedPrompt = buildCombinedSystemPrompt({
-        agentSystemPrompt: agentDef.systemPrompt,
-        cognitiveToolContent: tool.content,
-        contextHeading: "OBJECTIVE",
-        contextBody: context,
-      });
-
       const model = ctx.model
         ? `${ctx.model.provider}/${ctx.model.id}`
         : `openrouter/google/gemini-2.5-flash-preview`;
-      const sessionFile = path.join(sessionsDir, `${agentToUse}-${toolToUse}-${Date.now()}.json`);
-
-      // Spawn the agent
-      const result = await spawnPiSubagent({
-        tools: agentDef.tools,
-        systemPrompt: combinedPrompt,
+      const runtimeResult = await subagentExecutor.execute({
+        agentProfile: agentDef,
+        cognitiveToolName: toolToUse,
+        cognitiveToolContent: tool.content,
         objective: context,
         model,
-        sessionFile,
-        signal,
+        cwd: ctx.cwd,
+        contextHeading: "OBJECTIVE",
+        contextBody: context,
+        sessionName: `${agentToUse}-${toolToUse}`,
       });
+      const result = toExecutionLike(runtimeResult);
 
       const executionOutcome = await finalizeExecutionEffects({
         result,

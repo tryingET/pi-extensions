@@ -31,7 +31,7 @@ import {
   recordEvidence,
 } from "../runtime/evidence.ts";
 import type { ExecutionStatus } from "../runtime/execution-status.ts";
-import { buildCombinedSystemPrompt, spawnPiSubagent } from "../runtime/subagent.ts";
+import { createOrchestratorSubagentExecutor, toExecutionLike } from "../runtime/subagent.ts";
 import type { TeamScopedContext } from "../runtime/team-state.ts";
 
 const DEFAULT_SOCIETY_DB =
@@ -580,6 +580,10 @@ export function registerLoopTools(
     path.join(os.homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db"),
   resolveAgent?: (agent: string, ctx: TeamScopedContext & { cwd: string }) => AgentResolution,
 ): void {
+  const subagentExecutor = createOrchestratorSubagentExecutor({
+    sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "loops"),
+  });
+
   pi.registerTool({
     name: "loop_execute",
     label: "Execute Loop",
@@ -719,33 +723,23 @@ Results are recorded to diary/ and evidence ledger.`,
           };
         }
 
-        const combinedPrompt = buildCombinedSystemPrompt({
-          agentSystemPrompt: agentProfile.systemPrompt,
-          cognitiveToolContent: toolResult.value.content,
-          extraSections: [
-            `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
-          ],
-        });
         const model = ctx.model
           ? `${ctx.model.provider}/${ctx.model.id}`
           : "openrouter/google/gemini-2.5-flash-preview";
-        const sessionFile = path.join(
-          os.homedir(),
-          ".pi",
-          "agent",
-          "sessions",
-          "loops",
-          `${agentProfile.name}-${toolResult.value.name}-${Date.now()}.json`,
-        );
-
-        return spawnPiSubagent({
-          tools: agentProfile.tools,
-          systemPrompt: combinedPrompt,
+        const runtimeResult = await subagentExecutor.execute({
+          agentProfile,
+          cognitiveToolName: toolResult.value.name,
+          cognitiveToolContent: toolResult.value.content,
           objective: p.context,
           model,
-          sessionFile,
-          signal,
+          cwd: ctx.cwd,
+          extraSections: [
+            `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
+          ],
+          sessionName: `${agentProfile.name}-${toolResult.value.name}`,
         });
+
+        return toExecutionLike(runtimeResult);
       };
 
       try {

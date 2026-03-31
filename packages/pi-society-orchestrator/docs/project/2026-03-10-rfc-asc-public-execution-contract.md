@@ -170,12 +170,12 @@ export function registerDispatchSubagentTool(
 
 ## H) Acceptance criteria
 
-- [ ] ASC exposes a documented package-level public execution entrypoint for non-UI consumers.
-- [ ] ASC default extension entrypoint composes that same runtime instead of keeping a divergent private-only path.
-- [ ] `pi-society-orchestrator` can adopt the public contract without importing `../pi-autonomous-session-control/extensions/self/*`.
-- [ ] The public execution contract does not require `self`-specific concepts unrelated to execution runtime.
-- [ ] Existing `dispatch_subagent` behavior remains compatible for current users.
-- [ ] Tests cover both the tool path and the public runtime path against the same lifecycle/prompt-envelope expectations.
+- [x] ASC exposes a documented package-level public execution entrypoint for non-UI consumers.
+- [x] ASC default extension entrypoint composes that same runtime instead of keeping a divergent private-only path.
+- [x] `pi-society-orchestrator` can adopt the public contract without importing `../pi-autonomous-session-control/extensions/self/*`.
+- [x] The public execution contract does not require `self`-specific concepts unrelated to execution runtime.
+- [x] Existing `dispatch_subagent` behavior remains compatible for current users.
+- [x] Tests cover both the tool path and the public runtime path against the same lifecycle/prompt-envelope expectations.
 
 ## I) Implementation sketch (maintainer-oriented)
 

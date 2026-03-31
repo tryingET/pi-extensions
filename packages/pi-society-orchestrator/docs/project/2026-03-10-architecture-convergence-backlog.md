@@ -140,37 +140,39 @@ Status update:
 
 ## Immediate next leaves after packet reconciliation
 
-1. Execute `#604` and publish the ASC public execution contract as a real package-level seam.
-2. Execute `#605` and prove parity between the new runtime seam and `dispatch_subagent` tool behavior.
-3. Execute `#606` and cut orchestrator over to the ASC-owned runtime so the duplicate execution path can retire.
-4. Continue the narrower remaining society/evidence cleanup separately; do not let it reopen the execution-plane ownership question.
-5. Keep presentation helpers local unless a second real consumer proves extraction pressure.
-6. Continue to defer prompt-plane seam selection until the upstream `pi-vault-client` boundary lands.
+1. Treat `#604`, `#605`, and `#606` as complete execution-plane history:
+   - ASC public execution seam published
+   - parity harness landed
+   - orchestrator cut over and retired the duplicate spawn/runtime path
+2. Continue the narrower remaining society/evidence cleanup separately; do not let it reopen the execution-plane ownership question.
+3. If execution-seam work resumes, constrain it to the remaining bundled publish/install bridge or a newly proven consumer gap.
+4. Keep presentation helpers local unless a second real consumer proves extraction pressure.
+5. Continue to defer prompt-plane seam selection until the upstream `pi-vault-client` boundary lands.
 
 ## Current execution-plane packet after docs reconciliation
 
-AK is the execution authority for the current subagent/runtime wave:
+AK is the execution authority for the subagent/runtime wave, and that core packet is now complete:
 
-1. `#604` — expose the ASC public execution contract for non-tool consumers
-2. `#605` — add the parity harness proving the new runtime path matches `dispatch_subagent`
-3. `#606` — adopt the ASC runtime in orchestrator and retire the duplicate path
+1. `#604` — exposed the ASC public execution contract for non-tool consumers
+2. `#605` — added the parity harness proving the new runtime path matches `dispatch_subagent`
+3. `#606` — adopted the ASC runtime in orchestrator and retired the duplicate path
 
-Dependency order:
+Dependency order that landed:
 
 ```text
 #604 -> #605 -> #606
 ```
 
-This is the smallest truthful execution-plane wave implied by the ADR + RFC packet.
-It intentionally does **not** start with dashboard polish, a new UI-helper package, or orchestrator-side UX refinement.
+That was the smallest truthful execution-plane wave implied by the ADR + RFC packet.
+Follow-up work should stay constrained to post-cutover packaging/runtime hygiene rather than reopening ownership or starting with dashboard polish.
 
 ## Execution-plane implementation checklist
 
-- [ ] Define the ASC public execution contract surface (runtime primitives only; no `self`-specific consumer imports)
-- [ ] Decide whether ASC can expose that surface via package exports without leaking extension bootstrapping concerns
-- [ ] If yes, plan orchestrator adoption against that contract
-- [ ] If no, open extraction follow-up for a smaller shared execution runtime derived from ASC
-- [ ] Deprecate orchestrator-local duplicate dispatch paths only after replacement seam is proven
+- [x] Define the ASC public execution contract surface (runtime primitives only; no `self`-specific consumer imports)
+- [x] Decide whether ASC can expose that surface via package exports without leaking extension bootstrapping concerns
+- [x] Plan and land orchestrator adoption against that contract
+- [ ] Keep the temporary bundled publish/install bridge only until a more durable release story exists
+- [x] Deprecate orchestrator-local duplicate dispatch paths after the replacement seam is proven
 
 ## Current raw access inventory and migration ledger
 
