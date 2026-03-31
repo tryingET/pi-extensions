@@ -49,7 +49,7 @@ The script enumerates every package root under `packages/` and reports whether i
 
 ## Current audit snapshot
 
-Audited on 2026-03-30.
+Audited on 2026-03-31.
 
 Snapshot summary:
 
@@ -88,9 +88,9 @@ Snapshot summary:
 
 ## Classification signal for the next root-owned wave
 
-A quick content-diff pass over the current `legacy-full` docs shows that the bucket is not uniform:
+The `#601` audit confirms that the current `legacy-full` bucket is not uniform:
 
-- the following seven package-local `docs/tech-stack.local.md` files are byte-identical boilerplate copies of the same simple-package note (`sha256:04a5fb…`):
+- the following seven package-local `docs/tech-stack.local.md` files are byte-identical boilerplate copies of the same simple-package note (`sha256:04a5fb…0241f`):
   - `packages/pi-activity-strip`
   - `packages/pi-autonomous-session-control`
   - `packages/pi-context-overlay`
@@ -98,8 +98,27 @@ A quick content-diff pass over the current `legacy-full` docs shows that the buc
   - `packages/pi-ontology-workflows`
   - `packages/pi-society-orchestrator`
   - `packages/pi-vault-client`
-- `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` is the only distinct child-package doc in the `legacy-full` set and still carries a package-specific typecheck/validation note.
+- `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` is the only distinct child-package doc in the `legacy-full` set (`sha256:ce50c7…d6fa`) and still carries a package-specific typecheck/validation note.
 - This means the next root-owned wave is not another generic contract pass; it is to classify each remaining `legacy-full` package toward `none` vs `reduced-form` and then route only the smallest truthful package-local follow-up set.
+
+## Per-package provisional target-state classification
+
+| Package path | Current signal | Provisional target state | Routed next candidate |
+|---|---|---|---|
+| `packages/pi-activity-strip` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-activity-strip` |
+| `packages/pi-autonomous-session-control` | same boilerplate doc copy at a monorepo-package root | `none` | package-local reduction candidate in `packages/pi-autonomous-session-control`; validate the monorepo-package root after removing both local surfaces |
+| `packages/pi-context-overlay` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-context-overlay` |
+| `packages/pi-interaction/pi-interaction` | only distinct `legacy-full` doc; keeps a child-package typecheck/validation note (`sha256:ce50c7…d6fa`) | `reduced-form` | package-local child-package follow-up: keep the child-specific doc note, remove only `policy/stack-lane.json`, and align it with the `packages/pi-interaction` group-root doc |
+| `packages/pi-little-helpers` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-little-helpers` |
+| `packages/pi-ontology-workflows` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-ontology-workflows` |
+| `packages/pi-society-orchestrator` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-society-orchestrator` |
+| `packages/pi-vault-client` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root with adjacent template-verification responsibility | `none` | package-local reduction candidate in `packages/pi-vault-client`; when scaffold defaults change, route adjacent Nunjucks verification through this package |
+
+## Routed next-candidate clusters
+
+- **Cluster A — boilerplate-only `none` targets:** `packages/pi-activity-strip`, `packages/pi-autonomous-session-control`, `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` are now explicitly classified as boilerplate-only local surfaces. `#603` should choose only the smallest truthful package-local subset from this cluster instead of opening a blanket migration queue.
+- **Cluster B — distinct `reduced-form` target:** `packages/pi-interaction/pi-interaction` remains the only package in the `legacy-full` bucket with a real local override candidate worth preserving as `docs/tech-stack.local.md` after `policy/stack-lane.json` disappears.
+- **Adjacent template/default follow-up:** if the next slice changes what fresh package scaffolds emit, route that change to `~/ai-society/softwareco/owned/pi-extensions-template`, then prove the live template lane through `packages/pi-vault-client` when Nunjucks verification is involved.
 
 ## Routing notes
 

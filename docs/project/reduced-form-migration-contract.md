@@ -79,16 +79,16 @@ system4d:
 
 ## Current legacy-full packages and their routed target
 
-| Package path | Topology | Truthful target | Routed owner |
-|---|---|---|---|
-| `packages/pi-activity-strip` | simple-package root | remove `policy/stack-lane.json`; keep `docs/tech-stack.local.md` only if the package still has a real local override | package-local follow-up in `packages/pi-activity-strip` |
-| `packages/pi-autonomous-session-control` | monorepo-package root | remove `policy/stack-lane.json`; keep `docs/tech-stack.local.md` only if the package still has a real local override | package-local follow-up in `packages/pi-autonomous-session-control` |
-| `packages/pi-context-overlay` | simple-package root | remove `policy/stack-lane.json`; keep `docs/tech-stack.local.md` only if the package still has a real local override | package-local follow-up in `packages/pi-context-overlay` |
-| `packages/pi-interaction/pi-interaction` | package member under reduced-form group root | prefer shared stack notes at `packages/pi-interaction/docs/tech-stack.local.md`; child package should keep only a truly child-specific doc override, otherwise no local surface | package-local follow-up in `packages/pi-interaction/pi-interaction` with group-root context |
-| `packages/pi-little-helpers` | simple-package root | remove `policy/stack-lane.json`; keep `docs/tech-stack.local.md` only if the package still has a real local override | package-local follow-up in `packages/pi-little-helpers` |
-| `packages/pi-ontology-workflows` | simple-package root | remove `policy/stack-lane.json`; keep `docs/tech-stack.local.md` only if the package still has a real local override | package-local follow-up in `packages/pi-ontology-workflows` |
-| `packages/pi-society-orchestrator` | simple-package root | remove `policy/stack-lane.json`; keep `docs/tech-stack.local.md` only if the package still has a real local override | package-local follow-up in `packages/pi-society-orchestrator` |
-| `packages/pi-vault-client` | simple-package root with adjacent template-verification responsibility | remove `policy/stack-lane.json`; keep `docs/tech-stack.local.md` only if the package still has a real local override; route template verification here when scaffold defaults change | package-local follow-up in `packages/pi-vault-client` plus template-verification lane when needed |
+| Package path | Topology | Provisional target state | Audit basis | Routed owner |
+|---|---|---|---|---|
+| `packages/pi-activity-strip` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-activity-strip` |
+| `packages/pi-autonomous-session-control` | monorepo-package root | `none` | same boilerplate doc copy; no distinct local override recorded at root | package-local follow-up in `packages/pi-autonomous-session-control` |
+| `packages/pi-context-overlay` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-context-overlay` |
+| `packages/pi-interaction/pi-interaction` | package member under reduced-form group root | `reduced-form` | distinct child-package doc (`sha256:ce50c7…d6fa`) still carries a package-specific typecheck/validation note | package-local follow-up in `packages/pi-interaction/pi-interaction` with group-root context |
+| `packages/pi-little-helpers` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-little-helpers` |
+| `packages/pi-ontology-workflows` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-ontology-workflows` |
+| `packages/pi-society-orchestrator` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-society-orchestrator` |
+| `packages/pi-vault-client` | simple-package root with adjacent template-verification responsibility | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); adjacent verification routing does not by itself justify a local stack doc | package-local follow-up in `packages/pi-vault-client` plus template-verification lane when scaffold defaults change |
 
 ## Non-goals of this contract
 

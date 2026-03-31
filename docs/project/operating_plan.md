@@ -19,14 +19,14 @@ Active tactical goal:
 
 | Order | AK task | State | Deliverable |
 |---|---:|---|---|
-| 1 | `#601` | ready | Audit the eight remaining `legacy-full` package surfaces and separate boilerplate inheritance from real local override candidates. |
-| 2 | `#602` | pending on `#601` | Refresh the root audit with per-package target-state classification (`none` vs `reduced-form`) and routed next-candidate notes. |
-| 3 | `#603` | pending on `#602` | Publish the minimal package-reduction queue from the refreshed classification and update stable handoff/diary pointers. |
+| 1 | `#601` | done | Audited the eight remaining `legacy-full` package surfaces and separated seven boilerplate copies from the one distinct child-package override candidate. |
+| 2 | `#602` | done | Refreshed the root audit and migration contract with per-package target-state classification (`none` vs `reduced-form`) and routed next-candidate notes. |
+| 3 | `#603` | ready | Publish the minimal package-reduction queue from the refreshed classification and update stable handoff/diary pointers. |
 
 ## Interpretation
 
 - This file intentionally tracks only the active tactical goal.
-- `#601` is the only ready slice; `#602` and `#603` are intentionally dependency-gated so AK exposes only the next active root slice.
+- `#601` and `#602` are now complete; `#603` is the only remaining TG2 slice and should materialize the smallest truthful package-local queue plus the stable handoff update.
 - TG1's initial doc/contract wave (`#595`–`#597`) is complete and no longer needs additional root backlog padding.
 - Deferred runtime-registry tasks `#268` and `#269` remain context, not the active root tech-stack wave.
 
