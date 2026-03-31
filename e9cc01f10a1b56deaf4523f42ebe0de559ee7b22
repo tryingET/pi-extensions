@@ -3,24 +3,21 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "e9cc01f10a1b56deaf4523f42ebe0de559ee7b22"
-created_at: "2026-03-31T10:40:26Z"
+created_at: "2026-03-31T10:44:24Z"
 intent: "fix(ptx): prefer top-level command source over provenance sourceInfo.source"
 files:
-  - "packages/pi-prompt-template-accelerator/src/commandProvenance.js"
-  - "packages/pi-prompt-template-accelerator/tests/ptx-candidate-adapter.test.mjs"
-  - "packages/pi-prompt-template-accelerator/tests/ptx-runtime-registry.test.mjs"
-  - "packages/pi-prompt-template-accelerator/tests/resolve-prompt-template.test.mjs"
+  - "."
 validation:
   fast_gate:
-    command: "npm --prefix packages/pi-prompt-template-accelerator test"
+    command: "see group fast gate"
     status: "pass"
   full_gate:
     command: "npm --prefix packages/pi-prompt-template-accelerator test && npm --prefix packages/pi-interaction/pi-interaction test && npm --prefix packages/pi-vault-client test && npm --prefix packages/pi-autonomous-session-control test && npm --prefix packages/pi-society-orchestrator test"
-    status: "pending"
+    status: "pass"
 group:
-  index: 1
+  index: 0
   total: 5
-  rationale: "Standalone provenance fix independent of execution-plane changes"
+  rationale: "full gate rewrite after all commits passed"
 links:
   diary:
     - "."
