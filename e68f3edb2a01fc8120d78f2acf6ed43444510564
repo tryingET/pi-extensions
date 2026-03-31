@@ -3,39 +3,21 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "e68f3edb2a01fc8120d78f2acf6ed43444510564"
-created_at: "2026-03-31T10:42:38Z"
+created_at: "2026-03-31T10:44:25Z"
 intent: "feat(asc): harden execution plane with assistant protocol, abort, and transport safety"
 files:
-  - "packages/pi-autonomous-session-control/README.md"
-  - "packages/pi-autonomous-session-control/docs/project/public-execution-contract.md"
-  - "packages/pi-autonomous-session-control/execution.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-commands.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-dashboard-data.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-dashboard.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-runtime.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-session-name.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-session.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-spawn.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent.ts"
-  - "packages/pi-autonomous-session-control/package-lock.json"
-  - "packages/pi-autonomous-session-control/package.json"
-  - "packages/pi-autonomous-session-control/tests/canary/cards/dispatch-lifecycle-activecount-invariant.json"
-  - "packages/pi-autonomous-session-control/tests/dispatch-subagent-diagnostics.test.mjs"
-  - "packages/pi-autonomous-session-control/tests/prompt-vault-db-integration.test.mjs"
-  - "packages/pi-autonomous-session-control/tests/public-execution-contract.test.mjs"
-  - "packages/pi-autonomous-session-control/tests/public-execution-parity.test.mjs"
-  - "packages/pi-autonomous-session-control/tests/subagent-file-lock.test.mjs"
+  - "."
 validation:
   fast_gate:
-    command: "npm --prefix packages/pi-autonomous-session-control test"
+    command: "see group fast gate"
     status: "pass"
   full_gate:
     command: "npm --prefix packages/pi-prompt-template-accelerator test && npm --prefix packages/pi-interaction/pi-interaction test && npm --prefix packages/pi-vault-client test && npm --prefix packages/pi-autonomous-session-control test && npm --prefix packages/pi-society-orchestrator test"
-    status: "pending"
+    status: "pass"
 group:
-  index: 4
+  index: 0
   total: 5
-  rationale: "Core execution-plane hardening: assistant protocol parsing, abort propagation, bounded output, execution state, peer deps meta"
+  rationale: "full gate rewrite after all commits passed"
 links:
   diary:
     - "."
