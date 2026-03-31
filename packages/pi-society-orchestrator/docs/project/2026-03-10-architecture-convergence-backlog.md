@@ -186,7 +186,7 @@ Goal for this wave:
 | SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Implemented via [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) |
 | SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Implemented via canonical ASC `result.details.status` + `failureKind` preserved through orchestrator consumer surfaces |
 | SB9 | Schedule a time-boxed seam review after release evidence accumulates | 4 | 2 | 1 | Q2 | Implemented via [execution seam review](2026-03-31-execution-seam-review.md); current answer is still keep the seam small with one real external consumer |
-| SB10 | Expand consumer inventory only if a second real external caller appears | 3 | 1 | 2 | Q4 | Useful later, not now |
+| SB10 | Expand consumer inventory only if a second real external caller appears | 3 | 1 | 2 | Q4 | Closed by `#629` as a no-op checkpoint after the first review confirmed there is still only one real external consumer; reopen only with new evidence |
 
 ### Immediate safe leaves executed in this stewardship slice
 

@@ -58,7 +58,7 @@ This seam does **not** exist to:
 | Installed-package release smoke | `scripts/release-smoke.mjs` -> installed orchestrator tools | verification harness, not a runtime consumer | packaged import/install truth for the current bundled bridge | useful packaging proof only; must not justify widening the seam |
 
 The first time-boxed review is now recorded in [Execution seam review](2026-03-31-execution-seam-review.md).
-Current outcome: there is still exactly one real external runtime consumer package today (`pi-society-orchestrator`), so later consumer-inventory expansion stays conditional rather than active by default.
+Current outcome: there is still exactly one real external runtime consumer package today (`pi-society-orchestrator`), so later consumer-inventory expansion stays conditional rather than active by default. AK task `#629` therefore closes as a no-op checkpoint: keep the current map unchanged and reopen this line of work only if new evidence introduces a second real external runtime consumer with distinct capability needs.
 
 ## Guardrails
 
@@ -93,7 +93,7 @@ The seam should be reconsidered for removal if any of the following becomes true
 
 Run an explicit seam review when:
 
-- a second external consumer asks for new capabilities
+- a second external consumer asks for new capabilities, which would reopen the consumer-inventory pass from the current no-op baseline
 - packaging/release pressure forces the seam to widen
 - the trigger in [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md) fires for retiring the temporary installability bridge
 - installed-package smoke starts diverging from the package-local contract or consumer tests
@@ -107,6 +107,7 @@ Current answer:
 - **keep it small**
 - **do not broaden it without evidence**
 - **treat removal as a future evidence-based decision, not a default assumption**
+- do not keep a generic consumer-inventory expansion task open without new evidence
 - use [Execution seam review](2026-03-31-execution-seam-review.md) as the current evidence checkpoint before opening new seam-specific follow-up
 
 ## Companion docs
