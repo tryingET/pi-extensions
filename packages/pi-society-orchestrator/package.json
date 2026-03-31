@@ -78,7 +78,19 @@
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"
   },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-ai": {
+      "optional": true
+    },
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    },
+    "@mariozechner/pi-tui": {
+      "optional": true
+    }
+  },
   "dependencies": {
+    "@sinclair/typebox": "^0.34.48",
     "pi-autonomous-session-control": "file:../pi-autonomous-session-control"
   },
   "bundleDependencies": [

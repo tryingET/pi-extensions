@@ -293,12 +293,13 @@ test("buildCombinedSystemPrompt preserves agent role, cognitive tool, and object
 test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orchestrator dispatch", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-asc-runtime-"));
   const calls = [];
+  const controller = new AbortController();
 
   try {
     const executor = createOrchestratorSubagentExecutor({
       sessionsDir: tempDir,
-      spawner: async (def, model, ctx, state) => {
-        calls.push({ def, model, ctx, state });
+      spawner: async (def, model, ctx, state, signal) => {
+        calls.push({ def, model, ctx, state, signal });
         return {
           output: "delegated answer",
           exitCode: 0,
@@ -318,6 +319,7 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
       contextHeading: "OBJECTIVE",
       contextBody: "Review the evidence trail",
       extraSections: ["## LOOP\nphase=orient"],
+      signal: controller.signal,
     });
 
     assert.equal(result.ok, true);
@@ -327,6 +329,7 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
     assert.equal(calls[0].model, "mock/provider");
     assert.equal(calls[0].ctx.cwd, "/tmp/worktree");
     assert.equal(calls[0].state.sessionsDir, tempDir);
+    assert.equal(calls[0].signal, controller.signal);
     assert.equal(calls[0].def.name, "reviewer-audit");
     assert.equal(calls[0].def.tools, AGENT_PROFILES.reviewer.tools);
     assert.match(calls[0].def.systemPrompt || "", /You are a code reviewer agent/);
@@ -348,6 +351,10 @@ test("toExecutionLike preserves timeout semantics from the ASC public runtime", 
       exitCode: 124,
       elapsed: 2000,
       fullOutput: "timed out",
+      timedOut: true,
+      executionState: {
+        transport: { kind: "transport", exitCode: 124, aborted: false, timedOut: true },
+      },
     },
   });
 
@@ -355,9 +362,73 @@ test("toExecutionLike preserves timeout semantics from the ASC public runtime", 
     output: "timed out",
     exitCode: 124,
     elapsed: 2000,
+    stderr: undefined,
+    outputTruncated: undefined,
     timedOut: true,
+    aborted: false,
+    assistantStopReason: undefined,
+    assistantErrorMessage: undefined,
+    executionState: {
+      transport: { kind: "transport", exitCode: 124, aborted: false, timedOut: true },
+    },
   });
   assert.equal(getExecutionStatus(execution), "timed_out");
+});
+
+test("toExecutionLike preserves assistant protocol failures from the ASC public runtime", () => {
+  const execution = toExecutionLike({
+    ok: false,
+    text: "boom",
+    details: {
+      status: "error",
+      exitCode: 1,
+      elapsed: 250,
+      fullOutput: "partial",
+      assistantStopReason: "error",
+      assistantErrorMessage: "boom",
+      executionState: {
+        transport: { kind: "transport", exitCode: 0, aborted: false, timedOut: false },
+        protocol: {
+          kind: "assistant_protocol",
+          stopReason: "error",
+          errorMessage: "boom",
+        },
+      },
+    },
+  });
+
+  assert.equal(execution.assistantStopReason, "error");
+  assert.equal(execution.assistantErrorMessage, "boom");
+  assert.equal(getExecutionStatus(execution), "error");
+});
+
+test("createOrchestratorSubagentExecutor preserves truncation metadata from ASC output policy", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-asc-truncation-"));
+
+  try {
+    const executor = createOrchestratorSubagentExecutor({
+      sessionsDir: tempDir,
+      spawner: async () => ({
+        output: "x".repeat(70_000),
+        exitCode: 0,
+        elapsed: 25,
+        status: "done",
+      }),
+    });
+
+    const result = await executor.execute({
+      agentProfile: AGENT_PROFILES.reviewer,
+      cognitiveToolContent: "FRAMEWORK: audit deeply",
+      objective: "Review truncation handling",
+      model: "mock/provider",
+      cwd: "/tmp/worktree",
+    });
+
+    assert.equal(result.details.outputTruncated, true);
+    assert.match(result.details.fullOutput || "", /assistant output truncated/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("full team includes every registered agent profile", () => {

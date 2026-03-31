@@ -34,20 +34,23 @@ This file is the **single starting point** so the packet stops feeling scattered
 - **`pi-vs-claude-code`** is a pattern/reference repo, not the canonical runtime owner.
 - The execution wave itself is now landed:
   - ASC exposes the public package-level execution contract proposed by the RFC
+  - the published contract is intentionally the headless execution seam (`createAscExecutionRuntime`) rather than a mixed runtime+tool-registration surface
   - parity between the tool path and public runtime is covered on the ASC side
   - orchestrator now routes `cognitive_dispatch` and loop execution through that seam via `src/runtime/subagent.ts`
+  - the seam now has an explicit post-cutover charter defining why it exists, what it must not grow into, and when it should be reconsidered
 - The remaining execution-seam debt is narrower:
   - orchestrator tarballs currently bundle `pi-autonomous-session-control`
-  - installed-package smoke has to lift that bundled dependency for direct import during headless validation
+  - installed-package smoke now lifts bundled dependencies and host peers so direct node imports stay truthful during headless validation
 
 ## Read order
 
 1. **This file** — one-screen orientation and current AK wave
-2. [Phase A UI capability discovery](2026-03-10-ui-capability-discovery.md) — evidence for package placement
-3. [ADR — control-plane boundaries](../adr/2026-03-11-control-plane-boundaries.md) — adopted boundary decision
-4. [RFC — ASC public execution contract](2026-03-10-rfc-asc-public-execution-contract.md) — preferred seam shape under the ADR
-5. [Architecture convergence backlog](2026-03-10-architecture-convergence-backlog.md) — migration HTN and broader dependency cleanup
-6. ASC current runtime owner docs/code:
+2. [Execution seam charter](2026-03-31-execution-seam-charter.md) — why the seam exists, what it must stay, and when it should be reviewed or removed
+3. [Phase A UI capability discovery](2026-03-10-ui-capability-discovery.md) — evidence for package placement
+4. [ADR — control-plane boundaries](../adr/2026-03-11-control-plane-boundaries.md) — adopted boundary decision
+5. [RFC — ASC public execution contract](2026-03-10-rfc-asc-public-execution-contract.md) — preferred seam shape under the ADR
+6. [Architecture convergence backlog](2026-03-10-architecture-convergence-backlog.md) — migration HTN and broader dependency cleanup
+7. ASC current runtime owner docs/code:
    - [ASC README](../../pi-autonomous-session-control/README.md)
    - [ASC tool surface overview](../../pi-autonomous-session-control/docs/project/tool-surface-overview.md)
    - `../../pi-autonomous-session-control/extensions/self.ts`
@@ -61,9 +64,10 @@ This file is the **single starting point** so the packet stops feeling scattered
 
 | Artifact | Kind | Current status | Use it to answer |
 |---|---|---|---|
+| [2026-03-31-execution-seam-charter.md](2026-03-31-execution-seam-charter.md) | stewardship charter | current | "Why does the seam exist at all, how small should it stay, and when should it be removed or reviewed?" |
 | [2026-03-10-ui-capability-discovery.md](2026-03-10-ui-capability-discovery.md) | evidence note | complete | "Why doesn't this belong in a new helper package or in pi-vs-claude-code?" |
 | [2026-03-11-control-plane-boundaries.md](../adr/2026-03-11-control-plane-boundaries.md) | ADR / decision | accepted direction, implementation incomplete | "Who owns what plane and which seams are allowed?" |
-| [2026-03-10-rfc-asc-public-execution-contract.md](2026-03-10-rfc-asc-public-execution-contract.md) | implementation RFC | active proposal | "What exact public runtime seam should ASC expose first?" |
+| [2026-03-10-rfc-asc-public-execution-contract.md](2026-03-10-rfc-asc-public-execution-contract.md) | implementation RFC | historical proposal with landed follow-up narrowing | "What seam was proposed first, and where did the final public contract end up narrower?" |
 | [2026-03-10-architecture-convergence-backlog.md](2026-03-10-architecture-convergence-backlog.md) | backlog / HTN | active planning surface | "What is the migration order and how do we decompose it?" |
 | [../../pi-autonomous-session-control/README.md](../../pi-autonomous-session-control/README.md) | owner-package charter | current runtime truth | "Where does the real subagent runtime live today?" |
 | `../../pi-society-orchestrator/src/runtime/subagent.ts` | code reality | consumer-side adapter over the ASC public runtime | "How does orchestrator preserve its package-local policy while delegating execution to ASC?" |
@@ -92,10 +96,11 @@ ASC already owns the stronger runtime behaviors:
 
 ### What is still missing
 
-The ownership seam is now implemented; the remaining gap is publish/install cleanup:
+The ownership seam is now implemented and the publish/install cleanup for the current packaging model is in place:
 
 - orchestrator currently bundles `pi-autonomous-session-control` into its tarball to keep the public seam installable before a longer-term registry/dependency story exists
-- the installed-package smoke harness needs a small bundled-dependency lift so direct node imports stay truthful during headless validation
+- installed-package smoke now validates the real packaged import graph, including bundled ASC plus host-peer linking for Pi runtime packages
+- the seam charter now defines the explicit anti-drift justification, supported scope, guardrails, and removal criteria
 - post-cutover work should only extend the seam if a real consumer gap appears, not because the original ownership question is still open
 
 ## Current AK decomposition

@@ -305,6 +305,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         contextHeading: "OBJECTIVE",
         contextBody: context,
         sessionName: `${agentToUse}-${toolToUse}`,
+        signal,
       });
       const result = toExecutionLike(runtimeResult);
 

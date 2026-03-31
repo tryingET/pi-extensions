@@ -166,6 +166,35 @@ Dependency order that landed:
 That was the smallest truthful execution-plane wave implied by the ADR + RFC packet.
 Follow-up work should stay constrained to post-cutover packaging/runtime hygiene rather than reopening ownership or starting with dashboard polish.
 
+## Post-cutover seam stewardship backlog — 2026-03-31
+
+Goal for this wave:
+- keep the new ASC public execution seam justified, minimal, and removable
+- prevent drift back to duplicated runtime logic or private-source consumer imports
+- separate package-local contract truth from installed-package truth
+
+### Scored backlog
+
+| ID | Task | I | U | D | Quadrant | Notes |
+|---|---|---:|---:|---:|---|---|
+| SB1 | Publish an explicit execution seam charter with removal criteria | 5 | 5 | 2 | Q1 | Answers why the seam exists and prevents abstraction creep |
+| SB2 | Add a real consumer capability map for the seam | 4 | 4 | 2 | Q1 | Keeps the public surface tied to actual callers instead of imagined ones |
+| SB3 | Promote transport-safety invariants to named contract truth | 5 | 4 | 3 | Q1 | Prevents parity-only testing from hiding shared defects |
+| SB4 | Add seam-change guardrails against private ASC imports and orchestrator-local runtime revival | 4 | 4 | 2 | Q1 | Stops architectural backsliding |
+| SB5 | Split verification policy into package-local contract checks vs installed-package smoke | 5 | 3 | 2 | Q2 | Same seam, different truth layers |
+| SB6 | Decide how long the bundled ASC publish/install bridge should remain | 5 | 3 | 3 | Q2 | Important, but not a same-day blocker |
+| SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Cheap leverage after the recent hardening |
+| SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Improves operator/debug truth without reopening ownership |
+| SB9 | Schedule a time-boxed seam review after release evidence accumulates | 4 | 2 | 1 | Q2 | Keeps the seam evidence-driven instead of permanent-by-default |
+| SB10 | Expand consumer inventory only if a second real external caller appears | 3 | 1 | 2 | Q4 | Useful later, not now |
+
+### Immediate safe leaves executed in this stewardship slice
+
+1. Created [execution seam charter](2026-03-31-execution-seam-charter.md).
+2. Linked the charter from [subagent-execution-boundary-map.md](subagent-execution-boundary-map.md).
+3. Updated [ASC public execution contract](../../pi-autonomous-session-control/docs/project/public-execution-contract.md) to state why the seam exists and which transport-safety invariants it carries.
+4. Recorded this scored post-cutover backlog so future work starts from stewardship rather than re-litigating seam existence.
+
 ## Execution-plane implementation checklist
 
 - [x] Define the ASC public execution contract surface (runtime primitives only; no `self`-specific consumer imports)

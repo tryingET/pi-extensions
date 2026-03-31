@@ -45,8 +45,12 @@ assert.ok(packageName.length > 0, "Tarball package.json missing name");
 const extensionEntry = tarballPackage.pi?.extensions?.[0];
 assert.equal(typeof extensionEntry, "string", "Tarball package missing pi.extensions entry");
 
-const npmGlobalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
-const installedPackageDir = path.join(npmGlobalRoot, ...packageName.split("/"));
+const isolatedNpmGlobalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+const hostNpmGlobalRoot = execFileSync("npm", ["root", "-g"], {
+  encoding: "utf8",
+  env: withoutIsolatedPrefixEnv(process.env),
+}).trim();
+const installedPackageDir = path.join(isolatedNpmGlobalRoot, ...packageName.split("/"));
 const installedPackageJsonPath = path.join(installedPackageDir, "package.json");
 assert.ok(
   fs.existsSync(installedPackageJsonPath),
@@ -63,9 +67,34 @@ assertDirectoriesMatchExactly({
 const importRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-release-smoke-import-"));
 const importablePackageDir = path.join(importRoot, "package");
 const importNodeModulesPath = path.join(importRoot, "node_modules");
-fs.symlinkSync(npmGlobalRoot, importNodeModulesPath, "dir");
+fs.mkdirSync(importNodeModulesPath, { recursive: true });
 fs.cpSync(installedPackageDir, importablePackageDir, { recursive: true });
 liftBundledDependencies(importablePackageDir);
+linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-coding-agent", [
+  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-coding-agent"),
+]);
+linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-tui", [
+  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-tui"),
+  path.join(
+    hostNpmGlobalRoot,
+    "@mariozechner",
+    "pi-coding-agent",
+    "node_modules",
+    "@mariozechner",
+    "pi-tui",
+  ),
+]);
+linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-ai", [
+  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-ai"),
+  path.join(
+    hostNpmGlobalRoot,
+    "@mariozechner",
+    "pi-coding-agent",
+    "node_modules",
+    "@mariozechner",
+    "pi-ai",
+  ),
+]);
 
 const extensionPath = path.join(importablePackageDir, extensionEntry.replace(/^\.\//, ""));
 assert.ok(fs.existsSync(extensionPath), `Importable extension entry missing: ${extensionPath}`);
@@ -79,6 +108,7 @@ const akCallLogPath = path.join(tempRoot, "ak-calls.log");
 const fakeAkPath = path.join(binDir, "ak");
 const fakePiPath = path.join(binDir, "pi");
 const teamMismatchMarkerPath = path.join(tempRoot, "team-mismatch-subagent.marker");
+const abortMarkerPath = path.join(tempRoot, "abort-subagent.marker");
 
 fs.mkdirSync(binDir, { recursive: true });
 fs.mkdirSync(homeDir, { recursive: true });
@@ -88,6 +118,25 @@ fs.writeFileSync(societyDbPath, "");
 function writeExecutable(filePath, content) {
   fs.writeFileSync(filePath, content);
   fs.chmodSync(filePath, 0o755);
+}
+
+function withoutIsolatedPrefixEnv(env) {
+  const next = { ...env };
+  delete next.NPM_CONFIG_PREFIX;
+  delete next.npm_config_prefix;
+  return next;
+}
+
+function linkHostPeerPackage(importNodeModulesPath, spec, candidatePaths) {
+  const source = candidatePaths.find((candidate) => fs.existsSync(candidate));
+  assert.ok(
+    source,
+    `Host peer package not found for ${spec}. Candidates: ${candidatePaths.join(", ")}`,
+  );
+
+  const destination = path.join(importNodeModulesPath, ...spec.split("/"));
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.symlinkSync(source, destination, "dir");
 }
 
 function liftBundledDependencies(packageDir) {
@@ -210,6 +259,46 @@ printf '%s\n' ${JSON.stringify(
     return;
   }
 
+  if (mode === "semantic-error") {
+    writeExecutable(
+      fakePiPath,
+      `#!/usr/bin/env bash
+printf '%s\n' ${JSON.stringify(
+        JSON.stringify({
+          type: "message_update",
+          assistantMessageEvent: {
+            type: "text_delta",
+            delta: "partial",
+          },
+        }),
+      )}
+printf '%s\n' ${JSON.stringify(
+        JSON.stringify({
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [],
+            stopReason: "error",
+            errorMessage: "boom",
+          },
+        }),
+      )}
+`,
+    );
+    return;
+  }
+
+  if (mode === "abort") {
+    writeExecutable(
+      fakePiPath,
+      `#!/usr/bin/env bash
+trap 'printf terminated > ${JSON.stringify(abortMarkerPath)}; exit 0' TERM
+while true; do sleep 0.05; done
+`,
+    );
+    return;
+  }
+
   if (mode === "marker") {
     writeExecutable(
       fakePiPath,
@@ -253,7 +342,7 @@ try {
   process.env.VAULT_DIR = vaultDir;
   process.env.SOCIETY_DB = societyDbPath;
   process.env.AGENT_KERNEL = fakeAkPath;
-  process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "50";
+  process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "250";
   process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "16";
   delete process.env.PI_ORCH_DEFAULT_AGENT_TEAM;
 
@@ -288,6 +377,40 @@ try {
   assert.match(getText(timeoutResult), /timed_out/);
   console.log("installed timeout smoke: ok");
 
+  writeFakePi("abort");
+  const abortController = new AbortController();
+  setTimeout(() => abortController.abort(), 100);
+  const abortResult = await cognitiveDispatch.execute(
+    "installed-abort",
+    {
+      context: "Installed abort smoke",
+      agent: "scout",
+      cognitive_tool: "inversion",
+    },
+    abortController.signal,
+    undefined,
+    { cwd: tempRoot, model: undefined },
+  );
+  assert.match(getText(abortResult), /\] aborted in /);
+  assert.match(getText(abortResult), /Evidence path: skipped/);
+  assert.equal(fs.existsSync(abortMarkerPath), true);
+  console.log("installed abort smoke: ok");
+
+  writeFakePi("semantic-error");
+  const semanticErrorResult = await cognitiveDispatch.execute(
+    "installed-semantic-error",
+    {
+      context: "Installed semantic error smoke",
+      agent: "scout",
+      cognitive_tool: "inversion",
+    },
+    undefined,
+    undefined,
+    { cwd: tempRoot, model: undefined },
+  );
+  assert.match(getText(semanticErrorResult), /\] error in /);
+  console.log("installed semantic error smoke: ok");
+
   writeFakePi("truncation");
   const truncationResult = await cognitiveDispatch.execute(
     "installed-truncation",
@@ -306,15 +429,18 @@ try {
   const akCallLinesAfterDispatch = readNonEmptyLines(akCallLogPath);
   assert.equal(
     akCallLinesAfterDispatch.length,
-    2,
-    "Expected two evidence writes after dispatch smokes",
+    3,
+    "Expected three evidence writes after dispatch smokes (abort skips evidence)",
   );
   assert.match(akCallLinesAfterDispatch[0], /evidence record/);
   assert.match(akCallLinesAfterDispatch[0], /--check-type cognitive:dispatch/);
   assert.match(akCallLinesAfterDispatch[0], /--result fail/);
   assert.match(akCallLinesAfterDispatch[1], /evidence record/);
   assert.match(akCallLinesAfterDispatch[1], /--check-type cognitive:dispatch/);
-  assert.match(akCallLinesAfterDispatch[1], /--result pass/);
+  assert.match(akCallLinesAfterDispatch[1], /--result fail/);
+  assert.match(akCallLinesAfterDispatch[2], /evidence record/);
+  assert.match(akCallLinesAfterDispatch[2], /--check-type cognitive:dispatch/);
+  assert.match(akCallLinesAfterDispatch[2], /--result pass/);
 
   writeFakePi("marker");
   const notifications = [];
@@ -361,7 +487,7 @@ try {
   const akCallLinesAfterLoopMismatch = readNonEmptyLines(akCallLogPath);
   assert.equal(
     akCallLinesAfterLoopMismatch.length,
-    2,
+    3,
     "Loop/team mismatch should not emit additional evidence writes",
   );
   console.log("installed team mismatch smoke: ok");

@@ -8,6 +8,7 @@ import {
   type SubagentState,
 } from "pi-autonomous-session-control/execution";
 import type { AgentDef } from "./agent-profiles.ts";
+import type { ExecutionLike } from "./execution-status.ts";
 
 const DEFAULT_PI_SUBAGENT_TIMEOUT_MS =
   Number.parseInt(process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS || "", 10) || 10 * 60 * 1000;
@@ -31,13 +32,14 @@ export interface OrchestratorSubagentExecutionParams {
   promptTags?: string[];
   promptSource?: string;
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
+  signal?: AbortSignal;
 }
 
-export interface OrchestratorExecutionLike {
+export interface OrchestratorExecutionLike extends ExecutionLike {
   output: string;
-  exitCode: number;
   elapsed: number;
-  timedOut?: boolean;
+  stderr?: string;
+  outputTruncated?: boolean;
 }
 
 export interface OrchestratorSubagentExecutor {
@@ -119,6 +121,7 @@ export function createOrchestratorSubagentExecutor(
         },
         { cwd: params.cwd },
         params.onUpdate,
+        params.signal,
       );
 
       return applyOrchestratorRuntimePolicy(result);
@@ -133,7 +136,13 @@ export function toExecutionLike(
     output: result.details.fullOutput ?? result.text,
     exitCode: result.details.exitCode ?? (result.ok ? 0 : 1),
     elapsed: result.details.elapsed ?? 0,
-    timedOut: result.details.status === "timeout",
+    stderr: result.details.stderr,
+    outputTruncated: result.details.outputTruncated,
+    timedOut: result.details.timedOut ?? result.details.status === "timeout",
+    aborted: result.details.aborted ?? result.details.status === "aborted",
+    assistantStopReason: result.details.assistantStopReason,
+    assistantErrorMessage: result.details.assistantErrorMessage,
+    executionState: result.details.executionState,
   };
 }
 
@@ -171,6 +180,7 @@ function applyOrchestratorRuntimePolicy(
     details: {
       ...result.details,
       fullOutput: `${truncated.value}\n\n...[assistant output truncated]`,
+      outputTruncated: true,
     },
   };
 }

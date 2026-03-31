@@ -737,6 +737,7 @@ Results are recorded to diary/ and evidence ledger.`,
             `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
           ],
           sessionName: `${agentProfile.name}-${toolResult.value.name}`,
+          signal,
         });
 
         return toExecutionLike(runtimeResult);

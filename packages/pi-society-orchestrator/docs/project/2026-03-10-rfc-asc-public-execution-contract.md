@@ -135,12 +135,11 @@ export interface AscExecutionRuntime {
 export function createAscExecutionRuntime(
   options: AscExecutionRuntimeOptions,
 ): AscExecutionRuntime;
-
-export function registerDispatchSubagentTool(
-  pi: ExtensionAPI,
-  runtime: AscExecutionRuntime,
-): void;
 ```
+
+Follow-up note after implementation:
+- the landed public package entrypoint was narrowed to the headless execution seam only
+- `registerDispatchSubagentTool(...)` remains internal composition owned by ASC's extension layer rather than part of the published headless contract
 
 ## F) Compatibility and migration
 
@@ -171,6 +170,7 @@ export function registerDispatchSubagentTool(
 ## H) Acceptance criteria
 
 - [x] ASC exposes a documented package-level public execution entrypoint for non-UI consumers.
+- [x] The final published seam stays headless and does not require tool-surface/UI helpers for runtime consumers.
 - [x] ASC default extension entrypoint composes that same runtime instead of keeping a divergent private-only path.
 - [x] `pi-society-orchestrator` can adopt the public contract without importing `../pi-autonomous-session-control/extensions/self/*`.
 - [x] The public execution contract does not require `self`-specific concepts unrelated to execution runtime.
