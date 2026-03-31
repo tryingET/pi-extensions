@@ -17,7 +17,7 @@ Resume after the **fail-closed routing + session-identity + execution-status + r
 
 The next bounded work is:
 1. continue the narrower remaining architecture-convergence backlog now that `/evidence` is on AK and only the `society_query` diagnostic exception remains on raw sqlite
-2. if the operator explicitly revisits the execution seam, treat the main cutover as landed history and continue the post-cutover stewardship packet (`#623` -> `#627`) instead of reopening runtime ownership
+2. if the operator explicitly revisits the execution seam, treat the main cutover as landed history and continue the remaining post-cutover stewardship packet (`#625` -> `#627`) instead of reopening runtime ownership
 
 ## What is now true
 
@@ -70,6 +70,7 @@ The next bounded work is:
 - `cognitive_dispatch` and `loop_execute` now consume ASC's public execution contract instead of the old orchestrator-local spawn/process path.
 - installed-package release validation now bundles `pi-autonomous-session-control` into the orchestrator tarball so the public seam remains installable before a longer-term registry/dependency story exists.
 - `scripts/release-check.sh` and `scripts/release-smoke.mjs` now account for that bundled-package bridge while still proving timeout/truncation/team-mismatch behavior against the installed tarball.
+- seam verification layers are now explicit: ASC package-local tests prove contract semantics, `tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter, and `npm run release:check` proves packaged/imported install behavior.
 
 ### Docs/AGENTS shape now matches monorepo reality better
 - package-local docs now use `docs/project/` for dated RFCs/runbooks/notes and `docs/adr/` for adopted decisions instead of a package-local `docs/dev/` tree.
@@ -103,6 +104,8 @@ The installed-package smoke harness now:
 - uses deterministic fake subagent / `ak` dependencies plus a temporary vault fixture
 - asserts expected direct-dispatch evidence-write argv in the fake `ak` path
 - no longer depends on `~/.pi/agent/auth.json` or a live provider-backed prompt execution host
+
+Treat this as packaged-install proof, not the primary source of seam semantics; the contract truth still lives in ASC's package-local tests plus `tests/runtime-shared-paths.test.mjs`.
 
 Monorepo/root release-component validation was not rerun for this package-only society-read slice; rerun it if the next session touches root release wiring:
 
@@ -157,8 +160,8 @@ Then re-open the broader architecture artifacts if the next session finishes the
    - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
 2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
    - start from `docs/project/subagent-execution-boundary-map.md` and `docs/project/2026-03-31-execution-seam-charter.md`
-   - treat `#604 -> #605 -> #606` and `#622` as landed history, not active backlog
-   - choose the next bounded stewardship slice from the current ready/dependent set: execution-change checklist (`#623`), verification split (`#624`), bundled publish/install bridge lifecycle (`#625`), failure taxonomy (`#626`), or automated guardrails (`#627`)
+   - treat `#604 -> #605 -> #606`, `#622`, `#623`, and `#624` as landed history, not active backlog
+   - choose the next bounded stewardship slice from the current ready/dependent set: bundled publish/install bridge lifecycle (`#625`), failure taxonomy (`#626`), or automated guardrails (`#627`)
 3. **Optional parity hardening after architecture work is scoped**
    - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
 

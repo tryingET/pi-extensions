@@ -201,6 +201,8 @@ Additional runtime knobs:
 
 `npm run release:check` now also exercises installed-package timeout, truncation, and team-mismatch smoke through a headless harness that binds to the exact `PACKAGE_SPEC` recorded in the isolated Pi agent settings, verifies the installed package contents still match that tarball, and then drives the installed extension's registered tools/commands directly. The harness uses deterministic fake subagent/`ak` dependencies plus a temporary vault fixture, asserts the expected evidence-write argv for direct-dispatch smoke, and installs through an isolated `NPM_CONFIG_PREFIX` so routine release validation does not mutate the user's default global npm package space. That keeps the installed-package proof while removing the old dependency on `~/.pi/agent/auth.json` and a live provider-backed Pi host for routine release checks.
 
+Treat that harness as **installed-package / packaging truth**, not as the primary source of seam semantics. The seam contract itself is anchored by ASC package-local tests plus `tests/runtime-shared-paths.test.mjs`; `npm run release:check` proves the packaged import graph and installed extension behavior still work after install.
+
 From the monorepo root:
 
 ```bash

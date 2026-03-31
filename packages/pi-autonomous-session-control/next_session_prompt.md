@@ -26,8 +26,10 @@ Treat the original execution packet as landed history:
 2. parity harness against `dispatch_subagent` (`#605`) ✅
 3. orchestrator cutover / duplicate-runtime retirement (`#606`) ✅
 4. first stewardship/docs pass for transport-safety truth and seam justification (`#622`) ✅
+5. execution-contract change checklist (`#623`) ✅
+6. verification-layer split between package-local contract truth and installed-package smoke (`#624`) ✅
 
-The next truthful wave is **post-cutover seam stewardship**, not ownership debate.
+The next truthful wave is still **post-cutover seam stewardship**, not ownership debate.
 
 ## Read first
 
@@ -82,11 +84,17 @@ These are currently anchored by:
 
 ### Seam stewardship packet now exists
 
-The first post-cutover stewardship docs are now in place:
+The post-cutover stewardship docs are now in place:
 - seam charter: `../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md`
 - consumer map + packet index: `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
 - backlog with scored stewardship slices: `../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
 - ASC-side contract truth: `docs/project/public-execution-contract.md`
+- seam-change checklist: `docs/project/execution-contract-change-checklist.md`
+
+Verification layers are now explicit:
+- ASC package-local tests prove seam semantics and transport-safety invariants
+- `../pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves those semantics in repo-local source
+- `cd ../pi-society-orchestrator && npm run release:check` proves installed-package/import-graph truth for the packaged consumer artifact
 
 ## Structural decisions still in force
 
@@ -99,39 +107,21 @@ The first post-cutover stewardship docs are now in place:
 
 ## Recommended next slices
 
-### Option A — execution-contract change checklist (`#623`) **default next move**
-
-Best next stewardship slice:
-- add a short, explicit checklist for future seam modifications
-- make the negative-path rules easy to apply before code changes
-- keep it tied to the real failure modes already named in the charter/contract
-
-Avoid:
-- inventing a broad new process document disconnected from the current seam packet
-- repeating ownership debate instead of naming concrete guardrails
-
-### Option B — split verification policy (`#624`)
-
-If the next question is verification truth:
-- separate package-local contract checks from installed-package smoke expectations
-- keep ASC/package proof and orchestrator installed-runtime proof distinct but linked
-- document exactly which layer proves contract truth vs packaging truth
-
-### Option C — bundled publish/install bridge lifecycle (`#625`)
+### Option A — bundled publish/install bridge lifecycle (`#625`) **default next move**
 
 If the next question is release topology:
 - decide how long the temporary bundled ASC bridge should remain
 - define the exit criteria and review trigger
 - keep that decision narrow so it does not reopen runtime ownership
 
-### Option D — failure taxonomy or automated seam guardrails (`#626`, `#627`)
+### Option B — failure taxonomy or automated seam guardrails (`#626`, `#627`)
 
 Only if the operator explicitly prefers code-facing hardening next:
 - normalize failure taxonomy exposed through execution results
 - or add automated guardrails against private ASC imports and orchestrator-local runtime revival
 - keep either slice bounded and grounded in the charter/contract packet
 
-### Option E — return to other ASC-local work only if operator redirects
+### Option C — return to other ASC-local work only if operator redirects
 
 Safe only if the operator explicitly leaves the execution-boundary/stewardship wave.
 Do not drift back into local UX or dashboard work by default.
@@ -161,13 +151,11 @@ npm run check
 
 - `packages/pi-autonomous-session-control/next_session_prompt.md`
 - `packages/pi-society-orchestrator/next_session_prompt.md`
-- `diary/2026-03-31--docs-asc-transport-safety-seam-stewardship.md`
+- `diary/2026-03-31--docs-execution-seam-verification-layer-split.md`
 
 ## Remaining gaps
 
 Still unresolved:
-- explicit checklist for future seam modifications (`#623`)
-- verification-layer split between package-local contract checks and installed-package smoke (`#624`)
 - durable lifecycle decision for the bundled ASC publish/install bridge (`#625`)
 - normalized failure taxonomy across ASC and orchestrator result surfaces (`#626`)
 - automated guardrails against private ASC imports and local-runtime revival (`#627`)

@@ -181,7 +181,7 @@ Goal for this wave:
 | SB2 | Add a real consumer capability map for the seam | 4 | 4 | 2 | Q1 | Keeps the public surface tied to actual callers instead of imagined ones |
 | SB3 | Promote transport-safety invariants to named contract truth | 5 | 4 | 3 | Q1 | Prevents parity-only testing from hiding shared defects |
 | SB4 | Add seam-change guardrails against private ASC imports and orchestrator-local runtime revival | 4 | 4 | 2 | Q1 | Stops architectural backsliding |
-| SB5 | Split verification policy into package-local contract checks vs installed-package smoke | 5 | 3 | 2 | Q2 | Same seam, different truth layers |
+| SB5 | Split verification policy into package-local contract checks vs installed-package smoke | 5 | 3 | 2 | Q2 | Implemented via the explicit ASC contract / orchestrator consumer / installed-package verification-layer split |
 | SB6 | Decide how long the bundled ASC publish/install bridge should remain | 5 | 3 | 3 | Q2 | Important, but not a same-day blocker |
 | SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Implemented via [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) |
 | SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Improves operator/debug truth without reopening ownership |
@@ -195,6 +195,7 @@ Goal for this wave:
 3. Updated [ASC public execution contract](../../pi-autonomous-session-control/docs/project/public-execution-contract.md) to state why the seam exists and which transport-safety invariants it carries.
 4. Recorded this scored post-cutover backlog so future work starts from stewardship rather than re-litigating seam existence.
 5. Added the companion [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) so future seam edits stay tied to real failure modes and the current proof obligations.
+6. Split verification policy explicitly across ASC contract tests, orchestrator repo-local consumer tests, and installed-package smoke so packaging proof no longer masquerades as contract truth.
 
 ## Execution-plane implementation checklist
 

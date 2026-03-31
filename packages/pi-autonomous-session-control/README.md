@@ -149,6 +149,11 @@ What this seam guarantees:
 - a dedicated parity harness now proves those shared semantics stay aligned across the public runtime and the tool path
 - downstream consumers should prefer `pi-autonomous-session-control/execution` over private `extensions/self/*` imports
 
+Current verification split:
+- ASC package-local tests prove seam semantics and transport-safety invariants
+- `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter still preserves those semantics in repo-local source
+- `cd packages/pi-society-orchestrator && npm run release:check` proves installed-package/import-graph truth for the packaged orchestrator artifact, including the current bundled ASC bridge
+
 Companion package doc:
 - [ASC public execution contract](docs/project/public-execution-contract.md)
 

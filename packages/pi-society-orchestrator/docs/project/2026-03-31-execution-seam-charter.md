@@ -68,8 +68,11 @@ Any future seam change should preserve these rules:
    - tool registration and dashboard composition stay ASC-owned extension-layer concerns
 4. **Transport-safety invariants stay contract-level**
    - abort propagation, bounded output/event buffering, lifecycle uniqueness, and hard I/O failure surfacing must stay covered
-5. **Installed-package truth matters**
-   - seam changes are not complete until package-local checks and installed-package smoke both stay green
+5. **Verification layers must stay explicit**
+   - ASC package-local contract tests prove seam semantics and transport-safety invariants
+   - orchestrator package-local consumer tests prove the narrow adapter still preserves that truth in repo-local source
+   - installed-package smoke proves packaged import/install behavior, including the current bundled ASC bridge
+   - do not let any one layer stand in for the others
 6. **Run the seam-change checklist before modifying the contract**
    - use the companion [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) before widening, narrowing, or re-shaping the public runtime
 
@@ -88,7 +91,7 @@ Run an explicit seam review when:
 
 - a second external consumer asks for new capabilities
 - packaging/release pressure forces the seam to widen
-- installed-package smoke starts diverging from package-local contract tests
+- installed-package smoke starts diverging from the package-local contract or consumer tests
 - one to two release cycles have passed with enough evidence to judge whether the seam is still earning its keep
 
 ## Current bias

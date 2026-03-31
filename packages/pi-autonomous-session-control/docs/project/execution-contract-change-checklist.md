@@ -6,7 +6,7 @@ read_when:
 system4d:
   container: "Execution-seam stewardship checklist."
   compass: "Keep ASC as execution-plane owner, keep the seam minimal, and block drift back to private imports or duplicate runtimes."
-  engine: "justify change -> run negative-path checks -> update contract docs -> prove both package-local and installed-package truth."
+  engine: "justify change -> run negative-path checks -> update contract docs -> prove the right verification layer(s)."
   fog: "The main risk is treating a local convenience change as permission to widen the public seam or weaken transport/failure truth."
 ---
 
@@ -43,27 +43,44 @@ When public entrypoints, supported semantics, or stewardship rules change, updat
 
 Keep the explanation tied to actual callers and real failure modes, not speculative future consumers.
 
-## 4. Re-prove the contract at both truth layers
+## 4. Choose and run the right verification layer
 
-### ASC package-local contract proof
+Do **not** use installed-package smoke as a substitute for package-local contract proof, and do **not** use package-local tests as a substitute for packaged-import proof.
+The seam currently has three distinct verification layers:
 
-Re-run the contract tests that anchor the seam itself:
+### Layer A — ASC package-local contract truth
+
+Run these whenever the ASC public runtime itself, the named transport-safety invariants, or shaped execution semantics change:
 
 - `tests/public-execution-contract.test.mjs`
 - `tests/public-execution-parity.test.mjs`
 - `tests/dispatch-subagent-diagnostics.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 
-### Orchestrator consumer / installed-package proof
+This layer proves the supported seam semantics owned by ASC.
 
-If the change affects consumer-visible behavior, package exports, result semantics, or install topology, also re-run:
+### Layer B — Orchestrator package-local consumer truth
+
+Run this whenever the orchestrator adapter, orchestration decisions derived from `result.details`, or consumer-visible timeout/truncation/abort truth changes:
 
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs`
+
+This layer proves the narrow consumer still composes the ASC seam truthfully inside repo-local source.
+
+### Layer C — Installed-package smoke / packaging truth
+
+Run this whenever package exports, tarball contents, bundle topology, installed import paths, release-smoke harness behavior, or installed extension registration/behavior changes:
+
 - `cd packages/pi-society-orchestrator && npm run release:check`
 
-Until a later stewardship slice explicitly separates these proof layers further, seam changes are not complete unless both the ASC contract checks and the orchestrator installed-package smoke still hold.
+This layer proves the packaged orchestrator artifact can still consume the seam after install, including the current bundled ASC bridge and installed import graph.
 
-## 5. Run the current validation set
+Minimum rule of thumb:
+- seam semantics changed -> run **Layer A** and **Layer B**
+- install/publish topology changed -> run **Layer C**
+- mixed seam + packaging change -> run **all three layers** before closeout
+
+## 5. Run the current full closeout set
 
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
@@ -87,6 +104,7 @@ npm run check
 - Does the seam stay headless, minimal, and removable?
 - Did the change preserve the named transport-safety invariants?
 - Did the change avoid reintroducing private-import or duplicate-runtime drift?
+- Did we run the right verification layer(s) for the kind of change we made?
 - If the seam widened, what evidence justified it and what future review should test whether the widening still earns its keep?
 
 If you cannot answer those questions cleanly, do not land the seam change yet.
