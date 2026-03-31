@@ -39,13 +39,17 @@ Do **not** treat this file as a live status database.
   - `docs/project/strategic_goals.md`
   - `docs/project/tactical_goals.md`
   - `docs/project/operating_plan.md`
-- The next active root-owned wave under SG1 is to classify the remaining `legacy-full` package-local tech-stack surfaces into truthful end states and the smallest routed follow-up set.
-- Current classification signal:
-  - the root audit still shows `8` `legacy-full` package surfaces
-  - seven of those package-local `docs/tech-stack.local.md` files are identical boilerplate copies
-  - `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` is the only distinct child-package doc in that bucket
+- The root-owned classification wave under SG1 is published; the next active repo-local wave is the first minimal routed package-reduction queue.
+- Current migration signal:
+  - the root audit still shows `8` `legacy-full` package surfaces and `1` `reduced-form` package-local surface
+  - seven of the remaining `legacy-full` package-local docs are identical boilerplate copies headed toward `none`
+  - `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` remains the only distinct child-package doc headed toward `reduced-form`
+  - the first minimal routed queue is now explicit in AK:
+    - `#634` `packages/pi-activity-strip` — simple-package `none` pilot
+    - `#635` `packages/pi-autonomous-session-control` — monorepo-package `none` pilot
+    - `#636` `packages/pi-interaction/pi-interaction` — child-package `reduced-form` pilot
 - Latest root diary pointer:
-  - `diary/2026-03-30--root-tg2-classification-wave-materialized.md`
+  - `diary/2026-03-31--root-minimal-package-reduction-queue.md`
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
@@ -59,6 +63,8 @@ Do **not** treat this file as a live status database.
   - `docs/tech-stack.local.md`
   - `scripts/validate-tech-stack-contract.mjs`
   - `docs/project/reduced-form-migration-contract.md`
+  - `docs/project/tech-stack-review-surfaces.md`
+  - `docs/project/operating_plan.md`
 - Package-local divergence surface stays local to each package:
   - `docs/tech-stack.local.md`
   - package-specific docs/manifests/scripts
@@ -83,7 +89,7 @@ Do **not** treat this file as a live status database.
    - `docs/project/tech-stack-review-surfaces.md`
    - `docs/project/reduced-form-migration-contract.md`
    - `scripts/validate-tech-stack-contract.mjs`
-4. Use AK as the live queue for TG2; if repo-local readiness empties while SG1 still implies unfinished classification/routing work, re-enter the direction chain and materialize only the next lower-layer slice instead of reopening TG1 or padding backlog.
+4. Use AK as the live queue for the first minimal package-reduction wave; if repo-local readiness empties while SG1 still implies unfinished package reductions, refresh the root audit/routing surfaces and materialize only the next smallest justified queue instead of opening the whole backlog.
 5. Route template changes to:
    - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
 6. Route Nunjucks live verification to:

@@ -20,20 +20,23 @@ Active strategic goal:
 | Rank | Tactical goal | Importance | Urgency | Difficulty | State | Notes |
 |---|---|---:|---:|---:|---|---|
 | 1 | Publish the initial root-owned reduced-form migration wave and stable bootstrap | 5 | 5 | 2 | done | Completed by `#595`–`#597`; this closed the missing root direction/contract layer. |
-| 2 | Classify remaining legacy-full package surfaces into truthful target states and routed next candidates | 5 | 4 | 2 | **active** | The root audit still groups eight packages as `legacy-full`, but seven docs are identical boilerplate and one child package doc is distinct; the next root wave is to turn that into explicit target-state truth. |
-| 3 | Materialize the first minimal package-local reduction queue from the refreshed classification | 4 | 3 | 3 | next | After classification, create only the smallest routed package wave that truly follows instead of a blanket migration backlog. |
+| 2 | Classify remaining legacy-full package surfaces into truthful target states and routed next candidates | 5 | 4 | 2 | done | Completed by `#601`–`#602`; the root now records explicit package-level target states instead of only a bucket-level audit signal. |
+| 3 | Materialize the first minimal package-local reduction queue from the refreshed classification | 4 | 3 | 3 | **active** | `#603` published the queue and handoff; the active routed package-local pilot wave is now `#634` -> `#635` -> `#636`. |
 
 ## Active tactical goal
 
-### TG2 — Classify remaining legacy-full package surfaces into truthful target states and routed next candidates
+### TG3 — Materialize the first minimal package-local reduction queue from the refreshed classification
 
 Definition of done:
-- root audit distinguishes boilerplate `legacy-full` surfaces from packages with a real local override candidate
-- each remaining `legacy-full` package has a provisional target state (`none` or `reduced-form`) and a routed next-owner note recorded at root
-- the active root operating slices are explicit in [operating_plan.md](operating_plan.md)
-- those slices have authoritative AK coverage
+- root docs publish only the smallest justified routed package-local queue instead of a blanket migration backlog
+- that queue covers the three distinct follow-up cases the root classification exposed:
+  - one simple-package `none` pilot
+  - one monorepo-package `none` pilot
+  - the only child-package `reduced-form` pilot
+- the active repo-local operating slices are explicit in [operating_plan.md](operating_plan.md)
+- those slices have authoritative AK coverage and a stable root handoff pointer
 
-## Completed tactical goal
+## Completed tactical goals
 
 ### TG1 — Publish the initial root-owned reduced-form migration wave and stable bootstrap
 
@@ -42,8 +45,8 @@ Completed by:
 - `#596` refresh live audit truth
 - `#597` lock the root-side migration contract and routing boundaries
 
-## Not active yet
+### TG2 — Classify remaining legacy-full package surfaces into truthful target states and routed next candidates
 
-### TG3 — Materialize the first minimal package-local reduction queue from the refreshed classification
-
-This remains next because the repo should first publish per-package target-state truth at the root before creating package-local follow-up beyond the smallest justified set.
+Completed by:
+- `#601` audit remaining `legacy-full` package docs for real local overrides vs boilerplate
+- `#602` refresh the root audit with per-package target-state classification and routed next candidates

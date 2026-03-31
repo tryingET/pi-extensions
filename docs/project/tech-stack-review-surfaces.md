@@ -99,7 +99,7 @@ The `#601` audit confirms that the current `legacy-full` bucket is not uniform:
   - `packages/pi-society-orchestrator`
   - `packages/pi-vault-client`
 - `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` is the only distinct child-package doc in the `legacy-full` set (`sha256:ce50c7…d6fa`) and still carries a package-specific typecheck/validation note.
-- This means the next root-owned wave is not another generic contract pass; it is to classify each remaining `legacy-full` package toward `none` vs `reduced-form` and then route only the smallest truthful package-local follow-up set.
+- That classification work is now complete, so the next routed wave is not another generic contract pass; it is to prove only the smallest truthful package-local follow-up set.
 
 ## Per-package provisional target-state classification
 
@@ -116,9 +116,26 @@ The `#601` audit confirms that the current `legacy-full` bucket is not uniform:
 
 ## Routed next-candidate clusters
 
-- **Cluster A — boilerplate-only `none` targets:** `packages/pi-activity-strip`, `packages/pi-autonomous-session-control`, `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` are now explicitly classified as boilerplate-only local surfaces. `#603` should choose only the smallest truthful package-local subset from this cluster instead of opening a blanket migration queue.
+- **Cluster A — boilerplate-only `none` targets:** `packages/pi-activity-strip`, `packages/pi-autonomous-session-control`, `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` are now explicitly classified as boilerplate-only local surfaces. `#603` chose only the smallest truthful package-local subset from this cluster instead of opening a blanket migration queue.
 - **Cluster B — distinct `reduced-form` target:** `packages/pi-interaction/pi-interaction` remains the only package in the `legacy-full` bucket with a real local override candidate worth preserving as `docs/tech-stack.local.md` after `policy/stack-lane.json` disappears.
 - **Adjacent template/default follow-up:** if the next slice changes what fresh package scaffolds emit, route that change to `~/ai-society/softwareco/owned/pi-extensions-template`, then prove the live template lane through `packages/pi-vault-client` when Nunjucks verification is involved.
+
+## First minimal package-local reduction queue
+
+`#603` turns the classification into a deliberately small routed queue instead of a bulk migration backlog.
+The first queue covers only the three distinct follow-up cases the classification exposed:
+
+| Order | AK task | Package path | Why this is in the first queue |
+|---|---:|---|---|
+| 1 | `#634` | `packages/pi-activity-strip` | simple-package `none` pilot for the generic boilerplate-only reduction path |
+| 2 | `#635` | `packages/pi-autonomous-session-control` | monorepo-package `none` pilot so the boilerplate-only path is proven on the one different root topology before opening more `none` targets |
+| 3 | `#636` | `packages/pi-interaction/pi-interaction` | the only `reduced-form` child-package case; preserve the child-specific doc while removing only `policy/stack-lane.json` |
+
+Why the rest stay out of the first queue:
+
+- `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` remain intentionally deferred until the simple-package and monorepo-package pilots prove the generic `none` reduction pattern.
+- `packages/pi-vault-client` also keeps adjacent template-verification routing, which is not needed to prove the first queue.
+- The first queue therefore stays small, representative, and sequential instead of reopening all remaining package-local reductions at once.
 
 ## Routing notes
 

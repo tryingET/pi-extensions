@@ -21,7 +21,7 @@ Evidence used:
 - [tech-stack-review-surfaces.md](tech-stack-review-surfaces.md)
 - [pi-host-compatibility-canary.md](pi-host-compatibility-canary.md)
 - [next_session_prompt.md](../../next_session_prompt.md)
-- latest repo-local tasks: `#597`, `#596`, `#595`, `#590`, `#269`
+- latest repo-local tasks: `#603`, `#602`, `#601`, `#590`, `#269`
 
 Deferred but not active-root drivers:
 
@@ -31,8 +31,8 @@ Deferred but not active-root drivers:
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Finish reduced-form root policy centralization and make the next root-owned migration wave explicit | 5 | 4 | 3 | **active** | The initial root doc/contract wave landed, but the repo still lacks per-package target-state classification and the minimal routed follow-up queue. |
-| 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 5 | 3 | 4 | next | Root owns the canary/release/governance surface, but the most immediate unfinished root work is still the remaining SG1 classification/routing wave. |
+| 1 | Finish reduced-form root policy centralization and make the next root-owned migration wave explicit | 5 | 4 | 3 | **active** | The root audit/classification wave is now published, and the repo has a minimal routed package-local queue; the remaining SG1 work is to let that smallest justified queue run before opening a broader migration backlog. |
+| 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 5 | 3 | 4 | next | Root owns the canary/release/governance surface, but the most immediate unfinished work is still the newly published SG1 package-reduction pilot queue. |
 
 ## Active strategic goal
 
@@ -41,12 +41,12 @@ Deferred but not active-root drivers:
 Intent:
 - keep the shared policy/validation stance at root
 - shrink package/template-local surfaces to the minimum truthful form
-- move from the initial doc/contract wave to an explicit classification of which remaining legacy-full package surfaces should end in `none` vs `reduced-form`
+- move from the initial doc/contract wave through explicit classification into the smallest representative package-local reduction queue
 
 Evidence:
 - `#595`–`#597` completed the initial root documentation/contract wave, so SG1 is no longer missing its direction chain
-- `tech-stack-review-surfaces.md` still shows eight packages in the `legacy-full` bucket, and the current doc-pattern audit shows that seven of those local docs are identical boilerplate while `packages/pi-interaction/pi-interaction` is the only distinct child-package override candidate
-- template and package follow-up need routed owners, but root still owns the policy stance and the audit/routing surface that decides what should be handed off next
+- `#601` and `#602` turned the remaining `legacy-full` bucket into explicit target-state truth: seven boilerplate-only `none` candidates and one distinct `reduced-form` candidate
+- `#603` published the first minimal routed package-local queue so the repo can prove the reduction path on only three representative slices: one simple-package `none` pilot, one monorepo-package `none` pilot, and the only `reduced-form` child-package case
 
 ## Next strategic goal
 
@@ -57,5 +57,5 @@ Intent:
 - prevent package evolution from silently invalidating root-owned compatibility/release assumptions
 
 Not active yet because:
-- SG1 still has unfinished root-owned decomposition: the root audit has not yet published per-package target-state classification or the minimal routed package follow-up queue
-- AK only just regained ready coverage for that still-active SG1 wave via `#601`–`#603`
+- SG1 still has the first published package-local reduction queue in flight via `#634`–`#636`
+- the repo should let that smallest justified migration wave land before switching root attention to a new strategic concern
