@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8a9f29e5b8ffe9763b0821648ebc3f133666fd37"
+created_at: "2026-03-31T10:41:06Z"
+intent: "refactor(pi-interaction): remove PTX trigger from built-in examples"
+files:
+  - "packages/pi-interaction/pi-interaction/CHANGELOG.md"
+  - "packages/pi-interaction/pi-interaction/README.md"
+  - "packages/pi-interaction/pi-interaction/extensions/input-triggers.ts"
+  - "packages/pi-interaction/pi-interaction/tests/extension-entry.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-interaction/pi-interaction test"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-prompt-template-accelerator test && npm --prefix packages/pi-interaction/pi-interaction test && npm --prefix packages/pi-vault-client test && npm --prefix packages/pi-autonomous-session-control test && npm --prefix packages/pi-society-orchestrator test"
+    status: "pending"
+group:
+  index: 2
+  total: 5
+  rationale: "Ownership boundary: PTX trigger surface belongs to pi-prompt-template-accelerator"
+links:
+  diary:
+    - "."
