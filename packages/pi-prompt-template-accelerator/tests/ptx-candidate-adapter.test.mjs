@@ -127,3 +127,23 @@ test("toPtxCandidates supports sourceInfo-only prompt command metadata", () => {
   assert.equal(candidates[0].commandPath, "/tmp/prompts/nexus.md");
   assert.equal(candidates[0].commandDescription, "Highest leverage intervention");
 });
+
+test("toPtxCandidates prefers top-level command source over provenance sourceInfo.source", () => {
+  const commands = [
+    {
+      name: "commit",
+      source: "prompt",
+      description: "Commit workflow",
+      sourceInfo: {
+        source: "auto",
+        path: "/tmp/prompts/commit.md",
+      },
+    },
+  ];
+
+  const candidates = toPtxCandidates(commands);
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].commandName, "commit");
+  assert.equal(candidates[0].commandPath, "/tmp/prompts/commit.md");
+});

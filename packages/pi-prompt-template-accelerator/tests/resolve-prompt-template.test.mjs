@@ -69,3 +69,24 @@ test("resolvePromptTemplate supports sourceInfo-only prompt command metadata", (
   assert.equal(resolution.templateCommand?.source, "prompt");
   assert.equal(resolution.templateCommand?.path, "/tmp/nexus.md");
 });
+
+test("resolvePromptTemplate prefers top-level command source over provenance sourceInfo.source", () => {
+  const resolution = resolvePromptTemplate(
+    [
+      {
+        name: "commit",
+        source: "prompt",
+        sourceInfo: {
+          source: "auto",
+          path: "/tmp/commit.md",
+        },
+      },
+    ],
+    "commit",
+  );
+
+  assert.equal(resolution.status, "ok");
+  assert.equal(resolution.resolution, "unique-match");
+  assert.equal(resolution.templateCommand?.source, "prompt");
+  assert.equal(resolution.templateCommand?.path, "/tmp/commit.md");
+});

@@ -1,11 +1,18 @@
+const COMMAND_KINDS = new Set(["extension", "prompt", "skill"]);
+
 export function getCommandSource(command) {
-  const sourceInfoSource = command?.sourceInfo?.source;
-  if (typeof sourceInfoSource === "string" && sourceInfoSource.trim().length > 0) {
-    return sourceInfoSource.trim();
+  const commandSource = command?.source;
+  if (typeof commandSource === "string" && commandSource.trim().length > 0) {
+    return commandSource.trim();
   }
 
-  if (typeof command?.source === "string" && command.source.trim().length > 0) {
-    return command.source.trim();
+  const sourceInfoSource = command?.sourceInfo?.source;
+  if (
+    typeof sourceInfoSource === "string" &&
+    sourceInfoSource.trim().length > 0 &&
+    COMMAND_KINDS.has(sourceInfoSource.trim())
+  ) {
+    return sourceInfoSource.trim();
   }
 
   return undefined;

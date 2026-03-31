@@ -136,6 +136,33 @@ test("registerPtxCapabilityBridges supports sourceInfo-only prompt command metad
   unregisterPtxCapabilityBridges();
 });
 
+test("registerPtxCapabilityBridges prefers top-level command source over provenance sourceInfo.source", () => {
+  resetGlobalRuntimeRegistry();
+
+  registerPtxCapabilityBridges({
+    getCommands: () => [
+      {
+        name: "implementation-planning",
+        source: "prompt",
+        description: "Draft an implementation plan",
+        sourceInfo: {
+          source: "auto",
+          path: "/tmp/implementation-planning.md",
+        },
+      },
+    ],
+    getLiveTriggerState: () => ({ status: "registered", reason: "registered" }),
+    getModelLifecycleState: () => createInitialPtxModelLifecycleState(),
+  });
+
+  const promptAccessor = getPtxPromptTemplateAccessor();
+  assert.ok(promptAccessor);
+  assert.equal(promptAccessor?.listPromptCommands().length, 1);
+  assert.equal(promptAccessor?.listPromptCommands()[0].path, "/tmp/implementation-planning.md");
+
+  unregisterPtxCapabilityBridges();
+});
+
 test("unregisterPtxCapabilityBridges removes PTX registry entries", () => {
   resetGlobalRuntimeRegistry();
 
