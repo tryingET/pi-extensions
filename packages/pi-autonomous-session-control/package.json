@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "pi extension package for autonomy-control workflows in pi",
   "type": "module",
+  "exports": {
+    ".": "./extensions/self.ts",
+    "./execution": "./execution.ts"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -42,6 +46,7 @@
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
   },
   "files": [
+    "execution.ts",
     "extensions/self.ts",
     "extensions/self",
     "prompts",

@@ -108,6 +108,7 @@ This extension expects pi host runtime APIs and declares them as `peerDependenci
 
 For npm publishing, `package.json` uses a `files` whitelist so required runtime artifacts are explicit:
 
+- `execution.ts`
 - `extensions/self.ts`
 - `extensions/self/`
 - `prompts/`
@@ -116,6 +117,35 @@ For npm publishing, `package.json` uses a `files` whitelist so required runtime 
 - `policy/stack-lane.json`
 
 If your extension also needs extra runtime assets, add them to `files` intentionally.
+
+### Public execution contract
+
+ASC now exposes a supported package-level execution seam for non-tool consumers:
+
+```ts
+import { createAscExecutionRuntime } from "pi-autonomous-session-control/execution";
+
+const runtime = createAscExecutionRuntime({
+  sessionsDir: "/tmp/pi-subagent-sessions",
+  modelProvider: () => "openai-codex/gpt-5.3-codex-spark",
+});
+
+const result = await runtime.execute(
+  {
+    profile: "reviewer",
+    objective: "Review the staged changes for risk and missing tests.",
+  },
+  { cwd: process.cwd() },
+);
+```
+
+What this seam guarantees:
+- the same core execution logic now backs both `dispatch_subagent` and public runtime consumers
+- prompt-envelope application, lifecycle invariants, session-name reservation, and result shaping stay ASC-owned
+- downstream consumers should prefer `pi-autonomous-session-control/execution` over private `extensions/self/*` imports
+
+Companion package doc:
+- [ASC public execution contract](docs/project/public-execution-contract.md)
 
 When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
 
@@ -332,6 +362,7 @@ Persistence behavior:
 ## Current runtime reality
 
 - `dispatch_subagent` is wired, bounded, and backed by session/status artifacts plus the read-only dashboard and inspection commands.
+- The package-level `pi-autonomous-session-control/execution` entrypoint now exposes the supported public execution contract for non-tool consumers.
 - Prompt-envelope application, runtime compatibility checks, invariant summaries, failure-memory canary coverage, and Edge Contract Kernel adoption are all live.
 - Scoped self-memory persistence is in place; remaining forward-looking work should live in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
@@ -357,6 +388,7 @@ Then in Pi:
 - [Project resources](docs/project/resources.md)
 - [Tech stack local override](docs/tech-stack.local.md)
 - [Project skills](docs/project/skills.md)
+- [ASC public execution contract](docs/project/public-execution-contract.md)
 - [Strategic goals](docs/project/strategic_goals.md)
 - [Tactical goals](docs/project/tactical_goals.md)
 - [Contributor guide](docs/dev/CONTRIBUTING.md)

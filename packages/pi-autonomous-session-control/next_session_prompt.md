@@ -1,184 +1,148 @@
 ---
-summary: "Handoff after deepening read-only subagent inspection and turning the legacy repo shutdown flow into a reusable scripted/documented asset."
+summary: "Handoff after landing the ASC public execution contract for non-tool consumers and wiring dispatch_subagent onto the same shared runtime."
 read_when:
   - "Starting the next session in packages/pi-autonomous-session-control"
-  - "Before changing subagent dashboard behavior, interactive recovery actions, or legacy migration/deprecation workflow"
+  - "Before changing the public execution seam, dispatch_subagent behavior, or cross-package orchestrator integration"
 system4d:
-  container: "Canonical-home handoff for pi-autonomous-session-control after the richer inspect + deprecation workflow pass."
-  compass: "Keep lifecycle safety obvious, keep the dashboard artifact-backed, and keep legacy shutdown repeatable."
-  engine: "Start from the read-only artifact model -> only add actions that route through existing lifecycle paths -> keep deprecation tooling deterministic."
-  fog: "The main trap is still bypassing hardened session semantics with convenience actions or drifting back into ad-hoc legacy cleanup."
+  container: "Canonical-home handoff for pi-autonomous-session-control after the public execution-contract slice."
+  compass: "Keep ASC as the execution-plane owner, keep the public seam minimal, and prove parity before orchestrator cutover."
+  engine: "Re-enter the execution-boundary packet -> preserve the shared runtime seam -> add proof/harnesses before downstream adoption."
+  fog: "The main trap is widening the seam with self/UI leakage or cutting orchestrator over before parity is explicit."
 ---
 
 # Next Session Prompt
 
 ## Mission
 
-This package now has a stronger **read-only operator inspection surface** and the monorepo now has a more concrete **legacy repo deprecation workflow asset**.
+The first cross-package ASC execution-boundary slice is now implemented:
+- ASC exposes a supported package-level public runtime entrypoint at `pi-autonomous-session-control/execution`
+- `dispatch_subagent` now composes the same shared execution core instead of carrying a private-only execution path
+- the next truthful wave is to **prove parity** and then let orchestrator adopt the seam
 
-The next session should only widen behavior where safety remains obvious:
-- either add one clearly safe recovery affordance that still delegates to existing lifecycle/session semantics
-- or apply and tighten the new deprecation workflow against the next real legacy repo under `~/programming/pi-extensions/`
+Start from the orchestrator-owned packet docs before changing the seam again:
+- `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
+- `../pi-society-orchestrator/docs/adr/2026-03-11-control-plane-boundaries.md`
+- `../pi-society-orchestrator/docs/project/2026-03-10-rfc-asc-public-execution-contract.md`
+- `../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
 
-Operator override:
-- if the operator explicitly chooses the **cross-package ASC public execution-contract** slice, switch to the orchestrator-owned packet docs first instead of rediscovering the boundary from package-local notes alone:
-  - `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
-  - `../pi-society-orchestrator/docs/adr/2026-03-11-control-plane-boundaries.md`
-  - `../pi-society-orchestrator/docs/project/2026-03-10-rfc-asc-public-execution-contract.md`
-- in that override path, the intended implementation order is: public runtime seam first -> parity harness second -> orchestrator adoption/removal of duplicate runtime third
+Execution order still in force:
+1. public runtime seam
+2. parity harness against `dispatch_subagent`
+3. orchestrator adoption / duplicate-runtime retirement
 
 ## What landed this session
 
-### Dashboard / operator experience
+### Public execution contract
 
-The dashboard stayed **read-only**.
+Implemented:
+- added the shared runtime core in `extensions/self/subagent-runtime.ts`
+- added the package-level public entrypoint `execution.ts`
+- added a supported registration helper `registerDispatchSubagentTool(...)`
+- updated `extensions/self/subagent.ts` so the tool path now delegates to the shared runtime core
+- added focused tests for the new consumer-facing seam in `tests/public-execution-contract.test.mjs`
 
-Implemented improvements:
-- added richer session inspection data modeling in `extensions/self/subagent-dashboard-data.ts`
-- `/subagent-inspect <session-name>` now renders:
-  - derived lifecycle metadata
-  - artifact paths
-  - PID state for running sessions
-  - elapsed / exit-code context when present
-  - safety notes/warnings
-  - raw status sidecar JSON
-  - recent-session suggestions when the requested session is missing
-- `/subagent-dashboard` now includes an explicit inspect command hint per recent session row
-- added focused tests for the richer inspection behavior in `tests/subagent-dashboard-data.test.mjs`
+### Package metadata + docs
 
-### Legacy deprecation workflow asset
-
-The reusable workflow is now stronger at monorepo root.
-
-Implemented improvements:
-- `../../scripts/legacy-package-deprecation.sh inspect` now emits:
-  - `sharedRelativeFiles`
-  - `legacyOnlyFiles`
-  - `canonicalOnlyFiles`
-  - session-relocation plan + recommended action
-  - ownership/classification outline for deterministic shutdown work
-- added `../../scripts/legacy-package-deprecation.sh render-handoff` to generate a deprecation handoff body for legacy `next_session_prompt.md`
-- updated workflow docs in:
-  - `../../docs/project/legacy-package-deprecation-workflow.md`
-  - `../../docs/project/legacy-transition-backlog.md`
-  - `../../README.md`
+Implemented:
+- updated `package.json` publish surface / exports so `./execution` is an intentional package entrypoint
+- documented the seam in:
+  - `README.md`
+  - `docs/project/public-execution-contract.md`
+- refreshed this handoff to make `#605` the next active slice
 
 ## Structural decisions still in force
 
-- Keep this package a **single package with internal seams**, not a package-group.
-- Keep the dashboard **artifact-backed**; do not invent a second state model.
-- Keep interactive recovery deferred unless it composes with the current dispatcher/session/finalization paths.
-- Keep legacy repo shutdown **one-shot archive + delete**, not iterative backup sprawl.
+- Keep ASC the **execution-plane owner**; do not move ownership into orchestrator.
+- Keep the public seam **minimal and execution-scoped**.
+- Do **not** reintroduce private `extensions/self/*` imports as the downstream integration contract.
+- Keep dashboard/UI composition separate from the non-UI runtime seam.
+- Treat extraction into a smaller shared runtime package as a fallback only if real `self` leakage appears.
 
 ## Brownfield anchors to preserve
 
+- `execution.ts`
+- `extensions/self/subagent-runtime.ts`
 - `extensions/self/subagent.ts`
 - `extensions/self/subagent-spawn.ts`
 - `extensions/self/subagent-session.ts`
 - `extensions/self/subagent-session-name.ts`
-- `extensions/self/subagent-dashboard-data.ts`
-- `extensions/self/subagent-dashboard.ts`
+- `tests/public-execution-contract.test.mjs`
+- `tests/dispatch-subagent.test.mjs`
 - `tests/dispatch-subagent-diagnostics.test.mjs`
-- `tests/subagent-file-lock.test.mjs`
-- `tests/subagent-session.test.mjs`
-- `tests/subagent-dashboard-data.test.mjs`
-- `../../scripts/legacy-package-deprecation.sh`
-- `../../docs/project/legacy-package-deprecation-workflow.md`
+- `../pi-society-orchestrator/src/runtime/subagent.ts`
+- `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
 
 ## Recommended next slices
 
-### Option A — one safe interactive recovery affordance
+### Option A — parity harness (`#605`) **default next move**
 
-Only proceed if the action is obviously lifecycle-safe.
+Prove that the public runtime and `dispatch_subagent` tool path behave the same where they are supposed to.
 
-Best candidates:
-- prefill/copy a resume command or resume hint without mutating artifacts directly
-- guided inspect-to-resume flow that still hands off to existing commands/tool paths
-- cleanup affordance that delegates to existing cleanup/session logic rather than bypassing it
+Good target:
+- one harness that exercises both paths against the same injected spawner expectations
+- explicit assertions for:
+  - prompt-envelope application
+  - rate-limit / invariant failures
+  - session-name reservation behavior
+  - result/provenance shaping
 
-Avoid for now:
-- direct in-widget retry/resume buttons
-- direct artifact mutation shortcuts
-- any path that can skip stale-lock, abandonment, or finalization guarantees
+Avoid:
+- silently duplicating tests without one parity intent
+- claiming behavioral equivalence only from separate happy-path tests
 
-### Option B — apply the deprecation workflow to the next legacy repo
+### Option B — orchestrator cutover (`#606`) only after parity is real
 
-Good candidate outcome:
-- pick the next repo from `../../docs/project/legacy-transition-backlog.md`
-- use `../../scripts/legacy-package-deprecation.sh inspect ...`
-- use `render-handoff` for the legacy handoff rewrite
-- relocate Pi session history using full-path-derived folder names
-- create one final `tar.gz` archive
-- delete the legacy repo only after validation
+Once parity is explicit:
+- let `pi-society-orchestrator` consume `pi-autonomous-session-control/execution`
+- remove the duplicate long-term runtime path in `../pi-society-orchestrator/src/runtime/subagent.ts`
+- keep the migration additive/reversible until the duplicate path is truly unnecessary
 
-### Option C — execute the cross-package ASC public execution-contract wave
+### Option C — return to local ASC-only UX/deprecation work only if operator redirects
 
-Use this only when the operator explicitly chooses the execution-boundary packet.
-
-Start from:
-- `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
-
-Then execute in order:
-1. publish the ASC public runtime seam
-2. add parity coverage against `dispatch_subagent`
-3. let orchestrator consume that seam instead of its duplicate runtime path
+If the operator does **not** want to stay on the execution-boundary wave, the safe secondary threads remain:
+- one clearly lifecycle-safe recovery affordance for the dashboard
+- or applying the deterministic legacy deprecation workflow to the next real legacy repo
 
 ## Validation evidence from this session
-
-### Package-local
-
-Passed:
-```bash
-cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
-npm run check
-```
-
-### Monorepo root
-
-Passed:
-```bash
-cd ~/ai-society/softwareco/owned/pi-extensions
-./scripts/ci/full.sh
-```
-
-### Docs discovery / extra checks
 
 Passed:
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
 npm run docs:list
+npm run check
 ```
 
 Additional note:
-- `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict` at monorepo root still fails because of **pre-existing unrelated metadata debt** in other repo files (missing front matter / `read_when` in multiple existing docs/prompts/README surfaces). This session did not resolve that wider repo issue.
+- monorepo root still had pre-existing unrelated working-tree changes outside this package/task area at session start
+- this slice intentionally stayed scoped to ASC package files + repo-level handoff/diary artifacts
 
 ## Files changed this session
 
 Package-local:
-- `extensions/self/subagent-dashboard-data.ts`
-- `extensions/self/subagent-dashboard.ts`
-- `tests/subagent-dashboard-data.test.mjs`
+- `execution.ts`
+- `extensions/self/subagent-runtime.ts`
+- `extensions/self/subagent.ts`
+- `tests/public-execution-contract.test.mjs`
+- `package.json`
 - `README.md`
-- `docs/dev/monorepo-migration-dashboard-slice.md`
+- `docs/project/public-execution-contract.md`
 - `next_session_prompt.md`
 
-Monorepo root:
-- `../../scripts/legacy-package-deprecation.sh`
-- `../../docs/project/legacy-package-deprecation-workflow.md`
-- `../../docs/project/legacy-transition-backlog.md`
-- `../../README.md`
+Repo-level:
+- `diary/2026-03-30--feat-asc-public-execution-contract.md`
 
 ## Remaining gaps
 
-### Gap to trustworthy interactive recovery
+### Gap to trustworthy downstream adoption
 
 Still unresolved:
-- no mutation-capable dashboard action has yet been proven safe
-- no explicit resume helper exists that demonstrates safe composition with current lifecycle semantics
-- no UI action has been validated against abandoned-session + stale-lock edge cases
+- no dedicated parity harness yet proves the public runtime matches `dispatch_subagent`
+- orchestrator still carries its duplicate runtime path
+- no end-to-end consumer test yet demonstrates cutover without private imports
 
-### Gap to fast, repeatable legacy package shutdown
+### Gap to minimal public-seam discipline
 
-Improved but not finished:
-- the helper now gives deterministic inspection + handoff rendering, but it still does **not** automate classification, safe merge of conflicting session-history dirs, or archive/delete orchestration
-- the workflow should now be tested on the next real legacy repo to verify the contract holds outside the `pi-autonomous-session-control` migration
+Watch for drift:
+- avoid adding dashboard/UI concerns to `execution.ts`
+- avoid expanding the public contract with convenience exports that are really package internals
+- avoid changing runtime result semantics independently of the tool path
