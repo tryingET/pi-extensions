@@ -40,6 +40,16 @@ scripts/         # CI/utility scripts
 ./scripts/ak.sh --doctor
 ./scripts/ak.sh task ready
 
+# Standardized repo-local Justfile surface
+just help
+just test
+just check
+just lint
+just fmt
+just ci
+just doctor
+# no just build/dev: the monorepo root has no single buildable or long-running app/watch surface
+
 # CI lanes / canonical root validation
 ./scripts/quality-gate.sh pre-commit   # canonical root quality-gate wrapper
 ./scripts/quality-gate.sh pre-push
