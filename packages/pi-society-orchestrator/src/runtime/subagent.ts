@@ -4,6 +4,7 @@ import {
   createSubagentState,
   type DispatchSubagentExecutionResult,
   type DispatchSubagentExecutionUpdate,
+  type DispatchSubagentFailureKind,
   type SubagentSpawner,
   type SubagentState,
 } from "pi-autonomous-session-control/execution";
@@ -40,6 +41,7 @@ export interface OrchestratorExecutionLike extends ExecutionLike {
   elapsed: number;
   stderr?: string;
   outputTruncated?: boolean;
+  failureKind?: DispatchSubagentFailureKind;
 }
 
 export interface OrchestratorSubagentExecutor {
@@ -138,11 +140,12 @@ export function toExecutionLike(
     elapsed: result.details.elapsed ?? 0,
     stderr: result.details.stderr,
     outputTruncated: result.details.outputTruncated,
-    timedOut: result.details.timedOut ?? result.details.status === "timeout",
+    timedOut: result.details.timedOut ?? result.details.status === "timed_out",
     aborted: result.details.aborted ?? result.details.status === "aborted",
     assistantStopReason: result.details.assistantStopReason,
     assistantErrorMessage: result.details.assistantErrorMessage,
     executionState: result.details.executionState,
+    failureKind: result.details.failureKind,
   };
 }
 

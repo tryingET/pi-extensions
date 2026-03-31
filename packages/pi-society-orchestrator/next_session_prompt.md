@@ -17,7 +17,7 @@ Resume after the **fail-closed routing + session-identity + execution-status + r
 
 The next bounded work is:
 1. continue the narrower remaining architecture-convergence backlog now that `/evidence` is on AK and only the `society_query` diagnostic exception remains on raw sqlite
-2. if the operator explicitly revisits the execution seam, treat the main cutover plus the bundled-bridge lifecycle decision as landed history and continue the remaining post-cutover stewardship packet (`#626` -> `#629`) instead of reopening runtime ownership
+2. if the operator explicitly revisits the execution seam, treat the main cutover plus failure-taxonomy normalization and the bundled-bridge lifecycle decision as landed history and continue the remaining post-cutover stewardship packet (`#627` -> `#629`) instead of reopening runtime ownership
 
 ## What is now true
 
@@ -29,6 +29,7 @@ The next bounded work is:
   - `ak` execution
 - orchestrator no longer carries a second local Pi-subagent spawn/runtime implementation; `src/runtime/subagent.ts` is now a consumer-side adapter over `pi-autonomous-session-control/execution`.
 - the adapter still preserves package-local timeout/output policy (`PI_ORCH_SUBAGENT_TIMEOUT_MS`, `PI_ORCH_SUBAGENT_OUTPUT_CHARS`) around the ASC-owned seam so release smoke and operator-visible behavior stay truthful during the cutover.
+- the adapter now also preserves ASC's normalized failure taxonomy (`result.details.status` + `failureKind`) so direct dispatch and loop consumers can distinguish timeout, abort, assistant-protocol, parse, transport, and pre-execution guardrail failures without recreating ASC-local classification logic.
 - runtime `sqlite3`, `dolt`, and `rocs-cli` reads now flow through async, timeout-bound supervised helper boundaries instead of synchronous runtime `execFileSync` calls.
 - `society_query` is now an explicit bounded diagnostic surface routed through `src/runtime/society.ts`; mutating SQL and mutating `PRAGMA` forms are rejected, and valid read-only `WITH ... SELECT ...` diagnostics are now accepted.
 - `ontology_context` and `/ontology` now resolve through a shared `rocs-cli` adapter path that consumes ROCS build/index artifacts instead of querying the local `society.db` ontology table directly.
@@ -163,7 +164,7 @@ Then re-open the broader architecture artifacts if the next session finishes the
 2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
    - start from `docs/project/subagent-execution-boundary-map.md`, `docs/project/2026-03-31-execution-seam-charter.md`, and `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
    - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, and `#625` as landed history, not active backlog
-   - choose the next bounded stewardship slice from the current ready/dependent set: failure taxonomy (`#626`) or automated guardrails (`#627`)
+   - choose the next bounded stewardship slice from the current ready/dependent set: automated guardrails (`#627`), then the later seam-review/consumer-inventory follow-ups (`#628`, `#629`)
 3. **Optional parity hardening after architecture work is scoped**
    - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
 

@@ -347,7 +347,8 @@ test("toExecutionLike preserves timeout semantics from the ASC public runtime", 
     ok: false,
     text: "timed out",
     details: {
-      status: "timeout",
+      status: "timed_out",
+      failureKind: "timed_out",
       exitCode: 124,
       elapsed: 2000,
       fullOutput: "timed out",
@@ -371,6 +372,7 @@ test("toExecutionLike preserves timeout semantics from the ASC public runtime", 
     executionState: {
       transport: { kind: "transport", exitCode: 124, aborted: false, timedOut: true },
     },
+    failureKind: "timed_out",
   });
   assert.equal(getExecutionStatus(execution), "timed_out");
 });
@@ -381,6 +383,7 @@ test("toExecutionLike preserves assistant protocol failures from the ASC public 
     text: "boom",
     details: {
       status: "error",
+      failureKind: "assistant_protocol_error",
       exitCode: 1,
       elapsed: 250,
       fullOutput: "partial",
@@ -399,6 +402,7 @@ test("toExecutionLike preserves assistant protocol failures from the ASC public 
 
   assert.equal(execution.assistantStopReason, "error");
   assert.equal(execution.assistantErrorMessage, "boom");
+  assert.equal(execution.failureKind, "assistant_protocol_error");
   assert.equal(getExecutionStatus(execution), "error");
 });
 

@@ -20,11 +20,21 @@ import {
   type SubagentDef,
   type SubagentResult,
   type SubagentSpawner,
+  type SubagentStatus,
   spawnSubagent,
 } from "./subagent-spawn.ts";
 
 export type DispatchSubagentProfile = keyof typeof SUBAGENT_PROFILES | "custom";
-export type DispatchSubagentStatus = "done" | "error" | "timeout" | "aborted" | "spawning";
+export type DispatchSubagentStatus = "done" | "error" | "timed_out" | "aborted" | "spawning";
+export type DispatchSubagentFailureKind =
+  | "aborted"
+  | "timed_out"
+  | "assistant_protocol_error"
+  | "assistant_protocol_parse_error"
+  | "transport_error"
+  | "invariant_failed"
+  | "unknown_profile"
+  | "rate_limited";
 
 export interface DispatchSubagentRequest {
   profile: DispatchSubagentProfile;
@@ -59,6 +69,7 @@ export interface DispatchSubagentDetails {
   prompt_applied?: boolean;
   prompt_warning?: string;
   reason?: string;
+  failureKind?: DispatchSubagentFailureKind;
   invariants?: InvariantIssue[];
   activeCount?: number;
   maxConcurrent?: number;
@@ -93,6 +104,49 @@ export interface AscExecutionRuntime {
   ): Promise<DispatchSubagentExecutionResult>;
 }
 
+function toDispatchSubagentStatus(status: SubagentStatus): DispatchSubagentStatus {
+  return status === "timeout" ? "timed_out" : status;
+}
+
+function getDispatchSubagentStatusLabel(status: DispatchSubagentStatus): string {
+  return status === "timed_out" ? "timed out" : status;
+}
+
+function getDispatchSubagentFailureKind(params: {
+  status: DispatchSubagentStatus;
+  reason?: string;
+  executionState?: ExecutionState;
+}): DispatchSubagentFailureKind | undefined {
+  switch (params.reason) {
+    case "invariant_failed":
+    case "unknown_profile":
+    case "rate_limited":
+      return params.reason;
+  }
+
+  switch (params.status) {
+    case "done":
+    case "spawning":
+      return undefined;
+    case "aborted":
+      return "aborted";
+    case "timed_out":
+      return "timed_out";
+    case "error":
+      if (params.executionState?.protocol?.kind === "assistant_protocol_parse_error") {
+        return "assistant_protocol_parse_error";
+      }
+      if (params.executionState?.protocol?.kind === "assistant_protocol") {
+        return "assistant_protocol_error";
+      }
+      return "transport_error";
+    default: {
+      const exhaustive: never = params.status;
+      return exhaustive;
+    }
+  }
+}
+
 export async function executeDispatchSubagentRequest(options: {
   request: DispatchSubagentRequest;
   state: SubagentState;
@@ -124,6 +178,7 @@ export async function executeDispatchSubagentRequest(options: {
       text: formatInvariantIssues("Invalid dispatch_subagent input", invariants),
       details: {
         reason: "invariant_failed",
+        failureKind: "invariant_failed",
         invariants: invariants.issues,
         status: "error",
       },
@@ -138,6 +193,7 @@ export async function executeDispatchSubagentRequest(options: {
       text: `Unknown profile: ${profile}. Available: ${Object.keys(SUBAGENT_PROFILES).join(", ")}, custom`,
       details: {
         reason: "unknown_profile",
+        failureKind: "unknown_profile",
         status: "error",
       },
     };
@@ -150,6 +206,7 @@ export async function executeDispatchSubagentRequest(options: {
       text: `Maximum concurrent subagents reached (${options.state.maxConcurrent}). Wait for existing subagents to complete.`,
       details: {
         reason: "rate_limited",
+        failureKind: "rate_limited",
         activeCount: options.state.activeCount,
         maxConcurrent: options.state.maxConcurrent,
         status: "error",
@@ -238,6 +295,7 @@ export async function executeDispatchSubagentRequest(options: {
       text: formatInvariantIssues("Subagent lifecycle invariant failed", lifecycleInvariants),
       details: {
         reason: "invariant_failed",
+        failureKind: "invariant_failed",
         profile: profile as DispatchSubagentProfile,
         objective: safeObjective,
         invariants: lifecycleInvariants.issues,
@@ -261,14 +319,19 @@ export async function executeDispatchSubagentRequest(options: {
       ? `${normalizedOutput.slice(0, 8000)}\n\n... [truncated]`
       : normalizedOutput;
 
-  const icon = result.status === "done" ? "✓" : "✗";
-  const summary = `${icon} [${profile}] ${result.status} in ${Math.round(result.elapsed / 1000)}s`;
+  const status = toDispatchSubagentStatus(result.status);
+  const icon = status === "done" ? "✓" : "✗";
+  const summary = `${icon} [${profile}] ${getDispatchSubagentStatusLabel(status)} in ${Math.round(result.elapsed / 1000)}s`;
   const promptWarning = promptEnvelope.prompt_warning
     ? `\nPrompt envelope warning: ${promptEnvelope.prompt_warning}`
     : "";
+  const failureKind = getDispatchSubagentFailureKind({
+    status,
+    executionState: result.executionState,
+  });
 
   return {
-    ok: result.status === "done",
+    ok: status === "done",
     text: `${summary}${promptWarning}\n\n${truncated}`,
     details: {
       profile: profile as DispatchSubagentProfile,
@@ -288,7 +351,8 @@ export async function executeDispatchSubagentRequest(options: {
       prompt_tags: promptEnvelope.prompt_tags,
       prompt_applied: promptEnvelope.prompt_applied,
       prompt_warning: promptEnvelope.prompt_warning,
-      status: result.status,
+      status,
+      failureKind,
     },
   };
 }

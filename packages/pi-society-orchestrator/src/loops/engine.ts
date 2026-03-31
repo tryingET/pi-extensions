@@ -79,6 +79,7 @@ export interface PhaseResult {
   output: string;
   exitCode: number;
   status: ExecutionStatus;
+  failureKind?: string;
   elapsed: number;
   artifacts: Artifact[];
   timestamp: Date;
@@ -385,6 +386,7 @@ export class LoopExecutor {
       elapsed: number;
       aborted?: boolean;
       timedOut?: boolean;
+      failureKind?: string;
     }>,
     signal?: AbortSignal,
   ): Promise<LoopResult> {
@@ -482,6 +484,7 @@ export class LoopExecutor {
         output: result.output,
         exitCode: result.exitCode,
         status: executionOutcome.status,
+        failureKind: result.failureKind,
         elapsed: result.elapsed,
         artifacts: [],
         timestamp: new Date(),

@@ -146,6 +146,7 @@ const result = await runtime.execute(
 What this seam guarantees:
 - the same core execution logic now backs both `dispatch_subagent` and public runtime consumers
 - prompt-envelope application, lifecycle invariants, runtime-owned concurrency reservation, session-name reservation, result shaping, assistant protocol classification, and abort propagation stay ASC-owned
+- result surfaces now use one normalized failure taxonomy: canonical `result.details.status` (`done`, `aborted`, `timed_out`, `error`) plus `result.details.failureKind` for the specific failure branch
 - a dedicated parity harness now proves those shared semantics stay aligned across the public runtime and the tool path
 - downstream consumers should prefer `pi-autonomous-session-control/execution` over private `extensions/self/*` imports
 

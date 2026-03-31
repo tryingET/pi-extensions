@@ -6,6 +6,7 @@ export {
   type DispatchSubagentDetails,
   type DispatchSubagentExecutionResult,
   type DispatchSubagentExecutionUpdate,
+  type DispatchSubagentFailureKind,
   type DispatchSubagentProfile,
   type DispatchSubagentRequest,
   type DispatchSubagentStatus,

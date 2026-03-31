@@ -54,6 +54,7 @@ test("dispatch_subagent surfaces diagnostics when spawner errors with empty outp
     );
 
     assert.equal(result.details.status, "error");
+    assert.equal(result.details.failureKind, "transport_error");
     assert.match(result.content[0].text, /exited with code 17 without output/i);
   } finally {
     await harness.cleanup();
@@ -76,6 +77,7 @@ test("dispatch_subagent does not leak activeCount when spawn arguments throw syn
     );
 
     assert.equal(first.details.status, "error");
+    assert.equal(first.details.failureKind, "transport_error");
     assert.equal(harness.state.activeCount, 0);
 
     const second = await harness.tool.execute(
@@ -90,6 +92,7 @@ test("dispatch_subagent does not leak activeCount when spawn arguments throw syn
     );
 
     assert.equal(second.details.status, "error");
+    assert.equal(second.details.failureKind, "transport_error");
     assert.notEqual(second.details.reason, "rate_limited");
     assert.equal(harness.state.activeCount, 0);
   } finally {

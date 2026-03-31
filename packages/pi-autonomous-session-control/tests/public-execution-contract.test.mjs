@@ -181,7 +181,8 @@ test("createAscExecutionRuntime shapes timeout results without output determinis
     );
 
     assert.equal(result.ok, false);
-    assert.equal(result.details.status, "timeout");
+    assert.equal(result.details.status, "timed_out");
+    assert.equal(result.details.failureKind, "timed_out");
     assert.match(result.text, /Subagent timed out without output\./);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });

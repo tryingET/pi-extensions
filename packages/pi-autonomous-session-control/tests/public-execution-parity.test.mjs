@@ -212,6 +212,7 @@ test("public runtime parity: invariant failures and rate-limit failures match di
     assert.deepEqual(invariantHarness.toolDefs, []);
     assert.equal(runtimeResult.ok, false);
     assert.equal(runtimeResult.details.reason, "invariant_failed");
+    assert.equal(runtimeResult.details.failureKind, "invariant_failed");
   } finally {
     await invariantHarness.cleanup();
   }
@@ -235,6 +236,7 @@ test("public runtime parity: invariant failures and rate-limit failures match di
     assert.deepEqual(rateLimitHarness.toolDefs, []);
     assert.equal(runtimeResult.ok, false);
     assert.equal(runtimeResult.details.reason, "rate_limited");
+    assert.equal(runtimeResult.details.failureKind, "rate_limited");
     assert.equal(runtimeResult.details.maxConcurrent, 1);
   } finally {
     await rateLimitHarness.cleanup();

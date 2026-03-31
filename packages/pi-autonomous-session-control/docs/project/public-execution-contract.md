@@ -108,8 +108,9 @@ Useful properties:
 - `runtime.state` exposes the backing `SubagentState`
 - `result.ok` tells the consumer whether execution completed successfully
 - `result.text` preserves the human-readable execution summary
-- `result.details` carries structured status / provenance data
-- `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification
+- `result.details.status` uses the canonical execution taxonomy (`done`, `aborted`, `timed_out`, `error`)
+- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, or the pre-execution guardrail reasons)
+- `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
 
 ## Non-goals
 

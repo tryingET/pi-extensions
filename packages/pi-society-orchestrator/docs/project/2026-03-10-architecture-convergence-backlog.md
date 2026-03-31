@@ -184,7 +184,7 @@ Goal for this wave:
 | SB5 | Split verification policy into package-local contract checks vs installed-package smoke | 5 | 3 | 2 | Q2 | Implemented via the explicit ASC contract / orchestrator consumer / installed-package verification-layer split |
 | SB6 | Decide how long the bundled ASC publish/install bridge should remain | 5 | 3 | 3 | Q2 | Implemented via [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md); actual bridge removal remains a later cutover |
 | SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Implemented via [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) |
-| SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Improves operator/debug truth without reopening ownership |
+| SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Implemented via canonical ASC `result.details.status` + `failureKind` preserved through orchestrator consumer surfaces |
 | SB9 | Schedule a time-boxed seam review after release evidence accumulates | 4 | 2 | 1 | Q2 | Keeps the seam evidence-driven instead of permanent-by-default |
 | SB10 | Expand consumer inventory only if a second real external caller appears | 3 | 1 | 2 | Q4 | Useful later, not now |
 
@@ -197,6 +197,7 @@ Goal for this wave:
 5. Added the companion [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) so future seam edits stay tied to real failure modes and the current proof obligations.
 6. Split verification policy explicitly across ASC contract tests, orchestrator repo-local consumer tests, and installed-package smoke so packaging proof no longer masquerades as contract truth.
 7. Added the [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md) note so the temporary packaging shim now has explicit exit criteria and a review trigger.
+8. Normalized execution failure taxonomy across ASC and orchestrator result surfaces by standardizing public `result.details.status` on `done|aborted|timed_out|error` and adding `failureKind` for the specific failure branch.
 
 ## Execution-plane implementation checklist
 

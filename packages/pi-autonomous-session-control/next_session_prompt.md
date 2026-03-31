@@ -29,6 +29,7 @@ Treat the original execution packet as landed history:
 5. execution-contract change checklist (`#623`) ✅
 6. verification-layer split between package-local contract truth and installed-package smoke (`#624`) ✅
 7. bundled publish/install bridge lifecycle decision and exit criteria (`#625`) ✅
+8. normalized failure taxonomy across ASC public results and orchestrator consumer surfaces (`#626`) ✅
 
 The next truthful wave is still **post-cutover seam stewardship**, not ownership debate.
 
@@ -67,6 +68,12 @@ import { createAscExecutionRuntime } from "pi-autonomous-session-control/executi
 ```
 
 - Consumers should not treat `extensions/self/*` as their integration contract.
+
+### Failure taxonomy is now normalized across the seam
+
+- ASC public execution results now expose canonical `result.details.status` values: `done`, `aborted`, `timed_out`, `error`.
+- ASC public execution results also expose `result.details.failureKind` so consumers can distinguish `timed_out`, assistant-protocol failures, parse failures, transport failures, and pre-execution guardrail failures without reverse-engineering raw output.
+- `pi-society-orchestrator` now preserves that normalized taxonomy in its direct-dispatch and loop runtime result surfaces instead of collapsing everything into generic transport-only failure.
 
 ### Named transport-safety invariants are now contract truth
 
@@ -110,12 +117,11 @@ Verification layers are now explicit:
 
 ## Recommended next slices
 
-### Option A — failure taxonomy or automated seam guardrails (`#626`, `#627`) **default next move**
+### Option A — automated seam guardrails (`#627`) **default next move**
 
-Now that the bundled bridge lifecycle is decided in `../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`:
-- normalize failure taxonomy exposed through execution results
-- or add automated guardrails against private ASC imports and orchestrator-local runtime revival
-- keep either slice bounded and grounded in the charter/contract packet
+Now that failure taxonomy is normalized and the bundled bridge lifecycle is decided in `../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`:
+- add automated guardrails against private ASC imports and orchestrator-local runtime revival
+- keep the slice bounded and grounded in the charter/contract packet
 
 ### Option B — return to other ASC-local work only if operator redirects
 
@@ -145,15 +151,17 @@ npm run check
 
 ## Files refreshed in the handoff closeout
 
+- `packages/pi-autonomous-session-control/README.md`
+- `packages/pi-autonomous-session-control/docs/project/public-execution-contract.md`
 - `packages/pi-autonomous-session-control/next_session_prompt.md`
+- `packages/pi-society-orchestrator/README.md`
+- `packages/pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
 - `packages/pi-society-orchestrator/next_session_prompt.md`
-- `packages/pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
-- `diary/2026-03-31--docs-bundled-asc-bridge-lifecycle.md`
+- `diary/2026-03-31--normalize-execution-failure-taxonomy.md`
 
 ## Remaining gaps
 
 Still unresolved:
-- normalized failure taxonomy across ASC and orchestrator result surfaces (`#626`)
 - automated guardrails against private ASC imports and local-runtime revival (`#627`)
 
 Later work stays blocked in order:
