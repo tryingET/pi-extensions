@@ -39,6 +39,14 @@ test("extension entrypoint re-exports helper primitives without duplicates", () 
   assert.doesNotMatch(SOURCE, /resetBroker\s*,\s*resetBroker/);
 });
 
+test("built-in example triggers do not own PTX's canonical $$ slash surface", () => {
+  assert.doesNotMatch(SOURCE, /id:\s*"ptx-template-picker"/);
+  assert.doesNotMatch(
+    SOURCE,
+    /description:\s*"Show prompt-template picker while typing \$\$ \/<query>"/,
+  );
+});
+
 test("source files do not import vault-client internals via relative source paths", () => {
   const roots = [
     new URL("../index.ts", import.meta.url),

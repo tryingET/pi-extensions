@@ -75,9 +75,10 @@ All notable changes to this project should be documented here.
 
 | ID | Pattern | Description |
 |----|---------|-------------|
-| `ptx-template-picker` | `$$ /` | Prompt template selector using pi.getCommands() |
 | `bash-command-picker` | `!! /` | Common bash commands (git, npm, docker) |
 | `file-picker` | `!! .` | File picker demo |
+
+PTX's `$$ /...` prompt-template accelerator surface is owned by `pi-prompt-template-accelerator`, not bundled here as a built-in example trigger.
 
 #### Commands
 

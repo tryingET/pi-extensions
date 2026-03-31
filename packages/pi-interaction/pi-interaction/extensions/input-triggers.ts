@@ -35,11 +35,9 @@ const ENABLED_ENV = "PI_INTERACTION_ENABLED";
 const ENABLED_ENV_LEGACY = "PI_INPUT_TRIGGERS_ENABLED";
 const LEGACY_MODE_ENV = "PI_INTERACTION_LEGACY_MODE";
 const LEGACY_MODE_ENV_LEGACY = "PI_INPUT_TRIGGERS_LEGACY_MODE";
-const DEBUG_ENV = "PI_INTERACTION_DEBUG";
-const DEBUG_ENV_LEGACY = "PI_INPUT_TRIGGERS_DEBUG";
 const EXAMPLES_ENV = "PI_INTERACTION_EXAMPLES";
 const EXAMPLES_ENV_LEGACY = "PI_INPUT_TRIGGERS_EXAMPLES";
-const EXAMPLE_TRIGGER_IDS = ["ptx-template-picker", "bash-command-picker", "file-picker"];
+const EXAMPLE_TRIGGER_IDS = ["bash-command-picker", "file-picker"];
 
 type TriggerDiagnosticsView = {
   id: string;
@@ -59,39 +57,12 @@ type TriggerPickerEntry = {
   pickerDetail?: string;
 };
 
-type PromptCommandLike = {
-  name?: unknown;
-  source?: unknown;
-  sourceInfo?: {
-    source?: unknown;
-  } | null;
-};
-
-function getCommandSource(command: PromptCommandLike | null | undefined): string | undefined {
-  const sourceInfoSource = command?.sourceInfo?.source;
-  if (typeof sourceInfoSource === "string" && sourceInfoSource.trim().length > 0) {
-    return sourceInfoSource.trim();
-  }
-
-  if (typeof command?.source === "string" && command.source.trim().length > 0) {
-    return command.source.trim();
-  }
-
-  return undefined;
-}
-
 function getEnv(...names: string[]): string | undefined {
   for (const name of names) {
     const value = process.env[name];
     if (value !== undefined) return value;
   }
   return undefined;
-}
-
-function debugLog(message: string, details?: unknown): void {
-  if (getEnv(DEBUG_ENV, DEBUG_ENV_LEGACY) !== "1") return;
-  const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[pi-interaction] ${message}${suffix}`);
 }
 
 function unregisterExampleTriggers(broker: ReturnType<typeof getBroker>): void {
@@ -103,70 +74,11 @@ function unregisterExampleTriggers(broker: ReturnType<typeof getBroker>): void {
 /**
  * Register demo triggers that showcase the helper API.
  *
- * Note: vault-specific triggers are intentionally not registered here anymore;
- * owning extensions should register their own interactions through
+ * Note: product-owned trigger surfaces (for example PTX's `$$ /...`) are not
+ * registered here. Owning extensions should register those interactions through
  * registerPickerInteraction.
  */
-function registerExampleTriggers(broker: ReturnType<typeof getBroker>, pi: ExtensionAPI): void {
-  registerPickerInteraction({
-    id: "ptx-template-picker",
-    description: "Show prompt-template picker while typing $$ /<query>",
-    priority: 100,
-    match: /^\$\$\s*\/([^\n]*)$/,
-    requireCursorAtEnd: true,
-    debounceMs: 150,
-    showInPicker: true,
-    pickerLabel: "$$ / picker",
-    pickerDetail: "Prompt template selector",
-    parseInput: (match: { groups?: string[] }) => {
-      const raw = String(match?.groups?.[0] ?? "");
-      const parsed = splitQueryAndContext(raw, "::");
-      return {
-        query: parsed.query,
-        context: parsed.context,
-        raw,
-      };
-    },
-    minQueryLength: 0,
-    loadCandidates: () => {
-      const templates = pi
-        .getCommands()
-        .filter((command) => getCommandSource(command as PromptCommandLike) === "prompt")
-        .map((command) => ({
-          id: command.name,
-          label: `/${command.name}`,
-          detail: command.description ? String(command.description) : "prompt template",
-          source: "ptx",
-        }));
-
-      return {
-        candidates: templates,
-        reason: templates.length > 0 ? undefined : "no-prompt-templates",
-      };
-    },
-    selectTitle: ({ query }: { query: string }) =>
-      query ? `Pick a template (query: ${query})` : "Pick a template",
-    applySelection: ({
-      selected,
-      api,
-    }: {
-      selected: { id: string };
-      api: { setText: (text: string) => void };
-    }) => {
-      api.setText(`$$ /${selected.id} `);
-    },
-    onNoCandidates: ({
-      api,
-    }: {
-      api: { notify?: (message: string, level?: "info" | "warning" | "error") => void };
-    }) => {
-      api.notify?.("No prompt templates available", "warning");
-    },
-    telemetry: (event: Record<string, unknown>) => {
-      debugLog("example telemetry", event);
-    },
-  });
-
+function registerExampleTriggers(broker: ReturnType<typeof getBroker>, _pi: ExtensionAPI): void {
   broker.register(
     {
       id: "bash-command-picker",

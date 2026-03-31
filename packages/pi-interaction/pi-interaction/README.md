@@ -70,6 +70,12 @@ registerPickerInteraction({
 });
 ```
 
+## Ownership boundary
+
+`@tryinget/pi-interaction` owns the trigger/runtime substrate.
+It does **not** own product-specific trigger semantics such as PTX's `$$ /...` prompt-template accelerator surface.
+Those belong to the owning extension package (currently `pi-prompt-template-accelerator`), which should register through `registerPickerInteraction`.
+
 ## Built-in commands
 
 - `/triggers`
@@ -89,6 +95,6 @@ registerPickerInteraction({
 
 - `PI_INTERACTION_ENABLED` (`0` disables runtime)
 - `PI_INTERACTION_LEGACY_MODE` (`1` skips editor override)
-- `PI_INTERACTION_EXAMPLES` (`0` disables built-in demo triggers)
+- `PI_INTERACTION_EXAMPLES` (`0` disables built-in demo triggers such as `!! /` and `!! .`; PTX's `$$ /...` is not a built-in example here)
 
 Legacy `PI_INPUT_TRIGGERS_*` aliases remain accepted for compatibility.
