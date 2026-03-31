@@ -25,5 +25,5 @@ Repo-local emphasis:
 - Biome path strategy: lint repo files by default, but exclude artifact/vendor buckets (`external/`, `ontology/`, build outputs, generated/minified files).
 - Quality lane gate: `npm run quality:pre-commit`, `npm run quality:pre-push`, `npm run quality:ci`.
 - Auto-fix workflow: `npm run fix` (before commit or when applying AI-generated diffs).
-- Pin lane metadata in `policy/stack-lane.json` (`lane: ts`, pinned `tech_stack_core.ref`).
+- Keep lane metadata and pinning root-owned at the monorepo level; this reduced-form package-group surface keeps only the local release/validation notes that differ from the root stance.
 - Validate structural/docs invariants with `npm run check`.

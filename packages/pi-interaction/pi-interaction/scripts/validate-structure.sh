@@ -22,7 +22,6 @@ required_files=(
   "docs/dev/CONTRIBUTING.md"
   "docs/dev/EXTENSION_SOP.md"
   "docs/dev/trusted_publishing.md"
-  "policy/stack-lane.json"
   "policy/security-policy.json"
   ".pi/prompts/commit.md"
   "scripts/docs-list.sh"

@@ -82,13 +82,13 @@ system4d:
 | Package path | Topology | Provisional target state | Audit basis | Routed owner |
 |---|---|---|---|---|
 | `packages/pi-context-overlay` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-context-overlay` |
-| `packages/pi-interaction/pi-interaction` | package member under reduced-form group root | `reduced-form` | distinct child-package doc (`sha256:ce50c7…d6fa`) still carries a package-specific typecheck/validation note | package-local follow-up in `packages/pi-interaction/pi-interaction` with group-root context |
 | `packages/pi-little-helpers` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-little-helpers` |
 | `packages/pi-ontology-workflows` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-ontology-workflows` |
 | `packages/pi-society-orchestrator` | simple-package root | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); no distinct local override recorded at root | package-local follow-up in `packages/pi-society-orchestrator` |
 | `packages/pi-vault-client` | simple-package root with adjacent template-verification responsibility | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); adjacent verification routing does not by itself justify a local stack doc | package-local follow-up in `packages/pi-vault-client` plus template-verification lane when scaffold defaults change |
 
-`#634` has already landed the first simple-package `none` pilot in `packages/pi-activity-strip`, and `#635` has now landed the matching monorepo-package `none` pilot in `packages/pi-autonomous-session-control`, so neither package is still part of the current `legacy-full` set.
+`#634` landed the first simple-package `none` pilot in `packages/pi-activity-strip`, and `#635` landed the matching monorepo-package `none` pilot in `packages/pi-autonomous-session-control`, so neither package is still part of the current `legacy-full` set.
+`#636` has now also landed the child-package `reduced-form` case in `packages/pi-interaction/pi-interaction`, so that package likewise no longer belongs to the current `legacy-full` set and now keeps only `docs/tech-stack.local.md` as its local override surface.
 
 ## Non-goals of this contract
 

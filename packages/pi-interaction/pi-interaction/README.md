@@ -91,6 +91,11 @@ Those belong to the owning extension package (currently `pi-prompt-template-acce
 - Root/package release workflow: `../docs/dev/release-workflow.md`
 - Trusted publishing notes: `../docs/dev/trusted_publishing.md`
 
+## Local stack surface
+
+- Package-local stack guidance stays in [docs/tech-stack.local.md](docs/tech-stack.local.md).
+- Lane metadata now stays root-owned at the monorepo level and is no longer shipped as `policy/stack-lane.json`.
+
 ## Environment flags
 
 - `PI_INTERACTION_ENABLED` (`0` disables runtime)

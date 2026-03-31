@@ -43,8 +43,7 @@
     "src/runtime.js",
     "prompts",
     "examples",
-    "policy/security-policy.json",
-    "policy/stack-lane.json"
+    "policy/security-policy.json"
   ],
   "pi": {
     "extensions": [

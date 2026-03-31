@@ -31,7 +31,7 @@ Deferred but not active-root drivers:
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Finish reduced-form root policy centralization and make the next root-owned migration wave explicit | 5 | 4 | 3 | **active** | The root audit/classification wave is now published, and the repo has a minimal routed package-local queue; the remaining SG1 work is to let that smallest justified queue run before opening a broader migration backlog. |
+| 1 | Finish reduced-form root policy centralization and make the next root-owned migration wave explicit | 5 | 4 | 3 | **active** | The root audit/classification wave is now published, and the first minimal routed package-local queue has completed; the remaining SG1 work is to materialize only the next smallest justified queue from the still-deferred boilerplate-only set. |
 | 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 5 | 3 | 4 | next | Root owns the canary/release/governance surface, but the most immediate unfinished work is still the newly published SG1 package-reduction pilot queue. |
 
 ## Active strategic goal
@@ -46,7 +46,8 @@ Intent:
 Evidence:
 - `#595`–`#597` completed the initial root documentation/contract wave, so SG1 is no longer missing its direction chain
 - `#601` and `#602` turned the remaining `legacy-full` bucket into explicit target-state truth: seven boilerplate-only `none` candidates and one distinct `reduced-form` candidate
-- `#603` published the first minimal routed package-local queue so the repo can prove the reduction path on only three representative slices: one simple-package `none` pilot, one monorepo-package `none` pilot, and the only `reduced-form` child-package case
+- `#603` published the first minimal routed package-local queue so the repo could prove the reduction path on only three representative slices: one simple-package `none` pilot, one monorepo-package `none` pilot, and the only `reduced-form` child-package case
+- `#634`–`#636` have now completed that first minimal queue, leaving only the next smallest justified follow-up batch to be materialized from the remaining boilerplate-only `legacy-full` set
 
 ## Next strategic goal
 
@@ -57,5 +58,5 @@ Intent:
 - prevent package evolution from silently invalidating root-owned compatibility/release assumptions
 
 Not active yet because:
-- SG1 still has the first published package-local reduction queue in flight via `#634`–`#636`
-- the repo should let that smallest justified migration wave land before switching root attention to a new strategic concern
+- SG1 still owns the follow-up decision about the next smallest justified package-local reduction queue after `#634`–`#636` completed
+- the repo should materialize that next narrow wave explicitly before switching root attention to a new strategic concern

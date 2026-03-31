@@ -39,18 +39,18 @@ Do **not** treat this file as a live status database.
   - `docs/project/strategic_goals.md`
   - `docs/project/tactical_goals.md`
   - `docs/project/operating_plan.md`
-- The root-owned classification wave under SG1 is published, and the first minimal routed package-reduction queue is now two-thirds landed.
+- The root-owned classification wave under SG1 is published, and the first minimal routed package-reduction queue is now fully landed.
 - Current migration signal:
-  - the root audit now shows `6` `legacy-full` package surfaces and `1` `reduced-form` package-local surface
-  - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` have moved to the `none` steady state after the two completed `none` pilots
-  - five of the remaining `legacy-full` package-local docs are still identical boilerplate copies headed toward `none`
-  - `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` remains the only distinct child-package doc headed toward `reduced-form`
-  - the first minimal routed queue is explicit in AK with two completed slices:
+  - the root audit now shows `5` `legacy-full` package surfaces and `2` `reduced-form` package-local surfaces
+  - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` remain in the `none` steady state after the completed `none` pilots
+  - the remaining `legacy-full` package-local docs are still identical boilerplate copies headed toward `none`
+  - `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` now remains as the child-package `reduced-form` override note after `policy/stack-lane.json` was removed
+  - the first minimal routed queue is explicit in AK with all three completed slices:
     - `#634` `packages/pi-activity-strip` — done simple-package `none` pilot
     - `#635` `packages/pi-autonomous-session-control` — done monorepo-package `none` pilot
-    - `#636` `packages/pi-interaction/pi-interaction` — next child-package `reduced-form` pilot
+    - `#636` `packages/pi-interaction/pi-interaction` — done child-package `reduced-form` pilot
 - Latest root diary pointer:
-  - `diary/2026-03-31--pi-autonomous-session-control-none-surface-pilot.md`
+  - `diary/2026-03-31--pi-interaction-reduced-form-surface-pilot.md`
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`

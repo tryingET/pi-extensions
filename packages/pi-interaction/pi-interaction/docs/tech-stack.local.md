@@ -21,6 +21,7 @@ Repo-local emphasis:
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).
 - Typecheck baseline: prefer `tsgo --noEmit`; keep `tsc --noEmit` available as fallback when rollout or recovery requires it.
 - Keep package artifacts deterministic via `package.json` `files` allowlist.
+- This package now uses the reduced-form local surface: keep this doc for the child-package override note, and keep lane metadata/pinning at the monorepo root instead of shipping `policy/stack-lane.json`.
 - Validate with package-local scripts plus monorepo root package-gate wrappers.
 - Optional pi-ts companions (add only when the package actually benefits):
   - `fast-check` for parser/rendering/selection invariants.

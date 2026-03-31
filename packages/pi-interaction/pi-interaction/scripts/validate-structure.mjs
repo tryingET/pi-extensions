@@ -2,8 +2,6 @@
 
 import fs from "node:fs";
 
-import { validateTechStackContract } from "../../../../scripts/validate-tech-stack-contract.mjs";
-
 let failed = false;
 const errors = [];
 
@@ -141,9 +139,6 @@ function validatePackageJson() {
     if (!p.files.includes("policy/security-policy.json")) {
       fail("package.json files must include 'policy/security-policy.json'");
     }
-    if (!p.files.includes("policy/stack-lane.json")) {
-      fail("package.json files must include 'policy/stack-lane.json'");
-    }
 
     for (const entry of ext) {
       const normalized = entry.replace(/^\.\//, "");
@@ -154,20 +149,8 @@ function validatePackageJson() {
   }
 }
 
-function validateStackLane() {
-  validateTechStackContract({
-    policyPath: "policy/stack-lane.json",
-    expectedLane: "ts",
-    expectedTechStackLane: "pi-ts",
-    requirePinnedRef: "sha40",
-    smokeMode: process.env.PI_TECH_STACK_SMOKE === "0" ? "off" : "if-available",
-    fail,
-  });
-}
-
 function main() {
   validatePackageJson();
-  validateStackLane();
 
   if (failed) {
     for (const error of errors) {

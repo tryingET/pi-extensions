@@ -21,9 +21,9 @@ Active strategic goal:
 |---|---|---:|---:|---:|---|---|
 | 1 | Publish the initial root-owned reduced-form migration wave and stable bootstrap | 5 | 5 | 2 | done | Completed by `#595`–`#597`; this closed the missing root direction/contract layer. |
 | 2 | Classify remaining legacy-full package surfaces into truthful target states and routed next candidates | 5 | 4 | 2 | done | Completed by `#601`–`#602`; the root now records explicit package-level target states instead of only a bucket-level audit signal. |
-| 3 | Materialize the first minimal package-local reduction queue from the refreshed classification | 4 | 3 | 3 | **active** | `#603` published the queue and handoff; the active routed package-local pilot wave is now `#634` -> `#635` -> `#636`. |
+| 3 | Materialize the first minimal package-local reduction queue from the refreshed classification | 4 | 3 | 3 | done | `#603` published the queue and handoff, and `#634` -> `#635` -> `#636` completed the three representative pilot slices. |
 
-## Active tactical goal
+## Most recent tactical goal
 
 ### TG3 — Materialize the first minimal package-local reduction queue from the refreshed classification
 
@@ -35,6 +35,10 @@ Definition of done:
   - the only child-package `reduced-form` pilot
 - the active repo-local operating slices are explicit in [operating_plan.md](operating_plan.md)
 - those slices have authoritative AK coverage and a stable root handoff pointer
+
+Status now:
+- complete via `#603`, `#634`, `#635`, and `#636`
+- no broader follow-up batch is materialized yet; refresh AK/audit truth before opening the next queue
 
 ## Completed tactical goals
 
