@@ -50,11 +50,15 @@ This seam does **not** exist to:
 
 ## Consumer capability map
 
-| Consumer | Current call path | Capability actually needed | Why the public seam is sufficient |
-|---|---|---|---|
-| Orchestrator direct dispatch | `extensions/society-orchestrator.ts` -> `src/runtime/subagent.ts` | custom prompt composition, cwd, optional abort, execution truth, bounded output policy wrapping | needs execution behavior, not ASC UI/tool internals |
-| Orchestrator loop execution | `src/loops/engine.ts` -> `src/runtime/subagent.ts` | repeated phase dispatch, injected tool content, optional abort, execution truth | same execution core, different orchestration context |
-| ASC tool surface | `extensions/self/subagent.ts` | tool registration bound to the same runtime core | should continue to compose the shared core internally, not redefine it |
+| Consumer slice | Current call path | Consumer class | Capability actually needed | Why the public seam is sufficient |
+|---|---|---|---|---|
+| Orchestrator direct dispatch | `extensions/society-orchestrator.ts` -> `src/runtime/subagent.ts` | active real external consumer path | custom prompt composition, cwd, optional abort, execution truth, bounded output policy wrapping | needs execution behavior, not ASC UI/tool internals |
+| Orchestrator loop execution | `src/loops/engine.ts` -> `src/runtime/subagent.ts` | active real external consumer path inside the same package | repeated phase dispatch, injected tool content, optional abort, execution truth | same execution core, different orchestration context; not a second external consumer |
+| ASC tool surface | `extensions/self/subagent.ts` | internal owner composition | tool registration bound to the same runtime core | should continue to compose the shared core internally, not redefine it |
+| Installed-package release smoke | `scripts/release-smoke.mjs` -> installed orchestrator tools | verification harness, not a runtime consumer | packaged import/install truth for the current bundled bridge | useful packaging proof only; must not justify widening the seam |
+
+The first time-boxed review is now recorded in [Execution seam review](2026-03-31-execution-seam-review.md).
+Current outcome: there is still exactly one real external runtime consumer package today (`pi-society-orchestrator`), so later consumer-inventory expansion stays conditional rather than active by default.
 
 ## Guardrails
 
@@ -103,6 +107,7 @@ Current answer:
 - **keep it small**
 - **do not broaden it without evidence**
 - **treat removal as a future evidence-based decision, not a default assumption**
+- use [Execution seam review](2026-03-31-execution-seam-review.md) as the current evidence checkpoint before opening new seam-specific follow-up
 
 ## Companion docs
 
@@ -110,5 +115,6 @@ Current answer:
 - [ASC public execution contract RFC](2026-03-10-rfc-asc-public-execution-contract.md)
 - [Architecture convergence backlog](2026-03-10-architecture-convergence-backlog.md)
 - [Bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md)
+- [Execution seam review](2026-03-31-execution-seam-review.md)
 - [ASC public execution contract](../../pi-autonomous-session-control/docs/project/public-execution-contract.md)
 - [Execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md)

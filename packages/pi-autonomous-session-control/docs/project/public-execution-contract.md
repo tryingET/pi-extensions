@@ -25,6 +25,7 @@ Current intent:
 - the `dispatch_subagent` tool continues to bind the same runtime internally, but helper-level tool registration is intentionally not part of the headless public entrypoint
 - consumers should stop treating `extensions/self/*` as their integration API
 - the companion seam charter explains why this seam exists at all and when it should be reconsidered: [Execution seam charter](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md)
+- the first time-boxed review outcome is recorded in [Execution seam review](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-review.md) and still concludes that the seam should stay small because only one real external runtime consumer exists today
 
 ## Why this seam exists
 

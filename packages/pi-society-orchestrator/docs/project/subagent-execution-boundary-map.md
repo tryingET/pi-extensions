@@ -38,6 +38,7 @@ This file is the **single starting point** so the packet stops feeling scattered
   - parity between the tool path and public runtime is covered on the ASC side
   - orchestrator now routes `cognitive_dispatch` and loop execution through that seam via `src/runtime/subagent.ts`
   - the seam now has an explicit post-cutover charter defining why it exists, what it must not grow into, and when it should be reconsidered
+  - the first time-boxed review now records that orchestrator is still the only real external runtime consumer and that installed-package smoke remains verification rather than a second consumer
 - The remaining execution-seam debt is narrower:
   - orchestrator tarballs currently bundle `pi-autonomous-session-control`
   - installed-package smoke now lifts bundled dependencies and host peers so direct node imports stay truthful during headless validation
@@ -46,16 +47,17 @@ This file is the **single starting point** so the packet stops feeling scattered
 
 1. **This file** — one-screen orientation and current AK wave
 2. [Execution seam charter](2026-03-31-execution-seam-charter.md) — why the seam exists, what it must stay, and when it should be reviewed or removed
-3. [Phase A UI capability discovery](2026-03-10-ui-capability-discovery.md) — evidence for package placement
-4. [ADR — control-plane boundaries](../adr/2026-03-11-control-plane-boundaries.md) — adopted boundary decision
-5. [RFC — ASC public execution contract](2026-03-10-rfc-asc-public-execution-contract.md) — preferred seam shape under the ADR
-6. [Architecture convergence backlog](2026-03-10-architecture-convergence-backlog.md) — migration HTN and broader dependency cleanup
-7. ASC current runtime owner docs/code:
+3. [Execution seam review](2026-03-31-execution-seam-review.md) — the first time-boxed review outcome and refreshed real-consumer map
+4. [Phase A UI capability discovery](2026-03-10-ui-capability-discovery.md) — evidence for package placement
+5. [ADR — control-plane boundaries](../adr/2026-03-11-control-plane-boundaries.md) — adopted boundary decision
+6. [RFC — ASC public execution contract](2026-03-10-rfc-asc-public-execution-contract.md) — preferred seam shape under the ADR
+7. [Architecture convergence backlog](2026-03-10-architecture-convergence-backlog.md) — migration HTN and broader dependency cleanup
+8. ASC current runtime owner docs/code:
    - [ASC README](../../pi-autonomous-session-control/README.md)
    - [ASC tool surface overview](../../pi-autonomous-session-control/docs/project/tool-surface-overview.md)
    - `../../pi-autonomous-session-control/extensions/self.ts`
    - `../../pi-autonomous-session-control/extensions/self/subagent.ts`
-7. Orchestrator current consumer-side adapter/call sites:
+9. Orchestrator current consumer-side adapter/call sites:
    - `../../pi-society-orchestrator/src/runtime/subagent.ts`
    - `../../pi-society-orchestrator/extensions/society-orchestrator.ts`
    - `../../pi-society-orchestrator/src/loops/engine.ts`
@@ -65,6 +67,7 @@ This file is the **single starting point** so the packet stops feeling scattered
 | Artifact | Kind | Current status | Use it to answer |
 |---|---|---|---|
 | [2026-03-31-execution-seam-charter.md](2026-03-31-execution-seam-charter.md) | stewardship charter | current | "Why does the seam exist at all, how small should it stay, and when should it be removed or reviewed?" |
+| [2026-03-31-execution-seam-review.md](2026-03-31-execution-seam-review.md) | time-boxed review note | current | "Did the latest evidence actually justify widening or removing the seam, and how many real consumers exist today?" |
 | [2026-03-10-ui-capability-discovery.md](2026-03-10-ui-capability-discovery.md) | evidence note | complete | "Why doesn't this belong in a new helper package or in pi-vs-claude-code?" |
 | [2026-03-11-control-plane-boundaries.md](../adr/2026-03-11-control-plane-boundaries.md) | ADR / decision | accepted direction, implementation incomplete | "Who owns what plane and which seams are allowed?" |
 | [2026-03-10-rfc-asc-public-execution-contract.md](2026-03-10-rfc-asc-public-execution-contract.md) | implementation RFC | historical proposal with landed follow-up narrowing | "What seam was proposed first, and where did the final public contract end up narrower?" |
@@ -140,4 +143,5 @@ When the question is:
 - **"Who owns the subagent runtime?"** → ADR + ASC README
 - **"Why that owner?"** → discovery note
 - **"What seam should we implement?"** → ASC public execution contract RFC
+- **"Has the seam earned its keep yet, and how many real consumers exist?"** → execution seam review
 - **"What should we do next in code?"** → treat `#604` → `#605` → `#606` as landed history, then focus only on post-cutover packaging/runtime hygiene or new evidence-backed seam gaps

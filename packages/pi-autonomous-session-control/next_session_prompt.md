@@ -38,6 +38,7 @@ The next truthful wave is still **post-cutover seam stewardship**, not ownership
 Re-enter the post-cutover packet before changing the seam again:
 - `../pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
 - `../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md`
+- `../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-review.md`
 - `../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
 - `../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
 - `docs/project/public-execution-contract.md`
@@ -117,11 +118,12 @@ Verification layers are now explicit:
 
 ## Recommended next slices
 
-### Option A — time-boxed seam review trigger prep (`#628`) **default next move**
+### Option A — keep the seam parked after the first review **default next move**
 
-Automated seam guardrails are now landed, so the next truthful stewardship step is:
-- prepare the explicit time-boxed seam review follow-up after release evidence accumulates
-- keep the slice bounded and grounded in the charter/contract packet rather than reopening seam ownership
+The first time-boxed seam review is now landed, and the current truthful answer is:
+- keep the seam small and unchanged
+- treat orchestrator as the only real external runtime consumer today
+- open `#629` only if a second real external runtime consumer or another evidence-backed seam gap appears
 
 ### Option B — return to other ASC-local work only if operator redirects
 
@@ -157,12 +159,12 @@ npm run check
 - `packages/pi-autonomous-session-control/next_session_prompt.md`
 - `packages/pi-society-orchestrator/README.md`
 - `packages/pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`
+- `packages/pi-society-orchestrator/docs/project/2026-03-31-execution-seam-review.md`
 - `packages/pi-society-orchestrator/next_session_prompt.md`
 - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs`
-- `diary/2026-03-31--execution-seam-guardrails.md`
+- `diary/2026-03-31--execution-seam-review.md`
 
 ## Remaining gaps
 
 Still unresolved:
-- time-boxed seam review after release evidence accumulates (`#628`)
 - expand consumer inventory only if a second real external runtime consumer appears (`#629`)

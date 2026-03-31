@@ -178,14 +178,14 @@ Goal for this wave:
 | ID | Task | I | U | D | Quadrant | Notes |
 |---|---|---:|---:|---:|---|---|
 | SB1 | Publish an explicit execution seam charter with removal criteria | 5 | 5 | 2 | Q1 | Answers why the seam exists and prevents abstraction creep |
-| SB2 | Add a real consumer capability map for the seam | 4 | 4 | 2 | Q1 | Keeps the public surface tied to actual callers instead of imagined ones |
+| SB2 | Add a real consumer capability map for the seam | 4 | 4 | 2 | Q1 | Implemented via the refreshed map in [execution seam charter](2026-03-31-execution-seam-charter.md) plus the first [execution seam review](2026-03-31-execution-seam-review.md); keeps the public surface tied to actual callers instead of imagined ones |
 | SB3 | Promote transport-safety invariants to named contract truth | 5 | 4 | 3 | Q1 | Prevents parity-only testing from hiding shared defects |
 | SB4 | Add seam-change guardrails against private ASC imports and orchestrator-local runtime revival | 4 | 4 | 2 | Q1 | Implemented via `tests/execution-seam-guardrails.test.mjs`; stops architectural backsliding |
 | SB5 | Split verification policy into package-local contract checks vs installed-package smoke | 5 | 3 | 2 | Q2 | Implemented via the explicit ASC contract / orchestrator consumer / installed-package verification-layer split |
 | SB6 | Decide how long the bundled ASC publish/install bridge should remain | 5 | 3 | 3 | Q2 | Implemented via [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md); actual bridge removal remains a later cutover |
 | SB7 | Add a negative-path checklist for future seam changes | 4 | 3 | 1 | Q2 | Implemented via [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) |
 | SB8 | Normalize failure taxonomy exposed through execution results | 4 | 3 | 3 | Q2 | Implemented via canonical ASC `result.details.status` + `failureKind` preserved through orchestrator consumer surfaces |
-| SB9 | Schedule a time-boxed seam review after release evidence accumulates | 4 | 2 | 1 | Q2 | Keeps the seam evidence-driven instead of permanent-by-default |
+| SB9 | Schedule a time-boxed seam review after release evidence accumulates | 4 | 2 | 1 | Q2 | Implemented via [execution seam review](2026-03-31-execution-seam-review.md); current answer is still keep the seam small with one real external consumer |
 | SB10 | Expand consumer inventory only if a second real external caller appears | 3 | 1 | 2 | Q4 | Useful later, not now |
 
 ### Immediate safe leaves executed in this stewardship slice
@@ -199,6 +199,8 @@ Goal for this wave:
 7. Added the [bundled ASC bridge lifecycle](2026-03-31-bundled-asc-bridge-lifecycle.md) note so the temporary packaging shim now has explicit exit criteria and a review trigger.
 8. Normalized execution failure taxonomy across ASC and orchestrator result surfaces by standardizing public `result.details.status` on `done|aborted|timed_out|error` and adding `failureKind` for the specific failure branch.
 9. Added `tests/execution-seam-guardrails.test.mjs` so orchestrator source fails closed if it drifts back to private ASC imports or revives a local execution runtime path.
+10. Ran the first time-boxed [execution seam review](2026-03-31-execution-seam-review.md) so the packet now records that orchestrator remains the only real external runtime consumer.
+11. Refreshed the seam consumer-capability map so installed-package smoke is explicitly treated as verification evidence rather than as a second downstream runtime owner.
 
 ## Execution-plane implementation checklist
 

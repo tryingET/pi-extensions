@@ -63,6 +63,8 @@ Before any new UI or extraction moves, Phase A capability discovery established 
 Primary execution-boundary packet:
 
 - [Subagent execution-boundary map](docs/project/subagent-execution-boundary-map.md) — central entrypoint for what is evidence vs decision vs seam proposal vs backlog
+- [Execution seam charter](docs/project/2026-03-31-execution-seam-charter.md) — why the seam exists and how small it should stay
+- [Execution seam review](docs/project/2026-03-31-execution-seam-review.md) — latest time-boxed answer on whether the seam still earns its keep and how many real consumers exist today
 - [Phase A UI capability discovery](docs/project/2026-03-10-ui-capability-discovery.md) — evidence for package placement
 - [Control-plane boundaries ADR](docs/adr/2026-03-11-control-plane-boundaries.md) — adopted boundary decision
 - [ASC public execution contract proposal](docs/project/2026-03-10-rfc-asc-public-execution-contract.md) — preferred first seam under the ADR
@@ -115,6 +117,7 @@ Primary tools and commands exposed by the imported extension include:
 - `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
 - Installed-package `release:check` now proves timeout/truncation/team-mismatch behavior through a deterministic headless harness against the installed tarball, including the current bundled `pi-autonomous-session-control` publish bridge.
 - That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md).
+- The first time-boxed [execution seam review](docs/project/2026-03-31-execution-seam-review.md) now records that this package remains the only real external runtime consumer and that installed-package smoke is verification evidence rather than a second consumer.
 - Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, and interactive `/reload` parity is still outside the routine release-check harness.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 

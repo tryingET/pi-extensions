@@ -155,6 +155,7 @@ Current verification split:
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter still preserves those semantics in repo-local source
 - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` fail-closes drift back to private ASC imports or a revived orchestrator-local execution path
 - `cd packages/pi-society-orchestrator && npm run release:check` proves installed-package/import-graph truth for the packaged orchestrator artifact, including the current bundled ASC bridge while the temporary lifecycle defined in [bundled ASC bridge lifecycle](../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains in force
+- the first time-boxed [execution seam review](../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-review.md) still counts only one real external runtime consumer today (`pi-society-orchestrator`), so no seam widening is justified
 
 Companion package doc:
 - [ASC public execution contract](docs/project/public-execution-contract.md)

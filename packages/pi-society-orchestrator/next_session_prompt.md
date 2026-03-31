@@ -17,7 +17,7 @@ Resume after the **fail-closed routing + session-identity + execution-status + r
 
 The next bounded work is:
 1. continue the narrower remaining architecture-convergence backlog now that `/evidence` is on AK and only the `society_query` diagnostic exception remains on raw sqlite
-2. if the operator explicitly revisits the execution seam, treat the main cutover plus failure-taxonomy normalization and the bundled-bridge lifecycle decision as landed history and continue the remaining post-cutover stewardship packet (`#627` -> `#629`) instead of reopening runtime ownership
+2. if the operator explicitly revisits the execution seam, treat the main cutover plus the first post-cutover review as landed history and only open the remaining follow-up if new evidence justifies it (`#629` after `#628`, not by default) instead of reopening runtime ownership
 
 ## What is now true
 
@@ -124,6 +124,7 @@ Read these first before choosing the next change:
 - `README.md`
 - `docs/project/subagent-execution-boundary-map.md` (when the operator is asking about subagent/runtime ownership or the ASC public execution seam)
 - `docs/project/2026-03-31-execution-seam-charter.md` (when the question is why the seam exists, how small it should stay, or what follow-up is still legitimate)
+- `docs/project/2026-03-31-execution-seam-review.md` (when the question is whether the seam still earns its keep and how many real consumers it has today)
 - `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md` (when the question is how long bundling may remain or what evidence retires it)
 - `docs/project/2026-03-11-hermetic-installed-release-smoke.md`
 - `docs/project/2026-03-11-rfc-unified-execution-evidence-contract.md`
@@ -162,9 +163,9 @@ Then re-open the broader architecture artifacts if the next session finishes the
    - revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only behavior
    - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
 2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
-   - start from `docs/project/subagent-execution-boundary-map.md`, `docs/project/2026-03-31-execution-seam-charter.md`, and `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
-   - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, `#625`, and `#627` as landed history, not active backlog
-   - choose the next bounded stewardship slice from the current ready/dependent set: seam-review follow-up (`#628`), then the later consumer-inventory pass (`#629`)
+   - start from `docs/project/subagent-execution-boundary-map.md`, `docs/project/2026-03-31-execution-seam-charter.md`, `docs/project/2026-03-31-execution-seam-review.md`, and `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
+   - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, `#625`, `#627`, and `#628` as landed history, not active backlog
+   - open the later consumer-inventory pass (`#629`) only if a second real external runtime consumer or another evidence-backed seam gap appears
 3. **Optional parity hardening after architecture work is scoped**
    - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
 
