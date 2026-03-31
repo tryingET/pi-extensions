@@ -3,21 +3,21 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "55bc46dc5ee3d3572e87f8c8234b9c170a49415d"
-created_at: "2026-03-31T10:41:36Z"
+created_at: "2026-03-31T10:44:25Z"
 intent: "docs(pi-vault-client): pin GitHub blob links to commit SHA"
 files:
-  - "packages/pi-vault-client/README.md"
+  - "."
 validation:
   fast_gate:
-    command: "n/a (docs-only)"
+    command: "see group fast gate"
     status: "pass"
   full_gate:
     command: "npm --prefix packages/pi-prompt-template-accelerator test && npm --prefix packages/pi-interaction/pi-interaction test && npm --prefix packages/pi-vault-client test && npm --prefix packages/pi-autonomous-session-control test && npm --prefix packages/pi-society-orchestrator test"
-    status: "pending"
+    status: "pass"
 group:
-  index: 3
+  index: 0
   total: 5
-  rationale: "Docs-only: pin published README links to exact source commit"
+  rationale: "full gate rewrite after all commits passed"
 links:
   diary:
     - "."
