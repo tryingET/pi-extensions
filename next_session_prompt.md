@@ -40,8 +40,8 @@ Do **not** treat this file as a live status database.
   - `docs/project/tactical_goals.md`
   - `docs/project/operating_plan.md`
 - The first SG1 reduced-form pilot queue is complete (`#603`, `#634` -> `#636`).
-- The guarded repo-bootstrap concern surfaced here first, but the durable owner question has now moved to the agent-kernel Tier 1 packet anchored by `FCOS-M41-01` and decision `#8`.
-- Local `pi-extensions` tasks are therefore deferred, not active implementation:
+- The guarded repo-bootstrap concern surfaced here first, but the durable owner question moved to the agent-kernel Tier 1 packet anchored by `FCOS-M41-01` and decision `#8`, and the first execution chain is now verified there.
+- Local `pi-extensions` tasks are therefore historical/deferred, not active implementation:
   - `#654` deferred until decision `#8`
   - `#655` deferred until decision `#8`
   - `#656` deferred until decision `#8`
@@ -54,10 +54,12 @@ Do **not** treat this file as a live status database.
 - Canonical FCOS + AK work for the concern now lives in:
   - FCOS issue `FCOS-M41-01`
   - decision `#8`
-  - task `#657` (review / legal next move)
-  - task `#665` (AK-native implementation)
-  - task `#666` (pi-extensions consumer rewiring)
-  - task `#667` (verification)
+  - task `#657` (review / legal next move, done)
+  - task `#665` (AK-native implementation, done)
+  - task `#666` (pi-extensions consumer rewiring, done)
+  - task `#667` (verification, done)
+- The package-level proof packet for the final verification step now lives in:
+  - `packages/pi-society-orchestrator/docs/project/2026-04-01-guarded-bootstrap-verification.md`
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
@@ -90,8 +92,8 @@ Do **not** treat this file as a live status database.
    - `docs/project/strategic_goals.md`
    - `docs/project/tactical_goals.md`
    - `docs/project/operating_plan.md`
-2. Treat guarded repo bootstrap as externalized to the agent-kernel decision packet for now. Do not resume local tasks `#654`–`#656` unless decision `#8` explicitly sends implementation back here.
-3. If you are continuing the guarded repo bootstrap concern, route immediately to:
+2. Treat guarded repo bootstrap as externalized and already verified through the agent-kernel decision packet. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
+3. If you need the history/proof packet for guarded repo bootstrap, route to:
    - `~/ai-society/softwareco/owned/agent-kernel/next_session_prompt.md`
    - `~/ai-society/softwareco/owned/agent-kernel/docs/project/fcos-guarded-repo-bootstrap-authority-after-live-repo-root-drift.md`
    - `~/ai-society/holdingco/governance-kernel/governance/programs/fcos/work-items.json` (`FCOS-M41-01`)

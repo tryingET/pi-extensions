@@ -27,8 +27,8 @@ Active tactical goal:
 
 - This file intentionally tracks only the active root tactical queue.
 - There is currently no newly materialized root-local follow-up wave after the first SG1 queue completed.
-- The guarded repo-bootstrap concern surfaced here first, but the durable owner question is now being handled in agent-kernel decision `#8` with linked tasks `#657`–`#660`.
-- Until that decision resolves, the local `pi-extensions` tasks `#654`–`#656` are context only, not the active root implementation frontier.
+- The guarded repo-bootstrap concern surfaced here first, but the durable owner question was handled in agent-kernel decision `#8` with linked tasks `#657`, `#665`, `#666`, and `#667`.
+- That first execution chain is now verified, so the local `pi-extensions` tasks `#654`–`#656` remain historical context only, not the active root implementation frontier.
 
 ## HTN
 

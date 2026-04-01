@@ -130,11 +130,14 @@ const fakeAkPath = path.join(binDir, "ak");
 const fakePiPath = path.join(binDir, "pi");
 const teamMismatchMarkerPath = path.join(tempRoot, "team-mismatch-subagent.marker");
 const abortMarkerPath = path.join(tempRoot, "abort-subagent.marker");
+const bootstrapRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-bootstrap-smoke-"));
+const bootstrapNestedPath = path.join(bootstrapRepoRoot, "packages", "demo");
 
 fs.mkdirSync(binDir, { recursive: true });
 fs.mkdirSync(homeDir, { recursive: true });
 fs.mkdirSync(vaultDir, { recursive: true });
-fs.writeFileSync(societyDbPath, "");
+fs.mkdirSync(bootstrapNestedPath, { recursive: true });
+seedSocietyDb(societyDbPath, [tempRoot]);
 
 function writeExecutable(filePath, content) {
   fs.writeFileSync(filePath, content);
@@ -209,6 +212,21 @@ function seedVault(dir) {
       ].join(" "),
     ],
     { cwd: dir, encoding: "utf8" },
+  );
+}
+
+function escapeSqlText(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function seedSocietyDb(dbPath, registeredRepoPaths) {
+  const inserts = registeredRepoPaths
+    .map((repoPath) => `INSERT INTO repos(path) VALUES ('${escapeSqlText(repoPath)}');`)
+    .join(" ");
+  execFileSync(
+    "sqlite3",
+    [dbPath, ["CREATE TABLE repos(path TEXT PRIMARY KEY);", inserts].join(" ")],
+    { encoding: "utf8" },
   );
 }
 
@@ -364,12 +382,51 @@ exit 99
 
 writeExecutable(
   fakeAkPath,
-  `#!/usr/bin/env bash
-{
-  printf '%q ' "$@"
-  printf '\n'
-} >> ${JSON.stringify(akCallLogPath)}
-printf 'ak-ok'
+  `#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+const args = process.argv.slice(2);
+fs.appendFileSync(
+  ${JSON.stringify(akCallLogPath)},
+  JSON.stringify({ cwd: process.cwd(), args }) + "\\n",
+);
+
+if (args[0] === "repo" && args[1] === "bootstrap") {
+  const pathFlagIndex = args.indexOf("--path");
+  const requestedPath = pathFlagIndex >= 0 ? path.resolve(args[pathFlagIndex + 1] || "") : "";
+  if (requestedPath !== ${JSON.stringify(path.resolve(bootstrapNestedPath))}) {
+    console.error("unexpected repo bootstrap path: " + requestedPath);
+    process.exit(1);
+  }
+
+  process.stdout.write(
+    JSON.stringify({
+      requested_path: requestedPath,
+      resolved_repo_root: ${JSON.stringify(path.resolve(bootstrapRepoRoot))},
+      classification: "auto_safe",
+      outcome: "registered",
+      reason: "installed smoke safe repo",
+      guidance: "Registered canonical repo root.",
+      registered_repo: {
+        path: ${JSON.stringify(path.resolve(bootstrapRepoRoot))},
+        company: "softwareco",
+        archetype: "project",
+        layer: "L2",
+        generated_from: null,
+        copier_answers: null,
+        ontology_ref: null,
+        last_sync: "2026-04-01T00:00:00Z",
+        created_at: "2026-04-01T00:00:00Z",
+      },
+      mutation_performed: true,
+      evidence_id: 1,
+      governance_receipt_id: 2,
+    }),
+  );
+  process.exit(0);
+}
+
+process.stdout.write("ak-ok");
 `,
 );
 seedVault(vaultDir);
@@ -410,6 +467,37 @@ try {
   assert.ok(cognitiveDispatch, "cognitive_dispatch not registered");
   assert.ok(loopExecute, "loop_execute not registered");
   assert.ok(agentsTeam, "agents-team command not registered");
+
+  writeFakePi("semantic-error");
+  const bootstrapResult = await cognitiveDispatch.execute(
+    "installed-bootstrap",
+    {
+      context: "Installed guarded bootstrap smoke",
+      agent: "scout",
+      cognitive_tool: "inversion",
+    },
+    undefined,
+    undefined,
+    { cwd: bootstrapNestedPath, model: undefined },
+  );
+  assert.match(getText(bootstrapResult), /\] error in /);
+
+  const bootstrapAkCalls = readAkCallRecords(akCallLogPath);
+  assert.equal(bootstrapAkCalls.length, 2, "Expected one bootstrap and one evidence write");
+  assert.deepEqual(bootstrapAkCalls[0]?.args, [
+    "repo",
+    "bootstrap",
+    "--path",
+    path.resolve(bootstrapNestedPath),
+    "-F",
+    "json",
+  ]);
+  assert.equal(bootstrapAkCalls[1]?.cwd, path.resolve(bootstrapNestedPath));
+  assert.deepEqual(bootstrapAkCalls[1]?.args.slice(0, 2), ["evidence", "record"]);
+  assert.match(bootstrapAkCalls[1]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
+  assert.match(bootstrapAkCalls[1]?.args.join(" ") || "", /--result fail/);
+  fs.writeFileSync(akCallLogPath, "");
+  console.log("installed guarded bootstrap smoke: ok");
 
   writeFakePi("timeout");
   const timeoutResult = await cognitiveDispatch.execute(
@@ -532,24 +620,24 @@ try {
   assert.match(getText(truncationResult), /assistant output truncated/);
   console.log("installed truncation smoke: ok");
 
-  const akCallLinesAfterDispatch = readNonEmptyLines(akCallLogPath);
+  const akCallsAfterDispatch = readAkCallRecords(akCallLogPath);
   assert.equal(
-    akCallLinesAfterDispatch.length,
+    akCallsAfterDispatch.length,
     4,
     "Expected four evidence writes after dispatch smokes (abort skips evidence)",
   );
-  assert.match(akCallLinesAfterDispatch[0], /evidence record/);
-  assert.match(akCallLinesAfterDispatch[0], /--check-type cognitive:dispatch/);
-  assert.match(akCallLinesAfterDispatch[0], /--result fail/);
-  assert.match(akCallLinesAfterDispatch[1], /evidence record/);
-  assert.match(akCallLinesAfterDispatch[1], /--check-type cognitive:dispatch/);
-  assert.match(akCallLinesAfterDispatch[1], /--result fail/);
-  assert.match(akCallLinesAfterDispatch[2], /evidence record/);
-  assert.match(akCallLinesAfterDispatch[2], /--check-type cognitive:dispatch/);
-  assert.match(akCallLinesAfterDispatch[2], /--result fail/);
-  assert.match(akCallLinesAfterDispatch[3], /evidence record/);
-  assert.match(akCallLinesAfterDispatch[3], /--check-type cognitive:dispatch/);
-  assert.match(akCallLinesAfterDispatch[3], /--result pass/);
+  assert.deepEqual(akCallsAfterDispatch[0]?.args.slice(0, 2), ["evidence", "record"]);
+  assert.match(akCallsAfterDispatch[0]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
+  assert.match(akCallsAfterDispatch[0]?.args.join(" ") || "", /--result fail/);
+  assert.deepEqual(akCallsAfterDispatch[1]?.args.slice(0, 2), ["evidence", "record"]);
+  assert.match(akCallsAfterDispatch[1]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
+  assert.match(akCallsAfterDispatch[1]?.args.join(" ") || "", /--result fail/);
+  assert.deepEqual(akCallsAfterDispatch[2]?.args.slice(0, 2), ["evidence", "record"]);
+  assert.match(akCallsAfterDispatch[2]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
+  assert.match(akCallsAfterDispatch[2]?.args.join(" ") || "", /--result fail/);
+  assert.deepEqual(akCallsAfterDispatch[3]?.args.slice(0, 2), ["evidence", "record"]);
+  assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
+  assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--result pass/);
 
   writeFakePi("marker");
   const notifications = [];
@@ -593,9 +681,9 @@ try {
   assert.match(getText(teamMismatchResult), /incompatible with the active team/);
   assert.equal(fs.existsSync(teamMismatchMarkerPath), false);
 
-  const akCallLinesAfterLoopMismatch = readNonEmptyLines(akCallLogPath);
+  const akCallsAfterLoopMismatch = readAkCallRecords(akCallLogPath);
   assert.equal(
-    akCallLinesAfterLoopMismatch.length,
+    akCallsAfterLoopMismatch.length,
     4,
     "Loop/team mismatch should not emit additional evidence writes",
   );
@@ -637,6 +725,7 @@ try {
   }
 
   fs.rmSync(tempRoot, { recursive: true, force: true });
+  fs.rmSync(bootstrapRepoRoot, { recursive: true, force: true });
   fs.rmSync(importRoot, { recursive: true, force: true });
   fs.rmSync(tarballRoot, { recursive: true, force: true });
 }
@@ -649,7 +738,7 @@ function resolveLocalTarballPath(spec) {
   return spec.slice("npm:".length);
 }
 
-function readNonEmptyLines(filePath) {
+function readAkCallRecords(filePath) {
   if (!fs.existsSync(filePath)) {
     return [];
   }
@@ -658,5 +747,6 @@ function readNonEmptyLines(filePath) {
     .readFileSync(filePath, "utf8")
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
 }

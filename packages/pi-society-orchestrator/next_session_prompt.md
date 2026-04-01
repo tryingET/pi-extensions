@@ -70,7 +70,7 @@ The next bounded work is:
 ### Execution-boundary cutover landed
 - `cognitive_dispatch` and `loop_execute` now consume ASC's public execution contract instead of the old orchestrator-local spawn/process path.
 - installed-package release validation now bundles `pi-autonomous-session-control` into the orchestrator tarball so the public seam remains installable before a registry-backed dependency cutover exists.
-- `scripts/release-check.sh` and `scripts/release-smoke.mjs` now account for that bundled-package bridge while still proving timeout/truncation/team-mismatch behavior against the installed tarball.
+- `scripts/release-check.sh` and `scripts/release-smoke.mjs` now account for that bundled-package bridge while proving guarded-bootstrap, timeout, truncation, and team-mismatch behavior against the installed tarball.
 - the bridge lifecycle, exit criteria, and review trigger are now explicit in `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`; bundling remains temporary rather than open-ended.
 - seam verification layers are now explicit: ASC package-local tests prove contract semantics, `tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter, and `npm run release:check` proves packaged/imported install behavior.
 
@@ -93,6 +93,7 @@ That now covers:
 - package tarball file whitelist validation
 - `npm publish --dry-run`
 - isolated tarball install into Pi
+- installed-package headless guarded-bootstrap smoke
 - installed-package headless timeout smoke
 - installed-package headless truncation smoke
 - installed-package headless team-mismatch smoke
@@ -104,8 +105,9 @@ The installed-package smoke harness now:
 - loads the installed extension package instead of local source files
 - drives registered tools/commands directly through a small Pi stub
 - uses deterministic fake subagent / `ak` dependencies plus a temporary vault fixture
-- asserts expected direct-dispatch evidence-write argv in the fake `ak` path
+- asserts the guarded-bootstrap `ak repo bootstrap` call plus the expected evidence-write argv in the fake `ak` path
 - no longer depends on `~/.pi/agent/auth.json` or a live provider-backed prompt execution host
+- is complemented by a separate live Pi-host proof note in `docs/project/2026-04-01-guarded-bootstrap-verification.md`
 
 Treat this as packaged-install proof, not the primary source of seam semantics; the contract truth still lives in ASC's package-local tests plus `tests/runtime-shared-paths.test.mjs`.
 
@@ -167,13 +169,13 @@ Then re-open the broader architecture artifacts if the next session finishes the
    - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, `#625`, `#627`, and `#628` as landed history, not active backlog
    - open the later consumer-inventory pass (`#629`) only if a second real external runtime consumer or another evidence-backed seam gap appears
 3. **Optional parity hardening after architecture work is scoped**
-   - decide whether to add a separate live-host `/reload` parity check beyond the deterministic release-smoke harness
+   - decide whether to add broader live-host `/reload` parity checks beyond the deterministic release-smoke harness and the already-captured guarded-bootstrap live smoke in `docs/project/2026-04-01-guarded-bootstrap-verification.md`
 
 ## Deferred contracts currently in force
 
 | Finding | Rationale | Owner | Trigger | Deadline | Blast Radius |
 |---|---|---|---|---|---|
-| Installed-package release-check smoke is now headless and isolated from the default global npm package space, but routine release validation still does not prove interactive `/reload` parity in a normal Pi host session | The installed-package harness now verifies installed extension behavior without auth/provider drift or default-global npm mutation, but it intentionally drives tools/commands through a stub instead of exercising full interactive host lifecycle behavior | `pi-society-orchestrator` package maintainer | decision to add a separate live-host parity check or accept the current split between deterministic release smoke and manual interactive verification | before `0.2.0` behavior freeze | release-check can still miss host-only integration drift around reload/session wiring even when installed-package smoke is green |
+| Installed-package release-check smoke is now headless and isolated from the default global npm package space, and guarded-bootstrap has one captured live Pi-host proof, but routine release validation still does not prove broad interactive `/reload` parity in a normal Pi host session | The installed-package harness now verifies installed extension behavior without auth/provider drift or default-global npm mutation, and the guarded-bootstrap path has one separate live-host evidence note, but routine validation still intentionally drives tools/commands through a stub instead of exercising full interactive host lifecycle behavior | `pi-society-orchestrator` package maintainer | decision to add a broader live-host parity check or accept the current split between deterministic release smoke plus the bounded guarded-bootstrap live proof | before `0.2.0` behavior freeze | release-check can still miss host-only integration drift around reload/session wiring even when installed-package smoke is green |
 | Orchestrator tarballs currently bundle `pi-autonomous-session-control` | The bridge lifecycle is now decided: keep bundling only as a temporary installability shim until ASC has registry-backed release evidence and orchestrator can remove bundle lifting in one truthful cutover; see `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md` | `pi-society-orchestrator` package maintainer with `pi-autonomous-session-control` maintainer review | first ASC publish evidence, any packaging change that would prolong bundling, or the pre-`0.2.0` behavior-freeze review | before `0.2.0` behavior freeze | package size, install topology, and smoke-harness complexity stay higher than ideal until the cutover lands, but the bridge no longer lacks exit criteria |
 | `recordEvidence(...)` still has SQL fallback | Package hardening is much stronger, but removing fallback now still exceeds risk tolerance before a broader confidence pass on `ak`-only evidence writes | `pi-society-orchestrator` package maintainer | successful broader live/runtime proof of `ak evidence record` sufficiency | 2026-03-17 | evidence semantics can still drift from the canonical adapter path |
 | `society_query` still uses a bounded raw society DB read exception | `/evidence` now uses `ak evidence search`, but `society_query` still depends on a narrow raw sqlite diagnostic path until a truthful canonical read/query boundary exists | `pi-society-orchestrator` package maintainer with `agent-kernel` maintainer review | decision on canonical society read/query boundary or explicit retention/removal of the diagnostic exception | 2026-03-31 | residual read-side schema drift and continued raw DB coupling for one escape hatch |
