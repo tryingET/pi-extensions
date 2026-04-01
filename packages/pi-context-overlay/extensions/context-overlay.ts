@@ -1,6 +1,10 @@
 import { stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import { buildSessionContext, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import {
+  buildSessionContext,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from "@mariozechner/pi-coding-agent";
 import { ContextOverlayComponent } from "../src/context-overlay-component.js";
 import { ContextSnapshotStore } from "../src/snapshot-store.js";
 
@@ -15,6 +19,19 @@ const resolveEditorCommand = (): string[] => {
 export default function contextOverlayExtension(pi: ExtensionAPI): void {
   const store = new ContextSnapshotStore();
 
+  const syncStoreFromSession = (ctx: ExtensionContext): void => {
+    const liveSessionContext = buildSessionContext(
+      ctx.sessionManager.getEntries(),
+      ctx.sessionManager.getLeafId(),
+    );
+
+    store.replaceSnapshot({
+      systemPrompt: ctx.getSystemPrompt(),
+      messages: liveSessionContext.messages,
+      usage: ctx.getContextUsage(),
+    });
+  };
+
   pi.on("before_agent_start", (event) => {
     store.onBeforeAgentStart(event.systemPrompt);
   });
@@ -28,16 +45,16 @@ export default function contextOverlayExtension(pi: ExtensionAPI): void {
     store.onUsage(ctx.getContextUsage());
   });
 
-  pi.on("session_switch", () => {
-    store.onSessionReset();
+  pi.on("session_start", (_event, ctx) => {
+    syncStoreFromSession(ctx);
   });
 
-  pi.on("session_tree", () => {
-    store.onSessionReset();
+  pi.on("session_tree", (_event, ctx) => {
+    syncStoreFromSession(ctx);
   });
 
-  pi.on("session_compact", () => {
-    store.onSessionReset();
+  pi.on("session_compact", (_event, ctx) => {
+    syncStoreFromSession(ctx);
   });
 
   pi.registerCommand("c", {
@@ -45,13 +62,7 @@ export default function contextOverlayExtension(pi: ExtensionAPI): void {
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
-      const liveSessionContext = buildSessionContext(
-        ctx.sessionManager.getEntries(),
-        ctx.sessionManager.getLeafId(),
-      );
-      store.onContext(liveSessionContext.messages);
-      store.onBeforeAgentStart(ctx.getSystemPrompt());
-      store.onUsage(ctx.getContextUsage());
+      syncStoreFromSession(ctx);
 
       const openPathInZellij = async (rawPath: string): Promise<boolean> => {
         if (!process.env.ZELLIJ) {

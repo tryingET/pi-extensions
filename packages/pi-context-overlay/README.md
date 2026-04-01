@@ -42,6 +42,11 @@ This package was re-scaffolded from `~/ai-society/softwareco/owned/pi-extensions
 - `src/` — overlay component, snapshot store, token estimation, grouping logic
 - `prompts/context-report.md` — prompt template for textual context reports
 
+## Host lifecycle compatibility
+
+The overlay keeps its in-memory snapshot aligned with the live Pi session by rebuilding from `ctx.sessionManager` on `session_start`, `session_tree`, and `session_compact`.
+That keeps the surface current-session-aware without depending on legacy `session_switch` hooks or inventing a separate history graph inside the package.
+
 ## Runtime dependencies
 
 This package expects Pi host runtime APIs and declares them as peer dependencies:

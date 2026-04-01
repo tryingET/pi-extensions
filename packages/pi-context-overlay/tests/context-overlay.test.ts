@@ -72,6 +72,10 @@ test("context overlay extension registers /c and opens an overlay", async () => 
   assert.equal(typeof commands.get("c")?.handler, "function");
   assert.ok(handlers.has("before_agent_start"));
   assert.ok(handlers.has("context"));
+  assert.ok(handlers.has("session_start"));
+  assert.ok(handlers.has("session_tree"));
+  assert.ok(handlers.has("session_compact"));
+  assert.equal(handlers.has("session_switch"), false);
 
   let overlay: OverlayHandle | undefined;
   let overlayOptions: unknown;

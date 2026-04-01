@@ -30,6 +30,8 @@ The package was then created in the monorepo, backed up, re-scaffolded from the 
 - overlay/session logic lives in `src/`
 - prompt template lives in `prompts/context-report.md`
 - host-compat fallback is in place for removed/renamed keybinding-hint API (`appKeyHint` -> `keyHint` path)
+- the overlay now rebuilds its live snapshot from `ctx.sessionManager` on `session_start`, `session_tree`, and `session_compact`, so it no longer depends on legacy `session_switch` hooks to stay current-session-aware
+- the bounded compatibility note for that lifecycle change lives in `docs/project/2026-04-01-session-start-surface-compatibility.md`
 - root release metadata was updated for component `pi-context-overlay`
 - local package is installed into Pi from:
   - `/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-context-overlay`
@@ -61,7 +63,8 @@ Verify the live package in Pi after `/reload`:
 1. run `/c`
 2. confirm the overlay opens without runtime errors
 3. confirm footer key hints render correctly on the current Pi host
-4. if possible, trigger a case where a file-backed context item can be opened from the overlay
+4. navigate the current session in a way that re-emits lifecycle state (`session_start`, tree navigation, or compaction on the active host) and confirm the overlay reflects the current session instead of stale prior context
+5. if possible, trigger a case where a file-backed context item can be opened from the overlay
 
 ## Likely next improvements
 

@@ -9,6 +9,17 @@ export class ContextSnapshotStore {
   private usage: ContextUsage | undefined;
   private listeners = new Set<() => void>();
 
+  replaceSnapshot(params: {
+    systemPrompt: string;
+    messages: AgentMessage[];
+    usage: ContextUsage | undefined;
+  }): void {
+    this.systemPrompt = params.systemPrompt;
+    this.messages = structuredClone(params.messages);
+    this.usage = params.usage;
+    this.emit();
+  }
+
   onBeforeAgentStart(systemPrompt: string): void {
     this.systemPrompt = systemPrompt;
     this.emit();
@@ -21,12 +32,6 @@ export class ContextSnapshotStore {
 
   onUsage(usage: ContextUsage | undefined): void {
     this.usage = usage;
-    this.emit();
-  }
-
-  onSessionReset(): void {
-    this.messages = [];
-    this.usage = undefined;
     this.emit();
   }
 
