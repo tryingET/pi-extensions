@@ -6,10 +6,12 @@ const DEFAULT_EVIDENCE_PREVIEW_LIMIT = 20;
 export interface SocietyRuntimeConfig {
   akPath: string;
   societyDb: string;
+  cwd?: string;
   runAk?: (params: {
     akPath: string;
     societyDb: string;
     args: string[];
+    cwd?: string;
     signal?: AbortSignal;
   }) => Promise<RunAkCommandResult>;
   querySqliteJson?: <T>(
@@ -49,6 +51,7 @@ export async function previewRecentEvidence(
     akPath: config.akPath,
     societyDb: config.societyDb,
     args: ["evidence", "search"],
+    cwd: config.cwd,
     signal,
   });
 

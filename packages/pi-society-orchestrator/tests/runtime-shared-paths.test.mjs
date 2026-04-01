@@ -205,6 +205,37 @@ printf 'async-ok'
   }
 });
 
+test("runAkCommandAsync runs ak commands from the provided cwd", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-ak-cwd-"));
+  const nestedCwd = path.join(tempDir, "nested", "repo");
+  const marker = path.join(tempDir, "cwd.txt");
+  const akPath = path.join(tempDir, "ak-cwd.sh");
+
+  fs.mkdirSync(nestedCwd, { recursive: true });
+  fs.writeFileSync(
+    akPath,
+    `#!/usr/bin/env bash
+pwd > ${JSON.stringify(marker)}
+printf 'cwd-ok'
+`,
+  );
+  fs.chmodSync(akPath, 0o755);
+
+  try {
+    const result = await runAkCommandAsync({
+      akPath,
+      societyDb: "/tmp/cwd-society.db",
+      args: [],
+      cwd: nestedCwd,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.stdout, "cwd-ok");
+    assert.equal(fs.readFileSync(marker, "utf8").trim(), nestedCwd);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("runAkCommandAsync returns a timeout failure for hung processes", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-ak-timeout-"));
   const akPath = path.join(tempDir, "ak-timeout.sh");
@@ -691,7 +722,125 @@ test("finalizeExecutionEffects records fail evidence for timed-out executions", 
   ]);
 });
 
-test("recordEvidence writes directly via SQL when the current repo is not registered", async () => {
+test("recordEvidence uses ak when the current cwd is nested inside a registered repo root", async () => {
+  const repoRoot = path.join(os.tmpdir(), `pi-orch-registered-root-${Date.now()}`);
+  const cwd = path.join(repoRoot, "packages", "demo");
+  const akCalls = [];
+  let sqlWrites = 0;
+
+  const outcome = await recordEvidence(
+    {
+      check_type: "validation:registered-ancestor",
+      result: "pass",
+    },
+    undefined,
+    {
+      akPath: "/tmp/fake-ak",
+      societyDb: "/tmp/fake.db",
+      cwd,
+      async querySqliteJson() {
+        return { ok: true, value: [{ path: repoRoot }] };
+      },
+      async runAk(params) {
+        akCalls.push(params);
+        return {
+          ok: true,
+          stdout: "ak-ok",
+          stderr: "",
+        };
+      },
+      async runSql() {
+        sqlWrites += 1;
+        return { ok: true, value: undefined };
+      },
+    },
+  );
+
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.via, "ak");
+  assert.equal(akCalls.length, 1);
+  assert.equal(akCalls[0].cwd, cwd);
+  assert.deepEqual(akCalls[0].args.slice(0, 2), ["evidence", "record"]);
+  assert.equal(sqlWrites, 0);
+});
+
+test("recordEvidence bootstraps a missing repo registration through ak before writing evidence", async () => {
+  const repoRoot = path.join(os.tmpdir(), `pi-orch-bootstrap-root-${Date.now()}`);
+  const cwd = path.join(repoRoot, "packages", "demo");
+  const bootstrapCalls = [];
+  const akCalls = [];
+  let sqlWrites = 0;
+
+  const outcome = await recordEvidence(
+    {
+      check_type: "validation:bootstrap-register",
+      result: "pass",
+    },
+    undefined,
+    {
+      akPath: "/tmp/fake-ak",
+      societyDb: "/tmp/fake.db",
+      cwd,
+      async querySqliteJson() {
+        return { ok: true, value: [] };
+      },
+      async runRepoBootstrap(params) {
+        bootstrapCalls.push(params);
+        return {
+          ok: true,
+          stdout: "",
+          stderr: "",
+          report: {
+            requested_path: path.resolve(cwd),
+            resolved_repo_root: repoRoot,
+            classification: "auto_safe",
+            outcome: "registered",
+            reason: "safe leaf repo",
+            guidance: "Registered canonical repo root.",
+            registered_repo: {
+              path: repoRoot,
+              company: "softwareco",
+              archetype: "project",
+              layer: "L2",
+              generated_from: null,
+              copier_answers: null,
+              ontology_ref: null,
+              last_sync: "2026-04-01T00:00:00Z",
+              created_at: "2026-04-01T00:00:00Z",
+            },
+            mutation_performed: true,
+            evidence_id: 1,
+            governance_receipt_id: 2,
+          },
+        };
+      },
+      async runAk(params) {
+        akCalls.push(params);
+        return {
+          ok: true,
+          stdout: "ak-ok",
+          stderr: "",
+        };
+      },
+      async runSql() {
+        sqlWrites += 1;
+        return { ok: true, value: undefined };
+      },
+    },
+  );
+
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.via, "ak");
+  assert.equal(bootstrapCalls.length, 1);
+  assert.equal(bootstrapCalls[0].requestedPath, path.resolve(cwd));
+  assert.equal(akCalls.length, 1);
+  assert.equal(akCalls[0].cwd, path.resolve(cwd));
+  assert.equal(sqlWrites, 0);
+});
+
+test("recordEvidence writes directly via SQL when guarded bootstrap excludes the current cwd", async () => {
+  const cwd = path.join(os.tmpdir(), `pi-orch-excluded-${Date.now()}`);
+  let bootstrapCalls = 0;
   let akCalls = 0;
   let sqlWrites = 0;
 
@@ -699,15 +848,35 @@ test("recordEvidence writes directly via SQL when the current repo is not regist
     {
       check_type: "validation:unregistered-repo",
       result: "pass",
-      details: { repo: "/tmp/unregistered-repo" },
+      details: { repo: cwd },
     },
     undefined,
     {
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
-      cwd: "/tmp/unregistered-repo",
+      cwd,
       async querySqliteJson() {
         return { ok: true, value: [] };
+      },
+      async runRepoBootstrap() {
+        bootstrapCalls += 1;
+        return {
+          ok: true,
+          stdout: "",
+          stderr: "",
+          report: {
+            requested_path: path.resolve(cwd),
+            resolved_repo_root: path.resolve(cwd),
+            classification: "excluded",
+            outcome: "excluded",
+            reason: "outside bounded workspace",
+            guidance: "No mutation was performed.",
+            registered_repo: null,
+            mutation_performed: false,
+            evidence_id: 1,
+            governance_receipt_id: 2,
+          },
+        };
       },
       async runAk() {
         akCalls += 1;
@@ -726,9 +895,122 @@ test("recordEvidence writes directly via SQL when the current repo is not regist
 
   assert.equal(outcome.ok, true);
   assert.equal(outcome.via, "sql-direct");
+  assert.equal(bootstrapCalls, 1);
   assert.equal(akCalls, 0);
   assert.equal(sqlWrites, 1);
   assert.equal(outcome.akError, undefined);
+});
+
+test("recordEvidence caches excluded guarded-bootstrap results for the same cwd", async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-bootstrap-cache-"));
+  let bootstrapCalls = 0;
+  let sqlWrites = 0;
+
+  try {
+    const config = {
+      akPath: "/tmp/fake-ak",
+      societyDb: "/tmp/fake.db",
+      cwd,
+      async querySqliteJson() {
+        return { ok: true, value: [] };
+      },
+      async runRepoBootstrap() {
+        bootstrapCalls += 1;
+        return {
+          ok: true,
+          stdout: "",
+          stderr: "",
+          report: {
+            requested_path: path.resolve(cwd),
+            resolved_repo_root: path.resolve(cwd),
+            classification: "excluded",
+            outcome: "excluded",
+            reason: "not inside a canonical repo",
+            guidance: "No mutation was performed.",
+            registered_repo: null,
+            mutation_performed: false,
+            evidence_id: 1,
+            governance_receipt_id: 2,
+          },
+        };
+      },
+      async runSql() {
+        sqlWrites += 1;
+        return { ok: true, value: undefined };
+      },
+    };
+
+    const first = await recordEvidence(
+      {
+        check_type: "validation:bootstrap-cache-first",
+        result: "pass",
+      },
+      undefined,
+      config,
+    );
+    const second = await recordEvidence(
+      {
+        check_type: "validation:bootstrap-cache-second",
+        result: "pass",
+      },
+      undefined,
+      config,
+    );
+
+    assert.equal(first.via, "sql-direct");
+    assert.equal(second.via, "sql-direct");
+    assert.equal(bootstrapCalls, 1);
+    assert.equal(sqlWrites, 2);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("recordEvidence refuses direct SQL fallback after guarded bootstrap times out", async () => {
+  let akCalls = 0;
+  let sqlWrites = 0;
+
+  const outcome = await recordEvidence(
+    {
+      check_type: "validation:bootstrap-timeout",
+      result: "fail",
+    },
+    undefined,
+    {
+      akPath: "/tmp/fake-ak",
+      societyDb: "/tmp/fake.db",
+      cwd: "/tmp/pi-orch-bootstrap-timeout",
+      async querySqliteJson() {
+        return { ok: true, value: [] };
+      },
+      async runRepoBootstrap() {
+        return {
+          ok: false,
+          stdout: "",
+          stderr: "bootstrap timed out",
+          timedOut: true,
+        };
+      },
+      async runAk() {
+        akCalls += 1;
+        return {
+          ok: true,
+          stdout: "ak-ok",
+          stderr: "",
+        };
+      },
+      async runSql() {
+        sqlWrites += 1;
+        return { ok: true, value: undefined };
+      },
+    },
+  );
+
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.via, "failed");
+  assert.equal(akCalls, 0);
+  assert.equal(sqlWrites, 0);
+  assert.match(outcome.akError || "", /bootstrap timed out/);
 });
 
 test("recordEvidence falls back to SQL after non-timeout ak failure", async () => {

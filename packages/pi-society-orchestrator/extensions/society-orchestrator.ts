@@ -547,6 +547,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         {
           akPath: AGENT_KERNEL,
           societyDb: SOCIETY_DB,
+          cwd: ctx.cwd,
         },
         undefined,
         20,

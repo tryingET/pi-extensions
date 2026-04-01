@@ -1,4 +1,11 @@
-import { type RunAkCommandResult, runAkCommandAsync } from "./ak.ts";
+import * as path from "node:path";
+import {
+  type RepoBootstrapReport,
+  type RunAkCommandResult,
+  type RunAkRepoBootstrapResult,
+  runAkCommandAsync,
+  runAkRepoBootstrap,
+} from "./ak.ts";
 import {
   type BoundaryResult,
   escapeSqlLiteral,
@@ -41,8 +48,15 @@ export interface RecordEvidenceConfig {
     akPath: string;
     societyDb: string;
     args: string[];
+    cwd?: string;
     signal?: AbortSignal;
   }) => Promise<RunAkCommandResult>;
+  runRepoBootstrap?: (params: {
+    akPath: string;
+    societyDb: string;
+    requestedPath: string;
+    signal?: AbortSignal;
+  }) => Promise<RunAkRepoBootstrapResult>;
   runSql?: (dbPath: string, sql: string, signal?: AbortSignal) => Promise<BoundaryResult<void>>;
   querySqliteJson?: <T>(
     dbPath: string,
@@ -63,6 +77,8 @@ export interface FinalizeExecutionEffectsResult {
   success: boolean;
   evidence: EvidenceWriteResult | SkippedEvidenceWriteResult;
 }
+
+const repoBootstrapCache = new Map<string, RepoBootstrapReport>();
 
 function buildEvidenceInsertSql(entry: EvidenceEntry): string {
   const taskIdSql = typeof entry.task_id === "number" ? `${entry.task_id}` : "NULL";
@@ -97,23 +113,91 @@ async function writeEvidenceViaSql(
   };
 }
 
-async function shouldUseAkEvidencePath(
+async function findRegisteredRepoAncestor(
   config: RecordEvidenceConfig,
   signal: AbortSignal | undefined,
-): Promise<boolean> {
-  const repoPath = config.cwd || process.cwd();
+  repoPath: string,
+): Promise<BoundaryResult<string | null>> {
   const repoPathSql = escapeSqlLiteral(repoPath);
-  const queryResult = await (config.querySqliteJson || querySqliteJsonAsync)<{ present?: number }>(
+  const repoPathWithSlashSql = escapeSqlLiteral(`${repoPath}/`);
+  const queryResult = await (config.querySqliteJson || querySqliteJsonAsync)<{ path?: string }>(
     config.societyDb,
-    `SELECT 1 AS present FROM repos WHERE path = '${repoPathSql}' LIMIT 1`,
+    [
+      "SELECT path",
+      "FROM repos",
+      `WHERE path = '${repoPathSql}' OR instr('${repoPathWithSlashSql}', path || '/') = 1`,
+      "ORDER BY length(path) DESC",
+      "LIMIT 1",
+    ].join(" "),
     signal,
   );
 
   if (isBoundaryFailure(queryResult)) {
-    return true;
+    return queryResult;
   }
 
-  return queryResult.value.length > 0;
+  return {
+    ok: true,
+    value: queryResult.value[0]?.path || null,
+  };
+}
+
+async function determineEvidenceWriteMode(
+  config: RecordEvidenceConfig,
+  signal: AbortSignal | undefined,
+  repoPath: string,
+): Promise<{ mode: "ak" | "sql-direct" | "failed"; akError?: string }> {
+  const registeredRepo = await findRegisteredRepoAncestor(config, signal, repoPath);
+  if (isBoundaryFailure(registeredRepo)) {
+    return { mode: "ak" };
+  }
+
+  if (registeredRepo.value) {
+    return { mode: "ak" };
+  }
+
+  const cachedBootstrap = repoBootstrapCache.get(repoPath);
+  if (cachedBootstrap?.outcome === "explicit_only" || cachedBootstrap?.outcome === "excluded") {
+    return { mode: "sql-direct" };
+  }
+
+  const bootstrapResult = await (config.runRepoBootstrap || runAkRepoBootstrap)({
+    akPath: config.akPath,
+    societyDb: config.societyDb,
+    requestedPath: repoPath,
+    signal,
+  });
+
+  if (!bootstrapResult.ok) {
+    if (signal?.aborted || bootstrapResult.aborted || bootstrapResult.timedOut) {
+      return {
+        mode: "failed",
+        akError: bootstrapResult.stderr.slice(0, 500),
+      };
+    }
+
+    return {
+      mode: "sql-direct",
+      akError: bootstrapResult.stderr.slice(0, 500),
+    };
+  }
+
+  if (!bootstrapResult.report) {
+    return {
+      mode: "sql-direct",
+      akError: "ak repo bootstrap did not return a structured report",
+    };
+  }
+
+  if (
+    bootstrapResult.report.outcome === "registered" ||
+    bootstrapResult.report.outcome === "already_registered"
+  ) {
+    return { mode: "ak" };
+  }
+
+  repoBootstrapCache.set(repoPath, bootstrapResult.report);
+  return { mode: "sql-direct" };
 }
 
 export async function recordEvidence(
@@ -121,6 +205,7 @@ export async function recordEvidence(
   signal: AbortSignal | undefined,
   config: RecordEvidenceConfig,
 ): Promise<EvidenceWriteResult> {
+  const repoPath = path.resolve(config.cwd || process.cwd());
   const akArgs = ["evidence", "record", "--check-type", entry.check_type, "--result", entry.result];
   if (typeof entry.task_id === "number") {
     akArgs.push("--task", String(entry.task_id));
@@ -129,14 +214,26 @@ export async function recordEvidence(
     akArgs.push("--details", JSON.stringify(entry.details));
   }
 
-  if (!(await shouldUseAkEvidencePath(config, signal))) {
-    return writeEvidenceViaSql(entry, signal, config, { via: "sql-direct" });
+  const mode = await determineEvidenceWriteMode(config, signal, repoPath);
+  if (mode.mode === "sql-direct") {
+    return writeEvidenceViaSql(entry, signal, config, {
+      via: "sql-direct",
+      akError: mode.akError,
+    });
+  }
+  if (mode.mode === "failed") {
+    return {
+      ok: false,
+      via: "failed",
+      akError: mode.akError,
+    };
   }
 
   const akResult = await (config.runAk || runAkCommandAsync)({
     akPath: config.akPath,
     societyDb: config.societyDb,
     args: akArgs,
+    cwd: repoPath,
     signal,
   });
   if (akResult.ok) {

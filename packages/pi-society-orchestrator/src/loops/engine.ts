@@ -335,6 +335,7 @@ export class AgentKernel {
       akPath: this.akPath,
       societyDb: this.societyDb || process.env.SOCIETY_DB || process.env.AK_DB || "",
       args,
+      cwd: this.cwd,
       signal,
     });
 

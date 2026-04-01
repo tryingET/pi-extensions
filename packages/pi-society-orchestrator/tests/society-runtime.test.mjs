@@ -95,6 +95,7 @@ test("previewRecentEvidence uses ak evidence search and truncates to the request
     {
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
+      cwd: "/tmp/repo/packages/demo",
       async runAk(params) {
         calls.push(params);
         return {
@@ -122,6 +123,7 @@ test("previewRecentEvidence uses ak evidence search and truncates to the request
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
       args: ["evidence", "search"],
+      cwd: "/tmp/repo/packages/demo",
       signal: undefined,
     },
   ]);
