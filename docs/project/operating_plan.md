@@ -10,34 +10,30 @@ system4d:
   fog: "The main risk is duplicating task bodies here or mixing non-active tactical goals into the same operating queue."
 ---
 
-# Operating plan — TG3 active wave
+# Operating plan — no active new root-local wave materialized yet
 
 Active tactical goal:
-- [TG3 in tactical_goals.md](tactical_goals.md#tg3--materialize-the-first-minimal-package-local-reduction-queue-from-the-refreshed-classification)
+- no new root-local tactical wave is currently materialized
 
 ## Operating slices
 
 | Order | AK task | State | Deliverable |
 |---|---:|---|---|
-| 1 | `#603` | done | Published the minimal routed package-reduction queue and refreshed the stable root handoff/diary pointers. |
-| 2 | `#634` | done | Proved the generic simple-package `none` reduction path in `packages/pi-activity-strip` by removing both local tech-stack surfaces and refreshing the root audit afterward. |
-| 3 | `#635` | done | Proved the same `none` reduction path at the monorepo-package root `packages/pi-autonomous-session-control` by removing both local surfaces and aligning package validation/docs with the root-owned stack stance. |
-| 4 | `#636` | done | Converted `packages/pi-interaction/pi-interaction` to truthful `reduced-form` by removing only `policy/stack-lane.json` while preserving the child-package doc override. |
+| 1 | `#654` | deferred | Historical root-side guarded repo bootstrap classifier task; deferred until agent-kernel decision `#8` resolves. |
+| 2 | `#655` | deferred | Historical root-side runtime wiring task; deferred until agent-kernel decision `#8` resolves. |
+| 3 | `#656` | deferred | Historical root-side verification task; deferred until agent-kernel decision `#8` resolves. |
 
 ## Interpretation
 
-- This file intentionally tracks only the active tactical goal.
-- `#603` completed the root-owned queue-publication slice, and `#634` plus `#635` completed the two `none` pilots needed to prove the generic boilerplate-only reduction path across both relevant package-root topologies.
-- `#636` has now completed the only `reduced-form` child-package pilot in that first routed queue.
-- The queue remains intentionally minimal: one simple-package `none` pilot, one monorepo-package `none` pilot, and the only `reduced-form` child-package case, all now landed before any broader follow-up batch is materialized.
-- Deferred runtime-registry tasks `#268` and `#269` remain context, not the active root tech-stack wave.
+- This file intentionally tracks only the active root tactical queue.
+- There is currently no newly materialized root-local follow-up wave after the first SG1 queue completed.
+- The guarded repo-bootstrap concern surfaced here first, but the durable owner question is now being handled in agent-kernel decision `#8` with linked tasks `#657`–`#660`.
+- Until that decision resolves, the local `pi-extensions` tasks `#654`–`#656` are context only, not the active root implementation frontier.
 
 ## HTN
 
 - `G0` — keep the pi-extensions root control plane explicit and executable
   - `SG1` — finish reduced-form root policy centralization
-    - `TG3` — materialize the first minimal package-local reduction queue from the refreshed classification
-      - `#603` publish the minimal package-reduction queue and root handoff update
-      - `#634` simple-package `none` pilot in `packages/pi-activity-strip`
-      - `#635` monorepo-package `none` pilot in `packages/pi-autonomous-session-control`
-      - `#636` completed child-package `reduced-form` pilot in `packages/pi-interaction/pi-interaction`
+    - next tactical move not yet materialized
+  - `SG2` — keep root compatibility/release control-plane contracts truthful as package seams evolve
+    - guarded repo bootstrap owner question externalized to agent-kernel decision `#8`

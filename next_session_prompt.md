@@ -1,5 +1,5 @@
 ---
-summary: "Canonical monorepo-root bootstrap for pi-extensions: use AK as the task authority, run quality gates, and keep this file stable."
+summary: "Canonical monorepo-root bootstrap for pi-extensions: use AK as the task authority, run quality gates, and route the guarded repo bootstrap owner question to agent-kernel decision #8 instead of reviving deferred local workaround work."
 read_when:
   - "Starting the next session at the pi-extensions monorepo root."
   - "You need session bootstrap, authority order, and closeout rules."
@@ -34,23 +34,30 @@ Do **not** treat this file as a live status database.
 
 ## CURRENT TRUTH
 - This repo is the canonical monorepo control plane for pi extensions.
-- The root direction chain is explicit and TG1's initial doc/contract wave is complete:
+- The root direction chain is explicit:
   - `docs/project/vision.md`
   - `docs/project/strategic_goals.md`
   - `docs/project/tactical_goals.md`
   - `docs/project/operating_plan.md`
-- The root-owned classification wave under SG1 is published, and the first minimal routed package-reduction queue is now fully landed.
-- Current migration signal:
-  - the root audit now shows `5` `legacy-full` package surfaces and `2` `reduced-form` package-local surfaces
-  - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` remain in the `none` steady state after the completed `none` pilots
-  - the remaining `legacy-full` package-local docs are still identical boilerplate copies headed toward `none`
-  - `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` now remains as the child-package `reduced-form` override note after `policy/stack-lane.json` was removed
-  - the first minimal routed queue is explicit in AK with all three completed slices:
-    - `#634` `packages/pi-activity-strip` — done simple-package `none` pilot
-    - `#635` `packages/pi-autonomous-session-control` — done monorepo-package `none` pilot
-    - `#636` `packages/pi-interaction/pi-interaction` — done child-package `reduced-form` pilot
-- Latest root diary pointer:
-  - `diary/2026-03-31--pi-interaction-reduced-form-surface-pilot.md`
+- The first SG1 reduced-form pilot queue is complete (`#603`, `#634` -> `#636`).
+- The guarded repo-bootstrap concern surfaced here first, but the durable owner question has now moved to the agent-kernel Tier 1 packet anchored by `FCOS-M41-01` and decision `#8`.
+- Local `pi-extensions` tasks are therefore deferred, not active implementation:
+  - `#654` deferred until decision `#8`
+  - `#655` deferred until decision `#8`
+  - `#656` deferred until decision `#8`
+- Canonical decision packet now lives in agent-kernel:
+  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/fcos-guarded-repo-bootstrap-authority-after-live-repo-root-drift.md`
+  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-problem-guarded-repo-bootstrap-authority.md`
+  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-evidence-guarded-repo-bootstrap-authority.md`
+  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-rfc-guarded-repo-bootstrap-authority.md`
+  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-cross-repo-fanout-fcos-m41-guarded-repo-bootstrap-authority.md`
+- Canonical FCOS + AK work for the concern now lives in:
+  - FCOS issue `FCOS-M41-01`
+  - decision `#8`
+  - task `#657` (review / legal next move)
+  - task `#665` (AK-native implementation)
+  - task `#666` (pi-extensions consumer rewiring)
+  - task `#667` (verification)
 - Root validation is coherent and verified through the canonical wrapper:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
@@ -78,19 +85,18 @@ Do **not** treat this file as a live status database.
 - Do **not** bypass quality gates before committing.
 
 ## CONTINUE WITH
-1. Re-enter the active direction chain before touching root policy:
+1. Re-enter the active direction chain before opening any new root-local wave:
    - `docs/project/vision.md`
    - `docs/project/strategic_goals.md`
    - `docs/project/tactical_goals.md`
    - `docs/project/operating_plan.md`
-2. Treat the reduced-form migration contract as locked root truth:
-   - `docs/project/reduced-form-migration-contract.md`
-3. Use the active audit/classification surfaces before routing more package/template follow-up:
-   - `docs/tech-stack.local.md`
-   - `docs/project/tech-stack-review-surfaces.md`
-   - `docs/project/reduced-form-migration-contract.md`
-   - `scripts/validate-tech-stack-contract.mjs`
-4. Use AK as the live queue for the first minimal package-reduction wave; if repo-local readiness empties while SG1 still implies unfinished package reductions, refresh the root audit/routing surfaces and materialize only the next smallest justified queue instead of opening the whole backlog.
+2. Treat guarded repo bootstrap as externalized to the agent-kernel decision packet for now. Do not resume local tasks `#654`–`#656` unless decision `#8` explicitly sends implementation back here.
+3. If you are continuing the guarded repo bootstrap concern, route immediately to:
+   - `~/ai-society/softwareco/owned/agent-kernel/next_session_prompt.md`
+   - `~/ai-society/softwareco/owned/agent-kernel/docs/project/fcos-guarded-repo-bootstrap-authority-after-live-repo-root-drift.md`
+   - `~/ai-society/holdingco/governance-kernel/governance/programs/fcos/work-items.json` (`FCOS-M41-01`)
+   - `ak decision get 8`
+4. For actual root-owned work in this repo, refresh the reduction/audit surfaces and decide whether the next SG1 package-reduction batch should be materialized.
 5. Route template changes to:
    - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
 6. Route Nunjucks live verification to:

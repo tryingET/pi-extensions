@@ -20,19 +20,20 @@ Evidence used:
 - [root-capabilities.md](root-capabilities.md)
 - [tech-stack-review-surfaces.md](tech-stack-review-surfaces.md)
 - [pi-host-compatibility-canary.md](pi-host-compatibility-canary.md)
+- [2026-03-31-guarded-repo-auto-registration-execution-memory.md](2026-03-31-guarded-repo-auto-registration-execution-memory.md)
 - [next_session_prompt.md](../../next_session_prompt.md)
-- latest repo-local tasks: `#603`, `#602`, `#601`, `#590`, `#269`
+- latest repo-local tasks: `#656`, `#655`, `#654`, `#636`, `#635`
 
 Deferred but not active-root drivers:
 
-- `#268` and `#269` remain real repo-local concerns, but both are explicitly deferred runtime-registry/package-boundary decisions rather than the next active root control-plane wave.
+- the guarded repo auto-registration concern is still real, but its durable owner question has now been escalated into the agent-kernel Tier 1 decision packet (`FCOS-M41-01`, `decision #8`, and tasks `#657`, `#665`–`#667`), so the local `pi-extensions` tasks `#654`–`#656` are deferred until that decision resolves.
 
 ## Eisenhower-3D ranking
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Finish reduced-form root policy centralization and make the next root-owned migration wave explicit | 5 | 4 | 3 | **active** | The root audit/classification wave is now published, and the first minimal routed package-local queue has completed; the remaining SG1 work is to materialize only the next smallest justified queue from the still-deferred boilerplate-only set. |
-| 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 5 | 3 | 4 | next | Root owns the canary/release/governance surface, but the most immediate unfinished work is still the newly published SG1 package-reduction pilot queue. |
+| 1 | Finish reduced-form root policy centralization and make the next root-owned migration wave explicit | 5 | 4 | 3 | **active** | The first SG1 queue is complete, and the guarded repo bootstrap owner question has now moved to agent-kernel, so the next root-owned wave is again the next smallest justified package-reduction batch. |
+| 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 4 | 4 | 4 | next | The root still depends on truthful compatibility/release contracts, but the guarded repo-bootstrap concern is now being decided in agent-kernel rather than as a root-owned implementation wave here. |
 
 ## Active strategic goal
 
@@ -41,13 +42,12 @@ Deferred but not active-root drivers:
 Intent:
 - keep the shared policy/validation stance at root
 - shrink package/template-local surfaces to the minimum truthful form
-- move from the initial doc/contract wave through explicit classification into the smallest representative package-local reduction queue
+- materialize only the next smallest justified follow-up reduction queue from the remaining boilerplate-only set
 
 Evidence:
-- `#595`–`#597` completed the initial root documentation/contract wave, so SG1 is no longer missing its direction chain
-- `#601` and `#602` turned the remaining `legacy-full` bucket into explicit target-state truth: seven boilerplate-only `none` candidates and one distinct `reduced-form` candidate
-- `#603` published the first minimal routed package-local queue so the repo could prove the reduction path on only three representative slices: one simple-package `none` pilot, one monorepo-package `none` pilot, and the only `reduced-form` child-package case
-- `#634`–`#636` have now completed that first minimal queue, leaving only the next smallest justified follow-up batch to be materialized from the remaining boilerplate-only `legacy-full` set
+- `#595`–`#597`, `#601`–`#603`, and `#634`–`#636` completed the first routed reduction wave
+- the guarded repo-bootstrap concern surfaced by live Ghostty testing has now been moved into the agent-kernel Tier 1 decision packet instead of remaining a root-owned implementation wave here
+- that returns the root repo to its next truly root-owned follow-up: deciding whether another narrow package-reduction batch should now be materialized
 
 ## Next strategic goal
 
@@ -55,8 +55,8 @@ Evidence:
 
 Intent:
 - preserve a truthful monorepo-root contract for canary coverage, release orchestration, and governance/review surfaces
-- prevent package evolution from silently invalidating root-owned compatibility/release assumptions
+- keep root/runtime assumptions aligned with whatever guarded repo-bootstrap contract agent-kernel ultimately accepts
 
-Not active yet because:
-- SG1 still owns the follow-up decision about the next smallest justified package-local reduction queue after `#634`–`#636` completed
-- the repo should materialize that next narrow wave explicitly before switching root attention to a new strategic concern
+Why it is not active right now:
+- the repo-bootstrap owner question is now being decided in agent-kernel decision `#8`
+- local `pi-extensions` tasks `#654`–`#656` are deferred until that decision resolves, so there is no active root-owned implementation wave for this concern here
