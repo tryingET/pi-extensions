@@ -31,6 +31,7 @@ After the bridge-lifecycle decision, failure-taxonomy normalization, and anti-dr
 - `packages/pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md`
 - `packages/pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
 - `packages/pi-society-orchestrator/docs/project/subagent-execution-boundary-map.md`
+- `governance/execution-seam-cases/README.md`
 - `packages/pi-society-orchestrator/src/runtime/subagent.ts`
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs`
 - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs`
@@ -82,4 +83,5 @@ Until a new trigger appears:
 - keep the headless seam unchanged
 - keep ASC as execution-plane owner
 - keep orchestrator as the one narrow external consumer
+- keep adding learned seam failures to the shared casebook so contract truth, consumer truth, and packaging truth compound instead of drifting
 - treat consumer-inventory expansion as conditional follow-up, not active backlog by default

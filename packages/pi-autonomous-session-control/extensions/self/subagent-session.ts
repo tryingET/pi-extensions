@@ -36,6 +36,8 @@ export interface SubagentSessionStatus {
   objective?: string;
   exitCode?: number;
   elapsed?: number;
+  parentSessionKey?: string;
+  resultPreview?: string;
 }
 
 const DEFAULT_MAX_CONCURRENT = 5;

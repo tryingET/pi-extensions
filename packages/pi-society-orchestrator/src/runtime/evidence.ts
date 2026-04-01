@@ -3,6 +3,7 @@ import {
   type BoundaryResult,
   escapeSqlLiteral,
   isBoundaryFailure,
+  querySqliteJsonAsync,
   runSqliteStatementAsync,
 } from "./boundaries.ts";
 import {
@@ -21,7 +22,7 @@ export interface EvidenceEntry {
 
 export interface EvidenceWriteResult {
   ok: boolean;
-  via: "ak" | "sql-fallback" | "failed";
+  via: "ak" | "sql-direct" | "sql-fallback" | "failed";
   akError?: string;
   sqlError?: string;
 }
@@ -35,6 +36,7 @@ export interface SkippedEvidenceWriteResult {
 export interface RecordEvidenceConfig {
   akPath: string;
   societyDb: string;
+  cwd?: string;
   runAk?: (params: {
     akPath: string;
     societyDb: string;
@@ -42,6 +44,11 @@ export interface RecordEvidenceConfig {
     signal?: AbortSignal;
   }) => Promise<RunAkCommandResult>;
   runSql?: (dbPath: string, sql: string, signal?: AbortSignal) => Promise<BoundaryResult<void>>;
+  querySqliteJson?: <T>(
+    dbPath: string,
+    sql: string,
+    signal?: AbortSignal,
+  ) => Promise<BoundaryResult<T[]>>;
 }
 
 export interface FinalizeExecutionEffectsParams {
@@ -57,6 +64,58 @@ export interface FinalizeExecutionEffectsResult {
   evidence: EvidenceWriteResult | SkippedEvidenceWriteResult;
 }
 
+function buildEvidenceInsertSql(entry: EvidenceEntry): string {
+  const taskIdSql = typeof entry.task_id === "number" ? `${entry.task_id}` : "NULL";
+  const detailsJson = entry.details ? escapeSqlLiteral(JSON.stringify(entry.details)) : "{}";
+  const checkTypeSql = escapeSqlLiteral(entry.check_type);
+  const resultSql = escapeSqlLiteral(entry.result);
+  return `INSERT INTO evidence (task_id, check_type, result, details) VALUES (${taskIdSql}, '${checkTypeSql}', '${resultSql}', '${detailsJson}')`;
+}
+
+async function writeEvidenceViaSql(
+  entry: EvidenceEntry,
+  signal: AbortSignal | undefined,
+  config: RecordEvidenceConfig,
+  outcome: { via: "sql-direct" | "sql-fallback"; akError?: string },
+): Promise<EvidenceWriteResult> {
+  const sql = buildEvidenceInsertSql(entry);
+  const sqlResult = await (config.runSql || runSqliteStatementAsync)(config.societyDb, sql, signal);
+
+  if (isBoundaryFailure(sqlResult)) {
+    return {
+      ok: false,
+      via: "failed",
+      akError: outcome.akError,
+      sqlError: sqlResult.error.slice(0, 500),
+    };
+  }
+
+  return {
+    ok: true,
+    via: outcome.via,
+    akError: outcome.akError,
+  };
+}
+
+async function shouldUseAkEvidencePath(
+  config: RecordEvidenceConfig,
+  signal: AbortSignal | undefined,
+): Promise<boolean> {
+  const repoPath = config.cwd || process.cwd();
+  const repoPathSql = escapeSqlLiteral(repoPath);
+  const queryResult = await (config.querySqliteJson || querySqliteJsonAsync)<{ present?: number }>(
+    config.societyDb,
+    `SELECT 1 AS present FROM repos WHERE path = '${repoPathSql}' LIMIT 1`,
+    signal,
+  );
+
+  if (isBoundaryFailure(queryResult)) {
+    return true;
+  }
+
+  return queryResult.value.length > 0;
+}
+
 export async function recordEvidence(
   entry: EvidenceEntry,
   signal: AbortSignal | undefined,
@@ -68,6 +127,10 @@ export async function recordEvidence(
   }
   if (entry.details) {
     akArgs.push("--details", JSON.stringify(entry.details));
+  }
+
+  if (!(await shouldUseAkEvidencePath(config, signal))) {
+    return writeEvidenceViaSql(entry, signal, config, { via: "sql-direct" });
   }
 
   const akResult = await (config.runAk || runAkCommandAsync)({
@@ -88,27 +151,10 @@ export async function recordEvidence(
     };
   }
 
-  const taskIdSql = typeof entry.task_id === "number" ? `${entry.task_id}` : "NULL";
-  const detailsJson = entry.details ? escapeSqlLiteral(JSON.stringify(entry.details)) : "{}";
-  const checkTypeSql = escapeSqlLiteral(entry.check_type);
-  const resultSql = escapeSqlLiteral(entry.result);
-  const sql = `INSERT INTO evidence (task_id, check_type, result, details) VALUES (${taskIdSql}, '${checkTypeSql}', '${resultSql}', '${detailsJson}')`;
-  const sqlResult = await (config.runSql || runSqliteStatementAsync)(config.societyDb, sql, signal);
-
-  if (isBoundaryFailure(sqlResult)) {
-    return {
-      ok: false,
-      via: "failed",
-      akError: akResult.stderr.slice(0, 500),
-      sqlError: sqlResult.error.slice(0, 500),
-    };
-  }
-
-  return {
-    ok: true,
+  return writeEvidenceViaSql(entry, signal, config, {
     via: "sql-fallback",
     akError: akResult.stderr.slice(0, 500),
-  };
+  });
 }
 
 export async function finalizeExecutionEffects(

@@ -9,7 +9,7 @@ import {
 } from "../extensions/self/subagent-dashboard-data.ts";
 import { getSessionStatusPath } from "../extensions/self/subagent-session.ts";
 
-async function writeStatus(sessionsDir, sessionName, status, updatedAt, objective) {
+async function writeStatus(sessionsDir, sessionName, status, updatedAt, objective, extras = {}) {
   await writeFile(
     getSessionStatusPath(sessionsDir, sessionName),
     JSON.stringify({
@@ -20,6 +20,7 @@ async function writeStatus(sessionsDir, sessionName, status, updatedAt, objectiv
       createdAt: updatedAt,
       updatedAt,
       objective,
+      ...extras,
     }),
   );
 }
@@ -41,10 +42,15 @@ test("createSubagentDashboardSnapshot sorts recent sessions and computes hints",
       "timeout",
       "2026-03-06T11:00:00.000Z",
       "Investigate a timeout in the dispatch lifecycle and isolate the cause",
+      {
+        parentSessionKey: "live-2",
+        resultPreview: "Subagent timed out after 300s",
+      },
     );
 
     const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
       now: Date.parse("2026-03-06T12:00:00.000Z"),
+      currentSessionKey: "live-2",
     });
 
     assert.equal(snapshot.total, 2);
@@ -52,6 +58,8 @@ test("createSubagentDashboardSnapshot sorts recent sessions and computes hints",
     assert.equal(snapshot.counts.timeout, 1);
     assert.equal(snapshot.rows[0].sessionName, "newer-timeout");
     assert.equal(snapshot.rows[0].ageLabel, "1h ago");
+    assert.equal(snapshot.rows[0].sessionScopeLabel, "Current live session (live-2)");
+    assert.equal(snapshot.rows[0].resultPreview, "Subagent timed out after 300s");
     assert.match(snapshot.rows[0].recommendedActionHint, /narrower objective/i);
     assert.equal(snapshot.rows[1].sessionName, "older-done");
     assert.match(snapshot.rows[1].recommendedActionHint, /review outcome/i);
@@ -70,6 +78,7 @@ test("createSubagentDashboardSnapshot truncates long objectives and respects row
       "running",
       "2026-03-06T12:00:30.000Z",
       "This objective is deliberately long so the dashboard preview has to truncate it cleanly for the compact widget presentation.",
+      { parentSessionKey: "live-now" },
     );
     await writeStatus(
       sessionsDir,
@@ -88,6 +97,7 @@ test("createSubagentDashboardSnapshot truncates long objectives and respects row
     assert.equal(snapshot.rows.length, 1);
     assert.equal(snapshot.rows[0].sessionName, "running-now");
     assert.match(snapshot.rows[0].objectivePreview, /…$/);
+    assert.equal(snapshot.rows[0].sessionScope, "recorded");
     assert.match(snapshot.rows[0].recommendedActionHint, /monitor/i);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
@@ -109,6 +119,8 @@ test("createSubagentSessionInspection summarizes lifecycle metadata and artifact
         createdAt: "2026-03-06T11:58:00.000Z",
         updatedAt,
         objective: "Review the migrated dashboard slice and capture next steps",
+        parentSessionKey: "live-9",
+        resultPreview: "Review landed cleanly; next step is to verify the dashboard in Pi.",
         exitCode: 0,
         elapsed: 61_000,
       }),
@@ -117,11 +129,17 @@ test("createSubagentSessionInspection summarizes lifecycle metadata and artifact
 
     const inspection = createSubagentSessionInspection(sessionsDir, "done-session", {
       now: Date.parse("2026-03-06T12:00:00.000Z"),
+      currentSessionKey: "live-9",
     });
 
     assert.equal(inspection.found, true);
     assert.equal(inspection.status, "done");
     assert.equal(inspection.ageLabel, "1m ago");
+    assert.equal(inspection.sessionScopeLabel, "Current live session (live-9)");
+    assert.equal(
+      inspection.resultPreview,
+      "Review landed cleanly; next step is to verify the dashboard in Pi.",
+    );
     assert.equal(inspection.elapsedLabel, "1m 1s");
     assert.equal(inspection.exitCode, 0);
     assert.equal(inspection.pidState, "not-applicable");
@@ -145,6 +163,7 @@ test("createSubagentSessionInspection suggests recent sessions when the requeste
       "error",
       "2026-03-06T12:05:00.000Z",
       "Inspect a failed subagent run and decide whether retry is safe.",
+      { parentSessionKey: "live-7" },
     );
     await writeStatus(
       sessionsDir,

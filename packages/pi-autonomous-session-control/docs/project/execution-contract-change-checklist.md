@@ -30,6 +30,7 @@ Do **not** land the change if it would introduce any of the following:
 - UI, dashboard, or tool-registration concerns in the headless public contract
 - unbounded stdout/stderr/raw-event buffering or weaker truncation signaling
 - weaker abort, timeout, assistant-protocol, or malformed-output truth in execution results
+- drift between raw `fullOutput`, normalized `displayOutput`, and consumer-side rendering helpers for the same failure mode
 - weaker session-name reservation, sidecar occupancy handling, or lock-failure surfacing
 - public API growth justified only by today's bundled publish/install bridge or smoke-harness convenience
 
@@ -40,8 +41,10 @@ When public entrypoints, supported semantics, or stewardship rules change, updat
 - [`public-execution-contract.md`](public-execution-contract.md)
 - [`../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md`](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md) when supported scope, guardrails, or removal/review logic changes
 - [`../../../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`](../../../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md) when the stewardship queue or proof expectations change
+- [`../../../../governance/execution-seam-cases/README.md`](../../../../governance/execution-seam-cases/README.md) when a learned edge case should become a named reusable seam scenario
 
 Keep the explanation tied to actual callers and real failure modes, not speculative future consumers.
+If the change alters how failure/body text is surfaced, update the docs to say which field is raw capture (`fullOutput`), which field is consumer-facing normalized body text (`displayOutput`), and which helper consumers should call instead of re-deriving output.
 
 ## 4. Choose and run the right verification layer
 
@@ -58,6 +61,7 @@ Run these whenever the ASC public runtime itself, the named transport-safety inv
 - `tests/subagent-file-lock.test.mjs`
 
 This layer proves the supported seam semantics owned by ASC.
+Prefer adding or updating named scenarios in the shared casebook when the change is about a learned edge case rather than a one-off local assertion.
 
 ### Layer B — Orchestrator package-local consumer truth
 
@@ -67,6 +71,7 @@ Run this whenever the orchestrator adapter, orchestration decisions derived from
 - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs`
 
 This layer proves the narrow consumer still composes the ASC seam truthfully inside repo-local source and that private-import / duplicate-runtime drift remains fail-closed.
+Where practical, reuse the named seam scenarios from `governance/execution-seam-cases/` instead of hand-rolling a second fixture story.
 
 ### Layer C — Installed-package smoke / packaging truth
 
@@ -75,6 +80,7 @@ Run this whenever package exports, tarball contents, bundle topology, installed 
 - `cd packages/pi-society-orchestrator && npm run release:check`
 
 This layer proves the packaged orchestrator artifact can still consume the seam after install, including the current bundled ASC bridge and installed import graph.
+If packaging truth diverges from the casebook, update the casebook or the artifact, but do not leave the divergence undocumented.
 
 Minimum rule of thumb:
 - seam semantics changed -> run **Layer A** and **Layer B**

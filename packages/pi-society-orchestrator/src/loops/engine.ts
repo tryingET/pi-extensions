@@ -21,7 +21,7 @@ import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { AGENT_PROFILES } from "../runtime/agent-profiles.ts";
 import type { AgentResolution } from "../runtime/agent-routing.ts";
-import { runAkCommandAsync } from "../runtime/ak.ts";
+import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
 import { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
 import {
@@ -38,16 +38,6 @@ const DEFAULT_SOCIETY_DB =
   process.env.SOCIETY_DB ||
   process.env.AK_DB ||
   path.join(os.homedir(), "ai-society", "society.db");
-const DEFAULT_AK_PATH = path.join(
-  os.homedir(),
-  "ai-society",
-  "softwareco",
-  "owned",
-  "agent-kernel",
-  "target",
-  "release",
-  "ak",
-);
 
 // ============================================================================
 // TYPES
@@ -276,13 +266,16 @@ ${JSON.stringify(entry.metadata || {}, null, 2)}
 export class AgentKernel {
   private akPath: string;
   private societyDb?: string;
+  private cwd?: string;
 
   constructor(
-    akPath: string = fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak",
+    akPath: string = resolveAkPath({ cwd: process.cwd() }),
     societyDb?: string,
+    cwd?: string,
   ) {
     this.akPath = akPath;
     this.societyDb = societyDb;
+    this.cwd = cwd;
   }
 
   async taskReady(
@@ -333,6 +326,7 @@ export class AgentKernel {
     return recordEvidence(params, signal, {
       akPath: this.akPath,
       societyDb: this.societyDb || process.env.SOCIETY_DB || process.env.AK_DB || "",
+      cwd: this.cwd,
     });
   }
 
@@ -366,12 +360,12 @@ export class LoopExecutor {
     plugin: LoopPlugin,
     cwd: string,
     _vaultDir: string,
-    akPath: string = fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak",
+    akPath: string = resolveAkPath({ cwd: process.cwd() }),
   ) {
     this.plugin = plugin;
     this.cwd = cwd;
     this.diary = new DiaryWriter(cwd);
-    this.ak = new AgentKernel(akPath, DEFAULT_SOCIETY_DB);
+    this.ak = new AgentKernel(akPath, DEFAULT_SOCIETY_DB, cwd);
     const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "loops");
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });

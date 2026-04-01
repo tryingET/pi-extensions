@@ -6,7 +6,11 @@ export interface SubagentDashboardRow {
   sessionName: string;
   status: SubagentSessionStatus["status"];
   objectivePreview: string;
+  resultPreview?: string;
   recommendedActionHint: string;
+  sessionScope: "current" | "other" | "recorded" | "unknown";
+  sessionScopeLabel: string;
+  sessionScopeBadge?: string;
   updatedAt: string;
   ageMs: number;
   ageLabel: string;
@@ -30,7 +34,13 @@ export interface SubagentSessionInspection {
   found: boolean;
   status?: SubagentSessionStatus["status"];
   objective?: string;
+  resultPreview?: string;
   recommendedActionHint: string;
+  currentSessionKey?: string;
+  parentSessionKey?: string;
+  sessionScope: "current" | "other" | "recorded" | "unknown";
+  sessionScopeLabel: string;
+  historyBoundaryNote: string;
   createdAt?: string;
   updatedAt?: string;
   ageMs?: number;
@@ -50,6 +60,8 @@ export interface SubagentSessionInspection {
 
 const OBJECTIVE_PREVIEW_LENGTH = 52;
 const RECENT_SESSION_SUGGESTION_LIMIT = 5;
+const HISTORY_BOUNDARY_NOTE =
+  "This view summarizes bounded local subagent artifacts for replay/inspection only; Pi's native session tree remains the live session authority.";
 
 function summarizeObjective(objective?: string): string {
   const normalized = objective?.replace(/\s+/g, " ").trim();
@@ -91,6 +103,46 @@ function formatElapsedLabel(elapsedMs?: number): string | undefined {
   }
 
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function describeSessionScope(options: { currentSessionKey?: string; parentSessionKey?: string }): {
+  scope: SubagentDashboardRow["sessionScope"];
+  label: string;
+  badge?: string;
+} {
+  const currentSessionKey = options.currentSessionKey?.trim();
+  const parentSessionKey = options.parentSessionKey?.trim();
+
+  if (parentSessionKey && currentSessionKey) {
+    if (parentSessionKey === currentSessionKey) {
+      return {
+        scope: "current",
+        label: `Current live session (${parentSessionKey})`,
+        badge: "current",
+      };
+    }
+
+    return {
+      scope: "other",
+      label: `Other live session (${parentSessionKey})`,
+      badge: "other",
+    };
+  }
+
+  if (parentSessionKey) {
+    return {
+      scope: "recorded",
+      label: `Recorded under live session ${parentSessionKey}`,
+      badge: "recorded",
+    };
+  }
+
+  return {
+    scope: "unknown",
+    label: currentSessionKey
+      ? "Session linkage unavailable for this artifact"
+      : "Live session key unavailable; scope cannot be compared",
+  };
 }
 
 function recommendedActionHint(status: SubagentSessionStatus["status"]): string {
@@ -188,7 +240,7 @@ function collectRecentSessionSuggestions(
 
 export function createSubagentDashboardSnapshot(
   sessionsDir: string,
-  options?: { limit?: number; now?: number },
+  options?: { limit?: number; now?: number; currentSessionKey?: string },
 ): SubagentDashboardSnapshot {
   const statuses = listSubagentSessionStatuses(sessionsDir);
   const now = options?.now ?? Date.now();
@@ -212,11 +264,19 @@ export function createSubagentDashboardSnapshot(
     .map((status) => {
       const updatedAtMs = Date.parse(status.updatedAt);
       const ageMs = Number.isNaN(updatedAtMs) ? 0 : Math.max(0, now - updatedAtMs);
+      const sessionScope = describeSessionScope({
+        currentSessionKey: options?.currentSessionKey,
+        parentSessionKey: status.parentSessionKey,
+      });
       return {
         sessionName: status.sessionName,
         status: status.status,
         objectivePreview: summarizeObjective(status.objective),
+        resultPreview: status.resultPreview,
         recommendedActionHint: recommendedActionHint(status.status),
+        sessionScope: sessionScope.scope,
+        sessionScopeLabel: sessionScope.label,
+        sessionScopeBadge: sessionScope.badge,
         updatedAt: status.updatedAt,
         ageMs,
         ageLabel: formatAgeLabel(ageMs),
@@ -233,7 +293,7 @@ export function createSubagentDashboardSnapshot(
 export function createSubagentSessionInspection(
   sessionsDir: string,
   sessionName: string,
-  options?: { now?: number },
+  options?: { now?: number; currentSessionKey?: string },
 ): SubagentSessionInspection {
   const now = options?.now ?? Date.now();
   const statusPath = join(sessionsDir, `${sessionName}.status.json`);
@@ -274,15 +334,25 @@ export function createSubagentSessionInspection(
 
   const updatedAtMs = parsedStatus?.updatedAt ? Date.parse(parsedStatus.updatedAt) : Number.NaN;
   const ageMs = Number.isNaN(updatedAtMs) ? undefined : Math.max(0, now - updatedAtMs);
+  const sessionScope = describeSessionScope({
+    currentSessionKey: options?.currentSessionKey,
+    parentSessionKey: parsedStatus?.parentSessionKey,
+  });
 
   return {
     sessionName,
     found: statusArtifact.exists || sessionArtifact.exists,
     status: parsedStatus?.status,
     objective: parsedStatus?.objective?.trim() || undefined,
+    resultPreview: parsedStatus?.resultPreview?.trim() || undefined,
     recommendedActionHint: parsedStatus
       ? recommendedActionHint(parsedStatus.status)
       : "Inspect artifact paths and recent sessions before retrying.",
+    currentSessionKey: options?.currentSessionKey?.trim() || undefined,
+    parentSessionKey: parsedStatus?.parentSessionKey?.trim() || undefined,
+    sessionScope: sessionScope.scope,
+    sessionScopeLabel: sessionScope.label,
+    historyBoundaryNote: HISTORY_BOUNDARY_NOTE,
     createdAt: parsedStatus?.createdAt,
     updatedAt: parsedStatus?.updatedAt,
     ageMs,

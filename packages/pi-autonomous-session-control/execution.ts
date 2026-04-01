@@ -10,6 +10,7 @@ export {
   type DispatchSubagentProfile,
   type DispatchSubagentRequest,
   type DispatchSubagentStatus,
+  getDispatchSubagentDisplayOutput,
 } from "./extensions/self/subagent-runtime.ts";
 export type { SubagentState } from "./extensions/self/subagent-session.ts";
 export {

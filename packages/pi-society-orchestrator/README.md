@@ -181,6 +181,8 @@ The runtime now also shares package-local helpers for:
 - shared execution/evidence policy across direct dispatch and loop execution (abort skips evidence, timeout/protocol failure records fail evidence, SQL fallback eligibility is consistent)
 - abortable, timeout-bound, capture-bounded child-process supervision for `ak` and Pi subagents
 - explicit `societyDb` targeting for `ak`-backed runtime paths so ambient `AK_DB` does not silently override the configured package DB target
+- repo-local `scripts/ak.sh` discovery for runtime `ak` calls when available, so live sessions prefer the same wrapper/runner lineage used by repo operators before falling back to explicit `AGENT_KERNEL`, the built agent-kernel binary, or `ak` on PATH
+- evidence writes now preflight repo registration in `society.db` and use direct SQL when the current repo is not registered, avoiding noisy known-failing `ak evidence record` foreign-key attempts in live sessions while preserving the canonical `ak` path where it is actually valid
 - subagent prompt composition + spawn behavior across direct dispatch and loop execution
 - explicit society-read boundary helpers: `society_query` goes through a dedicated diagnostic exception helper, while `/evidence` now previews recent entries through `ak evidence search`
 

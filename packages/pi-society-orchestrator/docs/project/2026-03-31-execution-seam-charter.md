@@ -76,6 +76,7 @@ Any future seam change should preserve these rules:
    - ASC package-local contract tests prove seam semantics and transport-safety invariants
    - orchestrator package-local consumer tests prove the narrow adapter still preserves that truth in repo-local source
    - installed-package smoke proves packaged import/install behavior, including the current bundled ASC bridge
+   - the shared [execution seam casebook](../../../../governance/execution-seam-cases/README.md) should name the canonical cross-layer scenarios so the proof packet does not drift into three unrelated fixture stories
    - do not let any one layer stand in for the others
 6. **Run the seam-change checklist before modifying the contract**
    - use the companion [execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md) before widening, narrowing, or re-shaping the public runtime
@@ -119,3 +120,4 @@ Current answer:
 - [Execution seam review](2026-03-31-execution-seam-review.md)
 - [ASC public execution contract](../../pi-autonomous-session-control/docs/project/public-execution-contract.md)
 - [Execution contract change checklist](../../pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md)
+- [Execution seam casebook](../../../../governance/execution-seam-cases/README.md)

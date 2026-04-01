@@ -1,0 +1,39 @@
+{
+  "id": "assistant-protocol-semantic-error",
+  "title": "Assistant protocol semantic failures preserve partial output and failure classification",
+  "kind": "runtime-result",
+  "dispatchResult": {
+    "ok": false,
+    "text": "boom",
+    "details": {
+      "status": "error",
+      "failureKind": "assistant_protocol_error",
+      "exitCode": 1,
+      "elapsed": 250,
+      "fullOutput": "partial",
+      "displayOutput": "partial",
+      "assistantStopReason": "error",
+      "assistantErrorMessage": "boom",
+      "executionState": {
+        "transport": {
+          "kind": "transport",
+          "exitCode": 0,
+          "aborted": false,
+          "timedOut": false
+        },
+        "protocol": {
+          "kind": "assistant_protocol",
+          "stopReason": "error",
+          "errorMessage": "boom"
+        }
+      }
+    }
+  },
+  "expected": {
+    "executionLikeOutput": "partial",
+    "executionLikeStatus": "error",
+    "failureKind": "assistant_protocol_error",
+    "assistantStopReason": "error",
+    "assistantErrorMessage": "boom"
+  }
+}

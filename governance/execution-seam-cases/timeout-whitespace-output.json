@@ -1,0 +1,48 @@
+{
+  "id": "timeout-whitespace-output",
+  "title": "Timeout with whitespace-only raw output still preserves the ASC fallback body across the seam",
+  "kind": "runtime-result",
+  "spawnerResult": {
+    "output": "   ",
+    "exitCode": 124,
+    "elapsed": 500,
+    "status": "timeout",
+    "timedOut": true,
+    "executionState": {
+      "transport": {
+        "kind": "transport",
+        "exitCode": 124,
+        "aborted": false,
+        "timedOut": true
+      }
+    }
+  },
+  "dispatchResult": {
+    "ok": false,
+    "text": "✗ [custom] timed out in 1s\n\nSubagent timed out without output.",
+    "details": {
+      "status": "timed_out",
+      "failureKind": "timed_out",
+      "exitCode": 124,
+      "elapsed": 500,
+      "fullOutput": "   ",
+      "displayOutput": "Subagent timed out without output.",
+      "timedOut": true,
+      "executionState": {
+        "transport": {
+          "kind": "transport",
+          "exitCode": 124,
+          "aborted": false,
+          "timedOut": true
+        }
+      }
+    }
+  },
+  "expected": {
+    "publicResultTextIncludes": "Subagent timed out without output.",
+    "publicStatus": "timed_out",
+    "failureKind": "timed_out",
+    "executionLikeOutput": "Subagent timed out without output.",
+    "executionLikeStatus": "timed_out"
+  }
+}

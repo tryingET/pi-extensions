@@ -1,0 +1,13 @@
+{
+  "id": "bundled-bridge-import",
+  "title": "Installed release smoke keeps the bundled ASC bridge present and importable in the isolated package copy",
+  "kind": "packaging",
+  "packageName": "pi-autonomous-session-control",
+  "expectedBundledDependencies": [
+    "pi-autonomous-session-control"
+  ],
+  "expectedImportFiles": [
+    "node_modules/pi-autonomous-session-control/execution.ts",
+    "node_modules/pi-autonomous-session-control/package.json"
+  ]
+}

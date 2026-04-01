@@ -53,6 +53,10 @@ triage → queued → doing → review → done
 cue vet governance/work-items.json governance/work-items.cue
 ```
 
+## Additional governed fixtures
+
+- `execution-seam-cases/` — shared canonical ASC → orchestrator seam scenarios used by contract tests, consumer tests, and installed release smoke.
+
 ## Program vs Project
 
 | Type | Location | Scope | Operational? |

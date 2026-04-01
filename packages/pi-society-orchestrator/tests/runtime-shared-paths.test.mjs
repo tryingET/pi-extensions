@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
 import extension from "../extensions/society-orchestrator.ts";
 import { BUILT_IN_PLUGINS, registerLoopTools } from "../src/loops/engine.ts";
 import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
@@ -12,7 +13,7 @@ import {
   resolveConfiguredDefaultAgentTeam,
   validateLoopAgentsForTeam,
 } from "../src/runtime/agent-routing.ts";
-import { runAkCommand, runAkCommandAsync } from "../src/runtime/ak.ts";
+import { resolveAkPath, runAkCommand, runAkCommandAsync } from "../src/runtime/ak.ts";
 import { finalizeExecutionEffects, recordEvidence } from "../src/runtime/evidence.ts";
 import { getExecutionStatus, isExecutionSuccess } from "../src/runtime/execution-status.ts";
 import { superviseProcess } from "../src/runtime/process-supervisor.ts";
@@ -22,6 +23,13 @@ import {
   toExecutionLike,
 } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore } from "../src/runtime/team-state.ts";
+
+const timeoutEmptyOutputCase = loadExecutionSeamCase("timeout-empty-output");
+const timeoutWhitespaceOutputCase = loadExecutionSeamCase("timeout-whitespace-output");
+const assistantProtocolSemanticErrorCase = loadExecutionSeamCase(
+  "assistant-protocol-semantic-error",
+);
+const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protocol-parse-error");
 
 test("runAkCommand injects AK_DB when environment does not provide one", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-ak-"));
@@ -86,6 +94,56 @@ printf '%s' "${bashAkDbExpansion}" > ${JSON.stringify(marker)}
       delete process.env.AK_DB;
     } else {
       process.env.AK_DB = previousAkDb;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("resolveAkPath prefers a repo-local scripts/ak.sh wrapper when available", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-ak-wrapper-"));
+  const repoRoot = path.join(tempDir, "repo");
+  const nestedCwd = path.join(repoRoot, "packages", "demo");
+  const wrapperPath = path.join(repoRoot, "scripts", "ak.sh");
+  const previousAgentKernel = process.env.AGENT_KERNEL;
+
+  fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
+  fs.mkdirSync(nestedCwd, { recursive: true });
+  fs.writeFileSync(wrapperPath, "#!/usr/bin/env sh\nexit 0\n");
+  fs.chmodSync(wrapperPath, 0o755);
+
+  try {
+    delete process.env.AGENT_KERNEL;
+    assert.equal(resolveAkPath({ cwd: nestedCwd }), wrapperPath);
+  } finally {
+    if (previousAgentKernel === undefined) {
+      delete process.env.AGENT_KERNEL;
+    } else {
+      process.env.AGENT_KERNEL = previousAgentKernel;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("resolveAkPath honors AGENT_KERNEL over any repo-local wrapper", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-ak-explicit-"));
+  const repoRoot = path.join(tempDir, "repo");
+  const nestedCwd = path.join(repoRoot, "packages", "demo");
+  const wrapperPath = path.join(repoRoot, "scripts", "ak.sh");
+  const previousAgentKernel = process.env.AGENT_KERNEL;
+
+  fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
+  fs.mkdirSync(nestedCwd, { recursive: true });
+  fs.writeFileSync(wrapperPath, "#!/usr/bin/env sh\nexit 0\n");
+  fs.chmodSync(wrapperPath, 0o755);
+
+  try {
+    process.env.AGENT_KERNEL = "/tmp/explicit-ak";
+    assert.equal(resolveAkPath({ cwd: nestedCwd }), "/tmp/explicit-ak");
+  } finally {
+    if (previousAgentKernel === undefined) {
+      delete process.env.AGENT_KERNEL;
+    } else {
+      process.env.AGENT_KERNEL = previousAgentKernel;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -342,68 +400,73 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
   }
 });
 
-test("toExecutionLike preserves timeout semantics from the ASC public runtime", () => {
-  const execution = toExecutionLike({
-    ok: false,
-    text: "timed out",
-    details: {
-      status: "timed_out",
-      failureKind: "timed_out",
-      exitCode: 124,
-      elapsed: 2000,
-      fullOutput: "timed out",
-      timedOut: true,
-      executionState: {
-        transport: { kind: "transport", exitCode: 124, aborted: false, timedOut: true },
-      },
-    },
-  });
+test("toExecutionLike preserves timeout fallback text from the ASC public runtime casebook", () => {
+  const execution = toExecutionLike(timeoutEmptyOutputCase.dispatchResult);
 
-  assert.deepEqual(execution, {
-    output: "timed out",
-    exitCode: 124,
-    elapsed: 2000,
-    stderr: undefined,
-    outputTruncated: undefined,
-    timedOut: true,
-    aborted: false,
-    assistantStopReason: undefined,
-    assistantErrorMessage: undefined,
-    executionState: {
-      transport: { kind: "transport", exitCode: 124, aborted: false, timedOut: true },
-    },
-    failureKind: "timed_out",
-  });
-  assert.equal(getExecutionStatus(execution), "timed_out");
+  assert.equal(execution.output, timeoutEmptyOutputCase.expected.executionLikeOutput);
+  assert.equal(execution.exitCode, timeoutEmptyOutputCase.dispatchResult.details.exitCode);
+  assert.equal(execution.elapsed, timeoutEmptyOutputCase.dispatchResult.details.elapsed);
+  assert.equal(execution.timedOut, true);
+  assert.equal(execution.aborted, false);
+  assert.deepEqual(
+    execution.executionState,
+    timeoutEmptyOutputCase.dispatchResult.details.executionState,
+  );
+  assert.equal(execution.failureKind, timeoutEmptyOutputCase.expected.failureKind);
+  assert.equal(getExecutionStatus(execution), timeoutEmptyOutputCase.expected.executionLikeStatus);
 });
 
-test("toExecutionLike preserves assistant protocol failures from the ASC public runtime", () => {
-  const execution = toExecutionLike({
-    ok: false,
-    text: "boom",
-    details: {
-      status: "error",
-      failureKind: "assistant_protocol_error",
-      exitCode: 1,
-      elapsed: 250,
-      fullOutput: "partial",
-      assistantStopReason: "error",
-      assistantErrorMessage: "boom",
-      executionState: {
-        transport: { kind: "transport", exitCode: 0, aborted: false, timedOut: false },
-        protocol: {
-          kind: "assistant_protocol",
-          stopReason: "error",
-          errorMessage: "boom",
-        },
-      },
-    },
-  });
+test("toExecutionLike prefers the ASC display output when raw fullOutput is whitespace-only", () => {
+  const execution = toExecutionLike(timeoutWhitespaceOutputCase.dispatchResult);
 
-  assert.equal(execution.assistantStopReason, "error");
-  assert.equal(execution.assistantErrorMessage, "boom");
-  assert.equal(execution.failureKind, "assistant_protocol_error");
-  assert.equal(getExecutionStatus(execution), "error");
+  assert.equal(execution.output, timeoutWhitespaceOutputCase.expected.executionLikeOutput);
+  assert.equal(execution.exitCode, timeoutWhitespaceOutputCase.dispatchResult.details.exitCode);
+  assert.equal(execution.elapsed, timeoutWhitespaceOutputCase.dispatchResult.details.elapsed);
+  assert.equal(execution.timedOut, true);
+  assert.equal(execution.aborted, false);
+  assert.deepEqual(
+    execution.executionState,
+    timeoutWhitespaceOutputCase.dispatchResult.details.executionState,
+  );
+  assert.equal(execution.failureKind, timeoutWhitespaceOutputCase.expected.failureKind);
+  assert.equal(
+    getExecutionStatus(execution),
+    timeoutWhitespaceOutputCase.expected.executionLikeStatus,
+  );
+});
+
+test("toExecutionLike preserves assistant protocol failures from the execution seam casebook", () => {
+  const execution = toExecutionLike(assistantProtocolSemanticErrorCase.dispatchResult);
+
+  assert.equal(execution.output, assistantProtocolSemanticErrorCase.expected.executionLikeOutput);
+  assert.equal(
+    execution.assistantStopReason,
+    assistantProtocolSemanticErrorCase.expected.assistantStopReason,
+  );
+  assert.equal(
+    execution.assistantErrorMessage,
+    assistantProtocolSemanticErrorCase.expected.assistantErrorMessage,
+  );
+  assert.equal(execution.failureKind, assistantProtocolSemanticErrorCase.expected.failureKind);
+  assert.equal(
+    getExecutionStatus(execution),
+    assistantProtocolSemanticErrorCase.expected.executionLikeStatus,
+  );
+});
+
+test("toExecutionLike preserves parse failures from the execution seam casebook", () => {
+  const execution = toExecutionLike(assistantProtocolParseErrorCase.dispatchResult);
+
+  assert.equal(execution.output, assistantProtocolParseErrorCase.expected.executionLikeOutput);
+  assert.equal(execution.failureKind, assistantProtocolParseErrorCase.expected.failureKind);
+  assert.deepEqual(
+    execution.executionState,
+    assistantProtocolParseErrorCase.dispatchResult.details.executionState,
+  );
+  assert.equal(
+    getExecutionStatus(execution),
+    assistantProtocolParseErrorCase.expected.executionLikeStatus,
+  );
 });
 
 test("createOrchestratorSubagentExecutor preserves truncation metadata from ASC output policy", async () => {
@@ -626,6 +689,46 @@ test("finalizeExecutionEffects records fail evidence for timed-out executions", 
       details: { status: "timed_out", success: false },
     },
   ]);
+});
+
+test("recordEvidence writes directly via SQL when the current repo is not registered", async () => {
+  let akCalls = 0;
+  let sqlWrites = 0;
+
+  const outcome = await recordEvidence(
+    {
+      check_type: "validation:unregistered-repo",
+      result: "pass",
+      details: { repo: "/tmp/unregistered-repo" },
+    },
+    undefined,
+    {
+      akPath: "/tmp/fake-ak",
+      societyDb: "/tmp/fake.db",
+      cwd: "/tmp/unregistered-repo",
+      async querySqliteJson() {
+        return { ok: true, value: [] };
+      },
+      async runAk() {
+        akCalls += 1;
+        return {
+          ok: false,
+          stdout: "",
+          stderr: "ak should not have been called",
+        };
+      },
+      async runSql() {
+        sqlWrites += 1;
+        return { ok: true, value: undefined };
+      },
+    },
+  );
+
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.via, "sql-direct");
+  assert.equal(akCalls, 0);
+  assert.equal(sqlWrites, 1);
+  assert.equal(outcome.akError, undefined);
 });
 
 test("recordEvidence falls back to SQL after non-timeout ak failure", async () => {

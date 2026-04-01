@@ -1,3 +1,6 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { execFileText } from "./boundaries.ts";
 import { superviseProcess } from "./process-supervisor.ts";
 
@@ -19,6 +22,71 @@ export interface RunAkCommandResult {
 
 const DEFAULT_AK_TIMEOUT_MS =
   Number.parseInt(process.env.PI_ORCH_AK_TIMEOUT_MS || "", 10) || 30_000;
+const DEFAULT_AK_PATH = path.join(
+  os.homedir(),
+  "ai-society",
+  "softwareco",
+  "owned",
+  "agent-kernel",
+  "target",
+  "release",
+  "ak",
+);
+
+function resolveExistingDir(startDir: string): string | undefined {
+  let current = path.resolve(startDir);
+
+  while (true) {
+    if (fs.existsSync(current)) {
+      const stat = fs.statSync(current, { throwIfNoEntry: false });
+      if (stat?.isDirectory()) {
+        return current;
+      }
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+    current = parent;
+  }
+}
+
+function findAkWrapper(startDir: string): string | undefined {
+  const existingDir = resolveExistingDir(startDir);
+  if (!existingDir) {
+    return undefined;
+  }
+
+  let current = existingDir;
+  while (true) {
+    const candidate = path.join(current, "scripts", "ak.sh");
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+    current = parent;
+  }
+}
+
+export function resolveAkPath(options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): string {
+  const env = options.env || process.env;
+  const explicitAkPath = env.AGENT_KERNEL?.trim();
+  if (explicitAkPath) {
+    return explicitAkPath;
+  }
+
+  const wrapperPath = findAkWrapper(options.cwd || process.cwd());
+  if (wrapperPath) {
+    return wrapperPath;
+  }
+
+  return fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak";
+}
 
 function buildAkEnv(societyDb: string): NodeJS.ProcessEnv {
   return {

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { InvariantIssue } from "./edge-contract-kernel.ts";
+import { getContextSessionKey, type SessionScopedContext } from "./session-context.ts";
 import {
   formatInvariantIssues,
   normalizeDispatchParams,
@@ -56,6 +57,7 @@ export interface DispatchSubagentDetails {
   elapsed?: number;
   exitCode?: number;
   fullOutput?: string;
+  displayOutput?: string;
   stderr?: string;
   outputTruncated?: boolean;
   timedOut?: boolean;
@@ -98,7 +100,7 @@ export interface AscExecutionRuntime {
   state: SubagentState;
   execute(
     request: DispatchSubagentRequest,
-    ctx: { cwd: string },
+    ctx: SessionScopedContext & { cwd: string },
     onUpdate?: (update: DispatchSubagentExecutionUpdate) => void,
     signal?: AbortSignal,
   ): Promise<DispatchSubagentExecutionResult>;
@@ -147,11 +149,58 @@ function getDispatchSubagentFailureKind(params: {
   }
 }
 
+function normalizeDispatchSubagentDisplayOutput(
+  result: Pick<SubagentResult, "output" | "status" | "exitCode">,
+): string {
+  if (result.output.trim().length > 0) {
+    return result.output;
+  }
+
+  switch (result.status) {
+    case "done":
+      return result.output;
+    case "aborted":
+      return "Subagent aborted.";
+    case "timeout":
+      return "Subagent timed out without output.";
+    case "error":
+      return `Subagent exited with code ${result.exitCode} without output.`;
+    default: {
+      const exhaustive: never = result.status;
+      return exhaustive;
+    }
+  }
+}
+
+function truncateDispatchSubagentDisplayOutput(value: string, maxChars: number): string {
+  return value.length > maxChars ? `${value.slice(0, maxChars)}\n\n... [truncated]` : value;
+}
+
+function getDispatchSubagentTextBody(result: DispatchSubagentExecutionResult): string {
+  const separatorIndex = result.text.indexOf("\n\n");
+  return separatorIndex >= 0 ? result.text.slice(separatorIndex + 2) : result.text;
+}
+
+export function getDispatchSubagentDisplayOutput(result: DispatchSubagentExecutionResult): string {
+  if (typeof result.details.displayOutput === "string") {
+    return result.details.displayOutput;
+  }
+
+  if (
+    typeof result.details.fullOutput === "string" &&
+    result.details.fullOutput.trim().length > 0
+  ) {
+    return result.details.fullOutput;
+  }
+
+  return getDispatchSubagentTextBody(result);
+}
+
 export async function executeDispatchSubagentRequest(options: {
   request: DispatchSubagentRequest;
   state: SubagentState;
   modelProvider: () => string;
-  ctx: { cwd: string };
+  ctx: SessionScopedContext & { cwd: string };
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
   signal?: AbortSignal;
   spawner?: SubagentSpawner;
@@ -248,6 +297,7 @@ export async function executeDispatchSubagentRequest(options: {
     );
 
     const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
+    const parentSessionKey = getContextSessionKey(options.ctx);
 
     const def: SubagentDef = {
       name: sessionReservation.sessionName,
@@ -257,6 +307,7 @@ export async function executeDispatchSubagentRequest(options: {
       sessionFile: join(options.state.sessionsDir, `${sessionReservation.sessionName}.json`),
       timeout: timeoutMs,
       executionSlotReserved: true,
+      parentSessionKey,
     };
 
     options.onUpdate?.({
@@ -304,20 +355,8 @@ export async function executeDispatchSubagentRequest(options: {
     };
   }
 
-  const normalizedOutput =
-    result.output.trim().length > 0
-      ? result.output
-      : result.status === "done"
-        ? result.output
-        : result.status === "aborted"
-          ? "Subagent aborted."
-          : result.status === "timeout"
-            ? "Subagent timed out without output."
-            : `Subagent exited with code ${result.exitCode} without output.`;
-  const truncated =
-    normalizedOutput.length > 8000
-      ? `${normalizedOutput.slice(0, 8000)}\n\n... [truncated]`
-      : normalizedOutput;
+  const displayOutput = normalizeDispatchSubagentDisplayOutput(result);
+  const truncated = truncateDispatchSubagentDisplayOutput(displayOutput, 8000);
 
   const status = toDispatchSubagentStatus(result.status);
   const icon = status === "done" ? "✓" : "✗";
@@ -339,6 +378,7 @@ export async function executeDispatchSubagentRequest(options: {
       elapsed: result.elapsed,
       exitCode: result.exitCode,
       fullOutput: result.output,
+      displayOutput,
       stderr: result.stderr,
       outputTruncated: result.outputTruncated,
       timedOut: result.timedOut,

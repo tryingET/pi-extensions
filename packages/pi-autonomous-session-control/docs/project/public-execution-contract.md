@@ -80,6 +80,8 @@ The current seam proof is intentionally split across distinct truth layers:
 - **Orchestrator package-local consumer truth** — `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves the expected timeout/truncation/abort and `result.details` semantics in repo-local source, and `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` fail-closes private ASC imports plus orchestrator-local runtime revival drift.
 - **Installed-package smoke / packaging truth** — `cd packages/pi-society-orchestrator && npm run release:check` proves the packaged orchestrator artifact can still import and use the seam after install, including the current bundled ASC bridge while the temporary lifecycle in [bundled ASC bridge lifecycle](../../../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains active.
 
+Shared across those layers is the [execution seam casebook](../../../../governance/execution-seam-cases/README.md): named canonical scenarios such as `timeout-empty-output`, `assistant-protocol-semantic-error`, `assistant-protocol-parse-error`, and `bundled-bridge-import` that turn learned seam failures into reusable compatibility memory.
+
 Do **not** let installed-package smoke stand in for the ASC contract tests, and do **not** treat repo-local tests as proof that the installed tarball/import graph still works.
 
 ## Minimal usage
@@ -109,9 +111,11 @@ Useful properties:
 - `runtime.state` exposes the backing `SubagentState`
 - `result.ok` tells the consumer whether execution completed successfully
 - `result.text` preserves the human-readable execution summary
+- `result.details.displayOutput` preserves the normalized body text consumers should render or forward, even when `fullOutput` is empty/whitespace on failing executions
 - `result.details.status` uses the canonical execution taxonomy (`done`, `aborted`, `timed_out`, `error`)
 - `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
+- `getDispatchSubagentDisplayOutput(result)` is the exported compatibility helper for consumers that want the same normalized body shaping without reimplementing fallback logic
 
 ## Non-goals
 
@@ -146,6 +150,8 @@ Current proof shape:
   - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` prevents drift back to private ASC imports or a revived orchestrator-local execution path
 - **Installed-package smoke / packaging truth**
   - `cd packages/pi-society-orchestrator && npm run release:check` proves the packaged orchestrator artifact, installed import graph, and current bundled ASC bridge still work after install while the temporary lifecycle in [bundled ASC bridge lifecycle](../../../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains active
+- **Shared executable casebook**
+  - [`../../../../governance/execution-seam-cases/README.md`](../../../../governance/execution-seam-cases/README.md) names the canonical seam scenarios the layers should keep in sync instead of rediscovering them independently
 
 ## Validation anchors
 

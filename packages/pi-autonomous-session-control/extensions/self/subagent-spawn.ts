@@ -12,6 +12,7 @@ export interface SubagentDef {
   sessionFile: string | null;
   timeout?: number; // milliseconds, 0 = no timeout
   executionSlotReserved?: boolean;
+  parentSessionKey?: string;
 }
 
 export const ASSISTANT_STOP_REASONS = ["stop", "length", "toolUse", "error", "aborted"] as const;
@@ -71,6 +72,7 @@ export type SubagentSpawner = (
 const DEFAULT_SUBAGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_SUBAGENT_OUTPUT_CHARS = 64_000;
 const DEFAULT_SUBAGENT_EVENT_BUFFER_BYTES = 256 * 1024;
+const DEFAULT_STATUS_RESULT_PREVIEW_CHARS = 280;
 const SUBAGENT_CLOSE_GRACE_MS = 250;
 const SUBAGENT_FORCE_KILL_GRACE_MS = 500;
 const ASSISTANT_ERROR_EXIT_CODE = 1;
@@ -80,6 +82,21 @@ function isAssistantStopReason(value: unknown): value is AssistantStopReason {
   return (
     typeof value === "string" && ASSISTANT_STOP_REASONS.some((candidate) => candidate === value)
   );
+}
+
+function toStatusResultPreview(value: string | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  return normalized.length > DEFAULT_STATUS_RESULT_PREVIEW_CHARS
+    ? `${normalized.slice(0, DEFAULT_STATUS_RESULT_PREVIEW_CHARS - 1)}…`
+    : normalized;
 }
 
 function extractAssistantText(content: unknown): string {
@@ -397,6 +414,8 @@ export function spawnSubagentWithSpawn(
         objective: def.objective,
         exitCode: result.exitCode,
         elapsed: result.elapsed,
+        parentSessionKey: def.parentSessionKey,
+        resultPreview: toStatusResultPreview(result.output),
       });
       if (managesExecutionSlot) {
         state.activeCount = Math.max(0, state.activeCount - 1);
@@ -471,8 +490,9 @@ export function spawnSubagentWithSpawn(
               transportExitCode,
             });
       const protocolFailed = parseErrors.length > 0;
+      const parseErrorOutput = [parseErrorSummary, parseErrorDetails].filter(Boolean).join("\n");
       const protocolAwareOutput = protocolFailed
-        ? [streamedAssistantText || finalAssistantText, parseErrorSummary]
+        ? [streamedAssistantText || finalAssistantText, parseErrorOutput]
             .filter(Boolean)
             .join("\n\n") || fallbackOutput
         : streamedAssistantText || finalAssistantText || fallbackOutput;
@@ -549,6 +569,7 @@ export function spawnSubagentWithSpawn(
         ppid: process.pid,
         createdAt,
         objective: def.objective,
+        parentSessionKey: def.parentSessionKey,
       });
       if (managesExecutionSlot) {
         state.activeCount++;

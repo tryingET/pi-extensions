@@ -39,6 +39,7 @@ This file is the **single starting point** so the packet stops feeling scattered
   - orchestrator now routes `cognitive_dispatch` and loop execution through that seam via `src/runtime/subagent.ts`
   - the seam now has an explicit post-cutover charter defining why it exists, what it must not grow into, and when it should be reconsidered
   - the first time-boxed review now records that orchestrator is still the only real external runtime consumer and that installed-package smoke remains verification rather than a second consumer
+  - the shared execution seam casebook now names canonical cross-layer scenarios so contract, consumer, and packaging proof can grow from the same compatibility memory
 - The remaining execution-seam debt is narrower:
   - orchestrator tarballs currently bundle `pi-autonomous-session-control`
   - installed-package smoke now lifts bundled dependencies and host peers so direct node imports stay truthful during headless validation
@@ -61,6 +62,9 @@ This file is the **single starting point** so the packet stops feeling scattered
    - `../../pi-society-orchestrator/src/runtime/subagent.ts`
    - `../../pi-society-orchestrator/extensions/society-orchestrator.ts`
    - `../../pi-society-orchestrator/src/loops/engine.ts`
+10. Shared seam fixtures:
+   - `../../../../governance/execution-seam-cases/README.md`
+   - `../../../../governance/execution-seam-cases/index.mjs`
 
 ## What each document is for
 
@@ -74,6 +78,7 @@ This file is the **single starting point** so the packet stops feeling scattered
 | [2026-03-10-architecture-convergence-backlog.md](2026-03-10-architecture-convergence-backlog.md) | backlog / HTN | active planning surface | "What is the migration order and how do we decompose it?" |
 | [../../pi-autonomous-session-control/README.md](../../pi-autonomous-session-control/README.md) | owner-package charter | current runtime truth | "Where does the real subagent runtime live today?" |
 | `../../pi-society-orchestrator/src/runtime/subagent.ts` | code reality | consumer-side adapter over the ASC public runtime | "How does orchestrator preserve its package-local policy while delegating execution to ASC?" |
+| [../../../../governance/execution-seam-cases/README.md](../../../../governance/execution-seam-cases/README.md) | shared executable casebook | current | "Which canonical seam scenarios should the contract tests, consumer tests, and installed smoke all agree on?" |
 
 ## Chronology
 

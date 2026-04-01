@@ -81,6 +81,28 @@ test("dispatch_subagent keeps legacy profile/systemPrompt behavior when no promp
   }
 });
 
+test("dispatch_subagent records the current live session key on spawned sessions when available", async () => {
+  const harness = await setup();
+
+  try {
+    await harness.tool.execute(
+      "tc-session-scope",
+      {
+        profile: "reviewer",
+        objective: "Review changes",
+      },
+      null,
+      null,
+      { cwd: process.cwd(), sessionKey: "live-session-42" },
+    );
+
+    const def = harness.getCapturedDef();
+    assert.equal(def.parentSessionKey, "live-session-42");
+  } finally {
+    await harness.cleanup();
+  }
+});
+
 test("dispatch_subagent applies prompt envelope deterministically and returns provenance", async () => {
   const harness = await setup();
 

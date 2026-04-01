@@ -5,6 +5,7 @@ import {
   type DispatchSubagentExecutionResult,
   type DispatchSubagentExecutionUpdate,
   type DispatchSubagentFailureKind,
+  getDispatchSubagentDisplayOutput,
   type SubagentSpawner,
   type SubagentState,
 } from "pi-autonomous-session-control/execution";
@@ -135,7 +136,7 @@ export function toExecutionLike(
   result: DispatchSubagentExecutionResult,
 ): OrchestratorExecutionLike {
   return {
-    output: result.details.fullOutput ?? result.text,
+    output: getDispatchSubagentDisplayOutput(result),
     exitCode: result.details.exitCode ?? (result.ok ? 0 : 1),
     elapsed: result.details.elapsed ?? 0,
     stderr: result.details.stderr,
@@ -168,13 +169,16 @@ function resolveTimeoutSeconds(timeoutSeconds?: number): number {
 function applyOrchestratorRuntimePolicy(
   result: DispatchSubagentExecutionResult,
 ): DispatchSubagentExecutionResult {
-  const fullOutput = result.details.fullOutput;
-  if (typeof fullOutput !== "string") {
+  const displayOutput =
+    typeof result.details.displayOutput === "string"
+      ? result.details.displayOutput
+      : result.details.fullOutput;
+  if (typeof displayOutput !== "string") {
     return result;
   }
 
-  const truncated = truncateOutput(fullOutput, DEFAULT_PI_OUTPUT_CHARS);
-  if (!truncated.truncated) {
+  const truncatedDisplayOutput = truncateOutput(displayOutput, DEFAULT_PI_OUTPUT_CHARS);
+  if (!truncatedDisplayOutput.truncated) {
     return result;
   }
 
@@ -182,7 +186,11 @@ function applyOrchestratorRuntimePolicy(
     ...result,
     details: {
       ...result.details,
-      fullOutput: `${truncated.value}\n\n...[assistant output truncated]`,
+      fullOutput:
+        typeof result.details.fullOutput === "string"
+          ? `${truncateOutput(result.details.fullOutput, DEFAULT_PI_OUTPUT_CHARS).value}\n\n...[assistant output truncated]`
+          : result.details.fullOutput,
+      displayOutput: `${truncatedDisplayOutput.value}\n\n...[assistant output truncated]`,
       outputTruncated: true,
     },
   };

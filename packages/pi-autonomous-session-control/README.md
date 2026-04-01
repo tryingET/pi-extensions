@@ -341,13 +341,14 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 - Local session files in `./.pi-subagent-sessions` are runtime artifacts and are gitignored by default.
 - Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.
 - Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned`; dead running sessions are reconciled to `abandoned` on next startup.
+- Status sidecars now also keep a bounded `resultPreview` plus the originating live `parentSessionKey` when available so dashboard/inspection views can stay session-aware without parsing the whole session log.
 - `subagent-status` now reports counts by terminal/runtime status for faster operator diagnosis.
-- A persistent read-only widget now surfaces recent subagent sessions, recency, and recommended action hints above the editor.
-- If you want long-horizon analysis/retention, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`).
+- A persistent read-only widget now surfaces recent subagent sessions, recency, and session-scope hints above the editor.
+- If you want long-horizon analysis/retention, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`). Those local artifacts are bounded replay aids; Pi's native session tree remains the live conversation authority.
 
 **Dashboard commands:**
-- `/subagent-dashboard` — open a read-only summary of recent subagent sessions
-- `/subagent-inspect <session-name>` — open a derived inspection summary with lifecycle metadata, artifact paths, safety notes, and the raw status sidecar for a specific session
+- `/subagent-dashboard` — open a read-only summary of recent subagent sessions, including current-session scope and bounded result previews
+- `/subagent-inspect <session-name>` — open a derived inspection summary with lifecycle metadata, session scope, bounded replay notes, artifact paths, safety notes, and the raw status sidecar for a specific session
 
 **Example:**
 ```bash

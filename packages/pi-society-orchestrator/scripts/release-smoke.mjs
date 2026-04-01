@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
 import {
   assertDirectoriesMatchExactly,
   settingsPackagesContainSpec,
@@ -15,6 +16,10 @@ const packageSpec = process.env.PACKAGE_SPEC;
 
 assert.equal(typeof agentDir, "string", "PI_CODING_AGENT_DIR is required");
 assert.equal(typeof packageSpec, "string", "PACKAGE_SPEC is required");
+
+const timeoutEmptyOutputCase = loadExecutionSeamCase("timeout-empty-output");
+const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protocol-parse-error");
+const bundledBridgeImportCase = loadExecutionSeamCase("bundled-bridge-import");
 
 const settingsPath = path.join(agentDir, "settings.json");
 assert.ok(fs.existsSync(settingsPath), `Missing settings.json: ${settingsPath}`);
@@ -39,6 +44,15 @@ assert.ok(
 );
 
 const tarballPackage = JSON.parse(fs.readFileSync(tarballPackageJsonPath, "utf8"));
+const bundledDependencies = [
+  ...(Array.isArray(tarballPackage.bundleDependencies) ? tarballPackage.bundleDependencies : []),
+  ...(Array.isArray(tarballPackage.bundledDependencies) ? tarballPackage.bundledDependencies : []),
+].map(String);
+assert.deepEqual(
+  bundledDependencies.sort(),
+  [...bundledBridgeImportCase.expectedBundledDependencies].sort(),
+  `Bundled bridge case mismatch for ${bundledBridgeImportCase.id}`,
+);
 const packageName = String(tarballPackage.name || "").trim();
 assert.ok(packageName.length > 0, "Tarball package.json missing name");
 
@@ -70,6 +84,13 @@ const importNodeModulesPath = path.join(importRoot, "node_modules");
 fs.mkdirSync(importNodeModulesPath, { recursive: true });
 fs.cpSync(installedPackageDir, importablePackageDir, { recursive: true });
 liftBundledDependencies(importablePackageDir);
+for (const relativePath of bundledBridgeImportCase.expectedImportFiles) {
+  const absolutePath = path.join(importablePackageDir, relativePath);
+  assert.ok(
+    fs.existsSync(absolutePath),
+    `Bundled bridge case '${bundledBridgeImportCase.id}' missing import fixture: ${relativePath}`,
+  );
+}
 linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-coding-agent", [
   path.join(hostNpmGlobalRoot, "@mariozechner", "pi-coding-agent"),
 ]);
@@ -219,6 +240,24 @@ function getText(result) {
   return entry?.type === "text" ? entry.text : "";
 }
 
+function getExpectedDisplayedOutput(text) {
+  const configuredOutputChars = Number.parseInt(
+    process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS || "",
+    10,
+  );
+  if (Number.isFinite(configuredOutputChars) && configuredOutputChars > 0) {
+    return text.slice(0, configuredOutputChars);
+  }
+
+  return text;
+}
+
+function getExpectedInstalledTimeoutBody() {
+  const timeoutMs = Number.parseInt(process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS || "", 10);
+  const seconds = Number.isFinite(timeoutMs) && timeoutMs >= 0 ? Math.round(timeoutMs / 1000) : 0;
+  return `Subagent timed out after ${seconds}s`;
+}
+
 function writeFakePi(mode) {
   if (mode === "timeout") {
     writeExecutable(
@@ -231,7 +270,7 @@ sleep 2
   }
 
   if (mode === "truncation") {
-    const longText = "x".repeat(128);
+    const longText = "x".repeat(1024);
     writeExecutable(
       fakePiPath,
       `#!/usr/bin/env bash
@@ -283,6 +322,16 @@ printf '%s\n' ${JSON.stringify(
           },
         }),
       )}
+`,
+    );
+    return;
+  }
+
+  if (mode === "parse-error") {
+    writeExecutable(
+      fakePiPath,
+      `#!/usr/bin/env bash
+printf '{not-json\n'
 `,
     );
     return;
@@ -343,7 +392,7 @@ try {
   process.env.SOCIETY_DB = societyDbPath;
   process.env.AGENT_KERNEL = fakeAkPath;
   process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "250";
-  process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "16";
+  process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "256";
   delete process.env.PI_ORCH_DEFAULT_AGENT_TEAM;
 
   const module = await import(
@@ -374,7 +423,25 @@ try {
     undefined,
     { cwd: tempRoot, model: undefined },
   );
-  assert.match(getText(timeoutResult), /timed_out/);
+  const timeoutText = getText(timeoutResult);
+  const expectedTimeoutBody = getExpectedInstalledTimeoutBody();
+  const expectedDisplayedTimeoutBody = getExpectedDisplayedOutput(expectedTimeoutBody);
+
+  assert.ok(
+    timeoutText.includes(timeoutEmptyOutputCase.expected.executionLikeStatus),
+    `Installed timeout smoke missing execution status '${timeoutEmptyOutputCase.expected.executionLikeStatus}'. Full text: ${timeoutText}`,
+  );
+  assert.ok(
+    timeoutText.includes(expectedDisplayedTimeoutBody),
+    `Installed timeout smoke missing timeout body '${expectedDisplayedTimeoutBody}'. Full text: ${timeoutText}`,
+  );
+
+  if (expectedDisplayedTimeoutBody !== expectedTimeoutBody) {
+    assert.ok(
+      timeoutText.includes("...[assistant output truncated]"),
+      `Installed timeout smoke missing truncation marker. Full text: ${timeoutText}`,
+    );
+  }
   console.log("installed timeout smoke: ok");
 
   writeFakePi("abort");
@@ -411,6 +478,45 @@ try {
   assert.match(getText(semanticErrorResult), /\] error in /);
   console.log("installed semantic error smoke: ok");
 
+  writeFakePi("parse-error");
+  const parseErrorResult = await cognitiveDispatch.execute(
+    "installed-parse-error",
+    {
+      context: "Installed parse error smoke",
+      agent: "scout",
+      cognitive_tool: "inversion",
+    },
+    undefined,
+    undefined,
+    { cwd: tempRoot, model: undefined },
+  );
+  const parseErrorText = getText(parseErrorResult);
+  const expectedParseErrorBody = assistantProtocolParseErrorCase.expected.executionLikeOutput;
+  const expectedDisplayedParseErrorBody = getExpectedDisplayedOutput(expectedParseErrorBody);
+
+  assert.equal(
+    expectedDisplayedParseErrorBody,
+    expectedParseErrorBody,
+    "Installed parse error smoke must verify the full parse-error body, not a truncated prefix.",
+  );
+
+  assert.ok(
+    parseErrorText.includes(assistantProtocolParseErrorCase.expected.executionLikeStatus),
+    `Installed parse error smoke missing execution status '${assistantProtocolParseErrorCase.expected.executionLikeStatus}'. Full text: ${parseErrorText}`,
+  );
+  assert.ok(
+    parseErrorText.includes(expectedDisplayedParseErrorBody),
+    `Installed parse error smoke missing parse body '${expectedDisplayedParseErrorBody}'. Full text: ${parseErrorText}`,
+  );
+
+  if (expectedDisplayedParseErrorBody !== expectedParseErrorBody) {
+    assert.ok(
+      parseErrorText.includes("...[assistant output truncated]"),
+      `Installed parse error smoke missing truncation marker. Full text: ${parseErrorText}`,
+    );
+  }
+  console.log("installed parse error smoke: ok");
+
   writeFakePi("truncation");
   const truncationResult = await cognitiveDispatch.execute(
     "installed-truncation",
@@ -429,8 +535,8 @@ try {
   const akCallLinesAfterDispatch = readNonEmptyLines(akCallLogPath);
   assert.equal(
     akCallLinesAfterDispatch.length,
-    3,
-    "Expected three evidence writes after dispatch smokes (abort skips evidence)",
+    4,
+    "Expected four evidence writes after dispatch smokes (abort skips evidence)",
   );
   assert.match(akCallLinesAfterDispatch[0], /evidence record/);
   assert.match(akCallLinesAfterDispatch[0], /--check-type cognitive:dispatch/);
@@ -440,7 +546,10 @@ try {
   assert.match(akCallLinesAfterDispatch[1], /--result fail/);
   assert.match(akCallLinesAfterDispatch[2], /evidence record/);
   assert.match(akCallLinesAfterDispatch[2], /--check-type cognitive:dispatch/);
-  assert.match(akCallLinesAfterDispatch[2], /--result pass/);
+  assert.match(akCallLinesAfterDispatch[2], /--result fail/);
+  assert.match(akCallLinesAfterDispatch[3], /evidence record/);
+  assert.match(akCallLinesAfterDispatch[3], /--check-type cognitive:dispatch/);
+  assert.match(akCallLinesAfterDispatch[3], /--result pass/);
 
   writeFakePi("marker");
   const notifications = [];
@@ -487,7 +596,7 @@ try {
   const akCallLinesAfterLoopMismatch = readNonEmptyLines(akCallLogPath);
   assert.equal(
     akCallLinesAfterLoopMismatch.length,
-    3,
+    4,
     "Loop/team mismatch should not emit additional evidence writes",
   );
   console.log("installed team mismatch smoke: ok");

@@ -5,6 +5,7 @@ import type {
   ThemeColor,
 } from "@mariozechner/pi-coding-agent";
 import type { Component } from "@mariozechner/pi-tui";
+import { getContextSessionKey } from "./session-context.ts";
 import {
   createSubagentDashboardSnapshot,
   createSubagentSessionInspection,
@@ -42,13 +43,20 @@ function renderStatus(status: string): { icon: string; color: ThemeColor } {
   }
 }
 
-function buildDashboardLines(width: number, theme: DashboardTheme, sessionsDir: string): string[] {
+function buildDashboardLines(
+  width: number,
+  theme: DashboardTheme,
+  sessionsDir: string,
+  currentSessionKey?: string,
+): string[] {
   const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
     limit: DASHBOARD_ROW_LIMIT,
+    currentSessionKey,
   });
 
   const header = [
     theme.fg("accent", "Subagent ops"),
+    currentSessionKey ? theme.fg("dim", ` live=${truncate(currentSessionKey, 18)}`) : "",
     theme.fg("dim", ` total=${snapshot.total}`),
     theme.fg("dim", ` running=${snapshot.counts.running}`),
     theme.fg("dim", ` done=${snapshot.counts.done}`),
@@ -70,7 +78,8 @@ function buildDashboardLines(width: number, theme: DashboardTheme, sessionsDir: 
     const lead = `${icon} ${row.sessionName}`;
     const status = theme.fg(color, lead);
     const age = theme.fg("dim", ` · ${row.ageLabel}`);
-    lines.push(`${status}${age}`);
+    const scope = row.sessionScopeBadge ? theme.fg("dim", ` · ${row.sessionScopeBadge}`) : "";
+    lines.push(`${status}${age}${scope}`);
     lines.push(`  ${theme.fg("muted", truncate(row.objectivePreview, availableWidth))}`);
     lines.push(`  ${theme.fg("dim", truncate(row.recommendedActionHint, availableWidth))}`);
   }
@@ -78,8 +87,14 @@ function buildDashboardLines(width: number, theme: DashboardTheme, sessionsDir: 
   return lines;
 }
 
-function sessionArtifactSummary(sessionsDir: string, sessionName: string): string {
-  const inspection = createSubagentSessionInspection(sessionsDir, sessionName);
+function sessionArtifactSummary(
+  sessionsDir: string,
+  sessionName: string,
+  currentSessionKey?: string,
+): string {
+  const inspection = createSubagentSessionInspection(sessionsDir, sessionName, {
+    currentSessionKey,
+  });
   const sections: string[] = [`# Subagent Session: ${sessionName}`, ""];
 
   if (!inspection.found) {
@@ -103,8 +118,17 @@ function sessionArtifactSummary(sessionsDir: string, sessionName: string): strin
     return sections.join("\n");
   }
 
+  sections.push("## History boundary");
+  sections.push(`- ${inspection.historyBoundaryNote}`);
+  sections.push(`- Current live session: ${inspection.currentSessionKey ?? "(unavailable)"}`);
+  sections.push("");
+
   sections.push("## Summary");
   sections.push(`- Status: ${inspection.status ?? "unknown"}`);
+  sections.push(`- Session scope: ${inspection.sessionScopeLabel}`);
+  if (inspection.parentSessionKey) {
+    sections.push(`- Recorded under live session: ${inspection.parentSessionKey}`);
+  }
   if (inspection.updatedAt) {
     sections.push(
       `- Updated: ${inspection.updatedAt}${inspection.ageLabel ? ` (${inspection.ageLabel})` : ""}`,
@@ -115,6 +139,9 @@ function sessionArtifactSummary(sessionsDir: string, sessionName: string): strin
   }
   if (inspection.objective) {
     sections.push(`- Objective: ${inspection.objective}`);
+  }
+  if (inspection.resultPreview) {
+    sections.push(`- Result preview: ${inspection.resultPreview}`);
   }
   sections.push(`- Recommended action: ${inspection.recommendedActionHint}`);
   if (typeof inspection.pid === "number") {
@@ -186,10 +213,12 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
     if (!ctx.hasUI) return;
 
     const refresh = () => {
+      const currentSessionKey = getContextSessionKey(ctx);
       ctx.ui.setWidget(
         DASHBOARD_WIDGET_KEY,
         (tui: unknown, theme: DashboardTheme): Component => ({
-          render: (width: number) => buildDashboardLines(width, theme, state.sessionsDir),
+          render: (width: number) =>
+            buildDashboardLines(width, theme, state.sessionsDir, currentSessionKey),
           invalidate: () => {
             void tui;
           },
@@ -209,11 +238,16 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
   pi.registerCommand("subagent-dashboard", {
     description: "Open a read-only summary of recent subagent sessions",
     handler: async (_args, ctx) => {
-      const snapshot = createSubagentDashboardSnapshot(state.sessionsDir, { limit: 25 });
+      const currentSessionKey = getContextSessionKey(ctx);
+      const snapshot = createSubagentDashboardSnapshot(state.sessionsDir, {
+        limit: 25,
+        currentSessionKey,
+      });
       const lines = [
         "# Subagent Operations Dashboard",
         "",
         `- Sessions dir: ${state.sessionsDir}`,
+        `- Current live session: ${currentSessionKey ?? "(unavailable)"}`,
         `- Total sessions: ${snapshot.total}`,
         `- Running: ${snapshot.counts.running}`,
         `- Done: ${snapshot.counts.done}`,
@@ -221,6 +255,11 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
         `- Timeout: ${snapshot.counts.timeout}`,
         `- Aborted: ${snapshot.counts.aborted}`,
         `- Abandoned: ${snapshot.counts.abandoned}`,
+        "",
+        "## History boundary",
+        "",
+        "- This dashboard summarizes bounded local subagent history only.",
+        "- Use Pi's native session tree for the live session authority.",
         "",
         "## Recent sessions",
         "",
@@ -233,7 +272,11 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
           lines.push(`### ${row.sessionName}`);
           lines.push(`- Status: ${row.status}`);
           lines.push(`- Updated: ${row.updatedAt} (${row.ageLabel})`);
+          lines.push(`- Session scope: ${row.sessionScopeLabel}`);
           lines.push(`- Objective: ${row.objectivePreview}`);
+          if (row.resultPreview) {
+            lines.push(`- Result preview: ${row.resultPreview}`);
+          }
           lines.push(`- Recommended action: ${row.recommendedActionHint}`);
           lines.push(`- Inspect: /subagent-inspect ${row.sessionName}`);
           lines.push("");
@@ -260,7 +303,7 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
       if (ctx.hasUI) {
         await ctx.ui.editor(
           `Subagent Session ${sessionName}`,
-          sessionArtifactSummary(state.sessionsDir, sessionName),
+          sessionArtifactSummary(state.sessionsDir, sessionName, getContextSessionKey(ctx)),
         );
       }
     },

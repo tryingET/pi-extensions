@@ -1,11 +1,39 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
-import { createAscExecutionRuntime } from "../execution.ts";
+import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
+import { createAscExecutionRuntime, getDispatchSubagentDisplayOutput } from "../execution.ts";
 import { registerDispatchSubagentTool } from "../extensions/self/subagent.ts";
+
+const timeoutEmptyOutputCase = loadExecutionSeamCase("timeout-empty-output");
+const timeoutWhitespaceOutputCase = loadExecutionSeamCase("timeout-whitespace-output");
+const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protocol-parse-error");
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function withFakePiOnPath(scriptBody, run) {
+  const tempDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-fake-pi-"));
+  const binDir = join(tempDir, "bin");
+  const fakePiPath = join(binDir, "pi");
+  const previousPath = process.env.PATH;
+
+  await mkdir(binDir, { recursive: true });
+  await writeFile(fakePiPath, scriptBody, { mode: 0o755 });
+  process.env.PATH = `${binDir}:${previousPath || ""}`;
+
+  try {
+    return await run(tempDir);
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
 
 test("createAscExecutionRuntime exposes the ASC execution contract for non-tool consumers", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-"));
@@ -100,6 +128,7 @@ test("execution entrypoint stays headless-importable without package-local node_
     "extensions/self/subagent-edge-contract.ts",
     "extensions/self/subagent-profiles.ts",
     "extensions/self/subagent-prompt-envelope.ts",
+    "extensions/self/session-context.ts",
     "extensions/self/subagent-runtime.ts",
     "extensions/self/subagent-session-name.ts",
     "extensions/self/subagent-session.ts",
@@ -163,12 +192,7 @@ test("createAscExecutionRuntime shapes timeout results without output determinis
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
-    spawner: async () => ({
-      output: "",
-      exitCode: 124,
-      elapsed: 500,
-      status: "timeout",
-    }),
+    spawner: async () => ({ ...timeoutEmptyOutputCase.spawnerResult }),
   });
 
   try {
@@ -181,12 +205,112 @@ test("createAscExecutionRuntime shapes timeout results without output determinis
     );
 
     assert.equal(result.ok, false);
-    assert.equal(result.details.status, "timed_out");
-    assert.equal(result.details.failureKind, "timed_out");
-    assert.match(result.text, /Subagent timed out without output\./);
+    assert.equal(result.details.status, timeoutEmptyOutputCase.expected.publicStatus);
+    assert.equal(result.details.failureKind, timeoutEmptyOutputCase.expected.failureKind);
+    assert.equal(
+      getDispatchSubagentDisplayOutput(result),
+      timeoutEmptyOutputCase.expected.executionLikeOutput,
+    );
+    assert.equal(result.details.displayOutput, timeoutEmptyOutputCase.expected.executionLikeOutput);
+    assert.match(
+      result.text,
+      new RegExp(escapeRegExp(timeoutEmptyOutputCase.expected.publicResultTextIncludes)),
+    );
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }
+});
+
+test("createAscExecutionRuntime keeps whitespace-only transport output from blanking the fallback body", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-timeout-whitespace-"));
+
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => "test/model",
+    spawner: async () => ({ ...timeoutWhitespaceOutputCase.spawnerResult }),
+  });
+
+  try {
+    const result = await runtime.execute(
+      {
+        profile: "reviewer",
+        objective: "Verify whitespace timeout shaping",
+      },
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(result.details.fullOutput, timeoutWhitespaceOutputCase.spawnerResult.output);
+    assert.equal(
+      result.details.displayOutput,
+      timeoutWhitespaceOutputCase.expected.executionLikeOutput,
+    );
+    assert.equal(
+      getDispatchSubagentDisplayOutput(result),
+      timeoutWhitespaceOutputCase.expected.executionLikeOutput,
+    );
+    assert.match(
+      result.text,
+      new RegExp(escapeRegExp(timeoutWhitespaceOutputCase.expected.publicResultTextIncludes)),
+    );
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createAscExecutionRuntime replays the parse-error casebook against the live pi JSON seam", async () => {
+  await withFakePiOnPath("#!/usr/bin/env bash\nprintf '{not-json\\n'\n", async (tempRoot) => {
+    const sessionsDir = join(tempRoot, "sessions");
+    const runtime = createAscExecutionRuntime({
+      sessionsDir,
+      modelProvider: () => "test/model",
+    });
+
+    const result = await runtime.execute(
+      {
+        profile: "custom",
+        objective: "Verify parse-error shaping",
+        tools: "read",
+        systemPrompt: "test prompt",
+        name: "parse-error-casebook",
+        timeout: 1,
+      },
+      { cwd: tempRoot },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.details.status,
+      assistantProtocolParseErrorCase.dispatchResult.details.status,
+    );
+    assert.equal(
+      result.details.failureKind,
+      assistantProtocolParseErrorCase.dispatchResult.details.failureKind,
+    );
+    assert.equal(
+      result.details.fullOutput,
+      assistantProtocolParseErrorCase.expected.executionLikeOutput,
+    );
+    assert.equal(
+      result.details.displayOutput,
+      assistantProtocolParseErrorCase.expected.executionLikeOutput,
+    );
+    assert.equal(
+      getDispatchSubagentDisplayOutput(result),
+      assistantProtocolParseErrorCase.expected.executionLikeOutput,
+    );
+    assert.equal(
+      result.details.executionState?.protocol?.kind,
+      assistantProtocolParseErrorCase.dispatchResult.details.executionState.protocol.kind,
+    );
+    assert.equal(
+      result.details.executionState?.protocol?.errorMessage,
+      assistantProtocolParseErrorCase.dispatchResult.details.executionState.protocol.errorMessage,
+    );
+    assert.match(
+      result.text,
+      new RegExp(escapeRegExp(assistantProtocolParseErrorCase.expected.executionLikeOutput)),
+    );
+  });
 });
 
 test("registerDispatchSubagentTool binds dispatch_subagent to the shared ASC runtime", async () => {

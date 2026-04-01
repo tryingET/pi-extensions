@@ -45,6 +45,7 @@ import {
   autoSelectAgent,
   resolveAgentForTeam,
 } from "../src/runtime/agent-routing.ts";
+import { resolveAkPath } from "../src/runtime/ak.ts";
 import { isBoundaryFailure } from "../src/runtime/boundaries.ts";
 import { getCognitiveToolByName, listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
 import {
@@ -69,27 +70,17 @@ const SOCIETY_DB =
 const VAULT_DIR =
   process.env.VAULT_DIR ||
   path.join(os.homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db");
-const DEFAULT_AK_PATH = path.join(
-  os.homedir(),
-  "ai-society",
-  "softwareco",
-  "owned",
-  "agent-kernel",
-  "target",
-  "release",
-  "ak",
-);
-const AGENT_KERNEL =
-  process.env.AGENT_KERNEL || (fs.existsSync(DEFAULT_AK_PATH) ? DEFAULT_AK_PATH : "ak");
+const AGENT_KERNEL = resolveAkPath({ cwd: process.cwd() });
 
 // ============================================================================
 // RUNTIME ADAPTERS
 // ============================================================================
 
-function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal) {
+function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal, cwd?: string) {
   return recordEvidence(entry, signal, {
     akPath: AGENT_KERNEL,
     societyDb: SOCIETY_DB,
+    cwd,
   });
 }
 
@@ -324,7 +315,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             elapsed: result.elapsed,
           },
         }),
-        recordEvidence: writeEvidence,
+        recordEvidence: (entry, activeSignal) => writeEvidence(entry, activeSignal, ctx.cwd),
       });
       const status = executionOutcome.status;
       const icon = getExecutionIcon(result);
@@ -337,7 +328,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         evidenceSqlError ? `sql error: ${evidenceSqlError.slice(0, 120)}` : undefined,
       ].filter(Boolean);
       const evidenceNote =
-        evidenceOutcome.via === "ak"
+        evidenceOutcome.via === "ak" || evidenceOutcome.via === "sql-direct"
           ? ""
           : `\nEvidence path: ${evidenceOutcome.via}${evidenceDiagnostics.length > 0 ? ` (${evidenceDiagnostics.join("; ")})` : ""}`;
 
@@ -417,8 +408,12 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       task_id: Type.Optional(Type.Number({ description: "Associated task ID" })),
       details: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
     }),
-    async execute(_toolCallId, params, signal) {
-      const outcome = await writeEvidence(params as EvidenceEntry & { task_id?: number }, signal);
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const outcome = await writeEvidence(
+        params as EvidenceEntry & { task_id?: number },
+        signal,
+        ctx?.cwd || process.cwd(),
+      );
       const { check_type, result } = params as EvidenceEntry & {
         task_id?: number;
       };
