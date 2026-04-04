@@ -127,7 +127,7 @@ import { createAscExecutionRuntime } from "pi-autonomous-session-control/executi
 
 const runtime = createAscExecutionRuntime({
   sessionsDir: "/tmp/pi-subagent-sessions",
-  modelProvider: () => "openai-codex/gpt-5.3-codex-spark",
+  modelProvider: () => "openai-codex/gpt-5.4",
 });
 
 const controller = new AbortController();
@@ -327,8 +327,7 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 
 **Model selection priority:**
 1. `PI_SUBAGENT_MODEL` environment variable (override)
-2. Latest session-selected model (`model_select` event)
-3. Fallback: `openai-codex/gpt-5.3-codex-spark`
+2. Default for all subagents: `openai-codex/gpt-5.4`
 
 **Session storage:**
 - `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)
@@ -336,9 +335,16 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 - `PI_SUBAGENT_RESERVE_SESSION_NAMES` — set to `false` to disable all session-name reservation mechanisms (in-memory + file-lock) for rollback/debugging (default: enabled)
 - `PI_SUBAGENT_FILE_LOCK_SESSION_NAMES` — set to `false` to disable only cross-process file-lock reservation while keeping in-memory reservation (default: enabled; ignored when `PI_SUBAGENT_RESERVE_SESSION_NAMES=false`)
 - `PI_SUBAGENT_LOCK_STALE_AFTER_MS` — stale-lock reclamation threshold in milliseconds for orphaned subagent locks that no longer have a live owning PID (default: `3600000`)
+- `PI_SUBAGENT_EVENT_BUFFER_BYTES` — buffer for the filtered assistant-only subagent protocol consumed by ASC (default: `262144`)
+- `PI_SUBAGENT_RAW_PI_EVENT_BUFFER_BYTES` — raw upstream `pi --mode json` line buffer inside the filter helper before aggregate events are dropped (default: `8388608`)
 
 **Session artifact notes:**
 - Local session files in `./.pi-subagent-sessions` are runtime artifacts and are gitignored by default.
+- Unless `PI_SUBAGENT_MODEL` overrides it, subagents now use the fixed default model `openai-codex/gpt-5.4` instead of inheriting the current session model.
+- Subagent transport now runs through a package-local assistant-only JSON filter helper, so large aggregate Pi events (`agent_end`, `turn_end`, `tool_execution_end`) are dropped before ASC parses the stream.
+- ASC now treats the helper protocol as authoritative: raw Pi JSON events on the parent seam fail closed instead of being accepted as a compatibility fallback.
+- Parent-side execution timeouts now arm only after the helper emits its `transport_ready` handshake, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget.
+- Helper shutdown now tears down the raw `pi` child process group before parent-side force kill, preventing orphaned raw subprocesses on timeout/abort.
 - Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.
 - Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned`; dead running sessions are reconciled to `abandoned` on next startup.
 - Status sidecars now also keep a bounded `resultPreview` plus the originating live `parentSessionKey` when available so dashboard/inspection views can stay session-aware without parsing the whole session log.

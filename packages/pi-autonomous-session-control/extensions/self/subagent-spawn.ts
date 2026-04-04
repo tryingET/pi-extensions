@@ -2,6 +2,7 @@ import type { ChildProcessByStdio } from "node:child_process";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
+import { fileURLToPath } from "node:url";
 import { type SubagentState, writeSessionStatus } from "./subagent-session.ts";
 
 export interface SubagentDef {
@@ -25,6 +26,7 @@ export interface TransportExecutionState {
   exitCode: number;
   aborted: boolean;
   timedOut: boolean;
+  rawChildPid?: number;
 }
 
 export interface AssistantProtocolExecutionState {
@@ -74,9 +76,13 @@ const DEFAULT_SUBAGENT_OUTPUT_CHARS = 64_000;
 const DEFAULT_SUBAGENT_EVENT_BUFFER_BYTES = 256 * 1024;
 const DEFAULT_STATUS_RESULT_PREVIEW_CHARS = 280;
 const SUBAGENT_CLOSE_GRACE_MS = 250;
+const SUBAGENT_STOP_REQUESTED_CLOSE_GRACE_MS = 25;
 const SUBAGENT_FORCE_KILL_GRACE_MS = 500;
 const ASSISTANT_ERROR_EXIT_CODE = 1;
 const ASSISTANT_ABORT_EXIT_CODE = 130;
+const SUBAGENT_PROTOCOL_HELPER_PATH = fileURLToPath(
+  new URL("./subagent-pi-json-filter.ts", import.meta.url),
+);
 
 function isAssistantStopReason(value: unknown): value is AssistantStopReason {
   return (
@@ -99,48 +105,65 @@ function toStatusResultPreview(value: string | undefined): string | undefined {
     : normalized;
 }
 
-function extractAssistantText(content: unknown): string {
-  if (!Array.isArray(content)) {
-    return "";
+function formatTimeoutDuration(timeoutMs: number): string {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return "0ms";
   }
 
-  return content
-    .filter(
-      (item): item is { type: string; text?: string } =>
-        typeof item === "object" && item !== null && "type" in item,
-    )
-    .filter((item) => item.type === "text")
-    .map((item) => item.text || "")
-    .join("");
+  if (timeoutMs < 1000) {
+    return `${Math.max(1, Math.round(timeoutMs))}ms`;
+  }
+
+  if (timeoutMs % 1000 === 0) {
+    return `${timeoutMs / 1000}s`;
+  }
+
+  return `${(timeoutMs / 1000).toFixed(1).replace(/\.0$/, "")}s`;
 }
 
-function consumePiEventLine(params: {
+function consumeSubagentEventLine(params: {
   line: string;
   appendTextDelta: (value: string) => void;
   setFinalAssistantText: (value: string) => void;
+  markAssistantOutputTruncated: () => void;
   setFinalAssistantState: (state: {
     stopReason?: AssistantStopReason;
     errorMessage?: string;
   }) => void;
-}): { parseError?: string; ignoredNonJsonLine?: string } {
+  markTransportReady: (rawChildPid?: number) => void;
+}): { parseError?: string; protocolError?: string; stdoutNoiseLine?: string } {
   const trimmed = params.line.trim();
   if (!trimmed) {
     return {};
   }
 
   if (!trimmed.startsWith("{")) {
-    return { ignoredNonJsonLine: trimmed };
+    return {
+      parseError: `Non-JSON stdout while parsing the subagent protocol: ${trimmed.slice(0, 200)}`,
+    };
   }
 
   try {
     const event = JSON.parse(trimmed);
-    if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
-      params.appendTextDelta(event.assistantMessageEvent.delta || "");
+
+    if (event.type === "transport_ready") {
+      params.markTransportReady(
+        typeof event.rawChildPid === "number" && event.rawChildPid > 0
+          ? event.rawChildPid
+          : undefined,
+      );
       return {};
     }
 
-    if (event.type === "message_end" && event.message?.role === "assistant") {
-      const rawStopReason = event.message.stopReason;
+    if (event.type === "assistant_text_delta") {
+      params.markTransportReady();
+      params.appendTextDelta(typeof event.delta === "string" ? event.delta : "");
+      return {};
+    }
+
+    if (event.type === "assistant_message_end") {
+      params.markTransportReady();
+      const rawStopReason = event.stopReason;
       const stopReason =
         rawStopReason === undefined
           ? undefined
@@ -148,25 +171,44 @@ function consumePiEventLine(params: {
             ? rawStopReason
             : null;
 
-      const text = extractAssistantText(event.message.content);
-      if (text) {
-        params.setFinalAssistantText(text);
+      if (typeof event.text === "string" && event.text.length > 0) {
+        params.setFinalAssistantText(event.text);
+      }
+      if (event.textTruncated === true) {
+        params.markAssistantOutputTruncated();
       }
 
       if (stopReason === null) {
         return {
-          parseError: `Unknown assistant stop reason from pi JSON protocol: ${String(rawStopReason)}`,
+          parseError: `Unknown assistant stop reason from subagent protocol: ${String(rawStopReason)}`,
         };
       }
 
       params.setFinalAssistantState({
         stopReason,
-        errorMessage:
-          typeof event.message.errorMessage === "string" ? event.message.errorMessage : undefined,
+        errorMessage: typeof event.errorMessage === "string" ? event.errorMessage : undefined,
       });
+      return {};
     }
 
-    return {};
+    if (event.type === "stdout_noise") {
+      params.markTransportReady();
+      return { stdoutNoiseLine: typeof event.line === "string" ? event.line : "" };
+    }
+
+    if (event.type === "protocol_error") {
+      params.markTransportReady();
+      return {
+        protocolError:
+          typeof event.errorMessage === "string"
+            ? event.errorMessage
+            : "Subagent protocol reported an unspecified error.",
+      };
+    }
+
+    return {
+      parseError: `Unexpected subagent protocol event type: ${typeof event.type === "string" ? event.type : "unknown"}`,
+    };
   } catch (error) {
     return {
       parseError: error instanceof Error ? error.message : String(error),
@@ -230,6 +272,10 @@ function getSemanticStatus(params: {
     case "toolUse":
       return "error";
     case "stop":
+      // Once the assistant protocol emits a final stop message, treat that as the semantic truth
+      // even if the transport exits non-zero afterward. Preserve the transport exit code separately
+      // in executionState so diagnostics can still explain the drift.
+      return "done";
     case undefined:
       return params.transportExitCode === 0 ? "done" : "error";
     default: {
@@ -259,6 +305,7 @@ function getSemanticExitCode(params: {
     case "error":
       return ASSISTANT_ERROR_EXIT_CODE;
     case "stop":
+      return 0;
     case "length":
     case "toolUse":
     case undefined:
@@ -290,31 +337,29 @@ export function spawnSubagentWithSpawn(
   );
 
   const args = [
-    "--mode",
-    "json",
-    "-p",
-    "--no-extensions",
+    SUBAGENT_PROTOCOL_HELPER_PATH,
+    "--cwd",
+    ctx.cwd || process.cwd(),
     "--model",
     model,
     "--tools",
     def.tools,
-    "--thinking",
-    "off",
-    "--session",
+    "--session-file",
     def.sessionFile || join(state.sessionsDir, `${def.name}.json`),
+    "--objective",
+    def.objective,
   ];
 
   if (def.systemPrompt) {
-    args.push("--append-system-prompt", def.systemPrompt);
+    args.push("--system-prompt", def.systemPrompt);
   }
-
-  args.push(def.objective);
 
   return new Promise((resolve) => {
     const createdAt = new Date().toISOString();
     const managesExecutionSlot = def.executionSlotReserved !== true;
     let proc: ChildProcessByStdio<null, Readable, Readable> | null = null;
     let buffer = "";
+    let discardingOversizedProtocolLine = false;
     let settled = false;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     let closeGraceHandle: ReturnType<typeof setTimeout> | null = null;
@@ -324,6 +369,8 @@ export function spawnSubagentWithSpawn(
     let aborted = false;
     let timedOut = false;
     let stopRequested = false;
+    let transportReady = false;
+    let rawChildPid: number | undefined;
     let streamedAssistantText = "";
     let finalAssistantText = "";
     let finalAssistantStopReason: AssistantStopReason | undefined;
@@ -331,8 +378,9 @@ export function spawnSubagentWithSpawn(
     let assistantOutputTruncated = false;
     const stderrChunks: string[] = [];
     const parseErrors: string[] = [];
-    const ignoredNonJsonStdoutLines: string[] = [];
-    let ignoredNonJsonStdoutCount = 0;
+    const reportedProtocolErrors: string[] = [];
+    const stdoutNoiseLines: string[] = [];
+    let stdoutNoiseCount = 0;
 
     const clearTimers = () => {
       if (timeoutHandle) {
@@ -356,16 +404,52 @@ export function spawnSubagentWithSpawn(
       }
     };
 
-    const handlePiEventParse = (parsed: { parseError?: string; ignoredNonJsonLine?: string }) => {
+    const handleSubagentEventParse = (parsed: {
+      parseError?: string;
+      protocolError?: string;
+      stdoutNoiseLine?: string;
+    }) => {
       if (parsed.parseError && parseErrors.length < 3) {
         parseErrors.push(parsed.parseError);
       }
-      if (parsed.ignoredNonJsonLine) {
-        ignoredNonJsonStdoutCount += 1;
-        if (ignoredNonJsonStdoutLines.length < 3) {
-          ignoredNonJsonStdoutLines.push(parsed.ignoredNonJsonLine.slice(0, 200));
+      if (parsed.protocolError && reportedProtocolErrors.length < 3) {
+        reportedProtocolErrors.push(parsed.protocolError);
+      }
+      if (parsed.stdoutNoiseLine) {
+        stdoutNoiseCount += 1;
+        if (stdoutNoiseLines.length < 3) {
+          stdoutNoiseLines.push(parsed.stdoutNoiseLine.slice(0, 200));
         }
       }
+    };
+
+    const armExecutionTimeoutIfNeeded = () => {
+      if (settled || timeoutHandle || timeout <= 0) {
+        return;
+      }
+
+      timeoutHandle = setTimeout(() => {
+        requestStop("timed-out");
+      }, timeout);
+      timeoutHandle.unref?.();
+    };
+
+    const markTransportReady = (candidateRawChildPid?: number) => {
+      if (
+        typeof candidateRawChildPid === "number" &&
+        Number.isInteger(candidateRawChildPid) &&
+        candidateRawChildPid > 0 &&
+        rawChildPid === undefined
+      ) {
+        rawChildPid = candidateRawChildPid;
+      }
+
+      if (transportReady) {
+        return;
+      }
+
+      transportReady = true;
+      armExecutionTimeoutIfNeeded();
     };
 
     const appendAssistantText = (value: string) => {
@@ -388,16 +472,36 @@ export function spawnSubagentWithSpawn(
       finalAssistantErrorMessage = executionState.errorMessage;
     };
 
-    const consumeBufferedLine = () => {
-      if (!buffer.trim()) return;
-      handlePiEventParse(
-        consumePiEventLine({
-          line: buffer,
+    const markAssistantOutputTruncated = () => {
+      assistantOutputTruncated = true;
+    };
+
+    const handleCompleteProtocolLine = (line: string) => {
+      if (Buffer.byteLength(line, "utf-8") > maxEventBufferBytes) {
+        handleSubagentEventParse({
+          parseError: `Subagent protocol event line exceeded ${maxEventBufferBytes} bytes.`,
+        });
+        return;
+      }
+
+      handleSubagentEventParse(
+        consumeSubagentEventLine({
+          line,
           appendTextDelta: appendAssistantText,
           setFinalAssistantText,
+          markAssistantOutputTruncated,
           setFinalAssistantState,
+          markTransportReady,
         }),
       );
+    };
+
+    const consumeBufferedLine = () => {
+      if (!buffer.trim() || discardingOversizedProtocolLine) {
+        buffer = "";
+        return;
+      }
+      handleCompleteProtocolLine(buffer);
       buffer = "";
     };
 
@@ -456,23 +560,25 @@ export function spawnSubagentWithSpawn(
         exitCode ?? (aborted ? ASSISTANT_ABORT_EXIT_CODE : timedOut ? 124 : 1);
       const parseErrorSummary =
         parseErrors.length > 0
-          ? `Failed to parse ${parseErrors.length} pi JSON event line(s).`
+          ? `Failed to parse ${parseErrors.length} subagent protocol event line(s).`
           : "";
       const parseErrorDetails = parseErrors.join("\n");
-      const ignoredStdoutSummary =
-        ignoredNonJsonStdoutCount > 0
-          ? `Ignored ${ignoredNonJsonStdoutCount} non-JSON stdout line(s) while parsing pi JSON mode.`
+      const reportedProtocolErrorDetails = reportedProtocolErrors.join("\n");
+      const stdoutNoiseSummary =
+        stdoutNoiseCount > 0
+          ? `Observed ${stdoutNoiseCount} stdout noise line(s) from raw pi while translating to the subagent protocol.`
           : "";
-      const ignoredStdoutDetails = ignoredNonJsonStdoutLines
-        .map((line) => `stdout noise: ${line}`)
+      const stdoutNoiseDetails = stdoutNoiseLines
+        .map((line) => `raw pi stdout noise: ${line}`)
         .join("\n");
       const truncationSummary = assistantOutputTruncated
         ? `Assistant output truncated to ${maxOutputChars} characters.`
         : "";
       const combinedStderr = [
         stderrChunks.join("").trim(),
-        ignoredStdoutSummary,
-        ignoredStdoutDetails,
+        stdoutNoiseSummary,
+        stdoutNoiseDetails,
+        reportedProtocolErrorDetails,
         parseErrorSummary,
         parseErrorDetails,
         truncationSummary,
@@ -482,17 +588,23 @@ export function spawnSubagentWithSpawn(
       const fallbackOutput = aborted
         ? "Subagent aborted."
         : timedOut
-          ? `Subagent timed out after ${Math.round(timeout / 1000)}s`
+          ? `Subagent timed out after ${formatTimeoutDuration(timeout)}`
           : getAssistantProtocolFallbackOutput({
               stopReason: finalAssistantStopReason,
               errorMessage: finalAssistantErrorMessage,
               combinedStderr,
               transportExitCode,
             });
-      const protocolFailed = parseErrors.length > 0;
-      const parseErrorOutput = [parseErrorSummary, parseErrorDetails].filter(Boolean).join("\n");
+      const protocolFailed = parseErrors.length > 0 || reportedProtocolErrors.length > 0;
+      const protocolFailureOutput = [
+        reportedProtocolErrorDetails,
+        parseErrorSummary,
+        parseErrorDetails,
+      ]
+        .filter(Boolean)
+        .join("\n");
       const protocolAwareOutput = protocolFailed
-        ? [streamedAssistantText || finalAssistantText, parseErrorOutput]
+        ? [streamedAssistantText || finalAssistantText, protocolFailureOutput]
             .filter(Boolean)
             .join("\n\n") || fallbackOutput
         : streamedAssistantText || finalAssistantText || fallbackOutput;
@@ -519,13 +631,13 @@ export function spawnSubagentWithSpawn(
           exitCode: transportExitCode,
           aborted,
           timedOut,
+          ...(typeof rawChildPid === "number" ? { rawChildPid } : {}),
         },
         protocol: protocolFailed
           ? {
               kind: "assistant_protocol_parse_error",
               errorMessage:
-                [parseErrorSummary, parseErrorDetails].filter(Boolean).join("\n") ||
-                "Failed to parse pi JSON event stream.",
+                protocolFailureOutput || "Failed to parse the subagent protocol event stream.",
             }
           : finalAssistantStopReason
             ? {
@@ -558,7 +670,7 @@ export function spawnSubagentWithSpawn(
     }
 
     try {
-      proc = spawnImpl("pi", args, {
+      proc = spawnImpl(process.execPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env },
         cwd: ctx.cwd || process.cwd(),
@@ -592,13 +704,6 @@ export function spawnSubagentWithSpawn(
       return;
     }
 
-    if (timeout > 0) {
-      timeoutHandle = setTimeout(() => {
-        requestStop("timed-out");
-      }, timeout);
-      timeoutHandle.unref?.();
-    }
-
     if (signal) {
       abortHandler = () => {
         requestStop("aborted");
@@ -608,26 +713,36 @@ export function spawnSubagentWithSpawn(
 
     proc.stdout?.setEncoding("utf-8");
     proc.stdout?.on("data", (chunk: string) => {
-      buffer += chunk;
-      if (Buffer.byteLength(buffer, "utf-8") > maxEventBufferBytes) {
-        handlePiEventParse({
-          parseError: `Pi JSON event buffer exceeded ${maxEventBufferBytes} bytes without a newline delimiter.`,
-        });
-        buffer = "";
-        return;
+      let remaining = chunk;
+
+      if (discardingOversizedProtocolLine) {
+        const newlineIndex = remaining.indexOf("\n");
+        if (newlineIndex === -1) {
+          return;
+        }
+        remaining = remaining.slice(newlineIndex + 1);
+        discardingOversizedProtocolLine = false;
       }
 
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        handlePiEventParse(
-          consumePiEventLine({
-            line,
-            appendTextDelta: appendAssistantText,
-            setFinalAssistantText,
-            setFinalAssistantState,
-          }),
-        );
+      buffer += remaining;
+
+      while (true) {
+        const newlineIndex = buffer.indexOf("\n");
+        if (newlineIndex >= 0) {
+          const line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          handleCompleteProtocolLine(line);
+          continue;
+        }
+
+        if (Buffer.byteLength(buffer, "utf-8") > maxEventBufferBytes) {
+          handleSubagentEventParse({
+            parseError: `Subagent protocol event buffer exceeded ${maxEventBufferBytes} bytes without a newline delimiter.`,
+          });
+          buffer = "";
+          discardingOversizedProtocolLine = true;
+        }
+        break;
       }
     });
 
@@ -642,9 +757,12 @@ export function spawnSubagentWithSpawn(
     proc.on("exit", (code) => {
       observedExitCode = code ?? observedExitCode ?? null;
       if (closeGraceHandle || settled) return;
+      const closeGraceMs = stopRequested
+        ? SUBAGENT_STOP_REQUESTED_CLOSE_GRACE_MS
+        : SUBAGENT_CLOSE_GRACE_MS;
       closeGraceHandle = setTimeout(() => {
         finalizeFromExitCode(observedExitCode);
-      }, SUBAGENT_CLOSE_GRACE_MS);
+      }, closeGraceMs);
       closeGraceHandle.unref?.();
     });
 

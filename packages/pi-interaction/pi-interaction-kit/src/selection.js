@@ -143,7 +143,7 @@ export async function selectFuzzyCandidate(candidates, options = {}) {
 
   if (usesInlineOverlay) {
     const selected = /** @type {Candidate|null} */ (
-      await selectWithInteractiveOverlay(ranked, {
+      await selectWithInteractiveOverlay(candidates, {
         title: `${title} — ${modeLabel} [${ranked.length}/${candidates.length}]`,
         query,
         maxOptions,

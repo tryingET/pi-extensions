@@ -4,7 +4,7 @@ import type {
   Theme,
   ThemeColor,
 } from "@mariozechner/pi-coding-agent";
-import type { Component } from "@mariozechner/pi-tui";
+import { type Component, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { getContextSessionKey } from "./session-context.ts";
 import {
   createSubagentDashboardSnapshot,
@@ -22,6 +22,11 @@ function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   if (maxLength <= 1) return "…";
   return `${text.slice(0, maxLength - 1)}…`;
+}
+
+function fitLine(line: string, width: number): string {
+  if (!Number.isFinite(width) || width <= 0) return "";
+  return visibleWidth(line) > width ? truncateToWidth(line, width, "…") : line;
 }
 
 function renderStatus(status: string): { icon: string; color: ThemeColor } {
@@ -43,35 +48,41 @@ function renderStatus(status: string): { icon: string; color: ThemeColor } {
   }
 }
 
-function buildDashboardLines(
+export function buildDashboardLines(
   width: number,
   theme: DashboardTheme,
   sessionsDir: string,
   currentSessionKey?: string,
 ): string[] {
+  if (!Number.isFinite(width) || width <= 0) {
+    return [];
+  }
+
   const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
     limit: DASHBOARD_ROW_LIMIT,
     currentSessionKey,
   });
 
-  const header = [
-    theme.fg("accent", "Subagent ops"),
-    currentSessionKey ? theme.fg("dim", ` live=${truncate(currentSessionKey, 18)}`) : "",
-    theme.fg("dim", ` total=${snapshot.total}`),
-    theme.fg("dim", ` running=${snapshot.counts.running}`),
-    theme.fg("dim", ` done=${snapshot.counts.done}`),
-    theme.fg("dim", ` error=${snapshot.counts.error}`),
-    theme.fg("dim", ` timeout=${snapshot.counts.timeout}`),
-    theme.fg("dim", ` aborted=${snapshot.counts.aborted}`),
-    theme.fg("dim", ` abandoned=${snapshot.counts.abandoned}`),
-  ].join("");
+  const header = fitLine(
+    [
+      theme.fg("accent", "Subagent ops"),
+      currentSessionKey ? theme.fg("dim", ` live=${truncate(currentSessionKey, 18)}`) : "",
+      theme.fg("dim", ` total=${snapshot.total}`),
+      theme.fg("dim", ` running=${snapshot.counts.running}`),
+      theme.fg("dim", ` done=${snapshot.counts.done}`),
+      theme.fg("dim", ` error=${snapshot.counts.error}`),
+      theme.fg("dim", ` timeout=${snapshot.counts.timeout}`),
+      theme.fg("dim", ` aborted=${snapshot.counts.aborted}`),
+      theme.fg("dim", ` abandoned=${snapshot.counts.abandoned}`),
+    ].join(""),
+    width,
+  );
 
   if (snapshot.rows.length === 0) {
-    return [header, theme.fg("dim", "  No subagent sessions yet.")];
+    return [header, fitLine(theme.fg("dim", "  No subagent sessions yet."), width)];
   }
 
   const lines = [header];
-  const availableWidth = Math.max(24, width - 18);
 
   for (const row of snapshot.rows) {
     const { icon, color } = renderStatus(row.status);
@@ -79,9 +90,9 @@ function buildDashboardLines(
     const status = theme.fg(color, lead);
     const age = theme.fg("dim", ` · ${row.ageLabel}`);
     const scope = row.sessionScopeBadge ? theme.fg("dim", ` · ${row.sessionScopeBadge}`) : "";
-    lines.push(`${status}${age}${scope}`);
-    lines.push(`  ${theme.fg("muted", truncate(row.objectivePreview, availableWidth))}`);
-    lines.push(`  ${theme.fg("dim", truncate(row.recommendedActionHint, availableWidth))}`);
+    lines.push(fitLine(`${status}${age}${scope}`, width));
+    lines.push(fitLine(`  ${theme.fg("muted", row.objectivePreview)}`, width));
+    lines.push(fitLine(`  ${theme.fg("dim", row.recommendedActionHint)}`, width));
   }
 
   return lines;

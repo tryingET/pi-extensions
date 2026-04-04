@@ -89,6 +89,10 @@ class DefaultInput {
     }
 
     if (data === "\r" || data === "\n" || (kitty && kitty.codepoint === 13)) return;
+    if (data === "\u0015") {
+      this.value = "";
+      return;
+    }
     if (data === "\u001b" || (kitty && kitty.codepoint === 27)) return;
 
     if (kitty) {
@@ -103,6 +107,13 @@ class DefaultInput {
     }
 
     if (data.startsWith("\u001b")) return;
+
+    const hasControlChars = [...data].some((ch) => {
+      const code = ch.charCodeAt(0);
+      return code < 32 || code === 0x7f || (code >= 0x80 && code <= 0x9f);
+    });
+    if (hasControlChars) return;
+
     this.value += data;
   }
 
@@ -130,6 +141,7 @@ const KEY_NAMES = {
   selectPageDown: "tui.select.pageDown",
   selectConfirm: "tui.select.confirm",
   selectCancel: "tui.select.cancel",
+  inputTab: "tui.input.tab",
   deleteCharBackward: "tui.editor.deleteCharBackward",
   deleteCharForward: "tui.editor.deleteCharForward",
 };
@@ -158,6 +170,7 @@ let getEditorKeybindings = () => {
     "tui.select.pageDown": ["\u001b[6~"],
     "tui.select.confirm": ["\r", "\n"],
     "tui.select.cancel": ["\u001b"],
+    "tui.input.tab": ["\t"],
     "tui.editor.deleteCharBackward": ["\x7f", "\b"],
     "tui.editor.deleteCharForward": ["\x1b[3~"],
   };
@@ -184,6 +197,8 @@ let getEditorKeybindings = () => {
           return Boolean(
             kitty && (kitty.codepoint === 27 || (kitty.codepoint === 91 && kitty.modifier >= 5)),
           );
+        case "tui.input.tab":
+          return Boolean(kitty && kitty.codepoint === 9);
         case "tui.editor.deleteCharBackward":
           return Boolean(
             kitty &&
@@ -330,7 +345,7 @@ class InteractiveFuzzySelector extends BaseContainer {
       return;
     }
 
-    if (matchesBinding(kb, data, "selectConfirm")) {
+    if (matchesBinding(kb, data, "selectConfirm") || matchesBinding(kb, data, "inputTab")) {
       const current = this.filtered[this.selectedIndex];
       if (current) this.onSelect?.(current);
       return;
@@ -368,13 +383,18 @@ class InteractiveFuzzySelector extends BaseContainer {
       return;
     }
 
-    if (data === "\x15") {
+    const ctrlUKitty = parseKittyKey(data);
+    if (
+      data === "\x15" ||
+      Boolean(ctrlUKitty && ctrlUKitty.codepoint === 117 && ctrlUKitty.modifier >= 5)
+    ) {
       const before = this.input.getValue();
-      this.input.handleInput("\x15");
-      const after = this.input.getValue();
-      if (after !== before) {
-        this.applyFilter(after);
-        this.onQueryChange?.(after);
+      if (before.length > 0) {
+        this.input = new Input();
+        this.input.focused = this._focused;
+        this.selectedIndex = 0;
+        this.applyFilter("");
+        this.onQueryChange?.("");
       }
       return;
     }

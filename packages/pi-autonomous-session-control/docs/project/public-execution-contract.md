@@ -57,7 +57,11 @@ The public execution seam now also carries explicit transport-safety expectation
 
 - optional `AbortSignal` propagation from consumer to subagent spawn path
 - bounded assistant output capture with truncation signaling
-- bounded raw JSON event buffering for malformed/no-newline stdout
+- helper `transport_ready` handshake before ASC arms the execution timeout, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget
+- assistant-only filtered subagent protocol between ASC and the child helper, so aggregate Pi JSON events are dropped before the runtime parser and raw Pi JSON is no longer accepted on the parent seam as a compatibility fallback
+- bounded raw Pi JSON buffering inside that helper for malformed/no-newline upstream stdout, with separate raw-buffer configuration from the parent filtered-protocol buffer
+- bounded filtered-protocol buffering inside ASC for malformed/no-newline or oversized helper stdout
+- helper-owned raw-child process-group shutdown on abort/timeout so the parent does not leave orphaned raw `pi` subprocesses behind when it escalates
 - session-name reservation that treats status sidecars as occupied artifacts
 - explicit hard failure when lock creation fails for permanent filesystem reasons
 
@@ -65,6 +69,8 @@ These invariants are currently anchored by:
 - `tests/public-execution-contract.test.mjs`
 - `tests/public-execution-parity.test.mjs`
 - `tests/dispatch-subagent-diagnostics.test.mjs`
+- `tests/subagent-protocol.test.mjs`
+- `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 
 ## Change checklist
@@ -76,7 +82,7 @@ It keeps future changes tied to real consumer gaps, the named negative-path guar
 
 The current seam proof is intentionally split across distinct truth layers:
 
-- **ASC package-local contract truth** — `tests/public-execution-contract.test.mjs`, `tests/public-execution-parity.test.mjs`, `tests/dispatch-subagent-diagnostics.test.mjs`, and `tests/subagent-file-lock.test.mjs` prove the seam semantics and transport-safety invariants owned by ASC.
+- **ASC package-local contract truth** — `tests/public-execution-contract.test.mjs`, `tests/public-execution-parity.test.mjs`, `tests/dispatch-subagent-diagnostics.test.mjs`, `tests/subagent-protocol.test.mjs`, `tests/subagent-transport-live.test.mjs`, and `tests/subagent-file-lock.test.mjs` prove the seam semantics and transport-safety invariants owned by ASC.
 - **Orchestrator package-local consumer truth** — `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves the expected timeout/truncation/abort and `result.details` semantics in repo-local source, and `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` fail-closes private ASC imports plus orchestrator-local runtime revival drift.
 - **Installed-package smoke / packaging truth** — `cd packages/pi-society-orchestrator && npm run release:check` proves the packaged orchestrator artifact can still import and use the seam after install, including the current bundled ASC bridge while the temporary lifecycle in [bundled ASC bridge lifecycle](../../../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains active.
 
@@ -91,7 +97,7 @@ import { createAscExecutionRuntime } from "pi-autonomous-session-control/executi
 
 const runtime = createAscExecutionRuntime({
   sessionsDir: "/tmp/pi-subagent-sessions",
-  modelProvider: () => "openai-codex/gpt-5.3-codex-spark",
+  modelProvider: () => "openai-codex/gpt-5.4",
 });
 
 const controller = new AbortController();
@@ -144,7 +150,10 @@ Current proof shape:
     - runtime-owned concurrency reservation for custom spawners
     - session-name reservation behavior
     - result / provenance shaping
-  - `tests/dispatch-subagent-diagnostics.test.mjs` and `tests/subagent-file-lock.test.mjs` anchor the named transport-safety invariants
+  - `tests/dispatch-subagent-diagnostics.test.mjs` anchors parent-side protocol parsing, authoritative helper-seam fail-closed behavior, and filtered-protocol buffer enforcement
+  - `tests/subagent-protocol.test.mjs` anchors raw-Pi-to-helper translation and malformed raw Pi framing diagnostics
+  - `tests/subagent-transport-live.test.mjs` anchors spawned-helper truth for raw-line size enforcement, raw-vs-filtered env separation, and raw-child teardown on timeout/abort
+  - `tests/subagent-file-lock.test.mjs` anchors the session-name reservation and lock invariants
 - **Orchestrator package-local consumer truth**
   - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves the supported execution truth inside repo-local source
   - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` prevents drift back to private ASC imports or a revived orchestrator-local execution path
@@ -161,5 +170,8 @@ Current proof shape:
 - `tests/public-execution-contract.test.mjs`
 - `tests/public-execution-parity.test.mjs`
 - `tests/dispatch-subagent.test.mjs`
+- `tests/dispatch-subagent-diagnostics.test.mjs`
+- `tests/subagent-protocol.test.mjs`
+- `tests/subagent-transport-live.test.mjs`
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs`
 - `cd packages/pi-society-orchestrator && npm run release:check`

@@ -63,7 +63,7 @@
     "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
   },
   "devDependencies": {
-    "@mariozechner/pi-coding-agent": "^0.63.1",
+    "@mariozechner/pi-coding-agent": "^0.65.0",
     "tsx": "^4.20.5"
   },
   "peerDependencies": {

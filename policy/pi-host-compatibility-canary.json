@@ -11,8 +11,8 @@
     "current": {
       "description": "Run against the root-owned pinned Pi host contract that defines the current canary baseline for this monorepo.",
       "host": {
-        "version": "0.58.4",
-        "reviewAnchor": "npm:@mariozechner/pi-coding-agent@0.58.4"
+        "version": "0.65.0",
+        "reviewAnchor": "npm:@mariozechner/pi-coding-agent@0.65.0"
       }
     },
     "upgrade": {
@@ -29,7 +29,10 @@
       "title": "pi-interaction + PTX coexistence smoke",
       "owner": "monorepo-root",
       "why": "Protect the brownfield interaction-runtime path where PTX depends on pi-interaction trigger surfaces without taking editor ownership itself.",
-      "profiles": ["current", "upgrade"],
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
       "packages": [
         "packages/pi-interaction/pi-editor-registry",
         "packages/pi-interaction/pi-interaction",
@@ -44,7 +47,11 @@
         "input transform flow"
       ],
       "cwd": "packages/pi-prompt-template-accelerator",
-      "command": ["npm", "run", "test:compat:interaction-runtime"],
+      "command": [
+        "npm",
+        "run",
+        "test:compat:interaction-runtime"
+      ],
       "notes": "Seed canary uses the deterministic non-UI mixed-extension smoke already maintained by PTX."
     },
     {
@@ -52,7 +59,10 @@
       "title": "pi-vault-client live trigger contract",
       "owner": "monorepo-root",
       "why": "Protect the cross-package live-trigger seam between pi-vault-client and pi-interaction support packages without requiring a full vault session.",
-      "profiles": ["current", "upgrade"],
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
       "packages": [
         "packages/pi-interaction/pi-interaction-kit",
         "packages/pi-interaction/pi-runtime-registry",
@@ -65,14 +75,21 @@
         "picker fallback contract"
       ],
       "cwd": "packages/pi-vault-client",
-      "command": ["npm", "run", "test:compat:live-trigger-contract"]
+      "command": [
+        "npm",
+        "run",
+        "test:compat:live-trigger-contract"
+      ]
     },
     {
       "id": "parallel-tool-event-correlation",
       "title": "ASC parallel tool event correlation",
       "owner": "monorepo-root",
       "why": "Protect the extension most exposed to Pi 0.58 parallel tool-call semantics by proving tool_call/tool_result correlation still preserves actual bash command tracking.",
-      "profiles": ["current", "upgrade"],
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
       "packages": [
         "packages/pi-autonomous-session-control"
       ],
@@ -82,7 +99,11 @@
         "parallel tool execution"
       ],
       "cwd": "packages/pi-autonomous-session-control",
-      "command": ["npm", "run", "test:compat:parallel-tool-events"]
+      "command": [
+        "npm",
+        "run",
+        "test:compat:parallel-tool-events"
+      ]
     }
   ]
 }

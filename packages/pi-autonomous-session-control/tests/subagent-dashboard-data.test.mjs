@@ -3,6 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { visibleWidth } from "@mariozechner/pi-tui";
+import { buildDashboardLines } from "../extensions/self/subagent-dashboard.ts";
 import {
   createSubagentDashboardSnapshot,
   createSubagentSessionInspection,
@@ -181,6 +183,78 @@ test("createSubagentSessionInspection suggests recent sessions when the requeste
     assert.match(inspection.recommendedActionHint, /inspect artifact paths/i);
     assert.deepEqual(inspection.recentSessionSuggestions, ["analysis-run-2", "review-run-1"]);
     assert.match(inspection.warnings.join("\n"), /missing status sidecar/i);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("buildDashboardLines never exceeds the requested width", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-width-"));
+  const theme = {
+    fg(_name, value) {
+      return value;
+    },
+  };
+
+  try {
+    await writeStatus(
+      sessionsDir,
+      "reviewer-2",
+      "done",
+      "2026-04-01T07:00:00.000Z",
+      "Reply with exactly DIRECT_OK_GHOSTTY_SUBAGENT_ETEST_2 after inspecting the session.",
+      {
+        parentSessionKey: "f50f147a-7a83-4d5e-8123-123456789abc",
+      },
+    );
+    await writeStatus(
+      sessionsDir,
+      "task-662-scope",
+      "timeout",
+      "2026-04-01T08:00:00.000Z",
+      "Inspect AK task #662 scope in /home/tryinget/ai-society/softwareco/owned/pi-extensions and summarize the blast radius.",
+      {
+        parentSessionKey: "f50f147a-7a83-4d5e-8123-123456789abc",
+      },
+    );
+
+    for (const width of [1, 2, 3, 10, 24, 40, 60, 93]) {
+      const lines = buildDashboardLines(
+        width,
+        theme,
+        sessionsDir,
+        "f50f147a-7a83-4d5e-8123-123456789abc",
+      );
+      for (const line of lines) {
+        assert.ok(
+          visibleWidth(line) <= width,
+          `expected line width <= ${width}, got ${visibleWidth(line)} for ${JSON.stringify(line)}`,
+        );
+      }
+    }
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("buildDashboardLines handles empty state within width bounds", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-empty-"));
+  const theme = {
+    fg(_name, value) {
+      return value;
+    },
+  };
+
+  try {
+    for (const width of [1, 2, 3, 10, 24, 40]) {
+      const lines = buildDashboardLines(width, theme, sessionsDir, "live-session-key");
+      for (const line of lines) {
+        assert.ok(
+          visibleWidth(line) <= width,
+          `expected line width <= ${width}, got ${visibleWidth(line)} for ${JSON.stringify(line)}`,
+        );
+      }
+    }
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

@@ -1,17 +1,17 @@
 {
   "id": "assistant-protocol-parse-error",
-  "title": "Malformed pi JSON output preserves parse-error failure truth across the seam",
+  "title": "Malformed raw pi JSON output preserves parse-error failure truth across the seam",
   "kind": "runtime-result",
   "dispatchResult": {
     "ok": false,
-    "text": "✗ [custom] error in 0s\n\nFailed to parse 1 pi JSON event line(s).\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
+    "text": "✗ [custom] error in 0s\n\nFailed to parse raw pi JSON event line.\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
     "details": {
       "status": "error",
       "failureKind": "assistant_protocol_parse_error",
       "exitCode": 1,
       "elapsed": 0,
-      "fullOutput": "Failed to parse 1 pi JSON event line(s).\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
-      "displayOutput": "Failed to parse 1 pi JSON event line(s).\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
+      "fullOutput": "Failed to parse raw pi JSON event line.\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
+      "displayOutput": "Failed to parse raw pi JSON event line.\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
       "executionState": {
         "transport": {
           "kind": "transport",
@@ -21,13 +21,13 @@
         },
         "protocol": {
           "kind": "assistant_protocol_parse_error",
-          "errorMessage": "Failed to parse 1 pi JSON event line(s).\nExpected property name or '}' in JSON at position 1 (line 1 column 2)"
+          "errorMessage": "Failed to parse raw pi JSON event line.\nExpected property name or '}' in JSON at position 1 (line 1 column 2)"
         }
       }
     }
   },
   "expected": {
-    "executionLikeOutput": "Failed to parse 1 pi JSON event line(s).\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
+    "executionLikeOutput": "Failed to parse raw pi JSON event line.\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
     "executionLikeStatus": "error",
     "failureKind": "assistant_protocol_parse_error"
   }

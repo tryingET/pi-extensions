@@ -55,6 +55,18 @@ type CompatToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0] & {
   promptGuidelines?: string[];
 };
 
+type NamedToolCallEvent<TName extends ToolCallEvent["toolName"]> = Extract<
+  ToolCallEvent,
+  { toolName: TName }
+>;
+
+function isNamedToolCallEvent<TName extends ToolCallEvent["toolName"]>(
+  event: ToolCallEvent,
+  toolName: TName,
+): event is NamedToolCallEvent<TName> {
+  return event.toolName === toolName;
+}
+
 // ============================================================================
 // EXTENSION SESSION STATE HELPERS
 // ============================================================================
@@ -84,22 +96,14 @@ function resolveSelfMemoryPath(sessionsDir: string): string {
 }
 
 function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentState): void {
-  let selectedModelId: string | undefined;
-
-  pi.on("model_select", (event) => {
-    selectedModelId = event.model.id;
-  });
-
   registerSubagentTool(pi, subagentState, () => {
-    // Priority: env var > latest selected model > fast default
+    // Priority: env var override > fixed default for all subagents
     const fromEnv = process.env.PI_SUBAGENT_MODEL?.trim();
     if (fromEnv) return fromEnv;
 
-    if (selectedModelId) return selectedModelId;
-
-    // Fallback: gpt-5.3-codex-spark on openai-codex provider
-    // NOTE: Must use provider/model format - spark resolves to wrong provider without it
-    return "openai-codex/gpt-5.3-codex-spark";
+    // Default: gpt-5.4 on openai-codex provider
+    // NOTE: Must use provider/model format to avoid resolver ambiguity.
+    return "openai-codex/gpt-5.4";
   });
 
   registerSubagentCommands(pi, subagentState);
@@ -122,11 +126,8 @@ function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
   const bashCommandByCallId = new Map<string, string>();
 
   const handleToolCall = (event: ToolCallEvent): void => {
-    const toolName = event.toolName;
-
-    if (toolName === "write") {
-      const path = event.input?.path;
-      const content = event.input?.content;
+    if (isNamedToolCallEvent(event, "write")) {
+      const { path, content } = event.input;
       if (typeof path === "string" && typeof content === "string") {
         trackFileOp(state.operations, {
           type: "create",
@@ -136,13 +137,34 @@ function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
       }
     }
 
-    if (toolName === "edit") {
-      const path = event.input?.path;
-      const oldText = event.input?.oldText;
-      const newText = event.input?.newText;
+    if (isNamedToolCallEvent(event, "edit")) {
+      const input = event.input as {
+        path?: unknown;
+        edits?: Array<{ oldText?: unknown; newText?: unknown }>;
+        oldText?: unknown;
+        newText?: unknown;
+      };
+      const path = input.path;
+      const edits = Array.isArray(input.edits)
+        ? input.edits
+        : [{ oldText: input.oldText, newText: input.newText }];
       if (typeof path === "string") {
-        const oldLines = typeof oldText === "string" ? oldText.split("\n").length : 0;
-        const newLines = typeof newText === "string" ? newText.split("\n").length : 0;
+        const oldLines = edits.reduce(
+          (sum, edit) =>
+            sum +
+            (typeof edit.oldText === "string" && edit.oldText.length > 0
+              ? edit.oldText.split("\n").length
+              : 0),
+          0,
+        );
+        const newLines = edits.reduce(
+          (sum, edit) =>
+            sum +
+            (typeof edit.newText === "string" && edit.newText.length > 0
+              ? edit.newText.split("\n").length
+              : 0),
+          0,
+        );
         trackFileOp(state.operations, {
           type: "modify",
           path,
@@ -151,8 +173,8 @@ function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
       }
     }
 
-    if (toolName === "bash") {
-      const command = event.input?.command;
+    if (isNamedToolCallEvent(event, "bash")) {
+      const { command } = event.input;
       const callId = event.toolCallId;
       if (typeof command === "string" && callId) {
         bashCommandByCallId.set(callId, command);

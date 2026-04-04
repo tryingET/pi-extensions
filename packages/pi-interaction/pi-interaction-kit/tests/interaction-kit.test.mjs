@@ -122,3 +122,101 @@ test("selectFuzzyCandidate custom overlay uses maxOptions as visible row cap, no
   assert.ok(selection.selected);
   assert.equal(selection.selected.id, "template-40");
 });
+
+test("selectFuzzyCandidate custom overlay treats tab as confirm", async () => {
+  const candidates = [
+    { id: "inversion", label: "/vault:inversion", detail: "shadow", source: "vault" },
+    { id: "nexus", label: "/vault:nexus", detail: "leverage", source: "vault" },
+  ];
+
+  const selection = await selectFuzzyCandidate(candidates, {
+    title: "Overlay tab confirm",
+    query: "nex",
+    disableFzf: true,
+    ui: {
+      custom: async (factory, _options) =>
+        new Promise((resolve) => {
+          const component = factory(
+            { requestRender() {} },
+            {
+              fg: (_name, text) => text,
+              bold: (text) => text,
+            },
+            {},
+            (value) => resolve(value),
+          );
+
+          component.handleInput("\t");
+        }),
+    },
+  });
+
+  assert.ok(selection.selected);
+  assert.equal(selection.selected.id, "nexus");
+});
+
+test("selectFuzzyCandidate custom overlay ignores raw control characters in the query input", async () => {
+  const candidates = [
+    { id: "inversion", label: "/vault:inversion", detail: "shadow", source: "vault" },
+    { id: "nexus", label: "/vault:nexus", detail: "leverage", source: "vault" },
+  ];
+
+  const selection = await selectFuzzyCandidate(candidates, {
+    title: "Overlay control-char guard",
+    query: "",
+    disableFzf: true,
+    ui: {
+      custom: async (factory, _options) =>
+        new Promise((resolve) => {
+          const component = factory(
+            { requestRender() {} },
+            {
+              fg: (_name, text) => text,
+              bold: (text) => text,
+            },
+            {},
+            (value) => resolve(value),
+          );
+
+          component.handleInput("\u0001");
+          component.handleInput("\r");
+        }),
+    },
+  });
+
+  assert.ok(selection.selected);
+  assert.equal(selection.selected.id, "inversion");
+});
+
+test("selectFuzzyCandidate custom overlay treats raw ctrl-u as clear-query", async () => {
+  const candidates = [
+    { id: "inversion", label: "/vault:inversion", detail: "shadow", source: "vault" },
+    { id: "nexus", label: "/vault:nexus", detail: "leverage", source: "vault" },
+  ];
+
+  const selection = await selectFuzzyCandidate(candidates, {
+    title: "Overlay ctrl-u clear",
+    query: "nex",
+    disableFzf: true,
+    ui: {
+      custom: async (factory, _options) =>
+        new Promise((resolve) => {
+          const component = factory(
+            { requestRender() {} },
+            {
+              fg: (_name, text) => text,
+              bold: (text) => text,
+            },
+            {},
+            (value) => resolve(value),
+          );
+
+          component.handleInput("\u0015");
+          component.handleInput("\r");
+        }),
+    },
+  });
+
+  assert.ok(selection.selected);
+  assert.equal(selection.selected.id, "inversion");
+});

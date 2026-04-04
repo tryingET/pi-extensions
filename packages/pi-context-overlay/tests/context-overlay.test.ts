@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { initTheme } from "@mariozechner/pi-coding-agent";
+import { visibleWidth } from "@mariozechner/pi-tui";
 import contextOverlayExtension from "../extensions/context-overlay.ts";
 import { buildGroups } from "../src/classifier.ts";
 import { ContextOverlayComponent } from "../src/context-overlay-component.ts";
@@ -49,6 +50,56 @@ test("ContextOverlayComponent renders footer without legacy appKeyHint export", 
   const output = component.render(100).join("\n");
   assert.match(output, /close/);
   assert.match(output, /freeze\/live/);
+});
+
+test("ContextOverlayComponent never exceeds the requested width", () => {
+  const component = new ContextOverlayComponent(
+    { requestRender() {} } as never,
+    { fg: (_name: string, value: string) => value } as never,
+    {
+      matches() {
+        return false;
+      },
+    } as never,
+    {
+      timestamp: Date.now(),
+      modelLabel: "provider/model",
+      systemPrompt: "",
+      messages: [],
+      totalEstimatedTokens: 321,
+      groups: [
+        {
+          id: "project",
+          label: "Project Context",
+          tokens: 200,
+          percent: 62.3,
+          items: [
+            {
+              id: "1",
+              label: "Very long context item label that used to pressure narrow overlays",
+              tokens: 120,
+              preview:
+                "Long preview line one\nLong preview line two\nLong preview line three\nLong preview line four",
+              path: "/tmp/some/really/long/path/to/a/context/file/that/needs/truncation.md",
+            },
+          ],
+        },
+      ],
+    },
+    () => {},
+    async () => false,
+    () => {},
+  );
+
+  for (const width of [1, 2, 3, 4, 8, 20, 40, 80]) {
+    const lines = component.render(width);
+    for (const line of lines) {
+      assert.ok(
+        visibleWidth(line) <= width,
+        `expected line width <= ${width}, got ${visibleWidth(line)} for ${JSON.stringify(line)}`,
+      );
+    }
+  }
 });
 
 test("context overlay extension registers /c and opens an overlay", async () => {

@@ -97,9 +97,21 @@ export class ContextOverlayComponent {
   }
 
   render(width: number): string[] {
-    const inner = Math.max(20, width - 2);
-    const leftW = Math.max(28, Math.floor(inner * 0.42));
-    const rightW = Math.max(20, inner - leftW - 3);
+    if (!Number.isFinite(width) || width <= 0) {
+      return [];
+    }
+
+    if (width < 3) {
+      return [this.buildHeader(width)];
+    }
+
+    const inner = width - 2;
+    const sepWidth = 3;
+    const leftW = Math.max(
+      1,
+      Math.min(Math.max(12, Math.floor(inner * 0.42)), Math.max(1, inner - sepWidth - 1)),
+    );
+    const rightW = Math.max(1, inner - leftW - sepWidth);
 
     const lines: string[] = [];
     const border = (s: string) => this.theme.fg("border", s);

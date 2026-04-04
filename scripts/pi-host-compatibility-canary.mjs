@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -457,6 +458,34 @@ function buildInstallCommand(host) {
   ];
 }
 
+function createNeutralNpmEnv(baseEnv = process.env) {
+  const sandboxDir = mkdtempSync(path.join(tmpdir(), "pi-host-compat-npm-"));
+  const userConfig = path.join(sandboxDir, "user.npmrc");
+  const globalConfig = path.join(sandboxDir, "global.npmrc");
+  writeFileSync(userConfig, "");
+  writeFileSync(globalConfig, "");
+
+  const env = {
+    ...baseEnv,
+    NPM_CONFIG_USERCONFIG: userConfig,
+    NPM_CONFIG_GLOBALCONFIG: globalConfig,
+    npm_config_userconfig: userConfig,
+    npm_config_globalconfig: globalConfig,
+  };
+
+  delete env.NPM_CONFIG_BEFORE;
+  delete env.npm_config_before;
+  delete env.NPM_CONFIG_MIN_RELEASE_AGE;
+  delete env.npm_config_min_release_age;
+
+  return {
+    env,
+    cleanup() {
+      rmSync(sandboxDir, { recursive: true, force: true });
+    },
+  };
+}
+
 function buildRestoreCommands(snapshot) {
   const installSpecifiers = snapshot
     .filter((entry) => typeof entry.installedVersion === "string" && entry.installedVersion.length > 0)
@@ -598,11 +627,13 @@ async function ensureScenarioHost(host, scenario, options) {
       console.log(`    host_before[${entry.packagePath}]: ${summarizeSnapshot(entry.beforeSnapshot)}`);
     }
 
+    const npmEnv = createNeutralNpmEnv(process.env);
     const installResult = await spawnCommand(installCommand[0], installCommand.slice(1), {
       cwd: packageAbs,
-      env: process.env,
+      env: npmEnv.env,
       stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
     });
+    npmEnv.cleanup();
 
     if (!installResult.ok) {
       return {
@@ -714,11 +745,13 @@ async function restoreScenarioHost(host, hostPreparation, options) {
 
     const commandResults = [];
     for (const restoreCommand of restoreCommands) {
+      const npmEnv = createNeutralNpmEnv(process.env);
       const restoreResult = await spawnCommand(restoreCommand[0], restoreCommand.slice(1), {
         cwd: packageAbs,
-        env: process.env,
+        env: npmEnv.env,
         stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
       });
+      npmEnv.cleanup();
       commandResults.push({ command: restoreCommand, result: restoreResult });
       if (!restoreResult.ok) {
         return {

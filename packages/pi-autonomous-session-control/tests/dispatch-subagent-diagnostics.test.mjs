@@ -135,10 +135,7 @@ test("spawnSubagentWithSpawn finalizes on exit even when close never arrives", a
   assert.equal(runningStatus.pid, 424242);
   assert.equal(runningStatus.parentSessionKey, "live-session-42");
 
-  stdout.emit(
-    "data",
-    '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"hello"}}\n',
-  );
+  stdout.emit("data", '{"type":"assistant_text_delta","delta":"hello"}\n');
   child.emit("exit", 0);
 
   const result = await resultPromise;
@@ -158,7 +155,7 @@ test("spawnSubagentWithSpawn finalizes on exit even when close never arrives", a
   await rm(state.sessionsDir, { recursive: true, force: true });
 });
 
-test("spawnSubagentWithSpawn flushes a final unterminated message_end event", async () => {
+test("spawnSubagentWithSpawn flushes a final unterminated assistant_message_end event", async () => {
   const state = createSubagentState(join(tmpdir(), `subagent-final-message-${Date.now()}`));
   const stdout = new EventEmitter();
   const stderr = new EventEmitter();
@@ -186,7 +183,7 @@ test("spawnSubagentWithSpawn flushes a final unterminated message_end event", as
 
   stdout.emit(
     "data",
-    '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"final output without newline"}],"stopReason":"stop"}}',
+    '{"type":"assistant_message_end","text":"final output without newline","stopReason":"stop"}',
   );
   child.emit("close", 0);
 
@@ -198,6 +195,60 @@ test("spawnSubagentWithSpawn flushes a final unterminated message_end event", as
     kind: "assistant_protocol",
     stopReason: "stop",
     errorMessage: undefined,
+  });
+
+  await rm(state.sessionsDir, { recursive: true, force: true });
+});
+
+test("spawnSubagentWithSpawn treats a final assistant stop as semantic success even when transport exits non-zero", async () => {
+  const state = createSubagentState(join(tmpdir(), `subagent-final-stop-drift-${Date.now()}`));
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  stdout.setEncoding = () => stdout;
+  stderr.setEncoding = () => stderr;
+
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.kill = () => true;
+  child.pid = 434344;
+
+  const resultPromise = spawnSubagentWithSpawn(
+    {
+      name: "final-stop-drift",
+      objective: "Review changes",
+      tools: "read,bash",
+      sessionFile: join(state.sessionsDir, "final-stop-drift.json"),
+    },
+    "test/model",
+    { cwd: process.cwd() },
+    state,
+    () => child,
+  );
+
+  stdout.emit(
+    "data",
+    '{"type":"assistant_message_end","text":"review complete","stopReason":"stop"}\n',
+  );
+  child.emit("close", 1);
+
+  const result = await resultPromise;
+  assert.equal(result.status, "done");
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.output, "review complete");
+  assert.equal(result.assistantStopReason, "stop");
+  assert.deepEqual(result.executionState, {
+    transport: {
+      kind: "transport",
+      exitCode: 1,
+      aborted: false,
+      timedOut: false,
+    },
+    protocol: {
+      kind: "assistant_protocol",
+      stopReason: "stop",
+      errorMessage: undefined,
+    },
   });
 
   await rm(state.sessionsDir, { recursive: true, force: true });
@@ -229,13 +280,10 @@ test("spawnSubagentWithSpawn preserves assistant protocol failures", async () =>
     () => child,
   );
 
+  stdout.emit("data", '{"type":"assistant_text_delta","delta":"partial"}\n');
   stdout.emit(
     "data",
-    '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"partial"}}\n',
-  );
-  stdout.emit(
-    "data",
-    '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}}\n',
+    '{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n',
   );
   child.emit("close", 0);
 
@@ -281,7 +329,7 @@ test("spawnSubagentWithSpawn honors final-only semantic assistant failures", asy
 
   stdout.emit(
     "data",
-    '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}}\n',
+    '{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n',
   );
   child.emit("close", 0);
 
@@ -300,7 +348,7 @@ test("spawnSubagentWithSpawn honors final-only semantic assistant failures", asy
   await rm(state.sessionsDir, { recursive: true, force: true });
 });
 
-test("spawnSubagentWithSpawn fails closed on malformed pi JSON output", async () => {
+test("spawnSubagentWithSpawn fails closed on malformed subagent protocol output", async () => {
   const state = createSubagentState(join(tmpdir(), `subagent-parse-error-${Date.now()}`));
   const stdout = new EventEmitter();
   const stderr = new EventEmitter();
@@ -332,11 +380,56 @@ test("spawnSubagentWithSpawn fails closed on malformed pi JSON output", async ()
   const result = await resultPromise;
   assert.equal(result.status, "error");
   assert.equal(result.exitCode, 1);
-  assert.match(result.output, /Failed to parse 1 pi JSON event line/);
+  assert.match(result.output, /Failed to parse 1 subagent protocol event line/);
   assert.deepEqual(result.executionState?.protocol, {
     kind: "assistant_protocol_parse_error",
     errorMessage:
-      "Failed to parse 1 pi JSON event line(s).\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
+      "Failed to parse 1 subagent protocol event line(s).\nExpected property name or '}' in JSON at position 1 (line 1 column 2)",
+  });
+
+  await rm(state.sessionsDir, { recursive: true, force: true });
+});
+
+test("spawnSubagentWithSpawn rejects raw pi JSON events once the helper protocol is authoritative", async () => {
+  const state = createSubagentState(join(tmpdir(), `subagent-raw-pi-rejected-${Date.now()}`));
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  stdout.setEncoding = () => stdout;
+  stderr.setEncoding = () => stderr;
+
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.kill = () => true;
+  child.pid = 455455;
+
+  const resultPromise = spawnSubagentWithSpawn(
+    {
+      name: "raw-pi-rejected",
+      objective: "Review changes",
+      tools: "read,bash",
+      sessionFile: join(state.sessionsDir, "raw-pi-rejected.json"),
+    },
+    "test/model",
+    { cwd: process.cwd() },
+    state,
+    () => child,
+  );
+
+  stdout.emit(
+    "data",
+    '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"stop"}}\n',
+  );
+  child.emit("close", 0);
+
+  const result = await resultPromise;
+  assert.equal(result.status, "error");
+  assert.equal(result.exitCode, 1);
+  assert.match(result.output, /Unexpected subagent protocol event type: message_end/);
+  assert.deepEqual(result.executionState?.protocol, {
+    kind: "assistant_protocol_parse_error",
+    errorMessage:
+      "Failed to parse 1 subagent protocol event line(s).\nUnexpected subagent protocol event type: message_end",
   });
 
   await rm(state.sessionsDir, { recursive: true, force: true });
@@ -375,12 +468,9 @@ test("spawnSubagentWithSpawn bounds assistant output and marks truncation", asyn
     stdout.emit(
       "data",
       JSON.stringify({
-        type: "message_end",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text: "x".repeat(64) }],
-          stopReason: "stop",
-        },
+        type: "assistant_message_end",
+        text: "x".repeat(64),
+        stopReason: "stop",
       }),
     );
     child.emit("close", 0);
@@ -401,7 +491,7 @@ test("spawnSubagentWithSpawn bounds assistant output and marks truncation", asyn
   }
 });
 
-test("spawnSubagentWithSpawn fails closed when a JSON event line exceeds the buffer limit", async () => {
+test("spawnSubagentWithSpawn fails closed when a subagent protocol line exceeds the buffer limit without a newline delimiter", async () => {
   const state = createSubagentState(join(tmpdir(), `subagent-buffer-overflow-${Date.now()}`));
   const stdout = new EventEmitter();
   const stderr = new EventEmitter();
@@ -437,12 +527,69 @@ test("spawnSubagentWithSpawn fails closed when a JSON event line exceeds the buf
     const result = await resultPromise;
     assert.equal(result.status, "error");
     assert.equal(result.exitCode, 1);
-    assert.match(result.output, /Failed to parse 1 pi JSON event line/);
-    assert.match(result.stderr || "", /event buffer exceeded 8 bytes/i);
+    assert.match(result.output, /Failed to parse 1 subagent protocol event line/);
+    assert.match(result.stderr || "", /subagent protocol event buffer exceeded 8 bytes/i);
     assert.deepEqual(result.executionState?.protocol, {
       kind: "assistant_protocol_parse_error",
       errorMessage:
-        "Failed to parse 1 pi JSON event line(s).\nPi JSON event buffer exceeded 8 bytes without a newline delimiter.",
+        "Failed to parse 1 subagent protocol event line(s).\nSubagent protocol event buffer exceeded 8 bytes without a newline delimiter.",
+    });
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES;
+    } else {
+      process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES = previous;
+    }
+    await rm(state.sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnSubagentWithSpawn fails closed when a complete subagent protocol line exceeds the buffer limit", async () => {
+  const state = createSubagentState(
+    join(tmpdir(), `subagent-complete-line-overflow-${Date.now()}`),
+  );
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  stdout.setEncoding = () => stdout;
+  stderr.setEncoding = () => stderr;
+  const previous = process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES;
+
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.kill = () => true;
+  child.pid = 463463;
+
+  try {
+    process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES = "32";
+
+    const resultPromise = spawnSubagentWithSpawn(
+      {
+        name: "complete-line-overflow",
+        objective: "Review changes",
+        tools: "read,bash",
+        sessionFile: join(state.sessionsDir, "complete-line-overflow.json"),
+      },
+      "test/model",
+      { cwd: process.cwd() },
+      state,
+      () => child,
+    );
+
+    stdout.emit(
+      "data",
+      `${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "x".repeat(128) })}\n`,
+    );
+    child.emit("close", 0);
+
+    const result = await resultPromise;
+    assert.equal(result.status, "error");
+    assert.equal(result.exitCode, 1);
+    assert.match(result.output, /Subagent protocol event line exceeded 32 bytes/);
+    assert.deepEqual(result.executionState?.protocol, {
+      kind: "assistant_protocol_parse_error",
+      errorMessage:
+        "Failed to parse 1 subagent protocol event line(s).\nSubagent protocol event line exceeded 32 bytes.",
     });
   } finally {
     if (previous === undefined) {

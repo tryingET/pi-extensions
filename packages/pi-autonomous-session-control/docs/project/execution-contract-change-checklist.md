@@ -58,9 +58,12 @@ Run these whenever the ASC public runtime itself, the named transport-safety inv
 - `tests/public-execution-contract.test.mjs`
 - `tests/public-execution-parity.test.mjs`
 - `tests/dispatch-subagent-diagnostics.test.mjs`
+- `tests/subagent-protocol.test.mjs`
+- `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 
 This layer proves the supported seam semantics owned by ASC.
+For helper-protocol changes, do not stop at EventEmitter-only mocks: include at least one spawned-helper proof for raw-Pi framing, one complete-line oversize proof, and one raw-child teardown proof when timeout/abort handling changed.
 Prefer adding or updating named scenarios in the shared casebook when the change is about a learned edge case rather than a one-off local assertion.
 
 ### Layer B — Orchestrator package-local consumer truth
