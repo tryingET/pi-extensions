@@ -1,4 +1,33 @@
 #!/bin/sh
+# repo_capability:begin
+# {
+#   "schema_version": 1,
+#   "slug": "cargo.operator",
+#   "summary": "Run cargo/rustc through the repo's explicit nightly operator contract instead of guessing toolchain state.",
+#   "kind": "cargo-wrapper",
+#   "when_to_use": "Use for build, test, clippy, fmt, install, and other cargo-driven repo operations when the checked-in nightly operator path should stay authoritative.",
+#   "scope": "repo",
+#   "lifecycle_state": "canonical",
+#   "risk_class": "repo-and-runtime-mutation",
+#   "receipt_mode": "observational",
+#   "inputs": [
+#     {
+#       "name": "cargo_args",
+#       "kind": "argv",
+#       "required": false,
+#       "summary": "Arguments forwarded to cargo after the nightly toolchain runner is selected."
+#     }
+#   ],
+#   "outputs": [
+#     {
+#       "kind": "process-exit",
+#       "summary": "Delegated cargo exit status plus the wrapped command's console output."
+#     }
+#   ],
+#   "composition_eligibility": "manual-only",
+#   "summary_visibility": "default"
+# }
+# repo_capability:end
 set -eu
 
 TOOLCHAIN="${AK_RUSTUP_TOOLCHAIN:-nightly}"
