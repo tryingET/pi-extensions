@@ -1372,6 +1372,93 @@ test("session_start footer refreshes vault health after startup drift", async ()
   }
 });
 
+test("session_start footer health retries respect the refresh interval", async () => {
+  const previousVaultDir = process.env.VAULT_DIR;
+  const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
+  const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-throttle-"));
+  execFileSync("dolt", ["init"], { cwd: tempVaultDir, stdio: "ignore" });
+  process.env.VAULT_DIR = tempVaultDir;
+  process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "1000";
+
+  try {
+    const events = new Map();
+    extension({
+      registerTool() {},
+      registerCommand() {},
+      on(name, handler) {
+        events.set(name, handler);
+      },
+    });
+
+    const sessionStart = events.get("session_start");
+    assert.ok(sessionStart, "expected session_start handler to register");
+
+    let footerFactory;
+    let rerenders = 0;
+    await sessionStart(
+      {},
+      {
+        hasUI: true,
+        cwd: process.cwd(),
+        model: { id: "test-model" },
+        ui: {
+          notify() {},
+          setFooter(factory) {
+            footerFactory = factory;
+          },
+        },
+      },
+    );
+
+    assert.ok(footerFactory, "expected session_start to register a footer");
+    const footer = footerFactory(
+      {
+        requestRender() {
+          rerenders += 1;
+        },
+      },
+      {
+        fg(_color, text) {
+          return text;
+        },
+      },
+      undefined,
+    );
+
+    const initial = footer.render(120)[0];
+    assert.match(initial, /Vault✗/);
+
+    execFileSync(
+      "dolt",
+      [
+        "sql",
+        "-q",
+        "create table prompt_templates (name text, artifact_kind text, description text, content text, status text); insert into prompt_templates values ('inv', 'cognitive', 'desc', 'body', 'active');",
+      ],
+      { cwd: tempVaultDir, stdio: "ignore" },
+    );
+
+    footer.render(120);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const stillStale = footer.render(120)[0];
+    assert.match(stillStale, /Vault✗/);
+    assert.equal(rerenders, 0, "expected footer retries to stay throttled before the interval");
+  } finally {
+    if (previousVaultDir === undefined) {
+      delete process.env.VAULT_DIR;
+    } else {
+      process.env.VAULT_DIR = previousVaultDir;
+    }
+    if (previousRefreshMs === undefined) {
+      delete process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
+    } else {
+      process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = previousRefreshMs;
+    }
+    fs.rmSync(tempVaultDir, { recursive: true, force: true });
+  }
+});
+
 test("agents-team command stores team selection per session manager", async () => {
   const commands = new Map();
   const tools = new Map();

@@ -568,6 +568,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0950",
+          "title": "[SO-REPAIR] Throttle footer health retries and honor zero refresh config",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-REPAIR] Throttle footer health retries and honor zero refresh config (task #950)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
         }
       ]
     }

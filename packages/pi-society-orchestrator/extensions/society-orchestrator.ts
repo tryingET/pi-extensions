@@ -85,19 +85,20 @@ const DEFAULT_VAULT_DIR = path.join(
   "prompt-vault",
   "prompt-vault-db",
 );
-const DEFAULT_FOOTER_HEALTH_REFRESH_MS =
-  Number.parseInt(process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS || "", 10) || 30_000;
+const DEFAULT_FOOTER_HEALTH_REFRESH_MS = 30_000;
 const AGENT_KERNEL = resolveAkPath({ cwd: process.cwd() });
 
 function resolveVaultDir() {
   return process.env.VAULT_DIR || DEFAULT_VAULT_DIR;
 }
 
+function parseFooterHealthRefreshMs(value: string | undefined) {
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_FOOTER_HEALTH_REFRESH_MS;
+}
+
 function getFooterHealthRefreshMs() {
-  return (
-    Number.parseInt(process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS || "", 10) ||
-    DEFAULT_FOOTER_HEALTH_REFRESH_MS
-  );
+  return parseFooterHealthRefreshMs(process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS);
 }
 
 // ============================================================================
@@ -167,7 +168,7 @@ export default function (pi: ExtensionAPI) {
   function createFooterHealthState(initialToolsResult?: CognitiveToolsResult): FooterHealthState {
     return {
       latestToolsResult: initialToolsResult,
-      lastProbeAt: Date.now(),
+      lastProbeAt: initialToolsResult ? Date.now() : 0,
       probeInFlight: undefined,
       disposed: false,
     };
@@ -176,9 +177,6 @@ export default function (pi: ExtensionAPI) {
   function shouldRefreshFooterHealth(state: FooterHealthState) {
     if (state.disposed || state.probeInFlight) {
       return false;
-    }
-    if (!state.latestToolsResult || isBoundaryFailure(state.latestToolsResult)) {
-      return true;
     }
     return Date.now() - state.lastProbeAt >= getFooterHealthRefreshMs();
   }
