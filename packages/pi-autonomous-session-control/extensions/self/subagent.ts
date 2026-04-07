@@ -8,6 +8,7 @@ import {
   createAscExecutionRuntime,
   type DispatchSubagentProfile,
   type DispatchSubagentRequest,
+  type SubagentModelContext,
 } from "./subagent-runtime.ts";
 import {
   clearSubagentSessions,
@@ -39,6 +40,7 @@ export type {
   DispatchSubagentRequest,
   ExecutionState,
   SubagentDef,
+  SubagentModelContext,
   SubagentResult,
   SubagentSpawner,
   SubagentState,
@@ -152,7 +154,7 @@ Prompt envelope (optional):
 export function registerSubagentTool(
   pi: ExtensionAPI,
   state: SubagentState,
-  modelProvider: () => string,
+  modelProvider: (ctx?: SubagentModelContext) => string,
   spawner: SubagentSpawner = spawnSubagent,
 ): void {
   registerDispatchSubagentTool(

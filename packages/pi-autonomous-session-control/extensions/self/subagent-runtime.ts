@@ -88,9 +88,17 @@ export interface DispatchSubagentExecutionResult {
   ok: boolean;
 }
 
+export interface SubagentModelContext extends SessionScopedContext {
+  cwd: string;
+  model?: {
+    provider?: unknown;
+    id?: unknown;
+  };
+}
+
 export interface AscExecutionRuntimeOptions {
   sessionsDir: string;
-  modelProvider: () => string;
+  modelProvider: (ctx?: SubagentModelContext) => string;
   spawner?: SubagentSpawner;
   state?: SubagentState;
   maxConcurrent?: number;
@@ -100,7 +108,7 @@ export interface AscExecutionRuntime {
   state: SubagentState;
   execute(
     request: DispatchSubagentRequest,
-    ctx: SessionScopedContext & { cwd: string },
+    ctx: SubagentModelContext,
     onUpdate?: (update: DispatchSubagentExecutionUpdate) => void,
     signal?: AbortSignal,
   ): Promise<DispatchSubagentExecutionResult>;
@@ -199,8 +207,8 @@ export function getDispatchSubagentDisplayOutput(result: DispatchSubagentExecuti
 export async function executeDispatchSubagentRequest(options: {
   request: DispatchSubagentRequest;
   state: SubagentState;
-  modelProvider: () => string;
-  ctx: SessionScopedContext & { cwd: string };
+  modelProvider: (ctx?: SubagentModelContext) => string;
+  ctx: SubagentModelContext;
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
   signal?: AbortSignal;
   spawner?: SubagentSpawner;
@@ -321,7 +329,7 @@ export async function executeDispatchSubagentRequest(options: {
 
     result = await spawner(
       def,
-      options.modelProvider(),
+      options.modelProvider(options.ctx),
       options.ctx,
       options.state,
       options.signal,

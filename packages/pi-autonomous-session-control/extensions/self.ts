@@ -95,16 +95,30 @@ function resolveSelfMemoryPath(sessionsDir: string): string {
   return join(dirname(sessionsDir), `${safeBase}.self-memory.json`);
 }
 
-function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentState): void {
-  registerSubagentTool(pi, subagentState, () => {
-    // Priority: env var override > fixed default for all subagents
-    const fromEnv = process.env.PI_SUBAGENT_MODEL?.trim();
-    if (fromEnv) return fromEnv;
+export const DEFAULT_SUBAGENT_MODEL = "openai-codex/gpt-5.4";
 
-    // Default: gpt-5.4 on openai-codex provider
-    // NOTE: Must use provider/model format to avoid resolver ambiguity.
-    return "openai-codex/gpt-5.4";
-  });
+export function resolveSubagentModel(ctx?: {
+  model?: {
+    provider?: unknown;
+    id?: unknown;
+  };
+}): string {
+  const fromEnv = process.env.PI_SUBAGENT_MODEL?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+
+  const provider = typeof ctx?.model?.provider === "string" ? ctx.model.provider.trim() : "";
+  const modelId = typeof ctx?.model?.id === "string" ? ctx.model.id.trim() : "";
+  if (provider.length > 0 && modelId.length > 0) {
+    return `${provider}/${modelId}`;
+  }
+
+  return DEFAULT_SUBAGENT_MODEL;
+}
+
+function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentState): void {
+  registerSubagentTool(pi, subagentState, (ctx) => resolveSubagentModel(ctx));
 
   registerSubagentCommands(pi, subagentState);
   registerSubagentDashboard(pi, subagentState);

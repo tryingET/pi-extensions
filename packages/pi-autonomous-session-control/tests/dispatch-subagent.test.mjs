@@ -9,12 +9,13 @@ import {
   SUBAGENT_PROFILES,
 } from "../extensions/self/subagent.ts";
 
-async function setup(spawnerOverride) {
+async function setup(spawnerOverride, modelProvider = () => "test/model") {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dispatch-test-"));
   const state = createSubagentState(sessionsDir);
 
   let registeredTool;
   let capturedDef;
+  let capturedModel;
 
   const pi = {
     registerTool(definition) {
@@ -24,8 +25,9 @@ async function setup(spawnerOverride) {
 
   const spawner =
     spawnerOverride ||
-    (async (def) => {
+    (async (def, model) => {
       capturedDef = def;
+      capturedModel = model;
       return {
         output: "ok",
         exitCode: 0,
@@ -34,21 +36,19 @@ async function setup(spawnerOverride) {
       };
     });
 
-  registerSubagentTool(
-    pi,
-    state,
-    () => "test/model",
-    async (...args) => {
-      const def = args[0];
-      capturedDef = def;
-      return spawner(...args);
-    },
-  );
+  registerSubagentTool(pi, state, modelProvider, async (...args) => {
+    const def = args[0];
+    const model = args[1];
+    capturedDef = def;
+    capturedModel = model;
+    return spawner(...args);
+  });
 
   return {
     state,
     tool: registeredTool,
     getCapturedDef: () => capturedDef,
+    getCapturedModel: () => capturedModel,
     cleanup: async () => {
       await rm(sessionsDir, { recursive: true, force: true });
     },
@@ -98,6 +98,34 @@ test("dispatch_subagent records the current live session key on spawned sessions
 
     const def = harness.getCapturedDef();
     assert.equal(def.parentSessionKey, "live-session-42");
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent passes execution context to modelProvider", async () => {
+  const harness = await setup(undefined, (ctx) => {
+    const provider = ctx?.model?.provider;
+    const modelId = ctx?.model?.id;
+    return `${provider}/${modelId}`;
+  });
+
+  try {
+    await harness.tool.execute(
+      "tc-model-context",
+      {
+        profile: "reviewer",
+        objective: "Review changes",
+      },
+      null,
+      null,
+      {
+        cwd: process.cwd(),
+        model: { provider: "anthropic", id: "claude-sonnet-4-20250514" },
+      },
+    );
+
+    assert.equal(harness.getCapturedModel(), "anthropic/claude-sonnet-4-20250514");
   } finally {
     await harness.cleanup();
   }
