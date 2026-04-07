@@ -3,23 +3,17 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "0ffdeebdc38e3e26eb90592f90c16fe014e8a310"
-created_at: "2026-04-07T06:44:47Z"
-intent: "Inherit current session model for subagent dispatch instead of fixed default"
+created_at: "2026-04-07T06:50:27Z"
+intent: "feat(pi-autonomous-session-control): inherit current session model for subagent dispatch"
 files:
-  - "packages/pi-autonomous-session-control/extensions/self.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent-runtime.ts"
-  - "packages/pi-autonomous-session-control/extensions/self/subagent.ts"
-  - "packages/pi-autonomous-session-control/execution.ts"
-  - "packages/pi-autonomous-session-control/tests/dispatch-subagent.test.mjs"
-  - "packages/pi-autonomous-session-control/tests/subagent-model-selection.test.mjs"
+  []
 validation:
   fast_gate:
     command: "just check"
     status: "pass"
   full_gate:
     command: "just test"
-    status: "pending"
+    status: "pass"
 group:
-  index: 2
+  index: 1
   total: 4
-  rationale: "subagent model inheritance from live session context"
