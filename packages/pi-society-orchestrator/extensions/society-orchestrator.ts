@@ -44,6 +44,7 @@ import {
   AGENT_TEAMS,
   type AgentTeam,
   autoSelectAgent,
+  getAgentTeamDisplayLabel,
   resolveAgentForTeam,
 } from "../src/runtime/agent-routing.ts";
 import { resolveAkPath } from "../src/runtime/ak.ts";
@@ -544,7 +545,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
 
       const options = Object.entries(AGENT_TEAMS).map(([name, agents]) => ({
         value: name as AgentTeam,
-        label: `${name} — ${agents.join(", ")}`,
+        label: `${getAgentTeamDisplayLabel(name)} — ${agents.join(", ")}`,
       }));
 
       const choice = await ctx.ui.select(

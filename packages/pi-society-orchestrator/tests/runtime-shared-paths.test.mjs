@@ -9,6 +9,7 @@ import { BUILT_IN_PLUGINS, registerLoopTools } from "../src/loops/engine.ts";
 import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
 import {
   AGENT_TEAMS,
+  getAgentTeamDisplayLabel,
   resolveAgentForTeam,
   resolveConfiguredDefaultAgentTeam,
   validateLoopAgentsForTeam,
@@ -535,6 +536,7 @@ test("createOrchestratorSubagentExecutor preserves truncation metadata from ASC 
 
 test("full team includes every registered agent profile", () => {
   assert.deepEqual(AGENT_TEAMS.full, ["builder", "researcher", "reviewer", "scout"]);
+  assert.equal(getAgentTeamDisplayLabel("full"), "all agents");
 });
 
 test("resolveAgentForTeam fails closed instead of silently swapping agent roles", () => {
@@ -1169,7 +1171,8 @@ test("runtime-status command opens a runtime truth inspector", async () => {
   assert.match(editors[0].text, /routing selector: `\/agents-team`/);
   assert.match(editors[0].text, /inspector: `\/runtime-status`/);
   assert.match(editors[0].text, /footer left: `test-model · orchestrator→ASC`/);
-  assert.match(editors[0].text, /footer right: `Routing: full`/);
+  assert.match(editors[0].text, /footer right: `Routing: all agents`/);
+  assert.match(editors[0].text, /routing: `all agents` \[internal: `full`\]/);
 });
 
 test("session_start surfaces routing status and the orchestrator to ASC seam in the footer", async () => {
@@ -1205,7 +1208,7 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
   );
 
   assert.equal(notifications.length, 1);
-  assert.match(notifications[0].message, /Routing: full/);
+  assert.match(notifications[0].message, /Routing: all agents/);
   assert.match(notifications[0].message, /\/runtime-status\s+Inspect runtime truth/);
   assert.doesNotMatch(notifications[0].message, /Team: full/);
   assert.ok(footerFactory, "expected session_start to register a footer");
@@ -1221,7 +1224,7 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
   );
   const rendered = footer.render(120)[0];
   assert.match(rendered, /orchestrator→ASC/);
-  assert.match(rendered, /Routing: full/);
+  assert.match(rendered, /Routing: all agents/);
   assert.doesNotMatch(rendered, /· orchestra(?:\s|$)/);
 });
 

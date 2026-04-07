@@ -1,4 +1,9 @@
-import { AGENT_TEAMS, type AgentTeam, DEFAULT_AGENT_TEAM } from "./agent-routing.ts";
+import {
+  AGENT_TEAMS,
+  type AgentTeam,
+  DEFAULT_AGENT_TEAM,
+  getAgentTeamDisplayLabel,
+} from "./agent-routing.ts";
 
 export interface RuntimeTruthDescriptor {
   packageName: string;
@@ -79,7 +84,7 @@ export function createRuntimeTruthSnapshot(params: {
 }
 
 export function formatRuntimeRoutingStatus(snapshot: RuntimeTruthSnapshot): string {
-  return `${snapshot.descriptor.routingLabel}: ${snapshot.routing.activeTeam}`;
+  return `${snapshot.descriptor.routingLabel}: ${getAgentTeamDisplayLabel(snapshot.routing.activeTeam)}`;
 }
 
 export function formatRuntimeFooterLeft(snapshot: RuntimeTruthSnapshot): string {
@@ -91,6 +96,16 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
   const routing = formatRuntimeRoutingStatus(snapshot);
   const routingAgents = snapshot.routing.allowedAgents.join(", ");
   const dbStatus = snapshot.societyDb.available ? "available" : "missing";
+  const activeRoutingDisplay = getAgentTeamDisplayLabel(snapshot.routing.activeTeam);
+  const defaultRoutingDisplay = getAgentTeamDisplayLabel(snapshot.routing.defaultTeam);
+  const activeRoutingInternalNote =
+    activeRoutingDisplay === snapshot.routing.activeTeam
+      ? ""
+      : ` [internal: \`${snapshot.routing.activeTeam}\`]`;
+  const defaultRoutingInternalNote =
+    defaultRoutingDisplay === snapshot.routing.defaultTeam
+      ? ""
+      : ` [internal: \`${snapshot.routing.defaultTeam}\`]`;
 
   return [
     `# ${descriptor.extensionTitle} Runtime Status`,
@@ -106,8 +121,8 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
     "## Live status",
     `- cwd: \`${snapshot.cwd}\``,
     `- model: \`${snapshot.model}\``,
-    `- routing: \`${snapshot.routing.activeTeam}\` (${routingAgents})`,
-    `- default routing: \`${snapshot.routing.defaultTeam}\``,
+    `- routing: \`${activeRoutingDisplay}\`${activeRoutingInternalNote} (${routingAgents})`,
+    `- default routing: \`${defaultRoutingDisplay}\`${defaultRoutingInternalNote}`,
     `- society db: ${dbStatus} — \`${snapshot.societyDb.path}\``,
     `- vault: ${snapshot.vault.summary}`,
     "",

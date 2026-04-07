@@ -35,12 +35,23 @@ export const AGENT_TEAMS: Record<AgentTeam, string[]> = {
   quality: ["reviewer", "researcher"],
 };
 
+export const AGENT_TEAM_DISPLAY_LABELS: Record<AgentTeam, string> = {
+  full: "all agents",
+  explore: "explore",
+  implement: "implement",
+  quality: "quality",
+};
+
 export function isAgentTeam(value: string): value is AgentTeam {
   return Object.hasOwn(AGENT_TEAMS, value);
 }
 
 export function resolveConfiguredDefaultAgentTeam(value: string | undefined): AgentTeam {
   return typeof value === "string" && isAgentTeam(value) ? value : DEFAULT_AGENT_TEAM;
+}
+
+export function getAgentTeamDisplayLabel(activeTeam: string): string {
+  return isAgentTeam(activeTeam) ? AGENT_TEAM_DISPLAY_LABELS[activeTeam] : activeTeam;
 }
 
 export function autoSelectAgent(context: string): string {

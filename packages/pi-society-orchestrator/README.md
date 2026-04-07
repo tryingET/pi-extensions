@@ -109,7 +109,7 @@ Primary tools and commands exposed by the imported extension include:
 - `ontology_context` (now resolved through the sanctioned `rocs-cli` adapter path instead of the local `society.db` ontology table)
 - `loop_execute`
 - `/cognitive`
-- `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; incompatible loop/team combinations now fail explicitly instead of silently swapping roles)
+- `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
 - `/runtime-status` (editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, and live DB/vault status)
 - `/evidence` (recent evidence preview via `ak evidence search`)
 - `/ontology <query>`
@@ -205,7 +205,7 @@ Session team identity precedence is now explicit:
 6. fallback to `sessionManager` object identity
 
 Additional runtime knobs:
-- `PI_ORCH_DEFAULT_AGENT_TEAM` — default team for sessions without explicit selection (validated; invalid values fall back to `full`)
+- `PI_ORCH_DEFAULT_AGENT_TEAM` — default internal team id for sessions without explicit selection (for example `full`, rendered to operators as `all agents`; invalid values fall back to `full`)
 - `PI_ORCH_MAX_SESSION_KEYS` — max retained session-key entries before oldest-key eviction
 - `PI_ORCH_PROCESS_CAPTURE_BYTES` — bounded stdout/stderr capture limit for supervised child processes
 - `PI_ORCH_SUBAGENT_TIMEOUT_MS` — default timeout forwarded through the ASC public execution request when orchestrator dispatch does not set an explicit timeout
