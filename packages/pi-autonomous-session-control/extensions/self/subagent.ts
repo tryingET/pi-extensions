@@ -9,6 +9,7 @@ import {
   type DispatchSubagentProfile,
   type DispatchSubagentRequest,
   type SubagentModelContext,
+  type SubagentModelProviderResult,
 } from "./subagent-runtime.ts";
 import {
   clearSubagentSessions,
@@ -75,7 +76,11 @@ Subagents maintain session state - you can dispatch follow-up tasks to continue 
 Prompt envelope (optional):
 - prompt_name / prompt_content / prompt_tags / prompt_source
 - If prompt_content is provided, it is prepended deterministically to the effective system prompt.
-- Provenance is returned in details as prompt_name, prompt_source, prompt_tags, prompt_applied.`,
+- Provenance is returned in details as prompt_name, prompt_source, prompt_tags, prompt_applied.
+
+Child extension bootstrap (optional):
+- extensions: explicit child-only extension allowlist loaded via --no-extensions + repeated --extension flags
+- use this when the subagent needs extension-provided providers/tools such as pi-multi-pass or vault-client without inheriting the full parent extension surface.`,
     promptSnippet:
       "Spawn a focused subagent for parallel investigation, review, testing, or research.",
     promptGuidelines: [
@@ -106,6 +111,12 @@ Prompt envelope (optional):
       ),
       timeout: Type.Optional(
         Type.Number({ description: "Timeout in seconds (default: 300, 0 = no timeout)" }),
+      ),
+      extensions: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Optional child-only extension allowlist (for example ['pi-multi-pass', 'vault-client', '/abs/path/to/ext.ts'])",
+        }),
       ),
       prompt_name: Type.Optional(
         Type.String({ description: "Prompt identifier used for provenance (e.g. template name)" }),
@@ -154,7 +165,7 @@ Prompt envelope (optional):
 export function registerSubagentTool(
   pi: ExtensionAPI,
   state: SubagentState,
-  modelProvider: (ctx?: SubagentModelContext) => string,
+  modelProvider: (ctx?: SubagentModelContext) => SubagentModelProviderResult,
   spawner: SubagentSpawner = spawnSubagent,
 ): void {
   registerDispatchSubagentTool(

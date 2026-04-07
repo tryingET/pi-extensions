@@ -332,6 +332,8 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 2. Current session model (`<provider>/<model-id>`) when available
 3. Fixed fallback: `openai-codex/gpt-5.4`
 
+The child still launches with `--no-extensions`, but ASC now supports explicit child-only extension bootstrap on top of that minimal base. When the current model uses a numeric-suffix provider alias such as `openai-codex-2`, ASC auto-loads `pi-multi-pass` into the child so the same subscription-backed provider alias remains valid instead of being collapsed to the base provider. ASC also launches the raw child against an isolated copy of the Pi agent dir with a sanitized `settings.json`, so extensionless child runs do not inherit unrelated global default-model warnings from the parent's configured provider aliases.
+
 **Session storage:**
 - `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)
 - `PI_SUBAGENT_CLEAR_ON_SESSION_START` — set to `true` to clear `*.json` subagent sessions on `session_start` (default: off / non-destructive)
@@ -344,6 +346,9 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 **Session artifact notes:**
 - Local session files in `./.pi-subagent-sessions` are runtime artifacts and are gitignored by default.
 - Unless `PI_SUBAGENT_MODEL` overrides it, subagents inherit the current session model when Pi exposes one; the fixed fallback `openai-codex/gpt-5.4` is only used when no current model is available.
+- When that requested model points at a numeric-suffix provider alias supplied by an extension (for example `openai-codex-2` from multi-pass), ASC preserves that exact requested/effective model and auto-loads `pi-multi-pass` into the child runtime.
+- `dispatch_subagent` also accepts `extensions: ["vault-client", "/abs/path/to/ext.ts", ...]` so a subagent can opt into specific extension-provided tools without inheriting the full parent extension surface.
+- Result details now expose both the selected model (`requestedModel` / `effectiveModel`) and the explicit child bootstrap set (`loadedExtensions`, `extensionWarnings`).
 - Subagent transport now runs through a package-local assistant-only JSON filter helper, so large aggregate Pi events (`agent_end`, `turn_end`, `tool_execution_end`) are dropped before ASC parses the stream.
 - ASC now treats the helper protocol as authoritative: raw Pi JSON events on the parent seam fail closed instead of being accepted as a compatibility fallback.
 - Parent-side execution timeouts now arm only after the helper emits its `transport_ready` handshake, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget.
@@ -363,6 +368,9 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 ```bash
 # Use a different model for subagents
 PI_SUBAGENT_MODEL=github-copilot/gpt-4o pi
+
+# Force extra child-only extensions for every subagent
+PI_SUBAGENT_EXTENSIONS=vault-client,/abs/path/to/custom-extension.ts pi
 
 # Custom session directory
 PI_SUBAGENT_SESSIONS_DIR=/tmp/pi-sessions pi

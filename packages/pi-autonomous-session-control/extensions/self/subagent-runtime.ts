@@ -1,12 +1,24 @@
 import { join } from "node:path";
 import type { InvariantIssue } from "./edge-contract-kernel.ts";
-import { getContextSessionKey, type SessionScopedContext } from "./session-context.ts";
+import {
+  getContextRepoRoot,
+  getContextSessionKey,
+  type SessionScopedContext,
+} from "./session-context.ts";
 import {
   formatInvariantIssues,
   normalizeDispatchParams,
   validateDispatchParams,
   validateSubagentLifecycle,
 } from "./subagent-edge-contract.ts";
+import {
+  type ResolvedSubagentExtensionSelection,
+  resolveSubagentExtensionSelection,
+} from "./subagent-extension-selection.ts";
+import type {
+  ResolvedSubagentModelSelection,
+  SubagentModelSelectionSource,
+} from "./subagent-model-selection.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import { applyPromptEnvelope } from "./subagent-prompt-envelope.ts";
 import {
@@ -33,6 +45,7 @@ export type DispatchSubagentFailureKind =
   | "assistant_protocol_error"
   | "assistant_protocol_parse_error"
   | "transport_error"
+  | "extension_bootstrap_missing"
   | "invariant_failed"
   | "unknown_profile"
   | "rate_limited";
@@ -44,6 +57,7 @@ export interface DispatchSubagentRequest {
   systemPrompt?: string;
   name?: string;
   timeout?: number;
+  extensions?: string[];
   prompt_name?: string;
   prompt_content?: string;
   prompt_tags?: string[];
@@ -65,6 +79,12 @@ export interface DispatchSubagentDetails {
   assistantStopReason?: AssistantStopReason;
   assistantErrorMessage?: string;
   executionState?: ExecutionState;
+  requestedModel?: string;
+  effectiveModel?: string;
+  modelSelectionSource?: SubagentModelSelectionSource;
+  modelSelectionWarning?: string;
+  loadedExtensions?: string[];
+  extensionWarnings?: string[];
   prompt_name?: string;
   prompt_source?: string;
   prompt_tags?: string[];
@@ -96,9 +116,11 @@ export interface SubagentModelContext extends SessionScopedContext {
   };
 }
 
+export type SubagentModelProviderResult = string | ResolvedSubagentModelSelection;
+
 export interface AscExecutionRuntimeOptions {
   sessionsDir: string;
-  modelProvider: (ctx?: SubagentModelContext) => string;
+  modelProvider: (ctx?: SubagentModelContext) => SubagentModelProviderResult;
   spawner?: SubagentSpawner;
   state?: SubagentState;
   maxConcurrent?: number;
@@ -189,6 +211,34 @@ function getDispatchSubagentTextBody(result: DispatchSubagentExecutionResult): s
   return separatorIndex >= 0 ? result.text.slice(separatorIndex + 2) : result.text;
 }
 
+function normalizeModelProviderResult(
+  result: SubagentModelProviderResult,
+): ResolvedSubagentModelSelection {
+  if (typeof result === "string") {
+    return {
+      requestedModel: result,
+      effectiveModel: result,
+      source: "custom",
+    };
+  }
+
+  const effectiveModel = result.effectiveModel.trim();
+  return {
+    requestedModel: (result.requestedModel || effectiveModel).trim(),
+    effectiveModel,
+    source: result.source,
+    warning: result.warning,
+  };
+}
+
+function formatExtensionSelectionWarnings(selection: ResolvedSubagentExtensionSelection): string {
+  if (selection.warnings.length === 0) {
+    return "";
+  }
+
+  return `\nExtension note: ${selection.warnings.join(" ")}`;
+}
+
 export function getDispatchSubagentDisplayOutput(result: DispatchSubagentExecutionResult): string {
   if (typeof result.details.displayOutput === "string") {
     return result.details.displayOutput;
@@ -207,7 +257,7 @@ export function getDispatchSubagentDisplayOutput(result: DispatchSubagentExecuti
 export async function executeDispatchSubagentRequest(options: {
   request: DispatchSubagentRequest;
   state: SubagentState;
-  modelProvider: (ctx?: SubagentModelContext) => string;
+  modelProvider: (ctx?: SubagentModelContext) => SubagentModelProviderResult;
   ctx: SubagentModelContext;
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
   signal?: AbortSignal;
@@ -221,6 +271,7 @@ export async function executeDispatchSubagentRequest(options: {
     systemPrompt,
     name,
     timeout,
+    extensions,
     prompt_name,
     prompt_content,
     prompt_tags,
@@ -286,6 +337,33 @@ export async function executeDispatchSubagentRequest(options: {
     process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES?.trim().toLowerCase() !== "false";
 
   const spawner = options.spawner ?? spawnSubagent;
+  const selectedModel = normalizeModelProviderResult(options.modelProvider(options.ctx));
+  const extensionSelection = resolveSubagentExtensionSelection({
+    requestedExtensions: extensions,
+    ctx: options.ctx,
+  });
+  if (extensionSelection.missingRequired.length > 0) {
+    executionSlot.release();
+    return {
+      ok: false,
+      text: [
+        "Subagent child runtime is missing required extension bootstrap.",
+        ...extensionSelection.missingRequired.map((item) => `- ${item}`),
+      ].join("\n"),
+      details: {
+        profile: profile as DispatchSubagentProfile,
+        objective: safeObjective,
+        requestedModel: selectedModel.requestedModel,
+        effectiveModel: selectedModel.effectiveModel,
+        modelSelectionSource: selectedModel.source,
+        modelSelectionWarning: selectedModel.warning,
+        loadedExtensions: extensionSelection.extensions,
+        extensionWarnings: extensionSelection.warnings,
+        status: "error",
+        failureKind: "extension_bootstrap_missing",
+      },
+    };
+  }
   let sessionReservation:
     | {
         sessionName: string;
@@ -306,6 +384,7 @@ export async function executeDispatchSubagentRequest(options: {
 
     const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
     const parentSessionKey = getContextSessionKey(options.ctx);
+    const parentRepoRoot = getContextRepoRoot(options.ctx);
 
     const def: SubagentDef = {
       name: sessionReservation.sessionName,
@@ -316,6 +395,8 @@ export async function executeDispatchSubagentRequest(options: {
       timeout: timeoutMs,
       executionSlotReserved: true,
       parentSessionKey,
+      parentRepoRoot,
+      extensionSources: extensionSelection.extensions,
     };
 
     options.onUpdate?.({
@@ -324,12 +405,26 @@ export async function executeDispatchSubagentRequest(options: {
         profile: profile as DispatchSubagentProfile,
         objective: safeObjective,
         status: "spawning",
+        ...(selectedModel.warning
+          ? {
+              requestedModel: selectedModel.requestedModel,
+              effectiveModel: selectedModel.effectiveModel,
+              modelSelectionSource: selectedModel.source,
+              modelSelectionWarning: selectedModel.warning,
+            }
+          : {}),
+        ...(extensionSelection.extensions.length > 0
+          ? { loadedExtensions: extensionSelection.extensions }
+          : {}),
+        ...(extensionSelection.warnings.length > 0
+          ? { extensionWarnings: extensionSelection.warnings }
+          : {}),
       },
     });
 
     result = await spawner(
       def,
-      options.modelProvider(options.ctx),
+      selectedModel.effectiveModel,
       options.ctx,
       options.state,
       options.signal,
@@ -369,6 +464,10 @@ export async function executeDispatchSubagentRequest(options: {
   const status = toDispatchSubagentStatus(result.status);
   const icon = status === "done" ? "✓" : "✗";
   const summary = `${icon} [${profile}] ${getDispatchSubagentStatusLabel(status)} in ${Math.round(result.elapsed / 1000)}s`;
+  const modelSelectionWarning = selectedModel.warning
+    ? `\nModel selection note: ${selectedModel.warning}`
+    : "";
+  const extensionSelectionWarning = formatExtensionSelectionWarnings(extensionSelection);
   const promptWarning = promptEnvelope.prompt_warning
     ? `\nPrompt envelope warning: ${promptEnvelope.prompt_warning}`
     : "";
@@ -379,7 +478,7 @@ export async function executeDispatchSubagentRequest(options: {
 
   return {
     ok: status === "done",
-    text: `${summary}${promptWarning}\n\n${truncated}`,
+    text: `${summary}${modelSelectionWarning}${extensionSelectionWarning}${promptWarning}\n\n${truncated}`,
     details: {
       profile: profile as DispatchSubagentProfile,
       objective: safeObjective,
@@ -394,6 +493,12 @@ export async function executeDispatchSubagentRequest(options: {
       assistantStopReason: result.assistantStopReason,
       assistantErrorMessage: result.assistantErrorMessage,
       executionState: result.executionState,
+      requestedModel: selectedModel.requestedModel,
+      effectiveModel: selectedModel.effectiveModel,
+      modelSelectionSource: selectedModel.source,
+      modelSelectionWarning: selectedModel.warning,
+      loadedExtensions: extensionSelection.extensions,
+      extensionWarnings: extensionSelection.warnings,
       prompt_name: promptEnvelope.prompt_name,
       prompt_source: promptEnvelope.prompt_source,
       prompt_tags: promptEnvelope.prompt_tags,

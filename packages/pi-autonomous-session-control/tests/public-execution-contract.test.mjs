@@ -123,11 +123,15 @@ test("execution entrypoint stays headless-importable without package-local node_
   const packageRoot = join(fixtureRoot, "package");
   const requiredFiles = [
     "execution.ts",
+    "extensions/self/cross-extension-harness.ts",
     "extensions/self/edge-contract-kernel.ts",
+    "extensions/self/subagent-child-agent-dir.ts",
     "extensions/self/resolvers/helpers.ts",
     "extensions/self/subagent-edge-contract.ts",
+    "extensions/self/subagent-extension-selection.ts",
     "extensions/self/subagent-profiles.ts",
     "extensions/self/subagent-prompt-envelope.ts",
+    "extensions/self/subagent-model-selection.ts",
     "extensions/self/session-context.ts",
     "extensions/self/subagent-runtime.ts",
     "extensions/self/subagent-session-name.ts",

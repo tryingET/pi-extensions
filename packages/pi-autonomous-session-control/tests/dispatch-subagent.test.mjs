@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   createSubagentState,
@@ -98,6 +98,7 @@ test("dispatch_subagent records the current live session key on spawned sessions
 
     const def = harness.getCapturedDef();
     assert.equal(def.parentSessionKey, "live-session-42");
+    assert.equal(def.parentRepoRoot, resolve(process.cwd(), "../.."));
   } finally {
     await harness.cleanup();
   }
@@ -127,6 +128,115 @@ test("dispatch_subagent passes execution context to modelProvider", async () => 
 
     assert.equal(harness.getCapturedModel(), "anthropic/claude-sonnet-4-20250514");
   } finally {
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent auto-loads pi-multi-pass when the current model uses a numeric-suffix provider alias", async () => {
+  const previous = process.env.PI_MULTI_PASS_EXTENSION;
+  const extensionDir = await mkdtemp(join(tmpdir(), "subagent-multi-pass-extension-"));
+  const extensionPath = join(extensionDir, "multi-sub.ts");
+  await writeFile(extensionPath, "export default () => {};\n");
+
+  process.env.PI_MULTI_PASS_EXTENSION = extensionPath;
+  const harness = await setup(undefined, () => ({
+    requestedModel: "openai-codex-2/gpt-5.4",
+    effectiveModel: "openai-codex-2/gpt-5.4",
+    source: "session",
+  }));
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-model-normalization",
+      {
+        profile: "reviewer",
+        objective: "Review changes",
+      },
+      null,
+      null,
+      { cwd: process.cwd(), model: { provider: "openai-codex-2", id: "gpt-5.4" } },
+    );
+
+    assert.equal(harness.getCapturedModel(), "openai-codex-2/gpt-5.4");
+    assert.deepEqual(harness.getCapturedDef().extensionSources, [extensionPath]);
+    assert.equal(result.details.requestedModel, "openai-codex-2/gpt-5.4");
+    assert.equal(result.details.effectiveModel, "openai-codex-2/gpt-5.4");
+    assert.deepEqual(result.details.loadedExtensions, [extensionPath]);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PI_MULTI_PASS_EXTENSION;
+    } else {
+      process.env.PI_MULTI_PASS_EXTENSION = previous;
+    }
+    await rm(extensionDir, { recursive: true, force: true });
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent loads explicit child extensions for extension-provided tools", async () => {
+  const previous = process.env.PI_VAULT_CLIENT_EXTENSION;
+  const extensionDir = await mkdtemp(join(tmpdir(), "subagent-vault-extension-"));
+  const extensionPath = join(extensionDir, "vault.ts");
+  await writeFile(extensionPath, "export default () => {};\n");
+
+  process.env.PI_VAULT_CLIENT_EXTENSION = extensionPath;
+  const harness = await setup();
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-child-extension-request",
+      {
+        profile: "reviewer",
+        objective: "Use vault tools",
+        extensions: ["vault-client"],
+      },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+
+    assert.deepEqual(harness.getCapturedDef().extensionSources, [extensionPath]);
+    assert.deepEqual(result.details.loadedExtensions, [extensionPath]);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PI_VAULT_CLIENT_EXTENSION;
+    } else {
+      process.env.PI_VAULT_CLIENT_EXTENSION = previous;
+    }
+    await rm(extensionDir, { recursive: true, force: true });
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent fails clearly when a subscription-backed alias needs pi-multi-pass but the child bootstrap is unavailable", async () => {
+  const previous = process.env.PI_MULTI_PASS_EXTENSION;
+  process.env.PI_MULTI_PASS_EXTENSION = "/tmp/does-not-exist-pi-multi-pass.ts";
+  const harness = await setup(undefined, () => ({
+    requestedModel: "openai-codex-2/gpt-5.4",
+    effectiveModel: "openai-codex-2/gpt-5.4",
+    source: "session",
+  }));
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-missing-multi-pass",
+      {
+        profile: "reviewer",
+        objective: "Review changes",
+      },
+      null,
+      null,
+      { cwd: process.cwd(), model: { provider: "openai-codex-2", id: "gpt-5.4" } },
+    );
+
+    assert.equal(result.details.failureKind, "extension_bootstrap_missing");
+    assert.match(result.content[0].text, /pi-multi-pass extension/);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PI_MULTI_PASS_EXTENSION;
+    } else {
+      process.env.PI_MULTI_PASS_EXTENSION = previous;
+    }
     await harness.cleanup();
   }
 });

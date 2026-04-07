@@ -1,5 +1,10 @@
 import { spawn } from "node:child_process";
 import {
+  createIsolatedSubagentAgentDir,
+  type IsolatedSubagentAgentDir,
+  SUBAGENT_CHILD_AGENT_DIR_ENV,
+} from "./subagent-child-agent-dir.ts";
+import {
   type AssistantMessageEndProtocolEvent,
   type SubagentProtocolEvent,
   translatePiJsonEventLineToSubagentProtocol,
@@ -17,6 +22,7 @@ interface RunnerOptions {
   sessionFile: string;
   objective: string;
   systemPrompt?: string;
+  extensionSources: string[];
 }
 
 async function main(): Promise<void> {
@@ -34,11 +40,13 @@ async function main(): Promise<void> {
     DEFAULT_RAW_PI_EVENT_BUFFER_BYTES,
   );
 
-  const args = [
-    "--mode",
-    "json",
-    "-p",
-    "--no-extensions",
+  const args = ["--mode", "json", "-p", "--no-extensions"];
+
+  for (const extensionSource of options.extensionSources) {
+    args.push("--extension", extensionSource);
+  }
+
+  args.push(
     "--model",
     options.model,
     "--tools",
@@ -47,7 +55,7 @@ async function main(): Promise<void> {
     "off",
     "--session",
     options.sessionFile,
-  ];
+  );
 
   if (options.systemPrompt) {
     args.push("--append-system-prompt", options.systemPrompt);
@@ -55,12 +63,44 @@ async function main(): Promise<void> {
 
   args.push(options.objective);
 
+  let isolatedAgentDir: IsolatedSubagentAgentDir | undefined;
+  try {
+    isolatedAgentDir = await createIsolatedSubagentAgentDir();
+  } catch (error) {
+    process.stderr.write(
+      `Warning: Failed to isolate subagent child settings: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  }
+
   const child = spawn("pi", args, {
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      ...(isolatedAgentDir ? { [SUBAGENT_CHILD_AGENT_DIR_ENV]: isolatedAgentDir.agentDir } : {}),
+    },
     cwd: options.cwd || process.cwd(),
     detached: process.platform !== "win32",
   });
+
+  const cleanupIsolatedAgentDir = async () => {
+    if (!isolatedAgentDir) {
+      return;
+    }
+
+    const current = isolatedAgentDir;
+    isolatedAgentDir = undefined;
+    await current.cleanup().catch(() => undefined);
+  };
+
+  const cleanupIsolatedAgentDirSync = () => {
+    if (!isolatedAgentDir) {
+      return;
+    }
+
+    const current = isolatedAgentDir;
+    isolatedAgentDir = undefined;
+    current.cleanupSync();
+  };
 
   let rawBuffer = "";
   let discardingOversizedLine = false;
@@ -116,6 +156,7 @@ async function main(): Promise<void> {
   });
   process.once("exit", () => {
     clearChildForceKillHandle();
+    cleanupIsolatedAgentDirSync();
     if (childExited) {
       return;
     }
@@ -201,6 +242,7 @@ async function main(): Promise<void> {
   child.on("close", (code, signal) => {
     childExited = true;
     clearChildForceKillHandle();
+    void cleanupIsolatedAgentDir();
     if (!discardingOversizedLine && rawBuffer.trim()) {
       emitFilteredEventFromRawLine(rawBuffer);
     }
@@ -211,6 +253,7 @@ async function main(): Promise<void> {
   child.on("error", (error) => {
     childExited = true;
     clearChildForceKillHandle();
+    void cleanupIsolatedAgentDir();
     process.stderr.write(
       `Error spawning pi: ${error instanceof Error ? error.message : String(error)}\n`,
     );
@@ -224,7 +267,7 @@ async function main(): Promise<void> {
 }
 
 function parseArgs(argv: string[]): RunnerOptions {
-  const values = new Map<string, string>();
+  const values = new Map<string, string[]>();
 
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index];
@@ -237,7 +280,9 @@ function parseArgs(argv: string[]): RunnerOptions {
       throw new Error(`Missing value for ${key}`);
     }
 
-    values.set(key, value);
+    const existing = values.get(key) ?? [];
+    existing.push(value);
+    values.set(key, existing);
     index += 1;
   }
 
@@ -246,7 +291,7 @@ function parseArgs(argv: string[]): RunnerOptions {
   const tools = requireArg(values, "--tools");
   const sessionFile = requireArg(values, "--session-file");
   const objective = requireArg(values, "--objective");
-  const systemPrompt = values.get("--system-prompt") || undefined;
+  const systemPrompt = firstArg(values, "--system-prompt") || undefined;
 
   return {
     cwd,
@@ -255,11 +300,16 @@ function parseArgs(argv: string[]): RunnerOptions {
     sessionFile,
     objective,
     systemPrompt,
+    extensionSources: values.get("--extension") ?? [],
   };
 }
 
-function requireArg(values: Map<string, string>, key: string): string {
-  const value = values.get(key);
+function firstArg(values: Map<string, string[]>, key: string): string | undefined {
+  return values.get(key)?.[0];
+}
+
+function requireArg(values: Map<string, string[]>, key: string): string {
+  const value = firstArg(values, key);
   if (typeof value !== "string") {
     throw new Error(`Missing required argument: ${key}`);
   }

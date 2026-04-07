@@ -60,6 +60,7 @@ The public execution seam now also carries explicit transport-safety expectation
 - helper `transport_ready` handshake before ASC arms the execution timeout, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget
 - assistant-only filtered subagent protocol between ASC and the child helper, so aggregate Pi JSON events are dropped before the runtime parser and raw Pi JSON is no longer accepted on the parent seam as a compatibility fallback
 - bounded raw Pi JSON buffering inside that helper for malformed/no-newline upstream stdout, with separate raw-buffer configuration from the parent filtered-protocol buffer
+- isolated raw-child agent-dir settings so extensionless child runs do not inherit unrelated global default-model warnings from the parent environment
 - bounded filtered-protocol buffering inside ASC for malformed/no-newline or oversized helper stdout
 - helper-owned raw-child process-group shutdown on abort/timeout so the parent does not leave orphaned raw `pi` subprocesses behind when it escalates
 - session-name reservation that treats status sidecars as occupied artifacts
@@ -121,7 +122,7 @@ Useful properties:
 - `result.text` preserves the human-readable execution summary
 - `result.details.displayOutput` preserves the normalized body text consumers should render or forward, even when `fullOutput` is empty/whitespace on failing executions
 - `result.details.status` uses the canonical execution taxonomy (`done`, `aborted`, `timed_out`, `error`)
-- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, or the pre-execution guardrail reasons)
+- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
 - `getDispatchSubagentDisplayOutput(result)` is the exported compatibility helper for consumers that want the same normalized body shaping without reimplementing fallback logic
 
@@ -154,7 +155,7 @@ Current proof shape:
     - result / provenance shaping
   - `tests/dispatch-subagent-diagnostics.test.mjs` anchors parent-side protocol parsing, authoritative helper-seam fail-closed behavior, and filtered-protocol buffer enforcement
   - `tests/subagent-protocol.test.mjs` anchors raw-Pi-to-helper translation and malformed raw Pi framing diagnostics
-  - `tests/subagent-transport-live.test.mjs` anchors spawned-helper truth for raw-line size enforcement, raw-vs-filtered env separation, and raw-child teardown on timeout/abort
+  - `tests/subagent-transport-live.test.mjs` anchors spawned-helper truth for raw-line size enforcement, raw-vs-filtered env separation, isolated child-agent-dir settings, and raw-child teardown on timeout/abort
   - `tests/subagent-file-lock.test.mjs` anchors the session-name reservation and lock invariants
 - **Orchestrator package-local consumer truth**
   - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves the supported execution truth inside repo-local source

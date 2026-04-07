@@ -29,6 +29,7 @@ All notable changes to this project should be documented here.
 - `self` persists scoped domains (`crystallization`, `protection`) after successful domain writes
 - `dispatch_subagent` now routes raw `pi --mode json` output through a package-local assistant-only filter helper before ASC parses the stream, dropping aggregate Pi events that the runtime does not semantically need and treating the helper protocol as the only accepted parent-side seam
 - Subagents now inherit the current session-selected model when available; `PI_SUBAGENT_MODEL` still overrides, and `openai-codex/gpt-5.4` remains the fallback when no live model is available
+- `dispatch_subagent` now records selected child model plus explicit child bootstrap details (`requestedModel`, `effectiveModel`, `loadedExtensions`, `extensionWarnings`) on execution results
 - Documentation updated to reflect scoped cross-session persistence, filtered subagent transport, and new memory contract surfaces
 
 ### Fixed
@@ -36,6 +37,8 @@ All notable changes to this project should be documented here.
 - Malformed persisted memory payloads now degrade safely (no crash) and are repaired on next successful scoped persistence write
 - Oversized aggregate Pi JSON lines no longer trip ASC's main subagent parser before assistant output can be recovered; raw upstream buffering is now isolated inside the filter helper with separate raw vs filtered buffer controls
 - Timeout/abort shutdown now tears down the raw `pi` child before the parent-side helper force kill window closes, preventing orphaned subprocesses
+- Subagents no longer fail at startup when the live session model comes from a numeric-suffix extension provider alias such as `openai-codex-2`; ASC now preserves the alias and explicitly bootstraps `pi-multi-pass` into the child runtime instead of collapsing to the base provider
+- Extensionless raw-child runs now use an isolated Pi agent dir with sanitized child settings, so unrelated global default-model warnings from extension-backed provider aliases no longer leak into subagent stderr
 
 ## [0.1.4] - 2026-03-04
 

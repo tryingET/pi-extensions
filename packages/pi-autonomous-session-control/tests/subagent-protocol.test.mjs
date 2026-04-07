@@ -116,6 +116,53 @@ test("spawnSubagentWithSpawn consumes the assistant-only filtered protocol", asy
   }
 });
 
+test("spawnSubagentWithSpawn forwards explicit child extensions to the helper process", async () => {
+  const state = createSubagentState(join(tmpdir(), `subagent-extension-args-${Date.now()}`));
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  stdout.setEncoding = () => stdout;
+  stderr.setEncoding = () => stderr;
+
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.kill = () => true;
+  child.pid = 575757;
+
+  let capturedArgs;
+
+  try {
+    const resultPromise = spawnSubagentWithSpawn(
+      {
+        name: "extension-args",
+        objective: "Review changes",
+        tools: "read,bash",
+        sessionFile: join(state.sessionsDir, "extension-args.json"),
+        extensionSources: ["/tmp/pi-multi-pass.ts", "/tmp/vault.ts"],
+      },
+      "test/model",
+      { cwd: process.cwd() },
+      state,
+      (_command, args) => {
+        capturedArgs = args;
+        return child;
+      },
+    );
+
+    stdout.emit("data", '{"type":"transport_ready"}\n');
+    stdout.emit("data", '{"type":"assistant_message_end","stopReason":"stop","text":"ok"}\n');
+    child.emit("close", 0);
+
+    const result = await resultPromise;
+    assert.equal(result.status, "done");
+    assert.deepEqual(capturedArgs.filter((arg) => arg === "--extension").length, 2);
+    assert.ok(capturedArgs.includes("/tmp/pi-multi-pass.ts"));
+    assert.ok(capturedArgs.includes("/tmp/vault.ts"));
+  } finally {
+    await rm(state.sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("spawnSubagentWithSpawn defers timeout until the helper signals transport readiness", async () => {
   const state = createSubagentState(join(tmpdir(), `subagent-ready-handshake-${Date.now()}`));
   const stdout = new EventEmitter();

@@ -37,6 +37,7 @@ export interface SubagentSessionStatus {
   exitCode?: number;
   elapsed?: number;
   parentSessionKey?: string;
+  parentRepoRoot?: string;
   resultPreview?: string;
 }
 

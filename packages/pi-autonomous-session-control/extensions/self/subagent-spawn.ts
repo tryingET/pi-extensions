@@ -14,6 +14,8 @@ export interface SubagentDef {
   timeout?: number; // milliseconds, 0 = no timeout
   executionSlotReserved?: boolean;
   parentSessionKey?: string;
+  parentRepoRoot?: string;
+  extensionSources?: string[];
 }
 
 export const ASSISTANT_STOP_REASONS = ["stop", "length", "toolUse", "error", "aborted"] as const;
@@ -350,6 +352,12 @@ export function spawnSubagentWithSpawn(
     def.objective,
   ];
 
+  for (const extensionSource of def.extensionSources ?? []) {
+    if (typeof extensionSource === "string" && extensionSource.trim().length > 0) {
+      args.push("--extension", extensionSource);
+    }
+  }
+
   if (def.systemPrompt) {
     args.push("--system-prompt", def.systemPrompt);
   }
@@ -519,6 +527,7 @@ export function spawnSubagentWithSpawn(
         exitCode: result.exitCode,
         elapsed: result.elapsed,
         parentSessionKey: def.parentSessionKey,
+        parentRepoRoot: def.parentRepoRoot,
         resultPreview: toStatusResultPreview(result.output),
       });
       if (managesExecutionSlot) {
@@ -682,6 +691,7 @@ export function spawnSubagentWithSpawn(
         createdAt,
         objective: def.objective,
         parentSessionKey: def.parentSessionKey,
+        parentRepoRoot: def.parentRepoRoot,
       });
       if (managesExecutionSlot) {
         state.activeCount++;

@@ -48,6 +48,11 @@ import {
   type SubagentState,
 } from "./self/subagent.ts";
 import { registerSubagentDashboard } from "./self/subagent-dashboard.ts";
+import {
+  DEFAULT_SUBAGENT_MODEL,
+  resolveSubagentModel,
+  resolveSubagentModelSelection,
+} from "./self/subagent-model-selection.ts";
 import type { SelfState } from "./self/types.ts";
 
 type CompatToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0] & {
@@ -95,30 +100,10 @@ function resolveSelfMemoryPath(sessionsDir: string): string {
   return join(dirname(sessionsDir), `${safeBase}.self-memory.json`);
 }
 
-export const DEFAULT_SUBAGENT_MODEL = "openai-codex/gpt-5.4";
-
-export function resolveSubagentModel(ctx?: {
-  model?: {
-    provider?: unknown;
-    id?: unknown;
-  };
-}): string {
-  const fromEnv = process.env.PI_SUBAGENT_MODEL?.trim();
-  if (fromEnv) {
-    return fromEnv;
-  }
-
-  const provider = typeof ctx?.model?.provider === "string" ? ctx.model.provider.trim() : "";
-  const modelId = typeof ctx?.model?.id === "string" ? ctx.model.id.trim() : "";
-  if (provider.length > 0 && modelId.length > 0) {
-    return `${provider}/${modelId}`;
-  }
-
-  return DEFAULT_SUBAGENT_MODEL;
-}
+export { DEFAULT_SUBAGENT_MODEL, resolveSubagentModel, resolveSubagentModelSelection };
 
 function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentState): void {
-  registerSubagentTool(pi, subagentState, (ctx) => resolveSubagentModel(ctx));
+  registerSubagentTool(pi, subagentState, (ctx) => resolveSubagentModelSelection(ctx));
 
   registerSubagentCommands(pi, subagentState);
   registerSubagentDashboard(pi, subagentState);

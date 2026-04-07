@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -151,6 +152,70 @@ test("end-to-end: raw pi buffering no longer inherits the filtered protocol buff
       );
     },
   );
+});
+
+test("end-to-end: helper isolates the raw child agent dir and cleans it up after execution", async () => {
+  const sourceAgentDir = await mkdtemp(join(tmpdir(), "subagent-child-agent-dir-source-"));
+
+  try {
+    await writeFile(
+      join(sourceAgentDir, "settings.json"),
+      `${JSON.stringify({ defaultProvider: "openai-codex-2", defaultModel: "gpt-5.4" })}\n`,
+    );
+    await writeFile(join(sourceAgentDir, "auth.json"), '{"token":"test"}\n');
+    await writeFile(join(sourceAgentDir, "multi-pass.json"), '{"subscriptions":[]}\n');
+
+    await withFakePiOnPath(
+      [
+        "#!/usr/bin/env node",
+        'const { existsSync, readFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const agentDir = process.env.PI_CODING_AGENT_DIR;",
+        "const payload = {",
+        "  agentDir,",
+        '  settings: readFileSync(join(agentDir, "settings.json"), "utf-8").trim(),',
+        '  authExists: existsSync(join(agentDir, "auth.json")),',
+        '  multiPassExists: existsSync(join(agentDir, "multi-pass.json")),',
+        "};",
+        "console.log(JSON.stringify({",
+        '  type: "message_end",',
+        "  message: {",
+        '    role: "assistant",',
+        '    content: [{ type: "text", text: JSON.stringify(payload) }],',
+        '    stopReason: "stop",',
+        "  },",
+        "}));",
+        "",
+      ].join("\n"),
+      async (tempRoot) => {
+        await withTemporaryEnv({ PI_CODING_AGENT_DIR: sourceAgentDir }, async () => {
+          const state = createSubagentState(join(tempRoot, "sessions"));
+          const result = await spawnSubagentWithSpawn(
+            {
+              name: "isolated-child-agent-dir",
+              objective: "Review changes",
+              tools: "read,bash",
+              sessionFile: join(state.sessionsDir, "isolated-child-agent-dir.json"),
+            },
+            "test/model",
+            { cwd: tempRoot },
+            state,
+          );
+
+          const payload = JSON.parse(result.output);
+          assert.equal(result.status, "done");
+          assert.equal(payload.settings, "{}");
+          assert.equal(payload.authExists, true);
+          assert.equal(payload.multiPassExists, true);
+          assert.notEqual(payload.agentDir, sourceAgentDir);
+          assert.equal(existsSync(payload.agentDir), false);
+          assert.doesNotMatch(result.stderr || "", /openai-codex-2\/gpt-5\.4/);
+        });
+      },
+    );
+  } finally {
+    await rm(sourceAgentDir, { recursive: true, force: true });
+  }
 });
 
 test("end-to-end: timeout tears down the raw pi child before the helper is force-killed", async () => {

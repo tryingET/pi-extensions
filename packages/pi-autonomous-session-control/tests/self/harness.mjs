@@ -169,6 +169,24 @@ export function registerSubagentTool(pi, state) {
 `,
   );
 
+  await writeFile(
+    path.join(underTestModuleDir, "subagent-model-selection.ts"),
+    `export const DEFAULT_SUBAGENT_MODEL = "openai-codex/gpt-5.4";
+
+export function resolveSubagentModel() {
+  return DEFAULT_SUBAGENT_MODEL;
+}
+
+export function resolveSubagentModelSelection() {
+  return {
+    requestedModel: DEFAULT_SUBAGENT_MODEL,
+    effectiveModel: DEFAULT_SUBAGENT_MODEL,
+    source: "default",
+  };
+}
+`,
+  );
+
   // Update imports in extension to use local modules
   source = source.replace(/from\s+"\.\/self\//g, 'from "./self/');
 
