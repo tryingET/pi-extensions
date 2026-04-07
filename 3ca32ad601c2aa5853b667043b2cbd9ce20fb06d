@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3ca32ad601c2aa5853b667043b2cbd9ce20fb06d"
+created_at: "2026-04-07T17:18:17Z"
+intent: "Add html-output-browser extension that auto-opens HTML files in browser on write/edit"
+files:
+  - "packages/pi-little-helpers/extensions/html-output-browser.ts"
+  - "packages/pi-little-helpers/tests/html-output-browser.test.mjs"
+  - "packages/pi-little-helpers/README.md"
+  - "packages/pi-little-helpers/package.json"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run quality:ci"
+    status: "pass"
+  full_gate:
+    command: "pending"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "New extension with tests, README update, and package manifest."
