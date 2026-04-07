@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "096e51a114ad01da470a7e7ca7e9bed865aa5923"
+created_at: "2026-04-07T06:42:57Z"
+intent: "Replace widget-based ontology info with startup notification and refactor status key to constant"
+files:
+  - "packages/pi-ontology-workflows/README.md"
+  - "packages/pi-ontology-workflows/extensions/ontology-workflows.ts"
+validation:
+  fast_gate:
+    command: "just check"
+    status: "pass"
+  full_gate:
+    command: "just test"
+    status: "pending"
+group:
+  index: 1
+  total: 4
+  rationale: "ontology-workflows startup notification refactor"
