@@ -56,6 +56,11 @@ The next bounded work is:
 - session-key-backed storage is capacity-bounded with oldest-key eviction.
 - `/agents-team` now fails clearly when no session identity is available.
 
+### Operator-visible runtime truth follow-through landed
+- user-facing routing now presents the internal `full` scope as `all agents` across `/agents-team`, `/runtime-status`, startup copy, footer text, and installed-package smoke
+- the session footer now renders prioritized slots: model + `orchestrator→ASC` stay primary, compact `DB`/`Vault` health badges appear only when width allows, and narrow widths drop those optional badges before sacrificing seam/routing visibility
+- `tests/runtime-shared-paths.test.mjs` now covers both wide and compact footer renders while `npm run release:check` still proves the installed-package footer contract
+
 ### Execution/evidence semantics are now explicit and shared
 - execution outcome classification is centralized in `src/runtime/execution-status.ts`.
 - execution/effect policy is centralized in `src/runtime/evidence.ts`.

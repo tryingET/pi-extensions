@@ -25,18 +25,18 @@ Evidence used:
 Current baseline:
 
 - the stale footer/status copy (`orchestra`, `Team: full`) has already been corrected to `orchestrator→ASC` and `Routing: ...`
-- the package now also has a shared inspectable runtime-truth surface in `src/runtime/status-semantics.ts`, plus `/runtime-status` as the direct operator-facing inspector
-- startup/footer/routing-selection wording and installed-package smoke now derive from that shared surface rather than independent literals
-- the next additive move is therefore not a bigger footer redesign; it is the narrower follow-up to refine routing vocabulary and coverage now that the truth surface exists
+- the package now has a shared inspectable runtime-truth surface in `src/runtime/status-semantics.ts`, plus `/runtime-status` as the direct operator-facing inspector
+- user-facing routing now presents the internal `full` scope as `all agents`, and both scenario coverage plus installed-package smoke guard that contract
+- the footer now uses prioritized slots so compact DB/Vault health badges can appear when width allows without sacrificing the seam/routing contract on narrower widths
 
 ## Strategic goal set
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Make operator-visible runtime semantics truthful, inspectable, and compounding | 5 | 5 | 3 | **active** | The package now has corrected copy but still lacks a single source of operator-visible runtime truth, so the smartest additive move is ready now. |
-| 2 | Keep routing vocabulary and footer density coherent as new operator-visible state is added | 4 | 3 | 2 | next | Once the runtime-truth surface exists, the remaining vocabulary and density questions can be resolved without guessing. |
+| 1 | Make operator-visible runtime semantics truthful, inspectable, and compounding | 5 | 5 | 3 | done | The shared runtime-truth surface, direct inspector, docs alignment, and operator-visible footer/startup contract are now landed. |
+| 2 | Keep routing vocabulary and footer density coherent as new operator-visible state is added | 4 | 3 | 2 | done | Routing vocabulary, coverage, and footer-density follow-through are now landed; reopen only if future operator-visible state outgrows the current slot budget. |
 
-## Active strategic goal
+## Completed strategic goal
 
 ### SG1 — Make operator-visible runtime semantics truthful, inspectable, and compounding
 
@@ -50,9 +50,9 @@ Evidence:
 
 - the package charter and execution-boundary map both say orchestrator is the control plane and ASC owns execution
 - the current footer/startup correction proved the terminology gap was real and user-visible
-- the selected additive move — a shared runtime-truth surface plus `/runtime-status` — is now landed, so the follow-up should stay incremental rather than reopening ownership or redesign questions
+- the shared runtime-truth surface, `/runtime-status`, and the aligned docs/tests/smoke coverage are now landed
 
-## Next strategic goal
+## Completed follow-through goal
 
 ### SG2 — Keep routing vocabulary and footer density coherent as new operator-visible state is added
 
@@ -60,9 +60,14 @@ Intent:
 
 - resolve the remaining user-facing ambiguity around routing labels such as `full`
 - expand scenario/release-smoke validation once the truth surface lands
-- keep future footer density work conditional on real additional state instead of speculative redesign
+- let footer density respond to real runtime truth rather than speculative redesign
 
-Why it is not active yet:
+Completed by:
 
-- vocabulary and density should be derived from the runtime-truth surface, not designed ahead of it
-- the next smallest justified package-local wave is to land the addition first and only then tune the remaining wording/coverage surfaces
+- `#942` — audited remaining routing vocabulary and made the user-facing `full` -> `all agents` decision explicit
+- `#943` — expanded routing/runtime-truth coverage across scenario tests and installed-package smoke
+- `#944` — landed a slot-based footer prototype that preserves seam/routing while letting optional DB/Vault health badges appear only when width allows
+
+## Future trigger
+
+- If future operator-visible state no longer fits within the current prioritized slot behavior, open a new follow-up from that evidence rather than re-litigating the already-landed runtime-truth foundation.

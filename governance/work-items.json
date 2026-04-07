@@ -1,0 +1,562 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-07",
+  "owner": "@tryingET",
+  "project_name": "pi-extensions",
+  "milestones": [
+    {
+      "id": "M1",
+      "title": "DB Task Projection",
+      "issues": [
+        {
+          "id": "AK-TASK-0229",
+          "title": "Finish remaining live /vault: rate-limiting and validation follow-through after Prompt Vault schema-v9 cutover",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Finish remaining live /vault: rate-limiting and validation follow-through after Prompt Vault schema-v9 cutover (task #229)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-22"
+        },
+        {
+          "id": "AK-TASK-0241",
+          "title": "Design and scaffold shared pi-runtime-registry package under pi-interaction",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Design and scaffold shared pi-runtime-registry package under pi-interaction (task #241)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-22"
+        },
+        {
+          "id": "AK-TASK-0242",
+          "title": "Integrate prompt-template runtime ownership and model lifecycle into the shared runtime registry",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Integrate prompt-template runtime ownership and model lifecycle into the shared runtime registry (task #242)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-22"
+        },
+        {
+          "id": "AK-TASK-0243",
+          "title": "Bridge vault receipts and live telemetry into the shared runtime registry without widening /vault ownership",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Bridge vault receipts and live telemetry into the shared runtime registry without widening /vault ownership (task #243)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-22"
+        },
+        {
+          "id": "AK-TASK-0268",
+          "title": "Define transactional/degraded contract for execution rows when local receipt persistence fails",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Define transactional/degraded contract for execution rows when local receipt persistence fails (task #268)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Current pass now surfaces receipt-persist failure as degraded, but eliminating execution-row/receipt divergence needs a broader execution-finalization design (transactional insert vs compensating cleanup) beyond this atomic package pass. Deadline 2026-04-05. Blast radius if forgotten: vault_executions, replay, and feedback can still observe execution rows without local receipts when every sink fails.\n- kind: until_decision\n- trigger_ref: decision:pi-vault-client-execution-finalization-contract\n- review_at: 2026-04-05T17:00:00Z"
+        },
+        {
+          "id": "AK-TASK-0269",
+          "title": "Replace caller-supplied company filtering in runtime-registry receipt accessors with authenticated execution-context contract",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Replace caller-supplied company filtering in runtime-registry receipt accessors with authenticated execution-context contract (task #269)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Current pass fixed local telemetry and partial-result truth, but registry receipt access still relies on caller-supplied company filtering. A real fix needs an authenticated cross-extension execution-context contract or registry-level caller identity model beyond this package-local slice. Deadline 2026-04-05. Blast radius if forgotten: another extension could treat registry receipt access as a stronger visibility boundary than it really is.\n- kind: until_decision\n- trigger_ref: decision:pi-vault-client-runtime-registry-context-auth\n- review_at: 2026-04-05T17:00:00Z"
+        },
+        {
+          "id": "AK-TASK-0590",
+          "title": "Convergence map pi-vs-claude-code, pi-subagents, and pi-processes against owned package boundaries and choose tonight's live integration target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Convergence map pi-vs-claude-code, pi-subagents, and pi-processes against owned package boundaries and choose tonight's live integration target (task #590)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-30"
+        },
+        {
+          "id": "AK-TASK-0595",
+          "title": "Seed root direction decomposition docs for reduced-form tech-stack governance wave",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Seed root direction decomposition docs for reduced-form tech-stack governance wave (task #595)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-30"
+        },
+        {
+          "id": "AK-TASK-0596",
+          "title": "Refresh root tech-stack review surface audit after recent package/template alignment",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Refresh root tech-stack review surface audit after recent package/template alignment (task #596)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-30"
+        },
+        {
+          "id": "AK-TASK-0597",
+          "title": "Define root reduced-form migration contract for remaining legacy-full package surfaces",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Define root reduced-form migration contract for remaining legacy-full package surfaces (task #597)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-30"
+        },
+        {
+          "id": "AK-TASK-0601",
+          "title": "Audit remaining legacy-full package tech-stack docs for real local overrides vs boilerplate",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Audit remaining legacy-full package tech-stack docs for real local overrides vs boilerplate (task #601)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0602",
+          "title": "Refresh root tech-stack audit with per-package target-state classification and routed next candidates",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Refresh root tech-stack audit with per-package target-state classification and routed next candidates (task #602)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0603",
+          "title": "Publish the minimal package-reduction queue from the refreshed classification and update root handoff",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Publish the minimal package-reduction queue from the refreshed classification and update root handoff (task #603)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0604",
+          "title": "Expose pi-autonomous-session-control public execution contract for subagent runtime consumers",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Expose pi-autonomous-session-control public execution contract for subagent runtime consumers (task #604)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0605",
+          "title": "Add parity harness proving ASC public runtime matches dispatch_subagent tool behavior",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add parity harness proving ASC public runtime matches dispatch_subagent tool behavior (task #605)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0606",
+          "title": "Adopt ASC public execution runtime in pi-society-orchestrator and retire duplicate subagent path",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Adopt ASC public execution runtime in pi-society-orchestrator and retire duplicate subagent path (task #606)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0613",
+          "title": "[Justfile rollout] Establish standardized Justfile surface for pi-ts lane pilot",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[Justfile rollout] Establish standardized Justfile surface for pi-ts lane pilot (task #613)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0622",
+          "title": "Review and land current ASC transport-safety hardening plus seam stewardship docs",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Review and land current ASC transport-safety hardening plus seam stewardship docs (task #622)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0623",
+          "title": "Add execution-contract change checklist for future seam modifications",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add execution-contract change checklist for future seam modifications (task #623)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0624",
+          "title": "Split seam verification policy into package-local contract checks vs installed-package smoke",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Split seam verification policy into package-local contract checks vs installed-package smoke (task #624)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0625",
+          "title": "Decide bundled ASC publish/install bridge lifecycle and document exit criteria",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Decide bundled ASC publish/install bridge lifecycle and document exit criteria (task #625)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0626",
+          "title": "Normalize execution failure taxonomy across ASC and orchestrator result surfaces",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Normalize execution failure taxonomy across ASC and orchestrator result surfaces (task #626)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0627",
+          "title": "Add automated guardrails against private ASC imports and orchestrator-local runtime revival",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add automated guardrails against private ASC imports and orchestrator-local runtime revival (task #627)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0628",
+          "title": "Run time-boxed post-release execution seam review and refresh consumer capability map",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run time-boxed post-release execution seam review and refresh consumer capability map (task #628)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0629",
+          "title": "Expand seam consumer inventory only if a second real external runtime consumer appears",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Expand seam consumer inventory only if a second real external runtime consumer appears (task #629)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0634",
+          "title": "Reduce packages/pi-activity-strip from legacy-full to no local tech-stack surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Reduce packages/pi-activity-strip from legacy-full to no local tech-stack surface (task #634)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0635",
+          "title": "Reduce packages/pi-autonomous-session-control from legacy-full to no local tech-stack surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Reduce packages/pi-autonomous-session-control from legacy-full to no local tech-stack surface (task #635)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0636",
+          "title": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local tech-stack surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local tech-stack surface (task #636)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-31"
+        },
+        {
+          "id": "AK-TASK-0654",
+          "title": "[TG4] Implement guarded repo-root classification for softwareco auto-registration",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "[TG4] Implement guarded repo-root classification for softwareco auto-registration (task #654)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Hold package-local classifier work until agent-kernel decision #8 resolves the durable owner/policy for guarded repo bootstrap.\n- kind: until_decision\n- trigger_ref: decision:8"
+        },
+        {
+          "id": "AK-TASK-0655",
+          "title": "[TG4] Wire guarded auto-registration into repo-aware runtime paths with explicit exclusions",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "[TG4] Wire guarded auto-registration into repo-aware runtime paths with explicit exclusions (task #655)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Hold package-local guarded-bootstrap wiring until agent-kernel decision #8 resolves whether AK owns the canonical bootstrap path.\n- kind: until_decision\n- trigger_ref: decision:8"
+        },
+        {
+          "id": "AK-TASK-0656",
+          "title": "[TG4] Verify guarded auto-registration with regression tests, release checks, and live Ghostty smoke",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "[TG4] Verify guarded auto-registration with regression tests, release checks, and live Ghostty smoke (task #656)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Hold guarded-bootstrap verification until the decision packet in agent-kernel decides the owner/path that should actually be verified.\n- kind: until_decision\n- trigger_ref: decision:8"
+        },
+        {
+          "id": "AK-TASK-0662",
+          "title": "FCOS-M40: converge Pi live ops surfaces onto enriched session_start metadata",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "FCOS-M40: converge Pi live ops surfaces onto enriched session_start metadata (task #662)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-01"
+        },
+        {
+          "id": "AK-TASK-0663",
+          "title": "FCOS-M40: expose bounded replay/history affordances for the V6-lite ops plane",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "FCOS-M40: expose bounded replay/history affordances for the V6-lite ops plane (task #663)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-01"
+        },
+        {
+          "id": "AK-TASK-0666",
+          "title": "FCOS-M41: rewire pi-society-orchestrator to consume AK-native guarded repo bootstrap path",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "FCOS-M41: rewire pi-society-orchestrator to consume AK-native guarded repo bootstrap path (task #666)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-01"
+        },
+        {
+          "id": "AK-TASK-0667",
+          "title": "FCOS-M41: verify AK-native guarded repo bootstrap with release checks and live Ghostty smoke",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "FCOS-M41: verify AK-native guarded repo bootstrap with release checks and live Ghostty smoke (task #667)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-01"
+        },
+        {
+          "id": "AK-TASK-0939",
+          "title": "[SO-TG1] Add runtime truth descriptor and /runtime-status inspector",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-TG1] Add runtime truth descriptor and /runtime-status inspector (task #939)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0940",
+          "title": "[SO-TG1] Wire footer/session-start and routing selection UI to the shared runtime truth surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-TG1] Wire footer/session-start and routing selection UI to the shared runtime truth surface (task #940)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0941",
+          "title": "[SO-TG1] Document runtime truth and footer/statusline semantics for pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-TG1] Document runtime truth and footer/statusline semantics for pi-society-orchestrator (task #941)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0942",
+          "title": "[SO-TG2] Audit remaining routing vocabulary and decide the user-facing treatment of 'full'",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-TG2] Audit remaining routing vocabulary and decide the user-facing treatment of 'full' (task #942)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0943",
+          "title": "[SO-TG2] Expand routing/runtime truth coverage across scenario tests and release smoke",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-TG2] Expand routing/runtime truth coverage across scenario tests and release smoke (task #943)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0944",
+          "title": "[SO-TG3] Prototype a slot-based footer layout only if new runtime truth state exceeds the current single-line contract",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-TG3] Prototype a slot-based footer layout only if new runtime truth state exceeds the current single-line contract (task #944)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
+        }
+      ]
+    }
+  ]
+}

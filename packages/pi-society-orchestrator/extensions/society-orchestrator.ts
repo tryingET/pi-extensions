@@ -104,6 +104,18 @@ export default function (pi: ExtensionAPI) {
     cwd: string;
     model?: { id?: string };
   };
+  type RuntimeSnapshot = ReturnType<typeof createRuntimeTruthSnapshot>;
+  type FooterSlotTone = "dim" | "accent" | "warning";
+  type FooterSlot = {
+    id: string;
+    tone: FooterSlotTone;
+    full: string;
+    compact?: string;
+    optional?: boolean;
+  };
+  type FooterTheme = {
+    fg(color: string, text: string): string;
+  };
 
   function buildRuntimeSnapshot(
     ctx: RuntimeStatusContext,
@@ -122,6 +134,100 @@ export default function (pi: ExtensionAPI) {
           ? `unavailable (${toolsResult.error.slice(0, 120)})`
           : `available (${toolsResult.value.length} cognitive tools)`,
     });
+  }
+
+  function selectFooterSlotText(slot: FooterSlot, compactModel = false) {
+    return compactModel && slot.id === "model" && slot.compact ? slot.compact : slot.full;
+  }
+
+  function joinFooterSlotText(slots: FooterSlot[], compactModel = false) {
+    return slots.map((slot) => selectFooterSlotText(slot, compactModel)).join(" · ");
+  }
+
+  function renderFooterSlotText(theme: FooterTheme, slots: FooterSlot[], compactModel = false) {
+    const separator = theme.fg("muted", " · ");
+    return slots
+      .map((slot) => theme.fg(slot.tone, selectFooterSlotText(slot, compactModel)))
+      .join(separator);
+  }
+
+  function buildFooterSlots(snapshot: RuntimeSnapshot) {
+    const [modelLabel, seamLabel = snapshot.descriptor.executionSeamLabel] =
+      formatRuntimeFooterLeft(snapshot).split(" · ");
+
+    const left: FooterSlot[] = [
+      {
+        id: "model",
+        tone: "dim",
+        full: modelLabel,
+        compact: truncateToWidth(modelLabel, 18, "...", true),
+      },
+      { id: "seam", tone: "accent", full: seamLabel },
+      {
+        id: "db",
+        tone: snapshot.societyDb.available ? "accent" : "warning",
+        full: snapshot.societyDb.available ? "DB✓" : "DB✗",
+        optional: true,
+      },
+      {
+        id: "vault",
+        tone: snapshot.vault.available ? "accent" : "warning",
+        full: snapshot.vault.available ? "Vault✓" : "Vault✗",
+        optional: true,
+      },
+    ];
+    const right: FooterSlot[] = [
+      {
+        id: "routing",
+        tone: "dim",
+        full: formatRuntimeRoutingStatus(snapshot),
+      },
+    ];
+
+    return { left, right };
+  }
+
+  function renderRuntimeFooterLine(width: number, theme: FooterTheme, snapshot: RuntimeSnapshot) {
+    const { left, right } = buildFooterSlots(snapshot);
+    const fittedLeft = [...left];
+    const rightPlain = joinFooterSlotText(right);
+    const rightText = `${renderFooterSlotText(theme, right)} `;
+    const rightWidth = visibleWidth(rightPlain) + 1;
+    const maxLeftWidth = Math.max(0, width - rightWidth - 1);
+    let compactModel = false;
+
+    while (visibleWidth(joinFooterSlotText(fittedLeft, compactModel)) > maxLeftWidth) {
+      let optionalIndex = -1;
+      for (let i = fittedLeft.length - 1; i >= 0; i -= 1) {
+        if (fittedLeft[i]?.optional) {
+          optionalIndex = i;
+          break;
+        }
+      }
+      if (optionalIndex !== -1) {
+        fittedLeft.splice(optionalIndex, 1);
+        continue;
+      }
+      if (!compactModel && fittedLeft.some((slot) => slot.id === "model")) {
+        compactModel = true;
+        continue;
+      }
+      const modelIndex = fittedLeft.findIndex((slot) => slot.id === "model");
+      if (modelIndex !== -1) {
+        fittedLeft.splice(modelIndex, 1);
+        continue;
+      }
+      break;
+    }
+
+    const leftPlain = joinFooterSlotText(fittedLeft, compactModel);
+    const leftText = fittedLeft.length
+      ? ` ${renderFooterSlotText(theme, fittedLeft, compactModel)}`
+      : "";
+    const leftWidth = fittedLeft.length ? visibleWidth(leftPlain) + 1 : 0;
+    const padWidth = Math.max(1, width - leftWidth - rightWidth);
+    const line = leftText + " ".repeat(padWidth) + rightText;
+    return leftWidth + padWidth + rightWidth <= width ? line : truncateToWidth(line, width);
   }
 
   // Ensure sessions directory exists
@@ -689,16 +795,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       dispose: () => {},
       invalidate() {},
       render(width: number): string[] {
-        const footerSnapshot = buildRuntimeSnapshot(ctx);
-        const [modelLabel, seamLabel = footerSnapshot.descriptor.executionSeamLabel] =
-          formatRuntimeFooterLeft(footerSnapshot).split(" · ");
-        const left =
-          theme.fg("dim", ` ${modelLabel}`) +
-          theme.fg("muted", " · ") +
-          theme.fg("accent", seamLabel);
-        const right = theme.fg("dim", `${formatRuntimeRoutingStatus(footerSnapshot)} `);
-        const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
-        return [truncateToWidth(left + pad + right, width)];
+        const footerSnapshot = buildRuntimeSnapshot(ctx, toolsResult);
+        return [renderRuntimeFooterLine(width, theme, footerSnapshot)];
       },
     }));
   });

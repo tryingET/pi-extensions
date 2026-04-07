@@ -518,6 +518,8 @@ try {
   const renderedFooter = footer.render(120)[0];
   assert.match(renderedFooter, /orchestrator→ASC/);
   assert.match(renderedFooter, /Routing: all agents/);
+  assert.match(renderedFooter, /DB(?:✓|✗)/);
+  assert.match(renderedFooter, /Vault(?:✓|✗)/);
   console.log("installed startup/runtime footer smoke: ok");
 
   const runtimeStatusEditors = [];
@@ -535,6 +537,10 @@ try {
 
   assert.equal(runtimeStatusEditors.length, 1);
   assert.equal(runtimeStatusEditors[0]?.title, "Runtime Status");
+  assert.match(
+    runtimeStatusEditors[0]?.text || "",
+    /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/,
+  );
   assert.match(runtimeStatusEditors[0]?.text || "", /routing: `all agents` \[internal: `full`\]/);
   console.log("installed runtime-status smoke: ok");
 

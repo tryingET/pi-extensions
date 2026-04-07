@@ -1172,6 +1172,7 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
   assert.match(text, /execution owner: `pi-autonomous-session-control`/);
   assert.match(text, /routing: `quality` \(reviewer, researcher\)/);
   assert.match(text, /footer left: `test-model · orchestrator→ASC`/);
+  assert.match(text, /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/);
   assert.match(text, /footer right: `Routing: quality`/);
 });
 
@@ -1207,6 +1208,10 @@ test("runtime-status command opens a runtime truth inspector", async () => {
   assert.match(editors[0].text, /routing selector: `\/agents-team`/);
   assert.match(editors[0].text, /inspector: `\/runtime-status`/);
   assert.match(editors[0].text, /footer left: `test-model · orchestrator→ASC`/);
+  assert.match(
+    editors[0].text,
+    /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/,
+  );
   assert.match(editors[0].text, /footer right: `Routing: all agents`/);
   assert.match(editors[0].text, /routing: `all agents` \[internal: `full`\]/);
 });
@@ -1261,7 +1266,15 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
   const rendered = footer.render(120)[0];
   assert.match(rendered, /orchestrator→ASC/);
   assert.match(rendered, /Routing: all agents/);
+  assert.match(rendered, /DB(?:✓|✗)/);
+  assert.match(rendered, /Vault(?:✓|✗)/);
   assert.doesNotMatch(rendered, /· orchestra(?:\s|$)/);
+
+  const compactRendered = footer.render(40)[0];
+  assert.match(compactRendered, /orchestrator→ASC/);
+  assert.match(compactRendered, /Routing:/);
+  assert.doesNotMatch(compactRendered, /DB(?:✓|✗)/);
+  assert.doesNotMatch(compactRendered, /Vault(?:✓|✗)/);
 });
 
 test("agents-team command stores team selection per session manager", async () => {

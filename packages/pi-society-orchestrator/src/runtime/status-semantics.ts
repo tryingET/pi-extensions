@@ -128,6 +128,7 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
     "",
     "## Surface contracts",
     `- footer left: \`${formatRuntimeFooterLeft(snapshot)}\``,
+    "- footer optional slots: `DB✓|DB✗ · Vault✓|Vault✗` when width allows",
     `- footer right: \`${routing}\``,
     `- operator-visible status should present orchestrator as the coordination plane while ASC owns execution/runtime behavior`,
   ].join("\n");

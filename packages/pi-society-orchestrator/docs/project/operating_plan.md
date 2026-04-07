@@ -1,5 +1,5 @@
 ---
-summary: "Operating plan for the active runtime-truth wave in pi-society-orchestrator."
+summary: "Operating plan for the completed runtime-truth wave in pi-society-orchestrator."
 read_when:
   - "You need the current package-local operating slices and exact AK task bindings for runtime-truth work."
   - "You are about to claim the next slice under the active tactical goal."
@@ -10,37 +10,32 @@ system4d:
   fog: "The main risk is mixing the addition, wording follow-ups, and speculative footer redesign into one undifferentiated queue."
 ---
 
-# Operating plan — TG2 queued after the initial runtime-truth landing
+# Operating plan — runtime-truth wave completed
 
 Active tactical goal:
-- [TG2 in tactical_goals.md](tactical_goals.md#tg2--resolve-remaining-routing-vocabulary-and-coverage-after-the-truth-surface-lands)
+- no active runtime-truth tactical wave is currently materialized
 
-Current baseline after the initial runtime-truth wave:
+Current baseline after the completed runtime-truth wave:
 
-- `src/runtime/status-semantics.ts` is now the shared operator-visible runtime-truth surface
+- `src/runtime/status-semantics.ts` is the shared operator-visible runtime-truth surface
 - `/runtime-status`, `session_start`, footer wording, routing-selection notices, and installed-package smoke now consume that shared contract
-- docs/README now describe the same runtime-truth contract instead of treating footer/status wording as incidental copy
+- user-facing routing now presents internal `full` as `all agents`, and coverage exists in both package-local tests plus installed-package smoke
+- the footer now uses prioritized slots so compact DB/Vault health badges can appear at wider widths while seam/routing stay primary on tighter widths
 
-## Recently completed slices
+## Completed slices
 
 | Order | AK task | State | Deliverable |
 |---|---:|---|---|
 | 1 | `#939` | done | Shared runtime-truth descriptor + `/runtime-status` inspector anchored in package-local runtime truth rather than scattered string literals. |
 | 2 | `#940` | done | Footer/startup/routing-selection UI rewired to the shared runtime-truth surface. |
 | 3 | `#941` | done | Runtime-truth / footer semantics documented in package docs and README. |
+| 4 | `#942` | done | Remaining routing vocabulary audited, including the user-facing `full` -> `all agents` decision. |
+| 5 | `#943` | done | Scenario and installed-package release-smoke coverage expanded for routing/runtime-truth states. |
+| 6 | `#944` | done | Slot-based footer prototype landed with optional DB/Vault health badges that yield before seam/routing on compact widths. |
 
 ## Active operating slices
 
-| Order | AK task | State | Deliverable |
-|---|---:|---|---|
-| 4 | `#942` | pending | Remaining routing vocabulary audited, including a user-facing decision for `full`. |
-| 5 | `#943` | blocked by `#942` | Scenario and release-smoke coverage expanded for routing/runtime-truth states. |
-
-## Deferred slice
-
-| Order | AK task | State | Deliverable |
-|---|---:|---|---|
-| 6 | `#944` | deferred | Slot-based footer prototype only if additional runtime-truth state later exceeds the current single-line contract. |
+- none; any next runtime-status/footer work should be materialized from a new evidence-backed concern rather than continuing this completed wave
 
 ## Validation surfaces
 
@@ -49,6 +44,10 @@ Current baseline after the initial runtime-truth wave:
 - installed-package smoke: `packages/pi-society-orchestrator/scripts/release-smoke.mjs`
 - runtime-truth contract docs: `packages/pi-society-orchestrator/docs/project/runtime-status-semantics.md`
 - package truth/charter docs: `packages/pi-society-orchestrator/README.md`
+
+## Future trigger
+
+- Reopen this operating area only if additional operator-visible runtime truth can no longer be expressed clearly within the current prioritized slot behavior.
 
 ## HTN
 
@@ -61,5 +60,5 @@ Current baseline after the initial runtime-truth wave:
     - `TG2` — resolve remaining routing vocabulary and coverage after the truth surface lands
       - `#942` — decide user-facing treatment of `full`
       - `#943` — expand scenario/release-smoke coverage
-    - `TG3` — revisit footer density only if new runtime-truth state outgrows the current line
-      - `#944` — deferred footer-density prototype
+    - `TG3` — keep footer density coherent when additional runtime truth appears
+      - `#944` — land slot-based footer behavior for optional health state
