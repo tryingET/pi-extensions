@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "3ca32ad601c2aa5853b667043b2cbd9ce20fb06d"
-created_at: "2026-04-07T17:18:17Z"
+created_at: "2026-04-07T17:18:53Z"
 intent: "Add html-output-browser extension that auto-opens HTML files in browser on write/edit"
 files:
   - "packages/pi-little-helpers/extensions/html-output-browser.ts"
@@ -15,8 +15,8 @@ validation:
     command: "npm --prefix packages/pi-little-helpers run quality:ci"
     status: "pass"
   full_gate:
-    command: "pending"
-    status: "pending"
+    command: "npm --prefix packages/pi-autonomous-session-control run quality:ci && npm --prefix packages/pi-little-helpers run quality:ci"
+    status: "pass"
 group:
   index: 2
   total: 2
