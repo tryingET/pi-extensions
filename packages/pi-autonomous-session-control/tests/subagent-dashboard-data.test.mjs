@@ -106,6 +106,54 @@ test("createSubagentDashboardSnapshot truncates long objectives and respects row
   }
 });
 
+test("createSubagentDashboardSnapshot can filter to the current live session and freshness window", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-filter-"));
+
+  try {
+    await writeStatus(
+      sessionsDir,
+      "current-recent",
+      "done",
+      "2026-03-06T11:30:00.000Z",
+      "Summarize the successful current-session run.",
+      { parentSessionKey: "live-2" },
+    );
+    await writeStatus(
+      sessionsDir,
+      "current-stale",
+      "timeout",
+      "2026-03-06T10:00:00.000Z",
+      "Retry the stale current-session run.",
+      { parentSessionKey: "live-2" },
+    );
+    await writeStatus(
+      sessionsDir,
+      "other-recent",
+      "error",
+      "2026-03-06T11:45:00.000Z",
+      "Inspect another session's failure.",
+      { parentSessionKey: "live-9" },
+    );
+
+    const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+      currentSessionKey: "live-2",
+      sessionScope: "current",
+      maxAgeMs: 60 * 60 * 1000,
+    });
+
+    assert.equal(snapshot.total, 1);
+    assert.equal(snapshot.counts.done, 1);
+    assert.equal(snapshot.counts.timeout, 0);
+    assert.equal(snapshot.counts.error, 0);
+    assert.equal(snapshot.rows.length, 1);
+    assert.equal(snapshot.rows[0].sessionName, "current-recent");
+    assert.equal(snapshot.rows[0].sessionScope, "current");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createSubagentSessionInspection summarizes lifecycle metadata and artifact paths", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-"));
   const updatedAt = "2026-03-06T11:59:00.000Z";
@@ -197,11 +245,14 @@ test("buildDashboardLines never exceeds the requested width", async () => {
   };
 
   try {
+    const recentDoneAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const recentTimeoutAt = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
     await writeStatus(
       sessionsDir,
       "reviewer-2",
       "done",
-      "2026-04-01T07:00:00.000Z",
+      recentDoneAt,
       "Reply with exactly DIRECT_OK_GHOSTTY_SUBAGENT_ETEST_2 after inspecting the session.",
       {
         parentSessionKey: "f50f147a-7a83-4d5e-8123-123456789abc",
@@ -211,12 +262,20 @@ test("buildDashboardLines never exceeds the requested width", async () => {
       sessionsDir,
       "task-662-scope",
       "timeout",
-      "2026-04-01T08:00:00.000Z",
+      recentTimeoutAt,
       "Inspect AK task #662 scope in /home/tryinget/ai-society/softwareco/owned/pi-extensions and summarize the blast radius.",
       {
         parentSessionKey: "f50f147a-7a83-4d5e-8123-123456789abc",
       },
     );
+
+    const baselineLines = buildDashboardLines(
+      93,
+      theme,
+      sessionsDir,
+      "f50f147a-7a83-4d5e-8123-123456789abc",
+    );
+    assert.ok(baselineLines.length > 0);
 
     for (const width of [1, 2, 3, 10, 24, 40, 60, 93]) {
       const lines = buildDashboardLines(
@@ -237,7 +296,7 @@ test("buildDashboardLines never exceeds the requested width", async () => {
   }
 });
 
-test("buildDashboardLines handles empty state within width bounds", async () => {
+test("buildDashboardLines hides the widget until this live session has recent subagent activity", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-empty-"));
   const theme = {
     fg(_name, value) {
@@ -246,14 +305,26 @@ test("buildDashboardLines handles empty state within width bounds", async () => 
   };
 
   try {
+    await writeStatus(
+      sessionsDir,
+      "other-session",
+      "done",
+      "2026-03-06T11:45:00.000Z",
+      "This belongs to another live session and should stay hidden.",
+      { parentSessionKey: "other-live-session" },
+    );
+    await writeStatus(
+      sessionsDir,
+      "current-but-stale",
+      "done",
+      "2026-03-06T10:00:00.000Z",
+      "This current-session entry is too old for the widget.",
+      { parentSessionKey: "live-session-key" },
+    );
+
     for (const width of [1, 2, 3, 10, 24, 40]) {
       const lines = buildDashboardLines(width, theme, sessionsDir, "live-session-key");
-      for (const line of lines) {
-        assert.ok(
-          visibleWidth(line) <= width,
-          `expected line width <= ${width}, got ${visibleWidth(line)} for ${JSON.stringify(line)}`,
-        );
-      }
+      assert.deepEqual(lines, []);
     }
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });

@@ -113,6 +113,8 @@ const result = await runtime.execute(
 );
 ```
 
+`modelProvider` may also inspect the execution context (for example `ctx?.model`) when a consumer wants subagents to follow the currently active session model instead of a hard-coded selector.
+
 Useful properties:
 - `runtime.state` exposes the backing `SubagentState`
 - `result.ok` tells the consumer whether execution completed successfully

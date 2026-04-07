@@ -66,7 +66,7 @@ Not copied yet:
 
 Reused:
 
-- persistent above-editor widget pattern
+- above-editor widget pattern, later narrowed to current-session and time-bounded visibility
 - compact dashboard style with status-first rows
 - read-only operator visibility as the safe first slice
 
@@ -82,7 +82,7 @@ Reason: this package already has durable session/status artifacts, so the first 
 
 The current widget/commands focus on read-only operator visibility:
 
-- persistent widget with counts + recent sessions
+- widget with counts + recent sessions for the current live session only
 - statuses surfaced: `running`, `done`, `error`, `timeout`, `abandoned`
 - objective preview + recency + recommended action hint
 - inspection remains artifact-backed and read-only; `/subagent-inspect <session-name>` now renders derived lifecycle metadata, artifact paths, safety notes, and the raw status sidecar without mutating session state

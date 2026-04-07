@@ -238,13 +238,56 @@ function collectRecentSessionSuggestions(
   return [...prefixMatches, ...remaining].slice(0, RECENT_SESSION_SUGGESTION_LIMIT);
 }
 
+interface CreateSubagentDashboardSnapshotOptions {
+  limit?: number;
+  now?: number;
+  currentSessionKey?: string;
+  sessionScope?: "all" | "current";
+  maxAgeMs?: number;
+}
+
+function filterDashboardStatuses(
+  statuses: SubagentSessionStatus[],
+  options: CreateSubagentDashboardSnapshotOptions,
+  now: number,
+): SubagentSessionStatus[] {
+  const normalizedCurrentSessionKey = options.currentSessionKey?.trim() || undefined;
+  const maxAgeMs = options.maxAgeMs;
+
+  if (options.sessionScope === "current" && !normalizedCurrentSessionKey) {
+    return [];
+  }
+
+  return statuses.filter((status) => {
+    if (
+      options.sessionScope === "current" &&
+      status.parentSessionKey?.trim() !== normalizedCurrentSessionKey
+    ) {
+      return false;
+    }
+
+    if (typeof maxAgeMs === "number") {
+      const updatedAtMs = Date.parse(status.updatedAt);
+      if (Number.isNaN(updatedAtMs)) {
+        return false;
+      }
+      if (Math.max(0, now - updatedAtMs) > maxAgeMs) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
 export function createSubagentDashboardSnapshot(
   sessionsDir: string,
-  options?: { limit?: number; now?: number; currentSessionKey?: string },
+  options: CreateSubagentDashboardSnapshotOptions = {},
 ): SubagentDashboardSnapshot {
   const statuses = listSubagentSessionStatuses(sessionsDir);
-  const now = options?.now ?? Date.now();
-  const limit = options?.limit ?? 5;
+  const now = options.now ?? Date.now();
+  const limit = options.limit ?? 5;
+  const filteredStatuses = filterDashboardStatuses(statuses, options, now);
 
   const counts: Record<SubagentSessionStatus["status"], number> = {
     running: 0,
@@ -255,17 +298,17 @@ export function createSubagentDashboardSnapshot(
     abandoned: 0,
   };
 
-  for (const status of statuses) {
+  for (const status of filteredStatuses) {
     counts[status.status] += 1;
   }
 
-  const rows = sortStatusesByUpdatedAt(statuses)
+  const rows = sortStatusesByUpdatedAt(filteredStatuses)
     .slice(0, limit)
     .map((status) => {
       const updatedAtMs = Date.parse(status.updatedAt);
       const ageMs = Number.isNaN(updatedAtMs) ? 0 : Math.max(0, now - updatedAtMs);
       const sessionScope = describeSessionScope({
-        currentSessionKey: options?.currentSessionKey,
+        currentSessionKey: options.currentSessionKey,
         parentSessionKey: status.parentSessionKey,
       });
       return {
@@ -285,7 +328,7 @@ export function createSubagentDashboardSnapshot(
 
   return {
     rows,
-    total: statuses.length,
+    total: filteredStatuses.length,
     counts,
   };
 }

@@ -143,6 +143,8 @@ const result = await runtime.execute(
 );
 ```
 
+`modelProvider` may also inspect the execution context (for example `ctx?.model`) when you want public-runtime consumers to mirror the active session model instead of hard-coding one.
+
 What this seam guarantees:
 - the same core execution logic now backs both `dispatch_subagent` and public runtime consumers
 - prompt-envelope application, lifecycle invariants, runtime-owned concurrency reservation, session-name reservation, result shaping, assistant protocol classification, and abort propagation stay ASC-owned
@@ -327,7 +329,8 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 
 **Model selection priority:**
 1. `PI_SUBAGENT_MODEL` environment variable (override)
-2. Default for all subagents: `openai-codex/gpt-5.4`
+2. Current session model (`<provider>/<model-id>`) when available
+3. Fixed fallback: `openai-codex/gpt-5.4`
 
 **Session storage:**
 - `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)
@@ -340,7 +343,7 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 
 **Session artifact notes:**
 - Local session files in `./.pi-subagent-sessions` are runtime artifacts and are gitignored by default.
-- Unless `PI_SUBAGENT_MODEL` overrides it, subagents now use the fixed default model `openai-codex/gpt-5.4` instead of inheriting the current session model.
+- Unless `PI_SUBAGENT_MODEL` overrides it, subagents inherit the current session model when Pi exposes one; the fixed fallback `openai-codex/gpt-5.4` is only used when no current model is available.
 - Subagent transport now runs through a package-local assistant-only JSON filter helper, so large aggregate Pi events (`agent_end`, `turn_end`, `tool_execution_end`) are dropped before ASC parses the stream.
 - ASC now treats the helper protocol as authoritative: raw Pi JSON events on the parent seam fail closed instead of being accepted as a compatibility fallback.
 - Parent-side execution timeouts now arm only after the helper emits its `transport_ready` handshake, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget.
@@ -349,7 +352,7 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 - Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned`; dead running sessions are reconciled to `abandoned` on next startup.
 - Status sidecars now also keep a bounded `resultPreview` plus the originating live `parentSessionKey` when available so dashboard/inspection views can stay session-aware without parsing the whole session log.
 - `subagent-status` now reports counts by terminal/runtime status for faster operator diagnosis.
-- A persistent read-only widget now surfaces recent subagent sessions, recency, and session-scope hints above the editor.
+- A read-only widget surfaces recent subagent sessions for the current live session only, appears only after this session dispatches a subagent, and auto-clears once entries age past 1 hour.
 - If you want long-horizon analysis/retention, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`). Those local artifacts are bounded replay aids; Pi's native session tree remains the live conversation authority.
 
 **Dashboard commands:**

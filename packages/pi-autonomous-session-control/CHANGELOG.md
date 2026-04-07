@@ -28,7 +28,7 @@ All notable changes to this project should be documented here.
 - `self` runtime now awaits memory hydration before query resolution
 - `self` persists scoped domains (`crystallization`, `protection`) after successful domain writes
 - `dispatch_subagent` now routes raw `pi --mode json` output through a package-local assistant-only filter helper before ASC parses the stream, dropping aggregate Pi events that the runtime does not semantically need and treating the helper protocol as the only accepted parent-side seam
-- Subagents now default to `openai-codex/gpt-5.4` unless `PI_SUBAGENT_MODEL` overrides the model; they no longer inherit the current session-selected model
+- Subagents now inherit the current session-selected model when available; `PI_SUBAGENT_MODEL` still overrides, and `openai-codex/gpt-5.4` remains the fallback when no live model is available
 - Documentation updated to reflect scoped cross-session persistence, filtered subagent transport, and new memory contract surfaces
 
 ### Fixed

@@ -15,6 +15,7 @@ import type { SubagentState } from "./subagent-session.ts";
 const DASHBOARD_WIDGET_KEY = "subagent-ops-dashboard";
 const DASHBOARD_REFRESH_MS = 2_000;
 const DASHBOARD_ROW_LIMIT = 4;
+const DASHBOARD_WIDGET_MAX_AGE_MS = 60 * 60 * 1000;
 
 type DashboardTheme = Pick<Theme, "fg">;
 
@@ -48,25 +49,34 @@ function renderStatus(status: string): { icon: string; color: ThemeColor } {
   }
 }
 
+function createWidgetSnapshot(sessionsDir: string, currentSessionKey?: string) {
+  return createSubagentDashboardSnapshot(sessionsDir, {
+    limit: DASHBOARD_ROW_LIMIT,
+    currentSessionKey,
+    sessionScope: "current",
+    maxAgeMs: DASHBOARD_WIDGET_MAX_AGE_MS,
+  });
+}
+
 export function buildDashboardLines(
   width: number,
   theme: DashboardTheme,
   sessionsDir: string,
   currentSessionKey?: string,
 ): string[] {
-  if (!Number.isFinite(width) || width <= 0) {
+  if (!Number.isFinite(width) || width <= 0 || !currentSessionKey?.trim()) {
     return [];
   }
 
-  const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
-    limit: DASHBOARD_ROW_LIMIT,
-    currentSessionKey,
-  });
+  const snapshot = createWidgetSnapshot(sessionsDir, currentSessionKey);
+  if (snapshot.rows.length === 0) {
+    return [];
+  }
 
   const header = fitLine(
     [
       theme.fg("accent", "Subagent ops"),
-      currentSessionKey ? theme.fg("dim", ` live=${truncate(currentSessionKey, 18)}`) : "",
+      theme.fg("dim", ` live=${truncate(currentSessionKey, 18)}`),
       theme.fg("dim", ` total=${snapshot.total}`),
       theme.fg("dim", ` running=${snapshot.counts.running}`),
       theme.fg("dim", ` done=${snapshot.counts.done}`),
@@ -77,10 +87,6 @@ export function buildDashboardLines(
     ].join(""),
     width,
   );
-
-  if (snapshot.rows.length === 0) {
-    return [header, fitLine(theme.fg("dim", "  No subagent sessions yet."), width)];
-  }
 
   const lines = [header];
 
@@ -225,6 +231,13 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
 
     const refresh = () => {
       const currentSessionKey = getContextSessionKey(ctx);
+      const snapshot = createWidgetSnapshot(state.sessionsDir, currentSessionKey);
+
+      if (snapshot.rows.length === 0) {
+        ctx.ui.setWidget(DASHBOARD_WIDGET_KEY, undefined);
+        return;
+      }
+
       ctx.ui.setWidget(
         DASHBOARD_WIDGET_KEY,
         (tui: unknown, theme: DashboardTheme): Component => ({
