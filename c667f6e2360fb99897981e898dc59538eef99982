@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "c667f6e2360fb99897981e898dc59538eef99982"
+created_at: "2026-04-07T06:48:34Z"
+intent: "Gate ak PATH fallback behind AK_ALLOW_PATH_FALLBACK=1 and add repo_capability header to cargo-operator"
+files:
+  - "scripts/ak.sh"
+  - "scripts/cargo-operator.sh"
+validation:
+  fast_gate:
+    command: "bash scripts/ak.sh --doctor"
+    status: "pass"
+  full_gate:
+    command: "just test"
+    status: "pending"
+group:
+  index: 4
+  total: 4
+  rationale: "scripts hardening: ak PATH gate + cargo-operator metadata"
