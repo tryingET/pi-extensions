@@ -18,6 +18,10 @@ import { finalizeExecutionEffects, recordEvidence } from "../src/runtime/evidenc
 import { getExecutionStatus, isExecutionSuccess } from "../src/runtime/execution-status.ts";
 import { superviseProcess } from "../src/runtime/process-supervisor.ts";
 import {
+  createRuntimeTruthSnapshot,
+  formatRuntimeStatusReport,
+} from "../src/runtime/status-semantics.ts";
+import {
   buildCombinedSystemPrompt,
   createOrchestratorSubagentExecutor,
   toExecutionLike,
@@ -1112,6 +1116,112 @@ test("agents-team command fails clearly when no session identity is available", 
       level: "error",
     },
   ]);
+});
+
+test("runtime status report centralizes the shared runtime truth descriptor", () => {
+  const snapshot = createRuntimeTruthSnapshot({
+    cwd: "/tmp/runtime-truth",
+    model: "test-model",
+    activeTeam: "quality",
+    societyDbPath: "/tmp/society.db",
+    societyDbAvailable: true,
+    vaultAvailable: true,
+    vaultSummary: "available (7 cognitive tools)",
+  });
+
+  const text = formatRuntimeStatusReport(snapshot);
+  assert.match(text, /coordination owner: `pi-society-orchestrator`/);
+  assert.match(text, /execution owner: `pi-autonomous-session-control`/);
+  assert.match(text, /routing: `quality` \(reviewer, researcher\)/);
+  assert.match(text, /footer left: `test-model · orchestrator→ASC`/);
+  assert.match(text, /footer right: `Routing: quality`/);
+});
+
+test("runtime-status command opens a runtime truth inspector", async () => {
+  const commands = new Map();
+  extension({
+    registerTool() {},
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+    on() {},
+  });
+
+  const editors = [];
+  const command = commands.get("runtime-status");
+  assert.ok(command, "expected runtime-status command to register");
+
+  await command.handler("", {
+    hasUI: true,
+    cwd: process.cwd(),
+    model: { id: "test-model" },
+    ui: {
+      async editor(title, text) {
+        editors.push({ title, text });
+      },
+      notify() {},
+    },
+  });
+
+  assert.equal(editors.length, 1);
+  assert.equal(editors[0].title, "Runtime Status");
+  assert.match(editors[0].text, /^# Society Orchestrator Runtime Status/m);
+  assert.match(editors[0].text, /routing selector: `\/agents-team`/);
+  assert.match(editors[0].text, /inspector: `\/runtime-status`/);
+  assert.match(editors[0].text, /footer left: `test-model · orchestrator→ASC`/);
+  assert.match(editors[0].text, /footer right: `Routing: full`/);
+});
+
+test("session_start surfaces routing status and the orchestrator to ASC seam in the footer", async () => {
+  const events = new Map();
+  extension({
+    registerTool() {},
+    registerCommand() {},
+    on(name, handler) {
+      events.set(name, handler);
+    },
+  });
+
+  const sessionStart = events.get("session_start");
+  assert.ok(sessionStart, "expected session_start handler to register");
+
+  const notifications = [];
+  let footerFactory;
+  await sessionStart(
+    {},
+    {
+      hasUI: true,
+      cwd: process.cwd(),
+      model: { id: "test-model" },
+      ui: {
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+        setFooter(factory) {
+          footerFactory = factory;
+        },
+      },
+    },
+  );
+
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0].message, /Routing: full/);
+  assert.doesNotMatch(notifications[0].message, /Team: full/);
+  assert.ok(footerFactory, "expected session_start to register a footer");
+
+  const footer = footerFactory(
+    undefined,
+    {
+      fg(_color, text) {
+        return text;
+      },
+    },
+    undefined,
+  );
+  const rendered = footer.render(120)[0];
+  assert.match(rendered, /orchestrator→ASC/);
+  assert.match(rendered, /Routing: full/);
+  assert.doesNotMatch(rendered, /· orchestra(?:\s|$)/);
 });
 
 test("agents-team command stores team selection per session manager", async () => {

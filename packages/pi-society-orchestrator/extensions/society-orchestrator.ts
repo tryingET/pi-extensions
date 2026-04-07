@@ -12,7 +12,8 @@
  *
  * Usage:
  *   /cognitive                     — List available cognitive tools
- *   /agents-team                   — Select agent team
+ *   /agents-team                   — Select routing scope
+ *   /runtime-status                — Inspect runtime truth
  *   /ontology <concept>            — Query ontology
  *   /evidence                      — Show recent evidence via ak evidence search
  *   /loops                         — List available loop types
@@ -56,6 +57,10 @@ import {
 import { getExecutionIcon } from "../src/runtime/execution-status.ts";
 import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/ontology.ts";
 import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
+import {
+  createRuntimeTruthSnapshot,
+  formatRuntimeStatusReport,
+} from "../src/runtime/status-semantics.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore } from "../src/runtime/team-state.ts";
 
@@ -569,6 +574,28 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     },
   });
 
+  pi.registerCommand("runtime-status", {
+    description: "Inspect runtime truth and routing status",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const toolsResult = await listCognitiveTools(VAULT_DIR);
+      const snapshot = createRuntimeTruthSnapshot({
+        cwd: ctx.cwd,
+        model: ctx.model?.id,
+        activeTeam: sessionTeams.getTeam(ctx),
+        societyDbPath: SOCIETY_DB,
+        societyDbAvailable: fs.existsSync(SOCIETY_DB),
+        vaultAvailable: !isBoundaryFailure(toolsResult),
+        vaultSummary: isBoundaryFailure(toolsResult)
+          ? `unavailable (${toolsResult.error.slice(0, 120)})`
+          : `available (${toolsResult.value.length} cognitive tools)`,
+      });
+
+      await ctx.ui.editor("Runtime Status", formatRuntimeStatusReport(snapshot));
+    },
+  });
+
   pi.registerCommand("ontology", {
     description: "Search ontology concepts",
     handler: async (args, ctx) => {
@@ -627,9 +654,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       `Society Orchestrator\n` +
         `DB: ${dbOk ? "✓" : "✗"} ${SOCIETY_DB}\n` +
         `Vault: ${vaultStatus}\n` +
-        `Team: ${activeTeam}\n\n` +
+        `Routing: ${activeTeam}\n\n` +
         `/cognitive          List cognitive tools\n` +
-        `/agents-team        Select team\n` +
+        `/agents-team        Select routing scope\n` +
+        `/runtime-status     Inspect runtime truth\n` +
         `/evidence           Show evidence\n` +
         `/ontology <query>   Search ontology\n` +
         `/loops              List loop types\n` +
@@ -645,8 +673,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         const model = ctx.model?.id || "no-model";
         const activeTeam = sessionTeams.getTeam(ctx);
         const left =
-          theme.fg("dim", ` ${model}`) + theme.fg("muted", " · ") + theme.fg("accent", `orchestra`);
-        const right = theme.fg("dim", `Team: ${activeTeam} `);
+          theme.fg("dim", ` ${model}`) +
+          theme.fg("muted", " · ") +
+          theme.fg("accent", `orchestrator→ASC`);
+        const right = theme.fg("dim", `Routing: ${activeTeam} `);
         const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
         return [truncateToWidth(left + pad + right, width)];
       },
