@@ -154,6 +154,43 @@ test("createSubagentDashboardSnapshot can filter to the current live session and
   }
 });
 
+test("createSubagentDashboardSnapshot can filter to the current repo root as well as the live session", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-repo-filter-"));
+
+  try {
+    await writeStatus(
+      sessionsDir,
+      "current-repo",
+      "done",
+      "2026-03-06T11:30:00.000Z",
+      "Summarize the current-repo run.",
+      { parentSessionKey: "live-2", parentRepoRoot: "/repo/current" },
+    );
+    await writeStatus(
+      sessionsDir,
+      "other-repo",
+      "done",
+      "2026-03-06T11:45:00.000Z",
+      "Summarize the other-repo run.",
+      { parentSessionKey: "live-2", parentRepoRoot: "/repo/other" },
+    );
+
+    const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+      currentSessionKey: "live-2",
+      currentRepoRoot: "/repo/current",
+      sessionScope: "current",
+      maxAgeMs: 60 * 60 * 1000,
+    });
+
+    assert.equal(snapshot.total, 1);
+    assert.equal(snapshot.rows.length, 1);
+    assert.equal(snapshot.rows[0].sessionName, "current-repo");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createSubagentSessionInspection summarizes lifecycle metadata and artifact paths", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-"));
   const updatedAt = "2026-03-06T11:59:00.000Z";

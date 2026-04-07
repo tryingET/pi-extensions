@@ -120,6 +120,7 @@ test("spawnSubagentWithSpawn finalizes on exit even when close never arrives", a
       tools: "read,bash",
       sessionFile: join(state.sessionsDir, "exit-only.json"),
       parentSessionKey: "live-session-42",
+      parentRepoRoot: process.cwd(),
     },
     "test/model",
     { cwd: process.cwd() },
@@ -134,6 +135,7 @@ test("spawnSubagentWithSpawn finalizes on exit even when close never arrives", a
   assert.equal(runningStatus.status, "running");
   assert.equal(runningStatus.pid, 424242);
   assert.equal(runningStatus.parentSessionKey, "live-session-42");
+  assert.equal(runningStatus.parentRepoRoot, process.cwd());
 
   stdout.emit("data", '{"type":"assistant_text_delta","delta":"hello"}\n');
   child.emit("exit", 0);
@@ -150,6 +152,7 @@ test("spawnSubagentWithSpawn finalizes on exit even when close never arrives", a
   assert.equal(finalStatus.status, "done");
   assert.equal(finalStatus.exitCode, 0);
   assert.equal(finalStatus.parentSessionKey, "live-session-42");
+  assert.equal(finalStatus.parentRepoRoot, process.cwd());
   assert.equal(finalStatus.resultPreview, "hello");
 
   await rm(state.sessionsDir, { recursive: true, force: true });

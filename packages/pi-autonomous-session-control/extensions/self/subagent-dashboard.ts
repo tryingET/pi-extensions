@@ -5,19 +5,22 @@ import type {
   ThemeColor,
 } from "@mariozechner/pi-coding-agent";
 import { type Component, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { getContextSessionKey } from "./session-context.ts";
+import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
 import {
   createSubagentDashboardSnapshot,
   createSubagentSessionInspection,
+  type SubagentDashboardSnapshot,
 } from "./subagent-dashboard-data.ts";
 import type { SubagentState } from "./subagent-session.ts";
 
 const DASHBOARD_WIDGET_KEY = "subagent-ops-dashboard";
 const DASHBOARD_REFRESH_MS = 2_000;
+const DASHBOARD_HIDE_GRACE_MS = 10_000;
 const DASHBOARD_ROW_LIMIT = 4;
 const DASHBOARD_WIDGET_MAX_AGE_MS = 60 * 60 * 1000;
 
 type DashboardTheme = Pick<Theme, "fg">;
+type RenderRequester = { requestRender(): void };
 
 function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
@@ -49,34 +52,60 @@ function renderStatus(status: string): { icon: string; color: ThemeColor } {
   }
 }
 
-function createWidgetSnapshot(sessionsDir: string, currentSessionKey?: string) {
+function createWidgetSnapshot(
+  sessionsDir: string,
+  currentSessionKey?: string,
+  currentRepoRoot?: string,
+) {
   return createSubagentDashboardSnapshot(sessionsDir, {
     limit: DASHBOARD_ROW_LIMIT,
     currentSessionKey,
+    currentRepoRoot,
     sessionScope: "current",
     maxAgeMs: DASHBOARD_WIDGET_MAX_AGE_MS,
   });
 }
 
-export function buildDashboardLines(
+function createEmptyDashboardSnapshot(): SubagentDashboardSnapshot {
+  return {
+    rows: [],
+    total: 0,
+    counts: {
+      running: 0,
+      done: 0,
+      error: 0,
+      timeout: 0,
+      aborted: 0,
+      abandoned: 0,
+    },
+  };
+}
+
+function normalizeSessionKey(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function buildDashboardLinesFromSnapshot(
   width: number,
   theme: DashboardTheme,
-  sessionsDir: string,
+  snapshot: SubagentDashboardSnapshot,
   currentSessionKey?: string,
 ): string[] {
-  if (!Number.isFinite(width) || width <= 0 || !currentSessionKey?.trim()) {
-    return [];
-  }
-
-  const snapshot = createWidgetSnapshot(sessionsDir, currentSessionKey);
-  if (snapshot.rows.length === 0) {
+  const normalizedSessionKey = normalizeSessionKey(currentSessionKey);
+  if (
+    !Number.isFinite(width) ||
+    width <= 0 ||
+    !normalizedSessionKey ||
+    snapshot.rows.length === 0
+  ) {
     return [];
   }
 
   const header = fitLine(
     [
       theme.fg("accent", "Subagent ops"),
-      theme.fg("dim", ` live=${truncate(currentSessionKey, 18)}`),
+      theme.fg("dim", ` live=${truncate(normalizedSessionKey, 18)}`),
       theme.fg("dim", ` total=${snapshot.total}`),
       theme.fg("dim", ` running=${snapshot.counts.running}`),
       theme.fg("dim", ` done=${snapshot.counts.done}`),
@@ -104,13 +133,30 @@ export function buildDashboardLines(
   return lines;
 }
 
+export function buildDashboardLines(
+  width: number,
+  theme: DashboardTheme,
+  sessionsDir: string,
+  currentSessionKey?: string,
+  currentRepoRoot?: string,
+): string[] {
+  return buildDashboardLinesFromSnapshot(
+    width,
+    theme,
+    createWidgetSnapshot(sessionsDir, currentSessionKey, currentRepoRoot),
+    currentSessionKey,
+  );
+}
+
 function sessionArtifactSummary(
   sessionsDir: string,
   sessionName: string,
   currentSessionKey?: string,
+  currentRepoRoot?: string,
 ): string {
   const inspection = createSubagentSessionInspection(sessionsDir, sessionName, {
     currentSessionKey,
+    currentRepoRoot,
   });
   const sections: string[] = [`# Subagent Session: ${sessionName}`, ""];
 
@@ -138,6 +184,7 @@ function sessionArtifactSummary(
   sections.push("## History boundary");
   sections.push(`- ${inspection.historyBoundaryNote}`);
   sections.push(`- Current live session: ${inspection.currentSessionKey ?? "(unavailable)"}`);
+  sections.push(`- Current repo root: ${inspection.currentRepoRoot ?? "(unavailable)"}`);
   sections.push("");
 
   sections.push("## Summary");
@@ -145,6 +192,9 @@ function sessionArtifactSummary(
   sections.push(`- Session scope: ${inspection.sessionScopeLabel}`);
   if (inspection.parentSessionKey) {
     sections.push(`- Recorded under live session: ${inspection.parentSessionKey}`);
+  }
+  if (inspection.parentRepoRoot) {
+    sections.push(`- Recorded under repo root: ${inspection.parentRepoRoot}`);
   }
   if (inspection.updatedAt) {
     sections.push(
@@ -217,6 +267,11 @@ function sessionArtifactSummary(
 
 export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState): void {
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let mountedTui: RenderRequester | null = null;
+  let visibleSnapshot = createEmptyDashboardSnapshot();
+  let visibleSessionKey: string | undefined;
+  let visibleRepoRoot: string | undefined;
+  let lastVisibleAt: number | undefined;
 
   const stopRefresh = () => {
     if (refreshTimer) {
@@ -225,29 +280,73 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
     }
   };
 
+  const clearVisibleSnapshot = (currentSessionKey?: string, currentRepoRoot?: string) => {
+    visibleSnapshot = createEmptyDashboardSnapshot();
+    visibleSessionKey = normalizeSessionKey(currentSessionKey);
+    visibleRepoRoot = normalizeSessionKey(currentRepoRoot);
+    lastVisibleAt = undefined;
+  };
+
+  const refreshVisibleSnapshot = (ctx: ExtensionContext) => {
+    const now = Date.now();
+    const currentSessionKey = normalizeSessionKey(getContextSessionKey(ctx));
+    const currentRepoRoot = normalizeSessionKey(getContextRepoRoot(ctx));
+    const snapshot = createWidgetSnapshot(state.sessionsDir, currentSessionKey, currentRepoRoot);
+
+    if (snapshot.rows.length > 0 && currentSessionKey) {
+      visibleSnapshot = snapshot;
+      visibleSessionKey = currentSessionKey;
+      visibleRepoRoot = currentRepoRoot;
+      lastVisibleAt = now;
+      return;
+    }
+
+    const sessionChanged =
+      currentSessionKey !== undefined &&
+      visibleSessionKey !== undefined &&
+      currentSessionKey !== visibleSessionKey;
+    const repoChanged =
+      currentRepoRoot !== undefined &&
+      visibleRepoRoot !== undefined &&
+      currentRepoRoot !== visibleRepoRoot;
+    const withinHideGrace =
+      visibleSnapshot.rows.length > 0 &&
+      typeof lastVisibleAt === "number" &&
+      now - lastVisibleAt < DASHBOARD_HIDE_GRACE_MS;
+
+    if (!sessionChanged && !repoChanged && withinHideGrace) {
+      return;
+    }
+
+    clearVisibleSnapshot(currentSessionKey, currentRepoRoot);
+  };
+
   const startRefresh = (ctx: ExtensionContext) => {
     stopRefresh();
+    mountedTui = null;
+    clearVisibleSnapshot();
     if (!ctx.hasUI) return;
 
-    const refresh = () => {
-      const currentSessionKey = getContextSessionKey(ctx);
-      const snapshot = createWidgetSnapshot(state.sessionsDir, currentSessionKey);
-
-      if (snapshot.rows.length === 0) {
-        ctx.ui.setWidget(DASHBOARD_WIDGET_KEY, undefined);
-        return;
-      }
-
-      ctx.ui.setWidget(
-        DASHBOARD_WIDGET_KEY,
-        (tui: unknown, theme: DashboardTheme): Component => ({
+    ctx.ui.setWidget(
+      DASHBOARD_WIDGET_KEY,
+      (tui: unknown, theme: DashboardTheme): Component & { dispose(): void } => {
+        mountedTui = tui as RenderRequester;
+        return {
           render: (width: number) =>
-            buildDashboardLines(width, theme, state.sessionsDir, currentSessionKey),
-          invalidate: () => {
-            void tui;
+            buildDashboardLinesFromSnapshot(width, theme, visibleSnapshot, visibleSessionKey),
+          invalidate: () => {},
+          dispose: () => {
+            if (mountedTui === tui) {
+              mountedTui = null;
+            }
           },
-        }),
-      );
+        };
+      },
+    );
+
+    const refresh = () => {
+      refreshVisibleSnapshot(ctx);
+      mountedTui?.requestRender();
     };
 
     refresh();
@@ -259,19 +358,31 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
     startRefresh(ctx);
   });
 
+  pi.on("session_shutdown", async (_event, ctx) => {
+    stopRefresh();
+    mountedTui = null;
+    clearVisibleSnapshot();
+    if (ctx.hasUI) {
+      ctx.ui.setWidget(DASHBOARD_WIDGET_KEY, undefined);
+    }
+  });
+
   pi.registerCommand("subagent-dashboard", {
     description: "Open a read-only summary of recent subagent sessions",
     handler: async (_args, ctx) => {
       const currentSessionKey = getContextSessionKey(ctx);
+      const currentRepoRoot = getContextRepoRoot(ctx);
       const snapshot = createSubagentDashboardSnapshot(state.sessionsDir, {
         limit: 25,
         currentSessionKey,
+        currentRepoRoot,
       });
       const lines = [
         "# Subagent Operations Dashboard",
         "",
         `- Sessions dir: ${state.sessionsDir}`,
         `- Current live session: ${currentSessionKey ?? "(unavailable)"}`,
+        `- Current repo root: ${currentRepoRoot ?? "(unavailable)"}`,
         `- Total sessions: ${snapshot.total}`,
         `- Running: ${snapshot.counts.running}`,
         `- Done: ${snapshot.counts.done}`,
@@ -327,7 +438,12 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
       if (ctx.hasUI) {
         await ctx.ui.editor(
           `Subagent Session ${sessionName}`,
-          sessionArtifactSummary(state.sessionsDir, sessionName, getContextSessionKey(ctx)),
+          sessionArtifactSummary(
+            state.sessionsDir,
+            sessionName,
+            getContextSessionKey(ctx),
+            getContextRepoRoot(ctx),
+          ),
         );
       }
     },

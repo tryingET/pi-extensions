@@ -37,7 +37,9 @@ export interface SubagentSessionInspection {
   resultPreview?: string;
   recommendedActionHint: string;
   currentSessionKey?: string;
+  currentRepoRoot?: string;
   parentSessionKey?: string;
+  parentRepoRoot?: string;
   sessionScope: "current" | "other" | "recorded" | "unknown";
   sessionScopeLabel: string;
   historyBoundaryNote: string;
@@ -242,6 +244,7 @@ interface CreateSubagentDashboardSnapshotOptions {
   limit?: number;
   now?: number;
   currentSessionKey?: string;
+  currentRepoRoot?: string;
   sessionScope?: "all" | "current";
   maxAgeMs?: number;
 }
@@ -252,6 +255,7 @@ function filterDashboardStatuses(
   now: number,
 ): SubagentSessionStatus[] {
   const normalizedCurrentSessionKey = options.currentSessionKey?.trim() || undefined;
+  const normalizedCurrentRepoRoot = options.currentRepoRoot?.trim() || undefined;
   const maxAgeMs = options.maxAgeMs;
 
   if (options.sessionScope === "current" && !normalizedCurrentSessionKey) {
@@ -263,6 +267,10 @@ function filterDashboardStatuses(
       options.sessionScope === "current" &&
       status.parentSessionKey?.trim() !== normalizedCurrentSessionKey
     ) {
+      return false;
+    }
+
+    if (normalizedCurrentRepoRoot && status.parentRepoRoot?.trim() !== normalizedCurrentRepoRoot) {
       return false;
     }
 
@@ -336,7 +344,7 @@ export function createSubagentDashboardSnapshot(
 export function createSubagentSessionInspection(
   sessionsDir: string,
   sessionName: string,
-  options?: { now?: number; currentSessionKey?: string },
+  options?: { now?: number; currentSessionKey?: string; currentRepoRoot?: string },
 ): SubagentSessionInspection {
   const now = options?.now ?? Date.now();
   const statusPath = join(sessionsDir, `${sessionName}.status.json`);
@@ -392,7 +400,9 @@ export function createSubagentSessionInspection(
       ? recommendedActionHint(parsedStatus.status)
       : "Inspect artifact paths and recent sessions before retrying.",
     currentSessionKey: options?.currentSessionKey?.trim() || undefined,
+    currentRepoRoot: options?.currentRepoRoot?.trim() || undefined,
     parentSessionKey: parsedStatus?.parentSessionKey?.trim() || undefined,
+    parentRepoRoot: parsedStatus?.parentRepoRoot?.trim() || undefined,
     sessionScope: sessionScope.scope,
     sessionScopeLabel: sessionScope.label,
     historyBoundaryNote: HISTORY_BOUNDARY_NOTE,
