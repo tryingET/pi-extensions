@@ -73,6 +73,17 @@ path_fallback_enabled() {
   esac
 }
 
+path_shim_active() {
+  case "${AK_PATH_SHIM_ACTIVE:-0}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 usage: scripts/ak.sh [--doctor|--which|--help] [ak args...]
@@ -252,7 +263,11 @@ select_runner() {
 
   if has_cmd ak; then
     if path_fallback_enabled; then
-      printf '%s\n' "path-ak"
+      if path_shim_active; then
+        printf '%s\n' "path-ak-recursive-blocked"
+      else
+        printf '%s\n' "path-ak"
+      fi
     else
       printf '%s\n' "path-ak-blocked"
     fi
@@ -284,6 +299,9 @@ runner_desc() {
       ;;
     path-ak)
       printf 'ak on PATH (%s) with explicit AK_ALLOW_PATH_FALLBACK=1\n' "$(command -v ak)"
+      ;;
+    path-ak-recursive-blocked)
+      printf 'ak on PATH resolves to the installed launcher shim (%s) but the current repo has no non-PATH runner; fix vendored/workspace-core launcher wiring instead of falling back recursively\n' "$(command -v ak)"
       ;;
     path-ak-blocked)
       printf 'ak on PATH is available (%s) but blocked by default; set AK_ALLOW_PATH_FALLBACK=1 or AK_BIN=/absolute/path/to/ak\n' "$(command -v ak)"
@@ -336,7 +354,7 @@ doctor() {
   say "- selected runner: $(runner_desc "$runner")"
 
   case "$runner" in
-    ak-bin-missing|vendored-missing-cargo|workspace-core-missing-cargo|path-ak-blocked|missing)
+    ak-bin-missing|vendored-missing-cargo|workspace-core-missing-cargo|path-ak-recursive-blocked|path-ak-blocked|missing)
       return 1
       ;;
   esac
@@ -358,7 +376,7 @@ runner="$(select_runner)"
 if [ "${1:-}" = "--which" ]; then
   runner_desc "$runner"
   case "$runner" in
-    ak-bin-missing|vendored-missing-cargo|workspace-core-missing-cargo|path-ak-blocked|missing)
+    ak-bin-missing|vendored-missing-cargo|workspace-core-missing-cargo|path-ak-recursive-blocked|path-ak-blocked|missing)
       exit 1
       ;;
   esac
@@ -424,6 +442,9 @@ case "$runner" in
     ;;
   path-ak)
     exec ak "$@"
+    ;;
+  path-ak-recursive-blocked)
+    die "ak on PATH resolves to the installed launcher shim but the current repo has no vendored/workspace-core Agent Kernel runner; fix scripts/cargo-operator.sh or AK_CORE_PROJECT instead of falling back recursively"
     ;;
   path-ak-blocked)
     die "ak on PATH is available but blocked by default; set AK_ALLOW_PATH_FALLBACK=1 for an explicit ambient fallback, set AK_BIN=/absolute/path/to/ak, or provide the vendored/workspace-core Agent Kernel"
