@@ -1120,6 +1120,42 @@ test("agents-team command fails clearly when no session identity is available", 
   ]);
 });
 
+test("agents-team command presents the internal full team as all agents to operators", async () => {
+  const commands = new Map();
+  extension({
+    registerTool() {},
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+    on() {},
+  });
+
+  let selectTitle;
+  let selectOptions;
+  const command = commands.get("agents-team");
+  assert.ok(command, "expected agents-team command to register");
+
+  await command.handler("", {
+    hasUI: true,
+    cwd: process.cwd(),
+    ui: {
+      async select(title, options) {
+        selectTitle = title;
+        selectOptions = options;
+        return undefined;
+      },
+      notify() {},
+    },
+  });
+
+  assert.equal(selectTitle, "Select routing scope");
+  assert.ok(selectOptions.includes("all agents — builder, researcher, reviewer, scout"));
+  assert.equal(
+    selectOptions.some((option) => option.startsWith("full —")),
+    false,
+  );
+});
+
 test("runtime status report centralizes the shared runtime truth descriptor", () => {
   const snapshot = createRuntimeTruthSnapshot({
     cwd: "/tmp/runtime-truth",

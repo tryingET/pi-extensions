@@ -474,10 +474,69 @@ try {
   const cognitiveDispatch = harness.tools.get("cognitive_dispatch");
   const loopExecute = harness.tools.get("loop_execute");
   const agentsTeam = harness.commands.get("agents-team");
+  const runtimeStatus = harness.commands.get("runtime-status");
+  const sessionStart = harness.events.get("session_start");
 
   assert.ok(cognitiveDispatch, "cognitive_dispatch not registered");
   assert.ok(loopExecute, "loop_execute not registered");
   assert.ok(agentsTeam, "agents-team command not registered");
+  assert.ok(runtimeStatus, "runtime-status command not registered");
+  assert.ok(sessionStart, "session_start handler not registered");
+
+  const startupNotifications = [];
+  let footerFactory;
+  await sessionStart(
+    {},
+    {
+      hasUI: true,
+      cwd: tempRoot,
+      model: { id: "installed-model" },
+      ui: {
+        notify(message, level) {
+          startupNotifications.push({ message, level });
+        },
+        setFooter(factory) {
+          footerFactory = factory;
+        },
+      },
+    },
+  );
+
+  assert.equal(startupNotifications.length, 1);
+  assert.match(startupNotifications[0]?.message || "", /Routing: all agents/);
+  assert.match(startupNotifications[0]?.message || "", /\/runtime-status\s+Inspect runtime truth/);
+  assert.ok(footerFactory, "session_start did not register a footer");
+  const footer = footerFactory(
+    undefined,
+    {
+      fg(_color, text) {
+        return text;
+      },
+    },
+    undefined,
+  );
+  const renderedFooter = footer.render(120)[0];
+  assert.match(renderedFooter, /orchestrator→ASC/);
+  assert.match(renderedFooter, /Routing: all agents/);
+  console.log("installed startup/runtime footer smoke: ok");
+
+  const runtimeStatusEditors = [];
+  await runtimeStatus.handler("", {
+    hasUI: true,
+    cwd: tempRoot,
+    model: { id: "installed-model" },
+    ui: {
+      async editor(title, text) {
+        runtimeStatusEditors.push({ title, text });
+      },
+      notify() {},
+    },
+  });
+
+  assert.equal(runtimeStatusEditors.length, 1);
+  assert.equal(runtimeStatusEditors[0]?.title, "Runtime Status");
+  assert.match(runtimeStatusEditors[0]?.text || "", /routing: `all agents` \[internal: `full`\]/);
+  console.log("installed runtime-status smoke: ok");
 
   writeFakePi("semantic-error");
   const bootstrapResult = await cognitiveDispatch.execute(
