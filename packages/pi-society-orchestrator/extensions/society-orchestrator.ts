@@ -60,9 +60,12 @@ import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/o
 import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
 import {
   createRuntimeTruthSnapshot,
-  formatRuntimeFooterLeft,
+  fitRuntimeFooterLayout,
   formatRuntimeRoutingStatus,
   formatRuntimeStatusReport,
+  joinRuntimeFooterSlotText,
+  type RuntimeFooterSlot,
+  selectRuntimeFooterSlotText,
 } from "../src/runtime/status-semantics.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore, type TeamScopedContext } from "../src/runtime/team-state.ts";
@@ -75,10 +78,27 @@ const SOCIETY_DB =
   process.env.SOCIETY_DB ||
   process.env.AK_DB ||
   path.join(os.homedir(), "ai-society", "society.db");
-const VAULT_DIR =
-  process.env.VAULT_DIR ||
-  path.join(os.homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db");
+const DEFAULT_VAULT_DIR = path.join(
+  os.homedir(),
+  "ai-society",
+  "core",
+  "prompt-vault",
+  "prompt-vault-db",
+);
+const DEFAULT_FOOTER_HEALTH_REFRESH_MS =
+  Number.parseInt(process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS || "", 10) || 30_000;
 const AGENT_KERNEL = resolveAkPath({ cwd: process.cwd() });
+
+function resolveVaultDir() {
+  return process.env.VAULT_DIR || DEFAULT_VAULT_DIR;
+}
+
+function getFooterHealthRefreshMs() {
+  return (
+    Number.parseInt(process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS || "", 10) ||
+    DEFAULT_FOOTER_HEALTH_REFRESH_MS
+  );
+}
 
 // ============================================================================
 // RUNTIME ADAPTERS
@@ -105,22 +125,21 @@ export default function (pi: ExtensionAPI) {
     model?: { id?: string };
   };
   type RuntimeSnapshot = ReturnType<typeof createRuntimeTruthSnapshot>;
-  type FooterSlotTone = "dim" | "accent" | "warning";
-  type FooterSlot = {
-    id: string;
-    tone: FooterSlotTone;
-    full: string;
-    compact?: string;
-    optional?: boolean;
-  };
   type FooterTheme = {
     fg(color: string, text: string): string;
   };
+  type FooterTui = {
+    requestRender(): void;
+  };
+  type CognitiveToolsResult = Awaited<ReturnType<typeof listCognitiveTools>>;
+  type FooterHealthState = {
+    latestToolsResult?: CognitiveToolsResult;
+    lastProbeAt: number;
+    probeInFlight?: Promise<void>;
+    disposed: boolean;
+  };
 
-  function buildRuntimeSnapshot(
-    ctx: RuntimeStatusContext,
-    toolsResult?: Awaited<ReturnType<typeof listCognitiveTools>>,
-  ) {
+  function buildRuntimeSnapshot(ctx: RuntimeStatusContext, toolsResult?: CognitiveToolsResult) {
     return createRuntimeTruthSnapshot({
       cwd: ctx.cwd,
       model: ctx.model?.id,
@@ -136,98 +155,94 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
-  function selectFooterSlotText(slot: FooterSlot, compactModel = false) {
-    return compactModel && slot.id === "model" && slot.compact ? slot.compact : slot.full;
+  function summarizeFooterHealth(toolsResult?: CognitiveToolsResult) {
+    if (!toolsResult) {
+      return "unrefreshed";
+    }
+    return isBoundaryFailure(toolsResult)
+      ? `error:${toolsResult.error}`
+      : `ok:${toolsResult.value.length}`;
   }
 
-  function joinFooterSlotText(slots: FooterSlot[], compactModel = false) {
-    return slots.map((slot) => selectFooterSlotText(slot, compactModel)).join(" · ");
+  function createFooterHealthState(initialToolsResult?: CognitiveToolsResult): FooterHealthState {
+    return {
+      latestToolsResult: initialToolsResult,
+      lastProbeAt: Date.now(),
+      probeInFlight: undefined,
+      disposed: false,
+    };
   }
 
-  function renderFooterSlotText(theme: FooterTheme, slots: FooterSlot[], compactModel = false) {
+  function shouldRefreshFooterHealth(state: FooterHealthState) {
+    if (state.disposed || state.probeInFlight) {
+      return false;
+    }
+    if (!state.latestToolsResult || isBoundaryFailure(state.latestToolsResult)) {
+      return true;
+    }
+    return Date.now() - state.lastProbeAt >= getFooterHealthRefreshMs();
+  }
+
+  function refreshFooterHealth(state: FooterHealthState, tui?: FooterTui) {
+    if (!shouldRefreshFooterHealth(state)) {
+      return;
+    }
+
+    const previousHealth = summarizeFooterHealth(state.latestToolsResult);
+    state.lastProbeAt = Date.now();
+    state.probeInFlight = (async () => {
+      let nextToolsResult: CognitiveToolsResult;
+      try {
+        nextToolsResult = await listCognitiveTools(resolveVaultDir());
+      } catch (error) {
+        nextToolsResult = {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+
+      state.latestToolsResult = nextToolsResult;
+      if (!state.disposed && summarizeFooterHealth(nextToolsResult) !== previousHealth) {
+        tui?.requestRender();
+      }
+    })().finally(() => {
+      state.probeInFlight = undefined;
+    });
+  }
+
+  function renderFooterSlotText(
+    theme: FooterTheme,
+    slots: RuntimeFooterSlot[],
+    compactModel = false,
+  ) {
     const separator = theme.fg("muted", " · ");
     return slots
-      .map((slot) => theme.fg(slot.tone, selectFooterSlotText(slot, compactModel)))
+      .map((slot) => theme.fg(slot.tone, selectRuntimeFooterSlotText(slot, compactModel)))
       .join(separator);
   }
 
-  function buildFooterSlots(snapshot: RuntimeSnapshot) {
-    const [modelLabel, seamLabel = snapshot.descriptor.executionSeamLabel] =
-      formatRuntimeFooterLeft(snapshot).split(" · ");
-
-    const left: FooterSlot[] = [
-      {
-        id: "model",
-        tone: "dim",
-        full: modelLabel,
-        compact: truncateToWidth(modelLabel, 18, "...", true),
-      },
-      { id: "seam", tone: "accent", full: seamLabel },
-      {
-        id: "db",
-        tone: snapshot.societyDb.available ? "accent" : "warning",
-        full: snapshot.societyDb.available ? "DB✓" : "DB✗",
-        optional: true,
-      },
-      {
-        id: "vault",
-        tone: snapshot.vault.available ? "accent" : "warning",
-        full: snapshot.vault.available ? "Vault✓" : "Vault✗",
-        optional: true,
-      },
-    ];
-    const right: FooterSlot[] = [
-      {
-        id: "routing",
-        tone: "dim",
-        full: formatRuntimeRoutingStatus(snapshot),
-      },
-    ];
-
-    return { left, right };
-  }
-
   function renderRuntimeFooterLine(width: number, theme: FooterTheme, snapshot: RuntimeSnapshot) {
-    const { left, right } = buildFooterSlots(snapshot);
-    const fittedLeft = [...left];
-    const rightPlain = joinFooterSlotText(right);
-    const rightText = `${renderFooterSlotText(theme, right)} `;
-    const rightWidth = visibleWidth(rightPlain) + 1;
-    const maxLeftWidth = Math.max(0, width - rightWidth - 1);
-    let compactModel = false;
+    const layout = fitRuntimeFooterLayout(snapshot, width);
+    const rightPlain = joinRuntimeFooterSlotText(layout.right);
+    const rightText = renderFooterSlotText(theme, layout.right);
+    const rightWidth = visibleWidth(rightPlain);
 
-    while (visibleWidth(joinFooterSlotText(fittedLeft, compactModel)) > maxLeftWidth) {
-      let optionalIndex = -1;
-      for (let i = fittedLeft.length - 1; i >= 0; i -= 1) {
-        if (fittedLeft[i]?.optional) {
-          optionalIndex = i;
-          break;
-        }
-      }
-      if (optionalIndex !== -1) {
-        fittedLeft.splice(optionalIndex, 1);
-        continue;
-      }
-      if (!compactModel && fittedLeft.some((slot) => slot.id === "model")) {
-        compactModel = true;
-        continue;
-      }
-      const modelIndex = fittedLeft.findIndex((slot) => slot.id === "model");
-      if (modelIndex !== -1) {
-        fittedLeft.splice(modelIndex, 1);
-        continue;
-      }
-      break;
+    if (rightWidth >= width || layout.left.length === 0) {
+      return truncateToWidth(rightText, width);
     }
 
-    const leftPlain = joinFooterSlotText(fittedLeft, compactModel);
-    const leftText = fittedLeft.length
-      ? ` ${renderFooterSlotText(theme, fittedLeft, compactModel)}`
-      : "";
-    const leftWidth = fittedLeft.length ? visibleWidth(leftPlain) + 1 : 0;
-    const padWidth = Math.max(1, width - leftWidth - rightWidth);
-    const line = leftText + " ".repeat(padWidth) + rightText;
-    return leftWidth + padWidth + rightWidth <= width ? line : truncateToWidth(line, width);
+    const leftPlain = joinRuntimeFooterSlotText(layout.left, layout.compactModel);
+    const leftText = renderFooterSlotText(theme, layout.left, layout.compactModel);
+    const leftWidth = visibleWidth(leftPlain) + 1;
+    const paddedRightWidth = rightWidth + 1;
+    if (leftWidth + paddedRightWidth + 1 > width) {
+      return truncateToWidth(rightText, width);
+    }
+
+    const leftSegment = ` ${leftText}`;
+    const rightSegment = `${rightText} `;
+    const padWidth = Math.max(1, width - leftWidth - paddedRightWidth);
+    return leftSegment + " ".repeat(padWidth) + rightSegment;
   }
 
   // Ensure sessions directory exists
@@ -369,7 +384,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       }
 
       // Get the cognitive tool
-      const toolResult = await getCognitiveToolByName(VAULT_DIR, toolToUse, signal);
+      const toolResult = await getCognitiveToolByName(resolveVaultDir(), toolToUse, signal);
       if (isBoundaryFailure(toolResult)) {
         return {
           content: [
@@ -629,7 +644,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
-      const toolsResult = await listCognitiveTools(VAULT_DIR);
+      const toolsResult = await listCognitiveTools(resolveVaultDir());
       if (isBoundaryFailure(toolsResult)) {
         ctx.ui.notify(`Failed to list cognitive tools: ${toolsResult.error}`, "error");
         return;
@@ -717,7 +732,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
-      const toolsResult = await listCognitiveTools(VAULT_DIR);
+      const toolsResult = await listCognitiveTools(resolveVaultDir());
       const snapshot = buildRuntimeSnapshot(ctx, toolsResult);
       await ctx.ui.editor("Runtime Status", formatRuntimeStatusReport(snapshot));
     },
@@ -754,7 +769,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   // ===========================================================================
 
   // Register loop tools (loop_execute)
-  registerLoopTools(pi, undefined, VAULT_DIR, (agent, ctx) =>
+  registerLoopTools(pi, undefined, resolveVaultDir(), (agent, ctx) =>
     resolveAgentForTeam(agent, sessionTeams.getTeam(ctx)),
   );
 
@@ -768,8 +783,9 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
 
-    const toolsResult = await listCognitiveTools(VAULT_DIR);
-    const snapshot = buildRuntimeSnapshot(ctx, toolsResult);
+    const toolsResult = await listCognitiveTools(resolveVaultDir());
+    const footerHealthState = createFooterHealthState(toolsResult);
+    const snapshot = buildRuntimeSnapshot(ctx, footerHealthState.latestToolsResult);
     const dbOk = snapshot.societyDb.available;
     const vaultStatus = isBoundaryFailure(toolsResult)
       ? `✗ (${toolsResult.error.slice(0, 120)})`
@@ -791,11 +807,14 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     );
 
     // Footer
-    ctx.ui.setFooter((_tui, theme, _footerData) => ({
-      dispose: () => {},
+    ctx.ui.setFooter((tui, theme, _footerData) => ({
+      dispose: () => {
+        footerHealthState.disposed = true;
+      },
       invalidate() {},
       render(width: number): string[] {
-        const footerSnapshot = buildRuntimeSnapshot(ctx, toolsResult);
+        refreshFooterHealth(footerHealthState, tui);
+        const footerSnapshot = buildRuntimeSnapshot(ctx, footerHealthState.latestToolsResult);
         return [renderRuntimeFooterLine(width, theme, footerSnapshot)];
       },
     }));

@@ -520,6 +520,12 @@ try {
   assert.match(renderedFooter, /Routing: all agents/);
   assert.match(renderedFooter, /DB(?:✓|✗)/);
   assert.match(renderedFooter, /Vault(?:✓|✗)/);
+
+  const narrowFooter = footer.render(20)[0];
+  assert.match(narrowFooter, /Routing:/);
+  assert.doesNotMatch(narrowFooter, /orchestrator→ASC/);
+  assert.doesNotMatch(narrowFooter, /DB(?:✓|✗)/);
+  assert.doesNotMatch(narrowFooter, /Vault(?:✓|✗)/);
   console.log("installed startup/runtime footer smoke: ok");
 
   const runtimeStatusEditors = [];

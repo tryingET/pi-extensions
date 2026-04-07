@@ -48,7 +48,8 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
    - primary left slots: `<model> · orchestrator→ASC`
    - optional health slots: `DB✓|DB✗ · Vault✓|Vault✗` when width allows
    - right side: `Routing: <team>`
-   - compact widths should drop optional health slots before sacrificing the seam/routing contract
+   - compact widths should drop optional health slots first, then the seam, before sacrificing routing visibility
+   - footer health badges may refresh after startup if Vault health changes during the session
 4. `/agents-team`
    - treats the choice as routing scope selection, not generic "team" wording
    - reports the current routing scope after selection using the shared routing label
@@ -61,7 +62,7 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
 - Do **not** regress to stale footer/status wording such as `orchestra` or `Team: ...` for the operator-facing runtime surfaces covered here.
 - Prefer `Routing` when describing the active agent-scope selection.
 - Keep footer/status wording short; put richer explanation in `/runtime-status` and docs.
-- Protect the seam/routing contract before optional health badges when compacting the footer.
+- Protect routing visibility before optional health badges, model, and finally the seam when compacting the footer.
 
 ## Change rule
 

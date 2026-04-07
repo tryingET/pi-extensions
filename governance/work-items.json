@@ -555,6 +555,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0949",
+          "title": "[SO-REPAIR] Fix footer compaction priority and live health refresh drift",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SO-REPAIR] Fix footer compaction priority and live health refresh drift (task #949)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
         }
       ]
     }

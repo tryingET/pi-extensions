@@ -58,8 +58,9 @@ The next bounded work is:
 
 ### Operator-visible runtime truth follow-through landed
 - user-facing routing now presents the internal `full` scope as `all agents` across `/agents-team`, `/runtime-status`, startup copy, footer text, and installed-package smoke
-- the session footer now renders prioritized slots: model + `orchestrator→ASC` stay primary, compact `DB`/`Vault` health badges appear only when width allows, and narrow widths drop those optional badges before sacrificing seam/routing visibility
-- `tests/runtime-shared-paths.test.mjs` now covers both wide and compact footer renders while `npm run release:check` still proves the installed-package footer contract
+- the session footer now renders prioritized slots: compact `DB`/`Vault` health badges are optional, narrow widths drop badges first and then the seam before sacrificing routing visibility, and extremely narrow widths fall back to routing-only rendering
+- footer health badges are no longer frozen at startup; rerenders can refresh Vault health after startup drift so the footer converges back toward `/runtime-status` truth
+- `tests/runtime-shared-paths.test.mjs` now covers wide, compact, narrow, and startup-drift footer behavior while `npm run release:check` still proves the installed-package footer contract
 
 ### Execution/evidence semantics are now explicit and shared
 - execution outcome classification is centralized in `src/runtime/execution-status.ts`.
