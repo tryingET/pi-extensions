@@ -23,6 +23,7 @@ const files = createFilesystemPort();
 const rocs = createRocsCliPort();
 const workspace = createWorkspacePort();
 const runtimeDeps = { files, rocs, workspace };
+const ONTOLOGY_STATUS_KEY = "ontology-workflows";
 
 const inspectSchema = Type.Object({
   kind: StringEnum(ONTOLOGY_INSPECT_KINDS),
@@ -89,6 +90,19 @@ const changeSchema = Type.Object({
   validateAfter: Type.Optional(Type.Boolean()),
   buildAfter: Type.Optional(Type.Boolean()),
 });
+
+function buildStartupNotificationText(result: Awaited<ReturnType<typeof inspectOntology>>): string {
+  return [
+    `ontology scope=${result.target.scope}`,
+    `repo=${result.target.repoPath}`,
+    `concepts=${result.status?.counts.concepts ?? "?"} relations=${result.status?.counts.relations ?? "?"}`,
+    `validation=${result.status?.validation?.ok === false ? "fail" : "ok"}`,
+    "",
+    "picker: /ontology:<query>[::scope]",
+    "pack: /ontology-pack:<query>[::scope]",
+    "change: /ontology-change:<query>[::scope]",
+  ].join("\n");
+}
 
 export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
   registerOntologyInteractionRuntime(pi, runtimeDeps);
@@ -203,8 +217,10 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
     if (!ctx.hasUI) return;
+
+    ctx.ui.setWidget(ONTOLOGY_STATUS_KEY, undefined);
 
     try {
       const detected = await workspace.detect(ctx.cwd);
@@ -213,6 +229,7 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
         !detected.currentCompany &&
         detected.currentRepoKind === "none"
       ) {
+        ctx.ui.setStatus(ONTOLOGY_STATUS_KEY, undefined);
         return;
       }
 
@@ -222,18 +239,13 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
         runtimeDeps,
       );
       updateStatusFromInspect(ctx, result);
-      ctx.ui.setWidget("ontology-workflows", [
-        `ontology scope=${result.target.scope}`,
-        `repo=${result.target.repoPath}`,
-        `concepts=${result.status?.counts.concepts ?? "?"} relations=${result.status?.counts.relations ?? "?"}`,
-        `validation=${result.status?.validation?.ok === false ? "fail" : "ok"}`,
-        "picker: /ontology:<query>[::scope]",
-        "pack: /ontology-pack:<query>[::scope]",
-        "change: /ontology-change:<query>[::scope]",
-      ]);
+
+      if ((event as { reason?: string }).reason === "startup") {
+        ctx.ui.notify(buildStartupNotificationText(result), "info");
+      }
     } catch (error) {
       ctx.ui.setStatus(
-        "ontology-workflows",
+        ONTOLOGY_STATUS_KEY,
         `ontology unavailable: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -262,7 +274,7 @@ function updateStatusFromInspect(
   const counts = result.status
     ? ` concepts=${result.status.counts.concepts} relations=${result.status.counts.relations}`
     : "";
-  ctx.ui.setStatus("ontology-workflows", `${result.target.scope}:${validationState}${counts}`);
+  ctx.ui.setStatus(ONTOLOGY_STATUS_KEY, `${result.target.scope}:${validationState}${counts}`);
 }
 
 function isOntologyRelevantPrompt(prompt: string): boolean {

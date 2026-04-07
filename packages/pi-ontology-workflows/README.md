@@ -83,7 +83,8 @@ Examples:
 - `session_start`
   - mounts the ontology picker/editor runtime when UI is available
   - detects relevant ontology context
-  - sets an ontology status line/widget when useful
+  - sets an ontology footer status when useful
+  - sends a one-shot startup notification with ontology shortcuts
 - `before_agent_start`
   - injects a short ontology workflow hint when the prompt appears ontology-relevant
 
