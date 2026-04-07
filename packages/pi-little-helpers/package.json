@@ -42,6 +42,7 @@
   },
   "files": [
     "extensions/code-block-picker.ts",
+    "extensions/html-output-browser.ts",
     "extensions/package-update-notify.ts",
     "extensions/stash.ts",
     "lib/package-utils.ts",
@@ -53,6 +54,7 @@
   "pi": {
     "extensions": [
       "./extensions/code-block-picker.ts",
+      "./extensions/html-output-browser.ts",
       "./extensions/package-update-notify.ts",
       "./extensions/stash.ts"
     ],

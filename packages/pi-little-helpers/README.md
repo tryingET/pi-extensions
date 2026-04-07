@@ -22,6 +22,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | Extension | Description |
 |---|---|
 | `code-block-picker` | Pick a code block from the conversation and copy it safely to the clipboard |
+| `html-output-browser` | Auto-open written/edited HTML files in the browser and append clickable `file://` links to the tool output |
 | `package-update-notify` | Check for updates to pinned npm/git packages in Pi settings |
 | `stash` | Persist and restore stashed editor content across sessions |
 
@@ -63,7 +64,7 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Then in Pi:
 
 1. run `/reload`
-2. verify `/codeblocks` and the `stash` shortcuts/commands in a real session
+2. verify `/codeblocks`, the `stash` shortcuts/commands, and any `write`/`edit` flow that produces an `.html` file in a real session
 
 ## Docs discovery
 
