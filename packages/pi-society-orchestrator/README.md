@@ -59,6 +59,7 @@ Before any new UI or extraction moves, Phase A capability discovery established 
 - `pi-interaction` owns interaction-runtime concerns such as editor mounting, trigger brokering, and picker/selection flows
 - `pi-vs-claude-code` is best treated as a UX/pattern repo, not a canonical runtime owner
 - ASC remains the strongest execution-plane owner for subagent lifecycle/runtime concerns
+- user-visible footer/statusline copy should describe the orchestrator coordination role, the ASC execution seam, and routing scope without implying that orchestrator owns the execution runtime
 
 Primary execution-boundary packet:
 
@@ -69,6 +70,13 @@ Primary execution-boundary packet:
 - [Control-plane boundaries ADR](docs/adr/2026-03-11-control-plane-boundaries.md) — adopted boundary decision
 - [ASC public execution contract proposal](docs/project/2026-03-10-rfc-asc-public-execution-contract.md) — preferred first seam under the ADR
 - [Architecture backlog](docs/project/2026-03-10-architecture-convergence-backlog.md) — migration order and HTN
+
+Current package-local direction for operator-visible runtime semantics:
+
+- [Strategic goals](docs/project/strategic_goals.md)
+- [Tactical goals](docs/project/tactical_goals.md)
+- [Operating plan](docs/project/operating_plan.md)
+- [Runtime status semantics](docs/project/runtime-status-semantics.md)
 
 ## Imported source layout
 
@@ -101,7 +109,8 @@ Primary tools and commands exposed by the imported extension include:
 - `ontology_context` (now resolved through the sanctioned `rocs-cli` adapter path instead of the local `society.db` ontology table)
 - `loop_execute`
 - `/cognitive`
-- `/agents-team` (session-identity-scoped team selection for direct-dispatch and loop agents; incompatible loop/team combinations now fail explicitly instead of silently swapping roles)
+- `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; incompatible loop/team combinations now fail explicitly instead of silently swapping roles)
+- `/runtime-status` (editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, and live DB/vault status)
 - `/evidence` (recent evidence preview via `ak evidence search`)
 - `/ontology <query>`
 - `/loops`
@@ -110,6 +119,7 @@ Primary tools and commands exposed by the imported extension include:
 ## Current runtime reality
 
 - Runtime hardening is in place for agent/team routing, shared execution/evidence policy, timeout-bound supervised lower-plane calls, `rocs-cli`-backed ontology resolution, and a dedicated society runtime helper for the residual read-side boundary.
+- Operator-visible runtime truth now has a shared package-local surface in `src/runtime/status-semantics.ts`; `/runtime-status`, `session_start`, footer/statusline wording, routing-selection notices, and installed-package smoke assertions now derive from that shared contract instead of scattered literals.
 - `cognitive_dispatch` and `loop_execute` now route subagent execution through ASC's public execution contract via `src/runtime/subagent.ts` instead of carrying a second local spawn/runtime implementation.
 - The orchestrator-side adapter still preserves package-local timeout/output policy (`PI_ORCH_SUBAGENT_TIMEOUT_MS`, `PI_ORCH_SUBAGENT_OUTPUT_CHARS`) around the ASC-owned seam so installed-package behavior stays truthful during the cutover.
 - The adapter now also preserves ASC execution truth needed for orchestration decisions: canonical execution status, normalized `failureKind`, assistant stop reasons, protocol parse failures, abort propagation, and truncation metadata are forwarded instead of being collapsed into transport-only success.

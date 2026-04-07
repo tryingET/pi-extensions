@@ -1206,6 +1206,7 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
 
   assert.equal(notifications.length, 1);
   assert.match(notifications[0].message, /Routing: full/);
+  assert.match(notifications[0].message, /\/runtime-status\s+Inspect runtime truth/);
   assert.doesNotMatch(notifications[0].message, /Team: full/);
   assert.ok(footerFactory, "expected session_start to register a footer");
 
@@ -1287,7 +1288,7 @@ test("agents-team command stores team selection per session manager", async () =
 
     assert.deepEqual(notifications, [
       {
-        message: "Team: quality (reviewer, researcher)",
+        message: "Routing: quality (reviewer, researcher)",
         level: "info",
       },
     ]);

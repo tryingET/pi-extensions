@@ -272,8 +272,19 @@ function getExpectedDisplayedOutput(text) {
 
 function getExpectedInstalledTimeoutBody() {
   const timeoutMs = Number.parseInt(process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS || "", 10);
-  const seconds = Number.isFinite(timeoutMs) && timeoutMs >= 0 ? Math.round(timeoutMs / 1000) : 0;
-  return `Subagent timed out after ${seconds}s`;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return "Subagent timed out after 0ms";
+  }
+
+  if (timeoutMs < 1000) {
+    return `Subagent timed out after ${Math.max(1, Math.round(timeoutMs))}ms`;
+  }
+
+  if (timeoutMs % 1000 === 0) {
+    return `Subagent timed out after ${timeoutMs / 1000}s`;
+  }
+
+  return `Subagent timed out after ${(timeoutMs / 1000).toFixed(1).replace(/\.0$/, "")}s`;
 }
 
 function writeFakePi(mode) {
@@ -657,7 +668,7 @@ try {
 
   assert.deepEqual(notifications, [
     {
-      message: "Team: quality (reviewer, researcher)",
+      message: "Routing: quality (reviewer, researcher)",
       level: "info",
     },
   ]);

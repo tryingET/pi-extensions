@@ -59,10 +59,12 @@ import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/o
 import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
 import {
   createRuntimeTruthSnapshot,
+  formatRuntimeFooterLeft,
+  formatRuntimeRoutingStatus,
   formatRuntimeStatusReport,
 } from "../src/runtime/status-semantics.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
-import { createSessionTeamStore } from "../src/runtime/team-state.ts";
+import { createSessionTeamStore, type TeamScopedContext } from "../src/runtime/team-state.ts";
 
 // ============================================================================
 // CONFIGURATION
@@ -96,6 +98,30 @@ function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal, cwd?: string)
 export default function (pi: ExtensionAPI) {
   const sessionTeams = createSessionTeamStore();
   const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "society-orchestrator");
+
+  type RuntimeStatusContext = TeamScopedContext & {
+    cwd: string;
+    model?: { id?: string };
+  };
+
+  function buildRuntimeSnapshot(
+    ctx: RuntimeStatusContext,
+    toolsResult?: Awaited<ReturnType<typeof listCognitiveTools>>,
+  ) {
+    return createRuntimeTruthSnapshot({
+      cwd: ctx.cwd,
+      model: ctx.model?.id,
+      activeTeam: sessionTeams.getTeam(ctx),
+      societyDbPath: SOCIETY_DB,
+      societyDbAvailable: fs.existsSync(SOCIETY_DB),
+      vaultAvailable: toolsResult ? !isBoundaryFailure(toolsResult) : false,
+      vaultSummary: !toolsResult
+        ? "not refreshed in this interaction"
+        : isBoundaryFailure(toolsResult)
+          ? `unavailable (${toolsResult.error.slice(0, 120)})`
+          : `available (${toolsResult.value.length} cognitive tools)`,
+    });
+  }
 
   // Ensure sessions directory exists
   if (!fs.existsSync(sessionsDir)) {
@@ -512,7 +538,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   });
 
   pi.registerCommand("agents-team", {
-    description: "Select an agent team",
+    description: "Select routing scope",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
@@ -522,7 +548,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       }));
 
       const choice = await ctx.ui.select(
-        "Select Team",
+        "Select routing scope",
         options.map((o) => o.label),
       );
       if (choice === undefined) return;
@@ -538,7 +564,12 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           );
           return;
         }
-        ctx.ui.notify(`Team: ${team} (${AGENT_TEAMS[team].join(", ")})`, "info");
+
+        const snapshot = buildRuntimeSnapshot(ctx);
+        ctx.ui.notify(
+          `${formatRuntimeRoutingStatus(snapshot)} (${AGENT_TEAMS[team].join(", ")})`,
+          "info",
+        );
       }
     },
   });
@@ -580,18 +611,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       if (!ctx.hasUI) return;
 
       const toolsResult = await listCognitiveTools(VAULT_DIR);
-      const snapshot = createRuntimeTruthSnapshot({
-        cwd: ctx.cwd,
-        model: ctx.model?.id,
-        activeTeam: sessionTeams.getTeam(ctx),
-        societyDbPath: SOCIETY_DB,
-        societyDbAvailable: fs.existsSync(SOCIETY_DB),
-        vaultAvailable: !isBoundaryFailure(toolsResult),
-        vaultSummary: isBoundaryFailure(toolsResult)
-          ? `unavailable (${toolsResult.error.slice(0, 120)})`
-          : `available (${toolsResult.value.length} cognitive tools)`,
-      });
-
+      const snapshot = buildRuntimeSnapshot(ctx, toolsResult);
       await ctx.ui.editor("Runtime Status", formatRuntimeStatusReport(snapshot));
     },
   });
@@ -641,23 +661,21 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
 
-    // Check connections
-    const dbOk = fs.existsSync(SOCIETY_DB);
     const toolsResult = await listCognitiveTools(VAULT_DIR);
+    const snapshot = buildRuntimeSnapshot(ctx, toolsResult);
+    const dbOk = snapshot.societyDb.available;
     const vaultStatus = isBoundaryFailure(toolsResult)
       ? `✗ (${toolsResult.error.slice(0, 120)})`
       : `✓ (${toolsResult.value.length} cognitive tools)`;
 
-    const activeTeam = sessionTeams.getTeam(ctx);
-
     ctx.ui.notify(
-      `Society Orchestrator\n` +
-        `DB: ${dbOk ? "✓" : "✗"} ${SOCIETY_DB}\n` +
+      `${snapshot.descriptor.extensionTitle}\n` +
+        `DB: ${dbOk ? "✓" : "✗"} ${snapshot.societyDb.path}\n` +
         `Vault: ${vaultStatus}\n` +
-        `Routing: ${activeTeam}\n\n` +
+        `${formatRuntimeRoutingStatus(snapshot)}\n\n` +
         `/cognitive          List cognitive tools\n` +
-        `/agents-team        Select routing scope\n` +
-        `/runtime-status     Inspect runtime truth\n` +
+        `${snapshot.descriptor.routingSelectorCommand.padEnd(20, " ")}Select routing scope\n` +
+        `${snapshot.descriptor.runtimeStatusCommand.padEnd(20, " ")}Inspect runtime truth\n` +
         `/evidence           Show evidence\n` +
         `/ontology <query>   Search ontology\n` +
         `/loops              List loop types\n` +
@@ -670,13 +688,14 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       dispose: () => {},
       invalidate() {},
       render(width: number): string[] {
-        const model = ctx.model?.id || "no-model";
-        const activeTeam = sessionTeams.getTeam(ctx);
+        const footerSnapshot = buildRuntimeSnapshot(ctx);
+        const [modelLabel, seamLabel = footerSnapshot.descriptor.executionSeamLabel] =
+          formatRuntimeFooterLeft(footerSnapshot).split(" · ");
         const left =
-          theme.fg("dim", ` ${model}`) +
+          theme.fg("dim", ` ${modelLabel}`) +
           theme.fg("muted", " · ") +
-          theme.fg("accent", `orchestrator→ASC`);
-        const right = theme.fg("dim", `Routing: ${activeTeam} `);
+          theme.fg("accent", seamLabel);
+        const right = theme.fg("dim", `${formatRuntimeRoutingStatus(footerSnapshot)} `);
         const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
         return [truncateToWidth(left + pad + right, width)];
       },
