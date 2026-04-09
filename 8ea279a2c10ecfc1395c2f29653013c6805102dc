@@ -1,0 +1,16 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: "fix regression where niri top-edge positioning drifted because moveWindowToTopViaNiri sent one move and considered it done without verifying convergence"
+files:
+  - packages/pi-activity-strip/src/electron/main.mjs
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-activity-strip run check"
+    status: pass
+  full_gate:
+    command: "npm --prefix packages/pi-activity-strip run check"
+    status: pending
+group:
+  index: 1
+  total: 1
+  rationale: "single logical fix in one file"
