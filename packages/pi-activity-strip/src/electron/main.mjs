@@ -26,6 +26,15 @@ function formatDelta(value) {
   return rounded >= 0 ? `+${rounded}` : String(rounded);
 }
 
+function readNiriPosition(window) {
+  const position = window?.layout?.tile_pos_in_workspace_view;
+  if (!Array.isArray(position) || position.length < 2) return null;
+  return {
+    x: Number(position[0] ?? 0),
+    y: Number(position[1] ?? 0),
+  };
+}
+
 async function getNiriWindowByPid(pid) {
   if (!isNiriSession()) return null;
 
@@ -53,33 +62,45 @@ async function moveWindowToTopViaNiri() {
   const niriWindow = await getNiriWindowByPid(process.pid);
   if (!niriWindow?.id) return false;
 
-  const currentPosition = niriWindow.layout?.tile_pos_in_workspace_view;
-  if (!Array.isArray(currentPosition) || currentPosition.length < 2) return false;
+  const currentPosition = readNiriPosition(niriWindow);
+  if (!currentPosition) return false;
 
-  const deltaX = target.x - Number(currentPosition[0] ?? 0);
-  const deltaY = target.y - Number(currentPosition[1] ?? 0);
+  let deltaX = target.x - currentPosition.x;
+  let deltaY = target.y - currentPosition.y;
   if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return true;
 
-  try {
-    await execFileAsync(
-      "niri",
-      [
-        "msg",
-        "action",
-        "move-floating-window",
-        "--id",
-        String(niriWindow.id),
-        "-x",
-        formatDelta(deltaX),
-        "-y",
-        formatDelta(deltaY),
-      ],
-      { env: process.env },
-    );
-    return true;
-  } catch {
-    return false;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await execFileAsync(
+        "niri",
+        [
+          "msg",
+          "action",
+          "move-floating-window",
+          "--id",
+          String(niriWindow.id),
+          "-x",
+          formatDelta(deltaX),
+          "-y",
+          formatDelta(deltaY),
+        ],
+        { env: process.env },
+      );
+    } catch {
+      return false;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const refreshedWindow = await getNiriWindowByPid(process.pid);
+    const refreshedPosition = readNiriPosition(refreshedWindow);
+    if (!refreshedPosition) return false;
+
+    deltaX = target.x - refreshedPosition.x;
+    deltaY = target.y - refreshedPosition.y;
+    if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return true;
   }
+
+  return false;
 }
 
 async function alignWindowToTop() {
