@@ -9,7 +9,7 @@ validation:
     status: pass
   full_gate:
     command: "npm --prefix packages/pi-activity-strip run check"
-    status: pending
+    status: pass
 group:
   index: 1
   total: 1
