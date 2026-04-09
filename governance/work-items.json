@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-04-07",
+  "updated_at": "2026-04-09",
   "owner": "@tryingET",
   "project_name": "pi-extensions",
   "milestones": [
@@ -581,6 +581,67 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0958",
+          "title": "[ASC] Isolate extensionless child from invalid default-model warnings",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[ASC] Isolate extensionless child from invalid default-model warnings (task #958)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-07"
+        },
+        {
+          "id": "AK-TASK-0962",
+          "title": "[SO-EXPLORE] Evaluate PufferLib as a bounded RL sandbox for pi-society-orchestrator routing/scheduling",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "[SO-EXPLORE] Evaluate PufferLib as a bounded RL sandbox for pi-society-orchestrator routing/scheduling (task #962)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-1049",
+          "title": "[WAVE-TG1] Rewire pi-society-orchestrator prompt-plane reads to the supported pi-vault-client seam",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "[WAVE-TG1] Rewire pi-society-orchestrator prompt-plane reads to the supported pi-vault-client seam (task #1049)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-1050",
+          "title": "[WAVE-TG1] Expose a supported non-UI pi-vault-client prompt-plane seam for orchestrator cognitive-tool consumers",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "[WAVE-TG1] Expose a supported non-UI pi-vault-client prompt-plane seam for orchestrator cognitive-tool consumers (task #1050)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-1051",
+          "title": "[WAVE-TG1] Prove the new prompt-plane seam with package checks, release smoke, and root validation",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "[WAVE-TG1] Prove the new prompt-plane seam with package checks, release smoke, and root validation (task #1051)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
         }
       ]
     }

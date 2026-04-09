@@ -34,33 +34,28 @@ Do **not** treat this file as a live status database.
 
 ## CURRENT TRUTH
 - This repo is the canonical monorepo control plane for pi extensions.
-- The root direction chain is explicit:
+- The root direction chain is explicit and should be treated as the current narrative truth:
   - `docs/project/vision.md`
   - `docs/project/strategic_goals.md`
   - `docs/project/tactical_goals.md`
   - `docs/project/operating_plan.md`
-- The first SG1 reduced-form pilot queue is complete (`#603`, `#634` -> `#636`).
-- The guarded repo-bootstrap concern surfaced here first, but the durable owner question moved to the agent-kernel Tier 1 packet anchored by `FCOS-M41-01` and decision `#8`, and the first execution chain is now verified there.
-- Local `pi-extensions` tasks are therefore historical/deferred, not active implementation:
-  - `#654` deferred until decision `#8`
-  - `#655` deferred until decision `#8`
-  - `#656` deferred until decision `#8`
-- Canonical decision packet now lives in agent-kernel:
-  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/fcos-guarded-repo-bootstrap-authority-after-live-repo-root-drift.md`
-  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-problem-guarded-repo-bootstrap-authority.md`
-  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-evidence-guarded-repo-bootstrap-authority.md`
-  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-rfc-guarded-repo-bootstrap-authority.md`
-  - `~/ai-society/softwareco/owned/agent-kernel/docs/project/2026-04-01-cross-repo-fanout-fcos-m41-guarded-repo-bootstrap-authority.md`
-- Canonical FCOS + AK work for the concern now lives in:
-  - FCOS issue `FCOS-M41-01`
-  - decision `#8`
-  - task `#657` (review / legal next move, done)
-  - task `#665` (AK-native implementation, done)
-  - task `#666` (pi-extensions consumer rewiring, done)
-  - task `#667` (verification, done)
-- The package-level proof packet for the final verification step now lives in:
-  - `packages/pi-society-orchestrator/docs/project/2026-04-01-guarded-bootstrap-verification.md`
-- Root validation is coherent and verified through the canonical wrapper:
+- The recent `pi-society-orchestrator` runtime-truth wave is complete (`tasks:939-950`).
+- The guarded repo-bootstrap concern remains historical root context only; the durable owner/path was decided and verified through agent-kernel decision `#8` plus tasks `#657`, `#665`, `#666`, and `#667`.
+- The current routed root-local wave is now the contract-first cross-package packet captured in:
+  - `docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`
+- Current execution order for that wave is:
+  1. thin `pi-vault-client` prompt-plane seam
+  2. `pi-society-orchestrator` KES activation
+  3. `pi-society-orchestrator` loop hardening
+  4. only then any higher-order ASC self follow-on
+- The active root tactical/operating path is the seam-first binding wave, backed by:
+  - `task:1050`
+  - `task:1049`
+  - `task:1051`
+- A separate exploratory task still exists:
+  - `task:962` (`[SO-EXPLORE] Evaluate PufferLib ...`)
+  - treat it as real but not the current execution anchor unless explicit reprioritization says otherwise
+- Root validation remains coherent through the canonical wrappers:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
   - `npm run quality:ci`
@@ -69,15 +64,6 @@ Do **not** treat this file as a live status database.
 - Full root validation: `./scripts/ci/full.sh`
 - Canonical package validation: `./scripts/package-quality-gate.sh`
 - Package checks orchestrated by: `./scripts/ci/packages.sh`
-- Root-owned stack-contract review/policy surface:
-  - `docs/tech-stack.local.md`
-  - `scripts/validate-tech-stack-contract.mjs`
-  - `docs/project/reduced-form-migration-contract.md`
-  - `docs/project/tech-stack-review-surfaces.md`
-  - `docs/project/operating_plan.md`
-- Package-local divergence surface stays local to each package:
-  - `docs/tech-stack.local.md`
-  - package-specific docs/manifests/scripts
 
 ## DURABLE GUARDRAILS
 - Do **not** treat this file as a live status database; use AK for task state.
@@ -87,18 +73,21 @@ Do **not** treat this file as a live status database.
 - Do **not** bypass quality gates before committing.
 
 ## CONTINUE WITH
-1. Re-enter the active direction chain before opening any new root-local wave:
+1. Re-enter the active direction chain before opening or resuming any root-local wave:
    - `docs/project/vision.md`
    - `docs/project/strategic_goals.md`
    - `docs/project/tactical_goals.md`
    - `docs/project/operating_plan.md`
-2. Treat guarded repo bootstrap as externalized and already verified through the agent-kernel decision packet. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
-3. If you need the history/proof packet for guarded repo bootstrap, route to:
-   - `~/ai-society/softwareco/owned/agent-kernel/next_session_prompt.md`
-   - `~/ai-society/softwareco/owned/agent-kernel/docs/project/fcos-guarded-repo-bootstrap-authority-after-live-repo-root-drift.md`
-   - `~/ai-society/holdingco/governance-kernel/governance/programs/fcos/work-items.json` (`FCOS-M41-01`)
-   - `ak decision get 8`
-4. For actual root-owned work in this repo, refresh the reduction/audit surfaces and decide whether the next SG1 package-reduction batch should be materialized.
+2. Run the direction substrate refresh/check flow explicitly when those docs change:
+   - `./scripts/ak.sh direction import --repo . -F json`
+   - `./scripts/ak.sh direction check --repo . -F json`
+   - `./scripts/ak.sh direction export --repo . -F json`
+3. Treat guarded repo bootstrap as externalized and already verified through agent-kernel decision `#8`. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
+4. Treat the current root-owned wave as the seam-first packet in `docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`:
+   - execute `task:1050` first
+   - then `task:1049`
+   - then `task:1051`
+   - do not pull KES/loop or higher-order self follow-ons forward until that seam-first wave closes truthfully
 5. Route template changes to:
    - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
 6. Route Nunjucks live verification to:
@@ -113,6 +102,8 @@ git status --short
 git diff --name-only
 ./scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'
 ./scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:5]'
+./scripts/ak.sh direction export --repo . -F json
+./scripts/ak.sh direction check --repo . -F json
 npm run quality:pre-commit
 npm run quality:pre-push
 ```
