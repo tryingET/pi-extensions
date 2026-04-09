@@ -14,6 +14,7 @@ system4d:
 - [Extension entrypoint](../../extensions/vault.ts)
 - [Prompt templates](../../prompts)
 - [Organization operating model](../org/operating_model.md)
+- [RFC: non-UI prompt-plane and continuation contract](2026-04-09-rfc-non-ui-prompt-plane-and-continuation-contract.md)
 - [Security policy](../../policy/security-policy.json)
 - [Validation script](../../scripts/validate-structure.sh)
 - [Trusted publishing runbook](../dev/trusted_publishing.md)

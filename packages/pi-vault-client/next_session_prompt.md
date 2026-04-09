@@ -107,6 +107,11 @@ If the task touches `src/vaultDb.ts` or company/schema/mutation resolution, also
 - `tests/vault-mutations.test.mjs`
 - `tests/vault-feedback.test.mjs`
 
+If the ready task touches the active prompt-plane seam / continuation-contract wave, also read:
+- `docs/project/2026-04-09-rfc-non-ui-prompt-plane-and-continuation-contract.md`
+- `~/ai-society/softwareco/owned/pi-extensions/docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`
+- `~/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator/docs/adr/2026-03-11-control-plane-boundaries.md`
+
 If continuing the bounded `src/vaultDb.ts` decomposition after the feedback seam, prefer separating execution logging helpers next rather than widening query behavior.
 
 ### 3. AK queue truth
