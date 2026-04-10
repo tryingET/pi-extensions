@@ -1,0 +1,35 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "adc97931849e8ac5fd231a4aa48576ed7d26ac51"
+created_at: "2026-04-10T09:56:08Z"
+intent: "Prove the prompt-plane seam through local-dependency-aware release smoke, package docs refresh, and root validation follow-through."
+files:
+  - "diary/2026-04-10--prompt-plane-release-proof.md"
+  - "packages/pi-vault-client/README.md"
+  - "packages/pi-vault-client/scripts/release-check.sh"
+  - "packages/pi-vault-client/scripts/release-local-dependencies.mjs"
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/docs/project/2026-03-11-hermetic-installed-release-smoke.md"
+  - "packages/pi-society-orchestrator/docs/project/2026-04-10-prompt-plane-consumer-cutover.md"
+  - "packages/pi-society-orchestrator/next_session_prompt.md"
+  - "packages/pi-society-orchestrator/scripts/release-check.sh"
+  - "packages/pi-society-orchestrator/scripts/release-local-dependencies.mjs"
+  - "packages/pi-society-orchestrator/scripts/release-smoke.mjs"
+validation:
+  fast_gate:
+    command: "cd packages/pi-vault-client && npm run check && cd ../pi-society-orchestrator && npm run check"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-vault-client && npm run release:check && cd ../pi-society-orchestrator && npm run release:check && cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && node ./scripts/release-components.mjs validate && node --test ./scripts/release-components.test.mjs && ./scripts/ci/full.sh"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Close task 1051 with package-local release-proof hardening and durable notes."
+links:
+  task_ids:
+    - 1051
+  diary:
+    - "diary/2026-04-10--prompt-plane-release-proof.md"
