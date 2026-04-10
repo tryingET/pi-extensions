@@ -25,9 +25,9 @@ The first bounded slice is considered validated when all applicable checks pass:
 - `cd packages/pi-vault-client && npm run check`
 - targeted prompt-plane seam tests added for task `#1050`
 - `cd packages/pi-vault-client && npm run release:check` when package export / packaging behavior changes
-- `./scripts/ak.sh decision passport 14 -F json`
-- `./scripts/ak.sh task show 1050 -F json`
-- `./scripts/ak.sh direction export --repo . -F json`
+- `ak decision passport 14 -F json`
+- `ak task show 1050 -F json`
+- `ak direction export --repo . -F json`
 
 Validation truth should confirm all of the following:
 - decision `#14` remains accepted and unblocked

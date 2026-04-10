@@ -21,9 +21,7 @@ system4d:
 ## Monorepo package constraints
 
 - This folder is a package workspace, not a git root.
-- Use the monorepo-root AK wrapper for task/work-item operations:
-  - from repo root: `./scripts/ak.sh ...`
-  - from this package: `../../scripts/ak.sh ...`
+- Use plain installed `ak` for task/work-item operations from any directory.
 - Do not invent package-local AK wrappers or treat this package folder as an independent repo identity.
 - Keep package scripts compatible with monorepo root runners.
 - Do not add package-local `.github/` workflows unless explicitly requested by maintainers.

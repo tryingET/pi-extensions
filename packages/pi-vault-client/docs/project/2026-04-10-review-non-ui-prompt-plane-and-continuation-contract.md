@@ -40,11 +40,11 @@ Observed runtime / workflow checks reviewed during this pass:
 - `npm run typecheck`
 - `npm run check`
 - `git status --short`
-- `./scripts/ak.sh task ready -F json`
-- `./scripts/ak.sh task show 1050 -F json`
-- `./scripts/ak.sh decision get 14 -F json`
-- `./scripts/ak.sh decision passport 14 -F json`
-- `./scripts/ak.sh direction export --repo . -F json`
+- `ak task ready -F json`
+- `ak task show 1050 -F json`
+- `ak decision get 14 -F json`
+- `ak decision passport 14 -F json`
+- `ak direction export --repo . -F json`
 
 ## Review scope
 

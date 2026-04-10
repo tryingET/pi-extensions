@@ -19,12 +19,12 @@ concern_title: Bind the cross-package wave contract for a thin pi-vault-client p
 packet_mode: contract_first
 authority_landing: docs_only
 docs_direction_impact: direction_changed_requires_import_check
-first_binding_required: Publish this owner-side packet at repo root, refresh the root direction docs to name the seam-first wave as current, then run `./scripts/ak.sh direction import --repo . -F json` and `./scripts/ak.sh direction check --repo . -F json`
+first_binding_required: Publish this owner-side packet at repo root, refresh the root direction docs to name the seam-first wave as current, then run `ak direction import --repo . -F json` and `ak direction check --repo . -F json`
 evidence_obligations:
   - repo-root owner-side packet doc exists and names the first executable leaf as the thin pi-vault-client prompt-plane seam
   - repo-root strategic, tactical, and operating docs are refreshed to match this packet
-  - `./scripts/ak.sh direction import --repo . -F json` succeeds after the docs refresh
-  - `./scripts/ak.sh direction check --repo . -F json` succeeds after the docs refresh
+  - `ak direction import --repo . -F json` succeeds after the docs refresh
+  - `ak direction check --repo . -F json` succeeds after the docs refresh
 compression_target: docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md plus latest repo-root diary capture
 knowledge_landing: docs_only
 prompt_vault_follow_on: draft_template_delta_spec

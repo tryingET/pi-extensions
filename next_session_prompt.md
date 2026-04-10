@@ -91,15 +91,15 @@ Do **not** treat this file as a live status database.
 2. Read the latest root diary evidence for the first TG3 hardening slice:
    - `diary/2026-04-10--tg3-kes-root-fail-closed-and-installed-root-proof.md`
 3. Continue the AK-bound reassessment slice before choosing any new implementation work:
-   - `./scripts/ak.sh task show 1110 -F json`
+   - `ak task show 1110 -F json`
 4. Check repo-local AK state before choosing work:
-   - `./scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'`
-   - `./scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'`
+   - `ak task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'`
+   - `ak task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'`
 5. If AK still shows only `task:1110` and no new implementation-ready task, stop rather than inventing a synthetic next slice from this handoff alone.
 6. Run the direction substrate refresh/check flow explicitly when those docs change because a task-backed active path now exists again:
-   - `./scripts/ak.sh direction import --repo . -F json`
-   - `./scripts/ak.sh direction check --repo . -F json`
-   - `./scripts/ak.sh direction export --repo . -F json`
+   - `ak direction import --repo . -F json`
+   - `ak direction check --repo . -F json`
+   - `ak direction export --repo . -F json`
    These commands should now pass while `task:1110` is the active reassessment slice; if they fail, treat that as a real regression rather than as a tolerated empty-ready-state limitation.
 7. Treat guarded repo bootstrap as externalized and already verified through agent-kernel decision `#8`. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
 8. Route package-local KES/loop follow-through to:
@@ -116,10 +116,10 @@ Do **not** treat this file as a live status database.
 cd ~/ai-society/softwareco/owned/pi-extensions
 git status --short
 git diff --name-only
-./scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'
-./scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'
-./scripts/ak.sh direction export --repo . -F json
-./scripts/ak.sh direction check --repo . -F json
+ak task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'
+ak task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'
+ak direction export --repo . -F json
+ak direction check --repo . -F json
 npm run quality:pre-commit
 npm run quality:pre-push
 ```

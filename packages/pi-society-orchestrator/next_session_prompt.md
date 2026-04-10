@@ -77,8 +77,8 @@ Package-local proof now spans:
 From `packages/pi-society-orchestrator`:
 1. inspect repo-local AK state through the monorepo-root wrapper
    ```bash
-   ../../scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'
-   ../../scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'
+   ../.ak task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'
+   ../.ak task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'
    ```
 2. if AK shows only `task:1110` and no new implementation task, stop
 3. only then choose the next bounded package-local slice

@@ -26,7 +26,7 @@ All notable changes to this project should be documented here.
 - Centralized evidence-write behavior behind `recordEvidence(...)`, keeping SQL fallback explicit while aligning `runAk(...)` with the configured `SOCIETY_DB` / `AK_DB` target.
 - Migrated `ontology_context` and `/ontology` from raw ontology SQL reads to a shared `rocs-cli` adapter that resolves ROCS build/index artifacts against the configured ontology repo.
 - Replaced package-local `docs/dev/` usage with `docs/project/` + `docs/adr/` nomenclature and updated package handoff/README links accordingly.
-- Clarified monorepo AK task/work-item guidance in AGENTS/README: use the repo-root `./scripts/ak.sh` wrapper (or `../../scripts/ak.sh` from this package) instead of treating a package folder as an independent repo root.
+- Clarified monorepo AK task/work-item guidance in AGENTS/README: use the repo-root `ak` wrapper (or `../.ak` from this package) instead of treating a package folder as an independent repo root.
 - Updated the package template in parallel so new monorepo package scaffolds inherit the same docs placement and AK-wrapper guidance.
 - Moved `/evidence` off raw sqlite reads onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper.
 

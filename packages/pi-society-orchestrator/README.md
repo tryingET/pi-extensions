@@ -196,12 +196,12 @@ Use the monorepo-root AK wrapper for task/work-item operations:
 
 ```bash
 # from the pi-extensions repo root
-./scripts/ak.sh --doctor
-./scripts/ak.sh task ready
+ak --doctor
+ak task ready
 
 # from this package directory
-../../scripts/ak.sh --doctor
-../../scripts/ak.sh task show <id> -F json
+../.ak --doctor
+../.ak task show <id> -F json
 ```
 
 For package-local architecture/process docs, prefer:

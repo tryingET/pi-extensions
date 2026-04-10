@@ -27,8 +27,8 @@ Do not duplicate:
 - Put package-specific validation and workflow details in each package's docs, scripts, and manifests.
 - Keep package-local AGENTS files minimal and package-scoped.
 - Treat package folders as monorepo members, not independent repos, unless explicitly documented otherwise.
-- For AK task/work-item operations in this monorepo, use the repo-root wrapper `./scripts/ak.sh`.
-  - From a package directory, call the ancestor wrapper (for example `../../scripts/ak.sh ...`).
+- For AK task/work-item operations in this monorepo, use the repo-root wrapper `ak`.
+  - From a package directory, call the ancestor wrapper (for example `../.ak ...`).
   - Do not invent package-local AK wrappers or treat a package folder as its own repo identity.
 - For new package-local documentation, prefer:
   - `docs/project/` for dated RFCs, runbooks, evidence notes, and implementation guidance

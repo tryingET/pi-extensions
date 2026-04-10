@@ -34,7 +34,7 @@ ci:
 doctor:
     node --version
     npm --version
-    ./scripts/ak.sh --doctor
+    ak --doctor
     ./scripts/rocs.sh --doctor
 
 # No build/run/dev target: this repo is a monorepo control plane rather than a single buildable or long-running app surface.
