@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "adc97931849e8ac5fd231a4aa48576ed7d26ac51"
-created_at: "2026-04-10T09:56:08Z"
+created_at: "2026-04-10T09:57:39Z"
 intent: "Prove the prompt-plane seam through local-dependency-aware release smoke, package docs refresh, and root validation follow-through."
 files:
   - "diary/2026-04-10--prompt-plane-release-proof.md"
@@ -23,7 +23,7 @@ validation:
     status: "pass"
   full_gate:
     command: "cd packages/pi-vault-client && npm run release:check && cd ../pi-society-orchestrator && npm run release:check && cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && node ./scripts/release-components.mjs validate && node --test ./scripts/release-components.test.mjs && ./scripts/ci/full.sh"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
