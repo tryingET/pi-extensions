@@ -141,7 +141,8 @@ The active package-local follow-through after the prompt-plane cutover is the fi
 - `src/kes/` now owns the package-local contract for KES roots, markdown/frontmatter scaffolding, and lazy materialization
 - the only allowed artifact roots for that seam are `diary/` and `docs/learnings/`
 - learning outputs stay **candidate-only** until a later explicit promotion step says otherwise
-- loop execution still has to consume this seam; that follow-through is the next slice after the scaffolding task lands
+- loop execution now consumes this seam: every run writes package-owned KES diary artifacts under `diary/`, and crystallization-oriented phases stage candidate-only learning artifacts under `docs/learnings/`
+- set `PI_ORCH_KES_ROOT` only when you intentionally need a different writable package-owned root during testing or smoke validation
 
 Primary package-local KES references:
 - [2026-04-10 KES crystallization contract](docs/project/2026-04-10-kes-crystallization-contract.md)

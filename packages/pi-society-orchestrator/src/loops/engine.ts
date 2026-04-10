@@ -2,7 +2,7 @@
  * Loop Engine — Pluggable iteration frameworks (OODA, Strategic, Kaizen, ADKAR)
  *
  * Each plugin defines phases, cognitive tools per phase, and transition hooks.
- * The engine executes phases sequentially, recording evidence and diary entries.
+ * The engine executes phases sequentially, recording evidence and package-owned KES artifacts.
  *
  * Note: the former `mito` loop name was retired because it collided with
  * Prof. Binner's MITO terminology already used elsewhere in the workspace.
@@ -33,6 +33,7 @@ import {
 import type { ExecutionStatus } from "../runtime/execution-status.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../runtime/subagent.ts";
 import type { TeamScopedContext } from "../runtime/team-state.ts";
+import { LoopKesWriter } from "./kes.ts";
 
 const DEFAULT_SOCIETY_DB =
   process.env.SOCIETY_DB ||
@@ -198,68 +199,6 @@ export const BUILT_IN_PLUGINS: Record<string, LoopPlugin> = {
 };
 
 // ============================================================================
-// DIARY WRITER
-// ============================================================================
-
-export class DiaryWriter {
-  private diaryDir: string;
-
-  constructor(cwd: string) {
-    this.diaryDir = path.join(cwd, "diary");
-    if (!fs.existsSync(this.diaryDir)) {
-      fs.mkdirSync(this.diaryDir, { recursive: true });
-    }
-  }
-
-  writeEntry(entry: {
-    type: string;
-    plugin?: string;
-    phase?: string;
-    objective?: string;
-    result?: string;
-    artifacts?: string[];
-    metadata?: Record<string, unknown>;
-  }): string {
-    const date = new Date().toISOString().slice(0, 10);
-    const baseName = `${date}--loop-${entry.plugin || "unknown"}-${entry.type}`;
-    const fileName = this.findAvailableFileName(baseName);
-    const filePath = path.join(this.diaryDir, fileName);
-
-    const content = `# ${date} — Loop: ${entry.plugin || "unknown"} (${entry.type})
-
-## Context
-- Plugin: ${entry.plugin || "N/A"}
-- Phase: ${entry.phase || "N/A"}
-- Objective: ${entry.objective || "N/A"}
-
-## Result
-${entry.result || "No result recorded"}
-
-## Artifacts
-${entry.artifacts?.map((a) => `- ${a}`).join("\n") || "None"}
-
-## Metadata
-\`\`\`json
-${JSON.stringify(entry.metadata || {}, null, 2)}
-\`\`\`
-`;
-
-    fs.writeFileSync(filePath, content);
-    return filePath;
-  }
-
-  private findAvailableFileName(baseName: string): string {
-    let fileName = `${baseName}.md`;
-    let i = 2;
-    while (fs.existsSync(path.join(this.diaryDir, fileName))) {
-      fileName = `${baseName}--${i}.md`;
-      i++;
-    }
-    return fileName;
-  }
-}
-
-// ============================================================================
 // AGENT-KERNEL CLI WRAPPER
 // ============================================================================
 
@@ -351,22 +290,38 @@ export class AgentKernel {
 // LOOP EXECUTOR
 // ============================================================================
 
+export interface LoopEvidenceRecorder {
+  evidenceRecord(params: EvidenceEntry, signal?: AbortSignal): Promise<EvidenceWriteResult>;
+}
+
+export interface LoopExecutorOptions {
+  akPath?: string;
+  packageRoot?: string;
+  ak?: LoopEvidenceRecorder;
+}
+
 export class LoopExecutor {
   private plugin: LoopPlugin;
-  private diary: DiaryWriter;
-  private ak: AgentKernel;
+  private kes: LoopKesWriter;
+  private ak: LoopEvidenceRecorder;
   private cwd: string;
 
   constructor(
     plugin: LoopPlugin,
     cwd: string,
     _vaultDir: string,
-    akPath: string = resolveAkPath({ cwd: process.cwd() }),
+    options: LoopExecutorOptions = {},
   ) {
     this.plugin = plugin;
     this.cwd = cwd;
-    this.diary = new DiaryWriter(cwd);
-    this.ak = new AgentKernel(akPath, DEFAULT_SOCIETY_DB, cwd);
+    this.kes = new LoopKesWriter(options.packageRoot);
+    this.ak =
+      options.ak ||
+      new AgentKernel(
+        options.akPath || resolveAkPath({ cwd: process.cwd() }),
+        DEFAULT_SOCIETY_DB,
+        cwd,
+      );
     const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "loops");
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });
@@ -388,6 +343,17 @@ export class LoopExecutor {
     const startTime = Date.now();
     const sessionId = `${this.plugin.name}-${Date.now()}`;
 
+    if (signal?.aborted) {
+      return {
+        plugin: this.plugin.name,
+        objective,
+        phases: [],
+        artifacts: [],
+        success: false,
+        elapsed: 0,
+      };
+    }
+
     const context: LoopContext = {
       sessionId,
       pluginName: this.plugin.name,
@@ -398,13 +364,14 @@ export class LoopExecutor {
       cwd: this.cwd,
     };
 
-    // Write loop start to diary
-    this.diary.writeEntry({
-      type: "start",
-      plugin: this.plugin.name,
-      objective,
-      metadata: { sessionId, phases: this.plugin.phases },
-    });
+    context.artifacts.push(
+      ...this.kes.writeStart({
+        plugin: this.plugin.name,
+        sessionId,
+        objective,
+        phases: this.plugin.phases,
+      }),
+    );
 
     let success = true;
 
@@ -485,35 +452,40 @@ export class LoopExecutor {
         timestamp: new Date(),
       };
 
-      if (executionOutcome.status === "aborted") {
-        context.history.push(phaseResult);
-        success = false;
-        break;
-      }
-
       if (!executionOutcome.evidence.ok) {
         success = false;
       }
 
       // Phase exit hook
-      if (this.plugin.onExit) {
+      if (executionOutcome.status !== "aborted" && this.plugin.onExit) {
         const artifacts = await this.plugin.onExit(phase, context);
         phaseResult.artifacts = artifacts;
-        context.artifacts.push(...artifacts);
       }
 
-      context.history.push(phaseResult);
-
-      // Write phase completion to diary
-      this.diary.writeEntry({
-        type: "phase",
+      const kesArtifacts = this.kes.writePhase({
         plugin: this.plugin.name,
         phase,
+        sessionId,
         objective,
-        result: result.output.slice(0, 500),
-        artifacts: phaseResult.artifacts.map((a) => a.type),
-        metadata: { exitCode: result.exitCode, elapsed: result.elapsed },
+        agent,
+        primaryTool,
+        output: result.output,
+        status: executionOutcome.status,
+        exitCode: result.exitCode,
+        elapsed: result.elapsed,
+        failureKind: result.failureKind,
+        evidence: executionOutcome.evidence,
+        hookArtifacts: phaseResult.artifacts,
+        timestamp: phaseResult.timestamp,
       });
+      phaseResult.artifacts = [...phaseResult.artifacts, ...kesArtifacts];
+      context.history.push(phaseResult);
+      context.artifacts.push(...phaseResult.artifacts);
+
+      if (executionOutcome.status === "aborted") {
+        success = false;
+        break;
+      }
 
       if (!executionOutcome.success) {
         success = false;
@@ -521,20 +493,23 @@ export class LoopExecutor {
       }
     }
 
-    // Write loop completion to diary
-    this.diary.writeEntry({
-      type: "complete",
-      plugin: this.plugin.name,
-      objective,
-      result: success ? "Success" : "Completed with failures",
-      artifacts: context.artifacts.map((a) => a.type),
-      metadata: {
+    const elapsed = Date.now() - startTime;
+    context.artifacts.push(
+      ...this.kes.writeComplete({
+        plugin: this.plugin.name,
         sessionId,
+        objective,
         success,
-        elapsed: Date.now() - startTime,
-        phases: context.history.length,
-      },
-    });
+        elapsed,
+        phases: context.history.map((phase) => ({
+          phase: phase.phase,
+          status: phase.status,
+          elapsed: phase.elapsed,
+          failureKind: phase.failureKind,
+        })),
+        emittedArtifacts: context.artifacts,
+      }),
+    );
 
     return {
       plugin: this.plugin.name,
@@ -542,7 +517,7 @@ export class LoopExecutor {
       phases: context.history,
       artifacts: context.artifacts,
       success,
-      elapsed: Date.now() - startTime,
+      elapsed,
     };
   }
 
@@ -595,7 +570,7 @@ Available loops:
 - transcendent: Diagnose → 100x → 100x → Rebuild → Name Debt (100x improvement)
 
 Each phase injects the appropriate cognitive tool and dispatches an agent.
-Results are recorded to diary/ and evidence ledger.`,
+Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \`docs/learnings/\` when applicable) plus the evidence ledger.`,
     promptSnippet:
       "Run a structured cognitive loop such as ooda, strategic, kaizen, adkar, or transcendent.",
     promptGuidelines: [
@@ -760,10 +735,11 @@ Results are recorded to diary/ and evidence ledger.`,
 ${result.phases.map((p) => `- ${p.phase}: ${p.status === "done" ? "✓" : "✗"} ${p.status} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
 
 ## Artifacts
-${result.artifacts.map((a) => `- ${a.type}`).join("\n") || "None"}
+${result.artifacts.map((a) => `- ${a.type}: ${a.content}`).join("\n") || "None"}
 
-## Diary
-Entries written to \`diary/\` directory.
+## Package-owned KES roots
+- Raw capture: \`diary/\`
+- Candidate-only learning staging: \`docs/learnings/\` (when emitted)
 `;
 
         return {
