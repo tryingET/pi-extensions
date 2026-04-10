@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "b6e1430878703949554daf13e270af836e71e150"
+created_at: "2026-04-10T10:42:04Z"
+intent: "Shift root direction from the completed seam-first prompt-plane packet to the active KES activation wave and sync the bootstrap handoff."
+files:
+  - "diary/2026-04-10--direction-shift-to-kes-wave.md"
+  - "docs/project/strategic_goals.md"
+  - "docs/project/tactical_goals.md"
+  - "docs/project/operating_plan.md"
+  - "next_session_prompt.md"
+validation:
+  fast_gate:
+    command: "cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && /home/tryinget/ai-society/softwareco/owned/agent-kernel/scripts/refresh-direction-substrate.sh --repo . && ./scripts/ak.sh task ready -F json"
+    status: "pass"
+  full_gate:
+    command: "cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && npm run quality:pre-commit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Refresh root direction docs and handoff after creating the TG2 KES task packet."
+links:
+  diary:
+    - "diary/2026-04-10--direction-shift-to-kes-wave.md"
