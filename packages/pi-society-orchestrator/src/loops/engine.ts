@@ -704,7 +704,13 @@ Results are recorded to diary/ and evidence ledger.`,
         }
 
         const agentProfile = AGENT_PROFILES[effectiveAgent] || AGENT_PROFILES.scout;
-        const toolResult = await getCognitiveToolByName(vaultDir, p.cognitiveTool, signal);
+        const toolResult = await getCognitiveToolByName(
+          p.cognitiveTool,
+          {
+            cwd: ctx.cwd,
+          },
+          signal,
+        );
         if (isBoundaryFailure(toolResult)) {
           return {
             output: `Failed to load cognitive tool '${p.cognitiveTool}': ${toolResult.error}`,

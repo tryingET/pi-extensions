@@ -56,7 +56,7 @@ Status update:
 | B3 | Implement the chosen execution-plane path: ASC-owned public execution contract first, extraction only as fallback | 5 | 4 | 3 | Q1 | Still the right execution-plane direction; after packet reconciliation it now decomposes cleanly into AK tasks `#604` -> `#605` -> `#606` |
 | B4 | Replace local raw society/ontology access with canonical adapters (`ak`, `rocs-cli`) | 5 | 4 | 4 | Q1 | Can proceed without prompt-plane finalization |
 | B5 | Re-scope orchestrator charter/README to coordination-only and reference generic upstream UI primitives instead of implying local ownership | 4 | 4 | 2 | Q1 | Prevents new drift while discovery/contract work proceeds |
-| B6 | Review the upstream `pi-vault-client` Vault execution boundary after it lands, then choose the prompt-plane seam | 5 | 2 | 4 | Q2 | Intentionally blocked on upstream implementation |
+| B6 | Review the upstream `pi-vault-client` Vault execution boundary after it lands, then choose the prompt-plane seam | 5 | 2 | 4 | Q2 | Exact cognitive-tool prompt preparation now consumes `pi-vault-client/prompt-plane`; remaining follow-through is catalog/list surface truth plus packaging proof |
 | B7 | Add orchestrator boundary-hardening layer inspired by ASC ECK | 4 | 3 | 4 | Q2 | Valuable after ownership/seam decisions |
 | B8 | Build cross-package contract harness (`vault-client -> ASC -> orchestrator`) | 4 | 3 | 4 | Q2 | Best proof once seams are fixed |
 | B9 | Plan strangler rollout with seam-level feature flags + rollback points | 4 | 3 | 3 | Q2 | Needed before code migration lands |
@@ -216,7 +216,7 @@ Goal for this wave:
 | Current location | Current behavior | Intended canonical replacement | Status |
 |---|---|---|---|
 | `extensions/society-orchestrator.ts` + `src/runtime/society.ts` (`society_query`, `/evidence`) | `/evidence` now uses `ak evidence search`; `society_query` remains a dedicated raw sqlite diagnostic exception helper | canonical AK read/query surface when it exists; until then keep only the bounded diagnostic exception | partial |
-| `src/runtime/cognitive-tools.ts` | local prompt-vault lookup via `dolt sql` | deferred prompt-plane review against upstream `pi-vault-client` Vault execution boundary | deferred-upstream |
+| `src/runtime/cognitive-tools.ts` | exact cognitive-tool prompt preparation now consumes `pi-vault-client/prompt-plane`; bounded local metadata listing remains for `/cognitive` and runtime-health counts | supported `pi-vault-client` prompt-plane seam for prepared prompt bodies, plus either a future public catalog/list seam or an explicit local-listing decision | partial |
 | `src/runtime/evidence.ts` | evidence writes now route through shared `recordEvidence(...)` with `ak` first and explicit SQL fallback | canonical `ak` evidence path only (or explicit audited fallback) | partial |
 | `extensions/society-orchestrator.ts` + `src/runtime/ontology.ts` | ontology reads now resolve through shared ROCS build/id-index artifacts instead of local SQL table assumptions | `rocs-cli`-backed ontology adapter | complete |
 

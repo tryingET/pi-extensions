@@ -35,7 +35,8 @@ The next bounded work is:
 - `ontology_context` and `/ontology` now resolve through a shared `rocs-cli` adapter path that consumes ROCS build/index artifacts instead of querying the local `society.db` ontology table directly.
 - deterministic ROCS adapter coverage now exists in `tests/ontology-adapter.test.mjs` for concept-id, label, definition-text, failure-path, and timeout behavior.
 - `/evidence` now reads through `ak evidence search` instead of raw sqlite evidence queries.
-- prompt-vault lookup still uses package-local Dolt access, but through shared helper boundaries instead of ad hoc call sites, and cognitive-tool lookup by name is now cognitive-only.
+- exact cognitive-tool prompt preparation for direct dispatch and loops now consumes the supported `pi-vault-client/prompt-plane` seam, so orchestrator no longer reads raw prompt bodies with local `dolt sql` in the execution path.
+- `/cognitive` and runtime-health counts still use a bounded local metadata listing helper until `pi-vault-client` exposes a supported public catalog/list seam for this consumer use case.
 - explicit `societyDb` targeting now outranks ambient `AK_DB` for `ak`-backed runtime paths.
 
 ### Agent/team policy is now fail-closed
@@ -152,8 +153,10 @@ Read these first before choosing the next change:
 - `src/loops/engine.ts`
 - `tests/runtime-shared-paths.test.mjs`
 - `tests/cognitive-tools.test.mjs`
+- `tests/execution-seam-guardrails.test.mjs`
 - `tests/ontology-adapter.test.mjs`
 - `tests/society-runtime.test.mjs`
+- `docs/project/2026-04-10-prompt-plane-consumer-cutover.md`
 - `scripts/release-check.sh`
 - `scripts/release-smoke.mjs`
 
@@ -166,10 +169,10 @@ Then re-open the broader architecture artifacts if the next session finishes the
 
 ## Immediate focus order
 
-1. **Resume broader architecture convergence**
+1. **Resume broader architecture convergence after the prompt-plane consumer cutover**
    - decide whether the remaining `society_query` raw sqlite path should survive as a bounded diagnostic exception until AK grows a truthful canonical read/query surface, or be tightened further
    - revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only behavior
-   - keep prompt-plane seam finalization deferred until the upstream `pi-vault-client` execution boundary is reviewed
+   - treat exact cognitive-tool prompt preparation through `pi-vault-client/prompt-plane` as landed and focus any further prompt-vault work on the bounded metadata-list seam gap or the dedicated package-install proof slice (`#1051`)
 2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
    - start from `docs/project/subagent-execution-boundary-map.md`, `docs/project/2026-03-31-execution-seam-charter.md`, `docs/project/2026-03-31-execution-seam-review.md`, and `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
    - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, `#625`, `#627`, and `#628` as landed history, not active backlog
@@ -186,7 +189,8 @@ Then re-open the broader architecture artifacts if the next session finishes the
 | `recordEvidence(...)` still has SQL fallback | Package hardening is much stronger, but removing fallback now still exceeds risk tolerance before a broader confidence pass on `ak`-only evidence writes | `pi-society-orchestrator` package maintainer | successful broader live/runtime proof of `ak evidence record` sufficiency | 2026-03-17 | evidence semantics can still drift from the canonical adapter path |
 | `society_query` still uses a bounded raw society DB read exception | `/evidence` now uses `ak evidence search`, but `society_query` still depends on a narrow raw sqlite diagnostic path until a truthful canonical read/query boundary exists | `pi-society-orchestrator` package maintainer with `agent-kernel` maintainer review | decision on canonical society read/query boundary or explicit retention/removal of the diagnostic exception | 2026-03-31 | residual read-side schema drift and continued raw DB coupling for one escape hatch |
 | ROCS adapter defaults currently assume the local SoftwareCo ontology repo and `--workspace-ref-mode loose` | The sanctioned adapter is now in place, but the runtime still carries a local usability/default-policy choice that has not yet been ratified as the long-term canonical ROCS resolution contract for orchestrator | `pi-society-orchestrator` package maintainer with `rocs-cli` maintainer review | decision on strict-vs-loose ROCS workspace resolution policy for orchestrator | 2026-03-24 | ontology lookups can drift from tagged refs in mixed local worktrees even though they no longer depend on raw SQL shape |
-| Prompt-vault access still uses local Dolt queries | Shared helper boundaries now exist, but canonical prompt-plane ownership still depends on the upstream `pi-vault-client` execution boundary | `pi-society-orchestrator` package maintainer with `pi-vault-client` maintainer review | reviewed upstream `pi-vault-client` Vault execution boundary | 2026-03-24 | prompt-plane ownership drift and future schema/behavior drift risk |
+| `/cognitive` catalog metadata and runtime-health counts still use a bounded local Prompt Vault listing helper | Exact prompt preparation now consumes the supported `pi-vault-client` seam, but the owning package does not yet expose a public catalog/list seam for this consumer path | `pi-society-orchestrator` package maintainer with `pi-vault-client` maintainer review | `pi-vault-client` exposes a supported public catalog/list seam or the local listing path is intentionally retained by decision | next bounded prompt-plane follow-through after task `#1049` | operator-visible catalog counts can still drift from owning-package query semantics even though prompt bodies no longer do |
+| Installed-package release proof for the new `pi-vault-client` dependency path is still pending | Task `#1049` cut over runtime prompt preparation, but package-install / tarball proof belongs to the dedicated validation slice `#1051` rather than this consumer-code change alone | `pi-society-orchestrator` package maintainer | complete task `#1051` with release-smoke / package proof | before the next release-candidate packaging pass | the repo-local runtime works, but installed-package dependency proof for the new prompt-plane seam is not yet the validated truth surface |
 | `src/runtime/boundaries.ts` now centralizes more async boundary logic and the read-only SQL classifier in one file | The file is coherent after the boundary-hardening slice, but further growth will make runtime command supervision, sqlite/dolt adapters, and SQL classification harder to reason about in one place | `pi-society-orchestrator` package maintainer | next boundary-family addition or the `society_query` / `/evidence` canonical-adapter migration | before the next lower-plane boundary slice after 2026-03-24 | future boundary changes become slower and more error-prone if command runner + backend adapters + SQL classifier keep accreting together |
 | Default DB behavior still depends on local env/default-path policy | Explicit per-call `societyDb` targeting now outranks ambient `AK_DB`, but package default DB-target discovery still remains a transitional policy while raw-read paths still exist | `pi-society-orchestrator` package maintainer | decision to fully adopt the newer canonical default path / env contract | 2026-03-24 | confusing DB-target behavior in mixed environments |
 

@@ -40,7 +40,9 @@
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "release:check": "bash ./scripts/release-check.sh",
-    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
   },
   "files": [
     "extensions/society-orchestrator.ts",
@@ -91,7 +93,8 @@
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.48",
-    "pi-autonomous-session-control": "file:../pi-autonomous-session-control"
+    "pi-autonomous-session-control": "file:../pi-autonomous-session-control",
+    "pi-vault-client": "file:../pi-vault-client"
   },
   "bundleDependencies": [
     "pi-autonomous-session-control"

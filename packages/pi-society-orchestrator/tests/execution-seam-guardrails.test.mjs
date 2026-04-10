@@ -8,6 +8,10 @@ const allowedAscConsumer = {
   file: "src/runtime/subagent.ts",
   specifier: "pi-autonomous-session-control/execution",
 };
+const allowedVaultConsumer = {
+  file: "src/runtime/cognitive-tools.ts",
+  specifier: "pi-vault-client/prompt-plane",
+};
 const sourceRoots = ["src", "extensions"];
 
 function listSourceFiles() {
@@ -72,6 +76,21 @@ test("orchestrator source consumes ASC only through the public execution seam", 
   assert.deepEqual(ascImports, [allowedAscConsumer]);
 });
 
+test("orchestrator source consumes pi-vault-client only through the public prompt-plane seam", () => {
+  const vaultImports = [];
+
+  for (const file of listSourceFiles()) {
+    const source = fs.readFileSync(path.join(packageRoot, file), "utf8");
+    for (const specifier of collectImportSpecifiers(source)) {
+      if (specifier.includes("pi-vault-client")) {
+        vaultImports.push({ file, specifier });
+      }
+    }
+  }
+
+  assert.deepEqual(vaultImports, [allowedVaultConsumer]);
+});
+
 test("subagent adapter does not revive orchestrator-local runtime internals", () => {
   const adapterSource = fs.readFileSync(path.join(packageRoot, allowedAscConsumer.file), "utf8");
 
@@ -97,6 +116,26 @@ test("subagent adapter does not revive orchestrator-local runtime internals", ()
       adapterSource.includes(token),
       false,
       `expected ${allowedAscConsumer.file} to stay free of ${token}`,
+    );
+  }
+});
+
+test("prompt-plane adapter does not drift back to private pi-vault-client imports", () => {
+  const adapterSource = fs.readFileSync(path.join(packageRoot, allowedVaultConsumer.file), "utf8");
+
+  const forbiddenTokens = [
+    "pi-vault-client/src/",
+    "../pi-vault-client/src/",
+    "../../pi-vault-client/src/",
+    "../pi-vault-client/",
+    "../../pi-vault-client/",
+  ];
+
+  for (const token of forbiddenTokens) {
+    assert.equal(
+      adapterSource.includes(token),
+      false,
+      `expected ${allowedVaultConsumer.file} to stay free of ${token}`,
     );
   }
 });

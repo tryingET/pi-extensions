@@ -382,7 +382,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       }
 
       // Get the cognitive tool
-      const toolResult = await getCognitiveToolByName(resolveVaultDir(), toolToUse, signal);
+      const toolResult = await getCognitiveToolByName(toolToUse, { cwd: ctx.cwd }, signal);
       if (isBoundaryFailure(toolResult)) {
         return {
           content: [

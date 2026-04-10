@@ -127,10 +127,11 @@ Primary tools and commands exposed by the imported extension include:
 - The adapter now also preserves ASC execution truth needed for orchestration decisions: canonical execution status, normalized `failureKind`, assistant stop reasons, protocol parse failures, abort propagation, and truncation metadata are forwarded instead of being collapsed into transport-only success.
 - Package-local seam guardrails now fail closed if source code drifts back to private ASC `extensions/self/*` imports or revives an orchestrator-local execution runtime path.
 - `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
+- Exact cognitive-tool prompt preparation for `cognitive_dispatch` and loop execution now consumes the supported `pi-vault-client/prompt-plane` seam instead of reading raw prompt bodies with package-local `dolt sql`; the remaining local Prompt Vault path is the bounded metadata listing used by `/cognitive` and runtime-health summaries.
 - Installed-package `release:check` now proves guarded-bootstrap, timeout, truncation, and team-mismatch behavior through a deterministic headless harness against the installed tarball, including the current bundled `pi-autonomous-session-control` publish bridge.
 - That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md).
 - The first time-boxed [execution seam review](docs/project/2026-03-31-execution-seam-review.md) now records that this package remains the only real external runtime consumer and that installed-package smoke is verification evidence rather than a second consumer.
-- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
+- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the `/cognitive` catalog/health listing still uses a bounded local metadata query until `pi-vault-client` exposes a supported public catalog seam, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Quickstart
@@ -187,7 +188,7 @@ For package-local architecture/process docs, prefer:
 The runtime now also shares package-local helpers for:
 - no-shell lower-plane command execution (`sqlite3`, `dolt`, `ak`, `rocs-cli`)
 - async, timeout-bound lower-plane runtime calls for `sqlite3`, `dolt`, and `rocs-cli` instead of synchronous runtime `execFileSync` reads
-- cognitive-tool schema-aware vault access with cognitive-only lookup by name
+- cognitive-tool prompt preparation through the supported `pi-vault-client/prompt-plane` seam, plus a bounded local metadata listing helper for `/cognitive` and runtime-health surfaces
 - `rocs-cli`-backed ontology resolution via ROCS build/index artifacts instead of raw ontology SQL reads
 - fail-closed agent/team routing plus session-identity-scoped, capacity-bounded team state for direct dispatch and loop execution
 - shared execution/evidence policy across direct dispatch and loop execution (abort skips evidence, timeout/protocol failure records fail evidence, SQL fallback eligibility is consistent)
@@ -233,4 +234,4 @@ bash ./scripts/package-quality-gate.sh ci packages/pi-society-orchestrator
 - The package ships `src/` because the extension entrypoint imports runtime modules from there.
 - `session_start` guards UI-only behavior with `ctx.hasUI` so non-UI runs stay safer.
 - The package was renamed early to the `pi-society-orchestrator` canonical package identity to avoid later naming churn.
-- The execution-plane/public-contract cutover is now landed; the current convergence priority is the remaining society/prompt adapter migration plus the post-cutover stewardship queue (`#626` onward) while the bundled ASC bridge remains governed by the documented lifecycle note rather than open-ended cleanup.
+- The execution-plane/public-contract cutover is now landed, and exact prompt-plane preparation now consumes the supported `pi-vault-client` seam; the current convergence priority is the remaining society-read boundary work, the bounded prompt-catalog / packaging follow-through, and the post-cutover stewardship queue (`#626` onward) while the bundled ASC bridge remains governed by the documented lifecycle note rather than open-ended cleanup.

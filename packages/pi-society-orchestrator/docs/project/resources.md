@@ -13,6 +13,7 @@ system4d:
 
 - [Extension entrypoint](../../extensions/society-orchestrator.ts)
 - [Prompt templates](../../prompts)
+- [Prompt-plane consumer cutover note](2026-04-10-prompt-plane-consumer-cutover.md)
 - [Organization operating model](../org/operating_model.md)
 - [Security policy](../../policy/security-policy.json)
 - [Validation script](../../scripts/validate-structure.sh)
