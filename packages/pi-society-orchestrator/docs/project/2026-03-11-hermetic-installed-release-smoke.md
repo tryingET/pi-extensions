@@ -16,7 +16,7 @@ system4d:
 
 Complete only the first bounded pack from `next_session_prompt.md`:
 - make installed-package release smoke more hermetic
-- preserve proof for timeout, truncation, and team-mismatch behavior
+- preserve proof for timeout, truncation, team-mismatch, and package-owned KES behavior
 - remove dependency on ambient Pi auth and real provider execution for this smoke layer
 
 ## Acceptance criteria
@@ -27,6 +27,7 @@ Complete only the first bounded pack from `next_session_prompt.md`:
    - direct dispatch timeout classification
    - bounded assistant-output truncation behavior
    - loop/team mismatch fail-closed behavior
+   - a successful kaizen loop emits package-owned `diary/` plus candidate-only `docs/learnings/` output under the installed package root rather than the operator cwd
 4. Smoke no longer requires `~/.pi/agent/auth.json` or a live provider-backed prompt execution.
 5. README + handoff docs reflect the new harness and the next remaining bounded work.
 
@@ -43,6 +44,7 @@ Complete only the first bounded pack from `next_session_prompt.md`:
   - uses a fake `ak` binary that records/asserts expected evidence-write argv
   - uses a temporary Dolt prompt-vault fixture for cognitive tool lookup
 - Preserve loop/team mismatch coverage by driving `/agents-team` + `loop_execute` against the same installed extension instance.
+- Also drive one successful kaizen loop against that same installed extension instance so the harness proves package-owned KES output materializes under the installed package root instead of the operator cwd.
 
 ## Risks / non-goals
 

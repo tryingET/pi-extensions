@@ -1,13 +1,13 @@
 ---
-summary: "Canonical monorepo-root bootstrap for pi-extensions: use AK as the task authority, run quality gates, keep the prompt-plane seam as landed history, and advance the active KES wave before later loop or higher-order self follow-on work."
+summary: "Canonical monorepo-root bootstrap for pi-extensions after the seam-first prompt-plane proof and first KES packet landed; the next session should reassess AK instead of replaying finished lower-plane work."
 read_when:
   - "Starting the next session at the pi-extensions monorepo root."
   - "You need session bootstrap, authority order, and closeout rules."
 system4d:
   container: "Session handoff artifact."
-  compass: "Keep root policy ownership explicit, route package/template work to the correct repo, and avoid copying policy into every package by habit."
-  engine: "Validate root -> review stack-contract policy surfaces -> route package/template/session-prompt work -> keep docs and handoffs coherent."
-  fog: "Main risks are confusing root policy with package-local overrides, over-templating tech-stack policy, or forgetting live verification work that still belongs to a package."
+  compass: "Keep root policy ownership explicit, route package/template work to the correct repo, and avoid replaying completed seam or KES packets from stale handoff memory."
+  engine: "Validate root -> review current direction chain -> check AK readiness -> proceed only if a repo-local slice is actually ready."
+  fog: "Main risks are confusing root policy with package-local overrides, reopening completed lower-plane proof, or inventing a new loop-hardening slice when AK is empty."
 ---
 
 # Next session prompt — pi-extensions monorepo root
@@ -41,24 +41,26 @@ Do **not** treat this file as a live status database.
   - `docs/project/operating_plan.md`
 - The recent `pi-society-orchestrator` runtime-truth wave is complete (`tasks:939-950`).
 - The guarded repo-bootstrap concern remains historical root context only; the durable owner/path was decided and verified through agent-kernel decision `#8` plus tasks `#657`, `#665`, `#666`, and `#667`.
-- The current routed root-local wave is still the cross-package packet captured in:
+- The current routed root-local packet is still the cross-package concern captured in:
   - `docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`
-- Current execution order for that wave remains:
+- Current execution order for that packet is now:
   1. thin `pi-vault-client` prompt-plane seam ✅
-  2. `pi-society-orchestrator` KES activation ← active now
-  3. `pi-society-orchestrator` loop hardening
+  2. `pi-society-orchestrator` KES activation + proof ✅
+  3. `pi-society-orchestrator` loop hardening ← only if AK materializes a new bounded slice
   4. only then any higher-order ASC self follow-on
 - The seam-first prompt-plane leaf is complete through:
   - `task:1050`
   - `task:1049`
   - `task:1051`
-- The active root tactical/operating path is now the first KES packet, backed by:
+- The first KES packet is complete through:
   - `task:1089`
   - `task:1090`
   - `task:1091`
+- Repo-local AK readiness is currently empty. If AK still shows no new ready item for this repo, stop rather than synthesizing work from stale handoff prose.
+- `./scripts/ak.sh direction import/check/export` currently fail closed against this truthful "no ready TG3 task yet" state because the direction substrate still expects an active `SG -> TG -> OP -> task` path; use AK + the latest diary note instead of inventing synthetic follow-on tasks just to satisfy that importer.
 - A separate exploratory task still exists:
   - `task:962` (`[SO-EXPLORE] Evaluate PufferLib ...`)
-  - it is now explicitly deferred so it does not displace the TG2 KES wave unless explicit reprioritization says otherwise
+  - it remains explicitly deferred and must not displace the routed packet without explicit reprioritization
 - Root validation remains coherent through the canonical wrappers:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
@@ -73,30 +75,34 @@ Do **not** treat this file as a live status database.
 - Do **not** treat this file as a live status database; use AK for task state.
 - Do **not** confuse root policy with package-local overrides.
 - Do **not** copy tech-stack policy into every package by habit; root owns the stance.
-- Do **not** forget live verification work that still belongs to a specific package.
+- Do **not** replay the seam-first prompt-plane packet or the first KES packet as if they were still missing.
 - Do **not** bypass quality gates before committing.
 
 ## CONTINUE WITH
-1. Re-enter the active direction chain before opening or resuming any root-local wave:
+1. Re-enter the current direction chain before opening or resuming any root-local wave:
    - `docs/project/vision.md`
    - `docs/project/strategic_goals.md`
    - `docs/project/tactical_goals.md`
    - `docs/project/operating_plan.md`
-2. Run the direction substrate refresh/check flow explicitly when those docs change:
+2. Read the latest root diary evidence for the just-completed KES proof packet:
+   - `diary/2026-04-10--kes-proof-surfaces.md`
+3. Check repo-local AK state before choosing work:
+   - `./scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'`
+   - `./scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:5]'`
+4. If no repo-local ready task exists, stop rather than inventing a synthetic next slice from this handoff alone.
+5. Run the direction substrate refresh/check flow explicitly when those docs change **if** a task-backed active path exists again:
    - `./scripts/ak.sh direction import --repo . -F json`
    - `./scripts/ak.sh direction check --repo . -F json`
    - `./scripts/ak.sh direction export --repo . -F json`
-3. Treat guarded repo bootstrap as externalized and already verified through agent-kernel decision `#8`. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
-4. Treat the current root-owned wave as the active KES leaf of `docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`:
-   - execute `task:1089` first
-   - then `task:1090`
-   - then `task:1091`
-   - keep loop hardening and higher-order ASC self follow-on deferred until that KES wave closes truthfully
-5. Route template changes to:
+   If those commands still fail only because the repo truth is "no ready TG3 task yet," prefer AK + the latest diary note over inventing synthetic follow-on tasks.
+6. Treat guarded repo bootstrap as externalized and already verified through agent-kernel decision `#8`. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
+7. Route package-local KES/loop follow-through to:
+   - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator/next_session_prompt.md`
+8. Route template changes to:
    - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
-6. Route Nunjucks live verification to:
+9. Route Nunjucks live verification to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/next_session_prompt.md`
-7. Route session/handoff prompt wording and prompt-template work to:
+10. Route session/handoff prompt wording and prompt-template work to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator/next_session_prompt.md`
 
 ## NEXT-SESSION START COMMANDS

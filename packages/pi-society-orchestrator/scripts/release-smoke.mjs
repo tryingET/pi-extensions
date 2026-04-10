@@ -274,9 +274,12 @@ function seedVault(dir) {
         ");",
         "INSERT INTO prompt_templates (",
         "name, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary, description, content, version, status, export_to_pi",
-        ") VALUES (",
-        "'inversion', 'cognitive', 'one_shot', 'bounded', 'core', JSON_ARRAY('core', 'software'), NULL, 'Installed smoke cognitive tool', 'Use inversion for installed smoke.', 1, 'active', TRUE",
-        ");",
+        ") VALUES ",
+        "('inversion', 'cognitive', 'one_shot', 'bounded', 'core', JSON_ARRAY('core', 'software'), NULL, 'Installed smoke cognitive tool', 'Use inversion for installed smoke.', 1, 'active', TRUE),",
+        "('first-principles', 'cognitive', 'one_shot', 'bounded', 'core', JSON_ARRAY('core', 'software'), NULL, 'Installed smoke cognitive tool', 'Use first principles for installed smoke.', 1, 'active', TRUE),",
+        "('controlled', 'cognitive', 'one_shot', 'bounded', 'core', JSON_ARRAY('core', 'software'), NULL, 'Installed smoke cognitive tool', 'Use controlled execution for installed smoke.', 1, 'active', TRUE),",
+        "('audit', 'cognitive', 'one_shot', 'bounded', 'core', JSON_ARRAY('core', 'software'), NULL, 'Installed smoke cognitive tool', 'Use audit for installed smoke.', 1, 'active', TRUE),",
+        "('knowledge-crystallization', 'cognitive', 'one_shot', 'bounded', 'core', JSON_ARRAY('core', 'software'), NULL, 'Installed smoke cognitive tool', 'Use knowledge crystallization for installed smoke.', 1, 'active', TRUE);",
       ].join(" "),
     ],
     { cwd: dir, encoding: "utf8" },
@@ -355,6 +358,20 @@ function getExpectedInstalledTimeoutBody() {
   return `Subagent timed out after ${(timeoutMs / 1000).toFixed(1).replace(/\.0$/, "")}s`;
 }
 
+function readAllFiles(dir) {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(dir)
+    .sort()
+    .map((file) => ({
+      file,
+      content: fs.readFileSync(path.join(dir, file), "utf8"),
+    }));
+}
+
 async function waitForPath(filePath, timeoutMs = 1000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -427,6 +444,35 @@ printf '%s\n' ${JSON.stringify(
             content: [],
             stopReason: "error",
             errorMessage: "boom",
+          },
+        }),
+      )}
+`,
+    );
+    return;
+  }
+
+  if (mode === "success") {
+    const successText = "Installed loop phase completed successfully.";
+    writeExecutable(
+      fakePiPath,
+      `#!/usr/bin/env bash
+printf '%s\n' ${JSON.stringify(
+        JSON.stringify({
+          type: "message_update",
+          assistantMessageEvent: {
+            type: "text_delta",
+            delta: successText,
+          },
+        }),
+      )}
+printf '%s\n' ${JSON.stringify(
+        JSON.stringify({
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: successText }],
+            stopReason: "stop",
           },
         }),
       )}
@@ -802,6 +848,65 @@ try {
   assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
   assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--result pass/);
 
+  fs.writeFileSync(akCallLogPath, "");
+  writeFakePi("success");
+  const kesLoopResult = await loopExecute.execute(
+    "installed-kes-proof",
+    {
+      loop: "kaizen",
+      objective: "Installed KES smoke",
+    },
+    undefined,
+    undefined,
+    { cwd: tempRoot, model: undefined },
+  );
+
+  assert.equal(kesLoopResult?.details?.ok, true);
+  const kesResult = kesLoopResult?.details?.result;
+  assert.ok(kesResult, "Expected successful loop result details from installed KES smoke");
+  assert.equal(kesResult.artifacts.filter((artifact) => artifact.type === "kes_diary").length, 6);
+  assert.equal(
+    kesResult.artifacts.filter((artifact) => artifact.type === "kes_learning_candidate").length,
+    1,
+  );
+
+  const packageDiaryDir = path.join(importablePackageDir, "diary");
+  const packageLearnDir = path.join(importablePackageDir, "docs", "learnings");
+  const diaryFiles = readAllFiles(packageDiaryDir);
+  const learningFiles = readAllFiles(packageLearnDir);
+
+  assert.equal(fs.existsSync(path.join(tempRoot, "diary")), false);
+  assert.equal(fs.existsSync(path.join(tempRoot, "docs", "learnings")), false);
+  assert.equal(diaryFiles.length, 6);
+  assert.equal(learningFiles.length, 1);
+  assert.ok(
+    diaryFiles.some((entry) => entry.content.includes("knowledge-crystallization")),
+    "Expected one installed-package KES diary entry to record the crystallization-oriented phase",
+  );
+  assert.match(learningFiles[0]?.content || "", /State: candidate-only/);
+  assert.match(learningFiles[0]?.content || "", /Loop: kaizen/);
+  assert.match(
+    learningFiles[0]?.content || "",
+    /Primary cognitive tool: knowledge-crystallization/,
+  );
+
+  const akCallsAfterKesLoop = readAkCallRecords(akCallLogPath);
+  assert.equal(
+    akCallsAfterKesLoop.length,
+    4,
+    "Expected four evidence writes for the kaizen loop phases",
+  );
+  for (const [index, phase] of ["plan", "do", "check", "act"].entries()) {
+    assert.deepEqual(akCallsAfterKesLoop[index]?.args.slice(0, 2), ["evidence", "record"]);
+    assert.match(
+      akCallsAfterKesLoop[index]?.args.join(" ") || "",
+      new RegExp(`--check-type loop:kaizen:${phase}`),
+    );
+    assert.match(akCallsAfterKesLoop[index]?.args.join(" ") || "", /--result pass/);
+  }
+  console.log("installed KES loop smoke: ok");
+
+  fs.writeFileSync(akCallLogPath, "");
   writeFakePi("marker");
   const notifications = [];
   await agentsTeam.handler("", {
@@ -847,8 +952,8 @@ try {
   const akCallsAfterLoopMismatch = readAkCallRecords(akCallLogPath);
   assert.equal(
     akCallsAfterLoopMismatch.length,
-    4,
-    "Loop/team mismatch should not emit additional evidence writes",
+    0,
+    "Loop/team mismatch should not emit evidence writes",
   );
   console.log("installed team mismatch smoke: ok");
 

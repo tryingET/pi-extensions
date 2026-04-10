@@ -1,43 +1,44 @@
 ---
-summary: "Tactical goals for the active package-owned KES wave in pi-society-orchestrator."
+summary: "Tactical goals for pi-society-orchestrator after the first package-owned KES packet closed."
 read_when:
-  - "You need the medium-sized package-local waves under the active KES strategic goal."
-  - "You are deciding whether the next slice is contract, loop wiring, or validation proof."
+  - "You need the medium-sized package-local waves after the first KES packet completed."
+  - "You are deciding whether the next slice is loop hardening or whether no package-local task is actually ready."
 system4d:
-  container: "Tactical layer for package-owned KES activation."
-  compass: "Land the bounded KES seam first, then route loop emission and validation behind it."
-  engine: "Active strategic goal -> 2-3 tactical goals -> keep exactly one active package wave."
-  fog: "The main risk is skipping the seam or proof step and widening loop behavior from stale diary assumptions."
+  container: "Tactical layer for package-local loop follow-through after KES proof landed."
+  compass: "Keep completed KES work historical, and only open the next loop-hardening wave when AK makes it real."
+  engine: "Active strategic goal -> 2-3 tactical goals -> keep exactly one candidate package wave active enough to guide the next session."
+  fog: "The main risk is skipping AK reassessment and reopening the KES packet from stale diary memory."
 ---
 
-# Tactical goals — package-owned KES wave
+# Tactical goals — package-owned KES follow-through
 
-Active strategic goal: **SG1 — Make package-owned KES outputs truthful, bounded, and reusable before widening loop behavior**
+Active strategic goal: **SG2 — Harden loop-family and evidence semantics on top of the bounded KES base**
+
+Package-local AK note: readiness is currently empty. Treat TG3 as the next candidate tactical goal, and stop rather than synthesizing work if AK still shows no package-local ready task.
 
 ## Tactical goal set
 
 ### TG1 — Define the bounded KES contract and scaffolding in `src/kes/`
 - **State:** done
 - **Completed by:** `task:1089`
-- **Why this is complete:** the package now has one bounded seam for KES roots, artifact planning, markdown/frontmatter scaffolding, and lazy materialization under `diary/` plus `docs/learnings/`.
+- **Why this is complete:** the package has one bounded seam for KES roots, artifact planning, markdown/frontmatter scaffolding, and lazy materialization under `diary/` plus `docs/learnings/`.
 - **Carry-forward guardrail:** keep the seam package-owned and candidate-only; do not let `src/kes/` become a loop-runtime owner or a shadow persistence surface.
 
 ### TG2 — Wire loop execution to emit package-owned KES outputs through the new seam
-- **State:** active
-- **Current execution anchor:** `task:1090`
-- **Why this is active:** loop execution still uses ad-hoc diary behavior in `src/loops/engine.ts`; the new contract exists, but runtime output truth now depends on consuming it.
-- **Guardrails:** replace the local diary behavior instead of layering a second writer beside it, keep output roots bounded to the package contract, and do not widen loop-family semantics in the same pass.
+- **State:** done
+- **Completed by:** `task:1090` + `task:1091`
+- **Why this is complete:** loop execution now emits package-owned diary and candidate-only learning artifacts through the bounded seam, and installed-package release smoke proves the behavior from the packaged extension.
+- **Carry-forward guardrail:** replace ad-hoc diary behavior rather than layering a second writer beside it, and treat the proof packet as landed history rather than a still-pending follow-up.
 
-### TG3 — Prove KES outputs through package checks, release smoke, and root validation
-- **State:** next
-- **Current execution anchor:** `task:1091`
-- **Why next:** deterministic proof is only valuable once the loop/runtime path actually emits the bounded KES outputs from TG2.
-- **Success signal:** package tests, release smoke, and root validation together prove the new KES path strongly enough to become the stable base for later loop hardening.
+### TG3 — Harden loop family/evidence contracts around the proved KES base
+- **State:** active candidate
+- **Why this is next:** the lower prompt/KES packet is now truthful enough to support later loop hardening, but AK currently has no ready package-local task for that work.
+- **Success signal:** any new slice is bounded in AK before implementation starts, tightens loop-family/evidence semantics without reopening the KES contract or proof packet, and keeps higher-order ASC self explicitly downstream.
 
 ## Not the active tactical path
 
-These were truthful earlier or later concerns, but they are not the current package-local tactical path:
+These were truthful earlier or remain explicitly deferred, but they are not the current package-local tactical path:
 - reopening the prompt-plane seam as if raw prompt-body access were still the active blocker
+- replaying the KES packet (`tasks:1089`, `1090`, `1091`) as if contract, loop emission, or proof were still missing
 - treating runtime-truth footer/status follow-through as the active package wave
-- widening loop-family semantics before loop execution consumes the bounded KES seam
-- promoting higher-order ASC self follow-on before TG2/TG3 make the lower-plane outputs truthful
+- promoting higher-order ASC self follow-on before TG3 is justified and task-backed

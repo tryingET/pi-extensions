@@ -68,6 +68,8 @@ The seam does **not** own:
 
 ## Immediate consequence
 
-After this landing, the next truthful package move is no longer "design KES in the abstract." It is:
+The original execution order after this note landed was:
 1. replace the ad-hoc loop-local diary behavior with the package-owned KES seam (`task:1090`)
 2. then prove those emitted outputs through deterministic validation (`task:1091`)
+
+That packet is now complete. Future work should start from the proved KES base rather than rediscovering whether the seam, loop emission, or validation surfaces exist.
