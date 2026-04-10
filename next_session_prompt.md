@@ -1,5 +1,5 @@
 ---
-summary: "Canonical monorepo-root bootstrap for pi-extensions: use AK as the task authority, run quality gates, and route the guarded repo bootstrap owner question to agent-kernel decision #8 instead of reviving deferred local workaround work."
+summary: "Canonical monorepo-root bootstrap for pi-extensions: use AK as the task authority, run quality gates, keep the prompt-plane seam as landed history, and advance the active KES wave before later loop or higher-order self follow-on work."
 read_when:
   - "Starting the next session at the pi-extensions monorepo root."
   - "You need session bootstrap, authority order, and closeout rules."
@@ -41,20 +41,24 @@ Do **not** treat this file as a live status database.
   - `docs/project/operating_plan.md`
 - The recent `pi-society-orchestrator` runtime-truth wave is complete (`tasks:939-950`).
 - The guarded repo-bootstrap concern remains historical root context only; the durable owner/path was decided and verified through agent-kernel decision `#8` plus tasks `#657`, `#665`, `#666`, and `#667`.
-- The current routed root-local wave is now the contract-first cross-package packet captured in:
+- The current routed root-local wave is still the cross-package packet captured in:
   - `docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`
-- Current execution order for that wave is:
-  1. thin `pi-vault-client` prompt-plane seam
-  2. `pi-society-orchestrator` KES activation
+- Current execution order for that wave remains:
+  1. thin `pi-vault-client` prompt-plane seam ✅
+  2. `pi-society-orchestrator` KES activation ← active now
   3. `pi-society-orchestrator` loop hardening
   4. only then any higher-order ASC self follow-on
-- The active root tactical/operating path is the seam-first binding wave, backed by:
+- The seam-first prompt-plane leaf is complete through:
   - `task:1050`
   - `task:1049`
   - `task:1051`
+- The active root tactical/operating path is now the first KES packet, backed by:
+  - `task:1089`
+  - `task:1090`
+  - `task:1091`
 - A separate exploratory task still exists:
   - `task:962` (`[SO-EXPLORE] Evaluate PufferLib ...`)
-  - treat it as real but not the current execution anchor unless explicit reprioritization says otherwise
+  - it is now explicitly deferred so it does not displace the TG2 KES wave unless explicit reprioritization says otherwise
 - Root validation remains coherent through the canonical wrappers:
   - `npm run quality:pre-commit`
   - `npm run quality:pre-push`
@@ -83,11 +87,11 @@ Do **not** treat this file as a live status database.
    - `./scripts/ak.sh direction check --repo . -F json`
    - `./scripts/ak.sh direction export --repo . -F json`
 3. Treat guarded repo bootstrap as externalized and already verified through agent-kernel decision `#8`. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
-4. Treat the current root-owned wave as the seam-first packet in `docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`:
-   - execute `task:1050` first
-   - then `task:1049`
-   - then `task:1051`
-   - do not pull KES/loop or higher-order self follow-ons forward until that seam-first wave closes truthfully
+4. Treat the current root-owned wave as the active KES leaf of `docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md`:
+   - execute `task:1089` first
+   - then `task:1090`
+   - then `task:1091`
+   - keep loop hardening and higher-order ASC self follow-on deferred until that KES wave closes truthfully
 5. Route template changes to:
    - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
 6. Route Nunjucks live verification to:

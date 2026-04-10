@@ -19,7 +19,7 @@ Evidence used:
 - [vision.md](vision.md)
 - [root-capabilities.md](root-capabilities.md)
 - [next_session_prompt.md](../../next_session_prompt.md)
-- latest repo-local tasks: `task:962`, `task:958`, `task:950`, `task:949`, `task:944`
+- latest repo-local tasks: `task:1091`, `task:1090`, `task:1089`, `task:1051`, `task:962`
 - current package-local runtime truth:
   - `packages/pi-society-orchestrator/docs/project/strategic_goals.md`
   - `packages/pi-society-orchestrator/docs/project/tactical_goals.md`
@@ -31,19 +31,16 @@ Evidence used:
 Current repo-local truth:
 
 - the recent `pi-society-orchestrator` runtime-truth wave is complete through `tasks:939-950`
-- ASC has continued execution-plane hardening, but higher-order `self` work is not the next truthful root-local move yet
-- a root-local exploratory task exists (`task:962`), but explicit operator reprioritization plus the current owner-side packet make the next higher-leverage wave the cross-package seam/KES/loop ordering concern instead
-- the active missing fact is no longer package-local runtime-truth wording; it is the truthful cross-package execution order for:
-  1. a thin `pi-vault-client` prompt-plane seam,
-  2. `pi-society-orchestrator` KES activation,
-  3. `pi-society-orchestrator` loop hardening,
-  4. only then any higher-order self follow-on
+- the seam-first prompt-plane wave is now complete through `tasks:1050`, `1051`, and orchestrator cutover task `1049`
+- ASC has continued execution-plane hardening, but higher-order `self` work is still not the next truthful root-local move
+- the root-local exploratory task `task:962` is now explicitly deferred so it does not displace the active routed wave
+- the active missing fact is no longer the seam order itself; it is the first bounded KES activation slice inside `pi-society-orchestrator`, with loop hardening still sequenced after that and higher-order self still later
 
 ## Eisenhower-3D ranking
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful | 5 | 5 | 3 | **active** | The runtime-truth package wave is complete, the current routed concern is now packeted, and the next missing truth is the cross-package execution order and first seam landing rather than more local package polish. |
+| 1 | Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful | 5 | 5 | 3 | **active** | The runtime-truth package wave is complete, the seam-first packet is now executed through prompt-plane proof, and the next missing truth is the first bounded KES execution leaf rather than more seam work or higher-order self debate. |
 | 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 4 | 4 | 4 | next | A new prompt-plane seam and later KES/loop follow-through will touch package boundaries that still depend on truthful root validation/release/canary contracts. |
 
 ## Active strategic goal
@@ -52,13 +49,13 @@ Current repo-local truth:
 
 Intent:
 - make one routed cross-package wave explicit at monorepo root without pretending the root owns every package-local implementation detail
-- bind the first executable leaf truthfully: thin `pi-vault-client` prompt-plane seam first
-- sequence later work clearly: orchestrator KES activation next, loop hardening after that, higher-order self only once lower-plane truth is real
+- preserve the completed prompt-plane seam as landed boundary truth rather than reopening it as active backlog
+- sequence later work clearly: orchestrator KES activation active now, loop hardening after that, higher-order self only once lower-plane truth is real
 
 Success signal:
-- the root direction chain names one active tactical goal and one active operating wave for the seam-first packet
+- the root direction chain names TG2 as the active tactical goal and one active operating wave for the first KES slice
 - authoritative AK task coverage exists for that active operating wave
-- root docs stop implying that the reduced-form root-policy batch or unrelated exploratory work is still the current execution path
+- root docs stop implying that seam-first work or unrelated exploratory work is still the current execution path
 - package-owner boundaries remain explicit: prompt plane in `pi-vault-client`, coordination/KES/loops in `pi-society-orchestrator`, execution-plane/self follow-on still deferred in ASC
 
 ## Next strategic goal
@@ -70,8 +67,8 @@ Intent:
 - make sure new prompt/control-plane contracts do not silently drift away from the root-owned compatibility and release surfaces
 
 Why it is not active right now:
-- the immediate missing fact is still the execution order and first seam landing for the routed cross-package wave
-- root compatibility/release work is real, but it is a follow-through obligation on top of that active wave rather than the first move itself
+- the immediate missing fact is the first bounded KES execution leaf for the routed cross-package wave, not the root release/control-plane follow-through by itself
+- root compatibility/release work is real, but it is still a follow-through obligation on top of that active wave rather than the first move itself
 
 ## Not current strategic goals
 
