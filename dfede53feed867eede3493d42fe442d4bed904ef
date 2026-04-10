@@ -1,0 +1,32 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "dfede53feed867eede3493d42fe442d4bed904ef"
+created_at: "2026-04-10T16:56:09Z"
+intent: "Remove obsolete scripts/ak.sh and scripts/cargo-operator.sh wrappers; update all references to installed ak"
+files:
+  - "AGENTS.md"
+  - "Justfile"
+  - "README.md"
+  - "next_session_prompt.md"
+  - "scripts/ak.sh"
+  - "scripts/cargo-operator.sh"
+  - "docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md"
+  - "packages/pi-society-orchestrator/AGENTS.md"
+  - "packages/pi-society-orchestrator/CHANGELOG.md"
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/next_session_prompt.md"
+  - "packages/pi-vault-client/docs/project/2026-04-10-review-non-ui-prompt-plane-and-continuation-contract.md"
+  - "packages/pi-vault-client/docs/project/2026-04-10-validation-rollout-rollback-non-ui-prompt-plane-v3.md"
+validation:
+  fast_gate:
+    command: "npm run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 3
+  rationale: "Obsolete wrapper removal + doc references updated in one coherent sweep"
