@@ -374,14 +374,6 @@ function sortReceiptsNewestFirst(left, right) {
 function readAllReceiptsFromPaths(filePaths) {
     return filePaths.flatMap((filePath) => readAllReceipts(filePath)).sort(sortReceiptsNewestFirst);
 }
-function readReceiptsFromPaths(filePaths) {
-    const deduped = new Map();
-    for (const receipt of readAllReceiptsFromPaths(filePaths)) {
-        if (!deduped.has(receipt.execution_id))
-            deduped.set(receipt.execution_id, receipt);
-    }
-    return [...deduped.values()];
-}
 function buildReceipt(candidate, execution, sentText) {
     return {
         schema_version: 1,
@@ -557,6 +549,9 @@ export function createVaultReceiptManager(runtime, options) {
             .filter((receipt) => Boolean(receipt))
             .sort(sortReceiptsNewestFirst);
     }
+    function readReceiptsFromPaths() {
+        return readReceiptSet();
+    }
     return {
         spoolPath: filePath,
         queuePreparedExecution(candidate) {
@@ -650,7 +645,7 @@ export function createVaultReceiptManager(runtime, options) {
                 ? Math.max(1, Math.floor(Number(limit)))
                 : 20;
             const normalizedTemplateName = String(templateName || "").trim();
-            const receipts = readReceiptsFromPaths(receiptReadPaths);
+            const receipts = readReceiptsFromPaths();
             const results = [];
             for (const receipt of receipts) {
                 if (results.length >= normalizedLimit)

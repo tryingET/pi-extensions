@@ -445,14 +445,6 @@ function readAllReceiptsFromPaths(filePaths: string[]): VaultExecutionReceiptV1[
   return filePaths.flatMap((filePath) => readAllReceipts(filePath)).sort(sortReceiptsNewestFirst);
 }
 
-function readReceiptsFromPaths(filePaths: string[]): VaultExecutionReceiptV1[] {
-  const deduped = new Map<number, VaultExecutionReceiptV1>();
-  for (const receipt of readAllReceiptsFromPaths(filePaths)) {
-    if (!deduped.has(receipt.execution_id)) deduped.set(receipt.execution_id, receipt);
-  }
-  return [...deduped.values()];
-}
-
 type SuccessfulExecutionLog = Extract<VaultExecutionLogResult, { ok: true }>;
 
 function buildReceipt(
@@ -674,6 +666,10 @@ export function createVaultReceiptManager(
       .sort(sortReceiptsNewestFirst);
   }
 
+  function readReceiptsFromPaths(): VaultExecutionReceiptV1[] {
+    return readReceiptSet();
+  }
+
   return {
     spoolPath: filePath,
     queuePreparedExecution(candidate) {
@@ -779,7 +775,7 @@ export function createVaultReceiptManager(
         ? Math.max(1, Math.floor(Number(limit)))
         : 20;
       const normalizedTemplateName = String(templateName || "").trim();
-      const receipts = readReceiptsFromPaths(receiptReadPaths);
+      const receipts = readReceiptsFromPaths();
       const results: VaultExecutionReceiptV1[] = [];
       for (const receipt of receipts) {
         if (results.length >= normalizedLimit) break;

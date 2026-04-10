@@ -395,10 +395,16 @@ test("vault receipt manager prefers a signed duplicate over an unsigned primary 
 
     const preferred = receipts.readReceiptByExecutionId(77);
     const trusted = receipts.readTrustedReceiptByExecutionId(77);
+    const softwareRecent = receipts.listRecentReceipts({ currentCompany: "software", limit: 5 });
+    const financeRecent = receipts.listRecentReceipts({ currentCompany: "finance", limit: 5 });
     assert.equal(preferred?.company.current_company, "software");
     assert.equal(preferred?.auth?.mode, "hmac-sha256");
     assert.ok(trusted);
     assert.equal(trusted?.auth?.mode, "hmac-sha256");
+    assert.equal(softwareRecent.length, 1);
+    assert.equal(softwareRecent[0]?.company.current_company, "software");
+    assert.equal(softwareRecent[0]?.auth?.mode, "hmac-sha256");
+    assert.equal(financeRecent.length, 0);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

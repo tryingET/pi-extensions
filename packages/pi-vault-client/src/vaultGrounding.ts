@@ -272,7 +272,7 @@ function buildFrameworkGroundingAppendix(
       args: renderOptions.args,
       templateName: f.name,
       data: renderOptions.data,
-      appendContextSection: false,
+      appendContextSection: true,
       allowLegacyPiVarsAutoDetect: false,
     });
     if (!prepared.ok) {

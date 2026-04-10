@@ -226,7 +226,7 @@ function buildFrameworkGroundingAppendix(selected, retrieval, dslWarnings, rende
             args: renderOptions.args,
             templateName: f.name,
             data: renderOptions.data,
-            appendContextSection: false,
+            appendContextSection: true,
             allowLegacyPiVarsAutoDetect: false,
         });
         if (!prepared.ok) {

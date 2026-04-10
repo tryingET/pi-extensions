@@ -87,6 +87,50 @@ Context: {{ context }}`,
   });
 });
 
+test("framework grounding appends caller context for plain-text frameworks that do not reference it", async () => {
+  await withGroundingModules(async ({ importModule }) => {
+    const { createGroundingRuntime } = await importModule("src/vaultGrounding.js");
+    const framework = makeTemplate({
+      name: "inversion",
+      artifact_kind: "cognitive",
+      content: "Generic framework body with no variables",
+    });
+    const next10 = makeTemplate({
+      name: "next-10-expert-suggestions",
+      content: "Base prompt",
+    });
+
+    const grounding = createGroundingRuntime({
+      getCurrentCompany() {
+        return "software";
+      },
+      retrieveByNamesDetailed() {
+        return { ok: true, value: [framework], error: null };
+      },
+      getTemplateDetailed(name) {
+        return {
+          ok: true,
+          value: name === "next-10-expert-suggestions" ? next10 : null,
+          error: null,
+        };
+      },
+    });
+
+    const result = grounding.buildGroundedNext10Prompt(
+      '/next-10-expert-suggestions "ship templating" "workflow"',
+      { currentCompany: "software" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.prompt, /### F1: inversion/);
+    assert.match(result.prompt, /Generic framework body with no variables/);
+    assert.match(result.prompt, /## CONTEXT/);
+    assert.match(result.prompt, /Objective: ship templating/);
+    assert.match(result.prompt, /Workflow: workflow/);
+  });
+});
+
 test("framework grounding fails clearly when an explicit framework render contract cannot be satisfied", async () => {
   await withGroundingModules(async ({ importModule }) => {
     const { createGroundingRuntime } = await importModule("src/vaultGrounding.js");
