@@ -1,0 +1,24 @@
+export {
+  createKesArtifactPlan,
+  ensureKesRoots,
+  materializeKesArtifactPlan,
+  resolveKesRoots,
+} from "./scaffold.ts";
+export {
+  KES_ALLOWED_ROOTS,
+  KES_CONTRACT_VERSION,
+  KES_DIARY_DIR,
+  KES_LEARNINGS_DIR,
+  KES_PACKAGE_NAME,
+  type KesArtifactDraft,
+  type KesArtifactKind,
+  type KesArtifactPlan,
+  type KesArtifactRequest,
+  type KesDiaryEntryInput,
+  type KesDiaryKind,
+  type KesLearningCandidateInput,
+  type KesLearningKind,
+  type KesRoots,
+  type KesSourceKind,
+  type KesSourceRef,
+} from "./types.ts";

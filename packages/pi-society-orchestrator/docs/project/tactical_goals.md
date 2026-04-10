@@ -1,57 +1,43 @@
 ---
-summary: "Tactical goals for the completed operator-visible runtime-truth wave in pi-society-orchestrator."
+summary: "Tactical goals for the active package-owned KES wave in pi-society-orchestrator."
 read_when:
-  - "You need the medium-sized work waves under the current runtime-truth strategic goal."
-  - "You are deciding which package-local slices are active, next, or intentionally deferred."
+  - "You need the medium-sized package-local waves under the active KES strategic goal."
+  - "You are deciding whether the next slice is contract, loop wiring, or validation proof."
 system4d:
-  container: "Tactical layer for operator-visible runtime truth."
-  compass: "Land the additive runtime-truth surface first, then route wording/coverage follow-ups behind it."
-  engine: "Active strategic goal -> 2-3 tactical goals -> keep only one active wave."
-  fog: "The main risk is reopening broad footer redesign before the shared runtime-truth primitive exists."
+  container: "Tactical layer for package-owned KES activation."
+  compass: "Land the bounded KES seam first, then route loop emission and validation behind it."
+  engine: "Active strategic goal -> 2-3 tactical goals -> keep exactly one active package wave."
+  fog: "The main risk is skipping the seam or proof step and widening loop behavior from stale diary assumptions."
 ---
 
-# Tactical goals — runtime-truth wave completed
+# Tactical goals — package-owned KES wave
 
-Active strategic goal:
-- no active runtime-truth tactical wave is currently materialized; the SG1/SG2 follow-through is complete
+Active strategic goal: **SG1 — Make package-owned KES outputs truthful, bounded, and reusable before widening loop behavior**
 
 ## Tactical goal set
 
-| Rank | Tactical goal | Importance | Urgency | Difficulty | State | Notes |
-|---|---|---:|---:|---:|---|---|
-| 1 | Introduce a shared runtime-truth surface and `/runtime-status` inspector for operator-visible semantics | 5 | 5 | 3 | done | The additive truth surface is landed: descriptor, inspector, startup/footer wiring, routing-selection wording, docs, and release-smoke expectations all share one contract. |
-| 2 | Resolve remaining routing vocabulary and coverage after the truth surface lands | 4 | 3 | 2 | done | The internal `full` team is now presented as `all agents`, and scenario plus installed-package coverage both guard that wording. |
-| 3 | Revisit footer density only if new runtime-truth state outgrows the current single-line contract | 3 | 1 | 3 | done | The footer now has a slot-based prototype: optional DB/Vault health badges appear only when width allows and drop before seam/routing on compact widths. |
+### TG1 — Define the bounded KES contract and scaffolding in `src/kes/`
+- **State:** done
+- **Completed by:** `task:1089`
+- **Why this is complete:** the package now has one bounded seam for KES roots, artifact planning, markdown/frontmatter scaffolding, and lazy materialization under `diary/` plus `docs/learnings/`.
+- **Carry-forward guardrail:** keep the seam package-owned and candidate-only; do not let `src/kes/` become a loop-runtime owner or a shadow persistence surface.
 
-## Current tactical posture
+### TG2 — Wire loop execution to emit package-owned KES outputs through the new seam
+- **State:** active
+- **Current execution anchor:** `task:1090`
+- **Why this is active:** loop execution still uses ad-hoc diary behavior in `src/loops/engine.ts`; the new contract exists, but runtime output truth now depends on consuming it.
+- **Guardrails:** replace the local diary behavior instead of layering a second writer beside it, keep output roots bounded to the package contract, and do not widen loop-family semantics in the same pass.
 
-- No active runtime-truth tactical wave is open right now.
-- Any future footer-density or runtime-status follow-up should be driven by new operator-visible state, not by reopening the already-landed routing/coverage foundation.
+### TG3 — Prove KES outputs through package checks, release smoke, and root validation
+- **State:** next
+- **Current execution anchor:** `task:1091`
+- **Why next:** deterministic proof is only valuable once the loop/runtime path actually emits the bounded KES outputs from TG2.
+- **Success signal:** package tests, release smoke, and root validation together prove the new KES path strongly enough to become the stable base for later loop hardening.
 
-## Completed tactical posture
+## Not the active tactical path
 
-### TG1 — Introduce a shared runtime-truth surface and `/runtime-status` inspector for operator-visible semantics
-
-Completed by:
-
-- `#939` — shared runtime-truth descriptor + `/runtime-status` inspector
-- `#940` — footer/startup/routing-selection UI rewired to the shared runtime-truth surface
-- `#941` — runtime-truth / footer semantics documented in package docs and README
-
-### TG2 — Resolve remaining routing vocabulary and coverage after the truth surface lands
-
-Completed by:
-
-- `#942` — audited remaining routing vocabulary and decided the user-facing treatment of `full`
-- `#943` — expanded routing/runtime-truth coverage across scenario tests and release smoke
-
-### TG3 — Revisit footer density only if new runtime-truth state outgrows the current single-line contract
-
-Completed by:
-
-- `#944` — landed a slot-based footer layout that treats seam/routing as primary and only surfaces compact DB/Vault health badges when width allows
-
-## Guardrail
-
-- Do **not** treat the footer itself as the primary architecture artifact; the shared runtime-truth surface remains primary.
-- If a future runtime-truth expansion still exceeds the current slot budget, materialize a new follow-up from that evidence instead of reviving speculative redesign work.
+These were truthful earlier or later concerns, but they are not the current package-local tactical path:
+- reopening the prompt-plane seam as if raw prompt-body access were still the active blocker
+- treating runtime-truth footer/status follow-through as the active package wave
+- widening loop-family semantics before loop execution consumes the bounded KES seam
+- promoting higher-order ASC self follow-on before TG2/TG3 make the lower-plane outputs truthful

@@ -88,7 +88,7 @@ Imported files were mapped into the package scaffold like this:
   -> [src/loops/engine.ts](src/loops/engine.ts)
 - `~/.pi/agent/extensions/society-orchestrator/chains.yaml`
   -> [src/chains.yaml](src/chains.yaml)
-- empty `kes/` directory preserved as [src/kes/](src/kes/)
+- preserved `kes/` directory now expanded into the package-owned [src/kes/](src/kes/) contract/scaffolding layer for bounded diary + learning-candidate outputs
 
 ## Package identity
 
@@ -133,6 +133,23 @@ Primary tools and commands exposed by the imported extension include:
 - The first time-boxed [execution seam review](docs/project/2026-03-31-execution-seam-review.md) now records that this package remains the only real external runtime consumer and that installed-package smoke is verification evidence rather than a second consumer.
 - Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the `/cognitive` catalog/health listing still uses a bounded local metadata query until `pi-vault-client` exposes a supported public catalog seam, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
+
+## Package-owned KES activation
+
+The active package-local follow-through after the prompt-plane cutover is the first bounded KES wave:
+
+- `src/kes/` now owns the package-local contract for KES roots, markdown/frontmatter scaffolding, and lazy materialization
+- the only allowed artifact roots for that seam are `diary/` and `docs/learnings/`
+- learning outputs stay **candidate-only** until a later explicit promotion step says otherwise
+- loop execution still has to consume this seam; that follow-through is the next slice after the scaffolding task lands
+
+Primary package-local KES references:
+- [2026-04-10 KES crystallization contract](docs/project/2026-04-10-kes-crystallization-contract.md)
+- [Strategic goals](docs/project/strategic_goals.md)
+- [Tactical goals](docs/project/tactical_goals.md)
+- [Operating plan](docs/project/operating_plan.md)
+- `src/kes/index.ts`
+- `tests/kes-contract.test.mjs`
 
 ## Quickstart
 
@@ -234,4 +251,4 @@ bash ./scripts/package-quality-gate.sh ci packages/pi-society-orchestrator
 - The package ships `src/` because the extension entrypoint imports runtime modules from there.
 - `session_start` guards UI-only behavior with `ctx.hasUI` so non-UI runs stay safer.
 - The package was renamed early to the `pi-society-orchestrator` canonical package identity to avoid later naming churn.
-- The execution-plane/public-contract cutover is now landed, and exact prompt-plane preparation now consumes the supported `pi-vault-client` seam; the current convergence priority is the remaining society-read boundary work, the bounded prompt-catalog follow-through, and the post-cutover stewardship queue (`#626` onward) while the bundled ASC bridge remains governed by the documented lifecycle note rather than open-ended cleanup.
+- The execution-plane/public-contract cutover is now landed, and exact prompt-plane preparation now consumes the supported `pi-vault-client` seam; the current convergence priority is the package-owned KES wave: `task:1089` landed the bounded contract/scaffolding, `task:1090` is the next loop-emission follow-through, and `task:1091` then proves that path through package checks, release smoke, and root validation while the bundled ASC bridge remains governed by the documented lifecycle note rather than open-ended cleanup.

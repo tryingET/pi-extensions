@@ -1,73 +1,72 @@
 ---
-summary: "Strategic goals for operator-visible runtime truth in pi-society-orchestrator."
+summary: "Strategic goals for package-owned KES activation in pi-society-orchestrator after runtime-truth and prompt-plane cutover."
 read_when:
-  - "You need the current package-local strategic direction for operator-visible status semantics."
-  - "You are deciding whether runtime-truth work belongs in this package or in a lower-plane owner."
+  - "You need the current package-local strategic direction after the prompt-plane seam landed."
+  - "You are deciding whether KES, loops, or broader execution-plane work is the next truthful package bet."
 system4d:
-  container: "Strategic layer for operator-visible runtime semantics in pi-society-orchestrator."
-  compass: "Keep operator-facing status surfaces truthful to the current orchestrator → ASC split while adding compounding runtime truth."
-  engine: "Read the current boundary docs -> identify the highest-leverage additive move -> sequence follow-up vocabulary and UX work behind it."
-  fog: "The main risk is fixing footer wording locally while leaving runtime truth fragmented across code, docs, and tests."
+  container: "Strategic layer for package-owned KES activation in pi-society-orchestrator."
+  compass: "Keep KES outputs package-owned, bounded, and attributable before widening loop behavior."
+  engine: "Read current package truth -> score the next two bets -> keep one active and one next."
+  fog: "The main risk is reopening completed seam/runtime waves or jumping to loop hardening before package-owned KES outputs exist."
 ---
 
-# Strategic goals — pi-society-orchestrator
+# Strategic goals — package-owned KES activation
 
 ## Selection basis
 
 Evidence used:
-
 - [README.md](../../README.md)
-- [subagent-execution-boundary-map.md](subagent-execution-boundary-map.md)
-- [2026-03-10-ui-capability-discovery.md](2026-03-10-ui-capability-discovery.md)
-- `../../extensions/society-orchestrator.ts`
-- `../../tests/runtime-shared-paths.test.mjs`
+- [2026-04-10 KES crystallization contract](2026-04-10-kes-crystallization-contract.md)
+- [root wave packet](../../../../docs/project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md)
+- `../../src/loops/engine.ts`
+- `../../src/kes/index.ts`
+- `../../tests/kes-contract.test.mjs`
 
-Current baseline:
+Current package-local truth:
+- the runtime-truth wave and prompt-plane cutover are landed history in this package
+- raw prompt-body reads are no longer the next missing boundary fact
+- `src/kes/` now owns a bounded artifact contract for package-local diary and learning-candidate outputs
+- loop execution still has to consume that new seam before KES becomes runtime truth
 
-- the stale footer/status copy (`orchestra`, `Team: full`) has already been corrected to `orchestrator→ASC` and `Routing: ...`
-- the package now has a shared inspectable runtime-truth surface in `src/runtime/status-semantics.ts`, plus `/runtime-status` as the direct operator-facing inspector
-- user-facing routing now presents the internal `full` scope as `all agents`, and both scenario coverage plus installed-package smoke guard that contract
-- the footer now uses prioritized slots so compact DB/Vault health badges can appear when width allows without sacrificing the seam/routing contract on narrower widths
-
-## Strategic goal set
+## Eisenhower-3D ranking
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Make operator-visible runtime semantics truthful, inspectable, and compounding | 5 | 5 | 3 | done | The shared runtime-truth surface, direct inspector, docs alignment, and operator-visible footer/startup contract are now landed. |
-| 2 | Keep routing vocabulary and footer density coherent as new operator-visible state is added | 4 | 3 | 2 | done | Routing vocabulary, coverage, and footer-density follow-through are now landed; reopen only if future operator-visible state outgrows the current slot budget. |
+| 1 | Make package-owned KES outputs truthful, bounded, and reusable before widening loop behavior | 5 | 5 | 3 | **active** | The prompt-plane seam is no longer the missing fact; the package now needs a truthful KES base before loop hardening or higher-order follow-on work can be justified. |
+| 2 | Harden loop-family and evidence semantics on top of the bounded KES base | 4 | 4 | 4 | next | Loop execution already exists, but its next truthful improvement is to consume the new KES seam and then prove that behavior, not to widen semantics without a bounded output contract. |
 
-## Completed strategic goal
+## Active strategic goal
 
-### SG1 — Make operator-visible runtime semantics truthful, inspectable, and compounding
-
-Intent:
-
-- give operators a direct way to inspect what the package is actually doing now
-- keep footer/startup/docs aligned with the real orchestrator coordination role, ASC execution seam, and routing state
-- add a small capability whose value compounds across future UI, docs, tests, and smoke validation
-
-Evidence:
-
-- the package charter and execution-boundary map both say orchestrator is the control plane and ASC owns execution
-- the current footer/startup correction proved the terminology gap was real and user-visible
-- the shared runtime-truth surface, `/runtime-status`, and the aligned docs/tests/smoke coverage are now landed
-
-## Completed follow-through goal
-
-### SG2 — Keep routing vocabulary and footer density coherent as new operator-visible state is added
+### SG1 — Make package-owned KES outputs truthful, bounded, and reusable before widening loop behavior
 
 Intent:
+- keep KES outputs owned by `pi-society-orchestrator` rather than leaking into ad-hoc package-local writes
+- establish one bounded seam for raw diary capture plus candidate-only learning promotion
+- sequence later work clearly: KES contract first, loop emission second, validation proof third
 
-- resolve the remaining user-facing ambiguity around routing labels such as `full`
-- expand scenario/release-smoke validation once the truth surface lands
-- let footer density respond to real runtime truth rather than speculative redesign
+Success signal:
+- `src/kes/` remains the package-owned contract for KES artifact planning/materialization
+- package docs describe `diary/` and `docs/learnings/` as the only allowed artifact roots for this seam
+- `task:1090` becomes the active follow-through because the contract no longer has to be rediscovered
+- loop hardening work can build on emitted KES outputs instead of on ad-hoc diary behavior
 
-Completed by:
+## Next strategic goal
 
-- `#942` — audited remaining routing vocabulary and made the user-facing `full` -> `all agents` decision explicit
-- `#943` — expanded routing/runtime-truth coverage across scenario tests and installed-package smoke
-- `#944` — landed a slot-based footer prototype that preserves seam/routing while letting optional DB/Vault health badges appear only when width allows
+### SG2 — Harden loop-family and evidence semantics on top of the bounded KES base
 
-## Future trigger
+Intent:
+- consume the KES seam from loop execution without inventing a second output authority
+- expand deterministic proof only after emitted outputs are real
+- keep higher-order execution-plane follow-on explicitly downstream of the lower prompt/KES/loop packet
 
-- If future operator-visible state no longer fits within the current prioritized slot behavior, open a new follow-up from that evidence rather than re-litigating the already-landed runtime-truth foundation.
+Why it is not active yet:
+- the immediate package-local missing fact was the KES contract itself, which `task:1089` now supplies
+- loop/evidence hardening is real, but it should start from that contract rather than proceed in parallel with it
+
+## Not the current strategic path
+
+These matter, but they are not the active package-level bet now:
+- reopening the already-complete runtime-truth footer/status wave as if it were still active
+- treating residual society-read boundary cleanup as the primary package execution anchor
+- widening loop semantics before package-owned KES outputs exist
+- pulling higher-order ASC self work forward before the lower prompt/KES/loop packet is truthful
