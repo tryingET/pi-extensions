@@ -241,7 +241,10 @@ TEST_AGENT_DIR=""
 CLEANROOM_DIR=""
 PACKED_ARTIFACT_DIR=""
 PACKED_TARBALL_JSON_FILE=""
+LOCAL_DEP_PACK_DIR=""
 TARBALL_PATH=""
+PACKAGE_SPEC=""
+NPM_GLOBAL_PREFIX=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
@@ -252,6 +255,9 @@ cleanup() {
     fi
     if [[ -n "$PACKED_ARTIFACT_DIR" && -d "$PACKED_ARTIFACT_DIR" ]]; then
       rm -rf "$PACKED_ARTIFACT_DIR"
+    fi
+    if [[ -n "$LOCAL_DEP_PACK_DIR" && -d "$LOCAL_DEP_PACK_DIR" ]]; then
+      rm -rf "$LOCAL_DEP_PACK_DIR"
     fi
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
@@ -269,7 +275,12 @@ trap cleanup EXIT
 echo "== npm pack"
 TARBALL="$(npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
+PACKAGE_SPEC="npm:$TARBALL_PATH"
 echo "Tarball: $TARBALL_PATH"
+
+LOCAL_DEP_PACK_DIR="$(mktemp -d /tmp/pi-vault-local-deps-XXXXXX)"
+mapfile -t LOCAL_DEP_TARBALLS < <(node ./scripts/release-local-dependencies.mjs --pack-dir "$LOCAL_DEP_PACK_DIR" --output tarballs)
+INSTALL_TARBALLS=("${LOCAL_DEP_TARBALLS[@]}" "$TARBALL_PATH")
 
 PACKED_ARTIFACT_DIR="$(mktemp -d /tmp/pi-extension-packed-artifact-XXXXXX)"
 PACKED_TARBALL_JSON_FILE="$(mktemp /tmp/pi-vault-packed-json-XXXXXX.json)"
@@ -357,7 +368,7 @@ echo "== clean-room tarball install"
 CLEANROOM_DIR="$(mktemp -d /tmp/pi-extension-release-install-XXXXXX)"
 pushd "$CLEANROOM_DIR" >/dev/null
 npm init -y >/dev/null 2>&1
-npm install "$TARBALL_PATH" --ignore-scripts >/dev/null
+npm install --ignore-scripts "${INSTALL_TARBALLS[@]}" >/dev/null
 PACKAGE_NAME="$NAME" CLEANROOM_DIR="$CLEANROOM_DIR" node <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
@@ -401,21 +412,11 @@ NODE
 popd >/dev/null
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
-  echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
+  echo "Skipping installed-package smoke (SKIP_PI_SMOKE=1)."
 else
-  if ! command -v pi >/dev/null 2>&1; then
-    echo "pi CLI not found in PATH." >&2
-    exit 1
-  fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
-
   TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
-
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
+  NPM_GLOBAL_PREFIX="$TEST_AGENT_DIR/npm-global"
+  mkdir -p "$NPM_GLOBAL_PREFIX"
 
   PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
   PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
@@ -426,13 +427,17 @@ else
   "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
   "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
   "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "extensions": []
+  "extensions": [],
+  "packages": [
+    {
+      "source": "${PACKAGE_SPEC}"
+    }
+  ]
 }
 JSON
 
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR)"
-  PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
+  echo "== isolated installed-package dependency-set install"
+  NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX" npm install -g "${INSTALL_TARBALLS[@]}" >/dev/null
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -456,7 +461,7 @@ NODE
 
   if [[ -x "./scripts/release-smoke.sh" ]]; then
     echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
+    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX" bash ./scripts/release-smoke.sh
   fi
 fi
 

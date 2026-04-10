@@ -28,7 +28,7 @@ Out of scope for task `#1049`:
 - a public prompt catalog/list seam from `pi-vault-client`
 - broader continuation-envelope orchestration in orchestrator
 
-Those proof/packaging concerns remain the follow-on validation slice tracked by task `#1051`.
+Those proof/packaging concerns were intentionally deferred in task `#1049` and later closed by task `#1051`.
 
 ## What changed
 
@@ -83,7 +83,6 @@ and does **not** drift back to:
 
 ### Still deferred
 - public prompt catalog/list seam for orchestrator metadata views
-- installed-package release proof for the new dependency path
 - any broader continuation-envelope orchestration beyond exact prompt loading
 
 ## Validation for this slice
@@ -96,4 +95,4 @@ npm run docs:list
 npm run check
 ```
 
-Package-install / tarball proof remains the dedicated follow-on slice in task `#1051`.
+Task `#1051` later closed that package-install / tarball proof through isolated installed-package release smoke against the target tarball plus any required local sibling dependency tarballs.

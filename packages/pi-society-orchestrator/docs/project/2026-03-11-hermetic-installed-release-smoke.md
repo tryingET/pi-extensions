@@ -21,7 +21,7 @@ Complete only the first bounded pack from `next_session_prompt.md`:
 
 ## Acceptance criteria
 
-1. `npm run release:check` still installs the packed tarball into an isolated Pi agent dir.
+1. `npm run release:check` still proves an isolated installed-package state rooted in the packed tarball and the target package's local sibling runtime dependencies when they are not yet registry-published.
 2. Installed-package smoke loads the installed extension package, not local source files.
 3. Smoke still proves:
    - direct dispatch timeout classification
@@ -32,7 +32,7 @@ Complete only the first bounded pack from `next_session_prompt.md`:
 
 ## Chosen approach
 
-- Keep `pi install` for installed-package proof.
+- Keep installed-package proof in an isolated npm prefix plus isolated Pi settings, even when the target package still depends on same-wave local sibling tarballs.
 - Replace real-host prompt-driven smoke with a headless Node harness that:
   - reads the exact `PACKAGE_SPEC` from isolated Pi settings
   - unpacks the tarball and verifies the installed global package still matches that packaged content
@@ -48,4 +48,4 @@ Complete only the first bounded pack from `next_session_prompt.md`:
 
 - Do not broaden into the unified execution/evidence contract slice yet.
 - Do not change public tool semantics beyond the release-check harness.
-- Do not remove the `pi install` step from release-check; the goal is headless installed-runtime smoke, not pack-only validation.
+- Do not collapse the proof down to pack-only validation; the goal is still installed-runtime smoke against an isolated installed dependency set.

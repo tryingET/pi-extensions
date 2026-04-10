@@ -64,7 +64,7 @@ Notes:
 
 - `npm run check` regenerates the installed-package runtime `.js` artifacts before running the package gate.
 - `npm run test:compat:live-trigger-contract` is the focused validation lane for live `/vault:` behavior across the shared trigger broker, the `150ms` debounce contract, and picker fallback behavior.
-- `npm run release:check` proves publish-file determinism, static runtime import coverage, clean-room tarball install, and installed-package smoke.
+- `npm run release:check` proves publish-file determinism, static runtime import coverage, clean-room tarball install with locally packed sibling tarballs when required, and headless installed-package smoke through an isolated npm install plus Pi-settings registration check.
 - if you want the root-owned Pi host compatibility canary for this same seam, run `npm run compat:canary -- --profile current --scenario vault-live-trigger-contract` from the monorepo root.
 - if you want to refresh the live-installable runtime without a full check, run `npm run build:runtime`.
 
@@ -379,8 +379,9 @@ That release gate now covers:
 - packed README immutability audit so published docs links do not float on `main`
 - static runtime dependency audit for bare imports
 - packed-manifest dependency rewrite validation
-- clean-room tarball install
-- `pi install` tarball registration check
+- clean-room tarball install with locally packed sibling tarballs when required
+- isolated installed-package dependency-set install in a temporary npm prefix
+- Pi-settings registration check for the exact target `PACKAGE_SPEC`
 - installed-package extension registration smoke
 
 ## Docs discovery

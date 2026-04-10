@@ -84,6 +84,12 @@ const importNodeModulesPath = path.join(importRoot, "node_modules");
 fs.mkdirSync(importNodeModulesPath, { recursive: true });
 fs.cpSync(installedPackageDir, importablePackageDir, { recursive: true });
 liftBundledDependencies(importablePackageDir);
+linkInstalledRuntimeDependencies(
+  importNodeModulesPath,
+  installedPackageDir,
+  isolatedNpmGlobalRoot,
+  tarballPackage,
+);
 for (const relativePath of bundledBridgeImportCase.expectedImportFiles) {
   const absolutePath = path.join(importablePackageDir, relativePath);
   assert.ok(
@@ -151,16 +157,59 @@ function withoutIsolatedPrefixEnv(env) {
   return next;
 }
 
-function linkHostPeerPackage(importNodeModulesPath, spec, candidatePaths) {
+function linkPackageFromCandidates(importNodeModulesPath, spec, candidatePaths, label) {
   const source = candidatePaths.find((candidate) => fs.existsSync(candidate));
   assert.ok(
     source,
-    `Host peer package not found for ${spec}. Candidates: ${candidatePaths.join(", ")}`,
+    `${label} package not found for ${spec}. Candidates: ${candidatePaths.join(", ")}`,
   );
 
   const destination = path.join(importNodeModulesPath, ...spec.split("/"));
+  if (fs.existsSync(destination)) {
+    return;
+  }
+
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.symlinkSync(source, destination, "dir");
+}
+
+function linkInstalledRuntimeDependencies(
+  importNodeModulesPath,
+  installedPackageDir,
+  isolatedNpmGlobalRoot,
+  manifest,
+) {
+  const bundledDependencies = new Set([
+    ...(Array.isArray(manifest.bundleDependencies) ? manifest.bundleDependencies : []).map(String),
+    ...(Array.isArray(manifest.bundledDependencies) ? manifest.bundledDependencies : []).map(
+      String,
+    ),
+  ]);
+  const runtimeDependencies = new Set([
+    ...Object.keys(manifest.dependencies || {}),
+    ...Object.keys(manifest.optionalDependencies || {}),
+  ]);
+
+  for (const dependencyName of runtimeDependencies) {
+    if (bundledDependencies.has(dependencyName)) {
+      continue;
+    }
+
+    const pathSegments = dependencyName.split("/");
+    linkPackageFromCandidates(
+      importNodeModulesPath,
+      dependencyName,
+      [
+        path.join(installedPackageDir, "node_modules", ...pathSegments),
+        path.join(isolatedNpmGlobalRoot, ...pathSegments),
+      ],
+      "installed runtime dependency",
+    );
+  }
+}
+
+function linkHostPeerPackage(importNodeModulesPath, spec, candidatePaths) {
+  linkPackageFromCandidates(importNodeModulesPath, spec, candidatePaths, "Host peer");
 }
 
 function liftBundledDependencies(packageDir) {
@@ -200,15 +249,34 @@ function seedVault(dir) {
       "sql",
       "-q",
       [
-        "CREATE TABLE prompt_templates (",
-        "name VARCHAR(64) PRIMARY KEY,",
-        "artifact_kind VARCHAR(32) NOT NULL,",
-        "description TEXT,",
-        "content TEXT,",
-        "status VARCHAR(16) NOT NULL",
+        "CREATE TABLE schema_version (",
+        "id INT AUTO_INCREMENT PRIMARY KEY,",
+        "version INT NOT NULL,",
+        "description VARCHAR(255)",
         ");",
-        "INSERT INTO prompt_templates VALUES",
-        "('inversion','cognitive','Installed smoke cognitive tool','Use inversion for installed smoke.','active');",
+        "INSERT INTO schema_version (version, description) VALUES (9, 'installed release smoke schema');",
+        "CREATE TABLE prompt_templates (",
+        "id INT AUTO_INCREMENT PRIMARY KEY,",
+        "name VARCHAR(64) NOT NULL UNIQUE,",
+        "description TEXT,",
+        "content TEXT NOT NULL,",
+        "artifact_kind VARCHAR(32) NOT NULL,",
+        "control_mode VARCHAR(32) NOT NULL,",
+        "formalization_level VARCHAR(32) NOT NULL,",
+        "owner_company VARCHAR(32) NOT NULL,",
+        "visibility_companies JSON NOT NULL,",
+        "variables JSON,",
+        "controlled_vocabulary JSON,",
+        "version INT NOT NULL DEFAULT 1,",
+        "parent_id INT,",
+        "status VARCHAR(16) NOT NULL,",
+        "export_to_pi BOOLEAN NOT NULL DEFAULT TRUE",
+        ");",
+        "INSERT INTO prompt_templates (",
+        "name, artifact_kind, control_mode, formalization_level, owner_company, visibility_companies, controlled_vocabulary, description, content, version, status, export_to_pi",
+        ") VALUES (",
+        "'inversion', 'cognitive', 'one_shot', 'bounded', 'core', JSON_ARRAY('core', 'software'), NULL, 'Installed smoke cognitive tool', 'Use inversion for installed smoke.', 1, 'active', TRUE",
+        ");",
       ].join(" "),
     ],
     { cwd: dir, encoding: "utf8" },
@@ -285,6 +353,17 @@ function getExpectedInstalledTimeoutBody() {
   }
 
   return `Subagent timed out after ${(timeoutMs / 1000).toFixed(1).replace(/\.0$/, "")}s`;
+}
+
+async function waitForPath(filePath, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return fs.existsSync(filePath);
 }
 
 function writeFakePi(mode) {
@@ -446,6 +525,7 @@ const previousEnv = {
   AGENT_KERNEL: process.env.AGENT_KERNEL,
   HOME: process.env.HOME,
   PATH: process.env.PATH,
+  PI_COMPANY: process.env.PI_COMPANY,
   PI_ORCH_SUBAGENT_OUTPUT_CHARS: process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS,
   PI_ORCH_SUBAGENT_TIMEOUT_MS: process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS,
   PI_ORCH_DEFAULT_AGENT_TEAM: process.env.PI_ORCH_DEFAULT_AGENT_TEAM,
@@ -459,6 +539,7 @@ try {
   process.env.VAULT_DIR = vaultDir;
   process.env.SOCIETY_DB = societyDbPath;
   process.env.AGENT_KERNEL = fakeAkPath;
+  process.env.PI_COMPANY = "software";
   process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "250";
   process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "256";
   delete process.env.PI_ORCH_DEFAULT_AGENT_TEAM;
@@ -630,7 +711,7 @@ try {
   );
   assert.match(getText(abortResult), /\] aborted in /);
   assert.match(getText(abortResult), /Evidence path: skipped/);
-  assert.equal(fs.existsSync(abortMarkerPath), true);
+  assert.equal(await waitForPath(abortMarkerPath), true);
   console.log("installed abort smoke: ok");
 
   writeFakePi("semantic-error");
@@ -798,6 +879,12 @@ try {
     delete process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS;
   } else {
     process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = previousEnv.PI_ORCH_SUBAGENT_OUTPUT_CHARS;
+  }
+
+  if (previousEnv.PI_COMPANY === undefined) {
+    delete process.env.PI_COMPANY;
+  } else {
+    process.env.PI_COMPANY = previousEnv.PI_COMPANY;
   }
 
   if (previousEnv.PI_ORCH_DEFAULT_AGENT_TEAM === undefined) {

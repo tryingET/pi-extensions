@@ -151,12 +151,17 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
 fi
 
 TEST_AGENT_DIR=""
+LOCAL_DEP_PACK_DIR=""
 TARBALL_PATH=""
+PACKAGE_SPEC=""
 NPM_GLOBAL_PREFIX=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
       rm -rf "$TEST_AGENT_DIR"
+    fi
+    if [[ -n "$LOCAL_DEP_PACK_DIR" && -d "$LOCAL_DEP_PACK_DIR" ]]; then
+      rm -rf "$LOCAL_DEP_PACK_DIR"
     fi
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
@@ -168,16 +173,16 @@ trap cleanup EXIT
 echo "== npm pack"
 TARBALL="$(npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
+PACKAGE_SPEC="npm:$TARBALL_PATH"
 echo "Tarball: $TARBALL_PATH"
 
-if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
-  echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
-else
-  if ! command -v pi >/dev/null 2>&1; then
-    echo "pi CLI not found in PATH." >&2
-    exit 1
-  fi
+LOCAL_DEP_PACK_DIR="$(mktemp -d /tmp/pi-orch-local-deps-XXXXXX)"
+mapfile -t LOCAL_DEP_TARBALLS < <(node ./scripts/release-local-dependencies.mjs --pack-dir "$LOCAL_DEP_PACK_DIR" --output tarballs)
+INSTALL_TARBALLS=("${LOCAL_DEP_TARBALLS[@]}" "$TARBALL_PATH")
 
+if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
+  echo "Skipping installed-package smoke (SKIP_PI_SMOKE=1)."
+else
   TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
   NPM_GLOBAL_PREFIX="$TEST_AGENT_DIR/npm-global"
   mkdir -p "$NPM_GLOBAL_PREFIX"
@@ -193,13 +198,17 @@ else
   "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
   "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
   "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "extensions": []
+  "extensions": [],
+  "packages": [
+    {
+      "source": "${PACKAGE_SPEC}"
+    }
+  ]
 }
 JSON
 
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR + NPM_CONFIG_PREFIX)"
-  PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX" pi install "$PACKAGE_SPEC"
+  echo "== isolated installed-package dependency-set install"
+  NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX" npm install -g "${INSTALL_TARBALLS[@]}" >/dev/null
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node --input-type=module <<'NODE'

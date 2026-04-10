@@ -99,7 +99,7 @@ That now covers:
 - lint / typecheck / package tests
 - package tarball file whitelist validation
 - `npm publish --dry-run`
-- isolated tarball install into Pi
+- isolated installed-package dependency-set install rooted in the target tarball plus locally packed sibling tarballs when required
 - installed-package headless guarded-bootstrap smoke
 - installed-package headless timeout smoke
 - installed-package headless truncation smoke
@@ -108,7 +108,9 @@ That now covers:
 The installed-package smoke harness now:
 - binds to the exact `PACKAGE_SPEC` recorded in isolated Pi settings
 - installs into an isolated `NPM_CONFIG_PREFIX` instead of the default global npm package space
+- packs local sibling runtime dependencies when the target tarball still depends on same-wave unpublished package versions
 - verifies the installed package contents still match that tarball before execution
+- links installed runtime dependencies into the import-smoke sandbox instead of assuming they were nested under the target package directory
 - loads the installed extension package instead of local source files
 - drives registered tools/commands directly through a small Pi stub
 - uses deterministic fake subagent / `ak` dependencies plus a temporary vault fixture
@@ -172,7 +174,7 @@ Then re-open the broader architecture artifacts if the next session finishes the
 1. **Resume broader architecture convergence after the prompt-plane consumer cutover**
    - decide whether the remaining `society_query` raw sqlite path should survive as a bounded diagnostic exception until AK grows a truthful canonical read/query surface, or be tightened further
    - revisit whether `recordEvidence(...)` can drop SQL fallback after broader confidence in `ak`-only behavior
-   - treat exact cognitive-tool prompt preparation through `pi-vault-client/prompt-plane` as landed and focus any further prompt-vault work on the bounded metadata-list seam gap or the dedicated package-install proof slice (`#1051`)
+   - treat exact cognitive-tool prompt preparation through `pi-vault-client/prompt-plane` and its installed-package proof as landed, and focus any further prompt-vault work on the bounded metadata-list seam gap or the next broader architecture slice
 2. **If the operator explicitly chooses the subagent/runtime seam, switch to the post-cutover stewardship packet**
    - start from `docs/project/subagent-execution-boundary-map.md`, `docs/project/2026-03-31-execution-seam-charter.md`, `docs/project/2026-03-31-execution-seam-review.md`, and `docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md`
    - treat `#604 -> #605 -> #606`, `#622`, `#623`, `#624`, `#625`, `#627`, and `#628` as landed history, not active backlog
@@ -190,7 +192,6 @@ Then re-open the broader architecture artifacts if the next session finishes the
 | `society_query` still uses a bounded raw society DB read exception | `/evidence` now uses `ak evidence search`, but `society_query` still depends on a narrow raw sqlite diagnostic path until a truthful canonical read/query boundary exists | `pi-society-orchestrator` package maintainer with `agent-kernel` maintainer review | decision on canonical society read/query boundary or explicit retention/removal of the diagnostic exception | 2026-03-31 | residual read-side schema drift and continued raw DB coupling for one escape hatch |
 | ROCS adapter defaults currently assume the local SoftwareCo ontology repo and `--workspace-ref-mode loose` | The sanctioned adapter is now in place, but the runtime still carries a local usability/default-policy choice that has not yet been ratified as the long-term canonical ROCS resolution contract for orchestrator | `pi-society-orchestrator` package maintainer with `rocs-cli` maintainer review | decision on strict-vs-loose ROCS workspace resolution policy for orchestrator | 2026-03-24 | ontology lookups can drift from tagged refs in mixed local worktrees even though they no longer depend on raw SQL shape |
 | `/cognitive` catalog metadata and runtime-health counts still use a bounded local Prompt Vault listing helper | Exact prompt preparation now consumes the supported `pi-vault-client` seam, but the owning package does not yet expose a public catalog/list seam for this consumer path | `pi-society-orchestrator` package maintainer with `pi-vault-client` maintainer review | `pi-vault-client` exposes a supported public catalog/list seam or the local listing path is intentionally retained by decision | next bounded prompt-plane follow-through after task `#1049` | operator-visible catalog counts can still drift from owning-package query semantics even though prompt bodies no longer do |
-| Installed-package release proof for the new `pi-vault-client` dependency path is still pending | Task `#1049` cut over runtime prompt preparation, but package-install / tarball proof belongs to the dedicated validation slice `#1051` rather than this consumer-code change alone | `pi-society-orchestrator` package maintainer | complete task `#1051` with release-smoke / package proof | before the next release-candidate packaging pass | the repo-local runtime works, but installed-package dependency proof for the new prompt-plane seam is not yet the validated truth surface |
 | `src/runtime/boundaries.ts` now centralizes more async boundary logic and the read-only SQL classifier in one file | The file is coherent after the boundary-hardening slice, but further growth will make runtime command supervision, sqlite/dolt adapters, and SQL classification harder to reason about in one place | `pi-society-orchestrator` package maintainer | next boundary-family addition or the `society_query` / `/evidence` canonical-adapter migration | before the next lower-plane boundary slice after 2026-03-24 | future boundary changes become slower and more error-prone if command runner + backend adapters + SQL classifier keep accreting together |
 | Default DB behavior still depends on local env/default-path policy | Explicit per-call `societyDb` targeting now outranks ambient `AK_DB`, but package default DB-target discovery still remains a transitional policy while raw-read paths still exist | `pi-society-orchestrator` package maintainer | decision to fully adopt the newer canonical default path / env contract | 2026-03-24 | confusing DB-target behavior in mixed environments |
 
