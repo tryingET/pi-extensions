@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "description": "pi extension package for vault workflows in monorepo runtime",
   "type": "module",
+  "exports": {
+    ".": "./extensions/vault.js",
+    "./prompt-plane": {
+      "types": "./src/promptPlane.d.ts",
+      "default": "./src/promptPlane.js"
+    }
+  },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",

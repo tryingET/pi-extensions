@@ -50,7 +50,7 @@ for (const sourcePath of sourceFiles) {
   const outputPath = sourcePath.replace(/\.ts$/, ".js");
   mkdirSync(path.dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, transpiled, "utf8");
-  execFileSync(BIOME_BIN, ["format", "--write", "--no-errors-on-unmatched", outputPath], {
+  execFileSync(BIOME_BIN, ["check", "--write", "--no-errors-on-unmatched", outputPath], {
     cwd: ROOT,
     stdio: QUIET ? "ignore" : "inherit",
   });

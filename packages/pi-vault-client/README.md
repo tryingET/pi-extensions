@@ -86,6 +86,26 @@ This package writes component metadata in `package.json` under `x-pi-template`:
 
 Use these values when wiring monorepo-level release-please component maps.
 
+## Public prompt-plane seam
+
+`pi-vault-client` now exposes a supported package-owned non-UI prompt-plane seam for downstream consumers:
+
+```ts
+import { createVaultPromptPlaneRuntime } from "pi-vault-client/prompt-plane";
+```
+
+Current V3 seam scope:
+- prepare a visible template/query/context through package-owned visibility + render rules
+- prepare a continuation from a machine-readable `VaultContinuationEnvelopeV1`
+- keep continuation operational only through the continuation envelope, not prose parsing
+- preserve package-owned prompt preparation semantics without moving runtime ownership into AK
+- treat continuation provenance as forward-compatible metadata only; V3 does not yet bind it into receipt/replay lineage
+- fail closed when `inherit_current_company: false`; cross-company continuation semantics are not part of V3
+- keep V4 continuation-graph persistence explicitly out of scope for this slice
+
+Use this seam when a downstream package needs deterministic prompt-plane preparation without slash-command or live-trigger wiring.
+Do **not** treat private `src/*` files as the supported integration API.
+
 ## Command surface
 
 Kept commands:
