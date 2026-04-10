@@ -21,10 +21,10 @@ Active tactical goal: **TG3 — Harden loop family/evidence contracts around the
 - the seam-first prompt-plane proof packet is complete through `task:1050`, `task:1049`, and `task:1051`
 - the first bounded KES packet is complete through `task:1089`, `task:1090`, and `task:1091`
 - the first bounded TG3 hardening slice is complete through `task:1107` and `task:1108`
-- repo-local AK readiness is currently empty again, so there is **no active root operating slice** to implement right now
-- the next truthful move is to reassess AK and current docs before opening any new root-local loop-hardening work
+- repo-local AK task `task:1110` now binds the truthful post-hardening empty-ready state into an explicit reassessment slice, so the repo no longer depends on prose-only reminders for that state
+- the next truthful move is to reassess AK and current docs through that authority-bound slice before opening any new root-local loop-hardening work
 
-## Completed bounded TG3 hardening slice
+## Current bounded TG3 slices
 
 ### OP4 — Fail closed on invalid package-owned KES roots in `pi-society-orchestrator`
 - **AK task:** `task:1107`
@@ -36,6 +36,11 @@ Active tactical goal: **TG3 — Harden loop family/evidence contracts around the
 - **State:** done
 - **Dependency:** repo-local AK task `task:1107`
 - **Deliverable:** installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and docs explicit about that packaging/runtime boundary.
+
+### OP6 — Reassess the next TG3 loop-hardening slice from AK without inventing synthetic implementation work
+- **AK task:** `task:1110`
+- **State:** active
+- **Deliverable:** keep the post-hardening empty-ready state bound into AK and only open the next TG3 implementation slice when a real bounded task is ready.
 
 ## Completed bounded KES packet
 

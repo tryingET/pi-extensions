@@ -22,9 +22,9 @@ Start from the current package truth after the first bounded KES packet and firs
 - `task:1108` — installed-package KES proof asserts successful writes under the true installed package root while the import harness stays copy-isolated and explicit about that boundary
 
 The next package-local move is **not** to replay those slices.
-The next move is to reassess AK and current docs to determine whether another bounded TG3 loop-hardening slice is actually ready.
+The next move is to continue the AK-bound reassessment slice `task:1110` and determine whether another bounded TG3 loop-hardening slice is actually ready.
 
-If AK still shows no package-local ready task, stop rather than synthesizing work from this handoff alone.
+If AK still shows only the reassessment slice and no new implementation task, stop rather than synthesizing work from this handoff alone.
 
 ## What is now true
 
@@ -35,7 +35,7 @@ If AK still shows no package-local ready task, stop rather than synthesizing wor
 - loop execution emits package-owned KES artifacts through that seam
 - invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and a structured `loop_execute` failure surface
 - installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and explicit about that boundary
-- package-local AK readiness is currently empty again
+- package-local AK task `task:1110` now binds the truthful post-hardening state into an explicit reassessment slice while no further implementation task is ready yet
 
 ### KES + TG3 proof surfaces are explicit
 Package-local proof now spans:
@@ -56,7 +56,7 @@ Package-local proof now spans:
 - do **not** move KES output ownership out of `pi-society-orchestrator`
 - do **not** replace the bounded KES seam with ad-hoc loop-local diary writes
 - do **not** treat installed-package release smoke as the primary owner of semantics; it is proof, not architecture authority
-- do **not** infer a new package-local task from this file if AK readiness remains empty
+- do **not** infer a new package-local implementation task from this file if AK only shows the reassessment slice `task:1110`
 
 ## Read first
 1. `AGENTS.md`
@@ -75,12 +75,12 @@ Package-local proof now spans:
 
 ## First concrete next action
 From `packages/pi-society-orchestrator`:
-1. inspect repo-local AK readiness through the monorepo-root wrapper
+1. inspect repo-local AK state through the monorepo-root wrapper
    ```bash
    ../../scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'
    ../../scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'
    ```
-2. if no repo-local ready task exists, stop
+2. if AK shows only `task:1110` and no new implementation task, stop
 3. only then choose the next bounded package-local slice
 
 ## Validation

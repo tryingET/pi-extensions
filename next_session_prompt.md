@@ -60,8 +60,8 @@ Do **not** treat this file as a live status database.
 - The first bounded TG3 hardening slice is complete through:
   - `task:1107`
   - `task:1108`
-- Repo-local AK readiness is currently empty again. If AK still shows no new ready item for this repo, stop rather than synthesizing work from stale handoff prose.
-- `./scripts/ak.sh direction import/check/export` still fail closed against the truthful "no ready TG3 task yet" state because the direction substrate expects an active `SG -> TG -> OP -> task` path; use AK + the latest diary note instead of inventing synthetic follow-on tasks just to satisfy that importer.
+- Repo-local AK task `task:1110` now binds the truthful post-hardening state into an explicit reassessment slice while no further TG3 implementation task is ready yet.
+- If AK still shows only `task:1110` and no new implementation-ready item for this repo, stop rather than synthesizing work from stale handoff prose.
 - A separate exploratory task still exists:
   - `task:962` (`[SO-EXPLORE] Evaluate PufferLib ...`)
   - it remains explicitly deferred and must not displace the routed packet without explicit reprioritization
@@ -90,23 +90,25 @@ Do **not** treat this file as a live status database.
    - `docs/project/operating_plan.md`
 2. Read the latest root diary evidence for the first TG3 hardening slice:
    - `diary/2026-04-10--tg3-kes-root-fail-closed-and-installed-root-proof.md`
-3. Check repo-local AK state before choosing work:
+3. Continue the AK-bound reassessment slice before choosing any new implementation work:
+   - `./scripts/ak.sh task show 1110 -F json`
+4. Check repo-local AK state before choosing work:
    - `./scripts/ak.sh task ready -F json | jq '.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")'`
    - `./scripts/ak.sh task list -F json | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/pi-extensions")] | sort_by(.id) | reverse | .[:6]'`
-4. If no repo-local ready task exists, stop rather than inventing a synthetic next slice from this handoff alone.
-5. Run the direction substrate refresh/check flow explicitly when those docs change **if** a task-backed active path exists again:
+5. If AK still shows only `task:1110` and no new implementation-ready task, stop rather than inventing a synthetic next slice from this handoff alone.
+6. Run the direction substrate refresh/check flow explicitly when those docs change because a task-backed active path now exists again:
    - `./scripts/ak.sh direction import --repo . -F json`
    - `./scripts/ak.sh direction check --repo . -F json`
    - `./scripts/ak.sh direction export --repo . -F json`
-   If those commands still fail only because the repo truth is "no ready TG3 task yet," prefer AK + the latest diary note over inventing synthetic follow-on tasks.
-6. Treat guarded repo bootstrap as externalized and already verified through agent-kernel decision `#8`. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
-7. Route package-local KES/loop follow-through to:
+   These commands should now pass while `task:1110` is the active reassessment slice; if they fail, treat that as a real regression rather than as a tolerated empty-ready-state limitation.
+7. Treat guarded repo bootstrap as externalized and already verified through agent-kernel decision `#8`. Do not resume local tasks `#654`–`#656` unless a new concern explicitly reopens that area.
+8. Route package-local KES/loop follow-through to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator/next_session_prompt.md`
-8. Route template changes to:
+9. Route template changes to:
    - `~/ai-society/softwareco/owned/pi-extensions-template/next_session_prompt.md`
-9. Route Nunjucks live verification to:
+10. Route Nunjucks live verification to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client/next_session_prompt.md`
-10. Route session/handoff prompt wording and prompt-template work to:
+11. Route session/handoff prompt wording and prompt-template work to:
    - `~/ai-society/softwareco/owned/pi-extensions/packages/pi-prompt-template-accelerator/next_session_prompt.md`
 
 ## NEXT-SESSION START COMMANDS

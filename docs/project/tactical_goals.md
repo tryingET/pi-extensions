@@ -14,7 +14,7 @@ system4d:
 
 Active strategic goal: **SG1 — Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful**
 
-## Tactical goal set
+## Active tactical goals
 
 ### TG1 — Bind the thin prompt-plane seam between `pi-vault-client` and `pi-society-orchestrator` before broader KES/loop activation
 - **State:** done
@@ -28,10 +28,11 @@ Active strategic goal: **SG1 — Bind the next cross-package cognition control-p
 - **Carry-forward guardrail:** keep KES outputs package-owned in `pi-society-orchestrator`, use bounded `diary/` + candidate-only `docs/learnings/` outputs, and do not reopen this packet as if the proof step were still pending.
 
 ### TG3 — Harden loop family/evidence contracts around the KES-first control-plane wave and keep higher-order self explicitly deferred
-- **State:** active candidate
+- **State:** active
 - **Latest landed slice:** repo-local AK tasks `task:1107` and `task:1108`
-- **Why this remains the next truthful area:** the lower prompt/KES packet is now strong enough to support loop-hardening follow-through, and the first hardening slice already landed by making invalid KES roots fail closed and by strengthening installed-package KES proof under the installed package root.
-- **Current execution note:** repo-local AK readiness is currently empty again, so the next move is to reassess readiness rather than synthesize implementation from stale prose.
+- **Current execution anchor:** repo-local AK task `task:1110`
+- **Why this is active:** the lower prompt/KES packet is now strong enough to support loop-hardening follow-through, and the first hardening slice already landed by making invalid KES roots fail closed and by strengthening installed-package KES proof under the installed package root.
+- **Current execution note:** `task:1110` is the authority-bound reassessment slice for the truthful post-hardening state while no further TG3 implementation task is ready yet.
 - **Success signal:** any new slice is bounded in AK before implementation starts, tightens loop-family/evidence semantics without reopening seam or KES proof, and keeps higher-order self explicitly downstream of the lower-plane packet.
 
 ## Not the active tactical path

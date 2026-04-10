@@ -100,8 +100,8 @@ From repo root:
 ### Direction substrate note
 
 - `./scripts/ak.sh direction import/check --repo . -F json` was re-run after the docs refresh.
-- It still fails closed because the truthful post-slice state is "no active tactical/operating task right now," while the current substrate requires exactly one active tactical goal and active `SG -> TG -> OP -> task` path.
-- I kept the docs aligned to the actual empty ready queue rather than inventing synthetic follow-on tasks just to satisfy that importer.
+- I then bound the truthful post-hardening empty-ready state into repo-local AK task `task:1110` and refreshed the root/package direction docs to use that reassessment slice as the active `SG -> TG -> OP -> task` path.
+- After that authority binding, `./scripts/ak.sh direction import --repo . -F json` and `./scripts/ak.sh direction check --repo . -F json` both passed again.
 
 ## Result
 
@@ -109,4 +109,4 @@ The first bounded TG3 hardening slice is now closed:
 - `task:1107` — invalid package-owned KES roots fail closed with a typed contract and structured tool output
 - `task:1108` — installed-package KES proof now asserts writes under the true installed package root while keeping the import harness honest about its copy-isolated boundary
 
-Repo-local AK readiness is empty again after those tasks, so the next session should reassess rather than inventing follow-through from this diary entry alone.
+Repo-local AK now includes `task:1110` as the explicit reassessment slice after those tasks, so the next session should continue that authority-bound state rather than inventing follow-through from this diary entry alone.

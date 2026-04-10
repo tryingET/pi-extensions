@@ -14,8 +14,6 @@ system4d:
 
 Active strategic goal: **SG2 — Harden loop-family and evidence semantics on top of the bounded KES base**
 
-Package-local AK note: readiness is currently empty again. Treat TG3 as the next candidate tactical goal, and stop rather than synthesizing work if AK still shows no package-local ready task.
-
 ## Tactical goal set
 
 ### TG1 — Define the bounded KES contract and scaffolding in `src/kes/`
@@ -31,9 +29,11 @@ Package-local AK note: readiness is currently empty again. Treat TG3 as the next
 - **Carry-forward guardrail:** replace ad-hoc diary behavior rather than layering a second writer beside it, and treat the proof packet as landed history rather than a still-pending follow-up.
 
 ### TG3 — Harden loop family/evidence contracts around the proved KES base
-- **State:** active candidate
+- **State:** active
 - **Completed slice:** `task:1107` + `task:1108`
-- **Why this is still the next truthful area:** the lower prompt/KES packet is now strong enough to support loop-hardening follow-through, and the first hardening slice already landed by making invalid KES roots fail closed and by strengthening installed-package KES proof under the installed package root.
+- **Current execution anchor:** `task:1110`
+- **Why this is active:** the lower prompt/KES packet is now strong enough to support loop-hardening follow-through, and the first hardening slice already landed by making invalid KES roots fail closed and by strengthening installed-package KES proof under the installed package root.
+- **Current execution note:** `task:1110` is the authority-bound reassessment slice for the truthful post-hardening state while no further package-local TG3 implementation task is ready yet.
 - **Success signal:** any new slice is bounded in AK before implementation starts, tightens loop-family/evidence semantics without reopening the KES contract or proof packet, and keeps higher-order ASC self explicitly downstream.
 
 ## Not the active tactical path

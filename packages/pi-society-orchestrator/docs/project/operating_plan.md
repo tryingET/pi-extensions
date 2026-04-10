@@ -22,9 +22,9 @@ Active tactical goal: **TG3 — Harden loop family/evidence contracts around the
 - loop execution emits package-owned KES artifacts through that seam
 - invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and a structured `loop_execute` failure surface
 - installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and explicit about that boundary
-- package-local AK readiness is currently empty again, so there is **no active package-local operating slice** to implement right now
+- package-local AK task `task:1110` now binds the truthful post-hardening state into an explicit reassessment slice while no further implementation task is ready yet
 
-## Completed bounded TG3 hardening slice
+## Current bounded TG3 slices
 
 ### OP4 — Fail closed on invalid package-owned KES roots in `pi-society-orchestrator`
 - **AK task:** `task:1107`
@@ -36,6 +36,11 @@ Active tactical goal: **TG3 — Harden loop family/evidence contracts around the
 - **State:** done
 - **Dependency:** `task:1107`
 - **Deliverable:** installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and docs explicit about that packaging/runtime boundary.
+
+### OP6 — Reassess the next TG3 loop-hardening slice from AK without inventing synthetic implementation work
+- **AK task:** `task:1110`
+- **State:** active
+- **Deliverable:** keep the post-hardening state bound into AK and only open the next TG3 implementation slice when a real bounded task is ready.
 
 ## Completed bounded KES packet
 

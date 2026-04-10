@@ -34,13 +34,13 @@ Current package-local truth:
 - loop execution emits package-owned KES artifacts through that seam
 - invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and a structured `loop_execute` failure surface
 - installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and explicit about that boundary
-- package-local AK readiness is currently empty again, so the next package move is to reassess whether loop-family/evidence hardening deserves another bounded slice or whether no package-local task is ready yet
+- package-local AK task `task:1110` now binds the truthful post-hardening state into an explicit reassessment slice while no further TG3 implementation task is ready yet
 
 ## Eisenhower-3D ranking
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Harden loop-family and evidence semantics on top of the bounded KES base | 5 | 4 | 4 | **active** | The KES packet and first TG3 hardening slice are now complete, so any further package-local work should start from the proved base rather than from rediscovering contract, emission, or failure behavior. |
+| 1 | Harden loop-family and evidence semantics on top of the bounded KES base | 5 | 4 | 4 | **active** | The KES packet and first TG3 hardening slice are now complete, and `task:1110` keeps the post-hardening reassessment state bound to authority while AK waits for another bounded implementation slice. |
 | 2 | Keep package-owned KES outputs truthful, bounded, and reusable as later work evolves | 4 | 3 | 2 | next | The just-landed hardening slice becomes part of the baseline that later loop work must preserve instead of silently eroding. |
 
 ## Active strategic goal
