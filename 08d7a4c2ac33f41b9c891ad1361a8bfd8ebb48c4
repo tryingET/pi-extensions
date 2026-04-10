@@ -3,20 +3,18 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "08d7a4c2ac33f41b9c891ad1361a8bfd8ebb48c4"
-created_at: "2026-04-10T16:57:40Z"
-intent: "Overhaul prompt_eval to use local company-scoped JSONL variant storage and real LLM-based judging instead of constant default scores"
+created_at: "2026-04-10T17:01:05Z"
+intent: "feat(pi-vault-client): move prompt_eval variants to local company-scoped JSONL storage with real LLM judging"
 files:
-  - "packages/pi-vault-client/src/evaluator.ts"
-  - "packages/pi-vault-client/src/evaluator.js"
-  - "packages/pi-vault-client/tests/evaluator.test.mjs"
+  - "AGENTS.md"
 validation:
   fast_gate:
     command: "npm run check"
     status: "pass"
   full_gate:
     command: "npm run check"
-    status: "pending"
+    status: "pass"
 group:
-  index: 2
+  index: 1
   total: 3
-  rationale: "Self-contained evaluator overhaul with matching test coverage"
+  rationale: "see per-commit note"
