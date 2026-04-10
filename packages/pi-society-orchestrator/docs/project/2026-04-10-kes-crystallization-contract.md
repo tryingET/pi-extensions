@@ -58,6 +58,7 @@ The seam does **not** own:
 - Keep learning outputs candidate-only until a later explicit promotion step says otherwise.
 - Do not write to repo-root `diary/`, external package paths, Prompt Vault, or ASC-owned state from `src/kes/`.
 - Do not treat generated learnings as a second live authority surface; they remain package-owned narrative artifacts tied back to raw diary evidence.
+- Invalid or unwritable package-owned KES roots should fail closed as explicit orchestration failures rather than leaking raw filesystem exceptions into operator-visible loop output.
 - Keep the seam self-contained enough that later loop integration can consume it without reopening the ownership question.
 
 ## Task binding
@@ -72,4 +73,4 @@ The original execution order after this note landed was:
 1. replace the ad-hoc loop-local diary behavior with the package-owned KES seam (`task:1090`)
 2. then prove those emitted outputs through deterministic validation (`task:1091`)
 
-That packet is now complete. Future work should start from the proved KES base rather than rediscovering whether the seam, loop emission, or validation surfaces exist.
+That packet is now complete. The first follow-through hardening slice is also complete: invalid roots now fail closed and installed-package proof explicitly asserts writes under the installed package root. Future work should start from that proved KES base rather than rediscovering whether the seam, loop emission, or validation surfaces exist.

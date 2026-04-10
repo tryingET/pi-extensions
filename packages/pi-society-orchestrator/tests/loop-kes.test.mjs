@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { KesMaterializationError } from "../src/kes/index.ts";
 import { KAIZEN_PLUGIN, LoopExecutor, STRATEGIC_PLUGIN } from "../src/loops/engine.ts";
 
 function createExecutor(plugin, operatorCwd, packageRoot) {
@@ -111,6 +112,35 @@ test("LoopExecutor does not materialize package-owned KES artifacts when the sig
   } finally {
     fs.rmSync(operatorCwd, { recursive: true, force: true });
     fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("LoopExecutor fails closed with a typed error when the configured KES root is invalid", async () => {
+  const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-operator-"));
+  const packageRootParent = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-bad-root-"));
+  const invalidPackageRoot = path.join(packageRootParent, "not-a-dir");
+  fs.writeFileSync(invalidPackageRoot, "not a directory", "utf8");
+
+  try {
+    const executor = createExecutor(KAIZEN_PLUGIN, operatorCwd, invalidPackageRoot);
+
+    await assert.rejects(
+      executor.execute("Improve evidence reporting", async () => ({
+        output: "ok",
+        exitCode: 0,
+        elapsed: 1,
+      })),
+      (error) => {
+        assert.equal(error instanceof KesMaterializationError, true);
+        assert.equal(error.kind, "kes_root_invalid");
+        assert.match(String(error), /configured KES root is invalid or not writable/i);
+        assert.equal(String(error).includes(invalidPackageRoot), false);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(operatorCwd, { recursive: true, force: true });
+    fs.rmSync(packageRootParent, { recursive: true, force: true });
   }
 });
 

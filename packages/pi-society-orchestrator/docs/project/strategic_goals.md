@@ -1,13 +1,13 @@
 ---
-summary: "Strategic goals for pi-society-orchestrator after the bounded KES contract, loop emission, and proof packet all landed."
+summary: "Strategic goals for pi-society-orchestrator after the bounded KES contract, loop emission, proof packet, and first TG3 hardening slice all landed."
 read_when:
-  - "You need the current package-level strategic direction after the first KES packet completed."
+  - "You need the current package-level strategic direction after the first KES packet and first TG3 hardening slice completed."
   - "You are deciding whether loop hardening, KES maintenance, or no package-local work is the truthful next bet."
 system4d:
-  container: "Strategic layer for pi-society-orchestrator after the first KES packet."
+  container: "Strategic layer for pi-society-orchestrator after the first TG3 hardening slice."
   compass: "Keep package-owned KES outputs truthful and only widen loop behavior when AK says the next slice is actually ready."
   engine: "Read current package truth -> score the next two bets -> keep one active and one next."
-  fog: "The main risk is reopening completed seam/KES proof or widening loop behavior from stale assumptions when AK has no ready package-local task."
+  fog: "The main risk is reopening completed seam/KES/TG3 proof or widening loop behavior from stale assumptions when AK has no ready package-local task."
 ---
 
 # Strategic goals — package-owned KES follow-through
@@ -23,22 +23,25 @@ Evidence used:
 - `../../src/kes/index.ts`
 - `../../tests/kes-contract.test.mjs`
 - `../../tests/loop-kes.test.mjs`
+- `../../tests/runtime-shared-paths.test.mjs`
 - `../../scripts/release-smoke.mjs`
 
 Current package-local truth:
 - the runtime-truth wave and prompt-plane cutover are landed history in this package
 - the first bounded KES packet is complete through `task:1089`, `task:1090`, and `task:1091`
+- the first bounded TG3 hardening slice is complete through `task:1107` and `task:1108`
 - `src/kes/` owns the bounded artifact contract for package-local diary and learning-candidate outputs
 - loop execution emits package-owned KES artifacts through that seam
-- installed-package release smoke now proves a successful kaizen loop writes package-owned `diary/` + candidate-only `docs/learnings/` artifacts under the installed package root rather than the operator cwd
-- package-local AK readiness is currently empty, so the next package move is to reassess whether loop-family/evidence hardening deserves a bounded slice or no package-local task is ready yet
+- invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and a structured `loop_execute` failure surface
+- installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and explicit about that boundary
+- package-local AK readiness is currently empty again, so the next package move is to reassess whether loop-family/evidence hardening deserves another bounded slice or whether no package-local task is ready yet
 
 ## Eisenhower-3D ranking
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Harden loop-family and evidence semantics on top of the bounded KES base | 5 | 4 | 4 | **active** | The KES packet is now complete, so any further package-local work should start from the proved base rather than from rediscovering contract or emission behavior. |
-| 2 | Keep package-owned KES outputs truthful, bounded, and reusable as later work evolves | 4 | 3 | 2 | next | The just-landed proof packet becomes the baseline that later loop work must preserve instead of silently eroding. |
+| 1 | Harden loop-family and evidence semantics on top of the bounded KES base | 5 | 4 | 4 | **active** | The KES packet and first TG3 hardening slice are now complete, so any further package-local work should start from the proved base rather than from rediscovering contract, emission, or failure behavior. |
+| 2 | Keep package-owned KES outputs truthful, bounded, and reusable as later work evolves | 4 | 3 | 2 | next | The just-landed hardening slice becomes part of the baseline that later loop work must preserve instead of silently eroding. |
 
 ## Active strategic goal
 
@@ -51,7 +54,7 @@ Intent:
 
 Success signal:
 - any new package-local follow-through is first materialized as a bounded AK task
-- later work tightens loop-family/evidence semantics without reopening the KES contract, loop emission, or installed-package proof packet
+- later work tightens loop-family/evidence semantics without reopening the KES contract, loop emission, installed-package proof packet, or the new fail-closed invalid-root contract
 - if AK remains empty, package docs and handoff say stop instead of inventing work from stale memory
 
 ## Next strategic goal
@@ -62,12 +65,14 @@ Why this is now completed history:
 - `task:1089` landed the bounded KES contract and scaffolding
 - `task:1090` wired loop execution through that seam
 - `task:1091` proved the package checks, installed-package release smoke, and root validation surfaces
-- the package no longer needs to rediscover whether KES outputs can be bounded and package-owned; that fact is now landed truth
+- `task:1107` hardened the invalid-root failure path
+- `task:1108` strengthened installed-package proof under the true installed package root while keeping the import harness honest about its copy-isolated boundary
+- the package no longer needs to rediscover whether KES outputs can be bounded and package-owned; that fact is landed truth
 
 ## Not the current strategic path
 
 These matter, but they are not the active package-level bet now:
 - reopening the already-complete runtime-truth footer/status wave as if it were still active
 - reopening the prompt-plane seam as if raw prompt-body access were still the active blocker
-- replaying the first KES packet (`tasks:1089`, `1090`, `1091`) as if contract, emission, or proof were still missing
+- replaying the first KES packet (`tasks:1089`, `1090`, `1091`) or the first TG3 hardening slice (`tasks:1107`, `1108`) as if contract, emission, proof, or fail-closed behavior were still missing
 - pulling higher-order ASC self work forward before a new bounded loop-hardening slice exists

@@ -1635,3 +1635,53 @@ test("loop_execute reports loop/team mismatches before execution starts", async 
   assert.match(result.content[0].text, /mission: researcher/);
   assert.match(result.content[0].text, /intelligence: scout/);
 });
+
+test("loop_execute fails closed when PI_ORCH_KES_ROOT is invalid", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-tool-"));
+  const badRootParent = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-bad-root-"));
+  const badRoot = path.join(badRootParent, "not-a-dir");
+  fs.writeFileSync(badRoot, "not a directory", "utf8");
+  const previousKesRoot = process.env.PI_ORCH_KES_ROOT;
+
+  try {
+    process.env.PI_ORCH_KES_ROOT = badRoot;
+
+    let registeredTool;
+    registerLoopTools(
+      {
+        registerTool(tool) {
+          registeredTool = tool;
+        },
+      },
+      BUILT_IN_PLUGINS,
+      "/tmp/nonexistent-vault",
+    );
+
+    assert.ok(registeredTool, "expected loop_execute to register");
+    const result = await registeredTool.execute(
+      "tool-call-id",
+      { loop: "kaizen", objective: "Verify invalid KES root handling" },
+      undefined,
+      undefined,
+      { cwd: tempDir, model: undefined },
+    );
+
+    assert.equal(result.details.ok, false);
+    assert.equal(result.details.error, "loop-kes-root-invalid");
+    assert.equal(result.details.failureKind, "kes_root_invalid");
+    assert.equal(result.details.kesRootSource, "env");
+    assert.match(
+      result.content[0].text,
+      /configured KES root is invalid or not writable\. Check PI_ORCH_KES_ROOT or package write permissions\./,
+    );
+    assert.equal(result.content[0].text.includes(badRoot), false);
+  } finally {
+    if (previousKesRoot === undefined) {
+      delete process.env.PI_ORCH_KES_ROOT;
+    } else {
+      process.env.PI_ORCH_KES_ROOT = previousKesRoot;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(badRootParent, { recursive: true, force: true });
+  }
+});

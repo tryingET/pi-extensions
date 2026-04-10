@@ -13,6 +13,36 @@ import {
   type KesRoots,
 } from "./types.ts";
 
+export const KES_MATERIALIZATION_FAILURE_KIND = "kes_root_invalid" as const;
+
+export class KesMaterializationError extends Error {
+  readonly kind = KES_MATERIALIZATION_FAILURE_KIND;
+  readonly operation: "ensure_roots" | "write_artifact";
+  readonly packageRoot: string;
+  readonly relativePath?: string;
+  readonly causeMessage?: string;
+
+  constructor(params: {
+    operation: "ensure_roots" | "write_artifact";
+    packageRoot: string;
+    relativePath?: string;
+    cause?: unknown;
+  }) {
+    super(
+      "Package-owned KES artifacts could not be written because the configured KES root is invalid or not writable. Check PI_ORCH_KES_ROOT or package write permissions.",
+    );
+    this.name = "KesMaterializationError";
+    this.operation = params.operation;
+    this.packageRoot = params.packageRoot;
+    this.relativePath = params.relativePath;
+    this.causeMessage = params.cause instanceof Error ? params.cause.message : String(params.cause);
+  }
+}
+
+export function isKesMaterializationError(value: unknown): value is KesMaterializationError {
+  return value instanceof KesMaterializationError;
+}
+
 export function resolveKesRoots(packageRoot: string): KesRoots {
   const normalizedRoot = path.resolve(packageRoot);
   return {
@@ -26,8 +56,16 @@ export function resolveKesRoots(packageRoot: string): KesRoots {
 
 export function ensureKesRoots(packageRoot: string): KesRoots {
   const roots = resolveKesRoots(packageRoot);
-  fs.mkdirSync(roots.diaryDir, { recursive: true });
-  fs.mkdirSync(roots.learningsDir, { recursive: true });
+  try {
+    fs.mkdirSync(roots.diaryDir, { recursive: true });
+    fs.mkdirSync(roots.learningsDir, { recursive: true });
+  } catch (cause) {
+    throw new KesMaterializationError({
+      operation: "ensure_roots",
+      packageRoot: roots.packageRoot,
+      cause,
+    });
+  }
   return roots;
 }
 
@@ -136,8 +174,17 @@ function createLearningCandidateDraft(
 
 function writeDraft(draft: KesArtifactDraft, roots: KesRoots): void {
   const absolutePath = resolveBoundedArtifactPath(roots, draft.relativePath);
-  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-  fs.writeFileSync(absolutePath, draft.content, "utf8");
+  try {
+    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+    fs.writeFileSync(absolutePath, draft.content, "utf8");
+  } catch (cause) {
+    throw new KesMaterializationError({
+      operation: "write_artifact",
+      packageRoot: roots.packageRoot,
+      relativePath: draft.relativePath,
+      cause,
+    });
+  }
 }
 
 function renderDiaryContent(dateStamp: string, diary: KesDiaryEntryInput): string {

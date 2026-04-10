@@ -19,6 +19,7 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
+import { isKesMaterializationError, KES_MATERIALIZATION_FAILURE_KIND } from "../kes/index.ts";
 import { AGENT_PROFILES } from "../runtime/agent-profiles.ts";
 import type { AgentResolution } from "../runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
@@ -747,6 +748,24 @@ ${result.artifacts.map((a) => `- ${a.type}: ${a.content}`).join("\n") || "None"}
           details: { ok: result.success, result },
         };
       } catch (err) {
+        if (isKesMaterializationError(err)) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Loop execution failed before package-owned KES artifacts could be materialized because the configured KES root is invalid or not writable. Check PI_ORCH_KES_ROOT or package write permissions.",
+              },
+            ],
+            details: {
+              ok: false,
+              error: "loop-kes-root-invalid",
+              failureKind: KES_MATERIALIZATION_FAILURE_KIND,
+              operation: err.operation,
+              kesRootSource: process.env.PI_ORCH_KES_ROOT ? "env" : "package-default",
+            },
+          };
+        }
+
         return {
           content: [{ type: "text", text: `Loop execution failed: ${err}` }],
           details: { ok: false },

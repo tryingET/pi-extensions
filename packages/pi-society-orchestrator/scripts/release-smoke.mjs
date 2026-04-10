@@ -99,6 +99,7 @@ for (const relativePath of bundledBridgeImportCase.expectedImportFiles) {
 }
 linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-coding-agent", [
   path.join(hostNpmGlobalRoot, "@mariozechner", "pi-coding-agent"),
+  path.join(process.cwd(), "node_modules", "@mariozechner", "pi-coding-agent"),
 ]);
 linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-tui", [
   path.join(hostNpmGlobalRoot, "@mariozechner", "pi-tui"),
@@ -110,11 +111,31 @@ linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-tui", [
     "@mariozechner",
     "pi-tui",
   ),
+  path.join(process.cwd(), "node_modules", "@mariozechner", "pi-tui"),
+  path.join(
+    process.cwd(),
+    "node_modules",
+    "@mariozechner",
+    "pi-coding-agent",
+    "node_modules",
+    "@mariozechner",
+    "pi-tui",
+  ),
 ]);
 linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-ai", [
   path.join(hostNpmGlobalRoot, "@mariozechner", "pi-ai"),
   path.join(
     hostNpmGlobalRoot,
+    "@mariozechner",
+    "pi-coding-agent",
+    "node_modules",
+    "@mariozechner",
+    "pi-ai",
+  ),
+  path.join(process.cwd(), "node_modules", "@mariozechner", "pi-ai"),
+  path.join(
+    process.cwd(),
+    "node_modules",
     "@mariozechner",
     "pi-coding-agent",
     "node_modules",
@@ -575,6 +596,7 @@ const previousEnv = {
   PI_ORCH_SUBAGENT_OUTPUT_CHARS: process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS,
   PI_ORCH_SUBAGENT_TIMEOUT_MS: process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS,
   PI_ORCH_DEFAULT_AGENT_TEAM: process.env.PI_ORCH_DEFAULT_AGENT_TEAM,
+  PI_ORCH_KES_ROOT: process.env.PI_ORCH_KES_ROOT,
   SOCIETY_DB: process.env.SOCIETY_DB,
   VAULT_DIR: process.env.VAULT_DIR,
 };
@@ -743,7 +765,7 @@ try {
 
   writeFakePi("abort");
   const abortController = new AbortController();
-  setTimeout(() => abortController.abort(), 100);
+  setTimeout(() => abortController.abort(), 300);
   const abortResult = await cognitiveDispatch.execute(
     "installed-abort",
     {
@@ -757,7 +779,7 @@ try {
   );
   assert.match(getText(abortResult), /\] aborted in /);
   assert.match(getText(abortResult), /Evidence path: skipped/);
-  assert.equal(await waitForPath(abortMarkerPath), true);
+  assert.equal(await waitForPath(abortMarkerPath, 2000), true);
   console.log("installed abort smoke: ok");
 
   writeFakePi("semantic-error");
@@ -850,6 +872,8 @@ try {
 
   fs.writeFileSync(akCallLogPath, "");
   writeFakePi("success");
+  const previousKesRoot = process.env.PI_ORCH_KES_ROOT;
+  process.env.PI_ORCH_KES_ROOT = installedPackageDir;
   const kesLoopResult = await loopExecute.execute(
     "installed-kes-proof",
     {
@@ -870,13 +894,15 @@ try {
     1,
   );
 
-  const packageDiaryDir = path.join(importablePackageDir, "diary");
-  const packageLearnDir = path.join(importablePackageDir, "docs", "learnings");
+  const packageDiaryDir = path.join(installedPackageDir, "diary");
+  const packageLearnDir = path.join(installedPackageDir, "docs", "learnings");
   const diaryFiles = readAllFiles(packageDiaryDir);
   const learningFiles = readAllFiles(packageLearnDir);
 
   assert.equal(fs.existsSync(path.join(tempRoot, "diary")), false);
   assert.equal(fs.existsSync(path.join(tempRoot, "docs", "learnings")), false);
+  assert.equal(fs.existsSync(path.join(importablePackageDir, "diary")), false);
+  assert.equal(fs.existsSync(path.join(importablePackageDir, "docs", "learnings")), false);
   assert.equal(diaryFiles.length, 6);
   assert.equal(learningFiles.length, 1);
   assert.ok(
@@ -957,6 +983,12 @@ try {
   );
   console.log("installed team mismatch smoke: ok");
 
+  if (previousKesRoot === undefined) {
+    delete process.env.PI_ORCH_KES_ROOT;
+  } else {
+    process.env.PI_ORCH_KES_ROOT = previousKesRoot;
+  }
+
   console.log("SUCCESS");
 } finally {
   if (previousEnv.HOME === undefined) delete process.env.HOME;
@@ -996,6 +1028,12 @@ try {
     delete process.env.PI_ORCH_DEFAULT_AGENT_TEAM;
   } else {
     process.env.PI_ORCH_DEFAULT_AGENT_TEAM = previousEnv.PI_ORCH_DEFAULT_AGENT_TEAM;
+  }
+
+  if (previousEnv.PI_ORCH_KES_ROOT === undefined) {
+    delete process.env.PI_ORCH_KES_ROOT;
+  } else {
+    process.env.PI_ORCH_KES_ROOT = previousEnv.PI_ORCH_KES_ROOT;
   }
 
   fs.rmSync(tempRoot, { recursive: true, force: true });

@@ -129,6 +129,7 @@ Primary tools and commands exposed by the imported extension include:
 - `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
 - Exact cognitive-tool prompt preparation for `cognitive_dispatch` and loop execution now consumes the supported `pi-vault-client/prompt-plane` seam instead of reading raw prompt bodies with package-local `dolt sql`; the remaining local Prompt Vault path is the bounded metadata listing used by `/cognitive` and runtime-health summaries.
 - Installed-package `release:check` now proves guarded-bootstrap, timeout, truncation, team-mismatch, and successful package-owned KES loop emission through a deterministic headless harness against an isolated installed dependency set rooted in the target tarball, including the current bundled `pi-autonomous-session-control` publish bridge and the local `pi-vault-client` prompt-plane dependency path.
+- Invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and structured `loop_execute` failure output instead of leaking raw filesystem exceptions.
 - That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md).
 - The first time-boxed [execution seam review](docs/project/2026-03-31-execution-seam-review.md) now records that this package remains the only real external runtime consumer and that installed-package smoke is verification evidence rather than a second consumer.
 - Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the `/cognitive` catalog/health listing still uses a bounded local metadata query until `pi-vault-client` exposes a supported public catalog seam, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
@@ -136,13 +137,14 @@ Primary tools and commands exposed by the imported extension include:
 
 ## Package-owned KES activation
 
-The first bounded KES wave after the prompt-plane cutover is now complete through `task:1089`, `task:1090`, and `task:1091`:
+The first bounded KES wave after the prompt-plane cutover is now complete through `task:1089`, `task:1090`, and `task:1091`, and the first bounded TG3 hardening slice is complete through `task:1107` and `task:1108`:
 
 - `src/kes/` owns the package-local contract for KES roots, markdown/frontmatter scaffolding, and lazy materialization
 - the only allowed artifact roots for that seam are `diary/` and `docs/learnings/`
 - learning outputs stay **candidate-only** until a later explicit promotion step says otherwise
-- loop execution now consumes this seam: every run writes package-owned KES diary artifacts under `diary/`, and crystallization-oriented phases stage candidate-only learning artifacts under `docs/learnings/`
-- package checks, installed-package release smoke, and repo-root validation now prove that path strongly enough to treat the first KES packet as landed truth
+- loop execution consumes this seam: every run writes package-owned KES diary artifacts under `diary/`, and crystallization-oriented phases stage candidate-only learning artifacts under `docs/learnings/`
+- invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and structured `loop_execute` failure surface
+- package checks, installed-package release smoke, and repo-root validation now prove that path strongly enough to treat the first KES packet and first TG3 hardening slice as landed truth
 - set `PI_ORCH_KES_ROOT` only when you intentionally need a different writable package-owned root during testing or smoke validation
 
 Primary package-local KES references:
@@ -185,7 +187,7 @@ npm run release:check
 
 `npm run check` exercises package-local typechecking and regression tests in addition to lint/structure/package validation.
 
-`npm run release:check` now also proves the installed-package KES path: a successful kaizen loop must emit package-owned `diary/` plus candidate-only `docs/learnings/` artifacts under the installed package root rather than the operator cwd.
+`npm run release:check` now also proves the installed-package KES path: a successful kaizen loop must emit package-owned `diary/` plus candidate-only `docs/learnings/` artifacts under the true installed package root rather than the operator cwd, while the import harness stays copy-isolated for deterministic TypeScript loading.
 
 ## AK task/work-item operations
 
@@ -241,7 +243,7 @@ Additional runtime knobs:
 - `PI_ORCH_ROCS_WORKSPACE_ROOT` — workspace root passed to `rocs` for ref resolution (defaults to `~/ai-society`)
 - `PI_ORCH_ROCS_WORKSPACE_REF_MODE` — ROCS workspace ref mode for ontology resolution (defaults to `loose`)
 
-`npm run release:check` now also exercises installed-package guarded-bootstrap, timeout, truncation, team-mismatch, and successful kaizen-loop KES smoke through a headless harness that binds to the exact `PACKAGE_SPEC` recorded in the isolated Pi agent settings, verifies the installed package contents still match that tarball, and then drives the installed extension's registered tools/commands directly. The harness uses deterministic fake subagent/`ak` dependencies plus a temporary vault fixture, packs any local sibling runtime dependencies needed by the target release artifact, installs that dependency set into an isolated `NPM_CONFIG_PREFIX`, and asserts both the guarded-bootstrap `ak repo bootstrap` path plus the loop-phase evidence writes for the installed KES run. That keeps the installed-package proof while removing the old dependency on `~/.pi/agent/auth.json`, a live provider-backed Pi host, and registry publication of same-wave local dependency packages before the release-smoke lane can run. For the complementary live-host proof, see [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
+`npm run release:check` now also exercises installed-package guarded-bootstrap, timeout, truncation, team-mismatch, and successful kaizen-loop KES smoke through a headless harness that binds to the exact `PACKAGE_SPEC` recorded in the isolated Pi agent settings, verifies the installed package contents still match that tarball, and then drives the installed extension's registered tools/commands through a copy-isolated import harness. That harness keeps TypeScript loading deterministic while explicitly pointing the KES smoke lane at the true installed package root, so the proof asserts both the guarded-bootstrap `ak repo bootstrap` path and the installed-root loop-phase evidence/KES writes. It uses deterministic fake subagent/`ak` dependencies plus a temporary vault fixture, packs any local sibling runtime dependencies needed by the target release artifact, and installs that dependency set into an isolated `NPM_CONFIG_PREFIX`. That keeps the installed-package proof while removing the old dependency on `~/.pi/agent/auth.json`, a live provider-backed Pi host, and registry publication of same-wave local dependency packages before the release-smoke lane can run. For the complementary live-host proof, see [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
 
 Treat that harness as **installed-package / packaging truth**, not as the primary source of semantics. The contract truth itself is anchored by the package-local KES docs/tests plus `tests/runtime-shared-paths.test.mjs`; `npm run release:check` proves the packaged import graph and installed extension behavior still work after install.
 
@@ -256,4 +258,4 @@ bash ./scripts/package-quality-gate.sh ci packages/pi-society-orchestrator
 - The package ships `src/` because the extension entrypoint imports runtime modules from there.
 - `session_start` guards UI-only behavior with `ctx.hasUI` so non-UI runs stay safer.
 - The package was renamed early to the `pi-society-orchestrator` canonical package identity to avoid later naming churn.
-- The execution-plane/public-contract cutover is landed, and exact prompt-plane preparation now consumes the supported `pi-vault-client` seam. The first bounded KES packet is also landed through `task:1089`, `task:1090`, and `task:1091`; reassess AK before opening any further loop-family hardening so completed lower-plane proof does not get replayed as active backlog. The bundled ASC bridge remains governed by the documented lifecycle note rather than open-ended cleanup.
+- The execution-plane/public-contract cutover is landed, and exact prompt-plane preparation now consumes the supported `pi-vault-client` seam. The first bounded KES packet is landed through `task:1089`, `task:1090`, and `task:1091`, and the first TG3 hardening slice is landed through `task:1107` and `task:1108`; reassess AK before opening any further loop-family hardening so completed lower-plane proof does not get replayed as active backlog. The bundled ASC bridge remains governed by the documented lifecycle note rather than open-ended cleanup.

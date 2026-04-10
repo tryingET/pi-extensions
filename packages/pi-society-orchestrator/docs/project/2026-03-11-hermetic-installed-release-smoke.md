@@ -27,7 +27,7 @@ Complete only the first bounded pack from `next_session_prompt.md`:
    - direct dispatch timeout classification
    - bounded assistant-output truncation behavior
    - loop/team mismatch fail-closed behavior
-   - a successful kaizen loop emits package-owned `diary/` plus candidate-only `docs/learnings/` output under the installed package root rather than the operator cwd
+   - a successful kaizen loop emits package-owned `diary/` plus candidate-only `docs/learnings/` output under the true installed package root rather than the operator cwd
 4. Smoke no longer requires `~/.pi/agent/auth.json` or a live provider-backed prompt execution.
 5. README + handoff docs reflect the new harness and the next remaining bounded work.
 
@@ -37,14 +37,14 @@ Complete only the first bounded pack from `next_session_prompt.md`:
 - Replace real-host prompt-driven smoke with a headless Node harness that:
   - reads the exact `PACKAGE_SPEC` from isolated Pi settings
   - unpacks the tarball and verifies the installed global package still matches that packaged content
-  - imports the installed extension entrypoint only after artifact-identity proof
+  - imports a copy-isolated view of the installed extension entrypoint after artifact-identity proof so TypeScript loading stays deterministic outside `node_modules`
   - registers tools/commands into a small Pi stub
   - points runtime env to temporary isolated dependencies
   - uses a fake `pi` binary for subagent timeout/truncation cases
   - uses a fake `ak` binary that records/asserts expected evidence-write argv
   - uses a temporary Dolt prompt-vault fixture for cognitive tool lookup
-- Preserve loop/team mismatch coverage by driving `/agents-team` + `loop_execute` against the same installed extension instance.
-- Also drive one successful kaizen loop against that same installed extension instance so the harness proves package-owned KES output materializes under the installed package root instead of the operator cwd.
+- Preserve loop/team mismatch coverage by driving `/agents-team` + `loop_execute` against that installed-artifact harness.
+- Also drive one successful kaizen loop against that same harness while explicitly targeting the true installed package root for KES writes, so the proof shows package-owned KES output materializes under the installed package root instead of the operator cwd.
 
 ## Risks / non-goals
 

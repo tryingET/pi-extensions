@@ -1,6 +1,9 @@
 export {
   createKesArtifactPlan,
   ensureKesRoots,
+  isKesMaterializationError,
+  KES_MATERIALIZATION_FAILURE_KIND,
+  KesMaterializationError,
   materializeKesArtifactPlan,
   resolveKesRoots,
 } from "./scaffold.ts";

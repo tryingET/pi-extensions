@@ -1,5 +1,5 @@
 ---
-summary: "Top strategic goals for the pi-extensions monorepo root after the seam-first prompt-plane wave and the first KES proof packet landed."
+summary: "Top strategic goals for the pi-extensions monorepo root after the seam-first prompt-plane wave, the first KES packet, and the first TG3 loop-hardening hardening slice landed."
 read_when:
   - "You need the currently active and next strategic goals for the pi-extensions monorepo root."
   - "AK readiness is empty or noisy and you need to decide whether root work is complete or whether a new routed cross-package wave is now the truthful next bet."
@@ -19,7 +19,7 @@ Evidence used:
 - [vision.md](vision.md)
 - [root-capabilities.md](root-capabilities.md)
 - [next_session_prompt.md](../../next_session_prompt.md)
-- latest repo-local tasks: `task:1091`, `task:1090`, `task:1089`, `task:1051`, `task:962`
+- latest repo-local tasks: `task:1108`, `task:1107`, `task:1091`, `task:1090`, `task:1089`
 - current package-local runtime truth:
   - `packages/pi-society-orchestrator/docs/project/strategic_goals.md`
   - `packages/pi-society-orchestrator/docs/project/tactical_goals.md`
@@ -32,17 +32,18 @@ Current repo-local truth:
 
 - the recent `pi-society-orchestrator` runtime-truth wave is complete through `tasks:939-950`
 - the seam-first prompt-plane wave is complete through `tasks:1050`, `1051`, and orchestrator cutover task `1049`
-- the first bounded KES packet is now complete through `tasks:1089`, `1090`, and `1091`, including package checks, installed-package release smoke, and root validation
+- the first bounded KES packet is complete through `tasks:1089`, `1090`, and `1091`, including package checks, installed-package release smoke, and root validation
+- the first bounded TG3 hardening slice is also complete through `task:1107` and `task:1108`: invalid package-owned KES roots now fail closed, and installed-package KES proof now asserts writes under the true installed package root while the import harness remains copy-isolated
 - ASC higher-order `self` work is still not the next truthful root-local move
 - the root-local exploratory task `task:962` remains explicitly deferred so it does not displace the routed control-plane packet
-- repo-local AK readiness is currently empty, so the next truthful move is to reassess whether TG3 loop hardening deserves a bounded root-local slice rather than synthesizing work from stale wave prose
+- repo-local AK readiness is currently empty again, so the next truthful move is to reassess whether TG3 needs another bounded root-local slice rather than synthesizing work from stale wave prose
 
 ## Eisenhower-3D ranking
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful | 5 | 5 | 3 | **active** | The prompt-plane seam and first KES proof packet are now landed history; the next truthful move is to reassess loop hardening from AK without reopening completed lower-plane work. |
-| 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 4 | 4 | 4 | next | The new KES proof packet depends on root validation staying truthful, and any later loop hardening still rides on those release/control-plane surfaces. |
+| 1 | Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful | 5 | 5 | 3 | **active** | The prompt-plane seam, first KES packet, and first TG3 hardening slice are now landed history; the next truthful move is to reassess whether another loop hardening slice exists in AK without reopening completed lower-plane work. |
+| 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 4 | 4 | 4 | next | The new TG3 hardening slice still depends on root validation and release surfaces staying truthful, especially where installed-package proof is stronger than before but still intentionally bounded. |
 
 ## Active strategic goal
 
@@ -50,13 +51,13 @@ Current repo-local truth:
 
 Intent:
 - make one routed cross-package wave explicit at monorepo root without pretending the root owns every package-local implementation detail
-- preserve the completed prompt-plane seam and first KES proof packet as landed boundary truth rather than reopening them as active backlog
-- sequence later work clearly: loop hardening only if AK materializes a bounded slice, higher-order ASC self only after lower-plane truth remains solid
+- preserve the completed prompt-plane seam, KES packet, and first TG3 hardening slice as landed boundary truth rather than reopening them as active backlog
+- sequence later work clearly: another loop hardening slice only if AK materializes a bounded task, higher-order ASC self only after lower-plane truth remains solid
 
 Success signal:
-- the root direction chain records the seam-first wave and first KES proof packet as completed history
+- the root direction chain records the seam-first wave, first KES packet, and first TG3 hardening slice as completed history
 - authoritative AK task coverage exists for any new root-local follow-through before implementation begins
-- root docs stop implying that KES activation is still missing or that unrelated exploratory work is the current execution path
+- root docs stop implying that KES activation or the first TG3 hardening slice are still missing or that unrelated exploratory work is the current execution path
 - package-owner boundaries remain explicit: prompt plane in `pi-vault-client`, coordination/KES/loops in `pi-society-orchestrator`, execution-plane/self follow-on still deferred in ASC
 
 ## Next strategic goal
@@ -68,13 +69,13 @@ Intent:
 - make sure new control-plane contracts do not silently drift away from the root-owned compatibility and release surfaces
 
 Why it is not active right now:
-- the immediate missing fact is whether TG3 loop hardening needs a new bounded root-local slice at all, not a separate root release packet by itself
+- the immediate missing fact is whether TG3 needs another bounded root-local slice at all, not a separate root release packet by itself
 - root compatibility/release work is real, but it remains a follow-through obligation on top of routed package work rather than the first move
 
 ## Not current strategic goals
 
 These matter, but they are not the top repo-level bets right now:
 - reopening the already-completed runtime-truth footer/status wave as if `tasks:939-950` were still active
-- replaying the seam-first prompt-plane wave (`tasks:1050`, `1049`, `1051`) or the first KES packet (`tasks:1089`, `1090`, `1091`) as if those lower-plane facts were still missing
+- replaying the seam-first prompt-plane wave (`tasks:1050`, `1049`, `1051`), the first KES packet (`tasks:1089`, `1090`, `1091`), or the first TG3 hardening slice (`tasks:1107`, `1108`) as if those lower-plane facts were still missing
 - treating `task:962` PufferLib exploration as the current execution anchor just because it is pending elsewhere in the backlog
 - promoting higher-order ASC self work before a new loop-hardening slice is actually justified and task-backed
