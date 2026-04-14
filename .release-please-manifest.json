@@ -7,7 +7,7 @@
   "packages/pi-interaction/pi-runtime-registry": "0.1.0",
   "packages/pi-interaction/pi-trigger-adapter": "0.1.0",
   "packages/pi-little-helpers": "0.2.0",
-  "packages/pi-ontology-workflows": "0.1.0",
+  "packages/pi-ontology-workflows": "0.2.0",
   "packages/pi-prompt-template-accelerator": "0.1.0",
   "packages/pi-society-orchestrator": "0.1.0",
   "packages/pi-vault-client": "0.1.0"
