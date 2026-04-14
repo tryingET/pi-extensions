@@ -155,6 +155,33 @@ test("prompt-plane seam rejects explicit company context that conflicts with amb
   assert.match(result.blocking_reason || "", /software/);
 });
 
+test("prompt-plane seam does not fall back to ambient company context when an explicit cwd lacks company scope", async () => {
+  const runtime = createVaultPromptPlaneRuntime({
+    runtime: {
+      resolveCurrentCompanyContext(cwd) {
+        return cwd
+          ? { company: "core", source: "contract-default" }
+          : { company: "software", source: "env:PI_COMPANY" };
+      },
+      getTemplateDetailed(name) {
+        return ok(template({ name }));
+      },
+      searchTemplatesDetailed() {
+        return ok([]);
+      },
+    },
+  });
+
+  const result = await runtime.prepareSelection(
+    { query: "analysis-router" },
+    { cwd: "/tmp/outside-workspace" },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.match(result.blocking_reason || "", /Explicit company context is required/);
+});
+
 test("query-based prompt selection reports ambiguous visible matches instead of inventing a choice", async () => {
   const runtime = createVaultPromptPlaneRuntime({
     runtime: createRuntime({

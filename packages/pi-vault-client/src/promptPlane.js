@@ -37,12 +37,9 @@ function ambiguous(reason) {
 }
 function resolvePromptPlaneCompanyContext(runtime, ctx) {
   const explicitCompany = asNonEmptyString(ctx?.currentCompany);
+  const hasExplicitCwd = typeof ctx?.cwd === "string" && ctx.cwd.trim().length > 0;
   const companyContext = runtime.resolveCurrentCompanyContext(ctx?.cwd);
-  const ambientCompanyContext = ctx?.cwd
-    ? runtime.resolveCurrentCompanyContext(undefined)
-    : companyContext;
-  const effectiveResolvedContext =
-    companyContext.source === "contract-default" ? ambientCompanyContext : companyContext;
+  const ambientCompanyContext = runtime.resolveCurrentCompanyContext(undefined);
   if (explicitCompany) {
     const conflictingContext = [companyContext, ambientCompanyContext].find(
       (candidate) =>
@@ -58,18 +55,30 @@ function resolvePromptPlaneCompanyContext(runtime, ctx) {
       ok: true,
       currentCompany: explicitCompany,
       companySource:
-        effectiveResolvedContext.source === "contract-default"
-          ? "explicit:currentCompany"
-          : effectiveResolvedContext.source,
+        companyContext.source !== "contract-default"
+          ? companyContext.source
+          : ambientCompanyContext.source !== "contract-default"
+            ? ambientCompanyContext.source
+            : "explicit:currentCompany",
     };
   }
-  if (effectiveResolvedContext.source === "contract-default") {
+  if (companyContext.source !== "contract-default") {
+    return {
+      ok: true,
+      currentCompany: companyContext.company,
+      companySource: companyContext.source,
+    };
+  }
+  if (hasExplicitCwd) {
+    return { ok: false, error: PROMPT_PLANE_CONTEXT_ERROR };
+  }
+  if (ambientCompanyContext.source === "contract-default") {
     return { ok: false, error: PROMPT_PLANE_CONTEXT_ERROR };
   }
   return {
     ok: true,
-    currentCompany: effectiveResolvedContext.company,
-    companySource: effectiveResolvedContext.source,
+    currentCompany: ambientCompanyContext.company,
+    companySource: ambientCompanyContext.source,
   };
 }
 function normalizeSelectionRequest(request) {
