@@ -7,7 +7,11 @@ read_when:
 
 # pi-extensions
 
-Software Company monorepo workspace.
+Monorepo of Pi extensions: some are standalone operator tools, others integrate with Prompt Vault, ontology, and society runtime surfaces.
+
+Need the short version? See [README.terse.md](README.terse.md).
+
+Many packages are usable with plain Pi + local install; Prompt Vault and society-specific surfaces are package-specific, not repo-wide prerequisites.
 
 ## Structure
 
@@ -19,6 +23,20 @@ ontology/        # ROCS ontology
 governance/      # Work items, policies
 scripts/         # CI/utility scripts
 ```
+
+## Where to start
+
+- Standalone-friendly starting points:
+  - `packages/pi-context-overlay`
+  - `packages/pi-activity-strip`
+  - `packages/pi-little-helpers`
+  - `packages/pi-prompt-template-accelerator`
+  - `packages/pi-interaction/*`
+- Extra-stack packages:
+  - `packages/pi-vault-client`
+  - `packages/pi-ontology-workflows`
+  - `packages/pi-society-orchestrator`
+- For the shortest package map and outsider framing, see [README.terse.md](README.terse.md).
 
 ## Package Manager
 
