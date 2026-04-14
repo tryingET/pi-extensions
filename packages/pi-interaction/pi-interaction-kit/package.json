@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-interaction-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared interaction primitives for pi-interaction runtime packages",
   "type": "module",
   "main": "./index.js",
