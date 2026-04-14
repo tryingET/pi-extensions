@@ -1,6 +1,6 @@
 {
   "name": "pi-society-orchestrator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cognitive-driven multi-agent orchestration for society.db, prompt-vault, and agent-kernel",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
