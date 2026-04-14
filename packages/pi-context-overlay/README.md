@@ -63,6 +63,11 @@ npm run check
 npm run release:check:quick
 ```
 
+See also:
+- [examples/live-smoke.md](examples/live-smoke.md)
+- [docs/project/2026-04-01-session-start-surface-compatibility.md](docs/project/2026-04-01-session-start-surface-compatibility.md)
+- [next_session_prompt.md](next_session_prompt.md)
+
 ## Live package activation
 
 ```bash
