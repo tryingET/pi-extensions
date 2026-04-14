@@ -23,6 +23,7 @@ system4d:
 - This folder is a package workspace, not a git root.
 - Use plain installed `ak` for task/work-item operations from any directory.
 - Do not invent package-local AK wrappers or treat this package folder as an independent repo identity.
+- Direction authority stays at the monorepo root; when direction docs change or you need current posture, run `ak direction import|check|export` against the root repo context rather than inventing package-local direction state.
 - Keep package scripts compatible with monorepo root runners.
 - Do not add package-local `.github/` workflows unless explicitly requested by maintainers.
 - Keep release metadata (`x-pi-template`) aligned with root release-please component mapping.

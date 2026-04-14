@@ -27,8 +27,8 @@ Do not duplicate:
 - Put package-specific validation and workflow details in each package's docs, scripts, and manifests.
 - Keep package-local AGENTS files minimal and package-scoped.
 - Treat package folders as monorepo members, not independent repos, unless explicitly documented otherwise.
-- For AK task/work-item operations in this monorepo, use the repo-root wrapper `ak`.
-  - From a package directory, call the ancestor wrapper (for example `../.ak ...`).
+- For AK task/work-item operations in this monorepo, use plain installed `ak`.
+  - Run it from the repo root or a package directory; repo identity still belongs to the monorepo root.
   - Do not invent package-local AK wrappers or treat a package folder as its own repo identity.
 - For new package-local documentation, prefer:
   - `docs/project/` for dated RFCs, runbooks, evidence notes, and implementation guidance
@@ -50,6 +50,11 @@ Do not duplicate:
   - `/reload`
 - Verify with a real command/tool call after reload; do not assume install alone updated the active runtime.
 - Keep package-specific install examples in package docs/AGENTS; keep this root rule generic.
+
+
+## Direction workflow
+- When this repo's direction docs under `docs/project/` change, or when current posture needs verification, use `ak direction import|check|export` from the repo root.
+- Treat `ak direction check` as the authority-reconciliation gate between repo direction docs and AK's structured direction substrate.
 
 ## Read order
 1. `docs/_core/` (if present)
