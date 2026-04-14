@@ -44,6 +44,8 @@
     "extensions/code-block-picker.ts",
     "extensions/html-output-browser.ts",
     "extensions/package-update-notify.ts",
+    "extensions/session-presence.ts",
+    "extensions/sidequest.ts",
     "extensions/stash.ts",
     "lib/package-utils.ts",
     "prompts",
@@ -56,6 +58,8 @@
       "./extensions/code-block-picker.ts",
       "./extensions/html-output-browser.ts",
       "./extensions/package-update-notify.ts",
+      "./extensions/session-presence.ts",
+      "./extensions/sidequest.ts",
       "./extensions/stash.ts"
     ],
     "prompts": [

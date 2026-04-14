@@ -24,9 +24,35 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `code-block-picker` | Pick a code block from the conversation and copy it safely to the clipboard |
 | `html-output-browser` | Auto-open written/edited HTML files in the browser and append clickable `file://` links to the tool output |
 | `package-update-notify` | Check for updates to pinned npm/git packages in Pi settings |
+| `session-presence` | Publish exact Pi session identity for Steve's Ghostty/Niri hourly observation and hot restore flow |
+| `sidequest` | Fork the current Pi session into a new Ghostty tab when supported, otherwise a new Ghostty window |
 | `stash` | Persist and restore stashed editor content across sessions |
 
 Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
+
+## Steve-specific session presence / hot restore coupling
+
+This package now includes a deliberately **Steve-specific** helper for exact Pi session restore.
+
+The `session-presence` extension does two things:
+
+1. writes a live sidecar JSON for the current Pi process under `$XDG_RUNTIME_DIR/pi-session-presence/` (fallback `~/.local/state/pi-session-presence/`)
+2. sets the terminal title to include the short Pi session id, for example `π - agent-kernel · 77bc82bb`
+
+This lets the workstation hourly observer join:
+
+- the Ghostty/Niri window title
+- the live Pi process metadata
+- the exact session file under `~/.pi/agent/sessions/`
+
+The important restore consequence is:
+
+- use `pi --session <exact-session-file>` for hot restore
+- do **not** fall back to `pi --resume` when the exact session file is already known
+
+Detailed setup note:
+
+- [docs/project/2026-04-12-session-presence-for-steve-hot-restore.md](docs/project/2026-04-12-session-presence-for-steve-hot-restore.md)
 
 ## Runtime dependencies
 
@@ -64,7 +90,7 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Then in Pi:
 
 1. run `/reload`
-2. verify `/codeblocks`, the `stash` shortcuts/commands, and any `write`/`edit` flow that produces an `.html` file in a real session
+2. verify `/codeblocks`, `/sidequest "test prompt"`, `/session-presence`, the `stash` shortcuts/commands, and any `write`/`edit` flow that produces an `.html` file in a real session
 
 ## Docs discovery
 
