@@ -1,6 +1,6 @@
 {
   "name": "pi-autonomous-session-control",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "pi extension package for autonomy-control workflows in pi",
   "type": "module",
   "exports": {

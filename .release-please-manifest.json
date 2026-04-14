@@ -1,5 +1,5 @@
 {
-  "packages/pi-autonomous-session-control": "0.1.0",
+  "packages/pi-autonomous-session-control": "0.2.0",
   "packages/pi-context-overlay": "0.1.0",
   "packages/pi-interaction/pi-editor-registry": "0.1.0",
   "packages/pi-interaction/pi-interaction": "0.2.0",

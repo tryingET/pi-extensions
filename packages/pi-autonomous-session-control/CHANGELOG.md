@@ -13,6 +13,31 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.1.0...pi-autonomous-session-control-v0.2.0) (2026-04-14)
+
+
+### Features
+
+* add bounded ops-plane history surfaces ([ea0a1e1](https://github.com/tryingET/pi-extensions/commit/ea0a1e1b89e0365c6b7e2a0ef19afc8b69ddc2f9))
+* add compatibility canary test contracts to scenario packages ([7841b89](https://github.com/tryingET/pi-extensions/commit/7841b89141126e01a02f2bd27f5c3f79ae044af6))
+* add pi-autonomous-session-control package ([1865002](https://github.com/tryingET/pi-extensions/commit/1865002c7d5483ab0524d43e70ac499b3d218b76))
+* **asc:** harden execution plane with assistant protocol, abort, and transport safety ([e68f3ed](https://github.com/tryingET/pi-extensions/commit/e68f3edb2a01fc8120d78f2acf6ed43444510564))
+* deepen subagent inspection and deprecation workflow ([032f366](https://github.com/tryingET/pi-extensions/commit/032f3669f6272374627a1df098e9439bc823d115))
+* **extensions:** add prompt snippets for pi 0.59+ tool discoverability ([e516af2](https://github.com/tryingET/pi-extensions/commit/e516af2e3505e2901d6cb5b0c31581cda38eacad))
+* harden Pi 0.65 compatibility and AK launcher ([b0a922c](https://github.com/tryingET/pi-extensions/commit/b0a922c25aa7a9f36c05a1e336306ed3b4ad96ef))
+* **monorepo:** add packaged helpers and host-compat hardening ([0ec674c](https://github.com/tryingET/pi-extensions/commit/0ec674c9985875b315bae0929b102b04c1f4c666))
+* normalize ASC execution failure taxonomy ([2a43c58](https://github.com/tryingET/pi-extensions/commit/2a43c58e0012bcdc6f4ea6bfcb75ca770b04c60c))
+* **pi-autonomous-session-control:** expose public execution contract ([2287d6c](https://github.com/tryingET/pi-extensions/commit/2287d6caedcf2802b2cb8deb9329e69fca46ce20))
+* **pi-autonomous-session-control:** inherit current session model for subagent dispatch ([0ffdeeb](https://github.com/tryingET/pi-extensions/commit/0ffdeebdc38e3e26eb90592f90c16fe014e8a310))
+* **pi-autonomous-session-control:** scope dashboard widget to current session with time-bounded visibility ([ea3f21b](https://github.com/tryingET/pi-extensions/commit/ea3f21b5a2135274e268a108c3399bf62fa2f8fc))
+* **pi-autonomous-session-control:** scope subagent dashboard to current repo root and add grace-based hide logic ([ed78e8e](https://github.com/tryingET/pi-extensions/commit/ed78e8e9d8ad809b02a4868b356294782a76fda0))
+* reduce asc to no local tech-stack surface ([56e0434](https://github.com/tryingET/pi-extensions/commit/56e043435551f783a19e5166765efb68b2eeb44d))
+
+
+### Bug Fixes
+
+* **pi-autonomous-session-control:** isolate extensionless child settings ([9485c16](https://github.com/tryingET/pi-extensions/commit/9485c167d76e2ebbfedd360b46df777d45830623))
+
 ## [Unreleased]
 
 ### Added
