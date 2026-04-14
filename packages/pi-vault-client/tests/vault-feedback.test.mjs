@@ -244,7 +244,7 @@ test("rateTemplate seam records feedback from a receipt snapshot and commits fee
           ok: true,
           message: "Recorded rating 2/5 for execution 41 (meta-orchestration v3)",
         });
-        assert.equal(queryCalls.length, 1);
+        assert.equal(queryCalls.length, 2);
         assert.match(insertedSql, /INSERT INTO feedback/);
         assert.match(insertedSql, /needs ''help''/);
         assert.match(insertedSql, /needs-improvement/);
@@ -255,6 +255,73 @@ test("rateTemplate seam records feedback from a receipt snapshot and commits fee
             tables: ["feedback"],
           },
         ]);
+      } finally {
+        cleanup();
+      }
+    },
+  );
+});
+
+test("rateTemplate seam requires current active visibility even for trusted receipts", async () => {
+  await withTranspiledModuleHarness(
+    {
+      prefix: "vault-feedback-",
+      files: VAULT_FEEDBACK_FILES,
+    },
+    async ({ importModule }) => {
+      const { rateTemplate } = await importModule("src/vaultFeedback.js");
+      const { authorization, cleanup } = await createTrustedReceipt(importModule);
+      let queryStep = 0;
+
+      try {
+        const result = rateTemplate(
+          41,
+          5,
+          true,
+          "stale",
+          { actorCompany: "software" },
+          {
+            executionReceipt: authorization?.receipt || null,
+            executionReceiptVerificationKeys: authorization?.verificationKeys || [],
+          },
+          {
+            queryVaultJson() {
+              queryStep += 1;
+              if (queryStep === 1) {
+                return {
+                  rows: [{ id: 41, entity_id: 7, entity_version: 3 }],
+                };
+              }
+              if (queryStep === 2) {
+                return {
+                  rows: [],
+                };
+              }
+              throw new Error(`unexpected query step ${queryStep}`);
+            },
+            queryVaultJsonDetailed() {
+              throw new Error("should not inspect feedback when active visibility fails");
+            },
+            execVaultWithRowCount() {
+              throw new Error("should not insert feedback for archived or hidden executions");
+            },
+            commitVault() {
+              throw new Error("should not commit feedback for archived or hidden executions");
+            },
+            escapeSql(value) {
+              return String(value);
+            },
+            buildVisibilityPredicate(company) {
+              return `VISIBLE(${company || ""})`;
+            },
+          },
+        );
+
+        assert.deepEqual(result, {
+          ok: false,
+          message: "Template execution not found or not visible: 41",
+        });
+        assert.equal(queryStep, 2);
       } finally {
         cleanup();
       }

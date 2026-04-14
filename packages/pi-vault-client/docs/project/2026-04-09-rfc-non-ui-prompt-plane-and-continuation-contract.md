@@ -149,7 +149,7 @@ export interface VaultContinuationEnvelopeV1 {
     | {
         kind: "exact_template";
         template_name: string;
-        allow_picker_fallback?: boolean;
+        allow_picker_fallback?: false;
       }
     | {
         kind: "picker_query";
@@ -247,6 +247,7 @@ vault_continuation:
 - `ready` means the runtime should be able to prepare the next prompt now
 - `ambiguous` means the runtime may need picker-style resolution through package-owned logic
 - `blocked` means the assistant must name the prerequisite instead of pretending continuation is legal
+- `exact_template` continuations may set `allow_picker_fallback: false` for explicitness, but `true` is invalid in V3 because exact resolution must not silently degrade to picker behavior
 
 ## H) Invariants
 
@@ -254,6 +255,7 @@ Any implementation of this contract must preserve these invariants:
 
 1. **Visibility invariant**
    - the seam must use the same company/visibility rules as `/vault`, live `/vault:`, and current tool surfaces
+   - caller-supplied `currentCompany` must not conflict with resolved env/cwd company context
 2. **Preparation invariant**
    - the seam must use package-owned preparation/render logic rather than consumer-side prompt assembly
 3. **No prose-as-control-plane invariant**

@@ -15,7 +15,7 @@ export interface VaultContinuationEnvelopeV1 {
     | {
         kind: "exact_template";
         template_name: string;
-        allow_picker_fallback?: boolean;
+        allow_picker_fallback?: false;
       }
     | {
         kind: "picker_query";

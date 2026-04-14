@@ -279,7 +279,11 @@ test("vault_executions warns when DB execution rows are unavailable but local re
         readReceiptByExecutionId() {
           return null;
         },
-        listRecentReceipts() {
+        readTrustedReceiptByExecutionId() {
+          return null;
+        },
+        listRecentReceipts(options) {
+          assert.equal(options?.trustedOnly, true);
           return [
             {
               execution_id: 41,
@@ -384,7 +388,7 @@ test("vault_replay tool surfaces drift and unavailable replay classifications", 
         },
       },
       {
-        readReceiptByExecutionId(executionId) {
+        readTrustedReceiptByExecutionId(executionId) {
           assert.equal(executionId, 41);
           return scenario.receipt;
         },
@@ -449,7 +453,7 @@ test("vault_replay hides non-visible receipts as missing", async () => {
         },
       },
       {
-        readReceiptByExecutionId() {
+        readTrustedReceiptByExecutionId() {
           return hiddenReceipt;
         },
         listRecentReceipts() {

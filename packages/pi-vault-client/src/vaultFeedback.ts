@@ -101,26 +101,25 @@ export function rateTemplate(
         message: `Template execution not visible to ${actorContext.actorCompany}: ${normalizedExecutionId}`,
       };
     }
-    templateName = receipt.template.name || "template";
-  } else {
-    const execution = dependencies.queryVaultJson(`
-      SELECT e.id, pt.name
-      FROM executions e
-      INNER JOIN prompt_templates pt ON pt.id = e.entity_id
-      WHERE e.id = ${normalizedExecutionId}
-        AND e.entity_type = 'template'
-        AND pt.status = 'active'
-        AND ${dependencies.buildVisibilityPredicate(actorContext.actorCompany)}
-      LIMIT 1
-    `)?.rows?.[0];
-    if (!execution) {
-      return {
-        ok: false,
-        message: `Template execution not found or not visible: ${normalizedExecutionId}`,
-      };
-    }
-    templateName = String(execution.name || "template");
   }
+
+  const execution = dependencies.queryVaultJson(`
+    SELECT e.id, pt.name
+    FROM executions e
+    INNER JOIN prompt_templates pt ON pt.id = e.entity_id
+    WHERE e.id = ${normalizedExecutionId}
+      AND e.entity_type = 'template'
+      AND pt.status = 'active'
+      AND ${dependencies.buildVisibilityPredicate(actorContext.actorCompany)}
+    LIMIT 1
+  `)?.rows?.[0];
+  if (!execution) {
+    return {
+      ok: false,
+      message: `Template execution not found or not visible: ${normalizedExecutionId}`,
+    };
+  }
+  templateName = String(execution.name || receipt?.template.name || "template");
 
   const existingFeedback = dependencies.queryVaultJsonDetailed(`
     SELECT id FROM feedback WHERE execution_id = ${normalizedExecutionId} LIMIT 1

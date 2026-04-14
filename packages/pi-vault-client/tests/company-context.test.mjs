@@ -85,13 +85,13 @@ test("inferCompanyFromCwd prefers the ai-society anchor and supports company lan
       );
 
       const result = resolveCompanyContext({
-        cwd: "/workspace/company/software/project",
+        cwd: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
         defaultCompany: "core",
         env: {},
       });
       assert.deepEqual(result, {
         company: "software",
-        source: "cwd:/workspace/company/software/project",
+        source: "cwd:/home/tryinget/ai-society/softwareco/owned/pi-extensions",
       });
     },
   );
@@ -111,6 +111,9 @@ test("resolveCompanyContext avoids substring false positives and falls back clea
         "/tmp/notsoftwareco/project",
         "/tmp/softwareco-tools/project",
         "/tmp/housekeeping/project",
+        "/tmp/random/softwareco/project",
+        "/var/data/financeco/cache",
+        "/home/user/misc/holdingco/demo",
       ]) {
         assert.equal(inferCompanyFromCwd(cwd), null);
       }

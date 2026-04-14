@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import packageJson from "../package.json" with { type: "json" };
 import { createVaultPromptPlaneRuntime } from "../src/promptPlane.js";
+
+const ROOT_ENTRY_SOURCE = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
 
 function template(overrides = {}) {
   return {
@@ -59,6 +62,11 @@ test("package exports expose the supported prompt-plane seam", () => {
   assert.equal(packageJson.exports["./prompt-plane"].types, "./src/promptPlane.d.ts");
 });
 
+test("root entrypoint mirrors packaged runtime semantics", () => {
+  assert.equal(packageJson.exports["."], "./extensions/vault.js");
+  assert.match(ROOT_ENTRY_SOURCE, /export \{ default \} from "\.\/extensions\/vault\.js";/);
+});
+
 test("createVaultPromptPlaneRuntime prepares exact visible selections through package-owned render rules", async () => {
   const runtime = createVaultPromptPlaneRuntime({
     runtime: createRuntime({
@@ -103,6 +111,48 @@ test("prompt-plane seam fails closed without explicit company context", async ()
   assert.equal(result.ok, false);
   assert.equal(result.status, "blocked");
   assert.match(result.blocking_reason || "", /Explicit company context is required/);
+});
+
+test("prompt-plane seam rejects explicit company context that conflicts with resolved cwd context", async () => {
+  const runtime = createVaultPromptPlaneRuntime({ runtime: createRuntime() });
+
+  const result = await runtime.prepareSelection(
+    { query: "analysis-router" },
+    { currentCompany: "finance", cwd: "/tmp/software/project" },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.match(result.blocking_reason || "", /conflicts with resolved company context/);
+  assert.match(result.blocking_reason || "", /software/);
+});
+
+test("prompt-plane seam rejects explicit company context that conflicts with ambient resolved context", async () => {
+  const runtime = createVaultPromptPlaneRuntime({
+    runtime: {
+      resolveCurrentCompanyContext(cwd) {
+        return cwd
+          ? { company: "core", source: "contract-default" }
+          : { company: "software", source: "env:PI_COMPANY" };
+      },
+      getTemplateDetailed(name) {
+        return ok(template({ name }));
+      },
+      searchTemplatesDetailed() {
+        return ok([]);
+      },
+    },
+  });
+
+  const result = await runtime.prepareSelection(
+    { query: "analysis-router" },
+    { currentCompany: "finance", cwd: "/tmp/outside-workspace" },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.match(result.blocking_reason || "", /env:PI_COMPANY/);
+  assert.match(result.blocking_reason || "", /software/);
 });
 
 test("query-based prompt selection reports ambiguous visible matches instead of inventing a choice", async () => {
@@ -187,6 +237,27 @@ test("continuation preparation rejects semantically invalid exact-template ambig
   assert.equal(result.ok, false);
   assert.equal(result.status, "blocked");
   assert.match(result.blocking_reason || "", /ambiguous continuations must use picker_query/);
+});
+
+test("continuation preparation rejects exact-template picker fallback", async () => {
+  const runtime = createVaultPromptPlaneRuntime({ runtime: createRuntime() });
+
+  const result = await runtime.prepareContinuation(
+    {
+      contract_version: 1,
+      status: "ready",
+      resolution: {
+        kind: "exact_template",
+        template_name: "analysis-router",
+        allow_picker_fallback: true,
+      },
+    },
+    { currentCompany: "software" },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.match(result.blocking_reason || "", /cannot set allow_picker_fallback=true/);
 });
 
 test("continuation preparation rejects prose-only or malformed continuation input", async () => {

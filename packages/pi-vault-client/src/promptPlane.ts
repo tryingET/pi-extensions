@@ -24,7 +24,7 @@ export interface VaultContinuationEnvelopeV1 {
     | {
         kind: "exact_template";
         template_name: string;
-        allow_picker_fallback?: boolean;
+        allow_picker_fallback?: false;
       }
     | {
         kind: "picker_query";
@@ -127,23 +127,42 @@ function resolvePromptPlaneCompanyContext(
   ctx: PromptPlaneExecutionContext | undefined,
 ): { ok: true; currentCompany: string; companySource: string } | { ok: false; error: string } {
   const explicitCompany = asNonEmptyString(ctx?.currentCompany);
+  const companyContext = runtime.resolveCurrentCompanyContext(ctx?.cwd);
+  const ambientCompanyContext = ctx?.cwd
+    ? runtime.resolveCurrentCompanyContext(undefined)
+    : companyContext;
+  const effectiveResolvedContext =
+    companyContext.source === "contract-default" ? ambientCompanyContext : companyContext;
+
   if (explicitCompany) {
+    const conflictingContext = [companyContext, ambientCompanyContext].find(
+      (candidate) =>
+        candidate.source !== "contract-default" && candidate.company !== explicitCompany,
+    );
+    if (conflictingContext) {
+      return {
+        ok: false,
+        error: `Explicit currentCompany (${explicitCompany}) conflicts with resolved company context (${conflictingContext.company} via ${conflictingContext.source}).`,
+      };
+    }
     return {
       ok: true,
       currentCompany: explicitCompany,
-      companySource: "explicit:currentCompany",
+      companySource:
+        effectiveResolvedContext.source === "contract-default"
+          ? "explicit:currentCompany"
+          : effectiveResolvedContext.source,
     };
   }
 
-  const companyContext = runtime.resolveCurrentCompanyContext(ctx?.cwd);
-  if (companyContext.source === "contract-default") {
+  if (effectiveResolvedContext.source === "contract-default") {
     return { ok: false, error: PROMPT_PLANE_CONTEXT_ERROR };
   }
 
   return {
     ok: true,
-    currentCompany: companyContext.company,
-    companySource: companyContext.source,
+    currentCompany: effectiveResolvedContext.company,
+    companySource: effectiveResolvedContext.source,
   };
 }
 
@@ -302,6 +321,21 @@ function validateContinuationEnvelope(envelope: unknown):
   if (resolution.kind === "exact_template") {
     if (!asNonEmptyString(resolution.template_name)) {
       return { ok: false, error: "resolution.template_name is required for exact_template." };
+    }
+    if (
+      resolution.allow_picker_fallback !== undefined &&
+      typeof resolution.allow_picker_fallback !== "boolean"
+    ) {
+      return {
+        ok: false,
+        error: "resolution.allow_picker_fallback must be boolean when provided.",
+      };
+    }
+    if (resolution.allow_picker_fallback === true) {
+      return {
+        ok: false,
+        error: "exact_template continuations cannot set allow_picker_fallback=true in V3.",
+      };
     }
   } else if (resolution.kind === "picker_query") {
     if (!asNonEmptyString(resolution.query)) {

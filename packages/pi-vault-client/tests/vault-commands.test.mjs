@@ -726,7 +726,8 @@ test("vault receipt inspection commands respect current company visibility", asy
         },
       },
       {
-        listRecentReceipts({ currentCompany }) {
+        listRecentReceipts({ currentCompany, trustedOnly }) {
+          assert.equal(trustedOnly, true);
           if (currentCompany !== "finance") {
             return [
               {
@@ -737,7 +738,7 @@ test("vault receipt inspection commands respect current company visibility", asy
           }
           return [];
         },
-        readReceiptByExecutionId() {
+        readTrustedReceiptByExecutionId() {
           return {
             execution_id: 7,
             template: { visibility_companies: ["software"] },
@@ -823,7 +824,7 @@ test("vault replay command renders a deterministic replay report", async () => {
         },
       },
       {
-        readReceiptByExecutionId(executionId) {
+        readTrustedReceiptByExecutionId(executionId) {
           assert.equal(executionId, 41);
           return receipt;
         },
@@ -901,7 +902,7 @@ test("vault replay command treats non-visible receipts as missing in the current
         },
       },
       {
-        readReceiptByExecutionId(executionId) {
+        readTrustedReceiptByExecutionId(executionId) {
           assert.equal(executionId, 41);
           return hiddenReceipt;
         },

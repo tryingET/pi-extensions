@@ -1,1 +1,1 @@
-export { default } from "./extensions/vault.ts";
+export { default } from "./extensions/vault.js";

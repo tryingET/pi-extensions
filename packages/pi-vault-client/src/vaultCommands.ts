@@ -794,6 +794,7 @@ export function registerVaultCommands(
         const receipt = receipts.listRecentReceipts({
           currentCompany: companyContext.currentCompany,
           limit: 1,
+          trustedOnly: true,
         })[0];
         if (!receipt)
           return ctx.ui.notify(
@@ -814,7 +815,7 @@ export function registerVaultCommands(
         if (!Number.isFinite(executionId) || executionId < 1) {
           return ctx.ui.notify("Usage: /vault-receipt <execution_id>", "warning");
         }
-        const receipt = receipts.readReceiptByExecutionId(executionId);
+        const receipt = receipts.readTrustedReceiptByExecutionId(executionId);
         if (!receipt || !receiptVisibleToCompany(receipt, companyContext.currentCompany)) {
           return ctx.ui.notify(
             `No local receipt found for execution ${executionId} in the current company context.`,
@@ -835,17 +836,22 @@ export function registerVaultCommands(
         if (!Number.isFinite(executionId) || executionId < 1) {
           return ctx.ui.notify("Usage: /vault-replay <execution_id>", "warning");
         }
-        const receipt = receipts.readReceiptByExecutionId(executionId);
+        const receipt = receipts.readTrustedReceiptByExecutionId(executionId);
         if (!receipt || !receiptVisibleToCompany(receipt, companyContext.currentCompany)) {
           return ctx.ui.notify(
             `No local receipt found for execution ${executionId} in the current company context.`,
             "warning",
           );
         }
-        const report = replayVaultExecutionById(runtime, receipts, executionId, {
-          currentCompany: companyContext.currentCompany,
-          cwd: ctx.cwd,
-        });
+        const report = replayVaultExecutionById(
+          runtime,
+          { readReceiptByExecutionId: receipts.readTrustedReceiptByExecutionId },
+          executionId,
+          {
+            currentCompany: companyContext.currentCompany,
+            cwd: ctx.cwd,
+          },
+        );
         await ctx.ui.editor(`Vault Replay ${executionId}`, formatVaultReplayReport(report));
         ctx.ui.notify(`Vault replay status: ${report.status}`, "info");
       },

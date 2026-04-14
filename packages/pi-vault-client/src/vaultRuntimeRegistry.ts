@@ -66,12 +66,18 @@ export function createVaultReceiptsAccessor(
     readLatest: (options) => {
       const currentCompany = requireCurrentCompany(options);
       if (!currentCompany) return null;
-      return receiptManager.listRecentReceipts({ currentCompany, limit: 1 })[0] || null;
+      return (
+        receiptManager.listRecentReceipts({
+          currentCompany,
+          limit: 1,
+          trustedOnly: true,
+        })[0] || null
+      );
     },
     readByExecutionId: (executionId, options) => {
       const currentCompany = requireCurrentCompany(options);
       if (!currentCompany) return null;
-      const receipt = receiptManager.readReceiptByExecutionId(executionId);
+      const receipt = receiptManager.readTrustedReceiptByExecutionId(executionId);
       if (!receipt || !receipt.template.visibility_companies.includes(currentCompany)) return null;
       return receipt;
     },
@@ -82,6 +88,7 @@ export function createVaultReceiptsAccessor(
         currentCompany,
         templateName: options.templateName,
         limit: options.limit,
+        trustedOnly: true,
       });
     },
   };

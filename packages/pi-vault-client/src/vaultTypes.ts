@@ -379,6 +379,7 @@ export interface VaultReceiptManager {
     currentCompany?: string;
     templateName?: string;
     limit?: number;
+    trustedOnly?: boolean;
   }) => VaultExecutionReceiptV1[];
 }
 

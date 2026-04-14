@@ -656,10 +656,10 @@ Example: vault_replay({ execution_id: 42 })`,
                     details: { ok: false, error },
                 };
             }
-            const receipt = receipts.readReceiptByExecutionId(executionId);
+            const receipt = receipts.readTrustedReceiptByExecutionId(executionId);
             const report = !receipt || !receiptVisibleToCompany(receipt, executionContext.currentCompany)
                 ? replayVaultExecutionById(runtime, { readReceiptByExecutionId: () => null }, executionId, executionContext)
-                : replayVaultExecutionById(runtime, receipts, executionId, executionContext);
+                : replayVaultExecutionById(runtime, { readReceiptByExecutionId: receipts.readTrustedReceiptByExecutionId }, executionId, executionContext);
             return {
                 content: [{ type: "text", text: formatVaultReplayReport(report) }],
                 details: {
@@ -715,6 +715,7 @@ Example: vault_executions({ template_name: "nexus", limit: 10 })`,
                     currentCompany: executionContext.currentCompany,
                     templateName: templateName || undefined,
                     limit,
+                    trustedOnly: true,
                 })
                 : [];
             const rowMap = new Map();

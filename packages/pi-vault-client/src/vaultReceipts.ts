@@ -770,7 +770,7 @@ export function createVaultReceiptManager(
         verificationKeys: [Buffer.from(keyRecord.key)],
       };
     },
-    listRecentReceipts({ currentCompany, templateName, limit } = {}) {
+    listRecentReceipts({ currentCompany, templateName, limit, trustedOnly } = {}) {
       const normalizedLimit = Number.isFinite(Number(limit))
         ? Math.max(1, Math.floor(Number(limit)))
         : 20;
@@ -779,6 +779,7 @@ export function createVaultReceiptManager(
       const results: VaultExecutionReceiptV1[] = [];
       for (const receipt of receipts) {
         if (results.length >= normalizedLimit) break;
+        if (trustedOnly && !receiptTrustedForAuthorization(receipt)) continue;
         if (!receiptVisibleToCompany(receipt, currentCompany)) continue;
         if (normalizedTemplateName && receipt.template.name !== normalizedTemplateName) continue;
         results.push(receipt);

@@ -71,8 +71,12 @@ test("registerVaultCapabilityBridges registers receipt and telemetry accessors w
     readReceiptByExecutionId(executionId) {
       return executionId === 42 ? receipt : null;
     },
+    readTrustedReceiptByExecutionId(executionId) {
+      return executionId === 42 ? receipt : null;
+    },
     listRecentReceipts(options) {
       if (options?.currentCompany && options.currentCompany !== "software") return [];
+      if (options?.trustedOnly !== true) throw new Error("trustedOnly expected");
       return [receipt];
     },
   };

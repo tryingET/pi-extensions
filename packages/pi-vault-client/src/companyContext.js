@@ -1,3 +1,5 @@
+const COMPANY_CONTEXT_ANCHOR_SEGMENTS = new Set(["ai-society", "work", "workspace"]);
+const COMPANY_LANE_SEGMENTS = new Set(["owned", "infra", "contrib", "agents", "fork"]);
 const COMPANY_PATH_SEGMENT_ALIASES = {
     core: "core",
     software: "software",
@@ -31,16 +33,20 @@ export function inferCompanyFromCwd(cwd) {
     const segments = normalizePathSegments(effectiveCwd);
     if (segments.length === 0)
         return null;
-    const workspaceAnchorIndex = segments.lastIndexOf("ai-society");
-    if (workspaceAnchorIndex >= 0) {
-        const anchoredCompany = detectCompanyFromSegment(segments[workspaceAnchorIndex + 1]);
+    for (let index = segments.length - 2; index >= 0; index -= 1) {
+        if (!COMPANY_CONTEXT_ANCHOR_SEGMENTS.has(segments[index]))
+            continue;
+        const anchoredCompany = detectCompanyFromSegment(segments[index + 1]);
         if (anchoredCompany)
             return anchoredCompany;
     }
-    for (const segment of segments) {
-        const company = detectCompanyFromSegment(segment);
-        if (company)
-            return company;
+    for (let index = segments.length - 2; index >= 0; index -= 1) {
+        const directCompany = detectCompanyFromSegment(segments[index]);
+        if (!directCompany)
+            continue;
+        if (!COMPANY_LANE_SEGMENTS.has(segments[index + 1]))
+            continue;
+        return directCompany;
     }
     return null;
 }

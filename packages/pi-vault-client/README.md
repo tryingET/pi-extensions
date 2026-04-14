@@ -96,11 +96,13 @@ import { createVaultPromptPlaneRuntime } from "pi-vault-client/prompt-plane";
 
 Current V3 seam scope:
 - prepare a visible template/query/context through package-owned visibility + render rules
+- reject caller-supplied `currentCompany` when it conflicts with resolved env/cwd company context
 - prepare a continuation from a machine-readable `VaultContinuationEnvelopeV1`
 - keep continuation operational only through the continuation envelope, not prose parsing
 - preserve package-owned prompt preparation semantics without moving runtime ownership into AK
 - treat continuation provenance as forward-compatible metadata only; V3 does not yet bind it into receipt/replay lineage
 - fail closed when `inherit_current_company: false`; cross-company continuation semantics are not part of V3
+- reject `exact_template` continuations that attempt `allow_picker_fallback=true`; exact resolution must stay exact in V3
 - keep V4 continuation-graph persistence explicitly out of scope for this slice
 
 Use this seam when a downstream package needs deterministic prompt-plane preparation without slash-command or live-trigger wiring.
@@ -118,9 +120,9 @@ Kept commands:
 - `/vault-check`
 - `/vault-live-telemetry`
 - `/vault-fzf-spike`
-- `/vault-last-receipt` — latest local receipt visible to the current company
-- `/vault-receipt <execution_id>` — exact local receipt if visible to the current company
-- `/vault-replay <execution_id>` — deterministic replay report for one visible local receipt
+- `/vault-last-receipt` — latest local trusted receipt visible to the current company
+- `/vault-receipt <execution_id>` — exact local trusted receipt if visible to the current company
+- `/vault-replay <execution_id>` — deterministic replay report for one visible trusted local receipt
 
 Current `/vault` behavior:
 
@@ -164,14 +166,14 @@ Tool-query defaults:
   - receipt-auth key path: `~/.pi/agent/state/pi-vault-client/vault-execution-receipts.key`
   - emergency fallback spool path: `os.tmpdir()/pi-vault-client/vault-execution-receipts.fallback.jsonl`
   - override directory with `PI_VAULT_RECEIPTS_DIR`
-  - manager-written receipts are signed locally (`hmac-sha256`) so mutation-sensitive flows can distinguish trusted package receipts from unsigned/edited legacy JSONL lines
+  - manager-written receipts are signed locally (`hmac-sha256`) so public receipt/replay/execution surfaces can distinguish trusted package receipts from unsigned/edited legacy JSONL lines
   - receipt auth keys are provisioned lazily and enforced to local-only permissions (`0600`) instead of blocking extension startup when receipt state is unavailable
   - queued prepared prompts now carry an opaque hidden execution marker so send-time binding can verify the exact prepared prompt at send time
   - execution markers are stripped from user messages before the LLM sees them
   - if the final sent prompt no longer matches the prepared prompt exactly, Vault skips execution logging and local receipt persistence instead of attributing the edited send to the original template
   - if the primary receipt sink is unavailable, Vault falls back to an emergency temp-backed receipt sink before surfacing a send-time warning
   - if every receipt sink fails after execution logging succeeds, Vault now surfaces that as an explicit degraded send-time state instead of silently pretending receipt persistence succeeded
-  - `vault_executions` prefers local receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
+  - `vault_executions` prefers local trusted receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
   - `vault_replay({ execution_id })` and `/vault-replay <execution_id>` now expose the local replay core directly with deterministic `match` / `drift` / `unavailable` reporting keyed to the exact execution id
 
 ### Receipt and replay operator workflow
@@ -188,7 +190,7 @@ Tool-query defaults:
   - `unavailable` = replay could not be completed truthfully
 - visibility stays fail-closed
   - explicit company context is required for receipt inspection and replay surfaces
-  - `/vault-receipt <execution_id>` and `/vault-replay <execution_id>` only open visible local receipts in the current company context
+  - `/vault-receipt <execution_id>` and `/vault-replay <execution_id>` only open visible trusted local receipts in the current company context
   - replay eligibility now follows the receipt visibility snapshot rather than only the original execution company, so cross-company-visible receipts remain replayable from other visible companies
   - `vault_replay({ execution_id })` returns the same replay contract on the tool surface, and treats non-visible receipts as `receipt-missing` rather than leaking template identity
 
@@ -211,9 +213,9 @@ Tool mutation surface:
 - `vault_rate({ execution_id, ... })` now binds feedback to an exact execution row instead of a template name.
   - use `vault_executions(...)` first to retrieve the exact `execution_id`
   - feedback insert succeeds only when exactly one feedback row is written for that execution
-  - when a trusted local receipt exists for that execution, `vault_rate` can use the receipt's immutable visibility snapshot so later template archive drift does not block feedback for package-originated executions
+  - when a trusted local receipt exists for that execution, `vault_rate` uses it only as an execution-identity cross-check; current template status and visibility must still pass in Prompt Vault before feedback is written
   - receipt trust is runtime-issued and internal to this package; callers cannot grant feedback authorization by passing a boolean flag or edited JSON alone
-  - unsigned/edited legacy receipt JSONL is still readable for inspection and replay, but no longer authorizes mutation-sensitive feedback visibility by itself
+  - unsigned/edited legacy receipt JSONL is ignored by operator/tool receipt, replay, and execution-list surfaces, and never authorizes mutation-sensitive feedback visibility
   - mutation still uses explicit company context so feedback writes do not silently inherit ambient process cwd
 
 Use `/vault-check` to inspect schema compatibility, resolved company context, and visibility of key shared templates in the interactive TUI.

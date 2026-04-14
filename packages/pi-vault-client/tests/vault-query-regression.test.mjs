@@ -36,6 +36,7 @@ const TRIGGER_ADAPTER_SOURCE = readFileSync(
   "utf8",
 );
 const PACKAGE_JSON_SOURCE = readFileSync(new URL("../package.json", import.meta.url), "utf8");
+const ROOT_INDEX_SOURCE = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
 
 test("vault runtime targets Prompt Vault schema v9", () => {
   assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s*9/);
@@ -45,6 +46,7 @@ test("vault runtime targets Prompt Vault schema v9", () => {
   assert.match(EXTENSION_SOURCE, /registerVaultDiagnosticsTool\(pi, vaultRuntime\)/);
   assert.match(EXTENSION_SOURCE, /createVaultReceiptManager\(vaultRuntime\)/);
   assert.match(EXTENSION_SOURCE, /registerVaultCapabilityBridges\(/);
+  assert.match(EXTENSION_SOURCE, /unregisterVaultCapabilityBridges\(/);
   assert.match(
     EXTENSION_SOURCE,
     /summarizeTelemetry: pickerRuntime\.summarizeLiveTriggerTelemetry/,
@@ -58,6 +60,22 @@ test("vault runtime targets Prompt Vault schema v9", () => {
   assert.match(EXTENSION_SOURCE, /checkSchemaCompatibilityDetailed\(\)/);
   assert.match(EXTENSION_SOURCE, /expected=\$\{SCHEMA_VERSION\}/);
   assert.match(EXTENSION_SOURCE, /actual=\$\{schemaReport\.actualVersion \?\? "unknown"\}/);
+});
+
+test("extension registers capability bridges only after schema-gated startup and root export mirrors packaged js entrypoint", () => {
+  const schemaCheckIndex = EXTENSION_SOURCE.indexOf(
+    "const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();",
+  );
+  const registerToolsIndex = EXTENSION_SOURCE.indexOf(
+    "registerVaultTools(pi, runtime, receiptManager);",
+  );
+  const registerBridgesIndex = EXTENSION_SOURCE.lastIndexOf("registerVaultCapabilityBridges(");
+  assert.ok(schemaCheckIndex >= 0);
+  assert.ok(registerToolsIndex >= 0);
+  assert.ok(registerBridgesIndex >= 0);
+  assert.ok(registerBridgesIndex > schemaCheckIndex);
+  assert.ok(registerBridgesIndex > registerToolsIndex);
+  assert.match(ROOT_INDEX_SOURCE, /export \{ default \} from "\.\/extensions\/vault\.js";/);
 });
 
 test("vault runtime registry bridge stays scoped to receipts and live telemetry", () => {
@@ -406,7 +424,8 @@ test("vault check command reports detailed schema diagnostics plus company conte
   );
   assert.match(COMPANY_CONTEXT_SOURCE, /export function resolveCompanyContext\(/);
   assert.match(COMPANY_CONTEXT_SOURCE, /export function inferCompanyFromCwd\(/);
-  assert.match(COMPANY_CONTEXT_SOURCE, /lastIndexOf\("ai-society"\)/);
+  assert.match(COMPANY_CONTEXT_SOURCE, /COMPANY_CONTEXT_ANCHOR_SEGMENTS/);
+  assert.match(COMPANY_CONTEXT_SOURCE, /COMPANY_LANE_SEGMENTS/);
   assert.match(COMPANY_CONTEXT_SOURCE, /softwareco: "software"/);
   assert.match(COMPANY_CONTEXT_SOURCE, /source: "env:PI_COMPANY"/);
   assert.match(COMPANY_CONTEXT_SOURCE, /source: `cwd:\$\{effectiveCwd\}`/);

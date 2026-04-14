@@ -9,7 +9,10 @@ import { createVaultRuntime } from "../src/vaultDb.js";
 import { createGroundingRuntime } from "../src/vaultGrounding.js";
 import { createPickerRuntime } from "../src/vaultPicker.js";
 import { createVaultReceiptManager } from "../src/vaultReceipts.js";
-import { registerVaultCapabilityBridges } from "../src/vaultRuntimeRegistry.js";
+import {
+  registerVaultCapabilityBridges,
+  unregisterVaultCapabilityBridges,
+} from "../src/vaultRuntimeRegistry.js";
 import { registerVaultDiagnosticsTool, registerVaultTools } from "../src/vaultTools.js";
 import { SCHEMA_VERSION, VAULT_DIR, VLLM_ENDPOINT, VLLM_MODEL } from "../src/vaultTypes.js";
 
@@ -18,6 +21,8 @@ function formatMissingColumns(label: string, columns: string[]): string {
 }
 
 export default function registerVaultExtension(pi: ExtensionAPI) {
+  unregisterVaultCapabilityBridges();
+
   const vaultRuntime = createVaultRuntime();
   const receiptManager = createVaultReceiptManager(vaultRuntime);
   const pickerRuntime = createPickerRuntime(vaultRuntime, receiptManager);
@@ -27,12 +32,6 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
     ...pickerRuntime,
     ...groundingRuntime,
   };
-
-  registerVaultCapabilityBridges({
-    receiptManager,
-    summarizeTelemetry: pickerRuntime.summarizeLiveTriggerTelemetry,
-    getTelemetryStats: pickerRuntime.getLiveTriggerTelemetryStats,
-  });
 
   const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();
 
@@ -70,4 +69,9 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
   registerPromptEvaluatorCommands(pi, evalConfig, vaultOps);
   runtime.registerVaultLiveTrigger();
   registerVaultTools(pi, runtime, receiptManager);
+  registerVaultCapabilityBridges({
+    receiptManager,
+    summarizeTelemetry: pickerRuntime.summarizeLiveTriggerTelemetry,
+    getTelemetryStats: pickerRuntime.getLiveTriggerTelemetryStats,
+  });
 }

@@ -102,6 +102,10 @@ test("vault receipt manager does not trust unsigned legacy receipts for mutation
 
     assert.equal(receipts.readReceiptByExecutionId(19)?.execution_id, 19);
     assert.equal(receipts.readTrustedReceiptByExecutionId(19), null);
+    assert.deepEqual(
+      receipts.listRecentReceipts({ currentCompany: "software", limit: 5, trustedOnly: true }),
+      [],
+    );
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -396,6 +400,11 @@ test("vault receipt manager prefers a signed duplicate over an unsigned primary 
     const preferred = receipts.readReceiptByExecutionId(77);
     const trusted = receipts.readTrustedReceiptByExecutionId(77);
     const softwareRecent = receipts.listRecentReceipts({ currentCompany: "software", limit: 5 });
+    const softwareTrustedRecent = receipts.listRecentReceipts({
+      currentCompany: "software",
+      limit: 5,
+      trustedOnly: true,
+    });
     const financeRecent = receipts.listRecentReceipts({ currentCompany: "finance", limit: 5 });
     assert.equal(preferred?.company.current_company, "software");
     assert.equal(preferred?.auth?.mode, "hmac-sha256");
@@ -404,6 +413,8 @@ test("vault receipt manager prefers a signed duplicate over an unsigned primary 
     assert.equal(softwareRecent.length, 1);
     assert.equal(softwareRecent[0]?.company.current_company, "software");
     assert.equal(softwareRecent[0]?.auth?.mode, "hmac-sha256");
+    assert.equal(softwareTrustedRecent.length, 1);
+    assert.equal(softwareTrustedRecent[0]?.company.current_company, "software");
     assert.equal(financeRecent.length, 0);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
@@ -592,6 +603,12 @@ test("vault receipt manager finalizes prepared executions on send and persists l
 
     const visible = receipts.listRecentReceipts({ currentCompany: "software", limit: 5 });
     assert.equal(visible.length, 1);
+    const trustedVisible = receipts.listRecentReceipts({
+      currentCompany: "software",
+      limit: 5,
+      trustedOnly: true,
+    });
+    assert.equal(trustedVisible.length, 1);
     const hidden = receipts.listRecentReceipts({ currentCompany: "finance", limit: 5 });
     assert.equal(hidden.length, 0);
 

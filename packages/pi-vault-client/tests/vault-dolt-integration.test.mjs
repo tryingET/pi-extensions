@@ -220,7 +220,7 @@ test("vault runtime supports end-to-end execution-bound feedback in a real temp 
   });
 });
 
-test("vault runtime can still rate an archived execution when a local receipt preserves visibility provenance", async () => {
+test("vault runtime rejects archived executions even when a trusted local receipt exists", async () => {
   await withTempVaultRuntime(async ({ importModule }) => {
     const { createVaultRuntime } = await importModule("src/vaultDb.js");
     const { createPreparedExecutionToken, createVaultReceiptManager, withPreparedExecutionMarker } =
@@ -313,8 +313,11 @@ test("vault runtime can still rate an archived execution when a local receipt pr
           executionReceiptVerificationKeys: receiptAuthorization?.verificationKeys || [],
         },
       );
-      assert.equal(rating.ok, true);
-      assert.match(rating.message, /Recorded rating 5\/5/);
+      assert.equal(rating.ok, false);
+      assert.equal(
+        rating.message,
+        `Template execution not found or not visible: ${finalized.receipt.execution_id}`,
+      );
     } finally {
       rmSync(receiptDir, { recursive: true, force: true });
     }
