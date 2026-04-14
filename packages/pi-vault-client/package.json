@@ -1,6 +1,6 @@
 {
   "name": "pi-vault-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "pi extension package for vault workflows in monorepo runtime",
   "type": "module",
   "exports": {
