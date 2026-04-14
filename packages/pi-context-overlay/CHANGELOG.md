@@ -13,6 +13,19 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-context-overlay-v0.1.0...pi-context-overlay-v0.2.0) (2026-04-14)
+
+
+### Features
+
+* harden Pi 0.65 compatibility and AK launcher ([b0a922c](https://github.com/tryingET/pi-extensions/commit/b0a922c25aa7a9f36c05a1e336306ed3b4ad96ef))
+* **monorepo:** add packaged helpers and host-compat hardening ([0ec674c](https://github.com/tryingET/pi-extensions/commit/0ec674c9985875b315bae0929b102b04c1f4c666))
+
+
+### Bug Fixes
+
+* **context-overlay:** sync live snapshot from session_start ([f5a1043](https://github.com/tryingET/pi-extensions/commit/f5a10434c4cee0339747bd75b91146e69a584629))
+
 ## [Unreleased]
 
 ### Added

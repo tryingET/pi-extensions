@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-context-overlay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Context inspector overlay and context-report prompt for Pi sessions",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
