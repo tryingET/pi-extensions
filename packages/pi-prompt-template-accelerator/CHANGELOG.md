@@ -13,6 +13,25 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-accelerator-v0.1.0...pi-prompt-template-accelerator-v0.2.0) (2026-04-14)
+
+
+### Features
+
+* add compatibility canary test contracts to scenario packages ([7841b89](https://github.com/tryingET/pi-extensions/commit/7841b89141126e01a02f2bd27f5c3f79ae044af6))
+* harden Pi 0.65 compatibility and AK launcher ([b0a922c](https://github.com/tryingET/pi-extensions/commit/b0a922c25aa7a9f36c05a1e336306ed3b4ad96ef))
+* **monorepo:** add packaged helpers and host-compat hardening ([0ec674c](https://github.com/tryingET/pi-extensions/commit/0ec674c9985875b315bae0929b102b04c1f4c666))
+* **ptx:** improve no-candidate guidance ([d8a9b4f](https://github.com/tryingET/pi-extensions/commit/d8a9b4f1bc9b63321886214ade26a0a52ee4d287))
+* **ptx:** register runtime ownership in shared registry ([642ee0b](https://github.com/tryingET/pi-extensions/commit/642ee0b740cb09513a8983c4b63003a44a9ca3f0))
+
+
+### Bug Fixes
+
+* **pi-prompt-template-accelerator:** harden PTX prefill contract ([01d86fd](https://github.com/tryingET/pi-extensions/commit/01d86fd3cf167ddd37878dcbf68ce02f144932d9))
+* **pi-prompt-template-accelerator:** prefer shared interaction runtime ([aad819c](https://github.com/tryingET/pi-extensions/commit/aad819c88c6953ece7d2f25d7792a994466896f2))
+* **ptx:** prefer top-level command source over provenance sourceInfo.source ([e9cc01f](https://github.com/tryingET/pi-extensions/commit/e9cc01f10a1b56deaf4523f42ebe0de559ee7b22))
+* **ptx:** remove startup intake and harden template resolution ([e296f35](https://github.com/tryingET/pi-extensions/commit/e296f354fb155054ad70fd540246e6615fb4e219))
+
 ## [Unreleased]
 
 ### Added
