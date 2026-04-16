@@ -19,7 +19,7 @@ test("extension registers the compact ontology workflow surface", () => {
     },
   } as never);
 
-  assert.deepEqual(tools.sort(), ["ontology_change", "ontology_inspect"]);
+  assert.deepEqual(tools.sort(), ["ontology_change", "ontology_inspect", "ontology_proposal"]);
   assert.deepEqual(commands, ["ontology-status"]);
   assert.deepEqual(events.sort(), ["before_agent_start", "session_start", "session_start"]);
 });

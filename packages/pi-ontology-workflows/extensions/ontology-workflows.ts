@@ -18,11 +18,19 @@ import {
   SYSTEM4D_ACTIONS,
 } from "../src/core/contracts.ts";
 import { inspectOntology } from "../src/core/inspect.ts";
+import {
+  createOntologyProposalRuntime,
+  ONTOLOGY_PROPOSAL_CANDIDATE_KINDS,
+  ONTOLOGY_PROPOSAL_SCOPE_HINTS,
+  type OntologyProposalAssessment,
+  type OntologyProposalCandidate,
+} from "../src/core/proposal.ts";
 
 const files = createFilesystemPort();
 const rocs = createRocsCliPort();
 const workspace = createWorkspacePort();
 const runtimeDeps = { files, rocs, workspace };
+const proposalRuntime = createOntologyProposalRuntime(runtimeDeps);
 const ONTOLOGY_STATUS_KEY = "ontology-workflows";
 
 const inspectSchema = Type.Object({
@@ -38,6 +46,19 @@ const inspectSchema = Type.Object({
   ),
   depth: Type.Optional(Type.Integer({ minimum: 0, description: "Optional pack depth" })),
   maxDocs: Type.Optional(Type.Integer({ minimum: 1, description: "Optional pack max docs" })),
+});
+
+const proposalSchema = Type.Object({
+  candidateKind: StringEnum(ONTOLOGY_PROPOSAL_CANDIDATE_KINDS),
+  scopeHint: Type.Optional(StringEnum(ONTOLOGY_PROPOSAL_SCOPE_HINTS)),
+  title: Type.Optional(Type.String()),
+  labels: Type.Optional(Type.Array(Type.String())),
+  synonyms: Type.Optional(Type.Array(Type.String())),
+  description: Type.String(),
+  domain: Type.Optional(Type.String()),
+  range: Type.Optional(Type.String()),
+  rationale: Type.Optional(Type.String()),
+  evidenceRefs: Type.Optional(Type.Array(Type.String())),
 });
 
 const changeSchema = Type.Object({
@@ -104,6 +125,43 @@ function buildStartupNotificationText(result: Awaited<ReturnType<typeof inspectO
   ].join("\n");
 }
 
+function formatProposalAssessment(result: OntologyProposalAssessment): string {
+  const lines = [
+    "# Ontology Proposal Check",
+    "",
+    `- ok: ${result.ok ? "yes" : "no"}`,
+    `- verdict: ${result.verdict}`,
+    `- recommended scope: ${result.recommendedScope}`,
+    `- duplicate risk: ${result.duplicateRisk}`,
+    `- recommended target id: ${result.recommendedTargetId ?? "-"}`,
+    "",
+    "## Reasoning",
+    result.reasoning,
+    "",
+    "## Nearest existing",
+  ];
+
+  if (result.nearestExisting.length === 0) {
+    lines.push("- none");
+  } else {
+    for (const match of result.nearestExisting) {
+      lines.push(`- ${match.ontId} (score=${match.score}) — ${match.reason}`);
+    }
+  }
+
+  if (result.ontologyChangePlan) {
+    lines.push(
+      "",
+      "## Suggested ontology_change payload",
+      "```json",
+      JSON.stringify(result.ontologyChangePlan, null, 2),
+      "```",
+    );
+  }
+
+  return lines.join("\n");
+}
+
 export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
   registerOntologyInteractionRuntime(pi, runtimeDeps);
 
@@ -128,6 +186,30 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       updateStatusFromInspect(ctx, result);
       return {
         content: [{ type: "text", text }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "ontology_proposal",
+    label: "Ontology Proposal Check",
+    description:
+      "Assess a candidate ontology concept or relation without applying changes. Performs collision checks, scope recommendation, id suggestion, and emits a plan-ready ontology_change payload when appropriate.",
+    promptSnippet:
+      "Assess whether a missing term belongs in ontology before creating an ontology_change plan.",
+    promptGuidelines: [
+      "Use ontology_proposal when you suspect a missing concept or relation but are not yet sure ontology is the right tool.",
+      "Treat this as plan-only governance support: it should assess duplicates, scope, and target ids, not apply changes.",
+      "Review high-duplicate or insufficient-evidence results before writing ontology candidate artifacts or change plans.",
+    ],
+    parameters: proposalSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = await proposalRuntime.assess(params as OntologyProposalCandidate, {
+        cwd: ctx.cwd,
+      });
+      return {
+        content: [{ type: "text", text: formatProposalAssessment(result) }],
         details: result,
       };
     },
@@ -259,6 +341,7 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
         `${event.systemPrompt}\n\n` +
         `Ontology workflow hint:\n` +
         `- Use ontology_inspect before inventing or changing concepts, relations, invariants, system4d entries, or bridge mappings.\n` +
+        `- If you are unsure whether a missing term deserves ontology at all, use ontology_proposal before ontology_change.\n` +
         `- Use ontology_change for ontology writes so routing, validation, and build behavior stay explicit.\n` +
         `- Keep repo/company/core placement explicit when semantic scope matters.`,
     };
