@@ -2,6 +2,20 @@ import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import type { CampaignMachineInput, CampaignMachineStateValue } from "../machine/campaign.ts";
+import { type CampaignSegmentConfig, campaignEvents } from "../machine/events.ts";
+import {
+  AUTORESEARCH_EVENT_LEDGER_FILE,
+  type AutoresearchLedgerEventEntry,
+  type AutoresearchLedgerReplayIssue,
+  appendLedgerEvent,
+  createLedgerEventEntry,
+  loadAutoresearchLedger,
+  projectAutoresearchLedger,
+  projectAutoresearchLedgerEntries,
+  resolveAutoresearchLedgerPath,
+} from "./ledger.ts";
+
 export const AUTORESEARCH_COMMAND_NAME = "autoresearch";
 export const AUTORESEARCH_STATUS_TOOL_NAME = "autoresearch_runtime_status";
 export const AUTORESEARCH_RUN_TOOL_NAME = "autoresearch_runtime_run";
@@ -9,6 +23,7 @@ export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
+  AUTORESEARCH_EVENT_LEDGER_FILE,
   "autoresearch.md",
   "autoresearch.sh",
   "autoresearch.checks.sh",
@@ -84,6 +99,18 @@ export interface AutoresearchSegmentSummary {
   lastRunMetric: number | null;
 }
 
+export interface AutoresearchRuntimeProjection {
+  state: CampaignMachineStateValue;
+  source: "ledger" | "receipt_fallback";
+  ledgerPath?: string;
+  hasLedger: boolean;
+  invalidLedgerLines: number;
+  eventCount: number;
+  replayedEventCount: number;
+  rejectedEvents: readonly AutoresearchLedgerReplayIssue[];
+  syncIssues: readonly string[];
+}
+
 export interface AutoresearchRuntimeStatus {
   phase: typeof AUTORESEARCH_PHASE;
   cwd?: string;
@@ -99,6 +126,7 @@ export interface AutoresearchRuntimeStatus {
   hasChecksScript: boolean;
   invalidReceiptLines: number;
   currentSegment: AutoresearchSegmentSummary;
+  runtimeProjection: AutoresearchRuntimeProjection;
   nextSlices: readonly string[];
 }
 
@@ -322,6 +350,8 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
         "- last run: (none)",
       ];
 
+  const projection = status.runtimeProjection;
+
   return [
     "# PI-AUTORESEARCH STATUS",
     "",
@@ -330,11 +360,21 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     `- tools: ${status.toolNames.join(", ")}`,
     status.cwd ? `- cwd: ${status.cwd}` : "- cwd: (unset)",
     status.receiptPath ? `- receipt log: ${status.receiptPath}` : "- receipt log: (unresolved)",
+    projection.ledgerPath
+      ? `- event ledger: ${projection.ledgerPath}`
+      : "- event ledger: (unresolved)",
     `- local artifacts: ${status.localArtifacts.join(", ")}`,
     `- receipt entry types: ${status.receiptEntryTypes.join(", ")}`,
     `- benchmark script present: ${status.hasBenchmarkScript ? "yes" : "no"}`,
     `- checks script present: ${status.hasChecksScript ? "yes" : "no"}`,
     `- invalid receipt lines: ${status.invalidReceiptLines}`,
+    `- machine state: ${projection.state}`,
+    `- machine projection source: ${projection.source}`,
+    `- event ledger present: ${projection.hasLedger ? "yes" : "no"}`,
+    `- invalid ledger lines: ${projection.invalidLedgerLines}`,
+    `- ledger replay: ${projection.replayedEventCount}/${projection.eventCount} events accepted`,
+    `- ledger replay issues: ${projection.rejectedEvents.length}`,
+    `- projection sync issues: ${projection.syncIssues.length}`,
     ...currentSegmentLines,
     `- ready Prompt Vault templates: ${status.readyPromptVaultTemplates.join(", ")}`,
     `- blocked Prompt Vault templates: ${status.blockedPromptVaultTemplates.join(", ")}`,
@@ -344,6 +384,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
 
 export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): string {
   const segment = status.currentSegment;
+  const projection = status.runtimeProjection;
   const configurationBlock = segment.configured
     ? [
         "## Current bounded runtime",
@@ -355,24 +396,31 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
         `- baseline: ${formatMetricValue(segment.baselineMetric, segment.metricUnit)}`,
         `- best: ${formatMetricValue(segment.bestMetric, segment.metricUnit)}`,
         `- confidence: ${formatConfidenceValue(segment.confidence)}`,
+        `- machine state: ${projection.state}`,
+        `- machine projection source: ${projection.source}`,
+        `- event ledger: ${projection.ledgerPath ?? "(unresolved)"}`,
+        `- replayed events: ${projection.replayedEventCount}/${projection.eventCount}`,
       ]
     : [
         "## Current bounded runtime",
         "- no config receipt yet",
+        `- machine state: ${projection.state}`,
+        `- machine projection source: ${projection.source}`,
+        `- event ledger: ${projection.ledgerPath ?? "(unresolved)"}`,
         "- use autoresearch_runtime_run with name + metricName to bootstrap the first local segment",
       ];
 
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution and append-only receipt logging.",
+    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, and append-only receipt/event logging.",
     "This package still does not own the autonomous loop, AK binding, or finalization workflow.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
     `- tools: ${status.toolNames.join(", ")}`,
     "- use autoresearch_runtime_status to inspect the current bounded runtime state",
-    "- use autoresearch_runtime_run to execute one bounded local run and append receipts",
+    "- use autoresearch_runtime_run to execute one bounded local run and append receipts plus machine/ledger events",
     "",
     ...configurationBlock,
     "",
@@ -409,8 +457,12 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     "",
     `- cwd: ${result.cwd}`,
     `- receipt log: ${result.receiptPath}`,
+    `- event ledger: ${result.status.runtimeProjection.ledgerPath ?? "(unresolved)"}`,
     `- created config: ${result.createdConfig ? "yes" : "no"}`,
     `- run status: ${result.runReceipt.status}`,
+    `- machine state: ${result.status.runtimeProjection.state}`,
+    `- machine projection source: ${result.status.runtimeProjection.source}`,
+    `- ledger replay: ${result.status.runtimeProjection.replayedEventCount}/${result.status.runtimeProjection.eventCount} events accepted`,
     `- primary metric: ${result.primaryMetricName}=${formatMetricValue(result.primaryMetric, metricUnit)}`,
     `- benchmark: ${result.benchmark.command}`,
     `- benchmark exit: ${formatExit(result.benchmark.exitCode, result.benchmark.timedOut)} in ${result.benchmark.durationSeconds.toFixed(2)}s`,
@@ -442,6 +494,8 @@ export async function executeAutoresearchRun(
   const paths = resolveAutoresearchPaths(cwd);
   const loadResult = loadReceiptLog(cwd);
   const entries = [...loadResult.entries];
+  ensureEventLedgerInitializedFromReceipts(cwd, entries);
+
   let currentSegment = getCurrentSegment(entries);
   let config = currentSegment.config;
   let createdConfig = false;
@@ -467,6 +521,30 @@ export async function executeAutoresearchRun(
   }
 
   const checksCommand = resolveChecksCommand(input.checksCommand, config.checksCommand, paths);
+
+  if (createdConfig) {
+    appendReceipt(cwd, config);
+    appendLedgerEvent(
+      cwd,
+      createLedgerEventEntry(
+        campaignEvents.configureSegment(createCampaignSegmentConfigFromReceipt(config)),
+        config.createdAt,
+      ),
+    );
+  }
+
+  ensureMachineReadyForBoundedRun(cwd);
+  appendLedgerEvent(
+    cwd,
+    createLedgerEventEntry(
+      campaignEvents.startRun({
+        description,
+        benchmarkCommand,
+        checksCommand,
+      }),
+    ),
+  );
+
   const benchmark = await runShellCommand({
     command: benchmarkCommand,
     cwd,
@@ -479,6 +557,26 @@ export async function executeAutoresearchRun(
   const hasPrimaryMetric = hasOwn(parsedMetrics, metricName);
   const benchmarkSucceeded = benchmark.exitCode === 0 && !benchmark.timedOut;
   const metricContractFailed = benchmarkSucceeded && !hasPrimaryMetric;
+  const primaryMetric = hasPrimaryMetric ? parsedMetrics[metricName] : 0;
+
+  if (benchmarkSucceeded && !metricContractFailed) {
+    appendLedgerEvent(
+      cwd,
+      createLedgerEventEntry(
+        campaignEvents.benchmarkSucceeded({
+          metric: primaryMetric,
+          requiresChecks: checksCommand !== null,
+        }),
+      ),
+    );
+  } else {
+    appendLedgerEvent(
+      cwd,
+      createLedgerEventEntry(
+        campaignEvents.benchmarkFailed(describeBenchmarkFailure(benchmark, metricContractFailed)),
+      ),
+    );
+  }
 
   let checks: CommandExecutionSummary | null = null;
   let checksPassed: boolean | null = null;
@@ -490,6 +588,14 @@ export async function executeAutoresearchRun(
       signal: input.signal,
     });
     checksPassed = checks.exitCode === 0 && !checks.timedOut;
+    appendLedgerEvent(
+      cwd,
+      createLedgerEventEntry(
+        checksPassed
+          ? campaignEvents.checksSucceeded()
+          : campaignEvents.checksFailed("checks command failed or timed out"),
+      ),
+    );
   }
 
   const status = determineRunStatus({
@@ -498,7 +604,6 @@ export async function executeAutoresearchRun(
     metricContractFailed,
     checksPassed,
   });
-  const primaryMetric = hasPrimaryMetric ? parsedMetrics[metricName] : 0;
   const runReceipt = createRunReceipt({
     status,
     metric: primaryMetric,
@@ -529,10 +634,23 @@ export async function executeAutoresearchRun(
   );
   runReceipt.confidence = nextStatus.currentSegment.confidence;
 
-  if (createdConfig) {
-    appendReceipt(cwd, config);
-  }
   appendReceipt(cwd, runReceipt);
+  appendLedgerEvent(
+    cwd,
+    createLedgerEventEntry(
+      campaignEvents.receiptRecorded({
+        status: runReceipt.status,
+        metric: runReceipt.metric,
+      }),
+      runReceipt.timestamp,
+    ),
+  );
+  appendLedgerEvent(
+    cwd,
+    createLedgerEventEntry(
+      campaignEvents.decideNextAction("iterate", "bounded runtime run completed"),
+    ),
+  );
 
   return {
     cwd,
@@ -631,6 +749,13 @@ function decorateRunDescription(
     return `${description} (checks failed)`;
   }
   return description;
+}
+
+function reconstructOriginalRunDescription(description: string): string {
+  return description
+    .replace(/ \(benchmark failed or timed out\)$/u, "")
+    .replace(/ \(primary metric missing\)$/u, "")
+    .replace(/ \(checks failed\)$/u, "");
 }
 
 async function runShellCommand(input: {
@@ -753,8 +878,301 @@ function buildAutoresearchRuntimeStatusFromEntries(
     hasChecksScript: paths ? existsSync(paths.checksScriptPath) : false,
     invalidReceiptLines: invalidLineCount,
     currentSegment,
-    nextSlices: ["ak_campaign_binding", "safer_finalization_path", "shared_ux_integration"],
+    runtimeProjection: buildRuntimeProjection(cwd, currentSegment),
+    nextSlices: ["ak_campaign_binding", "prompt_vault_decision_steps", "safer_finalization_path"],
   };
+}
+
+function buildRuntimeProjection(
+  cwd: string | undefined,
+  currentSegment: AutoresearchSegmentSummary,
+): AutoresearchRuntimeProjection {
+  if (!cwd) {
+    return createReceiptFallbackProjection(currentSegment);
+  }
+
+  const loadResult = loadAutoresearchLedger(cwd);
+  const hasLedger = existsSync(resolveAutoresearchLedgerPath(cwd));
+  if (hasLedger || loadResult.invalidLineCount > 0 || loadResult.entries.length > 0) {
+    const projection = projectAutoresearchLedger(cwd);
+    if (projectionMatchesCurrentSegment(projection, currentSegment)) {
+      return {
+        state: projection.state,
+        source: "ledger",
+        ledgerPath: projection.ledgerPath,
+        hasLedger: projection.hasLedger,
+        invalidLedgerLines: projection.invalidLineCount,
+        eventCount: projection.eventCount,
+        replayedEventCount: projection.replayedEventCount,
+        rejectedEvents: projection.rejectedEvents,
+        syncIssues: [],
+      };
+    }
+
+    const fallback = createReceiptFallbackProjection(currentSegment, projection.ledgerPath);
+    return {
+      ...fallback,
+      hasLedger: projection.hasLedger,
+      invalidLedgerLines: projection.invalidLineCount,
+      eventCount: projection.eventCount,
+      replayedEventCount: projection.replayedEventCount,
+      rejectedEvents: projection.rejectedEvents,
+      syncIssues: [describeRuntimeProjectionSyncIssue(projection, currentSegment)],
+    };
+  }
+
+  return createReceiptFallbackProjection(currentSegment, resolveAutoresearchLedgerPath(cwd));
+}
+
+function createReceiptFallbackProjection(
+  currentSegment: AutoresearchSegmentSummary,
+  ledgerPath?: string,
+): AutoresearchRuntimeProjection {
+  const projection = projectAutoresearchLedgerEntries(
+    [],
+    createFallbackMachineInput(currentSegment),
+  );
+  return {
+    state: projection.state,
+    source: "receipt_fallback",
+    ledgerPath,
+    hasLedger: false,
+    invalidLedgerLines: 0,
+    eventCount: projection.eventCount,
+    replayedEventCount: projection.replayedEventCount,
+    rejectedEvents: projection.rejectedEvents,
+    syncIssues: ledgerPath ? ["event ledger missing or stale; projected from receipt log"] : [],
+  };
+}
+
+function projectionMatchesCurrentSegment(
+  projection: ReturnType<typeof projectAutoresearchLedger>,
+  currentSegment: AutoresearchSegmentSummary,
+): boolean {
+  if (currentSegment.configured !== (projection.context.segment !== null)) {
+    return false;
+  }
+  if (!currentSegment.configured) {
+    return projection.context.runCount === 0;
+  }
+
+  return (
+    projection.context.segment?.name === currentSegment.name &&
+    projection.context.segment?.metricName === currentSegment.metricName &&
+    projection.context.segment?.metricUnit === currentSegment.metricUnit &&
+    projection.context.segment?.direction === currentSegment.direction &&
+    projection.context.segment?.benchmarkCommand === currentSegment.benchmarkCommand &&
+    projection.context.segment?.checksCommand === currentSegment.checksCommand &&
+    projection.context.runCount === currentSegment.runCount &&
+    projection.context.successfulRunCount === currentSegment.successfulRunCount &&
+    projection.context.baselineMetric === currentSegment.baselineMetric &&
+    projection.context.bestMetric === currentSegment.bestMetric &&
+    projection.context.lastRunStatus === currentSegment.lastRunStatus &&
+    projection.context.lastRunMetric === currentSegment.lastRunMetric
+  );
+}
+
+function describeRuntimeProjectionSyncIssue(
+  projection: ReturnType<typeof projectAutoresearchLedger>,
+  currentSegment: AutoresearchSegmentSummary,
+): string {
+  return [
+    `ledger state ${projection.state}`,
+    `ledger run count ${projection.context.runCount}`,
+    `receipt run count ${currentSegment.runCount}`,
+  ].join("; ");
+}
+
+function createFallbackMachineInput(
+  currentSegment: AutoresearchSegmentSummary,
+): CampaignMachineInput | undefined {
+  if (!currentSegment.configured) {
+    return undefined;
+  }
+
+  return {
+    segment: {
+      name: currentSegment.name ?? "(unnamed)",
+      metricName: currentSegment.metricName ?? "(unset)",
+      metricUnit: currentSegment.metricUnit,
+      direction: currentSegment.direction ?? "lower",
+      benchmarkCommand: currentSegment.benchmarkCommand ?? "",
+      checksCommand: currentSegment.checksCommand,
+    },
+    runCount: currentSegment.runCount,
+    successfulRunCount: currentSegment.successfulRunCount,
+    baselineMetric: currentSegment.baselineMetric,
+    bestMetric: currentSegment.bestMetric,
+    lastRunStatus: currentSegment.lastRunStatus,
+    lastRunMetric: currentSegment.lastRunMetric,
+    awaitingDecision: false,
+  };
+}
+
+function ensureEventLedgerInitializedFromReceipts(
+  cwd: string,
+  entries: AutoresearchReceipt[],
+): void {
+  if (entries.length === 0) {
+    return;
+  }
+
+  const currentSegmentView = getCurrentSegment(entries);
+  const currentSegment = summarizeCurrentSegment(currentSegmentView);
+  const reconstructedEntries = reconstructLedgerEntriesForCurrentSegment(currentSegmentView);
+  const loadResult = loadAutoresearchLedger(cwd);
+  if (loadResult.entries.length === 0 && loadResult.invalidLineCount === 0) {
+    appendLedgerEntries(cwd, reconstructedEntries);
+    return;
+  }
+
+  const projection = projectAutoresearchLedger(cwd);
+  if (!projectionMatchesCurrentSegment(projection, currentSegment)) {
+    appendLedgerEntries(cwd, reconstructedEntries);
+  }
+}
+
+function appendLedgerEntries(cwd: string, entries: AutoresearchLedgerEventEntry[]): void {
+  for (const entry of entries) {
+    appendLedgerEvent(cwd, entry);
+  }
+}
+
+function reconstructLedgerEntriesForCurrentSegment(
+  currentSegment: CurrentSegmentView,
+): AutoresearchLedgerEventEntry[] {
+  if (!currentSegment.config) {
+    return [];
+  }
+
+  const config = currentSegment.config;
+  return [
+    createLedgerEventEntry(
+      campaignEvents.configureSegment(createCampaignSegmentConfigFromReceipt(config)),
+      config.createdAt,
+    ),
+    ...currentSegment.runs.flatMap((run) => reconstructLedgerEntriesForRun(run, config)),
+  ];
+}
+
+function reconstructLedgerEntriesForRun(
+  run: AutoresearchRunReceipt,
+  config: AutoresearchConfigReceipt,
+): AutoresearchLedgerEventEntry[] {
+  const benchmarkCommand =
+    run.benchmarkCommand ?? config.benchmarkCommand ?? "bash autoresearch.sh";
+  const checksCommand = run.checksCommand ?? config.checksCommand ?? null;
+  const entries: AutoresearchLedgerEventEntry[] = [
+    createLedgerEventEntry(
+      campaignEvents.startRun({
+        description: reconstructOriginalRunDescription(run.description),
+        benchmarkCommand,
+        checksCommand,
+      }),
+      run.timestamp,
+    ),
+  ];
+
+  if (run.status === "crash") {
+    entries.push(
+      createLedgerEventEntry(
+        campaignEvents.benchmarkFailed("reconstructed crash receipt"),
+        run.timestamp,
+      ),
+    );
+  } else {
+    entries.push(
+      createLedgerEventEntry(
+        campaignEvents.benchmarkSucceeded({
+          metric: run.metric,
+          requiresChecks: checksCommand !== null,
+        }),
+        run.timestamp,
+      ),
+    );
+
+    if (checksCommand !== null) {
+      entries.push(
+        createLedgerEventEntry(
+          run.status === "checks_failed" || run.checksPassed === false
+            ? campaignEvents.checksFailed("reconstructed checks failure receipt")
+            : campaignEvents.checksSucceeded(),
+          run.timestamp,
+        ),
+      );
+    }
+  }
+
+  entries.push(
+    createLedgerEventEntry(
+      campaignEvents.receiptRecorded({
+        status: run.status,
+        metric: run.metric,
+      }),
+      run.timestamp,
+    ),
+    createLedgerEventEntry(
+      campaignEvents.decideNextAction("iterate", "reconstructed from receipt history"),
+      run.timestamp,
+    ),
+  );
+
+  return entries;
+}
+
+function ensureMachineReadyForBoundedRun(cwd: string): void {
+  let projection = projectAutoresearchLedger(cwd);
+  if (!projection.hasLedger) {
+    return;
+  }
+
+  if (projection.state === "awaiting_decision") {
+    appendLedgerEvent(
+      cwd,
+      createLedgerEventEntry(
+        campaignEvents.decideNextAction(
+          "iterate",
+          "operator requested another bounded runtime iteration",
+        ),
+      ),
+    );
+    projection = projectAutoresearchLedger(cwd);
+  }
+
+  if (projection.state !== "ready") {
+    throw new Error(
+      `Cannot start a bounded autoresearch run while the machine is in state ${projection.state}`,
+    );
+  }
+}
+
+function createCampaignSegmentConfigFromReceipt(
+  receipt: AutoresearchConfigReceipt,
+): CampaignSegmentConfig {
+  return {
+    name: receipt.name,
+    metricName: receipt.metricName,
+    metricUnit: receipt.metricUnit,
+    direction: receipt.direction,
+    benchmarkCommand: receipt.benchmarkCommand ?? "bash autoresearch.sh",
+    checksCommand: receipt.checksCommand ?? null,
+  };
+}
+
+function describeBenchmarkFailure(
+  benchmark: CommandExecutionSummary,
+  metricContractFailed: boolean,
+): string {
+  if (metricContractFailed) {
+    return "primary metric missing from benchmark output";
+  }
+  if (benchmark.timedOut) {
+    return "benchmark timed out";
+  }
+  if (benchmark.exitCode === null) {
+    return "benchmark ended with a signal or process error";
+  }
+  return `benchmark exited with code ${benchmark.exitCode}`;
 }
 
 function summarizeCurrentSegment(currentSegment: CurrentSegmentView): AutoresearchSegmentSummary {

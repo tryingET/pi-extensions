@@ -77,9 +77,10 @@ export default function piAutoresearchExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
-    description: "Inspect the current pi-autoresearch bounded runtime and receipt log.",
+    description:
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, and receipt/event logs.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, receipt log, and local artifact contract.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, and local artifact contract.",
     parameters: statusSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as { cwd?: string };
@@ -94,9 +95,10 @@ export default function piAutoresearchExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: AUTORESEARCH_RUN_TOOL_NAME,
     label: "Autoresearch Runtime Run",
-    description: "Execute one bounded local pi-autoresearch run and append config/run receipts.",
+    description:
+      "Execute one bounded local pi-autoresearch run and append config/run receipts plus machine/ledger events.",
     promptSnippet:
-      "Execute one bounded local pi-autoresearch run, parse metrics, run checks, and append receipts.",
+      "Execute one bounded local pi-autoresearch run, parse metrics, run checks, update the XState machine/event ledger, and append receipts.",
     parameters: runSchema,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
@@ -144,7 +146,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_run for one local receipt-backed run.",
+      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_run for one local machine/ledger-backed run.",
       "info",
     );
   }

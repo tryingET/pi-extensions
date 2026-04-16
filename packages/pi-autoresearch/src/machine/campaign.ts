@@ -131,11 +131,18 @@ export const campaignMachine = setup({
 
       return {
         segment: normalizeSegment(event.segment),
+        runCount: 0,
+        successfulRunCount: 0,
+        baselineMetric: null,
+        bestMetric: null,
+        lastRunStatus: null,
+        lastRunMetric: null,
         awaitingDecision: false,
         blockedReason: null,
         completionReason: null,
         lastDecision: null,
         activeRun: null,
+        resumeState: null,
       };
     }),
 
@@ -406,6 +413,7 @@ export const campaignMachine = setup({
 
     ready: {
       on: {
+        CONFIGURE_SEGMENT: { target: "ready", actions: "applySegmentConfig" },
         START_RUN: { target: "running_benchmark", actions: "startRun" },
         BLOCK: {
           target: "blocked",
@@ -463,6 +471,7 @@ export const campaignMachine = setup({
 
     awaiting_decision: {
       on: {
+        CONFIGURE_SEGMENT: { target: "ready", actions: "applySegmentConfig" },
         DECIDE_NEXT_ACTION: [
           { guard: "decisionIsRebaseline", target: "rebaseline_needed", actions: "applyDecision" },
           { guard: "decisionIsFinalize", target: "finalize_candidate", actions: "applyDecision" },
@@ -488,6 +497,7 @@ export const campaignMachine = setup({
 
     rebaseline_needed: {
       on: {
+        CONFIGURE_SEGMENT: { target: "ready", actions: "applySegmentConfig" },
         ACCEPT_REBASELINE: { target: "ready", actions: "acceptRebaseline" },
         BLOCK: {
           target: "blocked",
@@ -499,6 +509,7 @@ export const campaignMachine = setup({
 
     finalize_candidate: {
       on: {
+        CONFIGURE_SEGMENT: { target: "ready", actions: "applySegmentConfig" },
         ACCEPT_FINALIZE: { target: "completed", actions: "acceptFinalize" },
         REJECT_FINALIZE: { target: "ready", actions: "clearDecision" },
         BLOCK: {

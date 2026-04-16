@@ -46,11 +46,12 @@ The current boundary is now more specific: the package is the runtime owner for 
 
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
-  - surfaces the receipt log, local artifact contract, and current one-shot Prompt Vault alignment
+  - surfaces receipt summaries, machine projection, event-ledger state, and current one-shot Prompt Vault alignment
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
+  - appends machine/event entries to `autoresearch.events.jsonl`
 
 ### Runtime helpers
 
@@ -58,7 +59,11 @@ The current boundary is now more specific: the package is the runtime owner for 
   - local receipt-entry types for config and run events
   - structured `METRIC name=value` parsing
   - bounded benchmark/check execution helpers
-  - JSONL receipt append/load, baseline, and confidence helpers used by the extension and tests
+  - runtime status/help rendering that now integrates receipt summaries with machine/ledger projection
+- `src/core/ledger.ts`
+  - append-only event-ledger entry types and JSONL helpers
+  - ledger replay/projector helpers for the campaign machine
+  - replay validation plus receipt-history backfill support for the bounded runtime surface
 - `src/machine/events.ts`
   - typed campaign event model for configuration, run execution, receipt recording, decision points, blocking, and completion
 - `src/machine/campaign.ts`
@@ -89,7 +94,7 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine and typed event model; the next bounded slices are wiring that machine into live runtime flows, then connecting AK binding and machine-invoked Prompt Vault decision steps.
+The package now includes a minimal internal XState campaign machine, typed event model, and append-only event ledger; the machine is wired into the current bounded runtime surfaces, and the next bounded slices are AK binding plus machine-invoked Prompt Vault decision steps.
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
@@ -100,14 +105,14 @@ Interpretation rule:
 
 This package does **not** yet implement:
 
-- live command/tool wiring that executes the new XState campaign machine during `/autoresearch` runs
 - AK campaign binding
 - machine-invoked Prompt Vault decision steps
 - finalization branch creation
 - autonomous resume/loop lifecycle
 - shared higher-order session-control orchestration
+- an explicit operator-facing decision surface above the current automatic iterate-bridging used by the bounded run tool
 
-The package now includes the minimal campaign machine/event model, but the broader loop integrations still belong to later bounded slices after the bounded runtime kernel.
+The package now includes the bounded runtime's machine/event-ledger integration, but the broader control-plane and autonomy integrations still belong to later bounded slices after the bounded runtime kernel.
 
 ## Validation
 
