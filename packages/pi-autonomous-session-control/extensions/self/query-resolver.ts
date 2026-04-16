@@ -62,6 +62,130 @@ const CAPABILITY_KEYWORDS = [
   "available queries",
 ];
 
+const SEMANTIC_PRESSURE_KEYWORDS = [
+  "semantic pressure",
+  "semantic pressures",
+  "semantic-pressure",
+  "semantic-pressure annotation",
+  "semantic-pressure annotations",
+  "pressure annotation",
+  "pressure annotations",
+  "semantic annotation",
+  "semantic annotations",
+];
+
+const SEMANTIC_PRESSURE_INTENTS = new Set<CrystallizationIntent>([
+  "remember_semantic_pressure_annotation",
+  "recall_semantic_pressure_annotations",
+  "forget_semantic_pressure_annotation",
+  "reject_semantic_pressure_annotation",
+]);
+
+function isSemanticPressureQuery(lower: string): boolean {
+  return SEMANTIC_PRESSURE_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+function mapSemanticPressureIntent(lower: string): CrystallizationIntent {
+  if (lower.includes("reject") || lower.includes("rejected")) {
+    return "reject_semantic_pressure_annotation";
+  }
+  if (lower.includes("forget") || lower.includes("remove") || lower.includes("delete")) {
+    return "forget_semantic_pressure_annotation";
+  }
+  if (lower.includes("what") || lower.includes("list") || lower.includes("recall")) {
+    return "recall_semantic_pressure_annotations";
+  }
+  return "remember_semantic_pressure_annotation";
+}
+
+function normalizeCrystallizationIntent(intent: CrystallizationIntent): string {
+  switch (intent) {
+    case "remember_semantic_pressure_annotation":
+      return "remember_ontology_candidate";
+    case "recall_semantic_pressure_annotations":
+      return "recall_ontology_candidates";
+    case "forget_semantic_pressure_annotation":
+      return "forget_ontology_candidate";
+    case "reject_semantic_pressure_annotation":
+      return "reject_ontology_candidate";
+    default:
+      return intent;
+  }
+}
+
+function normalizeSemanticPressureText(text: string): string {
+  return text
+    .replace(/semantic(?:-|\s+)pressure(?:-|\s+)annotations?/gi, "ontology candidate")
+    .replace(/semantic(?:-|\s+)annotations?/gi, "ontology candidate")
+    .replace(/pressure annotations?/gi, "ontology candidate")
+    .replace(/semantic(?:-|\s+)pressures?/gi, "ontology candidate");
+}
+
+function normalizeSemanticPressureContext(
+  context?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (!context) {
+    return undefined;
+  }
+
+  const normalized = { ...context };
+
+  if (normalized.annotationId !== undefined && normalized.candidateId === undefined) {
+    normalized.candidateId = normalized.annotationId;
+  }
+  if (normalized.annotationKind !== undefined && normalized.candidateKind === undefined) {
+    normalized.candidateKind = normalized.annotationKind;
+  }
+
+  return normalized;
+}
+
+function normalizeSemanticPressureQuery(query: SelfQuery): SelfQuery {
+  return {
+    ...query,
+    query: normalizeSemanticPressureText(query.query),
+    context: normalizeSemanticPressureContext(query.context),
+  };
+}
+
+function presentSemanticPressureText(text: string): string {
+  return text
+    .replace(/Ontology candidate/g, "Semantic-pressure annotation")
+    .replace(/ontology candidates/g, "semantic-pressure annotations")
+    .replace(/ontology candidate/g, "semantic-pressure annotation")
+    .replace(/candidate-only ontology gaps/g, "semantic-pressure annotations")
+    .replace(/candidate-only ontology/g, "semantic-pressure");
+}
+
+function presentSemanticPressureData(data: unknown): unknown {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return data;
+  }
+
+  const record = { ...(data as Record<string, unknown>) };
+
+  if (typeof record.candidateId === "string" && record.annotationId === undefined) {
+    record.annotationId = record.candidateId;
+  }
+  if (typeof record.candidateKind === "string" && record.annotationKind === undefined) {
+    record.annotationKind = record.candidateKind;
+  }
+  if (Array.isArray(record.candidates) && record.annotations === undefined) {
+    record.annotations = record.candidates;
+  }
+
+  return record;
+}
+
+function presentSemanticPressureResponse(response: SelfResponse): SelfResponse {
+  return {
+    ...response,
+    answer: presentSemanticPressureText(response.answer),
+    suggestions: response.suggestions?.map((suggestion) => presentSemanticPressureText(suggestion)),
+    data: presentSemanticPressureData(response.data),
+  };
+}
+
 // ============================================================================
 // INTENT CLASSIFICATION
 // ============================================================================
@@ -74,6 +198,13 @@ export function classifyIntent(query: string): QueryIntent {
     if (lower.includes(keyword)) {
       return { domain: "meta", intent: "list_capabilities" };
     }
+  }
+
+  if (isSemanticPressureQuery(lower)) {
+    return {
+      domain: "crystallization",
+      intent: mapSemanticPressureIntent(lower),
+    };
   }
 
   // Check action domain (highest priority for domain queries)
@@ -133,8 +264,15 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
       return resolvePerceptionQuery(intent.intent, state);
     case "direction":
       return resolveDirectionQuery(intent.intent, query, state);
-    case "crystallization":
-      return resolveCrystallizationQuery(intent.intent, query, state);
+    case "crystallization": {
+      const usesSemanticPressureSurface = SEMANTIC_PRESSURE_INTENTS.has(intent.intent);
+      const normalizedIntent = normalizeCrystallizationIntent(intent.intent);
+      const normalizedQuery = usesSemanticPressureSurface
+        ? normalizeSemanticPressureQuery(query)
+        : query;
+      const response = resolveCrystallizationQuery(normalizedIntent, normalizedQuery, state);
+      return usesSemanticPressureSurface ? presentSemanticPressureResponse(response) : response;
+    }
     case "protection":
       return resolveProtectionQuery(intent.intent, query, state);
     case "action":
@@ -143,12 +281,12 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
       return {
         understood: false,
         intent: "unknown",
-        answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, ontology candidates, or traps.`,
+        answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, semantic-pressure annotations, or traps.`,
         suggestions: [
           "What files have I touched?",
           "Am I in a loop?",
           "What progress have I made?",
-          "What ontology candidates have I crystallized?",
+          "What semantic-pressure annotations have I recorded?",
         ],
       };
   }
@@ -177,9 +315,9 @@ function resolveMetaQuery(intent: string): SelfResponse {
 **Crystallization** (improve yourself):
 - "Remember: [pattern]" / "What did I learn?"
 - "Recall patterns about [topic]"
-- "Remember ontology candidate: [missing term]"
-- "What ontology candidates have I crystallized?"
-- "Mark ontology candidate as rejected"
+- "Remember semantic pressure: [missing term]"
+- "What semantic-pressure annotations have I recorded?"
+- "Mark semantic-pressure annotation as rejected"
 
 **Protection** (protect yourself):
 - "Mark as trap: [pattern]" / "Am I approaching a trap?"
@@ -203,12 +341,12 @@ function resolveMetaQuery(intent: string): SelfResponse {
           },
           {
             name: "crystallization",
-            description: "Remember and recall patterns plus candidate-only ontology gaps",
+            description: "Remember and recall patterns plus semantic-pressure annotations",
             examples: [
               "Remember: [pattern]",
               "What did I learn?",
-              "Remember ontology candidate: [missing term]",
-              "What ontology candidates have I crystallized?",
+              "Remember semantic pressure: [missing term]",
+              "What semantic-pressure annotations have I recorded?",
             ],
           },
           {

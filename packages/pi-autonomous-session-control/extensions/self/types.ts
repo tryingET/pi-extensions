@@ -115,10 +115,10 @@ export interface CrystallizedPattern {
   strength: number; // 0-1, decays over time
 }
 
-export interface OntologyCandidateMemory {
+export interface SemanticPressureAnnotation {
   id: string;
-  type: "ontology_candidate";
-  candidateKind: "concept" | "relation";
+  type: "ontology_candidate"; // legacy storage discriminator retained for compatibility
+  candidateKind: "concept" | "relation"; // legacy field name retained for compatibility
   proposedScopeHint: "repo" | "company" | "core" | "unknown";
   titleHint?: string;
   labelHints: string[];
@@ -142,6 +142,8 @@ export interface OntologyCandidateMemory {
     promotedTo?: string;
   };
 }
+
+export type OntologyCandidateMemory = SemanticPressureAnnotation;
 
 export interface PatternStore {
   patterns: Map<string, CrystallizedPattern>;
@@ -274,7 +276,11 @@ export type CrystallizationIntent =
   | "remember_ontology_candidate"
   | "recall_ontology_candidates"
   | "forget_ontology_candidate"
-  | "reject_ontology_candidate";
+  | "reject_ontology_candidate"
+  | "remember_semantic_pressure_annotation"
+  | "recall_semantic_pressure_annotations"
+  | "forget_semantic_pressure_annotation"
+  | "reject_semantic_pressure_annotation";
 
 export type ProtectionIntent = "mark_trap" | "check_traps" | "trap_proximity" | "list_traps";
 
