@@ -44,13 +44,19 @@ That means:
   - uses ROCS for summary/validate/build/pack under one stable inspect use case
 - `ontology_change`
   - `mode: plan|apply`
-  - supports `concept`, `relation`, `system4d`, and `bridge`
+  - supports `concept`, `relation`, `system4d`, `bridge`, `manifest`, and `bootstrap`
   - routes repo/company/core targets and performs post-apply validate/build
 
 ### Commands
 
 - `/ontology-status`
   - inspect ontology status for the current repo/company/core context
+- `/ontology-bootstrap [title]`
+  - create the minimal nested repo-local `ontology/` skeleton for the current git repo
+  - if ontology already exists, shows current repo ontology status instead of rewriting it
+- `/ontology-manifest`
+  - show or update the repo-local `ontology/manifest.yaml`
+  - if the repo has no ontology yet, write actions bootstrap first before applying the manifest change
 
 ### Picker / editor UX layer
 
@@ -85,6 +91,7 @@ Examples:
   - detects relevant ontology context
   - sets an ontology footer status when useful
   - sends a one-shot startup notification with ontology shortcuts
+  - if the current git repo has no repo-local ontology yet, suggests `/ontology-bootstrap` instead of silently falling through to unrelated status
 - `before_agent_start`
   - injects a short ontology workflow hint when the prompt appears ontology-relevant
 
@@ -130,19 +137,21 @@ This keeps semantics out of hidden shell flags or adapter-local conventions.
 
 ### Concept
 
-`ontology_change` can create/update/upsert concept docs under:
+`ontology_change` can create/update/upsert concept docs under the target ontology source root:
 
-- `ontology/src/reference/concepts/<ont_id>.md`
+- repo-local ontology: `ontology/src/reference/concepts/<ont_id>.md`
+- dedicated company/root-layout ontology repo: `src/reference/concepts/<ont_id>.md`
 
 ### Relation
 
-`ontology_change` can create/update/upsert relation docs under:
+`ontology_change` can create/update/upsert relation docs under the target ontology source root:
 
-- `ontology/src/reference/relations/<relation-label>.md`
+- repo-local ontology: `ontology/src/reference/relations/<relation-label>.md`
+- dedicated company/root-layout ontology repo: `src/reference/relations/<relation-label>.md`
 
 ### System4D
 
-`ontology_change` can mutate `ontology/src/system4d.yaml` via:
+`ontology_change` can mutate the target ontology source-root `system4d.yaml` via:
 
 - `system4dPath`
 - `system4dAction`
@@ -150,7 +159,39 @@ This keeps semantics out of hidden shell flags or adapter-local conventions.
 
 ### Bridge
 
-`ontology_change` can update `ontology/src/bridge/mapping.yaml` through explicit mapping entries.
+`ontology_change` can update the target ontology source-root bridge mapping via:
+
+- repo-local ontology: `ontology/src/bridge/mapping.yaml`
+- dedicated company/root-layout ontology repo: `src/bridge/mapping.yaml`
+
+### Manifest
+
+`ontology_change` can create/update/upsert the **repo-local ontology manifest** at:
+
+- `ontology/manifest.yaml`
+
+Current boundary:
+- this manifest surface is intentionally **repo-scope only**
+- it manages repo-local ROCS layers/profiles for nested `ontology/` layouts
+- dedicated company/root-layout ontology repo manifests stay out of this first manifest slice
+
+### Bootstrap
+
+`ontology_change` can bootstrap the **repo-local ontology skeleton** for repos that do not yet have one.
+
+Bootstrap creates the minimal nested repo-local ontology layout:
+
+- `ontology/manifest.yaml`
+- `ontology/index.md`
+- `ontology/src/system4d.yaml`
+- `ontology/src/reference/concepts/README.md`
+- `ontology/src/reference/relations/README.md`
+- `ontology/src/bridge/README.md`
+- `ontology/src/bridge/mapping.yaml`
+
+Current boundary:
+- bootstrap is intentionally **repo-scope only**
+- it is a narrow ontology bootstrap, not a general repo/project scaffolder
 
 ## Runtime dependencies
 
@@ -244,6 +285,28 @@ Call ontology_change with:
 - targetId=co.software.FeatureFlag
 - title=Feature Flag
 - description=Runtime-controllable feature switch.
+```
+
+Bootstrap a repo-local ontology before first repo-scoped changes:
+
+```text
+Call ontology_change with:
+- mode=apply
+- artifactKind=bootstrap
+- operation=create
+- scope=repo
+```
+
+Patch the repo-local ontology manifest:
+
+```text
+Call ontology_change with:
+- mode=apply
+- artifactKind=manifest
+- operation=update
+- scope=repo
+- manifestDefaultProfile=review
+- manifestProfiles={ review: { include_layers: ["core", "company"], exclude_layers: ["repo"], budget: 1600 } }
 ```
 
 Apply a bridge mapping:

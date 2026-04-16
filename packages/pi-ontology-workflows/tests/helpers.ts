@@ -3,18 +3,63 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 export async function createTempOntologyRepo(): Promise<string> {
-  const repo = await mkdtemp(path.join(tmpdir(), "pi-ontology-workflows-"));
+  return createTempRepoWithLayout("nested");
+}
+
+export async function createTempRootLayoutOntologyRepo(): Promise<string> {
+  return createTempRepoWithLayout("root");
+}
+
+export async function createTempRepoWithoutOntology(): Promise<string> {
+  const repo = await mkdtemp(path.join(tmpdir(), "pi-ontology-workflows-empty-"));
   await mkdir(path.join(repo, ".git"), { recursive: true });
-  await mkdir(path.join(repo, "ontology", "src", "reference", "concepts"), { recursive: true });
-  await mkdir(path.join(repo, "ontology", "src", "reference", "relations"), { recursive: true });
-  await mkdir(path.join(repo, "ontology", "src", "bridge"), { recursive: true });
+  return repo;
+}
+
+export async function createTempDirectoryWithoutGit(): Promise<string> {
+  return mkdtemp(path.join(tmpdir(), "pi-ontology-workflows-dir-"));
+}
+
+export async function createWorkspaceTempRepoWithoutOntology(): Promise<string> {
+  const base = path.join(
+    process.env.HOME ?? "/home/tryinget",
+    "ai-society",
+    ".tmp-ontology-workflows",
+  );
+  await mkdir(base, { recursive: true });
+  const repo = await mkdtemp(path.join(base, "empty-"));
+  await mkdir(path.join(repo, ".git"), { recursive: true });
+  return repo;
+}
+
+export async function createWorkspaceTempOntologyRepo(): Promise<string> {
+  const base = path.join(
+    process.env.HOME ?? "/home/tryinget",
+    "ai-society",
+    ".tmp-ontology-workflows",
+  );
+  await mkdir(base, { recursive: true });
+  return createTempRepoWithLayout("nested", base);
+}
+
+async function createTempRepoWithLayout(
+  layout: "nested" | "root",
+  baseDir?: string,
+): Promise<string> {
+  const repo = await mkdtemp(path.join(baseDir ?? tmpdir(), "pi-ontology-workflows-"));
+  const ontologyRoot = layout === "nested" ? path.join(repo, "ontology") : repo;
+
+  await mkdir(path.join(repo, ".git"), { recursive: true });
+  await mkdir(path.join(ontologyRoot, "src", "reference", "concepts"), { recursive: true });
+  await mkdir(path.join(ontologyRoot, "src", "reference", "relations"), { recursive: true });
+  await mkdir(path.join(ontologyRoot, "src", "bridge"), { recursive: true });
 
   await writeFile(
-    path.join(repo, "ontology", "manifest.yaml"),
+    path.join(ontologyRoot, "manifest.yaml"),
     [
       "rocs:",
-      "  layer: repo",
-      '  id: "demo.repo"',
+      layout === "root" ? "  layer: company" : "  layer: repo",
+      layout === "root" ? '  id: "demo.company"' : '  id: "demo.repo"',
       '  version: "0.1.0"',
       '  created: "2026-03-14"',
       "",
@@ -23,11 +68,11 @@ export async function createTempOntologyRepo(): Promise<string> {
   );
 
   await writeFile(
-    path.join(repo, "ontology", "src", "system4d.yaml"),
+    path.join(ontologyRoot, "src", "system4d.yaml"),
     [
       "ontology:",
       "  system4d:",
-      '    name: "Demo Repo"',
+      layout === "root" ? '    name: "Demo Company Ontology"' : '    name: "Demo Repo"',
       '    version: "0.1"',
       "    container:",
       "      boundary:",
@@ -56,7 +101,7 @@ export async function createTempOntologyRepo(): Promise<string> {
   );
 
   await writeFile(
-    path.join(repo, "ontology", "src", "bridge", "mapping.yaml"),
+    path.join(ontologyRoot, "src", "bridge", "mapping.yaml"),
     "# Map concept IDs to repo artifacts (keep stable IDs; change mappings freely)\n\nmappings: []\n",
     "utf8",
   );
@@ -72,6 +117,7 @@ export function createFakeWorkspacePort(repoPath: string) {
         workspaceRoot: path.dirname(path.dirname(repoPath)),
         workspaceRefMode: "loose" as const,
         currentRepoPath: repoPath,
+        currentRepoDetectedFromGit: true,
         currentRepoHasOntology: true,
         currentRepoKind: "repo" as const,
         currentCompany: "softwareco",

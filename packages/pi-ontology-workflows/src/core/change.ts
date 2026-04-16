@@ -10,10 +10,13 @@ import type { FilesPort } from "../ports/files-port.ts";
 import type { RocsPort } from "../ports/rocs-port.ts";
 import type { WorkspacePort } from "../ports/workspace-port.ts";
 import type {
+  ManifestLayerSpec,
+  ManifestProfileSpec,
   OntologyChangeRequest,
   OntologyChangeResult,
   PlannedWrite,
   RelationEdge,
+  ResolvedOntologyTarget,
 } from "./contracts.ts";
 
 interface ChangeDeps {
@@ -44,7 +47,7 @@ export async function planOntologyChange(
     artifactKind: request.artifactKind,
   });
 
-  const writes = await buildWrites(request, target.repoPath, deps.files);
+  const writes = await buildWrites(request, target, deps.files);
   return {
     target,
     writes,
@@ -100,18 +103,22 @@ export async function runOntologyChange(
 
 async function buildWrites(
   request: OntologyChangeRequest,
-  repoPath: string,
+  target: ResolvedOntologyTarget,
   files: FilesPort,
 ): Promise<PlannedWrite[]> {
   switch (request.artifactKind) {
     case "concept":
-      return [await buildConceptWrite(request, repoPath, files)];
+      return [await buildConceptWrite(request, target.repoPath, files)];
     case "relation":
-      return [await buildRelationWrite(request, repoPath, files)];
+      return [await buildRelationWrite(request, target.repoPath, files)];
     case "bridge":
-      return [await buildBridgeWrite(request, repoPath, files)];
+      return [await buildBridgeWrite(request, target.repoPath, files)];
     case "system4d":
-      return [await buildSystem4dWrite(request, repoPath, files)];
+      return [await buildSystem4dWrite(request, target.repoPath, files)];
+    case "manifest":
+      return [await buildManifestWrite(request, target, files)];
+    case "bootstrap":
+      return await buildBootstrapWrites(request, target, files);
     default:
       throw new Error(`unsupported artifact kind: ${String(request.artifactKind)}`);
   }
@@ -123,14 +130,8 @@ async function buildConceptWrite(
   files: FilesPort,
 ): Promise<PlannedWrite> {
   const targetId = requireNonEmpty(request.targetId, "concept changes require targetId");
-  const filePath = path.join(
-    repoPath,
-    "ontology",
-    "src",
-    "reference",
-    "concepts",
-    `${targetId}.md`,
-  );
+  const ontologyRoot = await resolveOntologyRoot(repoPath, files);
+  const filePath = path.join(ontologyRoot, "src", "reference", "concepts", `${targetId}.md`);
   const existed = await files.exists(filePath);
   assertOperationAllowed(request.operation, existed, filePath);
 
@@ -265,7 +266,8 @@ async function buildBridgeWrite(
   repoPath: string,
   files: FilesPort,
 ): Promise<PlannedWrite> {
-  const filePath = path.join(repoPath, "ontology", "src", "bridge", "mapping.yaml");
+  const ontologyRoot = await resolveOntologyRoot(repoPath, files);
+  const filePath = path.join(ontologyRoot, "src", "bridge", "mapping.yaml");
   const existed = await files.exists(filePath);
   if (request.operation === "update" && !existed) {
     throw new Error(`bridge mapping file does not exist: ${filePath}`);
@@ -327,7 +329,8 @@ async function buildSystem4dWrite(
   repoPath: string,
   files: FilesPort,
 ): Promise<PlannedWrite> {
-  const filePath = path.join(repoPath, "ontology", "src", "system4d.yaml");
+  const ontologyRoot = await resolveOntologyRoot(repoPath, files);
+  const filePath = path.join(ontologyRoot, "src", "system4d.yaml");
   const existed = await files.exists(filePath);
   if (request.operation === "update" && !existed) {
     throw new Error(`system4d file does not exist: ${filePath}`);
@@ -366,6 +369,325 @@ async function buildSystem4dWrite(
     summary: `${request.operation} system4d ${system4dPath} (${action})`,
     content: `${stringify(root).trimEnd()}\n`,
   };
+}
+
+async function buildManifestWrite(
+  request: OntologyChangeRequest,
+  target: ResolvedOntologyTarget,
+  files: FilesPort,
+): Promise<PlannedWrite> {
+  assertRepoOnlyArtifact(target, "manifest");
+
+  const filePath = path.join(target.repoPath, "ontology", "manifest.yaml");
+  const existed = await files.exists(filePath);
+  assertOperationAllowed(request.operation, existed, filePath);
+
+  const current = existed ? parse(await files.readText(filePath)) : undefined;
+  const root = isRecord(current)
+    ? structuredClone(current)
+    : buildDefaultRepoManifest(target.currentCompany);
+  const defaultManifest = buildDefaultRepoManifest(target.currentCompany);
+  const rocsRoot = ensureManifestRocsRoot(root);
+
+  rocsRoot.layers = request.manifestLayers
+    ? normalizeManifestLayers(request.manifestLayers)
+    : normalizeManifestLayers(asManifestLayers(rocsRoot.layers) ?? defaultManifest.rocs.layers);
+
+  const existingProfiles = isRecord(rocsRoot.profiles)
+    ? structuredClone(rocsRoot.profiles)
+    : structuredClone(defaultManifest.rocs.profiles);
+  const nextProfiles = isRecord(existingProfiles) ? existingProfiles : {};
+
+  for (const [name, profile] of Object.entries(request.manifestProfiles ?? {})) {
+    nextProfiles[name] = normalizeManifestProfile(profile);
+  }
+
+  const defaultProfile = firstNonEmpty(
+    request.manifestDefaultProfile,
+    stringValue(nextProfiles.default),
+    stringValue(defaultManifest.rocs.profiles.default),
+  );
+  nextProfiles.default = defaultProfile;
+  rocsRoot.profiles = nextProfiles;
+
+  return {
+    path: filePath,
+    existed,
+    summary: `${request.operation} ontology manifest`,
+    content: `${stringify(root).trimEnd()}\n`,
+  };
+}
+
+async function buildBootstrapWrites(
+  request: OntologyChangeRequest,
+  target: ResolvedOntologyTarget,
+  files: FilesPort,
+): Promise<PlannedWrite[]> {
+  assertRepoOnlyArtifact(target, "bootstrap");
+  if (request.operation === "update") {
+    throw new Error("bootstrap changes support create or upsert, not update");
+  }
+
+  const ontologyRoot = path.join(target.repoPath, "ontology");
+  const repoName = firstNonEmpty(request.title, deriveRepoDisplayName(target.repoPath));
+  const manifestWrite = await buildManifestWrite(
+    {
+      ...request,
+      artifactKind: "manifest",
+    },
+    target,
+    files,
+  );
+
+  const candidates = [
+    manifestWrite,
+    {
+      path: path.join(target.repoPath, "ontology", "index.md"),
+      summary: "bootstrap ontology index",
+      content: renderBootstrapIndex(),
+    },
+    {
+      path: path.join(ontologyRoot, "src", "system4d.yaml"),
+      summary: "bootstrap ontology system4d",
+      content: renderBootstrapSystem4d(repoName),
+    },
+    {
+      path: path.join(ontologyRoot, "src", "reference", "concepts", "README.md"),
+      summary: "bootstrap concept guidance",
+      content: renderBootstrapConceptsReadme(),
+    },
+    {
+      path: path.join(ontologyRoot, "src", "reference", "relations", "README.md"),
+      summary: "bootstrap relation guidance",
+      content: renderBootstrapRelationsReadme(),
+    },
+    {
+      path: path.join(ontologyRoot, "src", "bridge", "README.md"),
+      summary: "bootstrap bridge guidance",
+      content: renderBootstrapBridgeReadme(),
+    },
+    {
+      path: path.join(ontologyRoot, "src", "bridge", "mapping.yaml"),
+      summary: "bootstrap bridge mapping",
+      content: renderBootstrapBridgeMapping(),
+    },
+  ];
+
+  const writes: PlannedWrite[] = [];
+  for (const candidate of candidates) {
+    const existed = await files.exists(candidate.path);
+    if (request.operation === "create" && existed) {
+      throw new Error(`target already exists: ${candidate.path}`);
+    }
+    if (request.operation === "upsert" && existed) {
+      continue;
+    }
+    writes.push({ ...candidate, existed });
+  }
+
+  return writes;
+}
+
+function assertRepoOnlyArtifact(
+  target: ResolvedOntologyTarget,
+  artifactKind: "bootstrap" | "manifest",
+): void {
+  if (target.scope !== "repo") {
+    throw new Error(`${artifactKind} changes currently support repo scope only`);
+  }
+}
+
+function buildDefaultRepoManifest(currentCompany?: string): {
+  rocs: {
+    layers: ManifestLayerSpec[];
+    profiles: Record<string, unknown>;
+  };
+} {
+  const sharedLayers = ["core"];
+  const repoDevLayers = ["core", "repo"];
+  const layers: ManifestLayerSpec[] = [
+    {
+      name: "core",
+      ref: "<repo:core/ontology-kernel@main>",
+    },
+  ];
+
+  if (currentCompany) {
+    sharedLayers.push("company");
+    repoDevLayers.splice(1, 0, "company");
+    layers.push({
+      name: "company",
+      ref: `<repo:${currentCompany}/ontology@main>`,
+    });
+  }
+
+  layers.push({
+    name: "repo",
+    path: "ontology/src",
+  });
+
+  return {
+    rocs: {
+      layers,
+      profiles: {
+        default: "repo-dev",
+        "guiding-circle": {
+          include_layers: sharedLayers,
+          exclude_layers: ["repo"],
+          budget: 1800,
+        },
+        "repo-dev": {
+          include_layers: repoDevLayers,
+          budget: 2800,
+        },
+      },
+    },
+  };
+}
+
+function ensureManifestRocsRoot(root: Record<string, unknown>): Record<string, unknown> {
+  if (!isRecord(root.rocs)) {
+    root.rocs = {};
+  }
+  return root.rocs as Record<string, unknown>;
+}
+
+function asManifestLayers(value: unknown): ManifestLayerSpec[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(isRecord).map((entry) => ({
+    name: requireNonEmpty(entry.name, "manifest layer requires name"),
+    ref: stringValue(entry.ref),
+    path: stringValue(entry.path),
+  }));
+}
+
+function normalizeManifestLayers(layers: ManifestLayerSpec[]): ManifestLayerSpec[] {
+  return layers.map((layer) => {
+    const name = requireNonEmpty(layer.name, "manifest layer requires name");
+    const ref = stringValue(layer.ref);
+    const layerPath = stringValue(layer.path);
+    if (!ref && !layerPath) {
+      throw new Error(`manifest layer ${name} requires ref or path`);
+    }
+    if (ref && layerPath) {
+      throw new Error(`manifest layer ${name} must not define both ref and path`);
+    }
+    return omitUndefined({ name, ref, path: layerPath });
+  });
+}
+
+function normalizeManifestProfile(profile: ManifestProfileSpec): Record<string, unknown> {
+  const includeLayers = ensureStringArray(profile.include_layers)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const excludeLayers = ensureStringArray(profile.exclude_layers)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const budget = typeof profile.budget === "number" ? Math.floor(profile.budget) : undefined;
+  if (budget !== undefined && budget <= 0) {
+    throw new Error("manifest profile budget must be greater than zero");
+  }
+  return omitUndefined({
+    include_layers: includeLayers.length > 0 ? includeLayers : undefined,
+    exclude_layers: excludeLayers.length > 0 ? excludeLayers : undefined,
+    budget,
+  });
+}
+
+function deriveRepoDisplayName(repoPath: string): string {
+  return path.basename(repoPath) || "repo";
+}
+
+function renderBootstrapIndex(): string {
+  return [
+    "# Ontology Index (repo)",
+    "",
+    "Start here when browsing manually.",
+    "",
+    "- `ontology/manifest.yaml` — which layers apply",
+    "- `ontology/src/system4d.yaml` — repo-local System4D (implementation)",
+    "- `ontology/src/reference/concepts/` — repo-local concepts (only when needed)",
+    "- `ontology/src/reference/relations/` — repo-local relation extensions (only when needed)",
+    "- `ontology/src/bridge/mapping.yaml` — map concepts to code symbols",
+    "- `ontology/dist/` — generated artifacts (tool-first)",
+    "",
+    "Tip: Set `ROCS_WORKSPACE_ROOT=~/ai-society` (or your local workspace root) and use `./scripts/rocs.sh pack <concept_id> --repo . --resolve-refs` instead of opening many files.",
+    "",
+  ].join("\n");
+}
+
+function renderBootstrapSystem4d(repoName: string): string {
+  return [
+    "ontology:",
+    "  system4d:",
+    `    name: ${JSON.stringify(repoName)}`,
+    '    version: "0.1"',
+    "    container:",
+    "      boundary:",
+    "        in_scope:",
+    '          - "<what this repo implements>"',
+    "        out_of_scope:",
+    '          - "<explicitly not implemented here>"',
+    "      constraints:",
+    '        - "<runtime/tech constraints>"',
+    "      anti_goals:",
+    '        - "<nice-to-have killed>"',
+    "    compass:",
+    "      drivers:",
+    '        - "<why now>"',
+    "      outcomes:",
+    '        - "<value>"',
+    "      tradeoffs:",
+    '        - decision: "<tradeoff>"',
+    '          chosen: "<choice>"',
+    '          because: "<why>"',
+    "    engine:",
+    "      invariants: []",
+    "      lifecycle: []",
+    "    fog:",
+    "      assumptions: []",
+    "      risks: []",
+    "      exceptions: []",
+    "      debt: []",
+    "",
+  ].join("\n");
+}
+
+function renderBootstrapConceptsReadme(): string {
+  return [
+    "# Repo Concepts",
+    "",
+    "Add repo-local concepts here only when needed.",
+    "",
+    "Guideline: if a concept is useful across many repos, propose it in the company overlay (or kernel), not here.",
+    "",
+  ].join("\n");
+}
+
+function renderBootstrapRelationsReadme(): string {
+  return [
+    "# Repo Relations",
+    "",
+    "Add repo-local relation extensions here only when the repo needs semantics not already provided by higher layers.",
+    "",
+    "Guideline: prefer existing core/company relation labels when they already fit.",
+    "",
+  ].join("\n");
+}
+
+function renderBootstrapBridgeReadme(): string {
+  return [
+    "# Bridge",
+    "",
+    "The bridge layer links ontology concepts to repo artifacts (code symbols, APIs, schemas).",
+    "",
+    "- `mapping.yaml` maps stable concept IDs -> repo-local symbols/paths.",
+    "",
+  ].join("\n");
+}
+
+function renderBootstrapBridgeMapping(): string {
+  return "# Map concept IDs to repo artifacts (keep stable IDs; change mappings freely)\n\nmappings: []\n";
 }
 
 function renderConceptBody(input: {
@@ -471,10 +793,21 @@ async function resolveRelationFilePath(
   repoPath: string,
   files: FilesPort,
 ): Promise<string> {
+  const ontologyRoot = await resolveOntologyRoot(repoPath, files);
   const leaf = deriveRelationLabel(targetId);
-  const leafPath = path.join(repoPath, "ontology", "src", "reference", "relations", `${leaf}.md`);
+  const leafPath = path.join(ontologyRoot, "src", "reference", "relations", `${leaf}.md`);
   if (await files.exists(leafPath)) return leafPath;
-  return path.join(repoPath, "ontology", "src", "reference", "relations", `${leaf}.md`);
+  return path.join(ontologyRoot, "src", "reference", "relations", `${leaf}.md`);
+}
+
+async function resolveOntologyRoot(repoPath: string, files: FilesPort): Promise<string> {
+  const nestedManifest = path.join(repoPath, "ontology", "manifest.yaml");
+  if (await files.exists(nestedManifest)) return path.join(repoPath, "ontology");
+
+  const rootManifest = path.join(repoPath, "manifest.yaml");
+  if (await files.exists(rootManifest)) return repoPath;
+
+  return path.join(repoPath, "ontology");
 }
 
 function deriveRelationLabel(targetId: string): string {

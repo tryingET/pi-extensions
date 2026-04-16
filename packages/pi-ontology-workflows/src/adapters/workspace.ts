@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type {
+  OntologyArtifactKind,
   OntologyScope,
   RepoKind,
   ResolvedOntologyTarget,
@@ -24,7 +25,8 @@ export function createWorkspacePort(): WorkspacePort {
   return {
     async detect(cwd: string): Promise<WorkspaceContext> {
       const workspaceRoot = resolveWorkspaceRoot();
-      const currentRepoPath = findRepoRoot(cwd) ?? cwd;
+      const detectedRepoPath = findRepoRoot(cwd);
+      const currentRepoPath = detectedRepoPath ?? cwd;
       const currentCompany =
         inferCompany(cwd) ??
         inferCompany(currentRepoPath) ??
@@ -36,6 +38,7 @@ export function createWorkspacePort(): WorkspacePort {
         workspaceRoot,
         workspaceRefMode: resolveWorkspaceRefMode(),
         currentRepoPath,
+        currentRepoDetectedFromGit: Boolean(detectedRepoPath),
         currentRepoHasOntology: hasOntologyManifest(currentRepoPath, currentRepoKind),
         currentRepoKind,
         currentCompany,
@@ -131,7 +134,13 @@ function resolveOntologyTarget(
   if (params.targetRepo?.trim()) {
     const repoPath = path.resolve(params.targetRepo.trim());
     const repoKind = classifyRepo(repoPath, context.workspaceRoot, context.currentCompany);
-    ensureOntologyTarget(repoPath, repoKind, requestedScope, context.currentCompany);
+    ensureOntologyTarget(
+      repoPath,
+      repoKind,
+      requestedScope,
+      context.currentCompany,
+      params.artifactKind,
+    );
     reasons.push("explicit target_repo override");
     return buildResolvedTarget(
       context,
@@ -143,10 +152,23 @@ function resolveOntologyTarget(
   }
 
   if (requestedScope === "repo") {
-    if (!context.currentRepoHasOntology) {
+    if (
+      !context.currentRepoHasOntology &&
+      !allowsRepoBootstrapWithoutManifest(params.artifactKind)
+    ) {
       throw new Error("scope=repo requires the current repo to contain ontology/manifest.yaml");
     }
-    reasons.push("explicit repo scope");
+    if (
+      !context.currentRepoDetectedFromGit &&
+      allowsRepoBootstrapWithoutManifest(params.artifactKind)
+    ) {
+      throw new Error("repo bootstrap/manifest work requires a git repo root or child directory");
+    }
+    reasons.push(
+      allowsRepoBootstrapWithoutManifest(params.artifactKind) && !context.currentRepoHasOntology
+        ? "explicit repo scope (bootstrap/manifests allowed before ontology exists)"
+        : "explicit repo scope",
+    );
     return buildResolvedTarget(context, context.currentRepoPath, "repo", "repo", reasons);
   }
 
@@ -196,6 +218,14 @@ function resolveOntologyTarget(
     }
   }
 
+  if (allowsRepoBootstrapWithoutManifest(params.artifactKind)) {
+    if (!context.currentRepoDetectedFromGit) {
+      throw new Error("repo bootstrap/manifest work requires a git repo root or child directory");
+    }
+    reasons.push("auto scope selected current repo for ontology bootstrap/manifest work");
+    return buildResolvedTarget(context, context.currentRepoPath, "repo", "repo", reasons);
+  }
+
   if (context.currentRepoHasOntology) {
     reasons.push("auto scope selected current repo because ontology manifest exists");
     return buildResolvedTarget(context, context.currentRepoPath, "repo", "repo", reasons);
@@ -237,11 +267,15 @@ function ensureOntologyTarget(
   repoKind: RepoKind,
   requestedScope: OntologyScope,
   currentCompany?: string,
+  artifactKind?: OntologyArtifactKind,
 ): void {
   if (!existsSync(repoPath)) {
     throw new Error(`ontology target repo does not exist: ${repoPath}`);
   }
-  if (!hasOntologyManifest(repoPath, repoKind)) {
+  if (
+    !hasOntologyManifest(repoPath, repoKind) &&
+    !allowsRepoBootstrapWithoutManifest(artifactKind)
+  ) {
     throw new Error(
       `ontology target repo is missing ${getOntologyManifestHint(repoPath, repoKind)}: ${repoPath}`,
     );
@@ -255,6 +289,10 @@ function ensureOntologyTarget(
   if (requestedScope === "company" && !currentCompany) {
     throw new Error("company scope requires PI_COMPANY or a company-scoped cwd");
   }
+}
+
+function allowsRepoBootstrapWithoutManifest(artifactKind?: OntologyArtifactKind): boolean {
+  return artifactKind === "bootstrap" || artifactKind === "manifest";
 }
 
 function inferScopeFromRepoKind(repoKind: RepoKind): Exclude<OntologyScope, "auto"> {

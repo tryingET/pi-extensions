@@ -73,12 +73,16 @@ export function formatChangeResult(result: OntologyChangeResult): string {
     "## Planned writes",
   ];
 
-  for (const write of result.writes) {
-    lines.push(
-      `- ${write.summary}`,
-      `  path: ${write.path}`,
-      `  existed: ${write.existed ? "yes" : "no"}`,
-    );
+  if (result.writes.length === 0) {
+    lines.push("- none");
+  } else {
+    for (const write of result.writes) {
+      lines.push(
+        `- ${write.summary}`,
+        `  path: ${write.path}`,
+        `  existed: ${write.existed ? "yes" : "no"}`,
+      );
+    }
   }
 
   if (result.validation) {

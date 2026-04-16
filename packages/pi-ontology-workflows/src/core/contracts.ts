@@ -7,7 +7,14 @@ export type OntologyInspectKind = (typeof ONTOLOGY_INSPECT_KINDS)[number];
 export const ONTOLOGY_CHANGE_MODES = ["plan", "apply"] as const;
 export type OntologyChangeMode = (typeof ONTOLOGY_CHANGE_MODES)[number];
 
-export const ONTOLOGY_ARTIFACT_KINDS = ["concept", "relation", "system4d", "bridge"] as const;
+export const ONTOLOGY_ARTIFACT_KINDS = [
+  "concept",
+  "relation",
+  "system4d",
+  "bridge",
+  "manifest",
+  "bootstrap",
+] as const;
 export type OntologyArtifactKind = (typeof ONTOLOGY_ARTIFACT_KINDS)[number];
 
 export const ONTOLOGY_CHANGE_OPERATIONS = ["create", "update", "upsert"] as const;
@@ -30,11 +37,24 @@ export interface BridgeMapping {
   note?: string;
 }
 
+export interface ManifestLayerSpec {
+  name: string;
+  ref?: string;
+  path?: string;
+}
+
+export interface ManifestProfileSpec {
+  include_layers?: string[];
+  exclude_layers?: string[];
+  budget?: number;
+}
+
 export interface WorkspaceContext {
   cwd: string;
   workspaceRoot: string;
   workspaceRefMode: "strict" | "loose";
   currentRepoPath: string;
+  currentRepoDetectedFromGit: boolean;
   currentRepoHasOntology: boolean;
   currentRepoKind: RepoKind;
   currentCompany?: string;
@@ -137,6 +157,9 @@ export interface OntologyChangeRequest {
   notes?: string[];
   rationale?: string;
   bridgeMappings?: BridgeMapping[];
+  manifestLayers?: ManifestLayerSpec[];
+  manifestProfiles?: Record<string, ManifestProfileSpec>;
+  manifestDefaultProfile?: string;
   system4dPath?: string;
   system4dAction?: System4dAction;
   system4dValue?: unknown;
