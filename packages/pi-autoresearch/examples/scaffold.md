@@ -22,13 +22,15 @@ Example tool/result themes:
 - phase: `bounded_runtime_kernel`
 - local receipt log: `autoresearch.jsonl`
 - benchmark/check execution: one bounded local run at a time
-- ready Prompt Vault templates:
+- current durable Prompt Vault procedures:
   - `pi-autoresearch-setup`
   - `pi-autoresearch-next-hypothesis`
   - `pi-autoresearch-finalize`
-- blocked router template:
+- optional later router draft:
   - `pi-autoresearch-state-router`
-- still out of scope:
+- next bounded runtime slices not yet landed:
+  - explicit package-local state-machine layer
   - AK campaign binding
+  - machine-invoked Prompt Vault decision steps
   - autonomous resume/loop lifecycle
   - finalization path orchestration

@@ -24,11 +24,14 @@ Monorepo package for the governed `pi-autoresearch` capability in Pi.
 This package is the local runtime home for the future `pi-autoresearch` experiment loop described in:
 
 - [pi-autoresearch RFC](../../docs/project/pi-autoresearch-rfc.md)
+- [pi-autoresearch foundation status](../../docs/project/pi-autoresearch-foundation-status.md)
+- [pi-autoresearch architecture correction](../../docs/project/pi-autoresearch-architecture-correction.md)
 - [Prompt Vault template set](../../docs/project/pi-autoresearch-prompt-vault-template-set.md)
 - [Prompt Vault rollout](../../docs/project/pi-autoresearch-prompt-vault-rollout.md)
 - [Ontology concept set](../../docs/project/pi-autoresearch-ontology-concept-set.md)
 
 The package started as a small shell and still preserves the recognizable `/autoresearch` operator surface while avoiding a premature re-import of the upstream monolith.
+The current boundary is now more specific: the package is the runtime owner for the executable experiment-loop machine, while AK and Prompt Vault remain separate durable-truth owners.
 
 ## Current public surface
 
@@ -43,7 +46,7 @@ The package started as a small shell and still preserves the recognizable `/auto
 
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
-  - surfaces the receipt log, local artifact contract, and Prompt Vault alignment
+  - surfaces the receipt log, local artifact contract, and current one-shot Prompt Vault alignment
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
   - bootstraps config receipts when needed
@@ -73,20 +76,28 @@ These stay **local receipts/projections**, not sole campaign truth.
 
 ## Prompt Vault alignment
 
-Prompt Vault now already owns three durable control-plane templates for the capability:
+Prompt Vault now already owns three durable one-shot control-plane templates for the capability:
 
 - `pi-autoresearch-setup`
 - `pi-autoresearch-next-hypothesis`
 - `pi-autoresearch-finalize`
 
-The state router remains blocked until governed router vocabulary expands truthfully.
-This package therefore avoids claiming a router or loop-control surface it cannot yet back with the right control-plane contract.
+The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
+But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
+The package should first gain its own explicit state-machine layer, then later connect AK binding and machine-invoked Prompt Vault decision steps.
+
+Interpretation rule:
+- Prompt Vault owns durable decision procedures
+- the package owns executable runtime state
+- AK will own durable campaign truth when the binding slice lands
 
 ## Current non-goals
 
 This package does **not** yet implement:
 
+- the explicit package-local state-machine layer above the current bounded helpers
 - AK campaign binding
+- machine-invoked Prompt Vault decision steps
 - finalization branch creation
 - autonomous resume/loop lifecycle
 - shared higher-order session-control orchestration
@@ -105,7 +116,7 @@ npm run release:check:quick
 
 ## Package boundary reminder
 
-This package owns the **local experiment runtime seam** only.
+This package owns the **local experiment runtime seam** and the future executable experiment-loop machine.
 It does **not** own:
 
 - Prompt Vault control-plane truth
