@@ -1,0 +1,17 @@
+rocs:
+  layers:
+    - name: core
+      ref: "<repo:core/ontology-kernel@main>"
+    - name: company
+      ref: "<repo:softwareco/ontology@main>"
+    - name: repo
+      path: "ontology/src"
+  profiles:
+    default: "repo-dev"
+    guiding-circle:
+      include_layers: ["core", "company"]
+      exclude_layers: ["repo"]
+      budget: 1800
+    repo-dev:
+      include_layers: ["core", "company", "repo"]
+      budget: 2800

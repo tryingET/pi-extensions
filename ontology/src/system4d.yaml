@@ -1,0 +1,49 @@
+ontology:
+  system4d:
+    name: "pi-extensions"
+    version: "0.1"
+    container:
+      boundary:
+        in_scope:
+          - "shared Pi extension validation, release, compatibility, and cross-package control-plane semantics owned at monorepo root"
+          - "repo-local ontology concepts that clarify root or cross-package semantics before promotion to company/core"
+        out_of_scope:
+          - "package-local implementation details that belong inside individual package docs or package-owned ontology later"
+          - "company-wide ontology concepts before they are proven beyond this repo"
+      constraints:
+        - "keep root ontology small and promotion-friendly"
+        - "do not use repo-local ontology to hide package-boundary ambiguity"
+      anti_goals:
+        - "turning root ontology into a dumping ground for every package-local noun"
+    compass:
+      drivers:
+        - "make cross-package semantics explicit when root coordination work would otherwise stay only in prose"
+      outcomes:
+        - "repo-local concepts stay useful for root work and are promotable to company/core later if reuse is proven"
+      tradeoffs:
+        - decision: "local-first ontology for new pi-autoresearch semantics"
+          chosen: "land repo-local ontology first, promote later if the semantics generalize"
+          because: "the immediate need is to govern pi-extensions work without polluting company ontology prematurely"
+    engine:
+      invariants:
+        - id: "PIEXT-ONT-INV-001"
+          statement: "Repo-local ontology exists to clarify root or cross-package semantics, not to replace package-specific boundaries."
+          enforcement: "review + rocs validate/build"
+      lifecycle:
+        - "seed locally"
+        - "use in docs/runtime/package work"
+        - "promote stable subset if reuse broadens"
+    fog:
+      assumptions:
+        - id: "PIEXT-ONT-A-001"
+          statement: "The pi-autoresearch semantics are currently most truthful at repo scope rather than company scope."
+          how_to_validate: "reassess after the package/runtime and Prompt Vault surfaces land"
+      risks:
+        - id: "PIEXT-ONT-R-001"
+          statement: "Repo-local ontology may accumulate nouns that should have been promoted or rejected."
+          mitigation: "keep additions small and review promotion/rejection explicitly"
+      exceptions: []
+      debt:
+        - id: "PIEXT-ONT-D-001"
+          statement: "pi-ontology-workflows must support both repo-local nested ontology layouts and dedicated company root-layout ontology repos truthfully."
+          payoff_plan: "fix the writer path logic and keep tests for both layouts"
