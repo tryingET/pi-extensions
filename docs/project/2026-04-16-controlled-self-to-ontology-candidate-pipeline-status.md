@@ -55,13 +55,14 @@ It does not apply ontology changes.
 
 ## 3. Repo-local candidate artifact staging is contract-bound
 
-At the repo level, the candidate artifact contract is now frozen:
+At the repo level, the candidate artifact contract is now frozen, with the operative root later rehomed by task `#1479`:
 
-- staging root: `docs/learnings/ontology-candidates/`
+- original v1 landing: `docs/learnings/ontology-candidates/`
+- current staging root: `governance/ontology-candidates/`
 - state: candidate-only, non-authoritative
-- root creation: lazy
+- root home: explicit directory + `README.md`; candidate files remain lazy
 - file naming: `YYYY-MM-DD--candidate-<concept|relation>-<slug>.md`
-- metadata/body schema: defined in `docs/project/ontology-candidate-artifact-contract.md`
+- metadata/body schema: defined in `governance/ontology-candidates/README.md` and `docs/project/ontology-candidate-staging-rehome.md`
 
 This means later writers/helpers now have one truthful answer for where ontology-candidate artifacts belong and how they must be shaped.
 
@@ -72,7 +73,7 @@ The current landing enables this **controlled** workflow:
 1. use `self` to crystallize a repeated semantic gap as an ontology candidate
 2. inspect or recall the staged candidate memory
 3. use `ontology_proposal` to assess whether ontology is even the right tool, and if so what scope/id/plan shape fits
-4. if a durable repo artifact is warranted, stage it under `docs/learnings/ontology-candidates/` using the repo contract
+4. if a durable repo artifact is warranted, stage it under `governance/ontology-candidates/` using the repo contract
 5. only after explicit review, move to `ontology_change mode=plan` and later `mode=apply`
 
 That is a real pipeline.
@@ -82,7 +83,7 @@ But it is a **bounded, review-preserving** one.
 
 To avoid false confidence, task `#1412` should **not** be read as having landed any of the following:
 
-- automatic file emission from `self` into `docs/learnings/ontology-candidates/`
+- automatic file emission from `self` into `governance/ontology-candidates/`
 - direct `self -> ontology_change mode=apply`
 - automatic promotion from candidate artifact to ontology plan/apply
 - an orchestrated review loop that merges, defers, or promotes candidates automatically

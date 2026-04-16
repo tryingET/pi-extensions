@@ -76,7 +76,7 @@ The self-to-ontology side of the correction wave now reads consistently with the
 
 - `self` owns candidate-only ontology memory
 - `ontology_proposal` owns plan-only ontology assessment
-- repo-root `docs/learnings/ontology-candidates/` is a narrow ontology-specific candidate staging surface
+- repo-root `governance/ontology-candidates/` is a narrow ontology-specific candidate staging surface
 - candidate staging does **not** become a generic root `docs/learnings/` learning bus
 
 This keeps semantic evolution in the stack map's **semantics layer** and **human crystallization layer** without letting either one over-claim runtime authority.

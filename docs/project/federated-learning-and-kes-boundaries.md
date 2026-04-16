@@ -33,7 +33,7 @@ The repo now has several real but different learning/capture surfaces:
 - root `diary/`
 - package-local `diary/` folders in some packages
 - package-owned KES in `packages/pi-society-orchestrator`
-- repo-level ontology-candidate staging under `docs/learnings/ontology-candidates/`
+- repo-level ontology-candidate staging under `governance/ontology-candidates/`
 - root `docs/project/` notes that synthesize cross-package architecture and contracts
 
 Those surfaces are useful together.
@@ -90,7 +90,8 @@ The root ontology-candidate pipeline already made an important distinction:
 That distinction is recorded in:
 
 - `docs/project/self-to-ontology-candidate-pipeline.md`
-- `docs/project/ontology-candidate-artifact-contract.md`
+- `governance/ontology-candidates/README.md`
+- `docs/project/ontology-candidate-staging-rehome.md`
 - `docs/project/2026-04-16-controlled-self-to-ontology-candidate-pipeline-status.md`
 
 So the repo already has evidence for the right pattern:
@@ -146,7 +147,7 @@ Do not use for:
 - raw session capture
 - package-local candidate output that has not been reviewed into a root-level conclusion
 
-### Root `docs/learnings/ontology-candidates/`
+### Root `governance/ontology-candidates/`
 Use for:
 
 - the specific repo-level candidate-only ontology staging contract already defined for semantic gaps
@@ -192,7 +193,7 @@ Do not assume every package should now get `docs/learnings/` just because orches
 |---|---|---|---|---|
 | `diary/` at repo root | monorepo root | raw capture | root-level sessions and cross-package reasoning | package-owned KES emissions |
 | `docs/project/` at repo root | monorepo root | reviewed narrative/contract | cross-package synthesis, architecture, direction | raw package capture |
-| `docs/learnings/ontology-candidates/` at repo root | monorepo root | candidate-only | repo-level ontology candidate staging | generic learnings or package KES spillover |
+| `governance/ontology-candidates/` at repo root | monorepo root | candidate-only | repo-level ontology candidate staging | generic learnings or package KES spillover |
 | `packages/*/diary/` | package owner | raw capture | package-local session history | cross-package policy truth |
 | `packages/*/docs/learnings/` | package owner | candidate-only | package-local reusable claims with explicit contract | monorepo-global learnings by default |
 | `packages/pi-society-orchestrator/src/kes/` | orchestrator package | package-owned seam | bounded KES planning/materialization for orchestrator-owned loops | root-global KES ownership |
@@ -264,7 +265,7 @@ For current `pi-extensions` work, the truthful stance is:
 
 1. keep orchestrator KES exactly where it is: a package-owned seam
 2. keep repo-root diary/project docs for root-owned work and cross-package synthesis
-3. keep repo-root `docs/learnings/ontology-candidates/` narrow and semantics-specific
+3. keep repo-root `governance/ontology-candidates/` narrow and semantics-specific
 4. add new package-local learning surfaces only when that package has an explicit owner contract
 5. federate knowledge upward by reviewed synthesis, not by automatic artifact replication
 

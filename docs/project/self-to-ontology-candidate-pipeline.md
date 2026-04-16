@@ -58,7 +58,7 @@ But `self` still does **not** own file emission, ontology planning, or ontology 
 ### 2. Repo-root ontology-candidate staging now has a narrow contract
 The repo now has an explicit candidate-staging contract at:
 
-- `docs/learnings/ontology-candidates/`
+- `governance/ontology-candidates/`
 
 That root is intentionally narrow:
 
@@ -135,7 +135,7 @@ If a semantic candidate is rejected, the system should remember why, so it does 
 
 ## Decision in one sentence
 
-Keep the now-landed bounded split: `self` owns **candidate-only semantic memory**, repo-root `docs/learnings/ontology-candidates/` stages only **ontology-specific candidate artifacts** when needed, `ontology_proposal` performs **plan-only assessment**, and **explicit review + AK-backed sequencing** own promotion.
+Keep the now-landed bounded split: `self` owns **candidate-only semantic memory**, repo-root `governance/ontology-candidates/` stages only **ontology-specific candidate artifacts** when needed, `ontology_proposal` performs **plan-only assessment**, and **explicit review + AK-backed sequencing** own promotion.
 No step in this pipeline should auto-write broad monorepo learning truth or `ontology_change mode=apply`.
 
 ---
@@ -203,7 +203,7 @@ Current boundary:
 - repo-root staging is reserved for ontology-specific semantic candidates
 
 Output:
-- candidate-only artifact under `docs/learnings/ontology-candidates/` when warranted
+- candidate-only artifact under `governance/ontology-candidates/` when warranted
 
 ## Phase 3 — `ontology_proposal` evaluates the candidate
 
@@ -296,7 +296,7 @@ This type should be included in the same scoped self-memory persistence family a
 ### Root
 For this repo, use the repo-local candidate root:
 
-- `docs/learnings/ontology-candidates/`
+- `governance/ontology-candidates/`
 
 This intentionally borrows the **candidate-only** logic of KES without requiring ontology truth to live there.
 It is a narrow repo-root semantic staging surface, not a generic monorepo `docs/learnings/` dumping ground and not a replacement for package-owned KES.
@@ -305,7 +305,7 @@ It is a narrow repo-root semantic staging surface, not a generic monorepo `docs/
 Example:
 
 ```text
-docs/learnings/ontology-candidates/2026-04-16--candidate-concept-benchmark-harness.md
+governance/ontology-candidates/2026-04-16--candidate-concept-benchmark-harness.md
 ```
 
 ### Frontmatter schema
@@ -475,7 +475,7 @@ The corresponding intent family now exists to remember, recall, reject, and forg
 By `self`, from repeated semantic pressure or explicit operator instruction.
 
 ## Step 2 — optional durable staging
-If a repo artifact is warranted, stage a candidate-only note under `docs/learnings/ontology-candidates/`.
+If a repo artifact is warranted, stage a candidate-only note under `governance/ontology-candidates/`.
 `self` does **not** auto-write this file.
 
 ## Step 3 — proposal assessed
@@ -549,7 +549,7 @@ But the current package-owned KES seam belongs to orchestrator, and this repo no
 So the best move is:
 - reuse the *discipline*
 - keep package-owned KES package-owned
-- use repo-root `docs/learnings/ontology-candidates/` only for ontology-specific repo-root semantic staging
+- use repo-root `governance/ontology-candidates/` only for ontology-specific repo-root semantic staging
 - do **not** generalize this into a monorepo-wide learning bus
 
 For `pi-extensions` root work, use a repo-local candidate artifact contract inspired by KES semantics without collapsing package and repo ownership boundaries.
