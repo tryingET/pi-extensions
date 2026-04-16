@@ -3,7 +3,27 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import type { CampaignMachineInput, CampaignMachineStateValue } from "../machine/campaign.ts";
-import { type CampaignSegmentConfig, campaignEvents } from "../machine/events.ts";
+import {
+  type CampaignDecision,
+  type CampaignSegmentConfig,
+  campaignEvents,
+  isCampaignDecision,
+} from "../machine/events.ts";
+import {
+  AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
+  AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+  AUTORESEARCH_SETUP_TEMPLATE_NAME,
+  type AutoresearchDecisionFailureStage,
+  type AutoresearchDecisionRuntime,
+  type FinalizeDecisionOutcome,
+  type FinalizeDecisionPacket,
+  mapNextHypothesisOutcomeToCampaignDecision,
+  type NextHypothesisDecisionOutcome,
+  type NextHypothesisDecisionPacket,
+  type NextHypothesisDecisionStatus,
+  type SetupDecisionOutcome,
+  type SetupDecisionPacket,
+} from "./decisions.ts";
 import {
   AUTORESEARCH_EVENT_LEDGER_FILE,
   type AutoresearchLedgerEventEntry,
@@ -31,9 +51,9 @@ export const AUTORESEARCH_LOCAL_ARTIFACTS = [
 ] as const;
 
 export const READY_PROMPT_VAULT_TEMPLATES = [
-  "pi-autoresearch-setup",
-  "pi-autoresearch-next-hypothesis",
-  "pi-autoresearch-finalize",
+  AUTORESEARCH_SETUP_TEMPLATE_NAME,
+  AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+  AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
 ] as const;
 
 export const BLOCKED_PROMPT_VAULT_TEMPLATES = ["pi-autoresearch-state-router"] as const;
@@ -47,6 +67,30 @@ const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 export type MetricDirection = "lower" | "higher";
 export type RunStatus = "baseline" | "candidate" | "keep" | "discard" | "crash" | "checks_failed";
 export type MetricMap = Record<string, number>;
+
+export interface AutoresearchRunDecisionSummary {
+  kind: "next_hypothesis";
+  templateName: typeof AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME;
+  status: NextHypothesisDecisionStatus;
+  mappedDecision: CampaignDecision;
+  blockingReason: string | null;
+  failureStage: AutoresearchDecisionFailureStage | null;
+  stateRead: string | null;
+  nextHypothesis: string | null;
+  targetFiles: string[];
+  expectedPrimaryEffect: string | null;
+  timestamp: number;
+}
+
+export type AutoresearchPromptVaultDecisionAvailability =
+  | "available_not_yet_used"
+  | "available_last_used_successfully"
+  | "available_last_used_blocked";
+
+export interface AutoresearchPromptVaultDecisionStatus {
+  availability: AutoresearchPromptVaultDecisionAvailability;
+  lastPostRunDecision: AutoresearchRunDecisionSummary | null;
+}
 
 export interface AutoresearchConfigReceipt {
   type: "config";
@@ -78,6 +122,7 @@ export interface AutoresearchRunReceipt {
   checksCommand?: string | null;
   checksPassed?: boolean | null;
   checksDurationSeconds?: number | null;
+  decision?: AutoresearchRunDecisionSummary | null;
 }
 
 export type AutoresearchReceipt = AutoresearchConfigReceipt | AutoresearchRunReceipt;
@@ -127,6 +172,7 @@ export interface AutoresearchRuntimeStatus {
   invalidReceiptLines: number;
   currentSegment: AutoresearchSegmentSummary;
   runtimeProjection: AutoresearchRuntimeProjection;
+  promptVaultDecisions: AutoresearchPromptVaultDecisionStatus;
   nextSlices: readonly string[];
 }
 
@@ -141,6 +187,19 @@ export interface CommandExecutionSummary {
   outputTail: string;
 }
 
+export interface ExecuteAutoresearchRunLiveDecisionInput {
+  runtime: AutoresearchDecisionRuntime;
+  goal: string;
+  constraints?: readonly string[];
+  filesInScope?: readonly string[];
+  offLimits?: readonly string[];
+  ideasBacklog?: readonly string[];
+  asiNotes?: readonly string[];
+  deadEndMemory?: readonly string[];
+  currentCompany?: string;
+  model?: string;
+}
+
 export interface ExecuteAutoresearchRunInput {
   cwd: string;
   description: string;
@@ -153,6 +212,7 @@ export interface ExecuteAutoresearchRunInput {
   timeoutSeconds?: number;
   checksTimeoutSeconds?: number;
   reconfigure?: boolean;
+  liveDecision?: ExecuteAutoresearchRunLiveDecisionInput;
   signal?: AbortSignal;
 }
 
@@ -167,6 +227,37 @@ export interface ExecuteAutoresearchRunResult {
   parsedMetrics: MetricMap;
   primaryMetricName: string;
   primaryMetric: number;
+  decisionSummary: AutoresearchRunDecisionSummary | null;
+  status: AutoresearchRuntimeStatus;
+}
+
+export interface ExecuteAutoresearchSetupDecisionInput {
+  cwd: string;
+  packet: SetupDecisionPacket;
+  runtime: AutoresearchDecisionRuntime;
+  currentCompany?: string;
+  model?: string;
+  signal?: AbortSignal;
+}
+
+export interface ExecuteAutoresearchSetupDecisionResult {
+  cwd: string;
+  outcome: SetupDecisionOutcome;
+  status: AutoresearchRuntimeStatus;
+}
+
+export interface ExecuteAutoresearchFinalizeDecisionInput {
+  cwd: string;
+  packet: FinalizeDecisionPacket;
+  runtime: AutoresearchDecisionRuntime;
+  currentCompany?: string;
+  model?: string;
+  signal?: AbortSignal;
+}
+
+export interface ExecuteAutoresearchFinalizeDecisionResult {
+  cwd: string;
+  outcome: FinalizeDecisionOutcome;
   status: AutoresearchRuntimeStatus;
 }
 
@@ -239,6 +330,7 @@ export function createRunReceipt(input: {
   checksCommand?: string | null;
   checksPassed?: boolean | null;
   checksDurationSeconds?: number | null;
+  decision?: AutoresearchRunDecisionSummary | null;
 }): AutoresearchRunReceipt {
   return {
     type: "run",
@@ -258,6 +350,7 @@ export function createRunReceipt(input: {
     checksCommand: input.checksCommand,
     checksPassed: input.checksPassed,
     checksDurationSeconds: input.checksDurationSeconds,
+    decision: input.decision ?? undefined,
   };
 }
 
@@ -375,6 +468,8 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     `- ledger replay: ${projection.replayedEventCount}/${projection.eventCount} events accepted`,
     `- ledger replay issues: ${projection.rejectedEvents.length}`,
     `- projection sync issues: ${projection.syncIssues.length}`,
+    `- live Prompt Vault decisions: ${formatPromptVaultDecisionAvailability(status.promptVaultDecisions.availability)}`,
+    `- last post-run decision: ${formatLastPostRunDecision(status.promptVaultDecisions.lastPostRunDecision)}`,
     ...currentSegmentLines,
     `- ready Prompt Vault templates: ${status.readyPromptVaultTemplates.join(", ")}`,
     `- blocked Prompt Vault templates: ${status.blockedPromptVaultTemplates.join(", ")}`,
@@ -413,14 +508,15 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, and append-only receipt/event logging.",
-    "This package still does not own the autonomous loop, AK binding, or finalization workflow.",
+    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, and governed Prompt Vault decision requests.",
+    "This package still does not own the autonomous loop, AK binding, or finalization materialization workflow.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
     `- tools: ${status.toolNames.join(", ")}`,
     "- use autoresearch_runtime_status to inspect the current bounded runtime state",
-    "- use autoresearch_runtime_run to execute one bounded local run and append receipts plus machine/ledger events",
+    "- use autoresearch_runtime_status with action=setup or action=finalize to request governed setup/finalize packets",
+    "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal",
     "",
     ...configurationBlock,
     "",
@@ -430,6 +526,9 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "## Prompt Vault alignment",
     "Ready now:",
     ...status.readyPromptVaultTemplates.map((name) => `- ${name}`),
+    "",
+    `Live post-run decision state: ${formatPromptVaultDecisionAvailability(status.promptVaultDecisions.availability)}`,
+    `Last post-run decision: ${formatLastPostRunDecision(status.promptVaultDecisions.lastPostRunDecision)}`,
     "",
     "Blocked until governed router vocabulary expands:",
     ...status.blockedPromptVaultTemplates.map((name) => `- ${name}`),
@@ -451,6 +550,15 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
         `- checks exit: ${formatExit(result.checks.exitCode, result.checks.timedOut)} in ${result.checks.durationSeconds.toFixed(2)}s`,
       ]
     : ["- checks: (not run)"];
+  const decisionSummary = result.decisionSummary
+    ? [
+        `- live post-run decision: ${result.decisionSummary.status} -> ${result.decisionSummary.mappedDecision}`,
+        result.decisionSummary.blockingReason
+          ? `- decision block: ${result.decisionSummary.blockingReason}`
+          : `- next hypothesis: ${result.decisionSummary.nextHypothesis ?? "(none)"}`,
+        `- decision target files: ${formatTargetFiles(result.decisionSummary.targetFiles)}`,
+      ]
+    : ["- live post-run decision: not requested; preserved bounded iterate bridge"];
 
   return [
     "# PI-AUTORESEARCH RUN",
@@ -467,6 +575,7 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     `- benchmark: ${result.benchmark.command}`,
     `- benchmark exit: ${formatExit(result.benchmark.exitCode, result.benchmark.timedOut)} in ${result.benchmark.durationSeconds.toFixed(2)}s`,
     ...checksSummary,
+    ...decisionSummary,
     `- current baseline: ${formatMetricValue(result.status.currentSegment.baselineMetric, metricUnit)}`,
     `- current best: ${formatMetricValue(result.status.currentSegment.bestMetric, metricUnit)}`,
     `- confidence: ${formatConfidenceValue(result.status.currentSegment.confidence)}`,
@@ -482,6 +591,112 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
   ].join("\n");
 }
 
+export async function requestAutoresearchSetupDecision(
+  input: ExecuteAutoresearchSetupDecisionInput,
+): Promise<ExecuteAutoresearchSetupDecisionResult> {
+  const cwd = path.resolve(input.cwd);
+  const outcome = await input.runtime.runSetup(enrichSetupDecisionPacket(cwd, input.packet), {
+    cwd,
+    currentCompany: input.currentCompany,
+    model: input.model,
+    signal: input.signal,
+  });
+
+  return {
+    cwd,
+    outcome,
+    status: buildAutoresearchRuntimeStatus(cwd),
+  };
+}
+
+export async function requestAutoresearchFinalizeDecision(
+  input: ExecuteAutoresearchFinalizeDecisionInput,
+): Promise<ExecuteAutoresearchFinalizeDecisionResult> {
+  const cwd = path.resolve(input.cwd);
+  const outcome = await input.runtime.runFinalize(enrichFinalizeDecisionPacket(cwd, input.packet), {
+    cwd,
+    currentCompany: input.currentCompany,
+    model: input.model,
+    signal: input.signal,
+  });
+
+  return {
+    cwd,
+    outcome,
+    status: buildAutoresearchRuntimeStatus(cwd),
+  };
+}
+
+export function formatAutoresearchDecisionResult(
+  result: ExecuteAutoresearchSetupDecisionResult | ExecuteAutoresearchFinalizeDecisionResult,
+): string {
+  const outcome = result.outcome;
+  if (outcome.kind === "setup") {
+    if (isDecisionErrorOutcome(outcome)) {
+      return [
+        "# PI-AUTORESEARCH DECISION",
+        "",
+        `- cwd: ${result.cwd}`,
+        `- kind: ${outcome.kind}`,
+        `- template: ${outcome.templateName}`,
+        `- status: ${outcome.status}`,
+        `- blocking reason: ${outcome.blockingReason}`,
+        `- failure stage: ${outcome.failureStage}`,
+        `- machine state: ${result.status.runtimeProjection.state}`,
+      ].join("\n");
+    }
+
+    return [
+      "# PI-AUTORESEARCH DECISION",
+      "",
+      `- cwd: ${result.cwd}`,
+      `- kind: ${outcome.kind}`,
+      `- template: ${outcome.templateName}`,
+      `- status: ${outcome.status}`,
+      `- goal: ${outcome.goal}`,
+      `- primary metric: ${outcome.primaryMetric.name} (${outcome.primaryMetric.unit || "unitless"}, ${outcome.primaryMetric.direction} is better)`,
+      `- benchmark command: ${outcome.benchmarkCommand}`,
+      `- files in scope: ${formatTargetFiles(outcome.filesInScope)}`,
+      ...(outcome.status === "blocked"
+        ? [`- blocking reason: ${formatSetupBlockingReason(outcome)}`]
+        : []),
+      `- machine state: ${result.status.runtimeProjection.state}`,
+    ].join("\n");
+  }
+
+  if (isDecisionErrorOutcome(outcome)) {
+    return [
+      "# PI-AUTORESEARCH DECISION",
+      "",
+      `- cwd: ${result.cwd}`,
+      `- kind: ${outcome.kind}`,
+      `- template: ${outcome.templateName}`,
+      `- status: ${outcome.status}`,
+      `- blocking reason: ${outcome.blockingReason}`,
+      `- failure stage: ${outcome.failureStage}`,
+      `- machine state: ${result.status.runtimeProjection.state}`,
+    ].join("\n");
+  }
+
+  return [
+    "# PI-AUTORESEARCH DECISION",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- kind: ${outcome.kind}`,
+    `- template: ${outcome.templateName}`,
+    `- status: ${outcome.status}`,
+    `- base ref: ${outcome.baseRef}`,
+    `- trunk ref: ${outcome.trunkRef}`,
+    `- overall result: ${outcome.overallResult}`,
+    `- proposed groups: ${outcome.proposedGroups.length}`,
+    `- grouped files: ${formatTargetFiles(outcome.proposedGroups.flatMap((group) => group.files))}`,
+    ...(outcome.status === "blocked"
+      ? [`- blocking reason: ${formatFinalizeBlockingReason(outcome)}`]
+      : []),
+    `- machine state: ${result.status.runtimeProjection.state}`,
+  ].join("\n");
+}
+
 export async function executeAutoresearchRun(
   input: ExecuteAutoresearchRunInput,
 ): Promise<ExecuteAutoresearchRunResult> {
@@ -489,6 +704,11 @@ export async function executeAutoresearchRun(
   const description = input.description.trim();
   if (description.length === 0) {
     throw new Error("description is required");
+  }
+  if (input.liveDecision && input.liveDecision.goal.trim().length === 0) {
+    throw new Error(
+      "liveDecision.goal is required when governed post-run Prompt Vault decisions are enabled",
+    );
   }
 
   const paths = resolveAutoresearchPaths(cwd);
@@ -634,6 +854,20 @@ export async function executeAutoresearchRun(
   );
   runReceipt.confidence = nextStatus.currentSegment.confidence;
 
+  const decisionSummary = input.liveDecision
+    ? await runAutoresearchPostRunDecision({
+        cwd,
+        entries: nextEntries,
+        status: nextStatus,
+        runReceipt,
+        liveDecision: input.liveDecision,
+        signal: input.signal,
+      })
+    : null;
+  if (decisionSummary) {
+    runReceipt.decision = decisionSummary;
+  }
+
   appendReceipt(cwd, runReceipt);
   appendLedgerEvent(
     cwd,
@@ -648,7 +882,13 @@ export async function executeAutoresearchRun(
   appendLedgerEvent(
     cwd,
     createLedgerEventEntry(
-      campaignEvents.decideNextAction("iterate", "bounded runtime run completed"),
+      campaignEvents.decideNextAction(
+        decisionSummary?.mappedDecision ?? "iterate",
+        decisionSummary
+          ? formatRunDecisionLedgerReason(decisionSummary)
+          : "bounded runtime run completed",
+      ),
+      runReceipt.timestamp,
     ),
   );
 
@@ -663,7 +903,208 @@ export async function executeAutoresearchRun(
     parsedMetrics,
     primaryMetricName: metricName,
     primaryMetric,
+    decisionSummary,
     status: buildAutoresearchRuntimeStatus(cwd),
+  };
+}
+
+async function runAutoresearchPostRunDecision(input: {
+  cwd: string;
+  entries: AutoresearchReceipt[];
+  status: AutoresearchRuntimeStatus;
+  runReceipt: AutoresearchRunReceipt;
+  liveDecision: ExecuteAutoresearchRunLiveDecisionInput;
+  signal?: AbortSignal;
+}): Promise<AutoresearchRunDecisionSummary> {
+  const outcome = await input.liveDecision.runtime.runNextHypothesis(
+    buildRuntimeNextHypothesisPacket(input),
+    {
+      cwd: input.cwd,
+      currentCompany: input.liveDecision.currentCompany,
+      model: input.liveDecision.model,
+      signal: input.signal,
+    },
+  );
+  return buildRunDecisionSummary(outcome, input.runReceipt.timestamp);
+}
+
+function buildRuntimeNextHypothesisPacket(input: {
+  entries: AutoresearchReceipt[];
+  status: AutoresearchRuntimeStatus;
+  runReceipt: AutoresearchRunReceipt;
+  liveDecision: ExecuteAutoresearchRunLiveDecisionInput;
+}): NextHypothesisDecisionPacket {
+  const currentSegmentView = getCurrentSegment(input.entries);
+  const successfulRuns = currentSegmentView.runs.filter(isSuccessfulMetricRun);
+  const recentRuns = currentSegmentView.runs.slice(-5);
+  const metricUnit = input.status.currentSegment.metricUnit;
+  const metricName = input.status.currentSegment.metricName ?? "(unset)";
+  const direction = input.status.currentSegment.direction ?? "lower";
+
+  return {
+    goal: input.liveDecision.goal.trim(),
+    constraints: [
+      ...normalizeArray(input.liveDecision.constraints),
+      "bounded local runtime only",
+      "fail closed if the governed Prompt Vault decision cannot be prepared, executed, or parsed",
+    ],
+    segmentSummary: [
+      `campaign: ${input.status.currentSegment.name ?? "(unnamed)"}`,
+      `metric: ${metricName} (${metricUnit || "unitless"}, ${direction} is better)`,
+      `run count: ${input.status.currentSegment.runCount}`,
+      `successful runs: ${input.status.currentSegment.successfulRunCount}`,
+      `baseline: ${formatMetricValue(input.status.currentSegment.baselineMetric, metricUnit)}`,
+      `best: ${formatMetricValue(input.status.currentSegment.bestMetric, metricUnit)}`,
+      `last run: ${formatLastRun(input.status.currentSegment.lastRunStatus, input.status.currentSegment.lastRunMetric, metricUnit)}`,
+    ],
+    baselineHistory: [
+      successfulRuns.length > 0
+        ? `baseline ${metricName}=${formatMetricValue(successfulRuns[0]?.metric ?? null, metricUnit)}`
+        : "no successful baseline yet",
+      successfulRuns.length > 0
+        ? `best ${metricName}=${formatMetricValue(input.status.currentSegment.bestMetric, metricUnit)}`
+        : "best metric unavailable",
+    ],
+    recentRunHistory: recentRuns.map((run) => formatRunHistoryLine(run, metricUnit)),
+    checksStatus: [
+      `checks command: ${input.status.currentSegment.checksCommand ?? "(none)"}`,
+      `latest checks: ${describeChecksState(input.runReceipt)}`,
+    ],
+    confidenceSignals: [
+      `confidence: ${formatConfidenceValue(input.status.currentSegment.confidence)}`,
+      `latest run receipt status: ${input.runReceipt.status}`,
+    ],
+    asiNotes: normalizeArray(input.liveDecision.asiNotes),
+    deadEndMemory: normalizeArray(input.liveDecision.deadEndMemory),
+    filesInScope: normalizeArray(input.liveDecision.filesInScope),
+    offLimits: normalizeArray(input.liveDecision.offLimits),
+    ideasBacklog: normalizeArray(input.liveDecision.ideasBacklog),
+  };
+}
+
+function buildRunDecisionSummary(
+  outcome: NextHypothesisDecisionOutcome,
+  timestamp: number,
+): AutoresearchRunDecisionSummary {
+  if (isDecisionErrorOutcome(outcome)) {
+    return {
+      kind: "next_hypothesis",
+      templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+      status: "blocked",
+      mappedDecision: "block",
+      blockingReason: outcome.blockingReason,
+      failureStage: outcome.failureStage,
+      stateRead: null,
+      nextHypothesis: null,
+      targetFiles: [],
+      expectedPrimaryEffect: null,
+      timestamp,
+    };
+  }
+
+  return {
+    kind: "next_hypothesis",
+    templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+    status: outcome.status,
+    mappedDecision: mapNextHypothesisOutcomeToCampaignDecision(outcome),
+    blockingReason:
+      outcome.status === "blocked"
+        ? (normalizeInlineReason(outcome.nextHypothesis) ??
+          normalizeInlineReason(outcome.stateRead))
+        : null,
+    failureStage: null,
+    stateRead: outcome.stateRead,
+    nextHypothesis: outcome.nextHypothesis,
+    targetFiles: [...outcome.targetFiles],
+    expectedPrimaryEffect: outcome.expectedPrimaryEffect,
+    timestamp,
+  };
+}
+
+function formatRunDecisionLedgerReason(summary: AutoresearchRunDecisionSummary): string {
+  if (summary.blockingReason) {
+    return `Prompt Vault next_hypothesis blocked: ${summary.blockingReason}`;
+  }
+
+  return `Prompt Vault next_hypothesis -> ${summary.status}: ${summary.nextHypothesis ?? summary.stateRead ?? "decision recorded"}`;
+}
+
+function buildPromptVaultDecisionStatus(
+  runs: readonly AutoresearchRunReceipt[],
+): AutoresearchPromptVaultDecisionStatus {
+  const lastPostRunDecision = findLastPostRunDecision(runs);
+  return {
+    availability:
+      lastPostRunDecision === null
+        ? "available_not_yet_used"
+        : lastPostRunDecision.status === "blocked"
+          ? "available_last_used_blocked"
+          : "available_last_used_successfully",
+    lastPostRunDecision,
+  };
+}
+
+function findLastPostRunDecision(
+  runs: readonly AutoresearchRunReceipt[],
+): AutoresearchRunDecisionSummary | null {
+  for (let index = runs.length - 1; index >= 0; index -= 1) {
+    const decision = runs[index]?.decision;
+    if (decision) {
+      return decision;
+    }
+  }
+
+  return null;
+}
+
+function enrichSetupDecisionPacket(cwd: string, packet: SetupDecisionPacket): SetupDecisionPacket {
+  const status = buildAutoresearchRuntimeStatus(cwd);
+  const repoContext =
+    packet.repoContext.length > 0
+      ? [...packet.repoContext]
+      : [
+          `cwd: ${cwd}`,
+          `phase: ${AUTORESEARCH_PHASE}`,
+          `machine state: ${status.runtimeProjection.state}`,
+        ];
+  const benchmarkSurfaces =
+    packet.benchmarkSurfaces.length > 0
+      ? [...packet.benchmarkSurfaces]
+      : [
+          status.currentSegment.benchmarkCommand
+            ? `benchmark command: ${status.currentSegment.benchmarkCommand}`
+            : "benchmark command: (unset)",
+          `checks command: ${status.currentSegment.checksCommand ?? "(none)"}`,
+        ];
+  const existingArtifacts =
+    packet.existingArtifacts.length > 0
+      ? [...packet.existingArtifacts]
+      : AUTORESEARCH_LOCAL_ARTIFACTS.filter((artifact) => existsSync(path.join(cwd, artifact)));
+
+  return {
+    ...packet,
+    repoContext,
+    benchmarkSurfaces,
+    existingArtifacts,
+  };
+}
+
+function enrichFinalizeDecisionPacket(
+  cwd: string,
+  packet: FinalizeDecisionPacket,
+): FinalizeDecisionPacket {
+  const status = buildAutoresearchRuntimeStatus(cwd);
+  return {
+    ...packet,
+    campaignContext:
+      packet.campaignContext.length > 0
+        ? [...packet.campaignContext]
+        : [
+            `campaign: ${status.currentSegment.name ?? "(unnamed)"}`,
+            `machine state: ${status.runtimeProjection.state}`,
+            `baseline: ${formatMetricValue(status.currentSegment.baselineMetric, status.currentSegment.metricUnit)}`,
+            `best: ${formatMetricValue(status.currentSegment.bestMetric, status.currentSegment.metricUnit)}`,
+          ],
   };
 }
 
@@ -862,7 +1303,9 @@ function buildAutoresearchRuntimeStatusFromEntries(
   entries: AutoresearchReceipt[],
   invalidLineCount: number,
 ): AutoresearchRuntimeStatus {
-  const currentSegment = summarizeCurrentSegment(getCurrentSegment(entries));
+  const currentSegmentView = getCurrentSegment(entries);
+  const currentSegment = summarizeCurrentSegment(currentSegmentView);
+  const promptVaultDecisions = buildPromptVaultDecisionStatus(currentSegmentView.runs);
   return {
     phase: AUTORESEARCH_PHASE,
     cwd,
@@ -878,7 +1321,12 @@ function buildAutoresearchRuntimeStatusFromEntries(
     hasChecksScript: paths ? existsSync(paths.checksScriptPath) : false,
     invalidReceiptLines: invalidLineCount,
     currentSegment,
-    runtimeProjection: buildRuntimeProjection(cwd, currentSegment),
+    runtimeProjection: buildRuntimeProjection(
+      cwd,
+      currentSegment,
+      promptVaultDecisions.lastPostRunDecision,
+    ),
+    promptVaultDecisions,
     nextSlices: ["ak_campaign_binding", "prompt_vault_decision_steps", "safer_finalization_path"],
   };
 }
@@ -886,9 +1334,10 @@ function buildAutoresearchRuntimeStatusFromEntries(
 function buildRuntimeProjection(
   cwd: string | undefined,
   currentSegment: AutoresearchSegmentSummary,
+  lastPostRunDecision: AutoresearchRunDecisionSummary | null,
 ): AutoresearchRuntimeProjection {
   if (!cwd) {
-    return createReceiptFallbackProjection(currentSegment);
+    return createReceiptFallbackProjection(currentSegment, lastPostRunDecision);
   }
 
   const loadResult = loadAutoresearchLedger(cwd);
@@ -909,7 +1358,11 @@ function buildRuntimeProjection(
       };
     }
 
-    const fallback = createReceiptFallbackProjection(currentSegment, projection.ledgerPath);
+    const fallback = createReceiptFallbackProjection(
+      currentSegment,
+      lastPostRunDecision,
+      projection.ledgerPath,
+    );
     return {
       ...fallback,
       hasLedger: projection.hasLedger,
@@ -921,16 +1374,21 @@ function buildRuntimeProjection(
     };
   }
 
-  return createReceiptFallbackProjection(currentSegment, resolveAutoresearchLedgerPath(cwd));
+  return createReceiptFallbackProjection(
+    currentSegment,
+    lastPostRunDecision,
+    resolveAutoresearchLedgerPath(cwd),
+  );
 }
 
 function createReceiptFallbackProjection(
   currentSegment: AutoresearchSegmentSummary,
+  lastPostRunDecision: AutoresearchRunDecisionSummary | null,
   ledgerPath?: string,
 ): AutoresearchRuntimeProjection {
   const projection = projectAutoresearchLedgerEntries(
     [],
-    createFallbackMachineInput(currentSegment),
+    createFallbackMachineInput(currentSegment, lastPostRunDecision),
   );
   return {
     state: projection.state,
@@ -985,6 +1443,7 @@ function describeRuntimeProjectionSyncIssue(
 
 function createFallbackMachineInput(
   currentSegment: AutoresearchSegmentSummary,
+  lastPostRunDecision: AutoresearchRunDecisionSummary | null,
 ): CampaignMachineInput | undefined {
   if (!currentSegment.configured) {
     return undefined;
@@ -1006,6 +1465,16 @@ function createFallbackMachineInput(
     lastRunStatus: currentSegment.lastRunStatus,
     lastRunMetric: currentSegment.lastRunMetric,
     awaitingDecision: false,
+    blockedReason:
+      lastPostRunDecision?.mappedDecision === "block"
+        ? (lastPostRunDecision.blockingReason ?? "campaign blocked pending operator action")
+        : null,
+    resumeState:
+      lastPostRunDecision?.mappedDecision === "rebaseline"
+        ? "rebaseline_needed"
+        : lastPostRunDecision?.mappedDecision === "finalize"
+          ? "finalize_candidate"
+          : null,
   };
 }
 
@@ -1112,7 +1581,12 @@ function reconstructLedgerEntriesForRun(
       run.timestamp,
     ),
     createLedgerEventEntry(
-      campaignEvents.decideNextAction("iterate", "reconstructed from receipt history"),
+      campaignEvents.decideNextAction(
+        run.decision?.mappedDecision ?? "iterate",
+        run.decision
+          ? formatRunDecisionLedgerReason(run.decision)
+          : "reconstructed from receipt history",
+      ),
       run.timestamp,
     ),
   );
@@ -1317,7 +1791,79 @@ function parseRunReceipt(value: Record<string, unknown>): AutoresearchRunReceipt
         : value.checksDurationSeconds === null
           ? null
           : undefined,
+    decision: parseRunDecisionSummary(value.decision),
   };
+}
+
+function parseRunDecisionSummary(value: unknown): AutoresearchRunDecisionSummary | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error("Run receipt decision summary must be an object.");
+  }
+  if (value.kind !== "next_hypothesis") {
+    throw new Error(`Unsupported run receipt decision kind: ${String(value.kind)}`);
+  }
+  if (value.templateName !== AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME) {
+    throw new Error(`Unexpected run receipt decision template: ${String(value.templateName)}`);
+  }
+  if (!isNextHypothesisDecisionStatus(value.status)) {
+    throw new Error(`Invalid run receipt decision status: ${String(value.status)}`);
+  }
+  if (typeof value.mappedDecision !== "string" || !isCampaignDecision(value.mappedDecision)) {
+    throw new Error(`Invalid run receipt mapped decision: ${String(value.mappedDecision)}`);
+  }
+  if (
+    value.failureStage !== undefined &&
+    value.failureStage !== null &&
+    !isDecisionFailureStage(value.failureStage)
+  ) {
+    throw new Error(`Invalid run receipt decision failure stage: ${String(value.failureStage)}`);
+  }
+
+  return {
+    kind: "next_hypothesis",
+    templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+    status: value.status,
+    mappedDecision: value.mappedDecision,
+    blockingReason:
+      typeof value.blockingReason === "string"
+        ? value.blockingReason
+        : value.blockingReason === null
+          ? null
+          : null,
+    failureStage:
+      value.failureStage === null || value.failureStage === undefined ? null : value.failureStage,
+    stateRead: typeof value.stateRead === "string" ? value.stateRead : null,
+    nextHypothesis: typeof value.nextHypothesis === "string" ? value.nextHypothesis : null,
+    targetFiles: parseStringArray(value.targetFiles),
+    expectedPrimaryEffect:
+      typeof value.expectedPrimaryEffect === "string" ? value.expectedPrimaryEffect : null,
+    timestamp: coerceNumber(value.timestamp, "decision.timestamp"),
+  };
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
+}
+
+function isNextHypothesisDecisionStatus(value: unknown): value is NextHypothesisDecisionStatus {
+  return (
+    value === "ready" ||
+    value === "rebaseline_needed" ||
+    value === "finalize_candidate" ||
+    value === "blocked"
+  );
+}
+
+function isDecisionFailureStage(value: unknown): value is AutoresearchDecisionFailureStage {
+  return value === "prompt_plane" || value === "executor" || value === "parse";
 }
 
 function parseMetricMap(value: unknown): MetricMap {
@@ -1330,6 +1876,93 @@ function parseMetricMap(value: unknown): MetricMap {
     }
   }
   return metrics;
+}
+
+function formatPromptVaultDecisionAvailability(
+  value: AutoresearchPromptVaultDecisionAvailability,
+): string {
+  switch (value) {
+    case "available_not_yet_used":
+      return "available (not used yet)";
+    case "available_last_used_successfully":
+      return "available (last used successfully)";
+    case "available_last_used_blocked":
+      return "available (last use blocked)";
+  }
+}
+
+function formatLastPostRunDecision(value: AutoresearchRunDecisionSummary | null): string {
+  if (!value) {
+    return "(none)";
+  }
+
+  const summary =
+    value.blockingReason ?? value.nextHypothesis ?? value.stateRead ?? "decision recorded";
+  return `${value.status} -> ${value.mappedDecision} (${summary})`;
+}
+
+function formatTargetFiles(files: readonly string[]): string {
+  return files.length > 0 ? files.join(", ") : "(none)";
+}
+
+function describeChecksState(run: AutoresearchRunReceipt): string {
+  if (run.checksCommand === null || run.checksCommand === undefined) {
+    return "not run";
+  }
+  if (run.checksPassed === true) {
+    return "passed";
+  }
+  if (run.checksPassed === false) {
+    return "failed";
+  }
+  return "not recorded";
+}
+
+function formatRunHistoryLine(run: AutoresearchRunReceipt, metricUnit: string): string {
+  return [
+    `iteration ${run.iteration ?? "?"}`,
+    run.status,
+    `metric ${formatMetricValue(run.metric, metricUnit)}`,
+    run.decision ? `decision ${run.decision.status}` : null,
+    run.description,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" | ");
+}
+
+function normalizeArray(values: readonly string[] | undefined): string[] {
+  return (values ?? []).map((value) => value.trim()).filter(Boolean);
+}
+
+function normalizeInlineReason(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function formatSetupBlockingReason(outcome: SetupDecisionOutcome): string {
+  if (isDecisionErrorOutcome(outcome)) {
+    return outcome.blockingReason;
+  }
+  return outcome.missingInformation.join("; ") || "setup decision blocked";
+}
+
+function formatFinalizeBlockingReason(outcome: FinalizeDecisionOutcome): string {
+  if (isDecisionErrorOutcome(outcome)) {
+    return outcome.blockingReason;
+  }
+  return normalizeInlineReason(outcome.overallResult) ?? "finalize decision blocked";
+}
+
+function isDecisionErrorOutcome(
+  outcome: SetupDecisionOutcome | NextHypothesisDecisionOutcome | FinalizeDecisionOutcome,
+): outcome is
+  | Extract<SetupDecisionOutcome, { failureStage: AutoresearchDecisionFailureStage }>
+  | Extract<NextHypothesisDecisionOutcome, { failureStage: AutoresearchDecisionFailureStage }>
+  | Extract<FinalizeDecisionOutcome, { failureStage: AutoresearchDecisionFailureStage }> {
+  return "failureStage" in outcome;
 }
 
 function coerceNumber(value: unknown, field: string): number {

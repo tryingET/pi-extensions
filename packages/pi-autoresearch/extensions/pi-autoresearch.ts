@@ -1,5 +1,10 @@
+import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
+import {
+  type AutoresearchDecisionRuntime,
+  createAutoresearchDecisionRuntime,
+} from "../src/core/decisions.ts";
 import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
@@ -7,12 +12,55 @@ import {
   buildAutoresearchHelpText,
   buildAutoresearchRuntimeStatus,
   executeAutoresearchRun,
+  formatAutoresearchDecisionResult,
   formatAutoresearchRunResult,
   formatAutoresearchStatusText,
+  requestAutoresearchFinalizeDecision,
+  requestAutoresearchSetupDecision,
 } from "../src/core/runtime.ts";
 
+const stringArraySchema = Type.Array(Type.String());
+const nullableStringSchema = Type.Union([
+  Type.String(),
+  Type.Null({ description: "Explicitly clear this string value." }),
+]);
+const statusActionSchema = Type.Union(
+  [Type.Literal("status"), Type.Literal("setup"), Type.Literal("finalize")],
+  {
+    description:
+      "Inspect status, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
+  },
+);
+
 const statusSchema = Type.Object({
+  action: Type.Optional(statusActionSchema),
   cwd: Type.Optional(Type.String({ description: "Optional cwd override for runtime reporting" })),
+  optimizationObjective: Type.Optional(
+    Type.String({
+      description:
+        "Required for action=setup. The bounded optimization objective for the setup packet.",
+    }),
+  ),
+  repoContext: Type.Optional(stringArraySchema),
+  filesInScope: Type.Optional(stringArraySchema),
+  offLimits: Type.Optional(stringArraySchema),
+  benchmarkSurfaces: Type.Optional(stringArraySchema),
+  existingArtifacts: Type.Optional(stringArraySchema),
+  hardConstraints: Type.Optional(stringArraySchema),
+  blockers: Type.Optional(stringArraySchema),
+  akTaskId: Type.Optional(
+    Type.Number({ description: "Optional AK task id reference for action=setup.", minimum: 1 }),
+  ),
+  akScopeSummary: Type.Optional(stringArraySchema),
+  akAllowedPaths: Type.Optional(stringArraySchema),
+  akRequiredPaths: Type.Optional(stringArraySchema),
+  keptRuns: Type.Optional(stringArraySchema),
+  campaignContext: Type.Optional(stringArraySchema),
+  mergeBase: Type.Optional(nullableStringSchema),
+  trunkTarget: Type.Optional(nullableStringSchema),
+  commitSummaries: Type.Optional(stringArraySchema),
+  dependencyNotes: Type.Optional(stringArraySchema),
+  ideasToLeaveOut: Type.Optional(stringArraySchema),
 });
 
 const directionSchema = Type.Union([Type.Literal("lower"), Type.Literal("higher")], {
@@ -64,9 +112,31 @@ const runSchema = Type.Object({
         "Append a new config receipt before this run. Requires name + metricName and resets the current segment.",
     }),
   ),
+  decisionGoal: Type.Optional(
+    Type.String({
+      description:
+        "When set, request a governed Prompt Vault next-hypothesis decision after the run using this bounded goal.",
+    }),
+  ),
+  decisionConstraints: Type.Optional(stringArraySchema),
+  decisionFilesInScope: Type.Optional(stringArraySchema),
+  decisionOffLimits: Type.Optional(stringArraySchema),
+  decisionIdeasBacklog: Type.Optional(stringArraySchema),
+  decisionAsiNotes: Type.Optional(stringArraySchema),
+  decisionDeadEndMemory: Type.Optional(stringArraySchema),
 });
 
-export default function piAutoresearchExtension(pi: ExtensionAPI): void {
+export interface PiAutoresearchExtensionOptions {
+  createDecisionRuntime?: (
+    ctx: ExtensionContext,
+    signal: AbortSignal | undefined,
+  ) => AutoresearchDecisionRuntime;
+}
+
+export function registerPiAutoresearchExtension(
+  pi: ExtensionAPI,
+  options: PiAutoresearchExtensionOptions = {},
+): void {
   pi.registerCommand(AUTORESEARCH_COMMAND_NAME, {
     description: "Open the pi-autoresearch bounded-runtime overview",
     handler: async (args, ctx) => {
@@ -78,13 +148,97 @@ export default function piAutoresearchExtension(pi: ExtensionAPI): void {
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, and receipt/event logs.",
+      "Inspect the current pi-autoresearch bounded runtime, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, and local artifact contract.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, and optionally request a governed setup/finalize packet.",
     parameters: statusSchema,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const request = params as { cwd?: string };
-      const status = buildAutoresearchRuntimeStatus(request.cwd ?? ctx.cwd);
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: "status" | "setup" | "finalize";
+        cwd?: string;
+        optimizationObjective?: string;
+        repoContext?: string[];
+        filesInScope?: string[];
+        offLimits?: string[];
+        benchmarkSurfaces?: string[];
+        existingArtifacts?: string[];
+        hardConstraints?: string[];
+        blockers?: string[];
+        akTaskId?: number;
+        akScopeSummary?: string[];
+        akAllowedPaths?: string[];
+        akRequiredPaths?: string[];
+        keptRuns?: string[];
+        campaignContext?: string[];
+        mergeBase?: string | null;
+        trunkTarget?: string | null;
+        commitSummaries?: string[];
+        dependencyNotes?: string[];
+        ideasToLeaveOut?: string[];
+      };
+      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
+      const action = request.action ?? "status";
+
+      if (action === "setup") {
+        const result = await requestAutoresearchSetupDecision({
+          cwd,
+          packet: {
+            optimizationObjective: request.optimizationObjective ?? "",
+            repoContext: request.repoContext ?? [],
+            filesInScope: request.filesInScope ?? [],
+            offLimits: request.offLimits ?? [],
+            benchmarkSurfaces: request.benchmarkSurfaces ?? [],
+            existingArtifacts: request.existingArtifacts ?? [],
+            hardConstraints: request.hardConstraints ?? [],
+            blockers: request.blockers ?? [],
+            akTask:
+              request.akTaskId !== undefined ||
+              request.akScopeSummary !== undefined ||
+              request.akAllowedPaths !== undefined ||
+              request.akRequiredPaths !== undefined
+                ? {
+                    id: request.akTaskId,
+                    scopeSummary: request.akScopeSummary ?? [],
+                    allowedPaths: request.akAllowedPaths ?? [],
+                    requiredPaths: request.akRequiredPaths ?? [],
+                  }
+                : null,
+          },
+          runtime: resolveDecisionRuntime(ctx, signal, options),
+          model: ctx.model?.id,
+          signal,
+        });
+
+        return {
+          content: [{ type: "text", text: formatAutoresearchDecisionResult(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "finalize") {
+        const result = await requestAutoresearchFinalizeDecision({
+          cwd,
+          packet: {
+            keptRuns: request.keptRuns ?? [],
+            campaignContext: request.campaignContext ?? [],
+            mergeBase: request.mergeBase ?? null,
+            trunkTarget: request.trunkTarget ?? null,
+            commitSummaries: request.commitSummaries ?? [],
+            dependencyNotes: request.dependencyNotes ?? [],
+            ideasToLeaveOut: request.ideasToLeaveOut ?? [],
+          },
+          runtime: resolveDecisionRuntime(ctx, signal, options),
+          model: ctx.model?.id,
+          signal,
+        });
+
+        return {
+          content: [{ type: "text", text: formatAutoresearchDecisionResult(result) }],
+          details: result,
+        };
+      }
+
+      const status = buildAutoresearchRuntimeStatus(cwd);
       return {
         content: [{ type: "text", text: formatAutoresearchStatusText(status) }],
         details: status,
@@ -96,9 +250,9 @@ export default function piAutoresearchExtension(pi: ExtensionAPI): void {
     name: AUTORESEARCH_RUN_TOOL_NAME,
     label: "Autoresearch Runtime Run",
     description:
-      "Execute one bounded local pi-autoresearch run and append config/run receipts plus machine/ledger events.",
+      "Execute one bounded local pi-autoresearch run, append receipts plus machine/ledger events, and optionally request a governed post-run next-hypothesis decision.",
     promptSnippet:
-      "Execute one bounded local pi-autoresearch run, parse metrics, run checks, update the XState machine/event ledger, and append receipts.",
+      "Execute one bounded local pi-autoresearch run, parse metrics, run checks, update the XState machine/event ledger, append receipts, and optionally request a governed next-hypothesis decision.",
     parameters: runSchema,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
@@ -113,6 +267,13 @@ export default function piAutoresearchExtension(pi: ExtensionAPI): void {
         timeoutSeconds?: number;
         checksTimeoutSeconds?: number;
         reconfigure?: boolean;
+        decisionGoal?: string;
+        decisionConstraints?: string[];
+        decisionFilesInScope?: string[];
+        decisionOffLimits?: string[];
+        decisionIdeasBacklog?: string[];
+        decisionAsiNotes?: string[];
+        decisionDeadEndMemory?: string[];
       };
 
       const result = await executeAutoresearchRun({
@@ -127,12 +288,93 @@ export default function piAutoresearchExtension(pi: ExtensionAPI): void {
         timeoutSeconds: request.timeoutSeconds,
         checksTimeoutSeconds: request.checksTimeoutSeconds,
         reconfigure: request.reconfigure,
+        liveDecision: request.decisionGoal
+          ? {
+              runtime: resolveDecisionRuntime(ctx, signal, options),
+              goal: request.decisionGoal,
+              constraints: request.decisionConstraints,
+              filesInScope: request.decisionFilesInScope,
+              offLimits: request.decisionOffLimits,
+              ideasBacklog: request.decisionIdeasBacklog,
+              asiNotes: request.decisionAsiNotes,
+              deadEndMemory: request.decisionDeadEndMemory,
+              model: ctx.model?.id,
+            }
+          : undefined,
         signal,
       });
 
       return {
         content: [{ type: "text", text: formatAutoresearchRunResult(result) }],
         details: result,
+      };
+    },
+  });
+}
+
+export default function piAutoresearchExtension(pi: ExtensionAPI): void {
+  registerPiAutoresearchExtension(pi);
+}
+
+function resolveDecisionRuntime(
+  ctx: ExtensionContext,
+  signal: AbortSignal | undefined,
+  options: PiAutoresearchExtensionOptions,
+): AutoresearchDecisionRuntime {
+  return options.createDecisionRuntime?.(ctx, signal) ?? createDefaultDecisionRuntime(ctx, signal);
+}
+
+function createDefaultDecisionRuntime(
+  ctx: ExtensionContext,
+  signal: AbortSignal | undefined,
+): AutoresearchDecisionRuntime {
+  return createAutoresearchDecisionRuntime({
+    executePreparedPrompt: async (input) => {
+      if (!ctx.model) {
+        throw new Error(
+          "No model selected for live pi-autoresearch Prompt Vault decisions in this session.",
+        );
+      }
+
+      const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
+      if (!auth.ok || !auth.apiKey) {
+        throw new Error(auth.ok ? `No API key for ${ctx.model.provider}` : auth.error);
+      }
+
+      const response = await complete(
+        ctx.model,
+        {
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: input.preparedText }],
+              timestamp: Date.now(),
+            },
+          ],
+        },
+        {
+          apiKey: auth.apiKey,
+          headers: auth.headers,
+          signal: input.signal ?? signal,
+        },
+      );
+
+      if (response.stopReason === "aborted") {
+        throw new Error("Prompt Vault decision execution aborted.");
+      }
+
+      const outputText = response.content
+        .filter((content): content is { type: "text"; text: string } => content.type === "text")
+        .map((content) => content.text)
+        .join("\n")
+        .trim();
+      if (outputText.length === 0) {
+        throw new Error("Prompt Vault decision execution returned no text output.");
+      }
+
+      return {
+        outputText,
+        model: ctx.model.id,
       };
     },
   });
@@ -146,7 +388,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_run for one local machine/ledger-backed run.",
+      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_run for machine/ledger-backed runs or autoresearch_runtime_status with action=setup|finalize for governed packets.",
       "info",
     );
   }

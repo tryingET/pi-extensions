@@ -34,6 +34,7 @@ export interface CampaignMachineInput {
   awaitingDecision?: boolean;
   blockedReason?: string | null;
   completionReason?: string | null;
+  resumeState?: CampaignMachineResumeState | null;
 }
 
 export interface CampaignActiveRun {
@@ -78,6 +79,7 @@ export function createCampaignMachineInputFromRuntimeStatus(
         checksCommand: status.currentSegment.checksCommand,
       }
     : null;
+  const projectionState = status.runtimeProjection.state;
 
   return {
     segment,
@@ -87,9 +89,19 @@ export function createCampaignMachineInputFromRuntimeStatus(
     bestMetric: status.currentSegment.bestMetric,
     lastRunStatus: status.currentSegment.lastRunStatus,
     lastRunMetric: status.currentSegment.lastRunMetric,
-    awaitingDecision: overrides.awaitingDecision ?? false,
-    blockedReason: overrides.blockedReason ?? null,
-    completionReason: overrides.completionReason ?? null,
+    awaitingDecision: overrides.awaitingDecision ?? projectionState === "awaiting_decision",
+    blockedReason:
+      overrides.blockedReason ??
+      (projectionState === "blocked"
+        ? (status.promptVaultDecisions.lastPostRunDecision?.blockingReason ??
+          "campaign blocked pending operator action")
+        : null),
+    completionReason:
+      overrides.completionReason ?? (projectionState === "completed" ? "campaign completed" : null),
+    resumeState:
+      projectionState === "rebaseline_needed" || projectionState === "finalize_candidate"
+        ? projectionState
+        : null,
   };
 }
 
@@ -393,6 +405,8 @@ export const campaignMachine = setup({
       always: [
         { guard: "isCompleted", target: "completed" },
         { guard: "isBlocked", target: "blocked" },
+        { guard: "resumeToRebaselineNeeded", target: "rebaseline_needed" },
+        { guard: "resumeToFinalizeCandidate", target: "finalize_candidate" },
         { guard: "needsConfiguration", target: "segment_unconfigured" },
         { guard: "isAwaitingDecision", target: "awaiting_decision" },
         { target: "ready" },
@@ -596,7 +610,7 @@ function createInitialContext(input: CampaignMachineInput | undefined): Campaign
     completionReason: input?.completionReason ?? null,
     lastDecision: null,
     activeRun: null,
-    resumeState: null,
+    resumeState: input?.resumeState ?? null,
   };
 }
 

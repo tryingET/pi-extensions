@@ -4,7 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import piAutoresearchExtension from "../extensions/pi-autoresearch.ts";
+import {
+  type PiAutoresearchExtensionOptions,
+  registerPiAutoresearchExtension,
+} from "../extensions/pi-autoresearch.ts";
+import {
+  AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
+  AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+  AUTORESEARCH_SETUP_TEMPLATE_NAME,
+  type AutoresearchDecisionRuntime,
+  type FinalizeDecisionOutcome,
+  type NextHypothesisDecisionOutcome,
+  type SetupDecisionOutcome,
+} from "../src/core/decisions.ts";
 import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_LOCAL_ARTIFACTS,
@@ -47,18 +59,21 @@ type CommandContext = {
   };
 };
 
-function registerHarness() {
+function registerHarness(options: PiAutoresearchExtensionOptions = {}) {
   const commands = new Map<string, RegisteredCommand>();
   const tools = new Map<string, RegisteredTool>();
 
-  piAutoresearchExtension({
-    registerCommand(name: string, command: RegisteredCommand) {
-      commands.set(name, command);
-    },
-    registerTool(tool: RegisteredTool) {
-      tools.set(tool.name, tool);
-    },
-  } as never);
+  registerPiAutoresearchExtension(
+    {
+      registerCommand(name: string, command: RegisteredCommand) {
+        commands.set(name, command);
+      },
+      registerTool(tool: RegisteredTool) {
+        tools.set(tool.name, tool);
+      },
+    } as never,
+    options,
+  );
 
   return { commands, tools };
 }
@@ -76,6 +91,98 @@ function writeExecutable(cwd: string, name: string, content: string): void {
   const target = path.join(cwd, name);
   writeFileSync(target, content, "utf8");
   chmodSync(target, 0o755);
+}
+
+function createDecisionRuntimeStub(
+  input: {
+    setupOutcome?: SetupDecisionOutcome;
+    nextHypothesisOutcome?: NextHypothesisDecisionOutcome;
+    finalizeOutcome?: FinalizeDecisionOutcome;
+  } = {},
+): AutoresearchDecisionRuntime {
+  return {
+    async runSetup() {
+      return (
+        input.setupOutcome ?? {
+          kind: "setup",
+          templateName: AUTORESEARCH_SETUP_TEMPLATE_NAME,
+          status: "ready",
+          goal: "Bootstrap the bounded campaign with a governed setup packet.",
+          primaryMetric: {
+            name: "total_ms",
+            unit: "ms",
+            direction: "lower",
+          },
+          secondaryMetrics: ["render_ms"],
+          benchmarkCommand: "bash autoresearch.sh",
+          filesInScope: ["packages/pi-autoresearch/src/core/runtime.ts"],
+          offLimits: ["packages/pi-vault-client/src/**"],
+          hardConstraints: ["bounded runtime only"],
+          checksRequired: "reuse_existing_checks",
+          autoresearchMdPlan: ["Capture baseline and next experiment contract."],
+          autoresearchShContract: ["Emit METRIC total_ms=<value>."],
+          baselinePlan: ["Run the current benchmark once before editing."],
+          firstExperimentRules: ["Keep the first experiment scoped to one runtime file."],
+          missingInformation: [],
+        }
+      );
+    },
+    async runNextHypothesis() {
+      return (
+        input.nextHypothesisOutcome ?? {
+          kind: "next_hypothesis",
+          templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+          status: "ready",
+          stateRead: "The bounded runtime completed a clean run and can keep iterating.",
+          nextHypothesis:
+            "Tighten the live decision reporting inside runtime status/output surfaces.",
+          whyNow:
+            "The Prompt Vault decision adapter is landed and the runtime now needs to consume it.",
+          targetFiles: ["packages/pi-autoresearch/src/core/runtime.ts"],
+          changeShape: ["Wire the mapped decision into the machine-backed run surface."],
+          expectedPrimaryEffect:
+            "The runtime surfaces can report a governed next move after each run.",
+          riskToGuard: ["Do not fall back to copied prompt text."],
+          runPlan: ["Re-run the bounded benchmark after the runtime change."],
+          asiToCaptureIfKept: ["Decision-aware runtime status/reporting."],
+          asiToCaptureIfDiscarded: ["Why the decision packet did not help."],
+          stopCondition: ["Stop when the machine truthfully reports the new governed next step."],
+        }
+      );
+    },
+    async runFinalize() {
+      return (
+        input.finalizeOutcome ?? {
+          kind: "finalize",
+          templateName: AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
+          status: "ready",
+          baseRef: "feature/autoresearch",
+          trunkRef: "main",
+          overallResult: "One bounded change group is ready for later materialization.",
+          proposedGroups: [
+            {
+              title: "Decision-aware runtime reporting",
+              commits: ["abc1234"],
+              files: ["packages/pi-autoresearch/src/core/runtime.ts"],
+              metricEffect: "No direct metric change; improves control-plane truth.",
+              dependencyNotes: ["Materialization remains out of scope."],
+            },
+          ],
+          groupingRationale: ["Keep the runtime integration slice isolated."],
+          approvalRequired: true,
+          groupsJsonDraft: {
+            groups: [
+              {
+                title: "Decision-aware runtime reporting",
+              },
+            ],
+          },
+          riskNotes: ["Finalization branch materialization stays in Workstream C."],
+          cleanupHints: ["Leave the bounded runtime receipts in place for replay."],
+        }
+      );
+    },
+  };
 }
 
 test("parseMetricLines extracts structured METRIC entries and ignores unrelated lines", () => {
@@ -138,8 +245,11 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.equal(status.runtimeProjection.state, "segment_unconfigured");
   assert.equal(status.runtimeProjection.source, "receipt_fallback");
   assert.equal(status.runtimeProjection.hasLedger, false);
+  assert.equal(status.promptVaultDecisions.availability, "available_not_yet_used");
+  assert.equal(status.promptVaultDecisions.lastPostRunDecision, null);
   assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
   assert.match(formatAutoresearchStatusText(status), /machine state: segment_unconfigured/);
+  assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
 });
 
 test("status builder summarizes best metric and confidence from appended receipts", () =>
@@ -192,6 +302,7 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.equal(status.runtimeProjection.state, "ready");
     assert.equal(status.runtimeProjection.source, "receipt_fallback");
     assert.equal(status.runtimeProjection.hasLedger, false);
+    assert.equal(status.promptVaultDecisions.availability, "available_not_yet_used");
     assert.ok((status.currentSegment.confidence ?? 0) > 0);
   }));
 
@@ -280,6 +391,7 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
         };
       };
       receiptPath: string;
+      decisionSummary: null;
     };
     assert.equal(details.createdConfig, true);
     assert.deepEqual(details.parsedMetrics, { total_ms: 152, render_ms: 99 });
@@ -288,6 +400,7 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
     assert.equal(details.status.currentSegment.baselineMetric, 152);
     assert.equal(details.status.currentSegment.bestMetric, 152);
     assert.equal(details.status.currentSegment.runCount, 1);
+    assert.equal(details.decisionSummary, null);
     assert.equal(details.status.runtimeProjection.state, "ready");
     assert.equal(details.status.runtimeProjection.source, "ledger");
     assert.equal(details.status.runtimeProjection.hasLedger, true);
@@ -441,5 +554,190 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
         .split("\n").length,
       9,
     );
+  });
+});
+
+test("autoresearch_runtime_run maps a governed finalize_candidate into machine state", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness({
+      createDecisionRuntime: () =>
+        createDecisionRuntimeStub({
+          nextHypothesisOutcome: {
+            kind: "next_hypothesis",
+            templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+            status: "finalize_candidate",
+            stateRead: "The latest candidate is stable and no longer needs another iteration.",
+            nextHypothesis: "Stop iterating and prepare a bounded finalization proposal.",
+            whyNow: "The runtime surface is ready for a finalize-worthy control-plane handoff.",
+            targetFiles: ["packages/pi-autoresearch/src/core/runtime.ts"],
+            changeShape: ["Keep the runtime slice intact and move to finalization planning."],
+            expectedPrimaryEffect:
+              "The machine should surface finalize_candidate instead of ready.",
+            riskToGuard: ["Do not silently continue iterating."],
+            runPlan: ["Inspect status and then stop before another run."],
+            asiToCaptureIfKept: ["Why the runtime should stop iterating at this point."],
+            asiToCaptureIfDiscarded: ["Why finalization was premature."],
+            stopCondition: ["Stop once the runtime reports finalize_candidate truthfully."],
+          },
+        }),
+    });
+    const tool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(tool);
+
+    writeExecutable(
+      cwd,
+      "autoresearch.sh",
+      ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "METRIC total_ms=101"'].join("\n"),
+    );
+
+    const result = await tool?.execute(
+      "call-4",
+      {
+        cwd,
+        description: "candidate with governed finalize signal",
+        name: "widget-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        decisionGoal: "Land truthful Prompt Vault runtime integration without another iteration.",
+        decisionFilesInScope: ["packages/pi-autoresearch/src/core/runtime.ts"],
+        decisionOffLimits: ["packages/pi-vault-client/src/**"],
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(
+      result?.content[0]?.text ?? "",
+      /live post-run decision: finalize_candidate -> finalize/,
+    );
+    const details = result?.details as {
+      decisionSummary: {
+        status: string;
+        mappedDecision: string;
+        nextHypothesis: string | null;
+      };
+      runReceipt: {
+        decision?: { status: string; mappedDecision: string };
+      };
+      status: {
+        runtimeProjection: { state: string; source: string };
+        promptVaultDecisions: {
+          availability: string;
+          lastPostRunDecision: { mappedDecision: string } | null;
+        };
+      };
+    };
+
+    assert.equal(details.decisionSummary.status, "finalize_candidate");
+    assert.equal(details.decisionSummary.mappedDecision, "finalize");
+    assert.equal(details.runReceipt.decision?.status, "finalize_candidate");
+    assert.equal(details.status.runtimeProjection.state, "finalize_candidate");
+    assert.equal(details.status.runtimeProjection.source, "ledger");
+    assert.equal(
+      details.status.promptVaultDecisions.availability,
+      "available_last_used_successfully",
+    );
+    assert.equal(
+      details.status.promptVaultDecisions.lastPostRunDecision?.mappedDecision,
+      "finalize",
+    );
+
+    const log = loadReceiptLog(cwd);
+    const lastRun = log.entries.at(-1);
+    assert.equal(lastRun?.type, "run");
+    assert.equal(
+      lastRun && "decision" in lastRun ? lastRun.decision?.mappedDecision : null,
+      "finalize",
+    );
+  });
+});
+
+test("status builder preserves a receipt-only governed decision when the ledger is missing", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "widget-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 111,
+        description: "baseline with governed stop signal",
+        timestamp: 2,
+        decision: {
+          kind: "next_hypothesis",
+          templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+          status: "rebaseline_needed",
+          mappedDecision: "rebaseline",
+          blockingReason: null,
+          failureStage: null,
+          stateRead: "The benchmark noise floor changed.",
+          nextHypothesis: "Accept the new baseline before another experiment.",
+          targetFiles: ["packages/pi-autoresearch/src/core/runtime.ts"],
+          expectedPrimaryEffect: "The machine should stop in rebaseline_needed.",
+          timestamp: 2,
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.runtimeProjection.source, "receipt_fallback");
+    assert.equal(status.runtimeProjection.state, "rebaseline_needed");
+    assert.equal(status.promptVaultDecisions.availability, "available_last_used_successfully");
+    assert.equal(status.promptVaultDecisions.lastPostRunDecision?.mappedDecision, "rebaseline");
+  }));
+
+test("autoresearch_runtime_status can request governed setup and finalize packets", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness({
+      createDecisionRuntime: () => createDecisionRuntimeStub(),
+    });
+    const tool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
+    assert.ok(tool);
+
+    const setup = await tool?.execute(
+      "call-5",
+      {
+        cwd,
+        action: "setup",
+        optimizationObjective: "Integrate governed Prompt Vault decisions into runtime surfaces.",
+        filesInScope: ["packages/pi-autoresearch/src/core/runtime.ts"],
+        offLimits: ["packages/pi-vault-client/src/**"],
+        hardConstraints: ["bounded runtime only"],
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(setup);
+    assert.match(setup?.content[0]?.text ?? "", /kind: setup/);
+    assert.match(setup?.content[0]?.text ?? "", /template: pi-autoresearch-setup/);
+
+    const finalize = await tool?.execute(
+      "call-6",
+      {
+        cwd,
+        action: "finalize",
+        keptRuns: ["baseline 101ms"],
+        commitSummaries: ["abc1234 runtime decision integration"],
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(finalize);
+    assert.match(finalize?.content[0]?.text ?? "", /kind: finalize/);
+    assert.match(finalize?.content[0]?.text ?? "", /template: pi-autoresearch-finalize/);
   });
 });

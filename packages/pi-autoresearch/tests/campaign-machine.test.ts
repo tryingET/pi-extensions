@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createActor } from "xstate";
+import { AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME } from "../src/core/decisions.ts";
 import {
   appendReceipt,
   buildAutoresearchRuntimeStatus,
@@ -226,6 +227,51 @@ test("campaign machine input builder maps bounded runtime status into a configur
     assert.equal(actor.getSnapshot().value, "awaiting_decision");
     assert.equal(actor.getSnapshot().context.baselineMetric, 111);
     assert.equal(actor.getSnapshot().context.bestMetric, 111);
+    assert.equal(actor.getSnapshot().context.runCount, 1);
+  });
+});
+
+test("campaign machine input builder preserves decision-driven rebaseline and finalize states", async () => {
+  await withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "widget-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 111,
+        description: "baseline",
+        timestamp: 2,
+        decision: {
+          kind: "next_hypothesis",
+          templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+          status: "finalize_candidate",
+          mappedDecision: "finalize",
+          blockingReason: null,
+          failureStage: null,
+          stateRead: "The best candidate is stable.",
+          nextHypothesis: "Stop iterating and finalize.",
+          targetFiles: ["packages/pi-autoresearch/src/core/runtime.ts"],
+          expectedPrimaryEffect: "Surface finalize_candidate truthfully.",
+          timestamp: 2,
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    const input = createCampaignMachineInputFromRuntimeStatus(status);
+    const actor = createActor(campaignMachine, { input }).start();
+
+    assert.equal(actor.getSnapshot().value, "finalize_candidate");
     assert.equal(actor.getSnapshot().context.runCount, 1);
   });
 });
