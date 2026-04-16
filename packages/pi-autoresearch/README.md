@@ -26,6 +26,7 @@ This package is the local runtime home for the future `pi-autoresearch` experime
 - [pi-autoresearch RFC](../../docs/project/pi-autoresearch-rfc.md)
 - [pi-autoresearch foundation status](../../docs/project/pi-autoresearch-foundation-status.md)
 - [pi-autoresearch architecture correction](../../docs/project/pi-autoresearch-architecture-correction.md)
+- [pi-autoresearch runtime machine and event-ledger status](../../docs/project/2026-04-16-pi-autoresearch-runtime-machine-and-ledger-status.md)
 - [Prompt Vault template set](../../docs/project/pi-autoresearch-prompt-vault-template-set.md)
 - [Prompt Vault rollout](../../docs/project/pi-autoresearch-prompt-vault-rollout.md)
 - [Ontology concept set](../../docs/project/pi-autoresearch-ontology-concept-set.md)
