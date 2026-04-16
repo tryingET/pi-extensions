@@ -47,12 +47,14 @@ What actually landed in Prompt Vault:
 - `pi-autoresearch-next-hypothesis`
 - `pi-autoresearch-finalize`
 
-What remains blocked:
+What did not land:
 
 - `pi-autoresearch-state-router`
 
-Reason:
-The router still needs governed vocabulary expansion before it can be inserted truthfully.
+Current interpretation:
+The router draft still needs governed vocabulary expansion before it can be inserted truthfully.
+But after the architecture correction, that router is no longer the main blocker for truthful runtime evolution.
+The current durable Prompt Vault minimum is the three one-shot procedures above; revisit a governed router later only if a real shared routing need remains after the package-local state-machine + AK split lands.
 
 ### 3. Package scaffold
 
@@ -71,6 +73,14 @@ The package now includes a bounded local runtime kernel centered on:
 
 This means the package is no longer only a shell placeholder.
 
+### 5. Architecture correction / runtime-owner clarification
+
+The next architecture lock is recorded in:
+
+- `docs/project/pi-autoresearch-architecture-correction.md`
+
+That note clarifies that executable experiment-loop state should live in a **package-local state machine** (planned as an XState runtime) and that the earlier Prompt Vault router draft is now an optional later decision surface rather than the primary runtime owner.
+
 ## What is usable now
 
 ### Command
@@ -84,7 +94,7 @@ This means the package is no longer only a shell placeholder.
 - `autoresearch_runtime_status`
   - inspects the local bounded runtime state
   - reports current-segment baseline / best / confidence summaries
-  - surfaces Prompt Vault readiness vs router blockage
+  - surfaces the current one-shot Prompt Vault alignment and the corrected optional-router posture
 
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
@@ -108,42 +118,53 @@ These remain **local receipts/projections**, not sole campaign truth.
 
 The following are still not part of the landed foundation:
 
+- an explicit package-local state machine above the bounded helpers
 - AK task/campaign binding
-- governed state-router insertion in Prompt Vault
+- machine-invoked Prompt Vault decision steps
 - autonomous resume / loop lifecycle
 - safer finalization path orchestration
 - broader shared UX integration
 
+A governed Prompt Vault router is now an optional later follow-on, not the near-term prerequisite for truthful runtime evolution.
+
 ## Authority split
-
-### Prompt Vault owns
-
-- durable control-plane prompt content for setup / next-hypothesis / finalize
 
 ### Package owns
 
-- bounded local runtime execution
+- bounded local runtime execution helpers today
+- the executable experiment-loop state machine once the next package-local state-machine slice lands
 - local receipts and status summaries
 - the immediate operator/package seam
 
-### Not yet bound in this umbrella
+### Prompt Vault owns
 
-- AK campaign truth
-- router vocabulary expansion + governed router insertion
-- higher-order orchestration lifecycle
+- durable one-shot prompt content for setup / next-hypothesis / finalize
+
+### AK will own when bound
+
+- campaign identity
+- scope
+- durable evidence/result references
+
+### Optional later
+
+- governed state-router work only if a real shared routing need remains after the package + AK + one-shot Prompt Vault split
 
 ## Current recommended next slices
 
 In order:
 
-1. bind bounded runtime sessions to AK task/campaign truth
-2. expand governed router vocabulary and insert `pi-autoresearch-state-router`
-3. narrow the safer finalization path
-4. connect deeper shared UX surfaces only after the control-plane split remains honest
+1. introduce a minimal package-local state machine around the bounded helpers
+2. bind campaign identity / scope / durable evidence truthfully through AK
+3. connect setup / next-hypothesis / finalize as explicit machine-invoked Prompt Vault steps
+4. narrow the safer finalization path on top of the machine + AK split
+5. connect deeper shared UX surfaces only after the control-plane split remains honest
+6. revisit a governed router only if later evidence shows it still adds value
 
 ## Canonical artifacts for this umbrella
 
 - `docs/project/pi-autoresearch-rfc.md`
+- `docs/project/pi-autoresearch-architecture-correction.md`
 - `docs/project/pi-autoresearch-prompt-vault-template-set.md`
 - `docs/project/pi-autoresearch-prompt-vault-rollout.md`
 - `packages/pi-autoresearch/README.md`
@@ -154,9 +175,10 @@ In order:
 
 `pi-autoresearch` now has a real first foundation in this repo:
 
-- governed one-shot Prompt Vault control-plane templates for setup / continuation choice / finalization
+- governed one-shot Prompt Vault control-plane templates for setup / next-hypothesis / finalization
 - a real package home in `packages/pi-autoresearch`
 - a bounded local runtime kernel with receipt-backed benchmark/check execution
+- a corrected ownership split that keeps executable runtime state in the package rather than in AK rows or Prompt Vault routers
 
-But it still does **not** have the full autonomous experiment-loop control plane.
+But it still does **not** have the next package-local state machine layer, AK binding, machine-invoked Prompt Vault decisions, or the full autonomous experiment-loop control plane.
 That remains the truthful boundary.

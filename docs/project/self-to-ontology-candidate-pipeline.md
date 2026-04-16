@@ -14,72 +14,75 @@ system4d:
 
 ## Executive summary
 
-Yes, we should expose something that `self` can consume so ontology can evolve in a **tight, controlled, evidence-backed** way.
+Yes, `self` should participate in ontology evolution, but only in a **tight, controlled, evidence-backed** way.
 
-But the correct architecture is **not**:
+The bounded first slice is now landed.
+But the safe architecture is still **not**:
 
 ```text
 self -> ontology_change apply
 ```
 
-The correct architecture is:
+The current truthful architecture is:
 
 ```text
 self crystallization/protection
-  -> semantic candidate memory
-  -> candidate-only artifact staging
-  -> ontology proposal runtime (gap check, scope check, collision check, suggested ids)
-  -> ontology_change plan
+  -> ontology-candidate memory
+  -> optional repo-local ontology-candidate artifact staging
+  -> `ontology_proposal` assessment (gap check, scope check, collision check, suggested ids)
+  -> `ontology_change mode=plan`
   -> explicit review / AK-backed promotion
-  -> ontology_change apply
+  -> `ontology_change mode=apply`
 ```
 
-That lets the system evolve its semantics from repeated real pressure while preserving ontology as a governed authority surface.
+Today the repo supports candidate-only ontology memory in `self`, plan-only ontology assessment, and a narrow repo-root ontology-candidate artifact contract.
+It still does **not** support automatic file emission from `self` or automatic promotion into ontology truth.
 
 ---
 
 ## A) Problem
 
-Right now we have three useful but disconnected things:
+At this point the repo has three connected but still intentionally bounded surfaces:
 
-### 1. `self` in ASC
-`self` can already:
+### 1. `self` in ASC now has candidate-only ontology memory
+`self` can now:
 
-- crystallize patterns
-- mark traps
-- persist scoped memory across sessions
+- crystallize ontology candidates
+- recall them across sessions
+- reject them with reasons
+- forget them when they are no longer useful
 
-But it cannot distinguish:
+That closes the earlier gap where ontology pressure could only live as a vague pattern.
+But `self` still does **not** own file emission, ontology planning, or ontology apply.
 
-- a reusable working pattern
-- from a repeated semantic gap that deserves ontology treatment
+### 2. Repo-root ontology-candidate staging now has a narrow contract
+The repo now has an explicit candidate-staging contract at:
 
-### 2. KES-like candidate-only staging
-We already have a proven shape for bounded, candidate-only knowledge staging:
+- `docs/learnings/ontology-candidates/`
 
-- raw capture
-- candidate artifact
-- no auto-promotion
+That root is intentionally narrow:
 
-That is exactly the kind of staging discipline ontology growth needs.
+- semantics-specific
+- candidate-only
+- repo-root
+- not a generic monorepo learning bus
+- not a replacement for package-owned KES seams
 
-### 3. `pi-ontology-workflows`
-This package can:
+### 3. `pi-ontology-workflows` now exposes plan-only assessment
+The package can now assess whether a candidate belongs in ontology before any mutation via:
 
-- inspect ontology
-- route by scope
-- plan/apply changes
-- bootstrap and manage repo-local ontology manifests
+- `ontology_proposal`
 
-But it still starts from the assumption that a human/agent has already decided:
+That tool handles:
 
-- yes, this is a real semantic gap
-- yes, it belongs in ontology
-- yes, here is the right id/scope/shape
+- collision / nearest-existing checks
+- scope recommendation
+- id suggestion
+- verdict classification
+- optional plan-ready `ontology_change` payloads
 
-So the missing seam is:
-
-> a candidate-only, reviewable path between self-observed repeated semantic pressure and governed ontology mutation
+So the missing seam is no longer “candidate memory exists at all.”
+It is now the narrower question of how reviewed promotion should proceed from candidate memory and optional staging into explicit ontology planning without auto-promoting across boundaries.
 
 ---
 
@@ -132,7 +135,8 @@ If a semantic candidate is rejected, the system should remember why, so it does 
 
 ## Decision in one sentence
 
-Expose a **proposal/check runtime** from `pi-ontology-workflows`, extend `self` with **candidate-only semantic memory**, stage accepted candidates in **KES-shaped repo-local candidate artifacts**, and require **explicit review + plan/apply promotion** before any ontology mutation happens.
+Keep the now-landed bounded split: `self` owns **candidate-only semantic memory**, repo-root `docs/learnings/ontology-candidates/` stages only **ontology-specific candidate artifacts** when needed, `ontology_proposal` performs **plan-only assessment**, and **explicit review + AK-backed sequencing** own promotion.
+No step in this pipeline should auto-write broad monorepo learning truth or `ontology_change mode=apply`.
 
 ---
 
@@ -145,35 +149,37 @@ Expose a **proposal/check runtime** from `pi-ontology-workflows`, extend `self` 
 - rejection/trap feedback memory
 - repeated-pattern detection across sessions
 
-It does **not** own ontology mutation.
+It does **not** own ontology mutation or cross-package learning promotion.
 
-## 2. Candidate staging owns
+## 2. Repo-root ontology-candidate staging owns
 
 - attributable candidate-only artifact creation
 - evidence packet shape
 - candidate status lifecycle
 
-This should be repo-local and package-neutral in effect, even if first implemented in a narrow helper.
+This is a **narrow repo-root semantic staging surface**.
+It is not a general monorepo learning sink and not a package-KES spillover surface.
 
 ## 3. `pi-ontology-workflows` owns
 
 - ontology gap checking
 - nearest-match / collision analysis
 - scope recommendation
-- candidate-to-plan rendering
-- final plan/apply ontology mutation semantics
+- candidate-to-plan rendering via `ontology_proposal`
+- final plan/apply ontology mutation semantics after review
 
 ## 4. AK / operator review owns
 
 - promotion approval
 - sequencing
 - rejection / supersession / defer decisions
+- any later promotion from repo-local candidate staging into broader governed surfaces
 
 ---
 
-## E) Proposed pipeline
+## E) Bounded pipeline
 
-## Phase 1 — Self notices semantic pressure
+## Phase 1 — `self` notices semantic pressure
 
 Trigger examples:
 
@@ -187,14 +193,19 @@ At this phase, nothing touches ontology.
 Output:
 - semantic candidate memory entry inside `self`
 
-## Phase 2 — Candidate memory becomes explicit candidate artifact
+## Phase 2 — Candidate memory may become an explicit candidate artifact
 
-When semantic pressure crosses a threshold, create a repo-local candidate artifact.
+When durable repo-local staging is warranted, create a candidate artifact under the repo contract.
+
+Current boundary:
+- `self` does **not** auto-emit that file
+- candidate staging is optional and review-preserving
+- repo-root staging is reserved for ontology-specific semantic candidates
 
 Output:
-- candidate-only artifact under a repo-local staging root
+- candidate-only artifact under `docs/learnings/ontology-candidates/` when warranted
 
-## Phase 3 — Ontology proposal runtime evaluates candidate
+## Phase 3 — `ontology_proposal` evaluates the candidate
 
 `pi-ontology-workflows` runs:
 
@@ -207,7 +218,7 @@ Output:
 
 Output:
 - proposal report
-- optionally `ontology_change mode=plan` payload
+- optionally a plan-ready `ontology_change mode=plan` payload
 
 ## Phase 4 — Explicit review / promotion decision
 
@@ -218,13 +229,14 @@ A human or AK-backed review decides:
 - merge with another candidate
 - promote to ontology plan
 
-## Phase 5 — Apply
+## Phase 5 — Plan / apply
 
 Only after explicit approval:
 
-- `ontology_change mode=apply`
+- `ontology_change mode=plan`
+- later, if approved, `ontology_change mode=apply`
 
-## Phase 6 — Feedback to self memory
+## Phase 6 — Feedback to `self` memory
 
 - promoted candidate -> remember successful ontology promotion pattern
 - rejected candidate -> mark reason as trap/protection memory
@@ -282,11 +294,12 @@ This type should be included in the same scoped self-memory persistence family a
 ## 2. Candidate artifact schema
 
 ### Root
-For this repo, use a repo-local candidate root such as:
+For this repo, use the repo-local candidate root:
 
 - `docs/learnings/ontology-candidates/`
 
 This intentionally borrows the **candidate-only** logic of KES without requiring ontology truth to live there.
+It is a narrow repo-root semantic staging surface, not a generic monorepo `docs/learnings/` dumping ground and not a replacement for package-owned KES.
 
 ### File path
 Example:
@@ -436,49 +449,37 @@ It only evaluates and, when appropriate, emits a plan-ready payload.
 
 ## G) Exact `self` extension shape
 
-## Recommendation
+## Current landed surface
 Do **not** add a direct ontology-writing domain to `self`.
 
-Instead, add a bounded candidate-oriented subdomain under crystallization, for example:
+The landed bounded extension lives under crystallization and currently supports queries such as:
 
-### Query examples
 - `remember ontology candidate: benchmark harness`
 - `what ontology candidates have I crystallized?`
-- `is this an ontology gap?`
 - `mark ontology candidate as rejected: duplicate of benchmark metric`
+- `forget ontology candidate`
 
-### Internal intent additions
-Add a new intent family such as:
-
-```ts
-type CrystallizationIntent =
-  | "remember_pattern"
-  | "recall_patterns"
-  | "query_learning"
-  | "forget_pattern"
-  | "remember_ontology_candidate"
-  | "recall_ontology_candidates"
-  | "forget_ontology_candidate"
-  | "reject_ontology_candidate";
-```
+The corresponding intent family now exists to remember, recall, reject, and forget ontology candidates without widening `self` into ontology authority.
 
 ### Why this is better than a new top-level ontology domain
 - keeps `self` as mirror/crystallization, not ontology authority
 - minimizes conceptual widening
 - lets protection memory absorb rejection feedback
+- keeps promotion outside `self`, where review and ontology governance still apply
 
 ---
 
 ## H) Promotion workflow
 
 ## Step 1 — candidate created
-By `self`, from repeated semantic pressure.
+By `self`, from repeated semantic pressure or explicit operator instruction.
 
-## Step 2 — candidate staged
-Candidate-only artifact written under repo-local candidate root.
+## Step 2 — optional durable staging
+If a repo artifact is warranted, stage a candidate-only note under `docs/learnings/ontology-candidates/`.
+`self` does **not** auto-write this file.
 
 ## Step 3 — proposal assessed
-`pi-ontology-workflows` proposal runtime evaluates:
+`ontology_proposal` evaluates:
 - scope
 - collision risk
 - suggested id
@@ -497,7 +498,7 @@ This can be:
 - later a bounded orchestrator loop
 
 ## Step 5 — plan
-Generate `ontology_change mode=plan` payload.
+Generate or refine the `ontology_change mode=plan` payload.
 
 ## Step 6 — apply
 Only on explicit approval.
@@ -543,13 +544,15 @@ The **shape** of KES is right:
 - candidate-only durable staging
 - no auto-promotion
 
-But the current package-owned KES seam belongs to orchestrator.
+But the current package-owned KES seam belongs to orchestrator, and this repo now explicitly treats learning as **federated by owner**.
 
 So the best move is:
 - reuse the *discipline*
-- not necessarily the exact orchestrator-owned implementation
+- keep package-owned KES package-owned
+- use repo-root `docs/learnings/ontology-candidates/` only for ontology-specific repo-root semantic staging
+- do **not** generalize this into a monorepo-wide learning bus
 
-For `pi-extensions` root work, use a repo-local candidate artifact contract inspired by KES semantics.
+For `pi-extensions` root work, use a repo-local candidate artifact contract inspired by KES semantics without collapsing package and repo ownership boundaries.
 
 ---
 
@@ -573,27 +576,27 @@ Bad effects:
 
 ## L) Recommended implementation order
 
-1. **Design freeze**
-   - accept this pipeline contract
-2. **Proposal runtime in `pi-ontology-workflows`**
-   - plan-only assessment surface
-3. **Candidate artifact schema**
-   - repo-local candidate staging files
-4. **`self` ontology-candidate memory**
-   - candidate-only crystallization extension
-5. **promotion flow**
-   - explicit review -> plan -> apply
-6. **rejection feedback loop**
-   - protection memory for bad ontology proposals
+1. **Foundation pieces now landed**
+   - `ontology_proposal` plan-only assessment surface
+   - `self` ontology-candidate memory
+   - repo-local ontology-candidate artifact contract
+2. **Add a controlled writer/helper only if needed**
+   - materialize candidate files without auto-promoting
+3. **Add explicit review workflow / AK gating**
+   - merge, defer, reject, or promote candidates intentionally
+4. **Harden the rejection feedback loop**
+   - keep bad ontology ideas from being rediscovered repeatedly
+5. **Only later consider extra automation**
+   - and only if the review-preserving boundary remains truthful
 
 ---
 
 ## M) Bottom line
 
-Yes, we should expose something that `self` can consume.
+Yes, `self` should expose ontology-candidate memory.
 
-But the correct design is:
+But the correct design is now more specific:
 
-> let `self` notice semantic gaps, let candidate staging preserve them, let `pi-ontology-workflows` evaluate them, and let explicit review decide promotion.
+> let `self` notice semantic gaps, let narrow repo-root ontology-candidate staging preserve them only when warranted, let `ontology_proposal` evaluate them, and let explicit review decide promotion.
 
-That is the tightest, safest way for ontology to "extend itself" without turning shared semantic truth into an ungoverned reflection of session-local thought.
+That is the tightest, safest way for ontology to evolve without turning shared semantic truth into an ungoverned reflection of session-local thought or turning repo-root learning surfaces into a shadow monorepo authority.
