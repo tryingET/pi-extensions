@@ -64,6 +64,9 @@
     "releaseComponent": "pi-autoresearch",
     "releaseConfigMode": "component"
   },
+  "dependencies": {
+    "xstate": "^5.30.0"
+  },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
     "@mariozechner/pi-ai": "*",

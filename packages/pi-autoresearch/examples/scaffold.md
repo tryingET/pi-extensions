@@ -29,7 +29,7 @@ Example tool/result themes:
 - optional later router draft:
   - `pi-autoresearch-state-router`
 - next bounded runtime slices not yet landed:
-  - explicit package-local state-machine layer
+  - live wiring of the package-local XState campaign machine into command/tool execution
   - AK campaign binding
   - machine-invoked Prompt Vault decision steps
   - autonomous resume/loop lifecycle

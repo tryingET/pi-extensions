@@ -59,8 +59,13 @@ The current boundary is now more specific: the package is the runtime owner for 
   - structured `METRIC name=value` parsing
   - bounded benchmark/check execution helpers
   - JSONL receipt append/load, baseline, and confidence helpers used by the extension and tests
+- `src/machine/events.ts`
+  - typed campaign event model for configuration, run execution, receipt recording, decision points, blocking, and completion
+- `src/machine/campaign.ts`
+  - minimal package-local XState campaign machine for the bounded experiment runtime
+  - runtime-status hydration helper for mapping the current bounded status into machine input
 - `src/runtime.ts`
-  - compatibility re-export for the core runtime surface
+  - compatibility re-export for the core runtime surface plus the campaign machine/event model
 
 ## Local artifact contract
 
@@ -84,7 +89,7 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package should first gain its own explicit state-machine layer, then later connect AK binding and machine-invoked Prompt Vault decision steps.
+The package now includes a minimal internal XState campaign machine and typed event model; the next bounded slices are wiring that machine into live runtime flows, then connecting AK binding and machine-invoked Prompt Vault decision steps.
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
@@ -95,14 +100,14 @@ Interpretation rule:
 
 This package does **not** yet implement:
 
-- the explicit package-local state-machine layer above the current bounded helpers
+- live command/tool wiring that executes the new XState campaign machine during `/autoresearch` runs
 - AK campaign binding
 - machine-invoked Prompt Vault decision steps
 - finalization branch creation
 - autonomous resume/loop lifecycle
 - shared higher-order session-control orchestration
 
-Those belong to later bounded slices after the bounded runtime kernel.
+The package now includes the minimal campaign machine/event model, but the broader loop integrations still belong to later bounded slices after the bounded runtime kernel.
 
 ## Validation
 
