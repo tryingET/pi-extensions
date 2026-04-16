@@ -1,18 +1,25 @@
 import assert from "node:assert/strict";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import piAutoresearchExtension from "../extensions/pi-autoresearch.ts";
 import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_LOCAL_ARTIFACTS,
+  AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
-  buildAutoresearchScaffoldStatus,
+  appendReceipt,
+  buildAutoresearchRuntimeStatus,
   createConfigReceipt,
   createRunReceipt,
+  formatAutoresearchStatusText,
+  loadReceiptLog,
   parseMetricLines,
   parseReceiptLine,
   serializeReceipt,
-} from "../src/runtime.ts";
+} from "../src/core/runtime.ts";
 
 type RegisteredCommand = {
   description?: string;
@@ -56,6 +63,21 @@ function registerHarness() {
   return { commands, tools };
 }
 
+async function withTempDir(fn: (cwd: string) => Promise<void> | void): Promise<void> {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "pi-autoresearch-runtime-"));
+  try {
+    await fn(cwd);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+function writeExecutable(cwd: string, name: string, content: string): void {
+  const target = path.join(cwd, name);
+  writeFileSync(target, content, "utf8");
+  chmodSync(target, 0o755);
+}
+
 test("parseMetricLines extracts structured METRIC entries and ignores unrelated lines", () => {
   const metrics = parseMetricLines(
     [
@@ -63,6 +85,7 @@ test("parseMetricLines extracts structured METRIC entries and ignores unrelated 
       "METRIC total_ms=15200",
       "METRIC render_ms=9800",
       "METRIC invalid=abc",
+      "METRIC __proto__=17",
       "METRIC total_ms=15100",
     ].join("\n"),
   );
@@ -80,44 +103,100 @@ test("receipt helpers round-trip config and run entries", () => {
     metricUnit: "ms",
     direction: "lower",
     createdAt: 10,
+    benchmarkCommand: "bash autoresearch.sh",
+    checksCommand: "bash autoresearch.checks.sh",
   });
   const run = createRunReceipt({
-    status: "keep",
+    status: "candidate",
     metric: 14000,
     metrics: { render_ms: 9200 },
     description: "cache layout lookups",
     timestamp: 20,
-    commit: "abc1234",
     iteration: 3,
+    confidence: 1.4,
+    durationSeconds: 0.52,
+    exitCode: 0,
+    timedOut: false,
+    benchmarkCommand: "bash autoresearch.sh",
+    checksCommand: "bash autoresearch.checks.sh",
+    checksPassed: true,
+    checksDurationSeconds: 0.14,
   });
 
   assert.deepEqual(parseReceiptLine(serializeReceipt(config)), config);
   assert.deepEqual(parseReceiptLine(serializeReceipt(run)), run);
 });
 
-test("buildAutoresearchScaffoldStatus reports the current shell boundary", () => {
-  const status = buildAutoresearchScaffoldStatus("/repo");
+test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () => {
+  const status = buildAutoresearchRuntimeStatus("/repo");
 
-  assert.equal(status.phase, "package_shell");
+  assert.equal(status.phase, "bounded_runtime_kernel");
   assert.equal(status.commandName, AUTORESEARCH_COMMAND_NAME);
-  assert.deepEqual(status.toolNames, [AUTORESEARCH_STATUS_TOOL_NAME]);
+  assert.deepEqual(status.toolNames, [AUTORESEARCH_STATUS_TOOL_NAME, AUTORESEARCH_RUN_TOOL_NAME]);
   assert.deepEqual(status.localArtifacts, [...AUTORESEARCH_LOCAL_ARTIFACTS]);
-  assert.deepEqual(status.readyPromptVaultTemplates, [
-    "pi-autoresearch-setup",
-    "pi-autoresearch-next-hypothesis",
-    "pi-autoresearch-finalize",
-  ]);
-  assert.deepEqual(status.blockedPromptVaultTemplates, ["pi-autoresearch-state-router"]);
+  assert.equal(status.currentSegment.configured, false);
+  assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
 });
 
-test("extension registers /autoresearch and autoresearch_runtime_status", () => {
+test("status builder summarizes best metric and confidence from appended receipts", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "widget-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 90,
+        description: "candidate 1",
+        timestamp: 3,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 92,
+        description: "candidate 2",
+        timestamp: 4,
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.configured, true);
+    assert.equal(status.currentSegment.runCount, 3);
+    assert.equal(status.currentSegment.successfulRunCount, 3);
+    assert.equal(status.currentSegment.baselineMetric, 100);
+    assert.equal(status.currentSegment.bestMetric, 90);
+    assert.ok((status.currentSegment.confidence ?? 0) > 0);
+  }));
+
+test("extension registers /autoresearch, autoresearch_runtime_status, and autoresearch_runtime_run", () => {
   const { commands, tools } = registerHarness();
 
   assert.equal(typeof commands.get(AUTORESEARCH_COMMAND_NAME)?.handler, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_STATUS_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
 });
 
-test("/autoresearch opens the package-shell overview", async () => {
+test("/autoresearch opens the bounded-runtime overview", async () => {
   const { commands } = registerHarness();
   let editorTitle = "";
   let editorText = "";
@@ -138,21 +217,115 @@ test("/autoresearch opens the package-shell overview", async () => {
   });
 
   assert.equal(editorTitle, "pi-autoresearch");
-  assert.match(editorText, /# \/autoresearch/);
-  assert.match(editorText, /package shell is installed/);
+  assert.match(editorText, /bounded runtime kernel is available/);
   assert.equal(notifications.length, 1);
-  assert.match(notifications[0].message, /currently a package shell/);
+  assert.match(notifications[0].message, /autonomous loop is still out of scope/);
 });
 
-test("autoresearch_runtime_status returns scaffold details", async () => {
-  const { tools } = registerHarness();
-  const tool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
+test("autoresearch_runtime_run bootstraps config, executes benchmark, and appends receipts", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(tool);
 
-  const result = await tool?.execute("call-1", {}, undefined, undefined, { cwd: "/repo" });
+    writeExecutable(
+      cwd,
+      "autoresearch.sh",
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        'echo "METRIC total_ms=152"',
+        'echo "METRIC render_ms=99"',
+      ].join("\n"),
+    );
 
-  assert.ok(result);
-  assert.equal(result?.content[0]?.type, "text");
-  assert.match(result?.content[0]?.text ?? "", /PI-AUTORESEARCH STATUS/);
-  assert.match(result?.content[0]?.text ?? "", /phase: package_shell/);
-  assert.deepEqual(result?.details, buildAutoresearchScaffoldStatus("/repo"));
+    const result = await tool?.execute(
+      "call-1",
+      {
+        cwd,
+        description: "baseline run",
+        name: "widget-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(result?.content[0]?.text ?? "", /run status: baseline/);
+    const details = result?.details as {
+      createdConfig: boolean;
+      parsedMetrics: Record<string, number>;
+      runReceipt: { status: string; metric: number };
+      status: { currentSegment: { baselineMetric: number; bestMetric: number; runCount: number } };
+      receiptPath: string;
+    };
+    assert.equal(details.createdConfig, true);
+    assert.deepEqual(details.parsedMetrics, { total_ms: 152, render_ms: 99 });
+    assert.equal(details.runReceipt.status, "baseline");
+    assert.equal(details.runReceipt.metric, 152);
+    assert.equal(details.status.currentSegment.baselineMetric, 152);
+    assert.equal(details.status.currentSegment.bestMetric, 152);
+    assert.equal(details.status.currentSegment.runCount, 1);
+
+    const log = loadReceiptLog(cwd);
+    assert.equal(log.invalidLineCount, 0);
+    assert.equal(log.entries.length, 2);
+    assert.equal(readFileSync(details.receiptPath, "utf8").trim().split("\n").length, 2);
+  });
+});
+
+test("autoresearch_runtime_run records checks_failed receipts without establishing a baseline", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(tool);
+
+    writeExecutable(
+      cwd,
+      "autoresearch.sh",
+      ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "METRIC total_ms=111"'].join("\n"),
+    );
+    writeExecutable(
+      cwd,
+      "autoresearch.checks.sh",
+      ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "typecheck failed" >&2', "exit 1"].join(
+        "\n",
+      ),
+    );
+
+    const result = await tool?.execute(
+      "call-2",
+      {
+        cwd,
+        description: "candidate with failing checks",
+        name: "widget-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const details = result?.details as {
+      runReceipt: { status: string };
+      status: {
+        currentSegment: {
+          baselineMetric: number | null;
+          successfulRunCount: number;
+          runCount: number;
+        };
+      };
+    };
+    assert.equal(details.runReceipt.status, "checks_failed");
+    assert.equal(details.status.currentSegment.baselineMetric, null);
+    assert.equal(details.status.currentSegment.successfulRunCount, 0);
+    assert.equal(details.status.currentSegment.runCount, 1);
+  });
 });
