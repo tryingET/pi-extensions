@@ -22,6 +22,7 @@ AK umbrella task `#1412` — `Implement controlled self-to-ontology candidate pi
 - `#1421` — define repo-local ontology candidate artifact contract and staging root
 
 Those child tasks are now landed.
+Later task `#1480` revised the self-facing query surface from ontology-candidate phrasing to semantic-pressure annotations without widening the automation boundary.
 This note records the exact bounded reality of the umbrella so later sessions do not confuse:
 
 - a truthful first implementation slice, with
@@ -29,16 +30,17 @@ This note records the exact bounded reality of the umbrella so later sessions do
 
 ## What is now implemented
 
-## 1. `self` can crystallize ontology candidates
+## 1. `self` can crystallize semantic-pressure annotations
 
-In `packages/pi-autonomous-session-control`, the `self` tool now supports candidate-only ontology memory, including:
+In `packages/pi-autonomous-session-control`, the `self` tool now exposes semantic-pressure annotations as the preferred self-facing query surface, including:
 
-- `Remember ontology candidate: ...`
-- `What ontology candidates have I crystallized?`
-- `Mark ontology candidate as rejected`
-- `Forget ontology candidate`
+- `Remember semantic pressure: ...`
+- `What semantic-pressure annotations have I recorded?`
+- `Mark semantic-pressure annotation as rejected`
+- `Forget semantic-pressure annotation`
 
-The new memory type is persisted in the same bounded self-memory family as other crystallization/protection state, so candidate state survives extension re-registration.
+Legacy ontology-candidate phrasing remains accepted for compatibility.
+The bounded memory is still persisted in the same self-memory family as other crystallization/protection state, so annotation state survives extension re-registration.
 
 ## 2. `ontology_proposal` can assess a candidate before any ontology mutation
 
@@ -70,8 +72,8 @@ This means later writers/helpers now have one truthful answer for where ontology
 
 The current landing enables this **controlled** workflow:
 
-1. use `self` to crystallize a repeated semantic gap as an ontology candidate
-2. inspect or recall the staged candidate memory
+1. use `self` to crystallize a repeated semantic gap as a semantic-pressure annotation
+2. inspect or recall the staged semantic-pressure memory
 3. use `ontology_proposal` to assess whether ontology is even the right tool, and if so what scope/id/plan shape fits
 4. if a durable repo artifact is warranted, stage it under `governance/ontology-candidates/` using the repo contract
 5. only after explicit review, move to `ontology_change mode=plan` and later `mode=apply`
@@ -95,8 +97,10 @@ Those remain future follow-on work if the repo later decides the extra automatio
 | Task | Commit | Landed surface |
 |---|---|---|
 | `#1415` | `3643e0d` | `ontology_proposal` runtime/tool + proposal tests |
-| `#1418` | `867e083` | `self` ontology-candidate memory, intents, persistence, and tests |
+| `#1418` | `867e083` | `self` bounded ontology-candidate memory, intents, persistence, and tests |
 | `#1421` | `5147b17` | repo-local ontology-candidate artifact contract + diary |
+
+Task `#1480` later refined the preferred self-facing terminology to **semantic-pressure annotations** while preserving compatibility with the bounded memory family landed by `#1418`.
 
 ## Verification for umbrella closure
 
@@ -116,7 +120,7 @@ The docs validation is intentionally scoped to the new umbrella-closure artifact
 
 `#1412` is complete when read as the bounded first landing of a controlled self-to-ontology candidate pipeline:
 
-- candidate-only ontology memory exists
+- semantic-pressure annotation memory exists at the self-facing layer
 - plan-only ontology proposal assessment exists
 - repo-local candidate artifact staging has a frozen contract
 

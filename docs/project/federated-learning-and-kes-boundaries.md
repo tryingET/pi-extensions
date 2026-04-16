@@ -240,8 +240,8 @@ Promotion to those governed surfaces still needs the relevant explicit review pa
 The bounded self-to-ontology pipeline is already careful about this.
 That same discipline should hold more generally:
 
-- `self` memory can crystallize candidates
-- candidate artifacts can stage them durably
+- `self` memory can crystallize semantic-pressure annotations
+- candidate artifacts can stage ontology-specific durable records when warranted
 - but neither step should auto-write broad repo policy or cross-package learning truth
 
 ---

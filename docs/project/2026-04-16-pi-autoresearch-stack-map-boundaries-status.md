@@ -74,7 +74,7 @@ This aligns the capability with the stack map's **transition-procedure layer**:
 
 The self-to-ontology side of the correction wave now reads consistently with the federated-learning boundary:
 
-- `self` owns candidate-only ontology memory
+- `self` owns semantic-pressure annotation memory at the mirror layer
 - `ontology_proposal` owns plan-only ontology assessment
 - repo-root `governance/ontology-candidates/` is a narrow ontology-specific candidate staging surface
 - candidate staging does **not** become a generic root `docs/learnings/` learning bus

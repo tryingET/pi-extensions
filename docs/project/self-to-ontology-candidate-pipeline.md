@@ -27,7 +27,7 @@ The current truthful architecture is:
 
 ```text
 self crystallization/protection
-  -> ontology-candidate memory
+  -> semantic-pressure annotation memory
   -> optional repo-local ontology-candidate artifact staging
   -> `ontology_proposal` assessment (gap check, scope check, collision check, suggested ids)
   -> `ontology_change mode=plan`
@@ -35,7 +35,7 @@ self crystallization/protection
   -> `ontology_change mode=apply`
 ```
 
-Today the repo supports candidate-only ontology memory in `self`, plan-only ontology assessment, and a narrow repo-root ontology-candidate artifact contract.
+Today the repo supports semantic-pressure annotation memory in `self`, plan-only ontology assessment, and a narrow repo-root ontology-candidate artifact contract.
 It still does **not** support automatic file emission from `self` or automatic promotion into ontology truth.
 
 ---
@@ -44,16 +44,17 @@ It still does **not** support automatic file emission from `self` or automatic p
 
 At this point the repo has three connected but still intentionally bounded surfaces:
 
-### 1. `self` in ASC now has candidate-only ontology memory
-`self` can now:
+### 1. `self` in ASC now has semantic-pressure annotation memory
+`self` now exposes semantic-pressure annotations as the preferred self-facing term.
+It can:
 
-- crystallize ontology candidates
-- recall them across sessions
+- crystallize semantic pressure into bounded memory
+- recall those annotations across sessions
 - reject them with reasons
 - forget them when they are no longer useful
 
-That closes the earlier gap where ontology pressure could only live as a vague pattern.
-But `self` still does **not** own file emission, ontology planning, or ontology apply.
+Legacy ontology-candidate phrasing still works for compatibility, but the newer self-facing term is more truthful because `self` is preserving pre-ontology pressure rather than asserting ontology truth.
+`self` still does **not** own file emission, ontology planning, or ontology apply.
 
 ### 2. Repo-root ontology-candidate staging now has a narrow contract
 The repo now has an explicit candidate-staging contract at:
@@ -135,7 +136,7 @@ If a semantic candidate is rejected, the system should remember why, so it does 
 
 ## Decision in one sentence
 
-Keep the now-landed bounded split: `self` owns **candidate-only semantic memory**, repo-root `governance/ontology-candidates/` stages only **ontology-specific candidate artifacts** when needed, `ontology_proposal` performs **plan-only assessment**, and **explicit review + AK-backed sequencing** own promotion.
+Keep the now-landed bounded split: `self` owns **semantic-pressure annotation memory**, repo-root `governance/ontology-candidates/` stages only **ontology-specific candidate artifacts** when needed, `ontology_proposal` performs **plan-only assessment**, and **explicit review + AK-backed sequencing** own promotion.
 No step in this pipeline should auto-write broad monorepo learning truth or `ontology_change mode=apply`.
 
 ---
@@ -191,7 +192,7 @@ Trigger examples:
 At this phase, nothing touches ontology.
 
 Output:
-- semantic candidate memory entry inside `self`
+- semantic-pressure annotation memory entry inside `self`
 
 ## Phase 2 — Candidate memory may become an explicit candidate artifact
 
@@ -454,12 +455,13 @@ Do **not** add a direct ontology-writing domain to `self`.
 
 The landed bounded extension lives under crystallization and currently supports queries such as:
 
-- `remember ontology candidate: benchmark harness`
-- `what ontology candidates have I crystallized?`
-- `mark ontology candidate as rejected: duplicate of benchmark metric`
-- `forget ontology candidate`
+- `remember semantic pressure: benchmark harness`
+- `what semantic-pressure annotations have I recorded?`
+- `mark semantic-pressure annotation as rejected: duplicate of benchmark metric`
+- `forget semantic-pressure annotation`
 
-The corresponding intent family now exists to remember, recall, reject, and forget ontology candidates without widening `self` into ontology authority.
+Legacy ontology-candidate phrasing remains accepted for compatibility.
+But the preferred self-facing term is now **semantic-pressure annotation** because the mirror is preserving signal before explicit ontology review, not asserting ontology truth.
 
 ### Why this is better than a new top-level ontology domain
 - keeps `self` as mirror/crystallization, not ontology authority
@@ -578,7 +580,7 @@ Bad effects:
 
 1. **Foundation pieces now landed**
    - `ontology_proposal` plan-only assessment surface
-   - `self` ontology-candidate memory
+   - `self` semantic-pressure annotation memory
    - repo-local ontology-candidate artifact contract
 2. **Add a controlled writer/helper only if needed**
    - materialize candidate files without auto-promoting
@@ -593,10 +595,10 @@ Bad effects:
 
 ## M) Bottom line
 
-Yes, `self` should expose ontology-candidate memory.
+Yes, `self` should expose semantic-pressure annotation memory.
 
 But the correct design is now more specific:
 
-> let `self` notice semantic gaps, let narrow repo-root ontology-candidate staging preserve them only when warranted, let `ontology_proposal` evaluate them, and let explicit review decide promotion.
+> let `self` notice semantic gaps, let semantic-pressure annotations preserve that pressure at the mirror layer, let narrow repo-root ontology-candidate staging materialize durable artifacts only when warranted, let `ontology_proposal` evaluate them, and let explicit review decide promotion.
 
 That is the tightest, safest way for ontology to evolve without turning shared semantic truth into an ungoverned reflection of session-local thought or turning repo-root learning surfaces into a shadow monorepo authority.
