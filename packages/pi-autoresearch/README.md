@@ -18,6 +18,7 @@ Monorepo package for the governed `pi-autoresearch` capability in Pi.
 - Release component key: `pi-autoresearch`
 - Extension entry: `extensions/pi-autoresearch.ts`
 - Current phase: `bounded_runtime_kernel`
+- Current-vs-target anchor: [docs/project/current-vs-target.md](./docs/project/current-vs-target.md)
 
 ## Why this package exists
 
@@ -114,6 +115,7 @@ This package does **not** yet implement:
 - an explicit operator-facing decision surface above the current automatic iterate-bridging used by the bounded run tool
 
 The package now includes the bounded runtime's machine/event-ledger integration, but the broader control-plane and autonomy integrations still belong to later bounded slices after the bounded runtime kernel.
+Use [docs/project/current-vs-target.md](./docs/project/current-vs-target.md) as the living package-local map for what is landed vs what still belongs to future verified slices.
 
 ## Validation
 
