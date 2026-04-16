@@ -7,7 +7,7 @@ system4d:
   container: "Prompt template for implementation planning."
   compass: "Turn requested package work into an explicit bounded plan."
   engine: "Scope -> tasks -> validation -> rollout."
-  fog: "The current package shell is intentionally incomplete, so hidden boundary assumptions are likely."
+  fog: "The bounded runtime is intentionally incomplete, so hidden control-plane boundary assumptions are likely."
 ---
 
 Create an implementation plan for this `pi-autoresearch` request: $@

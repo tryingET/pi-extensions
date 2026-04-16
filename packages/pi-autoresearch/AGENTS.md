@@ -4,7 +4,7 @@ read_when:
   - "Before editing package code or docs in this workspace."
 system4d:
   container: "Local package rules inside the pi-extensions monorepo."
-  compass: "Keep the package shell honest about its current runtime boundary."
+  compass: "Keep the bounded runtime honest about its current control-plane boundary."
   engine: "Read boundary docs -> make one bounded package change -> run package validation -> summarize."
   fog: "The main risk is growing a second control plane inside the package before AK, Prompt Vault, and ontology seams are respected."
 ---
@@ -22,7 +22,7 @@ system4d:
 - This folder is a package workspace, not a git root.
 - Keep package scripts compatible with monorepo root runners.
 - Do not add package-local `.github/` workflows.
-- Preserve the package shell posture until a later task explicitly lands the bounded runtime kernel.
+- Preserve the bounded-runtime posture until a later task explicitly lands AK binding, safer finalization, or broader loop control.
 
 ## Validation
 

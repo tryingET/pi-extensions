@@ -1,7 +1,7 @@
 {
   "name": "@tryinget/pi-autoresearch",
   "version": "0.1.0",
-  "description": "Pi extension package for the governed pi-autoresearch experiment-loop shell.",
+  "description": "Pi extension package for the governed pi-autoresearch bounded experiment runtime.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
