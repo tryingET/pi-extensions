@@ -12,6 +12,8 @@
  *   self({ query: "What files have I touched?" })
  *   self({ query: "Am I in a loop?" })
  *   self({ query: "Remember: [pattern I discovered]" })
+ *   self({ query: "Remember ontology candidate: [missing term]" })
+ *   self({ query: "What ontology candidates have I crystallized?" })
  *   self({ query: "I need help with [topic]" })
  *   dispatch_subagent({ profile: "explorer", objective: "Find all test files" })
  *   dispatch_subagent({ profile: "reviewer", objective: "Review my changes" })
@@ -230,6 +232,8 @@ Examples:
 - self({ query: "Am I in a loop?" })
 - self({ query: "What progress have I made?" })
 - self({ query: "Remember: [pattern discovered]" })
+- self({ query: "Remember ontology candidate: [missing term]" })
+- self({ query: "What ontology candidates have I crystallized?" })
 - self({ query: "I need help with [topic]" })
 - self({ query: "Mark as trap: [description]" })
 
@@ -238,7 +242,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
     promptGuidelines: [
       "Use self when you need to verify what work has actually happened before planning the next step.",
-      "Use self for loop checks, progress checks, file-touch summaries, and explicit remember/mark-trap directives.",
+      "Use self for loop checks, progress checks, file-touch summaries, explicit remember/mark-trap directives, and candidate-only ontology crystallization.",
     ],
     parameters: Type.Object({
       query: Type.String({

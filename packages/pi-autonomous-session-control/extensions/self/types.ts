@@ -115,9 +115,38 @@ export interface CrystallizedPattern {
   strength: number; // 0-1, decays over time
 }
 
+export interface OntologyCandidateMemory {
+  id: string;
+  type: "ontology_candidate";
+  candidateKind: "concept" | "relation";
+  proposedScopeHint: "repo" | "company" | "core" | "unknown";
+  titleHint?: string;
+  labelHints: string[];
+  description: string;
+  evidence: {
+    files?: string[];
+    commands?: string[];
+    diaryRefs?: string[];
+    sessionIds?: string[];
+    repeatedPhrases?: string[];
+  };
+  confidence: number; // 0-1
+  createdAt: number;
+  lastAccessedAt: number;
+  accessCount: number;
+  source: "crystallized" | "inferred" | "session";
+  metadata: {
+    proposedIdHint?: string;
+    duplicateRisk?: "low" | "medium" | "high";
+    rejectionReason?: string;
+    promotedTo?: string;
+  };
+}
+
 export interface PatternStore {
   patterns: Map<string, CrystallizedPattern>;
   topicsIndex: Map<string, Set<string>>; // topic -> pattern IDs
+  ontologyCandidates: Map<string, OntologyCandidateMemory>;
 }
 
 // ============================================================================
@@ -241,7 +270,11 @@ export type CrystallizationIntent =
   | "remember_pattern"
   | "recall_patterns"
   | "query_learning"
-  | "forget_pattern";
+  | "forget_pattern"
+  | "remember_ontology_candidate"
+  | "recall_ontology_candidates"
+  | "forget_ontology_candidate"
+  | "reject_ontology_candidate";
 
 export type ProtectionIntent = "mark_trap" | "check_traps" | "trap_proximity" | "list_traps";
 

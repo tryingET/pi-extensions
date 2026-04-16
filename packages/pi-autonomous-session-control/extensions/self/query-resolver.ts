@@ -143,12 +143,12 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
       return {
         understood: false,
         intent: "unknown",
-        answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, or traps.`,
+        answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, ontology candidates, or traps.`,
         suggestions: [
           "What files have I touched?",
           "Am I in a loop?",
           "What progress have I made?",
-          "What errors have I encountered?",
+          "What ontology candidates have I crystallized?",
         ],
       };
   }
@@ -177,6 +177,9 @@ function resolveMetaQuery(intent: string): SelfResponse {
 **Crystallization** (improve yourself):
 - "Remember: [pattern]" / "What did I learn?"
 - "Recall patterns about [topic]"
+- "Remember ontology candidate: [missing term]"
+- "What ontology candidates have I crystallized?"
+- "Mark ontology candidate as rejected"
 
 **Protection** (protect yourself):
 - "Mark as trap: [pattern]" / "Am I approaching a trap?"
@@ -200,8 +203,13 @@ function resolveMetaQuery(intent: string): SelfResponse {
           },
           {
             name: "crystallization",
-            description: "Remember and recall patterns",
-            examples: ["Remember: [pattern]", "What did I learn?"],
+            description: "Remember and recall patterns plus candidate-only ontology gaps",
+            examples: [
+              "Remember: [pattern]",
+              "What did I learn?",
+              "Remember ontology candidate: [missing term]",
+              "What ontology candidates have I crystallized?",
+            ],
           },
           {
             name: "protection",

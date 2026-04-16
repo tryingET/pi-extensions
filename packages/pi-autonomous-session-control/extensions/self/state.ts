@@ -47,6 +47,7 @@ export function createPatternStore(): PatternStore {
   return {
     patterns: new Map(),
     topicsIndex: new Map(),
+    ontologyCandidates: new Map(),
   };
 }
 
@@ -105,6 +106,33 @@ export interface SerializedSelfState {
     crystallizedAt: number;
     strength: number;
   }>;
+  ontologyCandidates: Array<{
+    id: string;
+    type: "ontology_candidate";
+    candidateKind: "concept" | "relation";
+    proposedScopeHint: "repo" | "company" | "core" | "unknown";
+    titleHint?: string;
+    labelHints: string[];
+    description: string;
+    evidence: {
+      files?: string[];
+      commands?: string[];
+      diaryRefs?: string[];
+      sessionIds?: string[];
+      repeatedPhrases?: string[];
+    };
+    confidence: number;
+    createdAt: number;
+    lastAccessedAt: number;
+    accessCount: number;
+    source: "crystallized" | "inferred" | "session";
+    metadata: {
+      proposedIdHint?: string;
+      duplicateRisk?: "low" | "medium" | "high";
+      rejectionReason?: string;
+      promotedTo?: string;
+    };
+  }>;
   traps: Array<{
     id: string;
     description: string;
@@ -124,6 +152,24 @@ export function serializeState(state: SelfState): SerializedSelfState {
       crystallizedAt: p.crystallizedAt,
       strength: p.strength,
     })),
+    ontologyCandidates: Array.from(state.learnings.ontologyCandidates.values()).map(
+      (candidate) => ({
+        ...candidate,
+        labelHints: [...candidate.labelHints],
+        evidence: {
+          files: candidate.evidence.files ? [...candidate.evidence.files] : undefined,
+          commands: candidate.evidence.commands ? [...candidate.evidence.commands] : undefined,
+          diaryRefs: candidate.evidence.diaryRefs ? [...candidate.evidence.diaryRefs] : undefined,
+          sessionIds: candidate.evidence.sessionIds
+            ? [...candidate.evidence.sessionIds]
+            : undefined,
+          repeatedPhrases: candidate.evidence.repeatedPhrases
+            ? [...candidate.evidence.repeatedPhrases]
+            : undefined,
+        },
+        metadata: { ...candidate.metadata },
+      }),
+    ),
     traps: Array.from(state.traps.traps.values()).map((t) => ({
       id: t.id,
       description: t.description,
@@ -147,6 +193,23 @@ export function deserializeState(serialized: SerializedSelfState, state: SelfSta
       state.learnings.topicsIndex.set(p.topic, new Set());
     }
     state.learnings.topicsIndex.get(p.topic)?.add(p.id);
+  }
+
+  for (const candidate of serialized.ontologyCandidates ?? []) {
+    state.learnings.ontologyCandidates.set(candidate.id, {
+      ...candidate,
+      labelHints: [...candidate.labelHints],
+      evidence: {
+        files: candidate.evidence.files ? [...candidate.evidence.files] : undefined,
+        commands: candidate.evidence.commands ? [...candidate.evidence.commands] : undefined,
+        diaryRefs: candidate.evidence.diaryRefs ? [...candidate.evidence.diaryRefs] : undefined,
+        sessionIds: candidate.evidence.sessionIds ? [...candidate.evidence.sessionIds] : undefined,
+        repeatedPhrases: candidate.evidence.repeatedPhrases
+          ? [...candidate.evidence.repeatedPhrases]
+          : undefined,
+      },
+      metadata: { ...candidate.metadata },
+    });
   }
 
   // Restore traps

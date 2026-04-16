@@ -38,6 +38,7 @@ export type MemoryType =
   | "learning" // Something discovered/understood
   | "pattern" // A reusable pattern
   | "trap" // Something to avoid
+  | "ontology_candidate" // Candidate-only semantic gap memory
   | "decision" // A decision made with reasoning
   | "context" // Context about the project/session
   | "error" // An error and its resolution
@@ -376,6 +377,7 @@ export class InMemoryStore implements MemoryStore {
       learning: 0,
       pattern: 0,
       trap: 0,
+      ontology_candidate: 0,
       decision: 0,
       context: 0,
       error: 0,

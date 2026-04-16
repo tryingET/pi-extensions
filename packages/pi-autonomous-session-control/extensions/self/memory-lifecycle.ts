@@ -1,8 +1,9 @@
 /**
  * Runtime lifecycle wiring for scoped self-memory persistence.
  *
- * Scope (initial):
+ * Scope:
  * - Crystallization domain (pattern memories)
+ * - Candidate-only ontology memories
  * - Protection domain (trap memories)
  */
 
@@ -16,17 +17,18 @@ import {
   type MemoryStore,
   type MemoryType,
 } from "./memory.ts";
-import type { SelfState } from "./types.ts";
+import type { OntologyCandidateMemory, SelfState } from "./types.ts";
 
 const MEMORY_SNAPSHOT_VERSION = 1;
 const LOAD_LAYER_PRIORITY: MemoryLayer[] = ["longterm", "recent", "session", "ephemeral"];
 const PERSISTED_LAYER: MemoryLayer = "longterm";
-const SCOPED_MEMORY_TYPES = new Set<MemoryType>(["pattern", "trap"]);
+const SCOPED_MEMORY_TYPES = new Set<MemoryType>(["pattern", "ontology_candidate", "trap"]);
 const VALID_LAYERS: MemoryLayer[] = ["ephemeral", "session", "recent", "longterm"];
 const VALID_TYPES: MemoryType[] = [
   "learning",
   "pattern",
   "trap",
+  "ontology_candidate",
   "decision",
   "context",
   "error",
@@ -256,10 +258,58 @@ function trapMemoryFromState(state: SelfState): Memory[] {
   }));
 }
 
+function ontologyCandidateMemoryFromState(state: SelfState): Memory[] {
+  return Array.from(state.learnings.ontologyCandidates.values()).map((candidate) => ({
+    id: candidate.id,
+    type: "ontology_candidate",
+    content: candidate.description,
+    context: `Ontology candidate memory (${candidate.candidateKind})`,
+    topic: candidate.titleHint ?? candidate.labelHints[0] ?? candidate.candidateKind,
+    topics: Array.from(
+      new Set(
+        [
+          candidate.titleHint,
+          ...candidate.labelHints,
+          candidate.candidateKind,
+          candidate.proposedScopeHint,
+        ].filter((value): value is string => Boolean(value)),
+      ),
+    ),
+    strength: clampStrength(candidate.confidence),
+    createdAt: candidate.createdAt,
+    lastAccessedAt: candidate.lastAccessedAt,
+    accessCount: candidate.accessCount,
+    source: candidate.source,
+    metadata: {
+      candidateKind: candidate.candidateKind,
+      proposedScopeHint: candidate.proposedScopeHint,
+      titleHint: candidate.titleHint,
+      labelHints: [...candidate.labelHints],
+      evidence: {
+        files: candidate.evidence.files ? [...candidate.evidence.files] : undefined,
+        commands: candidate.evidence.commands ? [...candidate.evidence.commands] : undefined,
+        diaryRefs: candidate.evidence.diaryRefs ? [...candidate.evidence.diaryRefs] : undefined,
+        sessionIds: candidate.evidence.sessionIds ? [...candidate.evidence.sessionIds] : undefined,
+        repeatedPhrases: candidate.evidence.repeatedPhrases
+          ? [...candidate.evidence.repeatedPhrases]
+          : undefined,
+      },
+      proposedIdHint: candidate.metadata.proposedIdHint,
+      duplicateRisk: candidate.metadata.duplicateRisk,
+      rejectionReason: candidate.metadata.rejectionReason,
+      promotedTo: candidate.metadata.promotedTo,
+    },
+  }));
+}
+
 async function writeScopedStateToStore(state: SelfState, store: MemoryStore): Promise<void> {
   await clearScopedMemories(store);
 
   for (const memory of patternMemoryFromState(state)) {
+    await store.store(memory, PERSISTED_LAYER);
+  }
+
+  for (const memory of ontologyCandidateMemoryFromState(state)) {
     await store.store(memory, PERSISTED_LAYER);
   }
 
@@ -313,9 +363,69 @@ function addTrapFromMemory(state: SelfState, memory: Memory): void {
   });
 }
 
+function addOntologyCandidateFromMemory(state: SelfState, memory: Memory): void {
+  const metadata = isRecord(memory.metadata) ? memory.metadata : {};
+  const evidence = isRecord(metadata.evidence) ? metadata.evidence : {};
+  const candidateKind =
+    metadata.candidateKind === "relation" || metadata.candidateKind === "concept"
+      ? metadata.candidateKind
+      : "concept";
+  const proposedScopeHint =
+    metadata.proposedScopeHint === "repo" ||
+    metadata.proposedScopeHint === "company" ||
+    metadata.proposedScopeHint === "core" ||
+    metadata.proposedScopeHint === "unknown"
+      ? metadata.proposedScopeHint
+      : "unknown";
+  const titleHint = isNonEmptyString(metadata.titleHint) ? metadata.titleHint.trim() : undefined;
+  const labelHints = toStringArray(metadata.labelHints);
+  const duplicateRisk =
+    metadata.duplicateRisk === "low" ||
+    metadata.duplicateRisk === "medium" ||
+    metadata.duplicateRisk === "high"
+      ? metadata.duplicateRisk
+      : undefined;
+
+  const candidate: OntologyCandidateMemory = {
+    id: memory.id,
+    type: "ontology_candidate",
+    candidateKind,
+    proposedScopeHint,
+    titleHint,
+    labelHints: labelHints.length > 0 ? labelHints : titleHint ? [titleHint] : [],
+    description: memory.content,
+    evidence: {
+      files: toStringArray(evidence.files),
+      commands: toStringArray(evidence.commands),
+      diaryRefs: toStringArray(evidence.diaryRefs),
+      sessionIds: toStringArray(evidence.sessionIds),
+      repeatedPhrases: toStringArray(evidence.repeatedPhrases),
+    },
+    confidence: clampStrength(memory.strength),
+    createdAt: memory.createdAt,
+    lastAccessedAt: Math.max(memory.createdAt, memory.lastAccessedAt),
+    accessCount: memory.accessCount,
+    source:
+      memory.source === "session" || memory.source === "inferred" ? memory.source : "crystallized",
+    metadata: {
+      proposedIdHint: isNonEmptyString(metadata.proposedIdHint)
+        ? metadata.proposedIdHint.trim()
+        : undefined,
+      duplicateRisk,
+      rejectionReason: isNonEmptyString(metadata.rejectionReason)
+        ? metadata.rejectionReason.trim()
+        : undefined,
+      promotedTo: isNonEmptyString(metadata.promotedTo) ? metadata.promotedTo.trim() : undefined,
+    },
+  };
+
+  state.learnings.ontologyCandidates.set(memory.id, candidate);
+}
+
 async function hydrateScopedStateFromStore(state: SelfState, store: MemoryStore): Promise<void> {
   state.learnings.patterns.clear();
   state.learnings.topicsIndex.clear();
+  state.learnings.ontologyCandidates.clear();
   state.traps.traps.clear();
 
   const loadedIds = new Set<string>();
@@ -334,6 +444,10 @@ async function hydrateScopedStateFromStore(state: SelfState, store: MemoryStore)
 
       if (memory.type === "pattern") {
         addPatternFromMemory(state, memory);
+      }
+
+      if (memory.type === "ontology_candidate") {
+        addOntologyCandidateFromMemory(state, memory);
       }
 
       if (memory.type === "trap") {
