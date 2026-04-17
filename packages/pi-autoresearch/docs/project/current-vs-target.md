@@ -106,7 +106,7 @@ Primary status artifact:
 - `packages/pi-autoresearch/docs/project/prompt-vault-runtime-decision-status.md`
 
 Current status:
-- Landed through `#1531`; the package now prepares exact governed setup / next-hypothesis / finalize templates, consumes them through bounded runtime surfaces, and proves the live next-hypothesis seam without widening into AK binding or router work.
+- Workstream A / umbrella `#1527` is landed through `#1531`; the package now prepares exact governed setup / next-hypothesis / finalize templates, consumes them through bounded runtime surfaces, and proves the live next-hypothesis seam without widening into AK binding or router work.
 
 ### Workstream B — Resume/autonomy lifecycle + package control surface
 

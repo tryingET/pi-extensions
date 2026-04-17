@@ -23,12 +23,23 @@ Workstream A in [`current-vs-target`](./current-vs-target.md) is now landed acro
 - `#1530` — integrate machine-driven Prompt Vault decisions into runtime surfaces
 - `#1531` — prove the live decision flow and update package status truth
 
-This note closes that workstream by answering four questions:
+This note closes umbrella `#1527` / Workstream A by answering four questions:
 
 1. what is now real in the package runtime
 2. what the bounded proof actually proved
 3. how the operator/runtime surface changed
 4. what still remains outside this workstream
+
+## Umbrella closure snapshot
+
+`#1527` is truthful to close because all four child tasks are now done and their outputs are visible in the package:
+
+- `#1528` froze the contract in `prompt-vault-runtime-decision-contract.md`
+- `#1529` landed the bounded decision runtime adapter and parser layer
+- `#1530` integrated machine-driven decisions into runtime/status surfaces
+- `#1531` added the bounded live-proof test and updated package status truth
+
+So this note is both the Workstream A status artifact and the umbrella-closure artifact for `#1527`.
 
 ## What is now real
 
