@@ -17,6 +17,7 @@ import {
   type NextHypothesisDecisionOutcome,
   type SetupDecisionOutcome,
 } from "../src/core/decisions.ts";
+import { resolveAutoresearchRuntimeSnapshotPath } from "../src/core/resume.ts";
 import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_LOCAL_ARTIFACTS,
@@ -245,6 +246,10 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.equal(status.runtimeProjection.state, "segment_unconfigured");
   assert.equal(status.runtimeProjection.source, "receipt_fallback");
   assert.equal(status.runtimeProjection.hasLedger, false);
+  assert.equal(status.control.kind, "none");
+  assert.deepEqual(status.control.allowedActions, ["stop"]);
+  assert.equal(status.runtimeSnapshot.reuse, "missing");
+  assert.ok((status.runtimeSnapshot.path ?? "").endsWith("autoresearch.runtime.json"));
   assert.equal(status.promptVaultDecisions.availability, "available_not_yet_used");
   assert.equal(status.promptVaultDecisions.lastPostRunDecision, null);
   assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
@@ -389,6 +394,14 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
           replayedEventCount: number;
           ledgerPath?: string;
         };
+        runtimeSnapshot: {
+          reuse: string;
+          path?: string;
+        };
+        control: {
+          kind: string;
+          allowedActions: string[];
+        };
       };
       receiptPath: string;
       decisionSummary: null;
@@ -406,6 +419,9 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
     assert.equal(details.status.runtimeProjection.hasLedger, true);
     assert.equal(details.status.runtimeProjection.eventCount, 5);
     assert.equal(details.status.runtimeProjection.replayedEventCount, 5);
+    assert.equal(details.status.runtimeSnapshot.reuse, "missing");
+    assert.equal(details.status.control.kind, "none");
+    assert.deepEqual(details.status.control.allowedActions, ["continue", "stop"]);
 
     const log = loadReceiptLog(cwd);
     assert.equal(log.invalidLineCount, 0);
@@ -420,6 +436,17 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
         .split("\n").length,
       5,
     );
+    assert.equal(
+      readFileSync(resolveAutoresearchRuntimeSnapshotPath(cwd), "utf8").includes(
+        '"type": "runtime_snapshot"',
+      ),
+      true,
+    );
+
+    const resumedStatus = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(resumedStatus.runtimeSnapshot.reuse, "reused");
+    assert.equal(resumedStatus.control.kind, "none");
+    assert.deepEqual(resumedStatus.control.allowedActions, ["continue", "stop"]);
   });
 });
 

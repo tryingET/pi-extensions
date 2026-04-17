@@ -2,7 +2,11 @@ import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { CampaignMachineInput, CampaignMachineStateValue } from "../machine/campaign.ts";
+import type {
+  CampaignMachineInput,
+  CampaignMachineResumeState,
+  CampaignMachineStateValue,
+} from "../machine/campaign.ts";
 import {
   type CampaignDecision,
   type CampaignSegmentConfig,
@@ -35,6 +39,16 @@ import {
   projectAutoresearchLedgerEntries,
   resolveAutoresearchLedgerPath,
 } from "./ledger.ts";
+import {
+  AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
+  type AutoresearchControlStateV1,
+  type AutoresearchRuntimeSnapshotInput,
+  type AutoresearchRuntimeSnapshotStatus,
+  deriveAutoresearchControlState,
+  formatAutoresearchRuntimeSnapshotReuse,
+  loadAutoresearchRuntimeControlState,
+  persistAutoresearchRuntimeSnapshot,
+} from "./resume.ts";
 
 export const AUTORESEARCH_COMMAND_NAME = "autoresearch";
 export const AUTORESEARCH_STATUS_TOOL_NAME = "autoresearch_runtime_status";
@@ -44,6 +58,7 @@ export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
   AUTORESEARCH_EVENT_LEDGER_FILE,
+  AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
   "autoresearch.md",
   "autoresearch.sh",
   "autoresearch.checks.sh",
@@ -146,6 +161,9 @@ export interface AutoresearchSegmentSummary {
 
 export interface AutoresearchRuntimeProjection {
   state: CampaignMachineStateValue;
+  resumeState: CampaignMachineResumeState | null;
+  blockedReason: string | null;
+  completionReason: string | null;
   source: "ledger" | "receipt_fallback";
   ledgerPath?: string;
   hasLedger: boolean;
@@ -172,6 +190,8 @@ export interface AutoresearchRuntimeStatus {
   invalidReceiptLines: number;
   currentSegment: AutoresearchSegmentSummary;
   runtimeProjection: AutoresearchRuntimeProjection;
+  runtimeSnapshot: AutoresearchRuntimeSnapshotStatus;
+  control: AutoresearchControlStateV1;
   promptVaultDecisions: AutoresearchPromptVaultDecisionStatus;
   nextSlices: readonly string[];
 }
@@ -413,12 +433,17 @@ export function appendReceipt(cwd: string, entry: AutoresearchReceipt): void {
   appendFileSync(jsonlPath, `${serializeReceipt(entry)}\n`, "utf8");
 }
 
-export function buildAutoresearchRuntimeStatus(cwd?: string): AutoresearchRuntimeStatus {
+export function buildAutoresearchRuntimeStatus(
+  cwd?: string,
+  options: { persistSnapshot?: boolean } = {},
+): AutoresearchRuntimeStatus {
   const paths = cwd ? resolveAutoresearchPaths(cwd) : null;
   const { entries, invalidLineCount } = cwd
     ? loadReceiptLog(cwd)
     : { entries: [], invalidLineCount: 0 };
-  return buildAutoresearchRuntimeStatusFromEntries(cwd, paths, entries, invalidLineCount);
+  return buildAutoresearchRuntimeStatusFromEntries(cwd, paths, entries, invalidLineCount, {
+    persistSnapshot: options.persistSnapshot ?? true,
+  });
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
@@ -456,13 +481,25 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     projection.ledgerPath
       ? `- event ledger: ${projection.ledgerPath}`
       : "- event ledger: (unresolved)",
+    status.runtimeSnapshot.path
+      ? `- runtime snapshot: ${status.runtimeSnapshot.path}`
+      : "- runtime snapshot: (unresolved)",
     `- local artifacts: ${status.localArtifacts.join(", ")}`,
     `- receipt entry types: ${status.receiptEntryTypes.join(", ")}`,
     `- benchmark script present: ${status.hasBenchmarkScript ? "yes" : "no"}`,
     `- checks script present: ${status.hasChecksScript ? "yes" : "no"}`,
     `- invalid receipt lines: ${status.invalidReceiptLines}`,
     `- machine state: ${projection.state}`,
+    `- machine resume state: ${projection.resumeState ?? "(none)"}`,
+    `- machine blocked reason: ${projection.blockedReason ?? "(none)"}`,
+    `- machine completion reason: ${projection.completionReason ?? "(none)"}`,
     `- machine projection source: ${projection.source}`,
+    `- snapshot reuse: ${formatAutoresearchRuntimeSnapshotReuse(status.runtimeSnapshot.reuse)}`,
+    `- snapshot discard reason: ${status.runtimeSnapshot.discardedReason ?? "(none)"}`,
+    `- control state: ${status.control.kind}`,
+    `- allowed actions: ${formatAllowedActions(status.control.allowedActions)}`,
+    `- control reason: ${status.control.reason ?? "(none)"}`,
+    `- control selected at: ${formatTimestamp(status.control.selectedAt)}`,
     `- event ledger present: ${projection.hasLedger ? "yes" : "no"}`,
     `- invalid ledger lines: ${projection.invalidLedgerLines}`,
     `- ledger replay: ${projection.replayedEventCount}/${projection.eventCount} events accepted`,
@@ -492,7 +529,10 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
         `- best: ${formatMetricValue(segment.bestMetric, segment.metricUnit)}`,
         `- confidence: ${formatConfidenceValue(segment.confidence)}`,
         `- machine state: ${projection.state}`,
+        `- machine resume state: ${projection.resumeState ?? "(none)"}`,
         `- machine projection source: ${projection.source}`,
+        `- runtime snapshot reuse: ${formatAutoresearchRuntimeSnapshotReuse(status.runtimeSnapshot.reuse)}`,
+        `- control state: ${status.control.kind} (${formatAllowedActions(status.control.allowedActions)})`,
         `- event ledger: ${projection.ledgerPath ?? "(unresolved)"}`,
         `- replayed events: ${projection.replayedEventCount}/${projection.eventCount}`,
       ]
@@ -501,6 +541,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
         "- no config receipt yet",
         `- machine state: ${projection.state}`,
         `- machine projection source: ${projection.source}`,
+        `- runtime snapshot reuse: ${formatAutoresearchRuntimeSnapshotReuse(status.runtimeSnapshot.reuse)}`,
+        `- control state: ${status.control.kind} (${formatAllowedActions(status.control.allowedActions)})`,
         `- event ledger: ${projection.ledgerPath ?? "(unresolved)"}`,
         "- use autoresearch_runtime_run with name + metricName to bootstrap the first local segment",
       ];
@@ -566,10 +608,15 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     `- cwd: ${result.cwd}`,
     `- receipt log: ${result.receiptPath}`,
     `- event ledger: ${result.status.runtimeProjection.ledgerPath ?? "(unresolved)"}`,
+    result.status.runtimeSnapshot.path
+      ? `- runtime snapshot: ${result.status.runtimeSnapshot.path}`
+      : "- runtime snapshot: (unresolved)",
     `- created config: ${result.createdConfig ? "yes" : "no"}`,
     `- run status: ${result.runReceipt.status}`,
     `- machine state: ${result.status.runtimeProjection.state}`,
     `- machine projection source: ${result.status.runtimeProjection.source}`,
+    `- snapshot reuse: ${formatAutoresearchRuntimeSnapshotReuse(result.status.runtimeSnapshot.reuse)}`,
+    `- control state: ${result.status.control.kind} (${formatAllowedActions(result.status.control.allowedActions)})`,
     `- ledger replay: ${result.status.runtimeProjection.replayedEventCount}/${result.status.runtimeProjection.eventCount} events accepted`,
     `- primary metric: ${result.primaryMetricName}=${formatMetricValue(result.primaryMetric, metricUnit)}`,
     `- benchmark: ${result.benchmark.command}`,
@@ -851,6 +898,7 @@ export async function executeAutoresearchRun(
     paths,
     nextEntries,
     loadResult.invalidLineCount,
+    { persistSnapshot: false },
   );
   runReceipt.confidence = nextStatus.currentSegment.confidence;
 
@@ -1302,10 +1350,38 @@ function buildAutoresearchRuntimeStatusFromEntries(
   paths: AutoresearchPaths | null,
   entries: AutoresearchReceipt[],
   invalidLineCount: number,
+  options: { persistSnapshot?: boolean } = {},
 ): AutoresearchRuntimeStatus {
   const currentSegmentView = getCurrentSegment(entries);
   const currentSegment = summarizeCurrentSegment(currentSegmentView);
   const promptVaultDecisions = buildPromptVaultDecisionStatus(currentSegmentView.runs);
+  const runtimeProjection = buildRuntimeProjection(
+    cwd,
+    currentSegment,
+    promptVaultDecisions.lastPostRunDecision,
+  );
+  const defaultControl = deriveAutoresearchControlState({
+    machineState: runtimeProjection.state,
+    blockedReason: runtimeProjection.blockedReason,
+    completionReason: runtimeProjection.completionReason,
+  });
+  const snapshotInput =
+    cwd !== undefined
+      ? createRuntimeSnapshotInput(cwd, currentSegment, runtimeProjection, promptVaultDecisions)
+      : null;
+  const loadedControl =
+    cwd !== undefined && snapshotInput
+      ? loadAutoresearchRuntimeControlState({ cwd, current: snapshotInput })
+      : null;
+
+  if (options.persistSnapshot !== false && cwd && snapshotInput && existsSync(cwd)) {
+    persistAutoresearchRuntimeSnapshot({
+      cwd,
+      current: snapshotInput,
+      control: loadedControl?.control ?? defaultControl,
+    });
+  }
+
   return {
     phase: AUTORESEARCH_PHASE,
     cwd,
@@ -1321,11 +1397,15 @@ function buildAutoresearchRuntimeStatusFromEntries(
     hasChecksScript: paths ? existsSync(paths.checksScriptPath) : false,
     invalidReceiptLines: invalidLineCount,
     currentSegment,
-    runtimeProjection: buildRuntimeProjection(
-      cwd,
-      currentSegment,
-      promptVaultDecisions.lastPostRunDecision,
-    ),
+    runtimeProjection,
+    runtimeSnapshot: loadedControl?.snapshotStatus ?? {
+      exists: false,
+      reuse: "unavailable",
+      discardedReason: null,
+      segmentKey: null,
+      runtimeKey: null,
+    },
+    control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
     nextSlices: ["ak_campaign_binding", "prompt_vault_decision_steps", "safer_finalization_path"],
   };
@@ -1347,6 +1427,9 @@ function buildRuntimeProjection(
     if (projectionMatchesCurrentSegment(projection, currentSegment)) {
       return {
         state: projection.state,
+        resumeState: projection.context.resumeState,
+        blockedReason: projection.context.blockedReason,
+        completionReason: projection.context.completionReason,
         source: "ledger",
         ledgerPath: projection.ledgerPath,
         hasLedger: projection.hasLedger,
@@ -1381,6 +1464,43 @@ function buildRuntimeProjection(
   );
 }
 
+function createRuntimeSnapshotInput(
+  cwd: string,
+  currentSegment: AutoresearchSegmentSummary,
+  runtimeProjection: AutoresearchRuntimeProjection,
+  promptVaultDecisions: AutoresearchPromptVaultDecisionStatus,
+): AutoresearchRuntimeSnapshotInput {
+  return {
+    cwd,
+    phase: AUTORESEARCH_PHASE,
+    projectionSource: runtimeProjection.source,
+    machine: {
+      state: runtimeProjection.state,
+      resumeState: runtimeProjection.resumeState,
+      blockedReason: runtimeProjection.blockedReason,
+      completionReason: runtimeProjection.completionReason,
+    },
+    segment: {
+      name: currentSegment.name,
+      metricName: currentSegment.metricName,
+      metricUnit: currentSegment.metricUnit,
+      direction: currentSegment.direction,
+      benchmarkCommand: currentSegment.benchmarkCommand,
+      checksCommand: currentSegment.checksCommand,
+      runCount: currentSegment.runCount,
+      successfulRunCount: currentSegment.successfulRunCount,
+      baselineMetric: currentSegment.baselineMetric,
+      bestMetric: currentSegment.bestMetric,
+      lastRunStatus: currentSegment.lastRunStatus,
+      lastRunMetric: currentSegment.lastRunMetric,
+    },
+    decision: {
+      availability: promptVaultDecisions.availability,
+      lastPostRunDecision: promptVaultDecisions.lastPostRunDecision,
+    },
+  };
+}
+
 function createReceiptFallbackProjection(
   currentSegment: AutoresearchSegmentSummary,
   lastPostRunDecision: AutoresearchRunDecisionSummary | null,
@@ -1392,6 +1512,9 @@ function createReceiptFallbackProjection(
   );
   return {
     state: projection.state,
+    resumeState: projection.context.resumeState,
+    blockedReason: projection.context.blockedReason,
+    completionReason: projection.context.completionReason,
     source: "receipt_fallback",
     ledgerPath,
     hasLedger: false,
@@ -1901,6 +2024,10 @@ function formatLastPostRunDecision(value: AutoresearchRunDecisionSummary | null)
   return `${value.status} -> ${value.mappedDecision} (${summary})`;
 }
 
+function formatAllowedActions(actions: readonly string[]): string {
+  return actions.length > 0 ? actions.join(", ") : "(none)";
+}
+
 function formatTargetFiles(files: readonly string[]): string {
   return files.length > 0 ? files.join(", ") : "(none)";
 }
@@ -2081,6 +2208,13 @@ function formatExit(exitCode: number | null, timedOut: boolean): string {
   if (timedOut) return "timeout";
   if (exitCode === null) return "signal/error";
   return `exit ${exitCode}`;
+}
+
+function formatTimestamp(value: number | null): string {
+  if (value === null) {
+    return "(none)";
+  }
+  return new Date(value).toISOString();
 }
 
 function hasOwn(record: MetricMap, key: string): boolean {
