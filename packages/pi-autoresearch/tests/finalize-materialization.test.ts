@@ -414,6 +414,36 @@ test("materializeAutoresearchFinalizationPlan rejects dirty non-session files be
   });
 });
 
+test("materializeAutoresearchFinalizationPlan rejects destination branch collisions before mutation", async () => {
+  await withTempRepo((fixture) => {
+    const { planned } = planAndApproveFinalization(fixture);
+    const collidingBranch = planned.plan.groups[0]?.branchName;
+    assert.ok(collidingBranch);
+
+    git(fixture.cwd, ["branch", collidingBranch, fixture.base]);
+
+    assert.throws(
+      () =>
+        materializeAutoresearchFinalizationPlan({
+          cwd: fixture.cwd,
+        }),
+      /Destination branch .* already exists/i,
+    );
+
+    assert.equal(git(fixture.cwd, ["branch", "--show-current"]), fixture.sourceBranch);
+    git(fixture.cwd, ["rev-parse", collidingBranch]);
+    assert.throws(
+      () => git(fixture.cwd, ["rev-parse", "autoresearch/widget-speed/02-optimize-b"]),
+      /failed/i,
+    );
+
+    const plan = loadAutoresearchFinalizationPlan(fixture.cwd);
+    assert.ok(plan);
+    assert.equal(plan?.materialization.status, "not_started");
+    assert.equal(plan?.materialization.createdBranches.length, 0);
+  });
+});
+
 test("materializeAutoresearchFinalizationPlan rolls back created branches on creation failure", async () => {
   await withTempRepo((fixture) => {
     planAndApproveFinalization(fixture);

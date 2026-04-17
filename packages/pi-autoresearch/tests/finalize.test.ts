@@ -13,6 +13,8 @@ import {
 import {
   collectAutoresearchGitContext,
   createAutoresearchFinalizationContext,
+  formatAutoresearchFinalizationResult,
+  inspectAutoresearchFinalization,
   loadAutoresearchFinalizationPlan,
   loadAutoresearchFinalizationPlanState,
   planAutoresearchFinalizationFromDecision,
@@ -403,6 +405,47 @@ test("loadAutoresearchFinalizationPlanState marks plans stale when HEAD changes"
     const state = loadAutoresearchFinalizationPlanState({ cwd: fixture.cwd });
     assert.equal(state.planStatus.reuse, "final_tree_mismatch");
     assert.match(state.planStatus.discardedReason ?? "", /current HEAD/i);
+  });
+});
+
+test("inspectAutoresearchFinalization reports refresh guidance for stale plans", async () => {
+  await withTempRepo((fixture) => {
+    const status = buildAutoresearchRuntimeStatus(fixture.cwd, { persistSnapshot: false });
+    planAutoresearchFinalizationFromDecision({
+      cwd: fixture.cwd,
+      status,
+      decision: createReadyFinalizeDecision({
+        base: fixture.base,
+        finalTree: fixture.finalTree,
+        groups: [
+          {
+            title: "Optimize file A",
+            lastCommit: fixture.commitA,
+            slug: "optimize-a",
+          },
+          {
+            title: "Optimize file B",
+            lastCommit: fixture.commitB,
+            slug: "optimize-b",
+          },
+        ],
+      }),
+    });
+
+    writeText(fixture.cwd, "file_c.txt", "changed-after-plan\n");
+    git(fixture.cwd, ["add", "file_c.txt"]);
+    git(fixture.cwd, ["commit", "-m", "post-plan drift", "--quiet"]);
+
+    const inspection = inspectAutoresearchFinalization({ cwd: fixture.cwd });
+    assert.equal(inspection.planStatus.reuse, "final_tree_mismatch");
+    assert.match(inspection.nextStep, /action=plan to refresh the current finalization plan/i);
+
+    const text = formatAutoresearchFinalizationResult(inspection);
+    assert.match(text, /plan reuse: final-tree mismatch/i);
+    assert.match(
+      text,
+      /next step: Use autoresearch_runtime_finalize with action=plan to refresh the current finalization plan\./i,
+    );
   });
 });
 
