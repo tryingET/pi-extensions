@@ -7,16 +7,20 @@ import {
 } from "../src/core/decisions.ts";
 import {
   AUTORESEARCH_COMMAND_NAME,
+  AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   buildAutoresearchHelpText,
   buildAutoresearchRuntimeStatus,
   executeAutoresearchRun,
+  formatAutoresearchControlResult,
   formatAutoresearchDecisionResult,
   formatAutoresearchRunResult,
   formatAutoresearchStatusText,
+  inspectAutoresearchRuntimeControl,
   requestAutoresearchFinalizeDecision,
   requestAutoresearchSetupDecision,
+  setAutoresearchRuntimeControl,
 } from "../src/core/runtime.ts";
 
 const stringArraySchema = Type.Array(Type.String());
@@ -61,6 +65,34 @@ const statusSchema = Type.Object({
   commitSummaries: Type.Optional(stringArraySchema),
   dependencyNotes: Type.Optional(stringArraySchema),
   ideasToLeaveOut: Type.Optional(stringArraySchema),
+});
+
+const controlActionSchema = Type.Union([Type.Literal("status"), Type.Literal("set")], {
+  description:
+    "Inspect the current operator control overlay or set an explicit continue/rebaseline/finalize/stop decision.",
+});
+
+const controlDecisionSchema = Type.Union(
+  [
+    Type.Literal("continue"),
+    Type.Literal("rebaseline"),
+    Type.Literal("finalize"),
+    Type.Literal("stop"),
+  ],
+  {
+    description: "Explicit operator control decision for the current bounded runtime posture.",
+  },
+);
+
+const controlSchema = Type.Object({
+  action: Type.Optional(controlActionSchema),
+  cwd: Type.Optional(Type.String({ description: "Optional cwd override for control inspection." })),
+  decision: Type.Optional(controlDecisionSchema),
+  reason: Type.Optional(
+    Type.String({
+      description: "Optional short reason for the selected control decision.",
+    }),
+  ),
 });
 
 const directionSchema = Type.Union([Type.Literal("lower"), Type.Literal("higher")], {
@@ -247,6 +279,48 @@ export function registerPiAutoresearchExtension(
   });
 
   pi.registerTool({
+    name: AUTORESEARCH_CONTROL_TOOL_NAME,
+    label: "Autoresearch Runtime Control",
+    description:
+      "Inspect or set the explicit pi-autoresearch operator control overlay for continue/rebaseline/finalize/stop.",
+    promptSnippet:
+      "Inspect or set the explicit pi-autoresearch operator control overlay and report the truthful next bounded step.",
+    parameters: controlSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: "status" | "set";
+        cwd?: string;
+        decision?: "continue" | "rebaseline" | "finalize" | "stop";
+        reason?: string;
+      };
+      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
+      const action = request.action ?? "status";
+
+      if (action === "set") {
+        if (!request.decision) {
+          throw new Error("decision is required when action=set for autoresearch_runtime_control");
+        }
+
+        const result = setAutoresearchRuntimeControl({
+          cwd,
+          decision: request.decision,
+          reason: request.reason,
+        });
+        return {
+          content: [{ type: "text", text: formatAutoresearchControlResult(result) }],
+          details: result,
+        };
+      }
+
+      const result = inspectAutoresearchRuntimeControl(cwd);
+      return {
+        content: [{ type: "text", text: formatAutoresearchControlResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
     name: AUTORESEARCH_RUN_TOOL_NAME,
     label: "Autoresearch Runtime Run",
     description:
@@ -388,7 +462,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_run for machine/ledger-backed runs or autoresearch_runtime_status with action=setup|finalize for governed packets.",
+      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_run for machine/ledger-backed runs, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
       "info",
     );
   }

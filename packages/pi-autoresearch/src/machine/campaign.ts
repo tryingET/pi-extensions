@@ -63,6 +63,23 @@ export interface CampaignMachineContext {
   resumeState: CampaignMachineResumeState | null;
 }
 
+export function isCampaignMachineAwaitingOperatorChoice(state: CampaignMachineStateValue): boolean {
+  return (
+    state === "awaiting_decision" ||
+    state === "rebaseline_needed" ||
+    state === "finalize_candidate" ||
+    state === "blocked"
+  );
+}
+
+export function canCampaignMachineStartBoundedRun(state: CampaignMachineStateValue): boolean {
+  return state === "ready";
+}
+
+export function isCampaignMachineTerminalState(state: CampaignMachineStateValue): boolean {
+  return state === "completed";
+}
+
 export function createCampaignMachineInputFromRuntimeStatus(
   status: AutoresearchRuntimeStatus,
   overrides: Partial<

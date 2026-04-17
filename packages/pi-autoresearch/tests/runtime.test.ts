@@ -20,6 +20,7 @@ import {
 import { resolveAutoresearchRuntimeSnapshotPath } from "../src/core/resume.ts";
 import {
   AUTORESEARCH_COMMAND_NAME,
+  AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_LOCAL_ARTIFACTS,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
@@ -240,7 +241,11 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
 
   assert.equal(status.phase, "bounded_runtime_kernel");
   assert.equal(status.commandName, AUTORESEARCH_COMMAND_NAME);
-  assert.deepEqual(status.toolNames, [AUTORESEARCH_STATUS_TOOL_NAME, AUTORESEARCH_RUN_TOOL_NAME]);
+  assert.deepEqual(status.toolNames, [
+    AUTORESEARCH_STATUS_TOOL_NAME,
+    AUTORESEARCH_RUN_TOOL_NAME,
+    AUTORESEARCH_CONTROL_TOOL_NAME,
+  ]);
   assert.deepEqual(status.localArtifacts, [...AUTORESEARCH_LOCAL_ARTIFACTS]);
   assert.equal(status.currentSegment.configured, false);
   assert.equal(status.runtimeProjection.state, "segment_unconfigured");
@@ -311,11 +316,12 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.ok((status.currentSegment.confidence ?? 0) > 0);
   }));
 
-test("extension registers /autoresearch, autoresearch_runtime_status, and autoresearch_runtime_run", () => {
+test("extension registers /autoresearch, autoresearch_runtime_status, autoresearch_runtime_control, and autoresearch_runtime_run", () => {
   const { commands, tools } = registerHarness();
 
   assert.equal(typeof commands.get(AUTORESEARCH_COMMAND_NAME)?.handler, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_STATUS_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_CONTROL_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
 });
 
