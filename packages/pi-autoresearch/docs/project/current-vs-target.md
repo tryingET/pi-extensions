@@ -119,6 +119,9 @@ Current status:
 Primary status artifact:
 - `packages/pi-autoresearch/docs/project/resume-control-surface-status.md`
 
+Current status:
+- `#1533` landed the Workstream B contract in `packages/pi-autoresearch/docs/project/resume-control-surface-contract.md`; implementation/proof tasks `#1534`-`#1536` remain open.
+
 ### Workstream C — Safer finalization orchestration
 
 - `#1537` — **[UMBRELLA] Land safer pi-autoresearch finalization orchestration**
