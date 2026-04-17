@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { campaignEvents } from "../machine/events.ts";
 import {
   AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
   type AutoresearchDecisionRuntime,
@@ -9,7 +10,9 @@ import {
   type FinalizeDecisionPacket,
   type FinalizeDecisionResult,
 } from "./decisions.ts";
+import { appendLedgerEvent, createLedgerEventEntry } from "./ledger.ts";
 import {
+  AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_PHASE,
   type AutoresearchConfigReceipt,
   type AutoresearchReceipt,
@@ -193,6 +196,98 @@ export interface LoadAutoresearchFinalizationPlanStateResult {
   planStatus: AutoresearchFinalizationPlanStatus;
   status: AutoresearchRuntimeStatus;
   git: AutoresearchFinalizationGitContext | null;
+}
+
+export type AutoresearchFinalizationAction = "status" | "plan" | "approve" | "materialize";
+export type AutoresearchFinalizationDisposition =
+  | "status"
+  | "reused"
+  | "planned"
+  | "approved"
+  | "materialized";
+
+export interface AutoresearchFinalizationVerificationResult {
+  ok: boolean;
+  unionMatchesFinalTree: boolean;
+  missingFinalTreeFiles: string[];
+  unexpectedFinalTreeFiles: string[];
+  blobMismatches: string[];
+  branchFileMismatches: string[];
+  nonIndependentBranches: string[];
+  sessionArtifactLeaks: string[];
+  emptyBranches: string[];
+}
+
+export interface InspectAutoresearchFinalizationResult {
+  cwd: string;
+  status: AutoresearchRuntimeStatus;
+  plan: AutoresearchFinalizationPlanV1 | null;
+  planStatus: AutoresearchFinalizationPlanStatus;
+  git: AutoresearchFinalizationGitContext | null;
+  planPath: string;
+  nextStep: string;
+}
+
+export interface ApproveAutoresearchFinalizationPlanInput {
+  cwd: string;
+  reason?: string;
+  approvedAt?: number;
+  status?: AutoresearchRuntimeStatus;
+  trunkRef?: string;
+}
+
+export interface ApproveAutoresearchFinalizationPlanResult
+  extends InspectAutoresearchFinalizationResult {
+  approvalState: AutoresearchFinalizationApprovalState;
+}
+
+export interface MaterializeAutoresearchFinalizationTestHooks {
+  beforeCreateGroup?(group: AutoresearchFinalizationGroupV1): void;
+  beforeVerify?(input: {
+    cwd: string;
+    plan: AutoresearchFinalizationPlanV1;
+    createdBranches: string[];
+    sourceBranch: string;
+  }): void;
+}
+
+export interface MaterializeAutoresearchFinalizationPlanInput {
+  cwd: string;
+  reason?: string;
+  materializedAt?: number;
+  status?: AutoresearchRuntimeStatus;
+  trunkRef?: string;
+  testHooks?: MaterializeAutoresearchFinalizationTestHooks;
+}
+
+export interface MaterializeAutoresearchFinalizationPlanResult
+  extends InspectAutoresearchFinalizationResult {
+  createdBranches: string[];
+  verification: AutoresearchFinalizationVerificationResult;
+}
+
+export interface ExecuteAutoresearchFinalizationInput {
+  cwd: string;
+  action?: AutoresearchFinalizationAction;
+  reason?: string;
+  runtime?: AutoresearchDecisionRuntime;
+  currentCompany?: string;
+  model?: string;
+  signal?: AbortSignal;
+  status?: AutoresearchRuntimeStatus;
+  trunkRef?: string;
+  createdAt?: number;
+  approvedAt?: number;
+  materializedAt?: number;
+  testHooks?: MaterializeAutoresearchFinalizationTestHooks;
+}
+
+export interface ExecuteAutoresearchFinalizationResult
+  extends InspectAutoresearchFinalizationResult {
+  action: AutoresearchFinalizationAction;
+  disposition: AutoresearchFinalizationDisposition;
+  createdBranches: string[];
+  verification: AutoresearchFinalizationVerificationResult | null;
 }
 
 export function resolveAutoresearchFinalizationPlanPath(cwd: string): string {
@@ -597,13 +692,19 @@ export function loadAutoresearchFinalizationPlanState(
   }
 
   if (plan.runtimeKey !== status.runtimeSnapshot.runtimeKey) {
-    return buildStalePlanState(
-      plan,
-      status,
-      git,
-      "runtime_mismatch",
-      "plan runtime fingerprint no longer matches the current runtime posture",
-    );
+    const completedAfterMaterialization =
+      plan.approval.state === "materialized" &&
+      plan.materialization.status === "succeeded" &&
+      status.runtimeProjection.state === "completed";
+    if (!completedAfterMaterialization) {
+      return buildStalePlanState(
+        plan,
+        status,
+        git,
+        "runtime_mismatch",
+        "plan runtime fingerprint no longer matches the current runtime posture",
+      );
+    }
   }
 
   return {
@@ -649,6 +750,801 @@ export function formatAutoresearchFinalizationPlanReuse(
     case "runtime_mismatch":
       return "runtime mismatch";
   }
+}
+
+export function inspectAutoresearchFinalization(
+  input: LoadAutoresearchFinalizationPlanStateInput,
+): InspectAutoresearchFinalizationResult {
+  const cwd = path.resolve(input.cwd);
+  const state = loadAutoresearchFinalizationPlanState({
+    cwd,
+    status: input.status,
+    trunkRef: input.trunkRef,
+  });
+
+  return {
+    cwd,
+    status: state.status,
+    plan: state.plan,
+    planStatus: state.planStatus,
+    git: state.git,
+    planPath: resolveAutoresearchFinalizationPlanPath(cwd),
+    nextStep: describeAutoresearchFinalizationNextStep(state),
+  };
+}
+
+export async function executeAutoresearchFinalization(
+  input: ExecuteAutoresearchFinalizationInput,
+): Promise<ExecuteAutoresearchFinalizationResult> {
+  const action = input.action ?? "status";
+
+  switch (action) {
+    case "status": {
+      const result = inspectAutoresearchFinalization({
+        cwd: input.cwd,
+        status: input.status,
+        trunkRef: input.trunkRef,
+      });
+      return {
+        ...result,
+        action,
+        disposition: "status",
+        createdBranches: result.plan?.materialization.createdBranches ?? [],
+        verification: null,
+      };
+    }
+    case "plan": {
+      const planned = await ensureAutoresearchFinalizationPlan(input);
+      return {
+        ...planned,
+        action,
+        verification: null,
+        createdBranches: planned.plan?.materialization.createdBranches ?? [],
+      };
+    }
+    case "approve": {
+      const approved = approveAutoresearchFinalizationPlan({
+        cwd: input.cwd,
+        reason: input.reason,
+        approvedAt: input.approvedAt,
+        status: input.status,
+        trunkRef: input.trunkRef,
+      });
+      return {
+        ...approved,
+        action,
+        disposition: "approved",
+        createdBranches: approved.plan?.materialization.createdBranches ?? [],
+        verification: null,
+      };
+    }
+    case "materialize": {
+      const materialized = materializeAutoresearchFinalizationPlan({
+        cwd: input.cwd,
+        reason: input.reason,
+        materializedAt: input.materializedAt,
+        status: input.status,
+        trunkRef: input.trunkRef,
+        testHooks: input.testHooks,
+      });
+      return {
+        ...materialized,
+        action,
+        disposition: "materialized",
+      };
+    }
+  }
+}
+
+export function formatAutoresearchFinalizationResult(
+  result:
+    | ExecuteAutoresearchFinalizationResult
+    | InspectAutoresearchFinalizationResult
+    | ApproveAutoresearchFinalizationPlanResult
+    | MaterializeAutoresearchFinalizationPlanResult,
+): string {
+  const plan = result.plan;
+  const verification = "verification" in result ? result.verification : null;
+  const disposition = "disposition" in result ? result.disposition : "status";
+  const action = "action" in result ? result.action : "status";
+
+  return [
+    "# PI-AUTORESEARCH FINALIZE",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- action: ${action}`,
+    `- disposition: ${disposition}`,
+    `- machine state: ${result.status.runtimeProjection.state}`,
+    `- control state: ${result.status.control.kind}`,
+    `- plan path: ${result.planPath}`,
+    `- plan reuse: ${formatAutoresearchFinalizationPlanReuse(result.planStatus.reuse)}`,
+    `- plan discard reason: ${result.planStatus.discardedReason ?? "(none)"}`,
+    plan ? `- source branch: ${plan.sourceBranch}` : "- source branch: (none)",
+    plan ? `- trunk ref: ${plan.trunkRef}` : "- trunk ref: (none)",
+    plan ? `- base ref: ${plan.baseRef}` : "- base ref: (none)",
+    plan ? `- final tree: ${plan.finalTree}` : "- final tree: (none)",
+    plan ? `- groups: ${plan.groups.length}` : "- groups: 0",
+    plan ? `- approval state: ${plan.approval.state}` : "- approval state: (none)",
+    plan ? `- approval reason: ${plan.approval.reason ?? "(none)"}` : "- approval reason: (none)",
+    plan
+      ? `- materialization status: ${plan.materialization.status}`
+      : "- materialization status: (none)",
+    plan
+      ? `- materialization failure: ${plan.materialization.failureReason ?? "(none)"}`
+      : "- materialization failure: (none)",
+    `- created branches: ${formatCreatedBranches(plan?.materialization.createdBranches ?? [])}`,
+    `- next step: ${result.nextStep}`,
+    ...(verification
+      ? [
+          "",
+          "## Verification",
+          `- ok: ${verification.ok ? "yes" : "no"}`,
+          `- union matches final tree: ${verification.unionMatchesFinalTree ? "yes" : "no"}`,
+          `- missing final-tree files: ${formatCreatedBranches(verification.missingFinalTreeFiles)}`,
+          `- unexpected final-tree files: ${formatCreatedBranches(verification.unexpectedFinalTreeFiles)}`,
+          `- blob mismatches: ${formatCreatedBranches(verification.blobMismatches)}`,
+          `- branch file mismatches: ${formatCreatedBranches(verification.branchFileMismatches)}`,
+          `- non-independent branches: ${formatCreatedBranches(verification.nonIndependentBranches)}`,
+          `- session artifact leaks: ${formatCreatedBranches(verification.sessionArtifactLeaks)}`,
+          `- empty branches: ${formatCreatedBranches(verification.emptyBranches)}`,
+        ]
+      : []),
+    ...(plan
+      ? [
+          "",
+          "## Planned groups",
+          ...plan.groups.map(
+            (group) =>
+              `- [${group.index}] ${group.branchName} <- ${group.lastCommit.slice(0, 12)} (${group.files.length} files)`,
+          ),
+        ]
+      : []),
+  ].join("\n");
+}
+
+export function approveAutoresearchFinalizationPlan(
+  input: ApproveAutoresearchFinalizationPlanInput,
+): ApproveAutoresearchFinalizationPlanResult {
+  const cwd = path.resolve(input.cwd);
+  const current = inspectAutoresearchFinalization({
+    cwd,
+    status: input.status,
+    trunkRef: input.trunkRef,
+  });
+  const plan = requireFreshAutoresearchFinalizationPlan(current, "approve");
+  assertAutoresearchFinalizeControlSelected(current.status, "approve");
+  validateStoredAutoresearchFinalizationPlan(cwd, plan);
+
+  if (plan.approval.state === "materialized" || plan.materialization.status === "succeeded") {
+    throw new Error("Finalization plan is already materialized.");
+  }
+
+  const approvedAt = input.approvedAt ?? Date.now();
+  const approvedPlan: AutoresearchFinalizationPlanV1 = {
+    ...plan,
+    approval: {
+      required: true,
+      state: "approved",
+      reason:
+        normalizeInlineReason(input.reason) ??
+        "operator approved bounded finalization materialization",
+      approvedAt,
+    },
+    materialization: {
+      status: "not_started",
+      createdBranches: [],
+      verifiedAt: null,
+      failureReason: null,
+    },
+  };
+  writeAutoresearchFinalizationPlan(cwd, approvedPlan);
+
+  const next = inspectAutoresearchFinalization({ cwd, trunkRef: input.trunkRef });
+  return {
+    ...next,
+    approvalState: approvedPlan.approval.state,
+  };
+}
+
+export function materializeAutoresearchFinalizationPlan(
+  input: MaterializeAutoresearchFinalizationPlanInput,
+): MaterializeAutoresearchFinalizationPlanResult {
+  const cwd = path.resolve(input.cwd);
+  const current = inspectAutoresearchFinalization({
+    cwd,
+    status: input.status,
+    trunkRef: input.trunkRef,
+  });
+  const plan = requireFreshAutoresearchFinalizationPlan(current, "materialize");
+  assertAutoresearchFinalizeControlSelected(current.status, "materialize");
+  validateStoredAutoresearchFinalizationPlan(cwd, plan);
+
+  if (plan.approval.state === "materialized" || plan.materialization.status === "succeeded") {
+    throw new Error("Finalization plan is already materialized.");
+  }
+  if (plan.approval.state !== "approved") {
+    throw new Error(
+      `Cannot materialize finalization while approval state is ${plan.approval.state}; approve the plan first.`,
+    );
+  }
+
+  assertAutoresearchCleanWorktree(cwd);
+  assertAutoresearchDestinationBranchesAvailable(
+    cwd,
+    plan.groups.map((group) => group.branchName),
+  );
+
+  const createdBranches: string[] = [];
+  let pendingBranch: string | null = null;
+  let creationCompleted = false;
+  const verifiedAt = input.materializedAt ?? Date.now();
+
+  try {
+    for (const group of plan.groups) {
+      input.testHooks?.beforeCreateGroup?.(group);
+      pendingBranch = group.branchName;
+      createAutoresearchMaterializationBranch(cwd, plan, group);
+      createdBranches.push(group.branchName);
+      pendingBranch = null;
+    }
+    creationCompleted = true;
+
+    checkoutAutoresearchBranch(cwd, plan.sourceBranch, true);
+    input.testHooks?.beforeVerify?.({
+      cwd,
+      plan,
+      createdBranches: [...createdBranches],
+      sourceBranch: plan.sourceBranch,
+    });
+
+    const verification = verifyAutoresearchFinalizationMaterialization({
+      cwd,
+      plan,
+      createdBranches,
+    });
+    if (!verification.ok) {
+      throw new Error(describeAutoresearchFinalizationVerificationFailure(verification));
+    }
+
+    appendLedgerEvent(
+      cwd,
+      createLedgerEventEntry(
+        campaignEvents.acceptFinalize(
+          normalizeInlineReason(input.reason) ??
+            "local finalization branches materialized and verified",
+        ),
+      ),
+    );
+    const status = buildAutoresearchRuntimeStatus(cwd);
+
+    writeAutoresearchFinalizationPlan(cwd, {
+      ...plan,
+      approval: {
+        ...plan.approval,
+        state: "materialized",
+      },
+      materialization: {
+        status: "succeeded",
+        createdBranches: [...createdBranches],
+        verifiedAt,
+        failureReason: null,
+      },
+    });
+
+    const next = inspectAutoresearchFinalization({
+      cwd,
+      status,
+      trunkRef: input.trunkRef,
+    });
+    return {
+      ...next,
+      createdBranches: [...createdBranches],
+      verification,
+    };
+  } catch (error) {
+    const failureReason = error instanceof Error ? error.message : String(error);
+    try {
+      checkoutAutoresearchBranch(cwd, plan.sourceBranch, true);
+    } catch {
+      // Best effort: the original source branch may already be checked out.
+    }
+
+    if (!creationCompleted) {
+      rollbackAutoresearchMaterializationBranches(
+        cwd,
+        uniqueStrings(
+          [...createdBranches, pendingBranch].filter((value): value is string => Boolean(value)),
+        ),
+      );
+      persistAutoresearchMaterializationFailure(cwd, plan, [], failureReason);
+    } else {
+      persistAutoresearchMaterializationFailure(cwd, plan, createdBranches, failureReason);
+    }
+    throw error;
+  }
+}
+
+export function verifyAutoresearchFinalizationMaterialization(input: {
+  cwd: string;
+  plan: AutoresearchFinalizationPlanV1;
+  createdBranches?: readonly string[];
+}): AutoresearchFinalizationVerificationResult {
+  const cwd = path.resolve(input.cwd);
+  const plan = input.plan;
+  const groupedFiles = uniqueStrings(plan.groups.flatMap((group) => group.files));
+  const finalTreeFiles = listEffectiveGroupFiles(cwd, plan.baseRef, plan.finalTree);
+  const groupedFileSet = new Set(groupedFiles);
+  const finalTreeFileSet = new Set(finalTreeFiles);
+  const missingFinalTreeFiles = finalTreeFiles.filter((file) => !groupedFileSet.has(file));
+  const unexpectedFinalTreeFiles = groupedFiles.filter((file) => !finalTreeFileSet.has(file));
+  const blobMismatches: string[] = [];
+  const branchFileMismatches: string[] = [];
+  const nonIndependentBranches: string[] = [];
+  const sessionArtifactLeaks: string[] = [];
+  const emptyBranches: string[] = [];
+  const createdBranchSet = new Set(
+    input.createdBranches ?? plan.groups.map((group) => group.branchName),
+  );
+
+  for (const group of plan.groups) {
+    if (!createdBranchSet.has(group.branchName)) {
+      branchFileMismatches.push(`${group.branchName}: branch was not created`);
+      continue;
+    }
+
+    const branchFilesWithSession = listBranchCommitFiles(cwd, group.branchName);
+    const branchSessionFiles = branchFilesWithSession.filter((file) =>
+      isAutoresearchSessionArtifactPath(file),
+    );
+    sessionArtifactLeaks.push(...branchSessionFiles.map((file) => `${group.branchName}:${file}`));
+
+    const branchFiles = branchFilesWithSession.filter(
+      (file) => !isAutoresearchSessionArtifactPath(file),
+    );
+    if (branchFiles.length === 0) {
+      emptyBranches.push(group.branchName);
+    }
+    if (!sameStringArray(branchFiles, group.files)) {
+      branchFileMismatches.push(
+        `${group.branchName}: expected ${group.files.join(", ")} but saw ${branchFiles.join(", ") || "(none)"}`,
+      );
+    }
+
+    const parentCommit = readSingleParentCommit(cwd, group.branchName);
+    if (parentCommit !== plan.baseRef) {
+      nonIndependentBranches.push(group.branchName);
+    }
+
+    for (const file of group.files) {
+      const branchBlob = tryResolveGitPathObject(cwd, group.branchName, file);
+      const finalTreeBlob = tryResolveGitPathObject(cwd, plan.finalTree, file);
+      if (branchBlob !== finalTreeBlob) {
+        blobMismatches.push(`${group.branchName}:${file}`);
+      }
+    }
+  }
+
+  const unionMatchesFinalTree =
+    missingFinalTreeFiles.length === 0 &&
+    unexpectedFinalTreeFiles.length === 0 &&
+    blobMismatches.length === 0;
+
+  return {
+    ok:
+      unionMatchesFinalTree &&
+      branchFileMismatches.length === 0 &&
+      nonIndependentBranches.length === 0 &&
+      sessionArtifactLeaks.length === 0 &&
+      emptyBranches.length === 0,
+    unionMatchesFinalTree,
+    missingFinalTreeFiles,
+    unexpectedFinalTreeFiles,
+    blobMismatches,
+    branchFileMismatches,
+    nonIndependentBranches,
+    sessionArtifactLeaks,
+    emptyBranches,
+  };
+}
+
+async function ensureAutoresearchFinalizationPlan(
+  input: ExecuteAutoresearchFinalizationInput,
+): Promise<ExecuteAutoresearchFinalizationResult> {
+  const cwd = path.resolve(input.cwd);
+  const current = inspectAutoresearchFinalization({
+    cwd,
+    status: input.status,
+    trunkRef: input.trunkRef,
+  });
+
+  if (current.plan && current.planStatus.reuse === "reused") {
+    try {
+      validateStoredAutoresearchFinalizationPlan(cwd, current.plan);
+      return {
+        ...current,
+        action: "plan",
+        disposition: "reused",
+        createdBranches: current.plan.materialization.createdBranches,
+        verification: null,
+      };
+    } catch (error) {
+      if (!input.runtime) {
+        throw new Error(
+          `Current finalization plan is invalid: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  if (!input.runtime) {
+    throw new Error(
+      "action=plan requires a decision runtime when no reusable finalization plan is available.",
+    );
+  }
+
+  const planned = await requestAutoresearchFinalizationPlan({
+    cwd,
+    runtime: input.runtime,
+    currentCompany: input.currentCompany,
+    model: input.model,
+    signal: input.signal,
+    status: input.status,
+    trunkRef: input.trunkRef,
+    createdAt: input.createdAt,
+  });
+  const next = inspectAutoresearchFinalization({
+    cwd,
+    status: planned.status,
+    trunkRef: input.trunkRef,
+  });
+
+  return {
+    ...next,
+    action: "plan",
+    disposition: "planned",
+    createdBranches: planned.plan.materialization.createdBranches,
+    verification: null,
+  };
+}
+
+function requireFreshAutoresearchFinalizationPlan(
+  inspection: InspectAutoresearchFinalizationResult,
+  action: "approve" | "materialize",
+): AutoresearchFinalizationPlanV1 {
+  if (!inspection.plan || inspection.planStatus.reuse !== "reused" || !inspection.git) {
+    throw new Error(
+      `Cannot ${action} finalization without a fresh plan; use ${AUTORESEARCH_FINALIZE_TOOL_NAME} with action=plan first.`,
+    );
+  }
+  return inspection.plan;
+}
+
+function describeAutoresearchFinalizationNextStep(
+  state: LoadAutoresearchFinalizationPlanStateResult,
+): string {
+  if (!state.plan || state.planStatus.reuse !== "reused") {
+    if (state.planStatus.exists && state.planStatus.reuse !== "reused") {
+      return `Use ${AUTORESEARCH_FINALIZE_TOOL_NAME} with action=plan to refresh the current finalization plan.`;
+    }
+    if (
+      state.status.runtimeProjection.state === "finalize_candidate" ||
+      state.status.control.kind === "finalize"
+    ) {
+      return `Use ${AUTORESEARCH_FINALIZE_TOOL_NAME} with action=plan to generate a checked finalization plan.`;
+    }
+    return `Choose finalize with autoresearch_runtime_control once the runtime is finalize-worthy, then use ${AUTORESEARCH_FINALIZE_TOOL_NAME} with action=plan.`;
+  }
+
+  if (
+    state.plan.approval.state === "materialized" &&
+    state.plan.materialization.status === "succeeded"
+  ) {
+    return "Local review branches are ready; the bounded runtime finalization slice is complete.";
+  }
+
+  if (state.status.control.kind !== "finalize") {
+    return "Set autoresearch_runtime_control to finalize before approving or materializing the current plan.";
+  }
+
+  if (state.plan.approval.state === "pending") {
+    return `Use ${AUTORESEARCH_FINALIZE_TOOL_NAME} with action=approve to record explicit operator approval.`;
+  }
+
+  if (state.plan.materialization.status === "failed") {
+    return `Clean the repo intentionally, inspect any created branches, then rerun ${AUTORESEARCH_FINALIZE_TOOL_NAME} with action=materialize.`;
+  }
+
+  if (state.plan.approval.state === "approved") {
+    return `Use ${AUTORESEARCH_FINALIZE_TOOL_NAME} with action=materialize to create local review branches from ${state.plan.baseRef.slice(0, 12)}.`;
+  }
+
+  return `Inspect the plan and continue with ${AUTORESEARCH_FINALIZE_TOOL_NAME}.`;
+}
+
+function validateStoredAutoresearchFinalizationPlan(
+  cwd: string,
+  plan: AutoresearchFinalizationPlanV1,
+): void {
+  if (plan.groups.length === 0) {
+    throw new Error("Finalization plan must include at least one group.");
+  }
+  if (plan.groupsJsonDraft.base !== plan.baseRef) {
+    throw new Error("Finalization plan draft base no longer matches plan.baseRef.");
+  }
+  if (plan.groupsJsonDraft.final_tree !== plan.finalTree) {
+    throw new Error("Finalization plan draft final_tree no longer matches plan.finalTree.");
+  }
+  if (plan.groupsJsonDraft.trunk !== plan.trunkRef) {
+    throw new Error("Finalization plan draft trunk no longer matches plan.trunkRef.");
+  }
+  if (plan.groupsJsonDraft.goal !== plan.goalSlug) {
+    throw new Error("Finalization plan draft goal no longer matches plan.goalSlug.");
+  }
+
+  const seenFiles = new Set<string>();
+  let previousCommit = plan.baseRef;
+  for (const [index, group] of plan.groups.entries()) {
+    const expectedIndex = index + 1;
+    if (group.index !== expectedIndex) {
+      throw new Error(
+        `Finalization group index ${group.index} does not match position ${expectedIndex}.`,
+      );
+    }
+    const expectedBranchName = `autoresearch/${plan.goalSlug}/${String(expectedIndex).padStart(2, "0")}-${group.slug}`;
+    if (group.branchName !== expectedBranchName) {
+      throw new Error(
+        `Finalization group ${expectedIndex} branch ${group.branchName} does not match deterministic branch ${expectedBranchName}.`,
+      );
+    }
+    if (!group.commits.includes(group.lastCommit)) {
+      throw new Error(`Finalization group ${expectedIndex} commits must include lastCommit.`);
+    }
+
+    ensureCommitReachableFrom(cwd, group.lastCommit, plan.finalTree, group.lastCommit);
+    ensureCommitDescendsFrom(cwd, previousCommit, group.lastCommit, group.lastCommit);
+
+    const expectedFiles = listEffectiveGroupFiles(cwd, previousCommit, group.lastCommit);
+    if (!sameStringArray(group.files, expectedFiles)) {
+      throw new Error(
+        `Finalization group ${expectedIndex} files no longer match the current repo history.`,
+      );
+    }
+    if (group.files.length === 0) {
+      throw new Error(`Finalization group ${expectedIndex} has no non-session files.`);
+    }
+    for (const file of group.files) {
+      if (isAutoresearchSessionArtifactPath(file)) {
+        throw new Error(
+          `Finalization group ${expectedIndex} still includes session artifact ${file}.`,
+        );
+      }
+      if (seenFiles.has(file)) {
+        throw new Error(`File ${JSON.stringify(file)} appears in multiple finalization groups.`);
+      }
+      seenFiles.add(file);
+    }
+    previousCommit = group.lastCommit;
+  }
+
+  if (plan.groups.at(-1)?.lastCommit !== plan.finalTree) {
+    throw new Error("Finalization plan does not reach the current final tree.");
+  }
+
+  const finalTreeFiles = listEffectiveGroupFiles(cwd, plan.baseRef, plan.finalTree);
+  if (
+    !sameStringArray(uniqueStrings(plan.groups.flatMap((group) => group.files)), finalTreeFiles)
+  ) {
+    throw new Error("Finalization groups do not cover the source branch final tree exactly.");
+  }
+}
+
+function assertAutoresearchFinalizeControlSelected(
+  status: AutoresearchRuntimeStatus,
+  action: "approve" | "materialize",
+): void {
+  if (status.control.kind !== "finalize") {
+    throw new Error(
+      `Cannot ${action} finalization while control state is ${status.control.kind}; select finalize with autoresearch_runtime_control first.`,
+    );
+  }
+}
+
+function assertAutoresearchCleanWorktree(cwd: string): void {
+  const porcelain = runGitCommand(cwd, ["status", "--porcelain=v1", "--untracked-files=all"], {
+    trim: false,
+  });
+  const dirtyPaths = porcelain
+    .split(/\r?\n/u)
+    .map((line) => extractPorcelainPath(line))
+    .filter((entry): entry is string => Boolean(entry))
+    .filter((entry) => !isAutoresearchSessionArtifactPath(entry));
+  if (dirtyPaths.length > 0) {
+    throw new Error(
+      `Working tree is not clean; clean or stash intentionally before materializing finalization branches. Dirty paths: ${dirtyPaths.join(", ")}`,
+    );
+  }
+}
+
+function assertAutoresearchDestinationBranchesAvailable(
+  cwd: string,
+  branches: readonly string[],
+): void {
+  for (const branch of uniqueStrings(branches)) {
+    const result = spawnGit(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
+    if (result.status === 0) {
+      throw new Error(`Destination branch ${branch} already exists.`);
+    }
+  }
+}
+
+function createAutoresearchMaterializationBranch(
+  cwd: string,
+  plan: AutoresearchFinalizationPlanV1,
+  group: AutoresearchFinalizationGroupV1,
+): void {
+  checkoutAutoresearchDetached(cwd, plan.baseRef);
+  runGitCommand(cwd, ["checkout", "--quiet", "-b", group.branchName]);
+
+  for (const file of group.files) {
+    applyAutoresearchMaterializedFile(cwd, group.lastCommit, file);
+  }
+
+  const staged = spawnGit(cwd, ["diff", "--cached", "--quiet"]);
+  if (staged.status === 0) {
+    throw new Error(`Finalization group ${group.index} would create an empty review commit.`);
+  }
+
+  runGitCommand(cwd, ["commit", "--quiet", "-m", group.title, "-m", group.body]);
+}
+
+function applyAutoresearchMaterializedFile(cwd: string, commitRef: string, file: string): void {
+  if (tryResolveGitPathObject(cwd, commitRef, file) !== null) {
+    runGitCommand(cwd, ["checkout", commitRef, "--", file], { trim: false });
+    return;
+  }
+  runGitCommand(cwd, ["rm", "--quiet", "--ignore-unmatch", "--", file], { trim: false });
+}
+
+function checkoutAutoresearchDetached(cwd: string, ref: string): void {
+  runGitCommand(cwd, ["checkout", "--quiet", "--detach", ref], { trim: false });
+}
+
+function checkoutAutoresearchBranch(cwd: string, branch: string, force = false): void {
+  const args = ["checkout", "--quiet"];
+  if (force) {
+    args.push("-f");
+  }
+  args.push(branch);
+  runGitCommand(cwd, args, { trim: false });
+}
+
+function rollbackAutoresearchMaterializationBranches(
+  cwd: string,
+  branches: readonly string[],
+): void {
+  for (const branch of uniqueStrings(branches)) {
+    spawnGit(cwd, ["branch", "-D", branch]);
+  }
+}
+
+function persistAutoresearchMaterializationFailure(
+  cwd: string,
+  plan: AutoresearchFinalizationPlanV1,
+  createdBranches: readonly string[],
+  failureReason: string,
+): void {
+  try {
+    writeAutoresearchFinalizationPlan(cwd, {
+      ...plan,
+      materialization: {
+        status: "failed",
+        createdBranches: [...createdBranches],
+        verifiedAt: null,
+        failureReason,
+      },
+    });
+  } catch {
+    // Best effort only: preserve the original failure over plan-write issues.
+  }
+}
+
+function describeAutoresearchFinalizationVerificationFailure(
+  verification: AutoresearchFinalizationVerificationResult,
+): string {
+  const problems: string[] = [];
+  if (verification.missingFinalTreeFiles.length > 0) {
+    problems.push(`missing final-tree files: ${verification.missingFinalTreeFiles.join(", ")}`);
+  }
+  if (verification.unexpectedFinalTreeFiles.length > 0) {
+    problems.push(
+      `unexpected final-tree files: ${verification.unexpectedFinalTreeFiles.join(", ")}`,
+    );
+  }
+  if (verification.blobMismatches.length > 0) {
+    problems.push(`blob mismatches: ${verification.blobMismatches.join(", ")}`);
+  }
+  if (verification.branchFileMismatches.length > 0) {
+    problems.push(`branch file mismatches: ${verification.branchFileMismatches.join("; ")}`);
+  }
+  if (verification.nonIndependentBranches.length > 0) {
+    problems.push(`non-independent branches: ${verification.nonIndependentBranches.join(", ")}`);
+  }
+  if (verification.sessionArtifactLeaks.length > 0) {
+    problems.push(`session artifact leaks: ${verification.sessionArtifactLeaks.join(", ")}`);
+  }
+  if (verification.emptyBranches.length > 0) {
+    problems.push(`empty branches: ${verification.emptyBranches.join(", ")}`);
+  }
+  return problems.length > 0
+    ? `Finalization verification failed — ${problems.join(" | ")}`
+    : "Finalization verification failed.";
+}
+
+function listBranchCommitFiles(cwd: string, branchName: string): string[] {
+  const raw = runGitCommand(
+    cwd,
+    ["diff-tree", "--no-commit-id", "--name-only", "-z", "-r", branchName],
+    {
+      trim: false,
+    },
+  );
+  return uniqueStrings(
+    raw
+      .split("\u0000")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+  );
+}
+
+function readSingleParentCommit(cwd: string, branchName: string): string | null {
+  const line = runGitCommand(cwd, ["rev-list", "--parents", "-n", "1", branchName]);
+  const parts = line.split(/\s+/u).filter(Boolean);
+  if (parts.length !== 2) {
+    return null;
+  }
+  return parts[1] ?? null;
+}
+
+function tryResolveGitPathObject(cwd: string, ref: string, file: string): string | null {
+  const result = spawnGit(cwd, ["rev-parse", "--verify", `${ref}:${file}`]);
+  if (result.status !== 0) {
+    return null;
+  }
+  return (result.stdout ?? "").trim() || null;
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+  if (sortedLeft.length !== sortedRight.length) {
+    return false;
+  }
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
+}
+
+function formatCreatedBranches(values: readonly string[]): string {
+  return values.length > 0 ? values.join(", ") : "(none)";
+}
+
+function normalizeInlineReason(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().replace(/\s+/gu, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function extractPorcelainPath(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const pathText = line.slice(3).trim();
+  if (!pathText) {
+    return null;
+  }
+  const renameParts = pathText.split(/\s+->\s+/u);
+  return renameParts.at(-1)?.trim() || null;
 }
 
 function buildStalePlanState(

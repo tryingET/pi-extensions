@@ -61,12 +61,14 @@ export const AUTORESEARCH_COMMAND_NAME = "autoresearch";
 export const AUTORESEARCH_STATUS_TOOL_NAME = "autoresearch_runtime_status";
 export const AUTORESEARCH_RUN_TOOL_NAME = "autoresearch_runtime_run";
 export const AUTORESEARCH_CONTROL_TOOL_NAME = "autoresearch_runtime_control";
+export const AUTORESEARCH_FINALIZE_TOOL_NAME = "autoresearch_runtime_finalize";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
   AUTORESEARCH_EVENT_LEDGER_FILE,
   AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
+  "autoresearch.finalization.json",
   "autoresearch.md",
   "autoresearch.sh",
   "autoresearch.checks.sh",
@@ -190,6 +192,7 @@ export interface AutoresearchRuntimeStatus {
     typeof AUTORESEARCH_STATUS_TOOL_NAME,
     typeof AUTORESEARCH_RUN_TOOL_NAME,
     typeof AUTORESEARCH_CONTROL_TOOL_NAME,
+    typeof AUTORESEARCH_FINALIZE_TOOL_NAME,
   ];
   localArtifacts: readonly string[];
   receiptEntryTypes: readonly ["config", "run"];
@@ -583,8 +586,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, and governed Prompt Vault decision requests.",
-    "This package still does not own the autonomous loop, AK binding, or finalization materialization workflow.",
+    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, and bounded finalization orchestration.",
+    "This package now owns bounded finalization planning, approval, and local branch materialization; it still does not own the autonomous loop, AK binding, or remote review choreography.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
@@ -592,6 +595,7 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "- use autoresearch_runtime_status to inspect the current bounded runtime state",
     "- use autoresearch_runtime_status with action=setup or action=finalize to request governed setup/finalize packets",
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
+    "- use autoresearch_runtime_finalize to inspect, plan, approve, and materialize a bounded finalization workflow",
     "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal",
     "",
     ...configurationBlock,
@@ -1502,6 +1506,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
       AUTORESEARCH_STATUS_TOOL_NAME,
       AUTORESEARCH_RUN_TOOL_NAME,
       AUTORESEARCH_CONTROL_TOOL_NAME,
+      AUTORESEARCH_FINALIZE_TOOL_NAME,
     ],
     localArtifacts: [...AUTORESEARCH_LOCAL_ARTIFACTS],
     receiptEntryTypes: ["config", "run"],
@@ -1523,7 +1528,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     },
     control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
-    nextSlices: ["ak_campaign_binding", "prompt_vault_decision_steps", "safer_finalization_path"],
+    nextSlices: ["ak_campaign_binding", "finalization_status_proof"],
   };
 }
 

@@ -6,8 +6,13 @@ import {
   createAutoresearchDecisionRuntime,
 } from "../src/core/decisions.ts";
 import {
+  executeAutoresearchFinalization,
+  formatAutoresearchFinalizationResult,
+} from "../src/core/finalize.ts";
+import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
+  AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   buildAutoresearchHelpText,
@@ -91,6 +96,31 @@ const controlSchema = Type.Object({
   reason: Type.Optional(
     Type.String({
       description: "Optional short reason for the selected control decision.",
+    }),
+  ),
+});
+
+const finalizeActionSchema = Type.Union(
+  [
+    Type.Literal("status"),
+    Type.Literal("plan"),
+    Type.Literal("approve"),
+    Type.Literal("materialize"),
+  ],
+  {
+    description:
+      "Inspect the current finalization plan state, refresh/reuse a plan, record approval, or materialize local review branches.",
+  },
+);
+
+const finalizeSchema = Type.Object({
+  action: Type.Optional(finalizeActionSchema),
+  cwd: Type.Optional(
+    Type.String({ description: "Optional cwd override for finalization actions." }),
+  ),
+  reason: Type.Optional(
+    Type.String({
+      description: "Optional short reason for approve/materialize actions.",
     }),
   ),
 });
@@ -321,6 +351,37 @@ export function registerPiAutoresearchExtension(
   });
 
   pi.registerTool({
+    name: AUTORESEARCH_FINALIZE_TOOL_NAME,
+    label: "Autoresearch Runtime Finalize",
+    description:
+      "Inspect, plan, approve, and materialize the bounded pi-autoresearch finalization workflow.",
+    promptSnippet:
+      "Inspect or advance the bounded pi-autoresearch finalization workflow through status, plan, approve, or materialize.",
+    parameters: finalizeSchema,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: "status" | "plan" | "approve" | "materialize";
+        cwd?: string;
+        reason?: string;
+      };
+      const result = await executeAutoresearchFinalization({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        action: request.action,
+        reason: request.reason,
+        runtime:
+          request.action === "plan" ? resolveDecisionRuntime(ctx, signal, options) : undefined,
+        model: ctx.model?.id,
+        signal,
+      });
+
+      return {
+        content: [{ type: "text", text: formatAutoresearchFinalizationResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
     name: AUTORESEARCH_RUN_TOOL_NAME,
     label: "Autoresearch Runtime Run",
     description:
@@ -462,7 +523,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_run for machine/ledger-backed runs, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
+      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
       "info",
     );
   }
