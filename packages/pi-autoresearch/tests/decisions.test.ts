@@ -566,3 +566,131 @@ STATE_READ: Missing the rest of the required sections.
   assert.match(outcome.blockingReason, /Missing required section: NEXT_HYPOTHESIS/);
   assert.match(outcome.rawOutput ?? "", /STATE_READ/);
 });
+
+test("decision runtime can prepare a real visible Prompt Vault template and parse a bounded live next-hypothesis flow", async (t) => {
+  let createVaultPromptPlaneRuntime: undefined | (() => unknown);
+
+  try {
+    ({ createVaultPromptPlaneRuntime } = (await import(
+      new URL("../../pi-vault-client/src/promptPlane.js", import.meta.url).href
+    )) as {
+      createVaultPromptPlaneRuntime?: () => unknown;
+    });
+  } catch (error) {
+    t.skip(
+      `Live prompt-plane runtime is unavailable in this checkout: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
+
+  if (typeof createVaultPromptPlaneRuntime !== "function") {
+    t.skip("Live prompt-plane runtime did not expose createVaultPromptPlaneRuntime().");
+    return;
+  }
+
+  let preparedPrompt:
+    | {
+        templateName: string;
+        selectionMode: string;
+        preparedText: string;
+        cwd: string;
+      }
+    | undefined;
+
+  const runtime = createAutoresearchDecisionRuntime({
+    loadPromptPlaneRuntime: async () => createVaultPromptPlaneRuntime() as never,
+    executePreparedPrompt: async (input): Promise<AutoresearchDecisionPromptExecutionResult> => {
+      preparedPrompt = {
+        templateName: input.templateName,
+        selectionMode: input.selectionMode,
+        preparedText: input.preparedText,
+        cwd: input.cwd,
+      };
+      return {
+        outputText: `
+STATUS: ready
+STATE_READ: A live exact-template preparation exists, so the runtime can surface the next bounded move truthfully.
+NEXT_HYPOTHESIS: Keep the next change inside the runtime-owned decision/reporting seam.
+WHY_NOW: The exact Prompt Vault template already prepared successfully through the public prompt-plane seam.
+TARGET_FILES:
+- packages/pi-autoresearch/src/core/runtime.ts
+- packages/pi-autoresearch/tests/runtime.test.ts
+CHANGE_SHAPE:
+- Reuse the existing live decision seam without widening into AK binding or router work
+EXPECTED_PRIMARY_EFFECT: The package can keep a governed next move attached to the bounded runtime state.
+RISK_TO_GUARD:
+- Treating a missing live template as success
+RUN_PLAN:
+- npm run check
+ASI_TO_CAPTURE_IF_KEPT:
+- Exact template preparation stayed lawful under the live prompt-plane runtime
+ASI_TO_CAPTURE_IF_DISCARDED:
+- The live template lookup or parser contract drifted
+STOP_CONDITION:
+- Stop if exact template preparation no longer resolves pi-autoresearch-next-hypothesis
+`,
+      };
+    },
+  });
+
+  const outcome = await runtime.runNextHypothesis(
+    {
+      goal: "Prove the bounded live Prompt Vault decision flow without widening package ownership.",
+      constraints: ["bounded runtime only", "Prompt Vault remains the durable procedure owner"],
+      segmentSummary: ["Workstream A runtime integration is already landed"],
+      baselineHistory: ["Post-run decisions are now machine-mapped inside pi-autoresearch"],
+      recentRunHistory: ["Need one end-to-end proof of live exact-template preparation"],
+      checksStatus: ["npm run check pending"],
+      confidenceSignals: [
+        "The visible template set already includes pi-autoresearch-next-hypothesis",
+      ],
+      asiNotes: ["Do not copy prompt text into the package"],
+      deadEndMemory: ["Router-first work remains explicitly deferred"],
+      filesInScope: [
+        "packages/pi-autoresearch/docs/project/**",
+        "packages/pi-autoresearch/tests/**",
+      ],
+      offLimits: ["packages/pi-autoresearch/src/**", "packages/pi-vault-client/src/**"],
+      ideasBacklog: ["Resume/control-surface workstream starts after Prompt Vault proof closes"],
+    },
+    {
+      cwd: process.cwd(),
+    },
+  );
+
+  if ("failureStage" in outcome) {
+    const environmentBoundPromptPlaneFailure =
+      outcome.failureStage === "prompt_plane" &&
+      /(No visible template matched|Explicit company context is required|no such table|database is locked|unable to open database file)/iu.test(
+        outcome.blockingReason,
+      );
+    if (environmentBoundPromptPlaneFailure) {
+      t.skip(
+        `Live Prompt Vault preparation is unavailable in this environment: ${outcome.blockingReason}`,
+      );
+      return;
+    }
+    assert.fail(
+      `Expected a parsed live next-hypothesis decision, received ${outcome.failureStage}: ${outcome.blockingReason}`,
+    );
+  }
+
+  assert.equal(outcome.status, "ready");
+  assert.equal(preparedPrompt?.templateName, AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME);
+  assert.equal(preparedPrompt?.selectionMode, "exact");
+  assert.equal(preparedPrompt?.cwd, process.cwd());
+  assert.match(preparedPrompt?.preparedText ?? "", /# PI-AUTORESEARCH NEXT HYPOTHESIS/);
+  assert.match(preparedPrompt?.preparedText ?? "", /## CONTEXT/);
+  assert.match(
+    preparedPrompt?.preparedText ?? "",
+    /Prove the bounded live Prompt Vault decision flow/,
+  );
+  assert.equal(
+    outcome.nextHypothesis,
+    "Keep the next change inside the runtime-owned decision/reporting seam.",
+  );
+  assert.deepEqual(outcome.targetFiles, [
+    "packages/pi-autoresearch/src/core/runtime.ts",
+    "packages/pi-autoresearch/tests/runtime.test.ts",
+  ]);
+});

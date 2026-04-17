@@ -36,7 +36,7 @@ At minimum, update:
 
 ## Current truthful state
 
-Today `pi-autoresearch` is in the **bounded runtime kernel** phase.
+Today `pi-autoresearch` is in the **decision-aware bounded runtime** phase.
 
 That means the repo already has:
 
@@ -45,9 +45,10 @@ That means the repo already has:
 - an append-only local event ledger
 - bounded runtime integration through `/autoresearch`, `autoresearch_runtime_status`, and `autoresearch_runtime_run`
 - three governed one-shot Prompt Vault templates (`setup`, `next-hypothesis`, `finalize`)
+- live machine-invoked Prompt Vault decisions for setup, post-run next-hypothesis, and finalize proposal flows through the public prompt-plane seam
 - an orchestrator-side bounded supervisor + AK milestone projector + end-to-end evidence proof
 
-What it still does **not** have is the full target control plane above that kernel.
+What it still does **not** have is the full target control plane above that now-decision-aware runtime.
 
 ## Target done-state
 
@@ -78,7 +79,7 @@ When starting in a clean context, read in this order:
 | Capability | Current | Target done when | Primary owner(s) | Main verification |
 |---|---|---|---|---|
 | Package-local runtime machine + ledger | Landed | stays stable as the runtime kernel under all later work | `packages/pi-autoresearch` | package tests + runtime status note |
-| Machine-invoked Prompt Vault decisions | Missing | runtime uses governed decision adapters for setup / next-hypothesis / finalize with bounded fallbacks and proofs | `packages/pi-autoresearch` | decision tests + runtime integration tests + decision status note |
+| Machine-invoked Prompt Vault decisions | Landed (Workstream A) | stays stable as the first governed decision layer above the bounded runtime kernel | `packages/pi-autoresearch` | decision tests + runtime integration tests + decision status note |
 | Resume / autonomy lifecycle | Missing | campaigns can reload control state, resume lawfully, and preserve decision context across fresh sessions | `packages/pi-autoresearch` | resume tests + control-surface tests + resume status note |
 | Safer finalization orchestration | Missing | finalization is planned, grouped, materialized, and safety-fenced through explicit runtime/branch workflow | `packages/pi-autoresearch` | finalization tests + materialization tests + finalization status note |
 | Live supervision / polling | Missing | orchestrator can observe the runtime continuously through a bounded runner/polling policy | `packages/pi-society-orchestrator` | supervisor-runner tests + live supervision status note |
@@ -103,6 +104,9 @@ This umbrella closes only when all domain umbrellas below are complete and this 
 
 Primary status artifact:
 - `packages/pi-autoresearch/docs/project/prompt-vault-runtime-decision-status.md`
+
+Current status:
+- Landed through `#1531`; the package now prepares exact governed setup / next-hypothesis / finalize templates, consumes them through bounded runtime surfaces, and proves the live next-hypothesis seam without widening into AK binding or router work.
 
 ### Workstream B — Resume/autonomy lifecycle + package control surface
 
