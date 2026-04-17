@@ -135,6 +135,26 @@ test("resume loader reuses a saved legal control overlay when the runtime postur
     );
   }));
 
+test("resume loader falls back cleanly when no snapshot exists yet", () =>
+  withTempDir((cwd) => {
+    const current = createSnapshotInput(cwd, {
+      machine: {
+        state: "ready",
+        resumeState: null,
+      },
+    });
+
+    const result = loadAutoresearchRuntimeControlState({ cwd, current });
+
+    assert.equal(result.snapshot, null);
+    assert.equal(result.snapshotStatus.exists, false);
+    assert.equal(result.snapshotStatus.reuse, "missing");
+    assert.match(result.snapshotStatus.path ?? "", /autoresearch\.runtime\.json$/);
+    assert.equal(result.control.kind, "none");
+    assert.deepEqual(result.control.allowedActions, ["continue", "stop"]);
+    assert.equal(result.control.selectedAt, null);
+  }));
+
 test("resume loader rejects a saved snapshot when the configured segment fingerprint changes", () =>
   withTempDir((cwd) => {
     const saved = createSnapshotInput(cwd);

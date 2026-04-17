@@ -198,6 +198,56 @@ test("autoresearch_runtime_control can set continue and the next run consumes it
   });
 });
 
+test("autoresearch_runtime_control rejects continue from a rebaseline-needed posture", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const controlTool = tools.get(AUTORESEARCH_CONTROL_TOOL_NAME);
+    assert.ok(controlTool);
+
+    seedRebaselineNeeded(cwd);
+
+    await assert.rejects(
+      controlTool?.execute(
+        "control-2-illegal",
+        {
+          cwd,
+          action: "set",
+          decision: "continue",
+        },
+        undefined,
+        undefined,
+        { cwd },
+      ),
+      /Cannot set autoresearch control to continue/,
+    );
+  });
+});
+
+test("autoresearch_runtime_control rejects finalize when the runtime is not finalize-worthy", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const controlTool = tools.get(AUTORESEARCH_CONTROL_TOOL_NAME);
+    assert.ok(controlTool);
+
+    seedConfiguredRuntime(cwd);
+
+    await assert.rejects(
+      controlTool?.execute(
+        "control-2b-illegal",
+        {
+          cwd,
+          action: "set",
+          decision: "finalize",
+        },
+        undefined,
+        undefined,
+        { cwd },
+      ),
+      /Cannot set autoresearch control to finalize/,
+    );
+  });
+});
+
 test("autoresearch_runtime_control rebaseline blocks ordinary runs until reconfigure consumes it", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();

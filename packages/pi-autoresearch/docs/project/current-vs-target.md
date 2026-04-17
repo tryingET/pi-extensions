@@ -36,19 +36,21 @@ At minimum, update:
 
 ## Current truthful state
 
-Today `pi-autoresearch` is in the **decision-aware bounded runtime** phase.
+Today `pi-autoresearch` is in the **resume-aware bounded control-overlay** phase.
 
 That means the repo already has:
 
 - a package-local XState campaign machine
 - a typed event model
 - an append-only local event ledger
-- bounded runtime integration through `/autoresearch`, `autoresearch_runtime_status`, and `autoresearch_runtime_run`
+- bounded runtime integration through `/autoresearch`, `autoresearch_runtime_status`, `autoresearch_runtime_run`, and `autoresearch_runtime_control`
 - three governed one-shot Prompt Vault templates (`setup`, `next-hypothesis`, `finalize`)
 - live machine-invoked Prompt Vault decisions for setup, post-run next-hypothesis, and finalize proposal flows through the public prompt-plane seam
+- one checked package-local runtime snapshot for resumable control posture
+- explicit operator intent for continue / rebaseline / finalize / stop with runtime-side gating and consumption
 - an orchestrator-side bounded supervisor + AK milestone projector + end-to-end evidence proof
 
-What it still does **not** have is the full target control plane above that now-decision-aware runtime.
+What it still does **not** have is the full target control plane above that now resume-aware bounded runtime.
 
 ## Target done-state
 
@@ -80,11 +82,11 @@ When starting in a clean context, read in this order:
 |---|---|---|---|---|
 | Package-local runtime machine + ledger | Landed | stays stable as the runtime kernel under all later work | `packages/pi-autoresearch` | package tests + runtime status note |
 | Machine-invoked Prompt Vault decisions | Landed (Workstream A) | stays stable as the first governed decision layer above the bounded runtime kernel | `packages/pi-autoresearch` | decision tests + runtime integration tests + decision status note |
-| Resume / autonomy lifecycle | Missing | campaigns can reload control state, resume lawfully, and preserve decision context across fresh sessions | `packages/pi-autoresearch` | resume tests + control-surface tests + resume status note |
+| Resume / autonomy lifecycle | Landed (bounded Workstream B) | campaigns can reload control state, resume lawfully, and preserve decision context across fresh sessions | `packages/pi-autoresearch` | resume tests + control-surface tests + resume status note |
 | Safer finalization orchestration | Missing | finalization is planned, grouped, materialized, and safety-fenced through explicit runtime/branch workflow | `packages/pi-autoresearch` | finalization tests + materialization tests + finalization status note |
 | Live supervision / polling | Missing | orchestrator can observe the runtime continuously through a bounded runner/polling policy | `packages/pi-society-orchestrator` | supervisor-runner tests + live supervision status note |
 | AK task lifecycle automation | Missing | bounded lifecycle actions are contract-bound, idempotent, fail-closed, and proven end to end | `packages/pi-society-orchestrator` | lifecycle tests + live lifecycle proof note |
-| Operator-facing control plane | Partial | operator can inspect and drive continue / rebaseline / finalize / stop from a truthful surface above the bounded kernel | package + orchestrator | control-surface tests + live control-plane proof |
+| Operator-facing control plane | Landed (package-local surface); wider live supervision/operator surfaces still remain | operator can inspect and drive continue / rebaseline / finalize / stop from a truthful surface above the bounded kernel | package + orchestrator | control-surface tests + live control-plane proof |
 
 ## Scoped AK task tree
 
@@ -120,7 +122,7 @@ Primary status artifact:
 - `packages/pi-autoresearch/docs/project/resume-control-surface-status.md`
 
 Current status:
-- `#1533` landed the Workstream B contract in `packages/pi-autoresearch/docs/project/resume-control-surface-contract.md`; implementation/proof tasks `#1534`-`#1536` remain open.
+- Workstream B / umbrella `#1532` is landed through `#1536`; the package now writes and validates a checked runtime snapshot, exposes the explicit `autoresearch_runtime_control` surface, proves action legality plus runtime gating plus fresh-session resume behavior, and records the closure in `packages/pi-autoresearch/docs/project/resume-control-surface-status.md` without claiming full autonomy, AK lifecycle automation, or finalization materialization.
 
 ### Workstream C — Safer finalization orchestration
 
