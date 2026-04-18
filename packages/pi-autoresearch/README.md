@@ -56,9 +56,10 @@ The current boundary is now more specific: the package is the runtime owner for 
   - appends machine/event entries to `autoresearch.events.jsonl`
 - `autoresearch_llamacpp_campaign_control`
   - is the dedicated public consumer/control seam for one manifest-driven llama.cpp campaign
-  - returns current public control status for one exact checked manifest
+  - returns current public control status for one exact checked manifest from one canonical derived snapshot
   - may compose one exact-task AK-ready binding snapshot when the caller already knows the task id
   - plans or applies exactly one truthful next campaign-local step without requiring raw `stage` / `buildId` inputs
+  - fails closed on blocked public advance paths instead of advertising a usable next action when prerequisites are missing
   - stays below direct AK mutation, whole-campaign execution, and workstation-owned stage semantics
 - `autoresearch_llamacpp_campaign`
   - loads a typed llama.cpp benchmark campaign manifest
@@ -149,7 +150,7 @@ The public/consumer seam for this concern is now:
 - tool: `autoresearch_llamacpp_campaign_control`
 - contract: [docs/project/llamacpp-campaign-control-surface-contract.md](./docs/project/llamacpp-campaign-control-surface-contract.md)
 - status: [docs/project/llamacpp-campaign-control-surface-status.md](./docs/project/llamacpp-campaign-control-surface-status.md)
-- bounded role: current control status + one-step public advance + optional exact-task AK-binding context
+- bounded role: current control status + one-step public advance + optional exact-task AK-binding context, all derived from one canonical public-control snapshot per call
 - current task posture: landed through `#1699`; no broader whole-campaign or direct-AK-mutation surface was added
 
 ## Current non-goals

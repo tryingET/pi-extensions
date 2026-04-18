@@ -354,6 +354,7 @@ Current status:
   - public one-step `advance` plan/apply behavior without raw `stage` / `buildId` inputs
   - runtime/help/README truth that distinguishes the public seam from the lower-level technical `autoresearch_llamacpp_campaign` tool
 - `#1699` closed the slice's proof/status question in `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`
+- follow-on bugfix task `#1708` then hardened the landed surface by deriving public control plus optional AK context from one canonical snapshot per call and by making blocked public states stop advertising `nextStepAction = "advance"`
 - the package can now expose one truthful public manifest campaign-control view, optionally compose exact-task AK context, fail closed on blocked/terminal public advance paths, and still stay below whole-campaign execution or direct AK mutation
 - no further bounded follow-on is currently committed in current-vs-target for this concern
 

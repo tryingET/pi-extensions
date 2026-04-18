@@ -46,6 +46,7 @@ That public control snapshot now includes:
 - one public `nextStepAction` classification (`advance` or `none`)
 - one public `completionCandidate` bit when the exact-task binding says terminal-stage materialization is now completion-eligible
 - one shortest truthful public reason string for the current control posture
+- one canonical same-call projection basis for the public control view instead of stitching separate helper/projection reads together
 
 The public wrapper still fails closed when:
 
@@ -54,6 +55,11 @@ The public wrapper still fails closed when:
 - the next truthful step is blocked and the caller tries to apply it
 - the caller tries to apply after terminal-stage completion has already been reached
 - the wrapper would need to guess a task, stage, or build
+
+Additional hardening now landed after the initial public-surface rollout:
+
+- blocked public states no longer advertise `nextStepAction = "advance"`
+- the public tool now persists the exact projection it already used to build the response instead of rebuilding a second projection in the extension layer
 
 ### 2. The extension now exposes a dedicated public tool instead of making callers compose the lower-level helper actions manually
 
@@ -98,9 +104,9 @@ That keeps the package posture honest: the public wrapper seam is real, while wh
 
 - `inspectLlamacppCampaignControl(...)` truthfully composes the landed autonomy helper with optional exact-task AK context
 - `executeLlamacppCampaignControl(...)` can apply exactly one next public step and then refresh public control truth instead of widening into a loop
-- blocked next public steps surface as blocked control posture and apply mode then fails closed instead of silently widening into hidden prep/build behavior
+- blocked next public steps surface as blocked control posture, public `nextStepAction` now drops to `"none"`, and apply mode then fails closed instead of silently widening into hidden prep/build behavior
 - terminal-stage completion returns `public.nextStepAction = "none"`, can surface `completionCandidate = true` when exact-task AK context is present, and does not pretend further public work exists
-- the public `autoresearch_llamacpp_campaign_control` extension tool returns the bounded public shape, supports `status` plus `advance`, and rejects `action=status` with `apply=true`
+- the public `autoresearch_llamacpp_campaign_control` extension tool returns the bounded public shape, supports `status` plus `advance`, rejects `action=status` with `apply=true`, and now keeps response-control truth aligned with the persisted projection artifact
 
 `packages/pi-autoresearch/tests/runtime.test.ts` now closes the runtime/help truth obligations:
 

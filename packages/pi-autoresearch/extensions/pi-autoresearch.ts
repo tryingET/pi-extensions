@@ -20,6 +20,7 @@ import {
   formatLlamacppCampaignControlResult,
   formatLlamacppCampaignResult,
   inspectLlamacppCampaignControl,
+  persistDerivedLlamacppCampaignProjection,
   persistLlamacppCampaignProjection,
   planLlamacppCampaignMatrix,
   prepareLlamacppCampaignFork,
@@ -593,10 +594,9 @@ export function registerPiAutoresearchExtension(
               taskId: request.taskId,
               updatedAt,
             });
-      const projection = persistLlamacppCampaignProjection({
+      const projection = persistDerivedLlamacppCampaignProjection({
         cwd,
-        manifestPath: request.manifestPath,
-        updatedAt,
+        projection: result.projection,
       });
       const text = [
         formatLlamacppCampaignControlResult(result),

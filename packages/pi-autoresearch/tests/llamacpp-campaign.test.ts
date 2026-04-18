@@ -929,6 +929,8 @@ test("inspectLlamacppCampaignControl composes public status with optional exact-
     assert.equal(unbound.control.public.taskBound, false);
     assert.equal(unbound.control.akBinding, null);
     assert.equal(unbound.control.public.nextStepAction, "advance");
+    assert.equal(unbound.projectionPath, resolveLlamacppCampaignProjectionPath(cwd));
+    assert.equal(unbound.projection.updatedAt, 1);
     assert.equal(unbound.control.autonomy.nextStep.stage, 41);
     assert.equal(unbound.control.autonomy.nextStep.buildId, "A");
     assert.match(
@@ -974,6 +976,14 @@ test("executeLlamacppCampaignControl applies one step and refreshes public contr
     assert.equal(result.control.autonomy.nextStep.stage, 41);
     assert.equal(result.control.autonomy.nextStep.buildId, "B");
     assert.equal(result.control.public.nextStepAction, "advance");
+    assert.equal(result.projectionPath, resolveLlamacppCampaignProjectionPath(cwd));
+    assert.equal(result.projection.updatedAt, 3);
+    assert.equal(result.projection.status.overallState, "partially_materialized");
+    assert.equal(result.control.autonomy.projection.updatedAt, result.projection.updatedAt);
+    assert.equal(
+      result.control.autonomy.projection.overallState,
+      result.projection.status.overallState,
+    );
     assert.match(result.nextAction, /action=advance/);
   });
 });
@@ -989,7 +999,7 @@ test("executeLlamacppCampaignControl fails closed for blocked public apply", asy
 
     const status = inspectLlamacppCampaignControl({ cwd, manifestPath, updatedAt: 4 });
     assert.equal(status.control.autonomy.lifecycle.phase, "blocked");
-    assert.equal(status.control.public.nextStepAction, "advance");
+    assert.equal(status.control.public.nextStepAction, "none");
     assert.match(status.control.public.reason, /blocked/);
     assert.match(status.nextAction, /blocked/);
 
@@ -1107,7 +1117,7 @@ test("extension registers the public llama.cpp campaign-control tool and enforce
 
     const statusText = statusResult?.content[0]?.text ?? "";
     assert.match(statusText, /action: status/);
-    assert.match(statusText, /task bound: yes/);
+    assert.match(statusText, /exact task context: yes/);
     assert.match(statusText, /next step action: advance/);
     assert.match(statusText, /## Projection/);
     assert.match(statusText, /overall state: planned_only/);
@@ -1129,6 +1139,20 @@ test("extension registers the public llama.cpp campaign-control tool and enforce
     assert.match(advanceText, /mode: plan/);
     assert.match(advanceText, /build: A/);
     assert.match(advanceText, /## Projection/);
+    const advanceDetails = advanceResult?.details as {
+      projectionPath: string;
+      projection: { updatedAt: number; status: { overallState: string } };
+      control: { autonomy: { projection: { updatedAt: number; overallState: string } } };
+    };
+    assert.equal(advanceDetails.projectionPath, resolveLlamacppCampaignProjectionPath(cwd));
+    assert.equal(
+      advanceDetails.control.autonomy.projection.updatedAt,
+      advanceDetails.projection.updatedAt,
+    );
+    assert.equal(
+      advanceDetails.control.autonomy.projection.overallState,
+      advanceDetails.projection.status.overallState,
+    );
 
     await assert.rejects(
       () =>
