@@ -58,7 +58,8 @@ The current boundary is now more specific: the package is the runtime owner for 
   - loads a typed llama.cpp benchmark campaign manifest
   - expands the exact brownfield `phasee/41-43` branch/lane matrix without re-deriving it from chat prose
   - plans or applies fork workspace preparation for later patch transplant work under `../../fork/`
-  - does **not** yet execute those stages directly; the next contracted slice is stage-scoped execution binding
+  - plans or applies one exact stage-scoped `41 | 42 | 43` invocation against the existing workstation scripts
+  - does **not** become a whole-campaign runner or replace workstation execution ownership
 
 ### Runtime helpers
 
@@ -71,6 +72,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - typed llama.cpp benchmark campaign manifest model
   - explicit `phasee/41-43` stage matrix expansion
   - fork workspace planning/apply helpers with fail-closed git checks
+  - stage-scoped execution binding for one exact `41 | 42 | 43` invocation with prerequisite fencing
 - `src/core/ledger.ts`
   - append-only event-ledger entry types and JSONL helpers
   - ledger replay/projector helpers for the campaign machine
@@ -105,12 +107,12 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, and one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded slices include AK binding plus any later manifest-driven run/receipt integration.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, and one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded slices include manifest receipt/status projection plus later AK binding.
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
 - the package owns executable runtime state
-- AK will own durable campaign truth when the binding slice lands
+- AK will own durable campaign truth when the later AK binding slice lands
 
 ## Current non-goals
 
@@ -128,7 +130,7 @@ Use [docs/project/current-vs-target.md](./docs/project/current-vs-target.md) as 
 
 ## Example manifest
 
-- `examples/llamacpp-wave-001.json` — scaffold for the typed llama.cpp benchmark campaign surface plus the next build-bin / receipt-root execution-binding contract
+- `examples/llamacpp-wave-001.json` — scaffold for the typed llama.cpp benchmark campaign surface including build-bin / receipt-root execution-binding fields
 
 ## Validation
 

@@ -58,19 +58,19 @@ That means the repo now has:
 - durable status/proof notes for all four workstreams
 
 This now satisfies the target done-state defined in this file.
-It also now has one bounded **post-target widening slice** landed locally:
+It also now has two bounded **post-target widening slices** landed locally:
 
-- a typed llama.cpp benchmark campaign manifest contract
-- a bounded `autoresearch_llamacpp_campaign` tool for deterministic `plan_matrix` and `prepare_fork` behavior
-- package-local problem-intent/RFC notes for manifest-driven brownfield benchmark orchestration
+1. manifest-driven llama.cpp benchmark planning
+   - a typed llama.cpp benchmark campaign manifest contract
+   - a bounded `autoresearch_llamacpp_campaign` tool for deterministic `plan_matrix` and `prepare_fork` behavior
+   - package-local problem-intent/RFC notes for manifest-driven brownfield benchmark orchestration
+2. manifest-driven 41/42/43 execution binding
+   - explicit per-build `buildBinDir` bindings for executable manifest builds
+   - one explicit `workflow.executionBinding.receiptRootPath` for build-scoped 41/42/43 outputs
+   - one stage-scoped `execute_stage` surface for plan/apply behavior above the existing workstation scripts
+   - focused proof coverage plus a package-local status note for the landed slice
 
-The next active widening slice is now contract-defined but **not yet landed**:
-
-- explicit per-build `buildBinDir` bindings for executable manifest builds
-- one explicit `workflow.executionBinding.receiptRootPath` for build-scoped 41/42/43 outputs
-- one stage-scoped execution surface above the existing workstation scripts
-
-What it still does **not** have is any wider daemonized autonomy, auto-fail framework, remote-review control plane, or direct manifest-driven 41/42/43 campaign execution beyond that bounded planning/prep surface.
+What it still does **not** have is any wider daemonized autonomy, auto-fail framework, remote-review control plane, manifest receipt/status projection for this concern, or direct end-to-end whole-campaign execution beyond one exact stage binding at a time.
 
 ## Target done-state
 
@@ -98,7 +98,8 @@ When starting in a clean context, read in this order:
 7. [architecture correction](../../../../docs/project/pi-autoresearch-architecture-correction.md)
 8. [llama.cpp benchmark campaign manifest problem-intent](./2026-04-18-llamacpp-benchmark-campaign-manifest-problem-intent.md)
 9. [llama.cpp benchmark campaign manifest RFC](./2026-04-18-llamacpp-benchmark-campaign-manifest-rfc.md)
-10. the contract/status note for the specific active follow-on work, if any
+10. [llama.cpp execution-binding status](./llamacpp-execution-binding-status.md)
+11. the contract/status note for the specific active follow-on work, if any
 
 ## Capability matrix
 
@@ -112,7 +113,7 @@ When starting in a clean context, read in this order:
 | AK task lifecycle automation | Landed (bounded Workstream D) | bounded lifecycle actions are contract-bound, idempotent, fail-closed, and proven end to end | `packages/pi-society-orchestrator` | lifecycle tests + live supervision/lifecycle status note |
 | Operator-facing control plane | Landed (package + orchestrator) | operator can inspect and drive continue / rebaseline / finalize / stop from truthful package and live-supervision surfaces above the bounded kernel | package + orchestrator | control-surface tests + live control-plane tests + live supervision/lifecycle status note |
 | Manifest-driven llama.cpp benchmark planning | Landed (post-target widening) | branch lineage, stage 41/42/43 matrix, and fork prep are explicit through a checked manifest plus the bounded `autoresearch_llamacpp_campaign` tool | `packages/pi-autoresearch` | package tests + problem-intent/RFC docs + README/current-vs-target updates |
-| Manifest-driven 41/42/43 execution binding | Contracted next slice (not landed) | one manifest-listed build can plan/apply an exact stage 41, 42, or 43 workstation-script invocation through explicit build-bin + build-scoped receipt bindings | `packages/pi-autoresearch` + workstation `phasee/41-43` scripts | RFC/example contract + package tests + README/current-vs-target proof update |
+| Manifest-driven 41/42/43 execution binding | Landed (post-target widening) | one manifest-listed build can plan/apply an exact stage 41, 42, or 43 workstation-script invocation through explicit build-bin + build-scoped receipt bindings while leaving measurement semantics with the workstation scripts | `packages/pi-autoresearch` + workstation `phasee/41-43` scripts | package tests + execution-binding status note + README/current-vs-target updates |
 
 ## Scoped AK task tree
 
@@ -200,23 +201,41 @@ A bounded post-target widening slice is now landed locally for brownfield llama.
 - explicit `phasee/41-43` workflow anchors in the manifest
 - bounded `autoresearch_llamacpp_campaign` tool with `plan_matrix` and `prepare_fork`
 
-This slice is intentionally still **planning/prep only**.
-It does **not** yet mean the package owns direct 41/42/43 execution, campaign receipt projection for this concern, or AK-backed campaign truth.
+This slice remains the planning/prep layer.
+It does not by itself imply receipt/status projection for this concern or AK-backed campaign truth.
 
-### Next active slice — bounded 41/42/43 execution binding
+### Manifest-driven 41/42/43 execution binding
+
+A second bounded post-target widening slice is now landed locally for one exact build/stage binding against the workstation-owned scripts:
+
+- `#1636` froze the execution-binding contract in the RFC/example/current-vs-target surfaces
+- `#1640` landed the bounded implementation in the package tool/runtime surface
+- `#1642` added the proof coverage and updated package status truth
+- status artifact: `packages/pi-autoresearch/docs/project/llamacpp-execution-binding-status.md`
+
+What is now real:
+
+- the manifest makes `buildBinDir` and `workflow.executionBinding.receiptRootPath` explicit
+- `autoresearch_llamacpp_campaign` now supports `execute_stage`
+- one manifest-listed build can plan/apply an exact stage `41`, `42`, or `43` invocation
+- stage 42 and 43 prerequisite fences fail closed instead of guessing missing receipts or widening the current workstation script contract
+
+This slice is intentionally still **stage-scoped**.
+It does **not** yet mean the package owns receipt/status projection for this concern, AK-backed campaign truth, or one-shot whole-campaign execution.
+
+### Next active slice — manifest campaign receipt/status projection
 
 Active umbrella:
 
-- `#1635` — **[UMBRELLA] Bind manifest-driven llama.cpp campaigns to bounded 41/42/43 execution**
-  - `#1636` — Write manifest-driven 41/42/43 execution-binding contract and done-state
-  - `#1640` — Implement bounded manifest-driven 41/42/43 execution surface in pi-autoresearch
-  - `#1642` — Prove manifest-driven 41/42/43 execution binding and update current-vs-target
+- `#1643` — **[UMBRELLA] Project manifest-driven campaign receipts and runtime status**
+  - `#1644` — Write manifest campaign receipt/projection contract and artifact model
+  - `#1645` — Implement manifest campaign receipts plus runtime status/help integration
+  - `#1646` — Prove manifest campaign projection surface and update current-vs-target
 
 Current status:
 
-- `#1636` freezes the execution-binding contract in the RFC/example/current-vs-target surfaces
-- the slice is still **not landed**
-- it remains stage-scoped on purpose and does **not** yet include receipt/status projection or AK-backed campaign truth
+- execution binding is now the landed baseline for this concern
+- the next missing layer is truthful receipt/status projection above that stage-scoped execution seam
 
 ## What must stay true while implementing
 
