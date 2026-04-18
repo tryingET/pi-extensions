@@ -426,7 +426,7 @@ This follow-on still does **not** include:
 - a whole-campaign executor
 - broader autonomy or remote-review control-plane work
 
-## N) Next bounded follow-on — manifest campaign-local autonomy
+## N) Landed bounded follow-on — manifest campaign-local autonomy
 
 ### Decision in one sentence
 
@@ -465,15 +465,16 @@ That contract fixes these rules:
 5. terminal meaning still depends on the highest stage the manifest actually expects, not on a hard-coded assumption that every campaign ends at `43`
 6. the helper must not create a new autonomy artifact, mutate AK, auto-run fork/build prep, or widen into a whole-campaign runner
 
-### Follow-on target for tasks 1693–1695
+### Follow-on closure for tasks 1693–1695
 
-This campaign-local autonomy follow-on will be landed locally when all of the following are true:
+This campaign-local autonomy follow-on is now landed locally because all of the following are true:
 
-1. `#1693` freezes the exact autonomy/lifecycle contract in package-local docs
-2. `#1694` lands bounded autonomy helpers in `packages/pi-autoresearch/src/core/llamacppCampaign.ts` plus any minimal manifest-tool exposure needed for direct bounded use
-3. those helpers can derive one current autonomy snapshot and plan/apply exactly one next stage step
-4. `#1695` proves phase ordering, next-step selection, blocker surfacing, and one-step-only apply behavior
-5. current-vs-target/runtime/README closure lands later without overstating this slice as public campaign control, AK mutation, or whole-campaign execution
+1. `#1693` froze the exact autonomy/lifecycle contract in package-local docs
+2. `#1694` landed bounded autonomy helpers in `packages/pi-autoresearch/src/core/llamacppCampaign.ts` plus the bounded manifest-tool `advance_campaign` action for direct use
+3. those helpers now derive one current autonomy snapshot and plan/apply exactly one next stage step
+4. `#1695` proved phase ordering, next-step selection, blocker surfacing, truthful 41/42/43-terminal completion, and one-step-only apply behavior
+5. current-vs-target/runtime/README closure now treats this slice as landed without overstating it as public campaign control, AK mutation, or whole-campaign execution
+6. status/proof closure now lives in [`llamacpp-campaign-autonomy-status.md`](./llamacpp-campaign-autonomy-status.md)
 
 ### Explicit non-goals for the campaign-local autonomy follow-on
 
@@ -485,3 +486,5 @@ This follow-on still does **not** include:
 - automatic fork preparation, source checkout, or build compilation
 - benchmark winner selection or semantic receipt interpretation
 - a daemonized or background autonomy loop
+
+The next truthful widening above this landed slice is the later public campaign-control surface umbrella, not a broader hidden autonomy plane inside the package.

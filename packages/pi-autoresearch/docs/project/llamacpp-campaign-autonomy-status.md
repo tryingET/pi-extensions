@@ -181,4 +181,11 @@ The manifest campaign-local autonomy slice is now complete when read as the boun
 
 What comes next is not "make the package autonomous in general."
 That is still out of scope.
-Any later widening would be a different decision about the later public campaign-control surface, direct AK mutation policy, or broader orchestration above this bounded helper layer.
+
+The next bounded follow-on above this landed slice is the later public campaign-control surface umbrella:
+
+- freeze the public consumer/control contract in `#1697`
+- implement the bounded public surface in `#1698`
+- prove that surface without collapsing it into whole-campaign execution or direct AK mutation in `#1699`
+
+Any later widening beyond that would still be a different decision about direct AK mutation policy or broader orchestration above this bounded helper layer.
