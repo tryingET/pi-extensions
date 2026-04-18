@@ -29,6 +29,7 @@
  *   society_query                  — Bounded read-only diagnostic SQL against society.db
  *   evidence_record                — Record evidence
  *   ontology_context               — Get relevant ontology
+ *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions
  *   loop_execute                   — Execute structured loops
  */
 
@@ -48,6 +49,14 @@ import {
   resolveAgentForTeam,
 } from "../src/runtime/agent-routing.ts";
 import { resolveAkPath } from "../src/runtime/ak.ts";
+import {
+  type AutoresearchLivePollResult,
+  type AutoresearchLiveStartResult,
+  type AutoresearchLiveStopResult,
+  AutoresearchLiveSupervisionRunner,
+  type AutoresearchLiveSupervisionSessionV1,
+  describeAutoresearchLiveNextStep,
+} from "../src/runtime/autoresearch-supervisor-runner.ts";
 import { isBoundaryFailure } from "../src/runtime/boundaries.ts";
 import { getCognitiveToolByName, listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
 import {
@@ -113,11 +122,199 @@ function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal, cwd?: string)
   });
 }
 
+export interface SocietyOrchestratorExtensionOptions {
+  autoresearchLiveRunner?: AutoresearchLiveSupervisionRunner;
+}
+
+type AutoresearchLiveSupervisionAction = "status" | "observe" | "start" | "stop";
+
+type AutoresearchLiveSupervisionToolDetails = {
+  ok: boolean;
+  action: AutoresearchLiveSupervisionAction;
+  activeSessionCount?: number;
+  sessions?: AutoresearchLiveSupervisionSessionV1[];
+  sessionKey?: string;
+  session?: AutoresearchLiveSupervisionSessionV1 | null;
+  nextStep?: string;
+  projector?: AutoresearchLivePollResult["projector"];
+  lifecycle?: AutoresearchLivePollResult["lifecycle"];
+  reused?: boolean;
+  poll?: AutoresearchLiveStartResult["poll"];
+  stopped?: boolean;
+  error?: string;
+};
+
+function formatAutoresearchLiveTimestamp(value: number | null): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "-";
+  }
+
+  return new Date(value).toISOString();
+}
+
+function formatAutoresearchLiveSessionReport(input: {
+  action: AutoresearchLiveSupervisionAction;
+  session: AutoresearchLiveSupervisionSessionV1;
+  nextStep: string;
+  sessionKey?: string;
+  extraLines?: string[];
+}): string {
+  const { action, session, nextStep, sessionKey, extraLines = [] } = input;
+  const lines = [
+    `Autoresearch live supervision — ${action}`,
+    `Task: #${session.taskId}`,
+    `CWD: ${session.cwd}`,
+    `Session state: ${session.state}`,
+    `Polling interval: ${session.policy.intervalSeconds}s`,
+    `Started at: ${formatAutoresearchLiveTimestamp(session.startedAt)}`,
+    `Last poll: ${formatAutoresearchLiveTimestamp(session.lastPolledAt)}`,
+    `Poll count: ${session.pollCount}`,
+    `Last runtime state: ${session.lastRuntimeState || "-"}`,
+    `Last projection action: ${session.lastProjectionAction || "-"}`,
+    `Last lifecycle action: ${session.lastLifecycleAction}`,
+    `Last summary: ${session.lastSummary || "-"}`,
+    `Last error: ${session.lastError || "-"}`,
+    `Next step: ${nextStep}`,
+  ];
+
+  if (sessionKey) {
+    lines.splice(1, 0, `Session key: ${sessionKey}`);
+  }
+
+  if (extraLines.length > 0) {
+    lines.push("", ...extraLines);
+  }
+
+  return lines.join("\n");
+}
+
+function formatAutoresearchLiveSessionList(
+  sessions: readonly AutoresearchLiveSupervisionSessionV1[],
+): string {
+  if (sessions.length === 0) {
+    return "No active live autoresearch supervision sessions.";
+  }
+
+  const lines = [`Active live autoresearch supervision sessions: ${sessions.length}`, ""];
+  for (const session of sessions) {
+    lines.push(
+      `- #${session.taskId} ${session.cwd}`,
+      `  state: ${session.state}`,
+      `  interval: ${session.policy.intervalSeconds}s`,
+      `  last runtime: ${session.lastRuntimeState || "-"}`,
+      `  projection: ${session.lastProjectionAction || "-"}`,
+      `  lifecycle: ${session.lastLifecycleAction}`,
+      `  next step: ${describeAutoresearchLiveNextStep(session)}`,
+      "",
+    );
+  }
+
+  return lines.join("\n").trimEnd();
+}
+
+function formatAutoresearchLivePollExtras(
+  poll: Pick<AutoresearchLivePollResult, "observation" | "projector" | "lifecycle">,
+): string[] {
+  const lines: string[] = [];
+  if (poll.observation) {
+    lines.push(`Observed runtime state: ${poll.observation.runtime.runtimeProjection.state}`);
+    lines.push(`Observed finalization next step: ${poll.observation.finalization.nextStep}`);
+  }
+  if (poll.projector) {
+    lines.push(`Projection outcome: ${poll.projector.action}`);
+  }
+  if (poll.lifecycle) {
+    lines.push(`Lifecycle outcome: ${poll.lifecycle.action}`);
+  }
+  return lines;
+}
+
+function formatAutoresearchLiveStartReport(result: AutoresearchLiveStartResult): string {
+  const extraLines = [
+    `Reused existing session: ${result.reused ? "yes" : "no"}`,
+    ...(result.poll ? formatAutoresearchLivePollExtras(result.poll) : []),
+  ];
+
+  return formatAutoresearchLiveSessionReport({
+    action: "start",
+    sessionKey: result.sessionKey,
+    session: result.session,
+    nextStep: result.poll?.nextStep || describeAutoresearchLiveNextStep(result.session),
+    extraLines,
+  });
+}
+
+function formatAutoresearchLiveStopReport(result: AutoresearchLiveStopResult): string {
+  if (!result.session) {
+    return [
+      "Autoresearch live supervision — stop",
+      `Session key: ${result.sessionKey}`,
+      `Stopped: ${result.stopped ? "yes" : "no"}`,
+      `Next step: ${result.nextStep}`,
+    ].join("\n");
+  }
+
+  return formatAutoresearchLiveSessionReport({
+    action: "stop",
+    sessionKey: result.sessionKey,
+    session: result.session,
+    nextStep: result.nextStep,
+    extraLines: [`Stopped: ${result.stopped ? "yes" : "no"}`],
+  });
+}
+
+function formatAutoresearchLiveMissingSession(input: {
+  action: "status";
+  taskId: number;
+  cwd: string;
+}): string {
+  return [
+    "Autoresearch live supervision — status",
+    `Task: #${input.taskId}`,
+    `CWD: ${path.resolve(input.cwd)}`,
+    "Session state: missing",
+    "Next step: No live supervision session is active for this task/cwd pair.",
+  ].join("\n");
+}
+
+function validateAutoresearchLiveIdentity(input: {
+  action: AutoresearchLiveSupervisionAction;
+  taskId?: number;
+  cwd?: string;
+}) {
+  const hasTaskId = input.taskId !== undefined;
+  const hasCwd = input.cwd !== undefined;
+
+  if (input.action === "status" && !hasTaskId && !hasCwd) {
+    return;
+  }
+
+  if (hasTaskId !== hasCwd) {
+    throw new Error(
+      `${input.action} requires taskId and cwd together, or neither for action=status.`,
+    );
+  }
+
+  if (!hasTaskId || !hasCwd) {
+    throw new Error(`${input.action} requires an exact taskId and cwd.`);
+  }
+}
+
+function createAutoresearchLiveToolResult(
+  text: string,
+  details: AutoresearchLiveSupervisionToolDetails,
+) {
+  return {
+    content: [{ type: "text" as const, text }],
+    details,
+  };
+}
+
 // ============================================================================
 // EXTENSION
 // ============================================================================
 
-export default function (pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtensionOptions = {}) {
   const sessionTeams = createSessionTeamStore();
   const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "society-orchestrator");
 
@@ -249,6 +446,12 @@ export default function (pi: ExtensionAPI) {
   }
 
   const subagentExecutor = createOrchestratorSubagentExecutor({ sessionsDir });
+  const autoresearchLiveRunner =
+    options.autoresearchLiveRunner ||
+    new AutoresearchLiveSupervisionRunner({
+      akPath: AGENT_KERNEL,
+      societyDb: SOCIETY_DB,
+    });
 
   // ===========================================================================
   // TOOL: society_query
@@ -630,6 +833,218 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         content: [{ type: "text", text: formatOntologyConcepts(results.value) }],
         details: { ok: true, count: results.value.length, error: "" },
       };
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: autoresearch_live_supervision
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "autoresearch_live_supervision",
+    label: "Autoresearch Live Supervision",
+    description:
+      "Inspect, start, one-shot observe, or stop live pi-autoresearch supervision sessions above the package runtime.",
+    promptSnippet:
+      "Observe/start/status/stop a live pi-autoresearch supervision session through the orchestrator.",
+    promptGuidelines: [
+      "Use autoresearch_live_supervision for exact taskId + cwd supervision above the pi-autoresearch runtime.",
+      "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop.",
+    ],
+    parameters: Type.Object({
+      action: Type.Optional(
+        Type.Union([
+          Type.Literal("status"),
+          Type.Literal("observe"),
+          Type.Literal("start"),
+          Type.Literal("stop"),
+        ]),
+      ),
+      taskId: Type.Optional(Type.Number({ description: "Exact AK task id for the campaign" })),
+      cwd: Type.Optional(Type.String({ description: "Exact campaign cwd" })),
+      intervalSeconds: Type.Optional(
+        Type.Number({ description: "Polling interval in seconds for action=start|observe" }),
+      ),
+    }),
+    async execute(_toolCallId, params, signal) {
+      const {
+        action: requestedAction,
+        taskId,
+        cwd,
+        intervalSeconds,
+      } = params as {
+        action?: AutoresearchLiveSupervisionAction;
+        taskId?: number;
+        cwd?: string;
+        intervalSeconds?: number;
+      };
+      const action = requestedAction || "status";
+
+      try {
+        validateAutoresearchLiveIdentity({ action, taskId, cwd });
+        const identity = taskId !== undefined && cwd !== undefined ? { taskId, cwd } : null;
+
+        if (action === "status" && !identity) {
+          const sessions = autoresearchLiveRunner.listActiveSessions();
+          return createAutoresearchLiveToolResult(formatAutoresearchLiveSessionList(sessions), {
+            ok: true,
+            action,
+            activeSessionCount: sessions.length,
+            sessions,
+          });
+        }
+
+        if (!identity) {
+          throw new Error(`${action} requires an exact taskId and cwd.`);
+        }
+
+        if (action === "status") {
+          const session = autoresearchLiveRunner.getSession(identity);
+          const sessionKey = `${identity.taskId}|${path.resolve(identity.cwd)}`;
+          if (!session) {
+            return createAutoresearchLiveToolResult(
+              formatAutoresearchLiveMissingSession({
+                action: "status",
+                taskId: identity.taskId,
+                cwd: identity.cwd,
+              }),
+              {
+                ok: true,
+                action,
+                sessionKey,
+                session: null,
+                nextStep: "No live supervision session is active for this task/cwd pair.",
+              },
+            );
+          }
+
+          const nextStep = describeAutoresearchLiveNextStep(session);
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLiveSessionReport({
+              action,
+              sessionKey,
+              session,
+              nextStep,
+            }),
+            {
+              ok: true,
+              action,
+              sessionKey,
+              session,
+              nextStep,
+            },
+          );
+        }
+
+        if (action === "observe") {
+          const result = await autoresearchLiveRunner.observe({
+            ...identity,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLiveSessionReport({
+              action,
+              sessionKey: result.sessionKey,
+              session: result.session,
+              nextStep: result.nextStep,
+              extraLines: formatAutoresearchLivePollExtras(result),
+            }),
+            {
+              ok: true,
+              action,
+              sessionKey: result.sessionKey,
+              session: result.session,
+              nextStep: result.nextStep,
+              projector: result.projector,
+              lifecycle: result.lifecycle,
+            },
+          );
+        }
+
+        if (action === "start") {
+          const result = await autoresearchLiveRunner.start({
+            ...identity,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(formatAutoresearchLiveStartReport(result), {
+            ok: true,
+            action,
+            sessionKey: result.sessionKey,
+            session: result.session,
+            reused: result.reused,
+            nextStep: result.poll?.nextStep || describeAutoresearchLiveNextStep(result.session),
+            poll: result.poll,
+          });
+        }
+
+        const result = autoresearchLiveRunner.stop(identity);
+        return createAutoresearchLiveToolResult(formatAutoresearchLiveStopReport(result), {
+          ok: true,
+          action,
+          sessionKey: result.sessionKey,
+          session: result.session,
+          stopped: result.stopped,
+          nextStep: result.nextStep,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return createAutoresearchLiveToolResult(
+          `autoresearch_live_supervision failed: ${message}`,
+          {
+            ok: false,
+            action,
+            error: message,
+          },
+        );
+      }
+    },
+    renderCall(args, theme) {
+      const a = args as {
+        action?: AutoresearchLiveSupervisionAction;
+        taskId?: number;
+        cwd?: string;
+      };
+      const action = a.action || "status";
+      const target =
+        a.taskId !== undefined && a.cwd
+          ? `#${a.taskId} ${a.cwd}`
+          : a.taskId !== undefined
+            ? `#${a.taskId}`
+            : a.cwd || "active sessions";
+      return new Text(
+        theme.fg("toolTitle", theme.bold("autoresearch_live_supervision ")) +
+          theme.fg("accent", action) +
+          theme.fg("dim", " — ") +
+          theme.fg("muted", target),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, theme) {
+      const details = result.details as AutoresearchLiveSupervisionToolDetails | undefined;
+      if (!details) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text : "", 0, 0);
+      }
+
+      if (details.action === "status" && !details.session) {
+        return new Text(
+          theme.fg("muted", `status ${details.activeSessionCount ?? 0} active session(s)`),
+          0,
+          0,
+        );
+      }
+
+      const state = details.session?.state || "unknown";
+      const color = details.ok === false ? "error" : state === "completed" ? "success" : "accent";
+      const icon = details.ok === false ? "✗" : state === "completed" ? "✓" : "•";
+      return new Text(
+        theme.fg(color, `${icon} ${details.action || "status"}`) + theme.fg("dim", ` ${state}`),
+        0,
+        0,
+      );
     },
   });
 

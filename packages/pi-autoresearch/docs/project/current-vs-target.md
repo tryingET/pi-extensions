@@ -36,9 +36,9 @@ At minimum, update:
 
 ## Current truthful state
 
-Today `pi-autoresearch` is in the **resume-aware bounded finalization-orchestration** phase.
+Today `pi-autoresearch` is in the **live-supervised bounded target-control-plane** phase.
 
-That means the repo already has:
+That means the repo now has:
 
 - a package-local XState campaign machine
 - a typed event model
@@ -52,8 +52,13 @@ That means the repo already has:
 - explicit plan / approve / materialize finalization orchestration with approval, clean-tree, branch-collision, and verification fences
 - package-local runtime completion after successful verified local review-branch materialization
 - an orchestrator-side bounded supervisor + AK milestone projector + end-to-end evidence proof
+- an orchestrator-side live supervision runner with bounded polling/session policy above exact package runtime truth
+- complete-only AK task lifecycle automation after verified package-local completion
+- an operator-facing `autoresearch_live_supervision` surface for exact `status` / `observe` / `start` / `stop`
+- durable status/proof notes for all four workstreams
 
-What it still does **not** have is the full target control plane above that now decision-aware, resume-aware, finalization-orchestrating bounded runtime.
+This now satisfies the target done-state defined in this file.
+What it still does **not** have is any wider daemonized autonomy, auto-fail framework, or remote-review control plane beyond that bounded target.
 
 ## Target done-state
 
@@ -76,8 +81,9 @@ When starting in a clean context, read in this order:
 2. [current-vs-target](./current-vs-target.md)
 3. [runtime machine and event-ledger status](../../../../docs/project/2026-04-16-pi-autoresearch-runtime-machine-and-ledger-status.md)
 4. [supervision and AK projection status](../../../../docs/project/2026-04-16-pi-autoresearch-supervision-and-ak-projection-status.md)
-5. [architecture correction](../../../../docs/project/pi-autoresearch-architecture-correction.md)
-6. the contract/status note for the specific active workstream below
+5. [live supervision and AK lifecycle status](../../../../docs/project/pi-autoresearch-live-supervision-ak-lifecycle-status.md)
+6. [architecture correction](../../../../docs/project/pi-autoresearch-architecture-correction.md)
+7. the contract/status note for the specific active workstream below
 
 ## Capability matrix
 
@@ -87,9 +93,9 @@ When starting in a clean context, read in this order:
 | Machine-invoked Prompt Vault decisions | Landed (Workstream A) | stays stable as the first governed decision layer above the bounded runtime kernel | `packages/pi-autoresearch` | decision tests + runtime integration tests + decision status note |
 | Resume / autonomy lifecycle | Landed (bounded Workstream B) | campaigns can reload control state, resume lawfully, and preserve decision context across fresh sessions | `packages/pi-autoresearch` | resume tests + control-surface tests + resume status note |
 | Safer finalization orchestration | Landed (bounded Workstream C) | finalization is planned, grouped, materialized, and safety-fenced through explicit runtime/branch workflow | `packages/pi-autoresearch` | finalization tests + materialization tests + finalization status note |
-| Live supervision / polling | Missing | orchestrator can observe the runtime continuously through a bounded runner/polling policy | `packages/pi-society-orchestrator` | supervisor-runner tests + live supervision status note |
-| AK task lifecycle automation | Missing | bounded lifecycle actions are contract-bound, idempotent, fail-closed, and proven end to end | `packages/pi-society-orchestrator` | lifecycle tests + live lifecycle proof note |
-| Operator-facing control plane | Landed (package-local surface); wider live supervision/operator surfaces still remain | operator can inspect and drive continue / rebaseline / finalize / stop from a truthful surface above the bounded kernel | package + orchestrator | control-surface tests + live control-plane proof |
+| Live supervision / polling | Landed (Workstream D) | orchestrator can observe the runtime continuously through a bounded runner/polling policy | `packages/pi-society-orchestrator` | supervisor-runner tests + live supervision/lifecycle status note |
+| AK task lifecycle automation | Landed (bounded Workstream D) | bounded lifecycle actions are contract-bound, idempotent, fail-closed, and proven end to end | `packages/pi-society-orchestrator` | lifecycle tests + live supervision/lifecycle status note |
+| Operator-facing control plane | Landed (package + orchestrator) | operator can inspect and drive continue / rebaseline / finalize / stop from truthful package and live-supervision surfaces above the bounded kernel | package + orchestrator | control-surface tests + live control-plane tests + live supervision/lifecycle status note |
 
 ## Scoped AK task tree
 
@@ -151,6 +157,9 @@ Current status:
 
 Primary status artifact:
 - `docs/project/pi-autoresearch-live-supervision-ak-lifecycle-status.md`
+
+Current status:
+- Workstream D / umbrella `#1542` is landed through `#1546`; the orchestrator now exposes exact `autoresearch_live_supervision` `status` / `observe` / `start` / `stop` actions, can supervise exact anchored campaigns live through bounded polling, can complete the anchored AK task after verified package-local completion, and records the closure in `docs/project/pi-autoresearch-live-supervision-ak-lifecycle-status.md` without claiming a hidden daemon, auto-fail policy, or remote review control plane.
 
 ## Dependency shape
 
