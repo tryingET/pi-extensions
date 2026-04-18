@@ -322,8 +322,9 @@ Current status:
 
 - exact-task AK-ready binding is now the landed baseline for this concern
 - `#1693` freezes the bounded autonomy/lifecycle contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`
-- implementation/proof work for the helper layer remains pending in `#1694` and `#1695`
-- this concern still does not imply a public campaign-control surface, direct AK mutation, or whole-campaign execution in the package baseline
+- `#1694` now lands the bounded helper implementation in `packages/pi-autoresearch/src/core/llamacppCampaign.ts` plus the bounded manifest-tool `advance_campaign` action
+- the package can now derive one current stage-wave autonomy snapshot and plan/apply exactly one truthful next stage step without widening into public campaign control, AK mutation, or whole-campaign execution
+- proof/status closure for this slice still remains pending in `#1695`
 
 ## What must stay true while implementing
 

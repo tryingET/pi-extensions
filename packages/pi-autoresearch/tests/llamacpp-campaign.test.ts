@@ -10,8 +10,10 @@ import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION,
+  advanceLlamacppCampaign,
   buildLlamacppCampaignAkBinding,
   buildLlamacppCampaignAkBindingDetails,
+  buildLlamacppCampaignAutonomy,
   executeLlamacppCampaignStage,
   formatLlamacppCampaignResult,
   loadLlamacppCampaignProjectionState,
@@ -761,6 +763,90 @@ test("buildLlamacppCampaignAkBinding fails closed for invalid task ids and zero-
   });
 });
 
+test("buildLlamacppCampaignAutonomy derives stage-gated next-step truth through terminal completion", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    let autonomy = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 1 });
+    assert.equal(autonomy.lifecycle.phase, "stage41_wave");
+    assert.equal(autonomy.nextStep.stage, 41);
+    assert.equal(autonomy.nextStep.buildId, "A");
+    assert.equal(autonomy.stages.stage41CompletedBuilds, 0);
+    assert.equal(autonomy.lifecycle.terminalStageMaterialized, false);
+
+    for (const buildId of ["A", "B", "C", "D", "E"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId, apply: true });
+    }
+    autonomy = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 2 });
+    assert.equal(autonomy.lifecycle.phase, "stage42_wave");
+    assert.equal(autonomy.nextStep.stage, 42);
+    assert.equal(autonomy.nextStep.buildId, "A");
+    assert.equal(autonomy.stages.stage41CompletedBuilds, 5);
+
+    for (const buildId of ["A", "B", "C"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId, apply: true });
+    }
+    autonomy = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 3 });
+    assert.equal(autonomy.lifecycle.phase, "stage43_wave");
+    assert.equal(autonomy.nextStep.stage, 43);
+    assert.equal(autonomy.nextStep.buildId, "C");
+    assert.equal(autonomy.stages.stage42CompletedBuilds, 3);
+
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "43", buildId: "C", apply: true });
+    autonomy = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 4 });
+    assert.equal(autonomy.lifecycle.phase, "terminal_stage_complete");
+    assert.equal(autonomy.lifecycle.terminalStageMaterialized, true);
+    assert.equal(autonomy.nextStep.action, "none");
+    assert.equal(autonomy.nextStep.stage, null);
+    assert.equal(autonomy.nextStep.buildId, null);
+  });
+});
+
+test("buildLlamacppCampaignAutonomy surfaces blocked next steps without widening into hidden prep", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    rmSync(buildBins.A, { recursive: true, force: true });
+
+    const autonomy = buildLlamacppCampaignAutonomy({ cwd, manifestPath });
+    assert.equal(autonomy.lifecycle.phase, "blocked");
+    assert.equal(autonomy.nextStep.stage, 41);
+    assert.equal(autonomy.nextStep.buildId, "A");
+    assert.match(autonomy.nextStep.reason, /build_bin_dir/);
+    assert.match(autonomy.lifecycle.reason, /currently blocked/);
+  });
+});
+
+test("advanceLlamacppCampaign applies exactly one next step and stops", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const receiptRootPath = path.join(workstationRepo, "phasee/receipts/llamacpp-wave-001");
+
+    const result = advanceLlamacppCampaign({ cwd, manifestPath, apply: true, updatedAt: 1 });
+    assert.equal(result.mode, "apply");
+    assert.equal(result.autonomy.lifecycle.phase, "stage41_wave");
+    assert.equal(result.autonomy.nextStep.stage, 41);
+    assert.equal(result.autonomy.nextStep.buildId, "A");
+    assert.equal(result.executedStep?.stage, "41");
+    assert.equal(existsSync(path.join(receiptRootPath, "A-stage41-validation.json")), true);
+    assert.equal(existsSync(path.join(receiptRootPath, "B-stage41-validation.json")), false);
+    assert.match(formatLlamacppCampaignResult(result), /action: advance_campaign/);
+
+    const after = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 2 });
+    assert.equal(after.nextStep.stage, 41);
+    assert.equal(after.nextStep.buildId, "B");
+  });
+});
+
 test("execution binding fails closed when the receipt root escapes the workstation repo", async () => {
   await withTempDir((cwd) => {
     const sourceRepo = initSourceRepo(cwd);
@@ -798,6 +884,38 @@ test("manifest validation rejects invalid cherry-pick provenance", async () => {
       () => planLlamacppCampaignMatrix({ cwd, manifestPath }),
       /invalid git commit-ish/,
     );
+  });
+});
+
+test("extension registers the llama.cpp campaign tool and executes advance_campaign", async () => {
+  await withTempDir(async (cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME);
+    assert.ok(tool);
+
+    const result = await tool?.execute(
+      "campaign-advance-1",
+      {
+        action: "advance_campaign",
+        cwd,
+        manifestPath,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    const text = result?.content[0]?.text ?? "";
+    assert.match(text, /action: advance_campaign/);
+    assert.match(text, /phase: stage41_wave/);
+    assert.match(text, /build: A/);
+    assert.match(text, /## Projection/);
+    assert.match(text, /overall state: planned_only/);
+    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
   });
 });
 

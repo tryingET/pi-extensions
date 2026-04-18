@@ -11,6 +11,7 @@ import {
 } from "../src/core/finalize.ts";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+  advanceLlamacppCampaign,
   buildLlamacppCampaignAkBinding,
   buildLlamacppCampaignAkBindingDetails,
   executeLlamacppCampaignStage,
@@ -145,10 +146,11 @@ const campaignActionSchema = Type.Union(
     Type.Literal("prepare_fork"),
     Type.Literal("execute_stage"),
     Type.Literal("build_ak_binding"),
+    Type.Literal("advance_campaign"),
   ],
   {
     description:
-      "Load a typed llama.cpp benchmark campaign manifest, either expand the exact 41/42/43 branch-lane matrix, plan/apply the fork workspace preparation, plan/apply one exact stage invocation, or derive one exact AK-ready binding snapshot for an anchored task.",
+      "Load a typed llama.cpp benchmark campaign manifest, either expand the exact 41/42/43 branch-lane matrix, plan/apply the fork workspace preparation, plan/apply one exact stage invocation, derive one exact AK-ready binding snapshot for an anchored task, or plan/apply one truthful next campaign-local stage step.",
   },
 );
 
@@ -180,7 +182,7 @@ const campaignSchema = Type.Object({
   apply: Type.Optional(
     Type.Boolean({
       description:
-        "For action=prepare_fork or action=execute_stage. When true, apply the fork/stage action instead of only printing the plan.",
+        "For action=prepare_fork, action=execute_stage, or action=advance_campaign. When true, apply the selected fork/stage/next-step action instead of only printing the plan.",
     }),
   ),
   taskId: Type.Optional(
@@ -522,11 +524,17 @@ export function registerPiAutoresearchExtension(
       "Use action=prepare_fork with apply=true only when the user clearly wants the fork workspace created or switched.",
       "Use action=execute_stage for one exact build/stage, not as a whole-campaign runner.",
       "Use action=build_ak_binding only when the user already has an exact AK task id and wants a compact AK-ready snapshot rather than an AK mutation.",
+      "Use action=advance_campaign to derive or execute exactly one truthful next stage step; it is still not a public campaign-control plane or whole-campaign runner.",
     ],
     parameters: campaignSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as {
-        action?: "plan_matrix" | "prepare_fork" | "execute_stage" | "build_ak_binding";
+        action?:
+          | "plan_matrix"
+          | "prepare_fork"
+          | "execute_stage"
+          | "build_ak_binding"
+          | "advance_campaign";
         cwd?: string;
         manifestPath: string;
         stage?: "41" | "42" | "43";
@@ -575,10 +583,17 @@ export function registerPiAutoresearchExtension(
                         : `Reuse or record AK evidence for task ${binding.taskId}; terminal stage ${binding.manifest.terminalStage} is not fully materialized yet.`,
                   };
                 })()
-              : planLlamacppCampaignMatrix({
-                  cwd,
-                  manifestPath: request.manifestPath,
-                });
+              : action === "advance_campaign"
+                ? advanceLlamacppCampaign({
+                    cwd,
+                    manifestPath: request.manifestPath,
+                    apply: request.apply,
+                    updatedAt,
+                  })
+                : planLlamacppCampaignMatrix({
+                    cwd,
+                    manifestPath: request.manifestPath,
+                  });
       const projection = persistLlamacppCampaignProjection({
         cwd,
         manifestPath: request.manifestPath,
