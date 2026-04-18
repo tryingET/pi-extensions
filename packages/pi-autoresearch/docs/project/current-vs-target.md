@@ -356,7 +356,10 @@ Current status:
 - `#1699` closed the slice's proof/status question in `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`
 - follow-on bugfix task `#1708` then hardened the landed surface by deriving public control plus optional AK context from one canonical snapshot per call and by making blocked public states stop advertising `nextStepAction = "advance"`
 - the package can now expose one truthful public manifest campaign-control view, optionally compose exact-task AK context, fail closed on blocked/terminal public advance paths, and still stay below whole-campaign execution or direct AK mutation
-- no further bounded follow-on is currently committed in current-vs-target for this concern
+- one later follow-on is now explicitly deferred in AK instead of being abandoned in prose:
+  - `#1709` — decide exact AK task verification semantics for the public campaign-control surface
+  - current limitation: positive caller-supplied `taskId` is still treated as exact task context without live AK existence verification
+  - deferral binding: AK task `#1709`, kind `until_decision`, trigger `decision:pi-autoresearch-public-task-verification`, review `2026-04-25`
 
 ## What must stay true while implementing
 

@@ -487,4 +487,4 @@ This follow-on still does **not** include:
 - benchmark winner selection or semantic receipt interpretation
 - a daemonized or background autonomy loop
 
-The next truthful widening above this landed slice is the later public campaign-control surface umbrella, not a broader hidden autonomy plane inside the package.
+Historical note: the later public campaign-control surface umbrella described here has since landed locally through tasks `#1697`-`#1699`. Any further widening beyond that public seam would now require a new explicit bounded decision rather than a broader hidden autonomy plane inside the package.

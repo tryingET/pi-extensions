@@ -82,6 +82,7 @@ It still does **not**:
 - run the whole campaign to completion
 - write AK evidence or complete tasks
 - replace the lower-level technical `autoresearch_llamacpp_campaign` tool
+- verify that a caller-supplied positive `taskId` corresponds to a live AK task before composing exact-task context
 
 So the package now has a **public one-step control seam** for this concern, not a whole-campaign controller.
 
@@ -187,6 +188,18 @@ This slice should **not** be read as having implemented:
 - background polling, supervision, or remote-review choreography
 
 Those remain outside this slice on purpose.
+
+## Known limitation now bound into authority
+
+One remaining follow-on is now explicitly bound in AK instead of being left as a floating note:
+
+- `#1709` — decide exact AK task verification semantics for the public campaign-control surface
+- current truthful limitation: the public seam treats a positive caller-supplied `taskId` as exact task context for bounded AK-binding composition, but does not yet verify live AK task existence
+- deferral kind: `until_decision`
+- trigger ref: `decision:pi-autoresearch-public-task-verification`
+- review at: `2026-04-25`
+
+That means this gap is now durable runtime work, not orphaned prose.
 
 ## Bottom line
 
