@@ -37,6 +37,7 @@ What is still missing is the exact orchestrator-side policy for the later follow
 > how `pi-society-orchestrator` may observe manifest-driven campaign truth and write bounded AK evidence above that package seam without taking over campaign execution, duplicating package-local logic, or turning package-local completion into automatic task lifecycle mutation.
 
 This note freezes that contract for task `#1701`.
+Implementation status for the first bounded follow-on now lives in [pi-autoresearch manifest campaign supervision status](./pi-autoresearch-manifest-campaign-supervision-status.md).
 
 ---
 

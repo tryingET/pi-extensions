@@ -30,6 +30,7 @@
  *   evidence_record                — Record evidence
  *   ontology_context               — Get relevant ontology
  *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions
+ *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
  *   loop_execute                   — Execute structured loops
  */
 
@@ -49,6 +50,12 @@ import {
   resolveAgentForTeam,
 } from "../src/runtime/agent-routing.ts";
 import { resolveAkPath } from "../src/runtime/ak.ts";
+import {
+  type AutoresearchManifestCampaignEvidenceResult,
+  type AutoresearchManifestCampaignObservation,
+  AutoresearchManifestCampaignSupervisor,
+  type AutoresearchManifestCampaignTaskAnchor,
+} from "../src/runtime/autoresearch-manifest-campaign-supervision.ts";
 import {
   type AutoresearchLivePollResult,
   type AutoresearchLiveStartResult,
@@ -124,9 +131,12 @@ function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal, cwd?: string)
 
 export interface SocietyOrchestratorExtensionOptions {
   autoresearchLiveRunner?: AutoresearchLiveSupervisionRunner;
+  manifestCampaignSupervisor?: AutoresearchManifestCampaignSupervisor;
 }
 
 type AutoresearchLiveSupervisionAction = "status" | "observe" | "start" | "stop";
+
+type AutoresearchManifestCampaignSupervisionAction = "observe" | "record_evidence";
 
 type AutoresearchLiveSupervisionToolDetails = {
   ok: boolean;
@@ -141,6 +151,18 @@ type AutoresearchLiveSupervisionToolDetails = {
   reused?: boolean;
   poll?: AutoresearchLiveStartResult["poll"];
   stopped?: boolean;
+  error?: string;
+};
+
+type AutoresearchManifestCampaignSupervisionToolDetails = {
+  ok: boolean;
+  action: AutoresearchManifestCampaignSupervisionAction;
+  observation?: AutoresearchManifestCampaignObservation;
+  task?: AutoresearchManifestCampaignTaskAnchor;
+  evidenceAction?: AutoresearchManifestCampaignEvidenceResult["action"];
+  evidenceVia?: Exclude<AutoresearchManifestCampaignEvidenceResult["evidence"], undefined>["via"];
+  existingEvidenceId?: number;
+  nextStep?: string;
   error?: string;
 };
 
@@ -310,6 +332,68 @@ function createAutoresearchLiveToolResult(
   };
 }
 
+function formatAutoresearchManifestCampaignObservationReport(input: {
+  action: AutoresearchManifestCampaignSupervisionAction;
+  observation: AutoresearchManifestCampaignObservation;
+  nextStep: string;
+  extraLines?: string[];
+}) {
+  const { action, observation, nextStep, extraLines = [] } = input;
+  const { control } = observation.controlResult;
+  const lines = [
+    `Autoresearch manifest campaign supervision — ${action}`,
+    `CWD: ${observation.cwd}`,
+    `Manifest: ${observation.manifestPath}`,
+    `Observed at: ${formatAutoresearchLiveTimestamp(observation.observedAt)}`,
+    `Campaign: ${control.autonomy.manifest.campaignId}`,
+    `Overall state: ${control.autonomy.projection.overallState}`,
+    `Public next-step action: ${control.public.nextStepAction}`,
+    `Task verification: ${control.taskContext.verificationState}`,
+    `Verified task: ${control.taskContext.verifiedTaskId ?? "-"}`,
+    `AK milestone: ${control.akBinding?.ak.milestone ?? "-"}`,
+    `AK check type: ${control.akBinding?.ak.checkType ?? "-"}`,
+    `AK projection key: ${control.akBinding?.projection.projectionKey ?? "-"}`,
+    `Projection path: ${observation.projectionPath}`,
+    `Package next step: ${observation.controlResult.nextAction}`,
+  ];
+
+  if (extraLines.length > 0) {
+    lines.push("", ...extraLines);
+  }
+
+  lines.push(`Next step: ${nextStep}`);
+  return lines.join("\n");
+}
+
+function formatAutoresearchManifestCampaignEvidenceReport(
+  result: AutoresearchManifestCampaignEvidenceResult,
+) {
+  const extraLines = [
+    `Evidence action: ${result.action}`,
+    `Evidence via: ${result.evidence?.via ?? "-"}`,
+    `Task repo: ${result.task?.repo ?? "-"}`,
+    `Existing evidence id: ${result.existingEvidenceId ?? "-"}`,
+    `Blocking error: ${result.error ?? "-"}`,
+  ];
+
+  return formatAutoresearchManifestCampaignObservationReport({
+    action: "record_evidence",
+    observation: result.observation,
+    nextStep: result.nextStep,
+    extraLines,
+  });
+}
+
+function createAutoresearchManifestCampaignToolResult(
+  text: string,
+  details: AutoresearchManifestCampaignSupervisionToolDetails,
+) {
+  return {
+    content: [{ type: "text" as const, text }],
+    details,
+  };
+}
+
 // ============================================================================
 // EXTENSION
 // ============================================================================
@@ -449,6 +533,12 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   const autoresearchLiveRunner =
     options.autoresearchLiveRunner ||
     new AutoresearchLiveSupervisionRunner({
+      akPath: AGENT_KERNEL,
+      societyDb: SOCIETY_DB,
+    });
+  const manifestCampaignSupervisor =
+    options.manifestCampaignSupervisor ||
+    new AutoresearchManifestCampaignSupervisor({
       akPath: AGENT_KERNEL,
       societyDb: SOCIETY_DB,
     });
@@ -1042,6 +1132,146 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       const icon = details.ok === false ? "✗" : state === "completed" ? "✓" : "•";
       return new Text(
         theme.fg(color, `${icon} ${details.action || "status"}`) + theme.fg("dim", ` ${state}`),
+        0,
+        0,
+      );
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: autoresearch_manifest_campaign_supervision
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "autoresearch_manifest_campaign_supervision",
+    label: "Autoresearch Manifest Campaign Supervision",
+    description:
+      "Observe one exact manifest-driven pi-autoresearch campaign and optionally record bounded AK evidence above the package seam.",
+    promptSnippet:
+      "Observe one exact manifest-driven pi-autoresearch campaign through the orchestrator and optionally record bounded AK evidence from verified task context.",
+    promptGuidelines: [
+      "Use autoresearch_manifest_campaign_supervision when the caller already knows the exact manifest path and wants one-shot observation or bounded AK evidence projection above the package seam.",
+      "Use action=record_evidence only when the caller already has an exact taskId; this surface stays evidence-only and does not add polling, stage execution, or task lifecycle mutation.",
+    ],
+    parameters: Type.Object({
+      action: Type.Optional(Type.Union([Type.Literal("observe"), Type.Literal("record_evidence")])),
+      taskId: Type.Optional(Type.Number({ description: "Exact AK task id anchor", minimum: 1 })),
+      cwd: Type.Optional(Type.String({ description: "Exact campaign cwd" })),
+      manifestPath: Type.String({
+        description: "Exact manifest path relative to cwd or absolute.",
+      }),
+    }),
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: AutoresearchManifestCampaignSupervisionAction;
+        taskId?: number;
+        cwd?: string;
+        manifestPath: string;
+      };
+      const action = request.action || "observe";
+      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
+
+      try {
+        if (action === "record_evidence" && request.taskId === undefined) {
+          throw new Error("record_evidence requires an exact taskId.");
+        }
+
+        if (action === "observe") {
+          const observation = manifestCampaignSupervisor.observe({
+            cwd,
+            manifestPath: request.manifestPath,
+            taskId: request.taskId,
+          });
+          return createAutoresearchManifestCampaignToolResult(
+            formatAutoresearchManifestCampaignObservationReport({
+              action,
+              observation,
+              nextStep: observation.nextStep,
+            }),
+            {
+              ok: true,
+              action,
+              observation,
+              nextStep: observation.nextStep,
+            },
+          );
+        }
+
+        const result = await manifestCampaignSupervisor.recordEvidence({
+          cwd,
+          manifestPath: request.manifestPath,
+          taskId: request.taskId,
+          signal,
+        });
+        return createAutoresearchManifestCampaignToolResult(
+          formatAutoresearchManifestCampaignEvidenceReport(result),
+          {
+            ok: result.ok,
+            action,
+            observation: result.observation,
+            task: result.task,
+            evidenceAction: result.action,
+            evidenceVia: result.evidence?.via,
+            existingEvidenceId: result.existingEvidenceId,
+            nextStep: result.nextStep,
+            error: result.error,
+          },
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return createAutoresearchManifestCampaignToolResult(
+          `autoresearch_manifest_campaign_supervision failed: ${message}`,
+          {
+            ok: false,
+            action,
+            error: message,
+          },
+        );
+      }
+    },
+    renderCall(args, theme) {
+      const a = args as {
+        action?: AutoresearchManifestCampaignSupervisionAction;
+        taskId?: number;
+        manifestPath?: string;
+      };
+      const action = a.action || "observe";
+      const target =
+        a.taskId !== undefined
+          ? `#${a.taskId} ${a.manifestPath || "(manifest)"}`
+          : a.manifestPath || "(manifest)";
+      return new Text(
+        theme.fg("toolTitle", theme.bold("autoresearch_manifest_campaign_supervision ")) +
+          theme.fg("accent", action) +
+          theme.fg("dim", " — ") +
+          theme.fg("muted", target),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, theme) {
+      const details = result.details as
+        | AutoresearchManifestCampaignSupervisionToolDetails
+        | undefined;
+      if (!details) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text : "", 0, 0);
+      }
+
+      const action = details.evidenceAction || details.action;
+      const color =
+        details.ok === false
+          ? "error"
+          : action === "recorded" || action === "already-projected"
+            ? "success"
+            : "accent";
+      const icon = details.ok === false ? "✗" : action === "recorded" ? "✓" : "•";
+      return new Text(
+        theme.fg(color, `${icon} ${details.action}`) +
+          theme.fg(
+            "dim",
+            ` ${details.observation?.controlResult.control.autonomy.projection.overallState || "-"}`,
+          ),
         0,
         0,
       );

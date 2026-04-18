@@ -1,3 +1,4 @@
+// Public compatibility re-exports for package callers such as pi-society-orchestrator.
 export * from "./core/decisions.ts";
 export * from "./core/finalize.ts";
 export * from "./core/ledger.ts";

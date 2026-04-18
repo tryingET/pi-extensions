@@ -108,6 +108,7 @@ Primary tools and commands exposed by the imported extension include:
 - `evidence_record`
 - `ontology_context` (now resolved through the sanctioned `rocs-cli` adapter path instead of the local `society.db` ontology table)
 - `loop_execute`
+- `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
 - `/cognitive`
 - `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
 - `/runtime-status` (editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, and live DB/vault status)
@@ -133,7 +134,11 @@ Primary tools and commands exposed by the imported extension include:
 - That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md).
 - The first time-boxed [execution seam review](docs/project/2026-03-31-execution-seam-review.md) now records that this package remains the only real external runtime consumer and that installed-package smoke is verification evidence rather than a second consumer.
 - Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the `/cognitive` catalog/health listing still uses a bounded local metadata query until `pi-vault-client` exposes a supported public catalog seam, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
-- Manifest-driven `pi-autoresearch` campaigns now also have a bounded orchestrator-side policy note in [pi-autoresearch manifest campaign supervision contract](docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md): reuse package-derived manifest campaign AK-binding truth for exact-anchor evidence-only writes, and do not widen this concern into live polling or task lifecycle mutation without a separate explicit decision.
+- Manifest-driven `pi-autoresearch` campaigns now also have a bounded orchestrator-side observation/evidence surface:
+  - contract: [pi-autoresearch manifest campaign supervision contract](docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md)
+  - status: [pi-autoresearch manifest campaign supervision status](docs/project/pi-autoresearch-manifest-campaign-supervision-status.md)
+  - tool: `autoresearch_manifest_campaign_supervision`
+  - current truth: reuse package-derived manifest campaign AK-binding truth for exact-anchor evidence-only writes, keep the surface one-shot, and do not widen this concern into live polling or task lifecycle mutation without a separate explicit decision.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Package-owned KES activation
