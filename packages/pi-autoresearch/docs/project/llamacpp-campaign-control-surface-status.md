@@ -195,8 +195,13 @@ One remaining follow-on is now explicitly bound in AK instead of being left as a
 
 - `#1709` — decide exact AK task verification semantics for the public campaign-control surface
 - current truthful limitation: the public seam treats a positive caller-supplied `taskId` as exact task context for bounded AK-binding composition, but does not yet verify live AK task existence
-- decision-attending RFC: [2026-04-18-public-ak-task-verification-rfc.md](./2026-04-18-public-ak-task-verification-rfc.md)
+- decision-attending artifact chain:
+  - [2026-04-18-problem-brief-public-ak-task-verification.md](./2026-04-18-problem-brief-public-ak-task-verification.md)
+  - [2026-04-18-evidence-note-public-ak-task-verification.md](./2026-04-18-evidence-note-public-ak-task-verification.md)
+  - [2026-04-18-public-ak-task-verification-rfc.md](./2026-04-18-public-ak-task-verification-rfc.md)
+  - [2026-04-18-review-public-ak-task-verification-rfc.md](./2026-04-18-review-public-ak-task-verification-rfc.md)
 - AK decision record: `decision:17` — Decide public AK task verification semantics for pi-autoresearch campaign control
+- current decision state: `adr_required` with outcome `accepted`; ADR artifact not yet recorded
 - RFC candidate direction: optional best-effort live AK verification with surfaced status, while keeping `status` / `advance` usable package-locally and leaving the lower-level technical `build_ak_binding` helper distinct
 - deferral kind: `until_decision`
 - trigger ref: `decision:pi-autoresearch-public-task-verification`
