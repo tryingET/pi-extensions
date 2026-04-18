@@ -177,4 +177,11 @@ The manifest campaign AK-binding slice is now complete when read as the bounded 
 
 What comes next is not "make AK binding real."
 That is now landed.
-Any later widening would be a different decision about explicit AK mutation policy, semantic campaign interpretation, or broader orchestration above this bounded helper layer.
+
+The next bounded follow-on above this slice is now the campaign-local autonomy layer frozen in [`llamacpp-campaign-autonomy-contract.md`](./llamacpp-campaign-autonomy-contract.md):
+
+- derive the current stage-wave posture for one checked manifest
+- identify the one truthful next `execute_stage` step without manual stage/build reconstruction
+- optionally apply exactly that one step while still stopping below AK mutation, public campaign control, or whole-campaign execution
+
+Any later widening beyond that would still be a different decision about explicit AK mutation policy, semantic campaign interpretation, or broader orchestration above this bounded helper layer.

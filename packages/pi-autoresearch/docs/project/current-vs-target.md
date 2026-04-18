@@ -305,6 +305,26 @@ Current status:
 - `#1651` proved milestone mapping, truthful terminal-stage classification for 41/42/43-terminal manifests, deterministic `projectionKey` behavior, public tool exposure, and current-vs-target/runtime/README closure
 - this concern still has no direct AK mutation surface, semantic winner interpretation, or whole-campaign executor in the package baseline
 
+### Manifest-driven campaign-local autonomy
+
+Active umbrella:
+
+- `#1692` — **[UMBRELLA] Land campaign-local autonomy for manifest-driven llama.cpp campaigns in pi-autoresearch**
+  - `#1693` — Write campaign-local autonomy contract and lifecycle shape for manifest-driven llama.cpp campaigns
+  - `#1694` — Implement bounded campaign-local autonomy helpers for manifest-driven llama.cpp campaigns
+  - `#1695` — Prove campaign-local autonomy helpers and update current-vs-target
+
+Primary contract artifact:
+
+- `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`
+
+Current status:
+
+- exact-task AK-ready binding is now the landed baseline for this concern
+- `#1693` freezes the bounded autonomy/lifecycle contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`
+- implementation/proof work for the helper layer remains pending in `#1694` and `#1695`
+- this concern still does not imply a public campaign-control surface, direct AK mutation, or whole-campaign execution in the package baseline
+
 ## What must stay true while implementing
 
 Do **not** let future tasks silently collapse boundaries:
@@ -318,7 +338,7 @@ Do **not** let future tasks silently collapse boundaries:
 ## If you are starting the next task fresh
 
 1. read this file plus `docs/project/pi-autoresearch-target-control-plane-status.md`
-2. if the active concern touches the landed manifest campaign projection baseline or the landed AK-binding slice, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, and `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md` before coding
+2. if the active concern touches the landed manifest campaign projection baseline, the landed AK-binding slice, or the newer campaign-local autonomy follow-on, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`, and `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md` before coding
 3. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
 4. identify or create the active AK task id for that new bounded slice
 5. inspect the scoped required paths from AK before coding

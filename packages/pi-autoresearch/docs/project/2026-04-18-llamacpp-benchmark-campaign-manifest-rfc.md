@@ -425,3 +425,63 @@ This follow-on still does **not** include:
 - dumping whole per-build projection rows into AK by default
 - a whole-campaign executor
 - broader autonomy or remote-review control-plane work
+
+## N) Next bounded follow-on — manifest campaign-local autonomy
+
+### Decision in one sentence
+
+Add bounded package-local helpers that, for one exact checked manifest, derive the current campaign-local stage-wave posture, choose one exact next `execute_stage` step in lawful order, and optionally apply that one step, while leaving workstation execution semantics with the existing scripts, keeping AK binding explicit and separate, and deferring any public campaign-control surface or background autonomy loop.
+
+### Why this follow-on exists
+
+After AK binding landed, the next missing layer is no longer:
+
+- whether the package can reduce one manifest campaign into a compact AK-ready snapshot, or
+- whether the package can plan/apply one exact stage invocation when the caller already chooses the build/stage.
+
+Those are already real.
+
+The next missing layer is:
+
+- which stage-wave is currently active for the manifest-driven campaign
+- which exact stage/build is the next truthful local step
+- whether that next step is currently blocked by missing prerequisites
+- when the manifest's own terminal stage has been materially completed locally without yet claiming AK mutation or benchmark winner semantics
+
+Without that layer, the package has all the ingredients for bounded progression but still makes the operator reconstruct the next step manually.
+
+### Autonomy/lifecycle contract
+
+The bounded contract for this follow-on is now frozen in:
+
+- [manifest campaign autonomy contract](./llamacpp-campaign-autonomy-contract.md)
+
+That contract fixes these rules:
+
+1. the helper derives current autonomy truth fresh from the checked manifest plus current projection state in `src/core/llamacppCampaign.ts`
+2. v1 autonomy is stage-gated across the campaign: stage `41` wave, then stage `42`, then stage `43` when expected
+3. the helper selects exactly one next `execute_stage` step in manifest order within the active stage-wave
+4. apply mode may execute exactly one next step and must then stop
+5. terminal meaning still depends on the highest stage the manifest actually expects, not on a hard-coded assumption that every campaign ends at `43`
+6. the helper must not create a new autonomy artifact, mutate AK, auto-run fork/build prep, or widen into a whole-campaign runner
+
+### Follow-on target for tasks 1693–1695
+
+This campaign-local autonomy follow-on will be landed locally when all of the following are true:
+
+1. `#1693` freezes the exact autonomy/lifecycle contract in package-local docs
+2. `#1694` lands bounded autonomy helpers in `packages/pi-autoresearch/src/core/llamacppCampaign.ts` plus any minimal manifest-tool exposure needed for direct bounded use
+3. those helpers can derive one current autonomy snapshot and plan/apply exactly one next stage step
+4. `#1695` proves phase ordering, next-step selection, blocker surfacing, and one-step-only apply behavior
+5. current-vs-target/runtime/README closure lands later without overstating this slice as public campaign control, AK mutation, or whole-campaign execution
+
+### Explicit non-goals for the campaign-local autonomy follow-on
+
+This follow-on still does **not** include:
+
+- a public operator-facing campaign-control surface
+- direct AK mutation or auto-completion policy
+- whole-campaign `run_until_complete` behavior
+- automatic fork preparation, source checkout, or build compilation
+- benchmark winner selection or semantic receipt interpretation
+- a daemonized or background autonomy loop
