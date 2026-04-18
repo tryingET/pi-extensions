@@ -10,6 +10,13 @@ import {
   formatAutoresearchFinalizationResult,
 } from "../src/core/finalize.ts";
 import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+  executeLlamacppCampaignStage,
+  formatLlamacppCampaignResult,
+  planLlamacppCampaignMatrix,
+  prepareLlamacppCampaignFork,
+} from "../src/core/llamacppCampaign.ts";
+import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -127,6 +134,47 @@ const finalizeSchema = Type.Object({
 
 const directionSchema = Type.Union([Type.Literal("lower"), Type.Literal("higher")], {
   description: "Whether lower or higher metric values are better.",
+});
+
+const campaignActionSchema = Type.Union(
+  [Type.Literal("plan_matrix"), Type.Literal("prepare_fork"), Type.Literal("execute_stage")],
+  {
+    description:
+      "Load a typed llama.cpp benchmark campaign manifest, either expand the exact 41/42/43 branch-lane matrix, plan/apply the fork workspace preparation, or plan/apply one exact stage invocation.",
+  },
+);
+
+const campaignStageSchema = Type.Union(
+  [Type.Literal("41"), Type.Literal("42"), Type.Literal("43")],
+  {
+    description: "Only for action=execute_stage. Select the exact workstation stage to bind.",
+  },
+);
+
+const campaignSchema = Type.Object({
+  action: Type.Optional(campaignActionSchema),
+  cwd: Type.Optional(
+    Type.String({
+      description:
+        "Optional cwd override for manifest loading, fork preparation, and stage execution binding.",
+    }),
+  ),
+  manifestPath: Type.String({
+    description: "Path to the checked campaign manifest JSON relative to cwd or absolute.",
+  }),
+  stage: Type.Optional(campaignStageSchema),
+  buildId: Type.Optional(
+    Type.String({
+      description:
+        "Only for action=execute_stage. Exact manifest-listed build id to bind to the selected stage.",
+    }),
+  ),
+  apply: Type.Optional(
+    Type.Boolean({
+      description:
+        "For action=prepare_fork or action=execute_stage. When true, apply the fork/stage action instead of only printing the plan.",
+    }),
+  ),
 });
 
 const runSchema = Type.Object({
@@ -441,6 +489,58 @@ export function registerPiAutoresearchExtension(
 
       return {
         content: [{ type: "text", text: formatAutoresearchRunResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+    label: "Autoresearch llama.cpp Campaign",
+    description:
+      "Load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, and plan/apply one exact stage invocation against the current workstation scripts.",
+    promptSnippet:
+      "Use this tool when the user wants a deterministic branch/benchmark matrix, fork preparation plan, or one exact 41/42/43 stage binding for a brownfield llama.cpp campaign.",
+    promptGuidelines: [
+      "Use this tool instead of freeform planning when the user names branches, cherry-picks, lanes, or the 41/42/43 workflow.",
+      "Prefer action=plan_matrix before action=execute_stage so branch/lane intent is explicit before script binding.",
+      "Use action=prepare_fork with apply=true only when the user clearly wants the fork workspace created or switched.",
+      "Use action=execute_stage for one exact build/stage, not as a whole-campaign runner.",
+    ],
+    parameters: campaignSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: "plan_matrix" | "prepare_fork" | "execute_stage";
+        cwd?: string;
+        manifestPath: string;
+        stage?: "41" | "42" | "43";
+        buildId?: string;
+        apply?: boolean;
+      };
+      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
+      const action = request.action ?? "plan_matrix";
+      const result =
+        action === "prepare_fork"
+          ? prepareLlamacppCampaignFork({
+              cwd,
+              manifestPath: request.manifestPath,
+              apply: request.apply,
+            })
+          : action === "execute_stage"
+            ? executeLlamacppCampaignStage({
+                cwd,
+                manifestPath: request.manifestPath,
+                stage: request.stage ?? "41",
+                buildId: request.buildId ?? "",
+                apply: request.apply,
+              })
+            : planLlamacppCampaignMatrix({
+                cwd,
+                manifestPath: request.manifestPath,
+              });
+
+      return {
+        content: [{ type: "text", text: formatLlamacppCampaignResult(result) }],
         details: result,
       };
     },

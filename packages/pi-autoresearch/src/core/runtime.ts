@@ -44,6 +44,7 @@ import {
   projectAutoresearchLedgerEntries,
   resolveAutoresearchLedgerPath,
 } from "./ledger.ts";
+import { AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME } from "./llamacppCampaign.ts";
 import {
   AUTORESEARCH_OPERATOR_ACTIONS,
   AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
@@ -193,6 +194,7 @@ export interface AutoresearchRuntimeStatus {
     typeof AUTORESEARCH_RUN_TOOL_NAME,
     typeof AUTORESEARCH_CONTROL_TOOL_NAME,
     typeof AUTORESEARCH_FINALIZE_TOOL_NAME,
+    typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   ];
   localArtifacts: readonly string[];
   receiptEntryTypes: readonly ["config", "run"];
@@ -586,8 +588,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, and bounded finalization orchestration.",
-    "This package now owns bounded finalization planning, approval, and local branch materialization; it still does not own the autonomous loop, AK binding, or remote review choreography.",
+    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded finalization orchestration, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding.",
+    "This package now owns bounded finalization planning, approval, local branch materialization, and checked manifest-driven branch/lane planning plus one exact 41/42/43 stage-binding surface for brownfield llama.cpp workflows; it still does not own the autonomous loop, AK binding, or remote review choreography.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
@@ -597,6 +599,7 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
     "- use autoresearch_runtime_finalize to inspect, plan, approve, and materialize a bounded finalization workflow",
     "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal",
+    `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME} to load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, and plan/apply one exact stage binding`,
     "",
     ...configurationBlock,
     "",
@@ -1507,6 +1510,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
       AUTORESEARCH_RUN_TOOL_NAME,
       AUTORESEARCH_CONTROL_TOOL_NAME,
       AUTORESEARCH_FINALIZE_TOOL_NAME,
+      AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
     ],
     localArtifacts: [...AUTORESEARCH_LOCAL_ARTIFACTS],
     receiptEntryTypes: ["config", "run"],
@@ -1528,7 +1532,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     },
     control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
-    nextSlices: ["ak_campaign_binding", "finalization_status_proof"],
+    nextSlices: ["llamacpp_campaign_receipt_projection", "ak_campaign_binding"],
   };
 }
 
