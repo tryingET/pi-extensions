@@ -61,7 +61,8 @@ The current boundary is now more specific: the package is the runtime owner for 
   - plans or applies one exact stage-scoped `41 | 42 | 43` invocation against the existing workstation scripts
   - writes or refreshes one checked `autoresearch.llamacpp-campaign.json` projection artifact for bounded runtime/help use
   - derives one exact-task AK-ready binding snapshot through `action=build_ak_binding` without mutating AK directly
-  - does **not** become a whole-campaign runner or replace workstation execution ownership
+  - derives or applies exactly one truthful next campaign-local stage step through `action=advance_campaign`
+  - does **not** become a public campaign-control surface, a whole-campaign runner, or a replacement for workstation execution ownership
 
 ### Runtime helpers
 
@@ -77,6 +78,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - stage-scoped execution binding for one exact `41 | 42 | 43` invocation with prerequisite fencing
   - projection artifact derivation, persistence, and refresh logic for `autoresearch.llamacpp-campaign.json`
   - non-mutating AK-binding snapshot + compact details derivation for exact manifest/task anchors
+  - campaign-local autonomy snapshot + one-step advance helper for truthful next-step selection without widening into whole-campaign execution
 - `src/core/ledger.ts`
   - append-only event-ledger entry types and JSONL helpers
   - ledger replay/projector helpers for the campaign machine
@@ -112,16 +114,21 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth, and one non-mutating AK-ready manifest-campaign binding helper layer for exact manifest/task anchors.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth, one non-mutating AK-ready manifest-campaign binding helper layer for exact manifest/task anchors, and one bounded campaign-local autonomy helper layer for truthful one-step stage advancement.
 
 The AK-binding slice is now landed and closed in:
 - [docs/project/llamacpp-campaign-ak-binding-contract.md](./docs/project/llamacpp-campaign-ak-binding-contract.md)
 - [docs/project/llamacpp-campaign-ak-binding-status.md](./docs/project/llamacpp-campaign-ak-binding-status.md)
 
+The campaign-local autonomy slice is now landed and closed in:
+- [docs/project/llamacpp-campaign-autonomy-contract.md](./docs/project/llamacpp-campaign-autonomy-contract.md)
+- [docs/project/llamacpp-campaign-autonomy-status.md](./docs/project/llamacpp-campaign-autonomy-status.md)
+
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
-- the package owns executable runtime state and may derive compact AK-ready snapshots for explicit callers
+- the package owns executable runtime state and may derive compact AK-ready snapshots plus one bounded next-step autonomy view for explicit callers
 - AK still owns durable campaign truth, evidence writes, and any later task completion decision
+- the later public campaign-control surface remains a separate follow-on above this bounded helper layer
 
 ## Current non-goals
 
@@ -130,7 +137,7 @@ This package does **not** yet implement:
 - direct AK writes, fuzzy task lookup, or automatic task completion for the new llama.cpp campaign manifests
 - direct execution of manifest-driven 41/42/43 campaigns end to end
 - semantic interpretation of manifest-stage payloads into benchmark winners, recommendations, or completion truth
-- autonomous resume/loop lifecycle for the new manifest-driven workflow
+- a public operator campaign-control surface or whole-campaign autonomous lifecycle for the new manifest-driven workflow
 - shared higher-order session-control orchestration
 - a second control plane that duplicates workstation `lane-op` or the brownfield 41/42/43 scripts
 

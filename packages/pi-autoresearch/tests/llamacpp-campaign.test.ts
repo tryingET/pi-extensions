@@ -805,6 +805,44 @@ test("buildLlamacppCampaignAutonomy derives stage-gated next-step truth through 
   });
 });
 
+test("buildLlamacppCampaignAutonomy derives truthful terminal completion for 42-only and 41-only manifests", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const payload = readJson<{
+      workflow: {
+        stage41BuildIds: string[];
+        stage42Matrix: Array<{ buildId: string; laneIds: string[] }>;
+        stage43BuildIds: string[];
+      };
+    }>(manifestPath);
+
+    payload.workflow.stage43BuildIds = [];
+    writeFile(manifestPath, `${JSON.stringify(payload, null, 2)}\n`);
+    for (const buildId of ["A", "B", "C", "D", "E"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId, apply: true });
+    }
+    for (const buildId of ["A", "B", "C"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId, apply: true });
+    }
+    let autonomy = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 5 });
+    assert.equal(autonomy.manifest.terminalStage, 42);
+    assert.equal(autonomy.lifecycle.phase, "terminal_stage_complete");
+    assert.equal(autonomy.lifecycle.terminalStageMaterialized, true);
+    assert.equal(autonomy.nextStep.action, "none");
+
+    payload.workflow.stage42Matrix = [];
+    writeFile(manifestPath, `${JSON.stringify(payload, null, 2)}\n`);
+    autonomy = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 6 });
+    assert.equal(autonomy.manifest.terminalStage, 41);
+    assert.equal(autonomy.lifecycle.phase, "terminal_stage_complete");
+    assert.equal(autonomy.lifecycle.terminalStageMaterialized, true);
+    assert.equal(autonomy.nextStep.action, "none");
+  });
+});
+
 test("buildLlamacppCampaignAutonomy surfaces blocked next steps without widening into hidden prep", async () => {
   await withTempDir((cwd) => {
     const sourceRepo = initSourceRepo(cwd);
@@ -844,6 +882,34 @@ test("advanceLlamacppCampaign applies exactly one next step and stops", async ()
     const after = buildLlamacppCampaignAutonomy({ cwd, manifestPath, updatedAt: 2 });
     assert.equal(after.nextStep.stage, 41);
     assert.equal(after.nextStep.buildId, "B");
+  });
+});
+
+test("advanceLlamacppCampaign fails closed in apply mode after terminal-stage completion", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    for (const buildId of ["A", "B", "C", "D", "E"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId, apply: true });
+    }
+    for (const buildId of ["A", "B", "C"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId, apply: true });
+    }
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "43", buildId: "C", apply: true });
+
+    const planned = advanceLlamacppCampaign({ cwd, manifestPath, updatedAt: 7 });
+    assert.equal(planned.mode, "plan");
+    assert.equal(planned.autonomy.lifecycle.phase, "terminal_stage_complete");
+    assert.equal(planned.executedStep, null);
+    assert.equal(planned.autonomy.nextStep.action, "none");
+
+    assert.throws(
+      () => advanceLlamacppCampaign({ cwd, manifestPath, apply: true, updatedAt: 8 }),
+      /has no further executable next step because terminal stage 43 is already materially complete/,
+    );
   });
 });
 

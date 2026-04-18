@@ -619,7 +619,7 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "# /autoresearch",
     "",
     "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded finalization orchestration, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection, exact-task AK-binding snapshot derivation, and one-step campaign-local advancement.",
-    "This package now owns bounded finalization planning, approval, local branch materialization, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, one projection-only llama.cpp campaign status artifact, one non-mutating AK-ready manifest-campaign binding helper, and one bounded one-step campaign-local advance helper for brownfield workflows; it still does not own the autonomous loop, direct AK mutation policy, or remote review choreography.",
+    "This package now owns bounded finalization planning, approval, local branch materialization, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, one projection-only llama.cpp campaign status artifact, one non-mutating AK-ready manifest-campaign binding helper, and one bounded one-step campaign-local advance helper for brownfield workflows; it still does not own a public manifest campaign-control surface, the autonomous loop, direct AK mutation policy, or remote review choreography.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,

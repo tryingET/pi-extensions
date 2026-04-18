@@ -816,9 +816,14 @@ export function advanceLlamacppCampaign(input: {
   const action = state.autonomy.nextStep.action;
 
   if (action === "none") {
+    if (input.apply) {
+      throw new LlamacppCampaignManifestError(
+        `manifest ${state.autonomy.manifest.campaignId} has no further executable next step because terminal stage ${state.autonomy.manifest.terminalStage} is already materially complete`,
+      );
+    }
     return {
       action: "advance_campaign",
-      mode: input.apply ? "apply" : "plan",
+      mode: "plan",
       autonomy: state.autonomy,
       executedStep: null,
       nextAction: `Local campaign execution is already complete for manifest ${state.autonomy.manifest.campaignId}; if an exact AK task id exists, a caller above the package may now choose whether to derive or record AK-ready evidence explicitly.`,

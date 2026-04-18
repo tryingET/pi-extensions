@@ -373,6 +373,11 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
   assert.match(formatAutoresearchStatusText(status), /next slices: \(none currently committed\)/);
   assert.match(buildAutoresearchHelpText(status), /derive one exact AK-ready binding snapshot/);
+  assert.match(buildAutoresearchHelpText(status), /one truthful next campaign-local stage step/);
+  assert.match(
+    buildAutoresearchHelpText(status),
+    /does not own a public manifest campaign-control surface/,
+  );
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
   assert.match(buildAutoresearchHelpText(status), /none currently committed in current-vs-target/);
   assert.equal(
