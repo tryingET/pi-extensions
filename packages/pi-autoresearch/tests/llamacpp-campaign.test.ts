@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { registerPiAutoresearchExtension } from "../extensions/pi-autoresearch.ts";
 import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION,
@@ -14,8 +15,11 @@ import {
   buildLlamacppCampaignAkBinding,
   buildLlamacppCampaignAkBindingDetails,
   buildLlamacppCampaignAutonomy,
+  executeLlamacppCampaignControl,
   executeLlamacppCampaignStage,
+  formatLlamacppCampaignControlResult,
   formatLlamacppCampaignResult,
+  inspectLlamacppCampaignControl,
   loadLlamacppCampaignProjectionState,
   persistLlamacppCampaignProjection,
   planLlamacppCampaignMatrix,
@@ -913,6 +917,67 @@ test("advanceLlamacppCampaign fails closed in apply mode after terminal-stage co
   });
 });
 
+test("inspectLlamacppCampaignControl composes public status with optional exact-task context", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    const unbound = inspectLlamacppCampaignControl({ cwd, manifestPath, updatedAt: 1 });
+    assert.equal(unbound.action, "status");
+    assert.equal(unbound.control.public.taskBound, false);
+    assert.equal(unbound.control.akBinding, null);
+    assert.equal(unbound.control.public.nextStepAction, "advance");
+    assert.equal(unbound.control.autonomy.nextStep.stage, 41);
+    assert.equal(unbound.control.autonomy.nextStep.buildId, "A");
+    assert.match(
+      formatLlamacppCampaignControlResult(unbound),
+      /PI-AUTORESEARCH LLAMACPP CAMPAIGN CONTROL/,
+    );
+    assert.match(unbound.nextAction, /action=advance/);
+
+    const bound = inspectLlamacppCampaignControl({
+      cwd,
+      manifestPath,
+      taskId: 1698,
+      updatedAt: 2,
+    });
+    assert.equal(bound.control.public.taskBound, true);
+    assert.equal(bound.control.akBinding?.taskId, 1698);
+    assert.equal(bound.control.public.completionCandidate, false);
+    assert.match(bound.control.public.reason, /next truthful public campaign-control step/);
+  });
+});
+
+test("executeLlamacppCampaignControl applies one step and refreshes public control", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const receiptRootPath = path.join(workstationRepo, "phasee/receipts/llamacpp-wave-001");
+
+    const result = executeLlamacppCampaignControl({
+      cwd,
+      manifestPath,
+      taskId: 1698,
+      apply: true,
+      updatedAt: 3,
+    });
+    assert.equal(result.action, "advance");
+    assert.equal(result.mode, "apply");
+    assert.equal(result.executedStep?.stage, "41");
+    assert.equal(result.executedStep?.buildId, "A");
+    assert.equal(existsSync(path.join(receiptRootPath, "A-stage41-validation.json")), true);
+    assert.equal(result.control.public.taskBound, true);
+    assert.equal(result.control.autonomy.nextStep.stage, 41);
+    assert.equal(result.control.autonomy.nextStep.buildId, "B");
+    assert.equal(result.control.public.nextStepAction, "advance");
+    assert.match(result.nextAction, /action=advance/);
+  });
+});
+
 test("execution binding fails closed when the receipt root escapes the workstation repo", async () => {
   await withTempDir((cwd) => {
     const sourceRepo = initSourceRepo(cwd);
@@ -949,6 +1014,73 @@ test("manifest validation rejects invalid cherry-pick provenance", async () => {
     assert.throws(
       () => planLlamacppCampaignMatrix({ cwd, manifestPath }),
       /invalid git commit-ish/,
+    );
+  });
+});
+
+test("extension registers the public llama.cpp campaign-control tool and enforces its bounded contract", async () => {
+  await withTempDir(async (cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME);
+    assert.ok(tool);
+
+    const statusResult = await tool?.execute(
+      "campaign-control-status-1",
+      {
+        action: "status",
+        cwd,
+        manifestPath,
+        taskId: 1698,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    const statusText = statusResult?.content[0]?.text ?? "";
+    assert.match(statusText, /action: status/);
+    assert.match(statusText, /task bound: yes/);
+    assert.match(statusText, /next step action: advance/);
+    assert.match(statusText, /## Projection/);
+    assert.match(statusText, /overall state: planned_only/);
+
+    const advanceResult = await tool?.execute(
+      "campaign-control-advance-1",
+      {
+        action: "advance",
+        cwd,
+        manifestPath,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    const advanceText = advanceResult?.content[0]?.text ?? "";
+    assert.match(advanceText, /action: advance/);
+    assert.match(advanceText, /mode: plan/);
+    assert.match(advanceText, /build: A/);
+    assert.match(advanceText, /## Projection/);
+
+    await assert.rejects(
+      () =>
+        tool?.execute(
+          "campaign-control-status-invalid",
+          {
+            action: "status",
+            cwd,
+            manifestPath,
+            apply: true,
+          },
+          undefined,
+          undefined,
+          { cwd },
+        ) ?? Promise.reject(new Error("tool missing")),
+      /apply=true is only supported with action=advance/,
     );
   });
 });

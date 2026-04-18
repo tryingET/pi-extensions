@@ -45,6 +45,7 @@ import {
   resolveAutoresearchLedgerPath,
 } from "./ledger.ts";
 import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   type LlamacppCampaignProjectionOverallState,
@@ -218,6 +219,7 @@ export interface AutoresearchRuntimeStatus {
     typeof AUTORESEARCH_CONTROL_TOOL_NAME,
     typeof AUTORESEARCH_FINALIZE_TOOL_NAME,
     typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+    typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   ];
   localArtifacts: readonly string[];
   receiptEntryTypes: readonly ["config", "run"];
@@ -618,8 +620,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded finalization orchestration, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection, exact-task AK-binding snapshot derivation, and one-step campaign-local advancement.",
-    "This package now owns bounded finalization planning, approval, local branch materialization, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, one projection-only llama.cpp campaign status artifact, one non-mutating AK-ready manifest-campaign binding helper, and one bounded one-step campaign-local advance helper for brownfield workflows; it still does not own a public manifest campaign-control surface. The later public `autoresearch_llamacpp_campaign_control` seam is now contract-frozen in `docs/project/llamacpp-campaign-control-surface-contract.md`, but it is not implemented yet; the current package still does not own the autonomous loop, direct AK mutation policy, or remote review choreography.",
+    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded finalization orchestration, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection, exact-task AK-binding snapshot derivation, one-step campaign-local advancement, and one dedicated public manifest campaign-control seam.",
+    "This package now owns bounded finalization planning, approval, local branch materialization, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, one projection-only llama.cpp campaign status artifact, one non-mutating AK-ready manifest-campaign binding helper, one bounded one-step campaign-local advance helper, and one dedicated public `autoresearch_llamacpp_campaign_control` seam for current status plus one-step public advancement with optional exact-task AK context. The technical `autoresearch_llamacpp_campaign` tool remains available below that public seam for raw matrix/fork/stage actions; the current package still does not own the autonomous loop, direct AK mutation policy, whole-campaign execution, or remote review choreography.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
@@ -629,7 +631,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
     "- use autoresearch_runtime_finalize to inspect, plan, approve, and materialize a bounded finalization workflow",
     "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal",
-    `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME} to load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, plan/apply one exact stage binding, derive one exact AK-ready binding snapshot, or plan/apply exactly one truthful next campaign-local stage step`,
+    `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME} for the public manifest campaign-control seam: current status, optional exact-task AK context, and one-step public advance without raw stage/build inputs`,
+    `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME} for lower-level technical manifest work such as branch/lane matrix planning, fork preparation, raw stage binding, exact AK-ready snapshots, or technical one-step advancement`,
     "",
     ...configurationBlock,
     "",
@@ -1584,6 +1587,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
       AUTORESEARCH_CONTROL_TOOL_NAME,
       AUTORESEARCH_FINALIZE_TOOL_NAME,
       AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+      AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
     ],
     localArtifacts: [...AUTORESEARCH_LOCAL_ARTIFACTS],
     receiptEntryTypes: ["config", "run"],
@@ -1606,7 +1610,9 @@ function buildAutoresearchRuntimeStatusFromEntries(
     control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
     llamacppCampaignProjection,
-    nextSlices: [],
+    nextSlices: [
+      "proof/status closure for public `autoresearch_llamacpp_campaign_control` surface (`#1699`)",
+    ],
   };
 }
 

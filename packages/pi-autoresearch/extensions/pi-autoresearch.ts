@@ -10,12 +10,16 @@ import {
   formatAutoresearchFinalizationResult,
 } from "../src/core/finalize.ts";
 import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   advanceLlamacppCampaign,
   buildLlamacppCampaignAkBinding,
   buildLlamacppCampaignAkBindingDetails,
+  executeLlamacppCampaignControl,
   executeLlamacppCampaignStage,
+  formatLlamacppCampaignControlResult,
   formatLlamacppCampaignResult,
+  inspectLlamacppCampaignControl,
   persistLlamacppCampaignProjection,
   planLlamacppCampaignMatrix,
   prepareLlamacppCampaignFork,
@@ -190,6 +194,37 @@ const campaignSchema = Type.Object({
       description:
         "Only for action=build_ak_binding. Exact AK task id that this manifest campaign should reduce into a compact binding snapshot.",
       minimum: 1,
+    }),
+  ),
+});
+
+const campaignControlActionSchema = Type.Union([Type.Literal("status"), Type.Literal("advance")], {
+  description:
+    "Inspect the bounded public campaign-control posture for one manifest-driven llama.cpp campaign, or plan/apply exactly one truthful next step without raw stage/build inputs.",
+});
+
+const campaignControlSchema = Type.Object({
+  action: Type.Optional(campaignControlActionSchema),
+  cwd: Type.Optional(
+    Type.String({
+      description:
+        "Optional cwd override for manifest loading and public campaign-control actions.",
+    }),
+  ),
+  manifestPath: Type.String({
+    description: "Path to the checked campaign manifest JSON relative to cwd or absolute.",
+  }),
+  taskId: Type.Optional(
+    Type.Number({
+      description:
+        "Optional exact AK task id for composing exact-task AK-binding context into the public control snapshot.",
+      minimum: 1,
+    }),
+  ),
+  apply: Type.Optional(
+    Type.Boolean({
+      description:
+        "Only for action=advance. When true, apply exactly one truthful next step instead of only planning it.",
     }),
   ),
 });
@@ -512,19 +547,92 @@ export function registerPiAutoresearchExtension(
   });
 
   pi.registerTool({
+    name: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
+    label: "Autoresearch llama.cpp Campaign Control",
+    description:
+      "Public consumer/control seam for one manifest-driven llama.cpp campaign: inspect current control posture, optionally compose exact-task AK-binding context, and plan/apply exactly one truthful next step without raw stage/build inputs.",
+    promptSnippet:
+      "Use this tool when the user wants the bounded public campaign-control surface for a manifest-driven llama.cpp campaign rather than the lower-level technical helper actions.",
+    promptGuidelines: [
+      "Use this tool when the caller wants current campaign-control status or one-step advancement without choosing raw stage/build inputs.",
+      "Use taskId only when the caller already has an exact AK task id and wants optional AK-ready completion context; do not guess tasks.",
+      "Use action=advance with apply=true only when the caller clearly wants exactly one next step executed.",
+      "Keep this surface below whole-campaign execution, fork automation, and direct AK mutation.",
+    ],
+    parameters: campaignControlSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: "status" | "advance";
+        cwd?: string;
+        manifestPath: string;
+        taskId?: number;
+        apply?: boolean;
+      };
+      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
+      const action = request.action ?? "status";
+      const updatedAt = Date.now();
+
+      if (action === "status" && request.apply === true) {
+        throw new Error(
+          "apply=true is only supported with action=advance for autoresearch_llamacpp_campaign_control",
+        );
+      }
+
+      const result =
+        action === "advance"
+          ? executeLlamacppCampaignControl({
+              cwd,
+              manifestPath: request.manifestPath,
+              taskId: request.taskId,
+              apply: request.apply,
+              updatedAt,
+            })
+          : inspectLlamacppCampaignControl({
+              cwd,
+              manifestPath: request.manifestPath,
+              taskId: request.taskId,
+              updatedAt,
+            });
+      const projection = persistLlamacppCampaignProjection({
+        cwd,
+        manifestPath: request.manifestPath,
+        updatedAt,
+      });
+      const text = [
+        formatLlamacppCampaignControlResult(result),
+        "",
+        "## Projection",
+        `- path: ${projection.path}`,
+        `- campaign: ${projection.projection.manifest.campaignId}`,
+        `- overall state: ${projection.projection.status.overallState}`,
+      ].join("\n");
+
+      return {
+        content: [{ type: "text", text }],
+        details: {
+          ...result,
+          projectionPath: projection.path,
+          projection: projection.projection,
+        },
+      };
+    },
+  });
+
+  pi.registerTool({
     name: AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
     label: "Autoresearch llama.cpp Campaign",
     description:
-      "Load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, plan/apply one exact stage invocation, or derive one exact AK-ready binding snapshot for an anchored task. This remains the technical manifest-helper surface below the later public autoresearch_llamacpp_campaign_control seam.",
+      "Load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, plan/apply one exact stage invocation, or derive one exact AK-ready binding snapshot for an anchored task. This remains the technical manifest-helper surface below the public autoresearch_llamacpp_campaign_control seam.",
     promptSnippet:
-      "Use this tool when the user wants a deterministic branch/benchmark matrix, fork preparation plan, one exact 41/42/43 stage binding, or one exact AK-ready milestone snapshot for a brownfield llama.cpp campaign. This is the technical helper seam, not the later dedicated public control tool.",
+      "Use this tool when the user wants a deterministic branch/benchmark matrix, fork preparation plan, one exact 41/42/43 stage binding, or one exact AK-ready milestone snapshot for a brownfield llama.cpp campaign. This is the lower-level technical helper seam, not the dedicated public control tool.",
     promptGuidelines: [
+      "Use autoresearch_llamacpp_campaign_control instead when the caller wants the bounded public control/status seam without raw stage/build inputs.",
       "Use this tool instead of freeform planning when the user names branches, cherry-picks, lanes, or the 41/42/43 workflow.",
       "Prefer action=plan_matrix before action=execute_stage so branch/lane intent is explicit before script binding.",
       "Use action=prepare_fork with apply=true only when the user clearly wants the fork workspace created or switched.",
       "Use action=execute_stage for one exact build/stage, not as a whole-campaign runner.",
       "Use action=build_ak_binding only when the user already has an exact AK task id and wants a compact AK-ready snapshot rather than an AK mutation.",
-      "Use action=advance_campaign to derive or execute exactly one truthful next stage step; it is still not the dedicated public autoresearch_llamacpp_campaign_control surface or a whole-campaign runner.",
+      "Use action=advance_campaign to derive or execute exactly one truthful next stage step; it is still a technical helper action rather than the public autoresearch_llamacpp_campaign_control surface or a whole-campaign runner.",
     ],
     parameters: campaignSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -696,7 +804,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
+      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, autoresearch_llamacpp_campaign_control for public manifest campaign status/next-step control, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
       "info",
     );
   }

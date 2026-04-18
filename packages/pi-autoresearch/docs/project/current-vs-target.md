@@ -345,10 +345,14 @@ Primary artifact:
 Current status:
 
 - campaign-local autonomy is now the landed technical baseline for this concern
-- `#1697` has now frozen the bounded public consumer/control contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`
-- the intended public seam is a dedicated `autoresearch_llamacpp_campaign_control` tool above the existing technical `autoresearch_llamacpp_campaign` actions
-- implementation/proof remain pending in `#1698` / `#1699`
-- this future public seam is still bounded to current status + one-step advance + optional exact-task AK-binding context; it is not a whole-campaign runner or direct AK mutation surface
+- `#1697` froze the bounded public consumer/control contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`
+- `#1698` has now landed the bounded implementation:
+  - dedicated public `autoresearch_llamacpp_campaign_control` tool
+  - public current-status composition above autonomy + optional exact-task AK-binding helpers
+  - public one-step `advance` plan/apply behavior without raw `stage` / `buildId` inputs
+  - runtime/help/README truth that now distinguishes the public seam from the lower-level technical `autoresearch_llamacpp_campaign` tool
+- `#1699` still remains open for proof/status closure and final current-vs-target completion
+- this public seam is still bounded to current status + one-step advance + optional exact-task AK-binding context; it is not a whole-campaign runner or direct AK mutation surface
 
 ## What must stay true while implementing
 

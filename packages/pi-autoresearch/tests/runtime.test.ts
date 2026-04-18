@@ -18,6 +18,7 @@ import {
   type SetupDecisionOutcome,
 } from "../src/core/decisions.ts";
 import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION,
@@ -348,6 +349,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     AUTORESEARCH_CONTROL_TOOL_NAME,
     AUTORESEARCH_FINALIZE_TOOL_NAME,
     AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+    AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   ]);
   assert.deepEqual(status.localArtifacts, [...AUTORESEARCH_LOCAL_ARTIFACTS]);
   assert.equal(status.currentSegment.configured, false);
@@ -366,20 +368,30 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
       "autoresearch.llamacpp-campaign.json",
     ),
   );
-  assert.deepEqual(status.nextSlices, []);
+  assert.deepEqual(status.nextSlices, [
+    "proof/status closure for public `autoresearch_llamacpp_campaign_control` surface (`#1699`)",
+  ]);
   assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
   assert.match(formatAutoresearchStatusText(status), /machine state: segment_unconfigured/);
   assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
-  assert.match(formatAutoresearchStatusText(status), /next slices: \(none currently committed\)/);
-  assert.match(buildAutoresearchHelpText(status), /derive one exact AK-ready binding snapshot/);
-  assert.match(buildAutoresearchHelpText(status), /one truthful next campaign-local stage step/);
+  assert.match(
+    formatAutoresearchStatusText(status),
+    /next slices: proof\/status closure for public `autoresearch_llamacpp_campaign_control` surface/,
+  );
+  assert.match(buildAutoresearchHelpText(status), /exact-task AK-binding snapshot derivation/);
+  assert.match(buildAutoresearchHelpText(status), /one-step campaign-local advancement/);
   assert.match(
     buildAutoresearchHelpText(status),
-    /does not own a public manifest campaign-control surface/,
+    /dedicated public manifest campaign-control seam/,
   );
+  assert.match(buildAutoresearchHelpText(status), /autoresearch_llamacpp_campaign_control/);
+  assert.match(buildAutoresearchHelpText(status), /lower-level technical manifest work/);
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
-  assert.match(buildAutoresearchHelpText(status), /none currently committed in current-vs-target/);
+  assert.match(
+    buildAutoresearchHelpText(status),
+    /proof\/status closure for public `autoresearch_llamacpp_campaign_control` surface/,
+  );
   assert.equal(
     buildAutoresearchHelpText(status).includes("llamacpp_campaign_projection_proof"),
     false,
@@ -475,7 +487,7 @@ test("buildAutoresearchRuntimeStatus marks the llama.cpp campaign projection sta
     assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: stale/);
   }));
 
-test("extension registers /autoresearch plus the bounded runtime status, control, finalize, run, and llama.cpp campaign tools", () => {
+test("extension registers /autoresearch plus the bounded runtime status, control, finalize, run, technical llama.cpp campaign, and public campaign-control tools", () => {
   const { commands, tools } = registerHarness();
 
   assert.equal(typeof commands.get(AUTORESEARCH_COMMAND_NAME)?.handler, "function");
@@ -484,6 +496,10 @@ test("extension registers /autoresearch plus the bounded runtime status, control
   assert.equal(typeof tools.get(AUTORESEARCH_FINALIZE_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME)?.execute, "function");
+  assert.equal(
+    typeof tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME)?.execute,
+    "function",
+  );
 });
 
 test("/autoresearch opens the bounded-runtime overview", async () => {

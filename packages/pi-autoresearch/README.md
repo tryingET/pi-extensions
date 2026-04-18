@@ -54,6 +54,12 @@ The current boundary is now more specific: the package is the runtime owner for 
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
   - appends machine/event entries to `autoresearch.events.jsonl`
+- `autoresearch_llamacpp_campaign_control`
+  - is the dedicated public consumer/control seam for one manifest-driven llama.cpp campaign
+  - returns current public control status for one exact checked manifest
+  - may compose one exact-task AK-ready binding snapshot when the caller already knows the task id
+  - plans or applies exactly one truthful next campaign-local step without requiring raw `stage` / `buildId` inputs
+  - stays below direct AK mutation, whole-campaign execution, and workstation-owned stage semantics
 - `autoresearch_llamacpp_campaign`
   - loads a typed llama.cpp benchmark campaign manifest
   - expands the exact brownfield `phasee/41-43` branch/lane matrix without re-deriving it from chat prose
@@ -62,7 +68,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - writes or refreshes one checked `autoresearch.llamacpp-campaign.json` projection artifact for bounded runtime/help use
   - derives one exact-task AK-ready binding snapshot through `action=build_ak_binding` without mutating AK directly
   - derives or applies exactly one truthful next campaign-local stage step through `action=advance_campaign`
-  - remains the technical manifest-helper surface below the later public `autoresearch_llamacpp_campaign_control` seam
+  - remains the lower-level technical manifest-helper surface below `autoresearch_llamacpp_campaign_control`
   - does **not** become a whole-campaign runner or a replacement for workstation execution ownership
 
 ### Runtime helpers
@@ -80,6 +86,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - projection artifact derivation, persistence, and refresh logic for `autoresearch.llamacpp-campaign.json`
   - non-mutating AK-binding snapshot + compact details derivation for exact manifest/task anchors
   - campaign-local autonomy snapshot + one-step advance helper for truthful next-step selection without widening into whole-campaign execution
+  - dedicated public campaign-control composition helpers above the autonomy + AK-binding seams
 - `src/core/ledger.ts`
   - append-only event-ledger entry types and JSONL helpers
   - ledger replay/projector helpers for the campaign machine
@@ -130,20 +137,18 @@ The next bounded public campaign-control follow-on is now contract-frozen in:
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
-- the package owns executable runtime state and may derive compact AK-ready snapshots plus one bounded next-step autonomy view for explicit callers
+- the package owns executable runtime state and may derive compact AK-ready snapshots, one bounded next-step autonomy view, and one bounded public campaign-control view for explicit callers
 - AK still owns durable campaign truth, evidence writes, and any later task completion decision
-- the later public `autoresearch_llamacpp_campaign_control` surface remains a separate follow-on above the current technical helper layer and is not implemented yet
+- `autoresearch_llamacpp_campaign_control` is now the public consumer/control seam, while `autoresearch_llamacpp_campaign` remains the lower-level technical helper surface
 
-## Next bounded public campaign-control follow-on
+## Bounded public campaign-control surface
 
-The next public/consumer seam for this concern is intended to be:
+The public/consumer seam for this concern is now:
 
 - tool: `autoresearch_llamacpp_campaign_control`
 - contract: [docs/project/llamacpp-campaign-control-surface-contract.md](./docs/project/llamacpp-campaign-control-surface-contract.md)
 - bounded role: current control status + one-step public advance + optional exact-task AK-binding context
-- still pending: implementation/proof in `#1698` / `#1699`
-
-Until that follow-on lands, `autoresearch_llamacpp_campaign` remains the lower-level technical helper surface for expert/manual workflows.
+- current task posture: implementation landed in `#1698`; proof/status closure still pending in `#1699`
 
 ## Current non-goals
 
@@ -152,7 +157,7 @@ This package does **not** yet implement:
 - direct AK writes, fuzzy task lookup, or automatic task completion for the new llama.cpp campaign manifests
 - direct execution of manifest-driven 41/42/43 campaigns end to end
 - semantic interpretation of manifest-stage payloads into benchmark winners, recommendations, or completion truth
-- a public operator campaign-control surface or whole-campaign autonomous lifecycle for the new manifest-driven workflow
+- a broader public/autonomous whole-campaign control plane beyond the bounded one-step manifest campaign-control surface
 - shared higher-order session-control orchestration
 - a second control plane that duplicates workstation `lane-op` or the brownfield 41/42/43 scripts
 

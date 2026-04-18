@@ -4,6 +4,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME = "autoresearch_llamacpp_campaign";
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME =
+  "autoresearch_llamacpp_campaign_control";
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND = "pi-autoresearch-llamacpp-campaign" as const;
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION = 1 as const;
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_WORKFLOW_KIND = "phasee-41-43" as const;
@@ -20,6 +22,9 @@ export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_DETAILS_VERSION = 1 as co
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_OWNER = "pi-autoresearch" as const;
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AUTONOMY_KIND = "llamacpp_campaign_autonomy" as const;
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AUTONOMY_VERSION = 1 as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_KIND =
+  "llamacpp_campaign_control_surface" as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_VERSION = 1 as const;
 
 const GIT_COMMIT_RE = /^[0-9a-f]{7,40}$/i;
 const PYTHON_EXECUTABLE = "python3";
@@ -435,6 +440,33 @@ export interface AdvanceLlamacppCampaignResult {
   action: "advance_campaign";
   mode: "plan" | "apply";
   autonomy: LlamacppCampaignAutonomyV1;
+  executedStep: ExecuteLlamacppCampaignStageResult | null;
+  nextAction: string;
+}
+
+export interface LlamacppCampaignControlSurfaceV1 {
+  type: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_KIND;
+  version: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_VERSION;
+  autonomy: LlamacppCampaignAutonomyV1;
+  akBinding: LlamacppCampaignAkBindingV1 | null;
+  public: {
+    taskBound: boolean;
+    nextStepAction: "advance" | "none";
+    completionCandidate: boolean;
+    reason: string;
+  };
+}
+
+export interface InspectLlamacppCampaignControlResult {
+  action: "status";
+  control: LlamacppCampaignControlSurfaceV1;
+  nextAction: string;
+}
+
+export interface ExecuteLlamacppCampaignControlResult {
+  action: "advance";
+  mode: "plan" | "apply";
+  control: LlamacppCampaignControlSurfaceV1;
   executedStep: ExecuteLlamacppCampaignStageResult | null;
   nextAction: string;
 }
@@ -872,6 +904,98 @@ export function advanceLlamacppCampaign(input: {
   };
 }
 
+export function buildLlamacppCampaignControlSurface(input: {
+  cwd: string;
+  manifestPath: string;
+  taskId?: number;
+  updatedAt?: number;
+  autonomy?: LlamacppCampaignAutonomyV1;
+}): LlamacppCampaignControlSurfaceV1 {
+  const autonomy =
+    input.autonomy ??
+    buildLlamacppCampaignAutonomy({
+      cwd: input.cwd,
+      manifestPath: input.manifestPath,
+      updatedAt: input.updatedAt,
+    });
+  const akBinding =
+    input.taskId === undefined
+      ? null
+      : buildLlamacppCampaignAkBinding({
+          cwd: input.cwd,
+          manifestPath: input.manifestPath,
+          taskId: input.taskId,
+          updatedAt: input.updatedAt,
+        });
+
+  return {
+    type: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_KIND,
+    version: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_VERSION,
+    autonomy,
+    akBinding,
+    public: {
+      taskBound: akBinding !== null,
+      nextStepAction: autonomy.nextStep.action === "execute_stage" ? "advance" : "none",
+      completionCandidate: akBinding?.lifecycle.action === "complete_task_candidate",
+      reason: buildLlamacppCampaignControlReason(autonomy, akBinding),
+    },
+  };
+}
+
+export function inspectLlamacppCampaignControl(input: {
+  cwd: string;
+  manifestPath: string;
+  taskId?: number;
+  updatedAt?: number;
+}): InspectLlamacppCampaignControlResult {
+  const control = buildLlamacppCampaignControlSurface(input);
+  return {
+    action: "status",
+    control,
+    nextAction: buildLlamacppCampaignControlNextAction(control, "status"),
+  };
+}
+
+export function executeLlamacppCampaignControl(input: {
+  cwd: string;
+  manifestPath: string;
+  taskId?: number;
+  apply?: boolean;
+  updatedAt?: number;
+}): ExecuteLlamacppCampaignControlResult {
+  const advance = advanceLlamacppCampaign({
+    cwd: input.cwd,
+    manifestPath: input.manifestPath,
+    apply: input.apply,
+    updatedAt: input.updatedAt,
+  });
+  const control =
+    advance.mode === "apply"
+      ? buildLlamacppCampaignControlSurface({
+          cwd: input.cwd,
+          manifestPath: input.manifestPath,
+          taskId: input.taskId,
+        })
+      : buildLlamacppCampaignControlSurface({
+          cwd: input.cwd,
+          manifestPath: input.manifestPath,
+          taskId: input.taskId,
+          updatedAt: input.updatedAt,
+          autonomy: advance.autonomy,
+        });
+
+  return {
+    action: "advance",
+    mode: advance.mode,
+    control,
+    executedStep: advance.executedStep,
+    nextAction: buildLlamacppCampaignControlNextAction(
+      control,
+      advance.mode === "apply" ? "apply" : "plan",
+    ),
+  };
+}
+
 export function planLlamacppCampaignMatrix(input: {
   cwd: string;
   manifestPath: string;
@@ -1098,6 +1222,67 @@ export function executeLlamacppCampaignStage(input: {
     build,
     apply: input.apply,
   });
+}
+
+export function formatLlamacppCampaignControlResult(
+  result: InspectLlamacppCampaignControlResult | ExecuteLlamacppCampaignControlResult,
+): string {
+  const akBindingLines = result.control.akBinding
+    ? [
+        `- task id: ${result.control.akBinding.taskId}`,
+        `- milestone: ${result.control.akBinding.ak.milestone}`,
+        `- completion eligible: ${result.control.akBinding.lifecycle.completionEligible ? "yes" : "no"}`,
+        `- lifecycle action: ${result.control.akBinding.lifecycle.action}`,
+        `- projection key: ${result.control.akBinding.projection.projectionKey}`,
+      ]
+    : ["- (not bound to an exact AK task id)"];
+  const selectedStepLines =
+    result.action === "advance"
+      ? result.executedStep
+        ? [
+            `- stage: ${result.executedStep.stage}`,
+            `- build: ${result.executedStep.buildId}`,
+            `- mode: ${result.executedStep.mode}`,
+            `- command: ${formatCommand(result.executedStep.command.command, result.executedStep.command.cwd)}`,
+            `- warnings: ${result.executedStep.warnings.length > 0 ? result.executedStep.warnings.join(" | ") : "none"}`,
+          ]
+        : ["- none"]
+      : [];
+
+  return [
+    "# PI-AUTORESEARCH LLAMACPP CAMPAIGN CONTROL",
+    "",
+    `- action: ${result.action}`,
+    ...("mode" in result ? [`- mode: ${result.mode}`] : []),
+    `- manifest: ${result.control.autonomy.manifest.path}`,
+    `- campaign: ${result.control.autonomy.manifest.campaignId}`,
+    `- terminal stage: ${result.control.autonomy.manifest.terminalStage}`,
+    `- receipt root: ${result.control.autonomy.manifest.receiptRootPath}`,
+    `- overall state: ${result.control.autonomy.projection.overallState}`,
+    "",
+    "## Public control",
+    `- task bound: ${result.control.public.taskBound ? "yes" : "no"}`,
+    `- next step action: ${result.control.public.nextStepAction}`,
+    `- completion candidate: ${result.control.public.completionCandidate ? "yes" : "no"}`,
+    `- reason: ${result.control.public.reason}`,
+    "",
+    "## Autonomy",
+    `- phase: ${result.control.autonomy.lifecycle.phase}`,
+    `- terminal stage materialized: ${result.control.autonomy.lifecycle.terminalStageMaterialized ? "yes" : "no"}`,
+    `- lifecycle reason: ${result.control.autonomy.lifecycle.reason}`,
+    "",
+    "## Next step",
+    `- action: ${result.control.autonomy.nextStep.action}`,
+    `- stage: ${result.control.autonomy.nextStep.stage ?? "(none)"}`,
+    `- build: ${result.control.autonomy.nextStep.buildId ?? "(none)"}`,
+    `- reason: ${result.control.autonomy.nextStep.reason}`,
+    "",
+    "## AK context",
+    ...akBindingLines,
+    ...(result.action === "advance" ? ["", "## Selected step", ...selectedStepLines] : []),
+    "",
+    `- next step: ${result.nextAction}`,
+  ].join("\n");
 }
 
 export function formatLlamacppCampaignResult(
@@ -1997,6 +2182,50 @@ function getLlamacppCampaignAutonomyStageCounts(
     expected: stages.stage43ExpectedBuilds,
     completed: stages.stage43CompletedBuilds,
   };
+}
+
+function buildLlamacppCampaignControlReason(
+  autonomy: LlamacppCampaignAutonomyV1,
+  akBinding: LlamacppCampaignAkBindingV1 | null,
+): string {
+  if (autonomy.lifecycle.phase === "blocked") {
+    return `next truthful public step is blocked for stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId}: ${autonomy.nextStep.reason}`;
+  }
+
+  if (autonomy.nextStep.action === "none") {
+    if (akBinding?.lifecycle.action === "complete_task_candidate") {
+      return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally and AK task ${akBinding.taskId} is now a completion candidate; this surface does not mutate AK directly`;
+    }
+    return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally and no further public advance step remains`;
+  }
+
+  return `stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId} is the next truthful public campaign-control step`;
+}
+
+function buildLlamacppCampaignControlNextAction(
+  control: LlamacppCampaignControlSurfaceV1,
+  mode: "status" | "plan" | "apply",
+): string {
+  if (control.public.nextStepAction === "none") {
+    if (control.public.completionCandidate && control.akBinding) {
+      return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; a caller above the package may now evaluate whether AK task ${control.akBinding.taskId} should be completed explicitly.`;
+    }
+    return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; no further public advance step remains.`;
+  }
+
+  if (control.autonomy.lifecycle.phase === "blocked") {
+    return `The next truthful public advance is blocked for stage ${control.autonomy.nextStep.stage} build ${control.autonomy.nextStep.buildId}: ${control.autonomy.nextStep.reason}`;
+  }
+
+  if (mode === "status") {
+    return `Use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME} with action=advance to plan or apply the next truthful step without passing raw stage/build inputs.`;
+  }
+
+  if (mode === "plan") {
+    return `Re-run ${AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME} with action=advance and apply=true to execute stage ${control.autonomy.nextStep.stage} for build ${control.autonomy.nextStep.buildId}.`;
+  }
+
+  return `Re-run ${AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME} with action=advance to inspect or apply the next truthful step after refreshing projection truth.`;
 }
 
 function createLlamacppCampaignAkProjectionKey(input: {
