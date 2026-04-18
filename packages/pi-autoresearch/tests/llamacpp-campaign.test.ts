@@ -12,8 +12,11 @@ import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION,
   executeLlamacppCampaignStage,
   formatLlamacppCampaignResult,
+  loadLlamacppCampaignProjectionState,
+  persistLlamacppCampaignProjection,
   planLlamacppCampaignMatrix,
   prepareLlamacppCampaignFork,
+  resolveLlamacppCampaignProjectionPath,
 } from "../src/core/llamacppCampaign.ts";
 
 type RegisteredTool = {
@@ -556,6 +559,52 @@ test("executeLlamacppCampaignStage stage 43 fails closed when the stage-42 recei
   });
 });
 
+test("persistLlamacppCampaignProjection writes and refreshes the bounded campaign projection", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    const initial = persistLlamacppCampaignProjection({ cwd, manifestPath });
+    assert.equal(initial.path, resolveLlamacppCampaignProjectionPath(cwd));
+    assert.equal(initial.projection.status.overallState, "planned_only");
+
+    executeLlamacppCampaignStage({
+      cwd,
+      manifestPath,
+      stage: "41",
+      buildId: "C",
+      apply: true,
+    });
+    executeLlamacppCampaignStage({
+      cwd,
+      manifestPath,
+      stage: "42",
+      buildId: "C",
+      apply: true,
+    });
+    executeLlamacppCampaignStage({
+      cwd,
+      manifestPath,
+      stage: "43",
+      buildId: "C",
+      apply: true,
+    });
+
+    const refreshed = persistLlamacppCampaignProjection({ cwd, manifestPath });
+    const projectedBuildC = refreshed.projection.builds.find((build) => build.buildId === "C");
+    assert.ok(projectedBuildC);
+    assert.equal(projectedBuildC?.highestCompletedStage, 43);
+    assert.equal(projectedBuildC?.stages["43"].receiptExists, true);
+    assert.equal(refreshed.projection.status.overallState, "partially_materialized");
+
+    const state = loadLlamacppCampaignProjectionState({ cwd });
+    assert.equal(state.availability, "current");
+    assert.equal(state.projection?.status.overallState, "partially_materialized");
+  });
+});
+
 test("execution binding fails closed when the receipt root escapes the workstation repo", async () => {
   await withTempDir((cwd) => {
     const sourceRepo = initSourceRepo(cwd);
@@ -624,5 +673,8 @@ test("extension registers the llama.cpp campaign tool and executes execute_stage
     assert.match(text, /action: execute_stage/);
     assert.match(text, /stage: 41/);
     assert.match(text, /output receipt: .*A-stage41-validation\.json/);
+    assert.match(text, /## Projection/);
+    assert.match(text, /overall state: planned_only/);
+    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
   });
 });

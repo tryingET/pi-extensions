@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -17,7 +17,13 @@ import {
   type NextHypothesisDecisionOutcome,
   type SetupDecisionOutcome,
 } from "../src/core/decisions.ts";
-import { AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME } from "../src/core/llamacppCampaign.ts";
+import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION,
+  persistLlamacppCampaignProjection,
+  resolveLlamacppCampaignProjectionPath,
+} from "../src/core/llamacppCampaign.ts";
 import { resolveAutoresearchRuntimeSnapshotPath } from "../src/core/resume.ts";
 import {
   AUTORESEARCH_COMMAND_NAME,
@@ -27,6 +33,7 @@ import {
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   appendReceipt,
+  buildAutoresearchHelpText,
   buildAutoresearchRuntimeStatus,
   createConfigReceipt,
   createRunReceipt,
@@ -95,6 +102,98 @@ function writeExecutable(cwd: string, name: string, content: string): void {
   const target = path.join(cwd, name);
   writeFileSync(target, content, "utf8");
   chmodSync(target, 0o755);
+}
+
+function writeFile(target: string, content: string): void {
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, content, "utf8");
+}
+
+function createLlamacppProjectionFixture(cwd: string): {
+  manifestPath: string;
+  receiptRootPath: string;
+} {
+  const sourceRepoPath = path.join(cwd, "source-llama-cpp");
+  const workstationRepoPath = path.join(cwd, "workstation");
+  const buildBinDir = path.join(cwd, "build-bins", "A", "bin");
+  const manifestPath = path.join(cwd, "campaigns", "llamacpp-runtime-status.json");
+  const manifestDir = path.dirname(manifestPath);
+  const receiptRootPath = path.join(workstationRepoPath, "phasee/receipts/runtime-status");
+
+  writeFile(path.join(sourceRepoPath, "README.md"), "# source\n");
+  writeFile(path.join(buildBinDir, "llama-bench"), "A\n");
+  writeFile(
+    path.join(workstationRepoPath, "scripts/phasee/41-turboquant-pr45-qwen35-validation.py"),
+    "#!/usr/bin/env python3\n",
+  );
+  writeFile(
+    path.join(workstationRepoPath, "scripts/phasee/42-turboquant-pr45-qwen35-q8-comparison.py"),
+    "#!/usr/bin/env python3\n",
+  );
+  writeFile(
+    path.join(workstationRepoPath, "scripts/phasee/43-turboquant-pr45-qwen35-vllm-comparison.py"),
+    "#!/usr/bin/env python3\n",
+  );
+
+  const payload = {
+    kind: AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
+    version: AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION,
+    campaignId: "llamacpp-runtime-status",
+    objective: "Project one bounded llama.cpp campaign into runtime status.",
+    sourceRepoPath,
+    workstationRepoPath,
+    fork: {
+      targetRepoPath: path.join(cwd, "fork", "llama-cpp"),
+      baseRef: "main",
+      workingBranch: "campaign/runtime-status",
+    },
+    workflow: {
+      kind: "phasee-41-43",
+      stage41Script: "scripts/phasee/41-turboquant-pr45-qwen35-validation.py",
+      stage42Script: "scripts/phasee/42-turboquant-pr45-qwen35-q8-comparison.py",
+      stage43Script: "scripts/phasee/43-turboquant-pr45-qwen35-vllm-comparison.py",
+      executionBinding: {
+        receiptRootPath: "phasee/receipts/runtime-status",
+      },
+      stage41BuildIds: ["A"],
+      stage42Matrix: [{ buildId: "A", laneIds: ["config_i_turbo3", "q8_0_turbo4"] }],
+      stage43BuildIds: [],
+    },
+    builds: [
+      {
+        id: "A",
+        title: "runtime status build",
+        branch: "main",
+        buildBinDir: path.relative(manifestDir, buildBinDir),
+        cherryPickCommits: [],
+        lineageSummary: "single-build status fixture",
+        notes: ["runtime-status"],
+      },
+    ],
+    lanes: [
+      {
+        id: "config_i_turbo3",
+        title: "Config I + turbo3",
+        runtimeFamily: "config_i",
+        kvCacheMode: "turbo3",
+        notes: [],
+      },
+      {
+        id: "q8_0_turbo4",
+        title: "q8_0 + turbo4",
+        runtimeFamily: "q8_0",
+        kvCacheMode: "turbo4",
+        notes: [],
+      },
+    ],
+    evidence: {
+      expectedReceiptPaths: ["phasee/receipts/runtime-status/A-stage41-validation.json"],
+      requiredMetrics: ["ppl"],
+    },
+  };
+
+  writeFile(manifestPath, `${JSON.stringify(payload, null, 2)}\n`);
+  return { manifestPath, receiptRootPath };
 }
 
 function createDecisionRuntimeStub(
@@ -261,9 +360,16 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.ok((status.runtimeSnapshot.path ?? "").endsWith("autoresearch.runtime.json"));
   assert.equal(status.promptVaultDecisions.availability, "available_not_yet_used");
   assert.equal(status.promptVaultDecisions.lastPostRunDecision, null);
+  assert.equal(status.llamacppCampaignProjection.availability, "not_projected");
+  assert.ok(
+    (status.llamacppCampaignProjection.projectionPath ?? "").endsWith(
+      "autoresearch.llamacpp-campaign.json",
+    ),
+  );
   assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
   assert.match(formatAutoresearchStatusText(status), /machine state: segment_unconfigured/);
   assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
+  assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
 });
 
 test("status builder summarizes best metric and confidence from appended receipts", () =>
@@ -318,6 +424,41 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.equal(status.runtimeProjection.hasLedger, false);
     assert.equal(status.promptVaultDecisions.availability, "available_not_yet_used");
     assert.ok((status.currentSegment.confidence ?? 0) > 0);
+  }));
+
+test("buildAutoresearchRuntimeStatus surfaces the current llama.cpp campaign projection", () =>
+  withTempDir((cwd) => {
+    const { manifestPath, receiptRootPath } = createLlamacppProjectionFixture(cwd);
+    writeFile(path.join(receiptRootPath, "A-stage41-validation.json"), "{}\n");
+    persistLlamacppCampaignProjection({ cwd, manifestPath });
+
+    let status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.llamacppCampaignProjection.availability, "current");
+    assert.equal(status.llamacppCampaignProjection.campaignId, "llamacpp-runtime-status");
+    assert.equal(status.llamacppCampaignProjection.overallState, "stage41_complete");
+    assert.equal(
+      status.llamacppCampaignProjection.projectionPath,
+      resolveLlamacppCampaignProjectionPath(cwd),
+    );
+    assert.match(formatAutoresearchStatusText(status), /projected overall state: stage41_complete/);
+    assert.match(buildAutoresearchHelpText(status), /## Manifest campaign projection/);
+    assert.match(buildAutoresearchHelpText(status), /availability: current/);
+
+    writeFile(path.join(receiptRootPath, "A-stage42-q8-vs-config-i.json"), "{}\n");
+    status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.llamacppCampaignProjection.overallState, "stage42_complete");
+  }));
+
+test("buildAutoresearchRuntimeStatus marks the llama.cpp campaign projection stale when refresh fails", () =>
+  withTempDir((cwd) => {
+    const { manifestPath } = createLlamacppProjectionFixture(cwd);
+    persistLlamacppCampaignProjection({ cwd, manifestPath });
+    writeFile(manifestPath, "{\n");
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.llamacppCampaignProjection.availability, "stale");
+    assert.match(status.llamacppCampaignProjection.staleReason ?? "", /projection refresh failed/);
+    assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: stale/);
   }));
 
 test("extension registers /autoresearch plus the bounded runtime status, control, finalize, run, and llama.cpp campaign tools", () => {

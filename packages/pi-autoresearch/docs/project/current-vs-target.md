@@ -58,7 +58,7 @@ That means the repo now has:
 - durable status/proof notes for all four workstreams
 
 This now satisfies the target done-state defined in this file.
-It also now has two bounded **post-target widening slices** landed locally:
+It also now has two landed bounded **post-target widening slices** plus one implemented bounded follow-on awaiting proof closure:
 
 1. manifest-driven llama.cpp benchmark planning
    - a typed llama.cpp benchmark campaign manifest contract
@@ -69,8 +69,13 @@ It also now has two bounded **post-target widening slices** landed locally:
    - one explicit `workflow.executionBinding.receiptRootPath` for build-scoped 41/42/43 outputs
    - one stage-scoped `execute_stage` surface for plan/apply behavior above the existing workstation scripts
    - focused proof coverage plus a package-local status note for the landed slice
+3. manifest-driven campaign receipt/status projection
+   - one checked `autoresearch.llamacpp-campaign.json` artifact derived from the current manifest plus deterministic stage-output paths
+   - `autoresearch_llamacpp_campaign` now writes or refreshes that projection during bounded manifest work
+   - runtime/help surfaces now report current / stale / not-projected manifest campaign status above the stage-scoped execution seam
+   - proof/status closure for this slice is still the next task
 
-What it still does **not** have is any wider daemonized autonomy, auto-fail framework, remote-review control plane, manifest receipt/status projection for this concern, or direct end-to-end whole-campaign execution beyond one exact stage binding at a time.
+What it still does **not** have is any wider daemonized autonomy, auto-fail framework, remote-review control plane, AK-backed campaign truth for this concern, or direct end-to-end whole-campaign execution beyond one exact stage binding at a time.
 
 ## Target done-state
 
@@ -115,6 +120,7 @@ When starting in a clean context, read in this order:
 | Operator-facing control plane | Landed (package + orchestrator) | operator can inspect and drive continue / rebaseline / finalize / stop from truthful package and live-supervision surfaces above the bounded kernel | package + orchestrator | control-surface tests + live control-plane tests + live supervision/lifecycle status note |
 | Manifest-driven llama.cpp benchmark planning | Landed (post-target widening) | branch lineage, stage 41/42/43 matrix, and fork prep are explicit through a checked manifest plus the bounded `autoresearch_llamacpp_campaign` tool | `packages/pi-autoresearch` | package tests + problem-intent/RFC docs + README/current-vs-target updates |
 | Manifest-driven 41/42/43 execution binding | Landed (post-target widening) | one manifest-listed build can plan/apply an exact stage 41, 42, or 43 workstation-script invocation through explicit build-bin + build-scoped receipt bindings while leaving measurement semantics with the workstation scripts | `packages/pi-autoresearch` + workstation `phasee/41-43` scripts | package tests + execution-binding status note + README/current-vs-target updates |
+| Manifest-driven campaign receipt/status projection | Implemented (proof pending) | one checked `autoresearch.llamacpp-campaign.json` artifact can be derived and refreshed from the current manifest plus deterministic stage-output paths, and bounded runtime/help surfaces can now report current / stale / not-projected manifest campaign status | `packages/pi-autoresearch` | package tests + runtime/help integration tests + follow-on proof/status note |
 
 ## Scoped AK task tree
 
@@ -236,10 +242,12 @@ Active umbrella:
 Current status:
 
 - execution binding is now the landed baseline for this concern
-- `#1644` freezes the next-layer contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`
-- that contract keeps the manifest as campaign-intent truth, keeps workstation stage outputs as execution evidence truth, and adds exactly one projection artifact: `autoresearch.llamacpp-campaign.json`
-- the code-level artifact model for that projection now lives in `packages/pi-autoresearch/src/core/llamacppCampaign.ts` and the future runtime-status shape is staged in `packages/pi-autoresearch/src/core/runtime.ts`
-- `#1645` is now the implementation slice that should write the projection artifact and integrate it into bounded runtime/help surfaces
+- `#1644` froze the contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`
+- `#1645` is now landed locally as the implementation layer above that contract:
+  - `autoresearch_llamacpp_campaign` writes or refreshes `autoresearch.llamacpp-campaign.json`
+  - `packages/pi-autoresearch/src/core/runtime.ts` now surfaces current / stale / not-projected manifest campaign status in bounded runtime/help views
+  - tests now cover projection derivation, refresh, stale handling, and runtime/help exposure
+- `#1646` is now the remaining proof/update slice for turning this implemented layer into a closed landed status note
 
 ## What must stay true while implementing
 

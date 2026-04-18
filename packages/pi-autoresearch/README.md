@@ -48,7 +48,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
-  - surfaces receipt summaries, machine projection, event-ledger state, and current one-shot Prompt Vault alignment
+  - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, and the current llama.cpp manifest-campaign projection state when one has been projected locally
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
   - bootstraps config receipts when needed
@@ -59,6 +59,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - expands the exact brownfield `phasee/41-43` branch/lane matrix without re-deriving it from chat prose
   - plans or applies fork workspace preparation for later patch transplant work under `../../fork/`
   - plans or applies one exact stage-scoped `41 | 42 | 43` invocation against the existing workstation scripts
+  - writes or refreshes one checked `autoresearch.llamacpp-campaign.json` projection artifact for bounded runtime/help use
   - does **not** become a whole-campaign runner or replace workstation execution ownership
 
 ### Runtime helpers
@@ -67,12 +68,13 @@ The current boundary is now more specific: the package is the runtime owner for 
   - local receipt-entry types for config and run events
   - structured `METRIC name=value` parsing
   - bounded benchmark/check execution helpers
-  - runtime status/help rendering that now integrates receipt summaries with machine/ledger projection
+  - runtime status/help rendering that now integrates receipt summaries with machine/ledger projection plus the current llama.cpp campaign projection state
 - `src/core/llamacppCampaign.ts`
   - typed llama.cpp benchmark campaign manifest model
   - explicit `phasee/41-43` stage matrix expansion
   - fork workspace planning/apply helpers with fail-closed git checks
   - stage-scoped execution binding for one exact `41 | 42 | 43` invocation with prerequisite fencing
+  - projection artifact derivation, persistence, and refresh logic for `autoresearch.llamacpp-campaign.json`
 - `src/core/ledger.ts`
   - append-only event-ledger entry types and JSONL helpers
   - ledger replay/projector helpers for the campaign machine
@@ -90,6 +92,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 The bounded runtime kernel now uses the same local artifact plan the shell originally named:
 
 - `autoresearch.jsonl`
+- `autoresearch.llamacpp-campaign.json`
 - `autoresearch.md`
 - `autoresearch.sh`
 - `autoresearch.checks.sh`
@@ -107,7 +110,7 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, and one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded slices include manifest receipt/status projection plus later AK binding.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, and one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded slices are proof closure for the projection layer plus later AK binding.
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures

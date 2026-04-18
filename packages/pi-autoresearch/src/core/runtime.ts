@@ -45,8 +45,10 @@ import {
   resolveAutoresearchLedgerPath,
 } from "./ledger.ts";
 import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   type LlamacppCampaignProjectionOverallState,
+  loadLlamacppCampaignProjectionState,
 } from "./llamacppCampaign.ts";
 import {
   AUTORESEARCH_OPERATOR_ACTIONS,
@@ -73,6 +75,7 @@ export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   AUTORESEARCH_EVENT_LEDGER_FILE,
   AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
   "autoresearch.finalization.json",
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE,
   "autoresearch.md",
   "autoresearch.sh",
   "autoresearch.checks.sh",
@@ -230,6 +233,7 @@ export interface AutoresearchRuntimeStatus {
   runtimeSnapshot: AutoresearchRuntimeSnapshotStatus;
   control: AutoresearchControlStateV1;
   promptVaultDecisions: AutoresearchPromptVaultDecisionStatus;
+  llamacppCampaignProjection: AutoresearchLlamacppCampaignProjectionStatus;
   nextSlices: readonly string[];
 }
 
@@ -565,6 +569,12 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     `- projection sync issues: ${projection.syncIssues.length}`,
     `- live Prompt Vault decisions: ${formatPromptVaultDecisionAvailability(status.promptVaultDecisions.availability)}`,
     `- last post-run decision: ${formatLastPostRunDecision(status.promptVaultDecisions.lastPostRunDecision)}`,
+    `- manifest campaign projection: ${formatLlamacppCampaignProjectionAvailability(status.llamacppCampaignProjection.availability)}`,
+    `- manifest campaign projection path: ${status.llamacppCampaignProjection.projectionPath ?? "(unresolved)"}`,
+    `- projected manifest campaign: ${formatLlamacppCampaignProjectionLabel(status.llamacppCampaignProjection)}`,
+    `- projected receipt root: ${status.llamacppCampaignProjection.receiptRootPath ?? "(none)"}`,
+    `- projected overall state: ${status.llamacppCampaignProjection.overallState ?? "(none)"}`,
+    `- projection stale reason: ${status.llamacppCampaignProjection.staleReason ?? "(none)"}`,
     ...currentSegmentLines,
     `- ready Prompt Vault templates: ${status.readyPromptVaultTemplates.join(", ")}`,
     `- blocked Prompt Vault templates: ${status.blockedPromptVaultTemplates.join(", ")}`,
@@ -608,8 +618,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded finalization orchestration, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding.",
-    "This package now owns bounded finalization planning, approval, local branch materialization, and checked manifest-driven branch/lane planning plus one exact 41/42/43 stage-binding surface for brownfield llama.cpp workflows; it still does not own the autonomous loop, AK binding, or remote review choreography.",
+    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded finalization orchestration, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection.",
+    "This package now owns bounded finalization planning, approval, local branch materialization, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, and one projection-only llama.cpp campaign status artifact for brownfield workflows; it still does not own the autonomous loop, AK binding, or remote review choreography.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
@@ -625,6 +635,15 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "",
     "## Local artifact plan",
     ...status.localArtifacts.map((artifact) => `- ${artifact}`),
+    "",
+    "## Manifest campaign projection",
+    `- availability: ${formatLlamacppCampaignProjectionAvailability(status.llamacppCampaignProjection.availability)}`,
+    `- projection path: ${status.llamacppCampaignProjection.projectionPath ?? "(unresolved)"}`,
+    `- projected manifest: ${formatLlamacppCampaignProjectionLabel(status.llamacppCampaignProjection)}`,
+    `- projected receipt root: ${status.llamacppCampaignProjection.receiptRootPath ?? "(none)"}`,
+    `- projected overall state: ${status.llamacppCampaignProjection.overallState ?? "(none)"}`,
+    `- stale reason: ${status.llamacppCampaignProjection.staleReason ?? "(none)"}`,
+    `- refresh path: use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME} with the current manifestPath to create or refresh the projection artifact`,
     "",
     "## Prompt Vault alignment",
     "Ready now:",
@@ -1231,6 +1250,37 @@ function buildPromptVaultDecisionStatus(
   };
 }
 
+function buildAutoresearchLlamacppCampaignProjectionStatus(
+  cwd: string | undefined,
+): AutoresearchLlamacppCampaignProjectionStatus {
+  if (!cwd) {
+    return {
+      availability: "not_projected",
+      projectionPath: null,
+      manifestPath: null,
+      campaignId: null,
+      manifestKey: null,
+      receiptRootPath: null,
+      overallState: null,
+      staleReason: null,
+      updatedAt: null,
+    };
+  }
+
+  const projectionState = loadLlamacppCampaignProjectionState({ cwd });
+  return {
+    availability: projectionState.availability,
+    projectionPath: projectionState.path,
+    manifestPath: projectionState.projection?.manifest.path ?? null,
+    campaignId: projectionState.projection?.manifest.campaignId ?? null,
+    manifestKey: projectionState.projection?.manifest.manifestKey ?? null,
+    receiptRootPath: projectionState.projection?.manifest.receiptRootPath ?? null,
+    overallState: projectionState.projection?.status.overallState ?? null,
+    staleReason: projectionState.staleReason,
+    updatedAt: projectionState.projection?.updatedAt ?? null,
+  };
+}
+
 function findLastPostRunDecision(
   runs: readonly AutoresearchRunReceipt[],
 ): AutoresearchRunDecisionSummary | null {
@@ -1504,6 +1554,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     blockedReason: runtimeProjection.blockedReason,
     completionReason: runtimeProjection.completionReason,
   });
+  const llamacppCampaignProjection = buildAutoresearchLlamacppCampaignProjectionStatus(cwd);
   const snapshotInput =
     cwd !== undefined
       ? createRuntimeSnapshotInput(cwd, currentSegment, runtimeProjection, promptVaultDecisions)
@@ -1552,7 +1603,8 @@ function buildAutoresearchRuntimeStatusFromEntries(
     },
     control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
-    nextSlices: ["llamacpp_campaign_receipt_projection", "ak_campaign_binding"],
+    llamacppCampaignProjection,
+    nextSlices: ["llamacpp_campaign_projection_proof", "ak_campaign_binding"],
   };
 }
 
@@ -2193,6 +2245,34 @@ function formatLastPostRunDecision(value: AutoresearchRunDecisionSummary | null)
   const summary =
     value.blockingReason ?? value.nextHypothesis ?? value.stateRead ?? "decision recorded";
   return `${value.status} -> ${value.mappedDecision} (${summary})`;
+}
+
+function formatLlamacppCampaignProjectionAvailability(
+  value: AutoresearchLlamacppCampaignProjectionAvailability,
+): string {
+  switch (value) {
+    case "current":
+      return "current";
+    case "stale":
+      return "stale";
+    default:
+      return "not projected";
+  }
+}
+
+function formatLlamacppCampaignProjectionLabel(
+  value: AutoresearchLlamacppCampaignProjectionStatus,
+): string {
+  if (!value.campaignId && !value.manifestPath) {
+    return "(none)";
+  }
+  if (!value.campaignId) {
+    return value.manifestPath ?? "(none)";
+  }
+  if (!value.manifestPath) {
+    return value.campaignId;
+  }
+  return `${value.campaignId} (${value.manifestPath})`;
 }
 
 function formatAllowedActions(actions: readonly string[]): string {

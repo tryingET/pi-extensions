@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME = "autoresearch_llamacpp_campaign";
@@ -273,6 +273,18 @@ export interface LlamacppCampaignProjectionV1 {
   builds: LlamacppCampaignBuildProjection[];
 }
 
+export interface PersistLlamacppCampaignProjectionResult {
+  path: string;
+  projection: LlamacppCampaignProjectionV1;
+}
+
+export interface LoadLlamacppCampaignProjectionStateResult {
+  path: string;
+  projection: LlamacppCampaignProjectionV1 | null;
+  availability: "not_projected" | "current" | "stale";
+  staleReason: string | null;
+}
+
 class LlamacppCampaignManifestError extends Error {}
 
 export function loadLlamacppCampaignManifest(
@@ -456,6 +468,84 @@ export function buildLlamacppCampaignProjection(input: {
       staleReason: null,
     },
     builds,
+  };
+}
+
+export function persistLlamacppCampaignProjection(input: {
+  cwd: string;
+  manifestPath: string;
+  updatedAt?: number;
+}): PersistLlamacppCampaignProjectionResult {
+  const projection = buildLlamacppCampaignProjection(input);
+  const targetPath = resolveLlamacppCampaignProjectionPath(input.cwd);
+  mkdirSync(path.dirname(targetPath), { recursive: true });
+  writeFileSync(targetPath, `${JSON.stringify(projection, null, 2)}\n`, "utf8");
+  return {
+    path: targetPath,
+    projection,
+  };
+}
+
+export function loadLlamacppCampaignProjectionState(input: {
+  cwd: string;
+}): LoadLlamacppCampaignProjectionStateResult {
+  const cwd = path.resolve(input.cwd);
+  const targetPath = resolveLlamacppCampaignProjectionPath(cwd);
+  if (!existsSync(targetPath)) {
+    return {
+      path: targetPath,
+      projection: null,
+      availability: "not_projected",
+      staleReason: null,
+    };
+  }
+
+  const text = readFileSync(targetPath, "utf8");
+  let savedProjection: LlamacppCampaignProjectionV1;
+  try {
+    savedProjection = parseLlamacppCampaignProjection(text, targetPath);
+  } catch (error) {
+    return {
+      path: targetPath,
+      projection: null,
+      availability: "stale",
+      staleReason: `projection parse failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  if (savedProjection.cwd !== cwd) {
+    return {
+      path: targetPath,
+      projection: savedProjection,
+      availability: "stale",
+      staleReason: `projection cwd mismatch: ${savedProjection.cwd}`,
+    };
+  }
+
+  let currentProjection: LlamacppCampaignProjectionV1;
+  try {
+    currentProjection = buildLlamacppCampaignProjection({
+      cwd,
+      manifestPath: savedProjection.manifest.path,
+    });
+  } catch (error) {
+    return {
+      path: targetPath,
+      projection: savedProjection,
+      availability: "stale",
+      staleReason: `projection refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  if (llamacppCampaignProjectionDiffers(savedProjection, currentProjection)) {
+    writeFileSync(targetPath, `${JSON.stringify(currentProjection, null, 2)}\n`, "utf8");
+  }
+
+  return {
+    path: targetPath,
+    projection: currentProjection,
+    availability: "current",
+    staleReason: null,
   };
 }
 
@@ -1370,6 +1460,168 @@ function parseJsonObject(raw: string, filePath: string): Record<string, unknown>
   return parsed as Record<string, unknown>;
 }
 
+function parseLlamacppCampaignProjection(
+  raw: string,
+  filePath: string,
+): LlamacppCampaignProjectionV1 {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new LlamacppCampaignManifestError(
+      `projection is not valid JSON: ${filePath}: ${String(error)}`,
+    );
+  }
+
+  const payload = readObject(parsed, `${filePath}`);
+  const manifest = readObject(payload.manifest, `${filePath}:manifest`);
+  const status = readObject(payload.status, `${filePath}:status`);
+  const builds = readObjectArray(payload.builds, `${filePath}:builds`).map((build, index) => {
+    const stages = readObject(build.stages, `${filePath}:builds[${index}].stages`);
+    const stage41 = readObject(stages["41"], `${filePath}:builds[${index}].stages[41]`);
+    const stage42 = readObject(stages["42"], `${filePath}:builds[${index}].stages[42]`);
+    const stage43 = readObject(stages["43"], `${filePath}:builds[${index}].stages[43]`);
+    const highestCompletedStage = readInteger(
+      build.highestCompletedStage,
+      `${filePath}:builds[${index}].highestCompletedStage`,
+    );
+    if (![0, 41, 42, 43].includes(highestCompletedStage)) {
+      throw new LlamacppCampaignManifestError(
+        `${filePath}:builds[${index}].highestCompletedStage must be 0, 41, 42, or 43`,
+      );
+    }
+
+    return {
+      buildId: readString(build.buildId, `${filePath}:builds[${index}].buildId`),
+      title: readString(build.title, `${filePath}:builds[${index}].title`),
+      branch: readString(build.branch, `${filePath}:builds[${index}].branch`),
+      buildBinDir: readString(build.buildBinDir, `${filePath}:builds[${index}].buildBinDir`),
+      buildBinDirExists: readBoolean(
+        build.buildBinDirExists,
+        `${filePath}:builds[${index}].buildBinDirExists`,
+      ),
+      highestCompletedStage: highestCompletedStage as 0 | 41 | 42 | 43,
+      notes: readStringArray(build.notes, `${filePath}:builds[${index}].notes`),
+      stages: {
+        "41": {
+          expected: readBoolean(
+            stage41.expected,
+            `${filePath}:builds[${index}].stages[41].expected`,
+          ),
+          receiptPath: readString(
+            stage41.receiptPath,
+            `${filePath}:builds[${index}].stages[41].receiptPath`,
+          ),
+          corpusPath: readString(
+            stage41.corpusPath,
+            `${filePath}:builds[${index}].stages[41].corpusPath`,
+          ),
+          receiptExists: readBoolean(
+            stage41.receiptExists,
+            `${filePath}:builds[${index}].stages[41].receiptExists`,
+          ),
+          corpusExists: readBoolean(
+            stage41.corpusExists,
+            `${filePath}:builds[${index}].stages[41].corpusExists`,
+          ),
+        },
+        "42": {
+          expected: readBoolean(
+            stage42.expected,
+            `${filePath}:builds[${index}].stages[42].expected`,
+          ),
+          receiptPath: readString(
+            stage42.receiptPath,
+            `${filePath}:builds[${index}].stages[42].receiptPath`,
+          ),
+          receiptExists: readBoolean(
+            stage42.receiptExists,
+            `${filePath}:builds[${index}].stages[42].receiptExists`,
+          ),
+        },
+        "43": {
+          expected: readBoolean(
+            stage43.expected,
+            `${filePath}:builds[${index}].stages[43].expected`,
+          ),
+          receiptPath: readString(
+            stage43.receiptPath,
+            `${filePath}:builds[${index}].stages[43].receiptPath`,
+          ),
+          receiptExists: readBoolean(
+            stage43.receiptExists,
+            `${filePath}:builds[${index}].stages[43].receiptExists`,
+          ),
+        },
+      },
+    } satisfies LlamacppCampaignBuildProjection;
+  });
+
+  return {
+    type: (() => {
+      const type = readString(payload.type, `${filePath}:type`);
+      if (type !== AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_KIND) {
+        throw new LlamacppCampaignManifestError(
+          `${filePath}:type must be ${AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_KIND}, got ${type}`,
+        );
+      }
+      return AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_KIND;
+    })(),
+    version: (() => {
+      const version = readInteger(payload.version, `${filePath}:version`);
+      if (version !== AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_VERSION) {
+        throw new LlamacppCampaignManifestError(
+          `${filePath}:version must be ${AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_VERSION}, got ${version}`,
+        );
+      }
+      return AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_VERSION;
+    })(),
+    cwd: readString(payload.cwd, `${filePath}:cwd`),
+    updatedAt: readInteger(payload.updatedAt, `${filePath}:updatedAt`),
+    manifest: {
+      path: readString(manifest.path, `${filePath}:manifest.path`),
+      campaignId: readString(manifest.campaignId, `${filePath}:manifest.campaignId`),
+      manifestKey: readString(manifest.manifestKey, `${filePath}:manifest.manifestKey`),
+      receiptRootPath: readString(manifest.receiptRootPath, `${filePath}:manifest.receiptRootPath`),
+      sourceRepoPath: readString(manifest.sourceRepoPath, `${filePath}:manifest.sourceRepoPath`),
+      workstationRepoPath: readString(
+        manifest.workstationRepoPath,
+        `${filePath}:manifest.workstationRepoPath`,
+      ),
+      workflowKind: (() => {
+        const workflowKind = readString(manifest.workflowKind, `${filePath}:manifest.workflowKind`);
+        if (workflowKind !== AUTORESEARCH_LLAMACPP_CAMPAIGN_WORKFLOW_KIND) {
+          throw new LlamacppCampaignManifestError(
+            `${filePath}:manifest.workflowKind must be ${AUTORESEARCH_LLAMACPP_CAMPAIGN_WORKFLOW_KIND}, got ${workflowKind}`,
+          );
+        }
+        return AUTORESEARCH_LLAMACPP_CAMPAIGN_WORKFLOW_KIND;
+      })(),
+    },
+    status: {
+      projectionKind: (() => {
+        const projectionKind = readString(
+          status.projectionKind,
+          `${filePath}:status.projectionKind`,
+        );
+        if (projectionKind !== AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_SOURCE) {
+          throw new LlamacppCampaignManifestError(
+            `${filePath}:status.projectionKind must be ${AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_SOURCE}, got ${projectionKind}`,
+          );
+        }
+        return AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_SOURCE;
+      })(),
+      overallState: readProjectionOverallState(
+        status.overallState,
+        `${filePath}:status.overallState`,
+      ),
+      stale: readBoolean(status.stale, `${filePath}:status.stale`),
+      staleReason: readNullableString(status.staleReason, `${filePath}:status.staleReason`),
+    },
+    builds,
+  };
+}
+
 function validateManifest(
   payload: Record<string, unknown>,
   filePath: string,
@@ -1606,6 +1858,39 @@ function readInteger(value: unknown, label: string): number {
   return value;
 }
 
+function readBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new LlamacppCampaignManifestError(`${label} must be a boolean`);
+  }
+  return value;
+}
+
+function readNullableString(value: unknown, label: string): string | null {
+  if (value === null) {
+    return null;
+  }
+  return readString(value, label);
+}
+
+function readProjectionOverallState(
+  value: unknown,
+  label: string,
+): LlamacppCampaignProjectionOverallState {
+  const normalized = readString(value, label);
+  if (
+    normalized !== "planned_only" &&
+    normalized !== "partially_materialized" &&
+    normalized !== "stage41_complete" &&
+    normalized !== "stage42_complete" &&
+    normalized !== "stage43_complete"
+  ) {
+    throw new LlamacppCampaignManifestError(
+      `${label} must be one of planned_only, partially_materialized, stage41_complete, stage42_complete, or stage43_complete`,
+    );
+  }
+  return normalized;
+}
+
 function ensureUnique(values: string[], label: string): void {
   const seen = new Set<string>();
   for (const value of values) {
@@ -1622,6 +1907,25 @@ function ensureReferences(values: string[], allowed: Set<string>, label: string)
       throw new LlamacppCampaignManifestError(`${label} references an unknown id: ${value}`);
     }
   }
+}
+
+function llamacppCampaignProjectionDiffers(
+  left: LlamacppCampaignProjectionV1,
+  right: LlamacppCampaignProjectionV1,
+): boolean {
+  return (
+    JSON.stringify(normalizeLlamacppCampaignProjection(left)) !==
+    JSON.stringify(normalizeLlamacppCampaignProjection(right))
+  );
+}
+
+function normalizeLlamacppCampaignProjection(
+  projection: LlamacppCampaignProjectionV1,
+): Omit<LlamacppCampaignProjectionV1, "updatedAt"> & { updatedAt: 0 } {
+  return {
+    ...projection,
+    updatedAt: 0,
+  };
 }
 
 function plannedCommandSummary(command: string[], cwd: string | null): ProcessCommandSummary {

@@ -13,6 +13,7 @@ import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   executeLlamacppCampaignStage,
   formatLlamacppCampaignResult,
+  persistLlamacppCampaignProjection,
   planLlamacppCampaignMatrix,
   prepareLlamacppCampaignFork,
 } from "../src/core/llamacppCampaign.ts";
@@ -538,10 +539,26 @@ export function registerPiAutoresearchExtension(
                 cwd,
                 manifestPath: request.manifestPath,
               });
+      const projection = persistLlamacppCampaignProjection({
+        cwd,
+        manifestPath: request.manifestPath,
+      });
+      const text = [
+        formatLlamacppCampaignResult(result),
+        "",
+        "## Projection",
+        `- path: ${projection.path}`,
+        `- campaign: ${projection.projection.manifest.campaignId}`,
+        `- overall state: ${projection.projection.status.overallState}`,
+      ].join("\n");
 
       return {
-        content: [{ type: "text", text: formatLlamacppCampaignResult(result) }],
-        details: result,
+        content: [{ type: "text", text }],
+        details: {
+          ...result,
+          projectionPath: projection.path,
+          projection: projection.projection,
+        },
       };
     },
   });
