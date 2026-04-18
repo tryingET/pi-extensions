@@ -75,7 +75,14 @@ It also now has three landed bounded **post-target widening slices**:
    - runtime/help surfaces now report current / stale / not-projected manifest campaign status above the stage-scoped execution seam
    - focused proof coverage plus a package-local status note now close the slice without promoting the projection into AK truth or whole-campaign execution
 
-What it still does **not** have is any wider daemonized autonomy, auto-fail framework, remote-review control plane, AK-backed campaign truth for this concern, or direct end-to-end whole-campaign execution beyond one exact stage binding at a time.
+A fourth bounded post-target widening slice is now active but not yet landed:
+
+4. manifest-driven campaign AK binding to execution truth
+   - `#1649` now freezes the exact task-bound lifecycle/evidence contract for this concern
+   - `#1650` / `#1651` still remain the implementation/proof follow-ons
+   - no AK-aware manifest campaign helper surface is landed yet
+
+What it still does **not** have in landed form is any wider daemonized autonomy, auto-fail framework, remote-review control plane, AK-backed campaign truth/helper surface for this concern, or direct end-to-end whole-campaign execution beyond one exact stage binding at a time.
 
 ## Target done-state
 
@@ -106,7 +113,8 @@ When starting in a clean context, read in this order:
 10. [llama.cpp execution-binding status](./llamacpp-execution-binding-status.md)
 11. [manifest campaign receipt/projection contract](./llamacpp-campaign-receipt-projection-contract.md)
 12. [manifest campaign projection status](./llamacpp-campaign-projection-status.md)
-13. the contract/status note for the specific newer follow-on work, if any
+13. [manifest campaign AK binding contract](./llamacpp-campaign-ak-binding-contract.md)
+14. the contract/status note for the specific newer follow-on work, if any
 
 ## Capability matrix
 
@@ -122,6 +130,7 @@ When starting in a clean context, read in this order:
 | Manifest-driven llama.cpp benchmark planning | Landed (post-target widening) | branch lineage, stage 41/42/43 matrix, and fork prep are explicit through a checked manifest plus the bounded `autoresearch_llamacpp_campaign` tool | `packages/pi-autoresearch` | package tests + problem-intent/RFC docs + README/current-vs-target updates |
 | Manifest-driven 41/42/43 execution binding | Landed (post-target widening) | one manifest-listed build can plan/apply an exact stage 41, 42, or 43 workstation-script invocation through explicit build-bin + build-scoped receipt bindings while leaving measurement semantics with the workstation scripts | `packages/pi-autoresearch` + workstation `phasee/41-43` scripts | package tests + execution-binding status note + README/current-vs-target updates |
 | Manifest-driven campaign receipt/status projection | Landed (post-target widening) | one checked `autoresearch.llamacpp-campaign.json` artifact can be derived and refreshed from the current manifest plus deterministic stage-output paths, and bounded runtime/help surfaces can now report current / stale / not-projected manifest campaign status | `packages/pi-autoresearch` | package tests + runtime/help integration tests + projection status note |
+| Manifest-driven campaign AK binding to execution truth | Contract frozen (active umbrella `#1648`) | one exact manifest path plus one exact AK task id can be reduced into a compact AK-ready milestone snapshot, deterministic projection key, and terminal-stage completion eligibility without making local projection files the durable task truth | `packages/pi-autoresearch` + AK | AK-binding contract note + helper tests + later status closure |
 
 ## Scoped AK task tree
 
@@ -253,7 +262,22 @@ Current status:
   - `packages/pi-autoresearch/src/core/runtime.ts` surfaces current / stale / not-projected manifest campaign status in bounded runtime/help views
   - tests cover projection derivation, refresh, stale handling, and runtime/help exposure
 - `#1646` now closes the slice with proof coverage, status-note closure, and current-vs-target truth updates
-- no newer package-local umbrella is active for this concern yet; the next lawful follow-on is later AK campaign binding if this manifest family proves durable enough to deserve durable campaign truth
+
+### Manifest-driven campaign AK binding to execution truth
+
+Active umbrella:
+
+- `#1648` — **[UMBRELLA] Bind manifest-driven llama.cpp campaigns to AK execution truth**
+  - `#1649` — Write AK binding contract and lifecycle shape for manifest-driven llama.cpp campaigns
+  - `#1650` — Implement bounded AK projection/binding helpers for campaign manifests
+  - `#1651` — Prove AK-aware manifest campaign binding and update current-vs-target
+
+Current status:
+
+- manifest campaign projection is now the landed baseline for this concern
+- `#1649` freezes the active follow-on contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`
+- `#1650` and `#1651` remain pending; no AK-aware manifest campaign helper surface is landed yet
+- this concern still has no direct AK mutation surface, semantic winner interpretation, or whole-campaign executor in the package baseline
 
 ## What must stay true while implementing
 
@@ -268,7 +292,7 @@ Do **not** let future tasks silently collapse boundaries:
 ## If you are starting the next task fresh
 
 1. read this file plus `docs/project/pi-autoresearch-target-control-plane-status.md`
-2. if the active concern touches the landed manifest campaign projection baseline or any later AK-binding follow-on, read both `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md` and `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md` before coding
+2. if the active concern touches the landed manifest campaign projection baseline or the active AK-binding follow-on, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, and `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md` before coding
 3. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
 4. identify or create the active AK task id for that new bounded slice
 5. inspect the scoped required paths from AK before coding

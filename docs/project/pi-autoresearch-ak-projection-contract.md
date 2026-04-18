@@ -37,6 +37,26 @@ What was still missing before `task:1474` was the smallest truthful **projection
 
 This note freezes that contract before the orchestrator implementation lands.
 
+## Scope boundary for later manifest-driven campaign work
+
+This note remains the contract for the **runtime-kernel milestone projector** that reads the bounded package machine/ledger seam.
+
+The later manifest-driven llama.cpp campaign concern does **not** silently widen this note.
+That newer concern reads a different package-local source seam:
+
+- the checked manifest
+- the deterministic stage-binding rules
+- the current manifest-campaign projection in `packages/pi-autoresearch/src/core/llamacppCampaign.ts`
+
+So when the active concern is manifest-driven llama.cpp campaign AK binding, use the package-local contract note instead:
+
+- [`packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`](../../packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md)
+
+Interpretation rule:
+
+> Reuse this note for bounded runtime-machine milestone projection.
+> Do not apply it wholesale to manifest-campaign stage/projection truth just because both concerns eventually touch AK.
+
 ## Governing authority snapshot
 
 | Concern | Current owner | Why |

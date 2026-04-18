@@ -1,7 +1,7 @@
 ---
-summary: "RFC for the typed manifest-driven llama.cpp campaign surface in pi-autoresearch, its landed 41/42/43 execution-binding follow-on, and the next bounded receipt/status projection layer, while preserving workstation execution truth and avoiding a second control plane."
+summary: "RFC for the typed manifest-driven llama.cpp campaign surface in pi-autoresearch, its landed 41/42/43 execution-binding and receipt/projection follow-ons, and the next active AK-binding follow-on, while preserving workstation execution truth and avoiding a second control plane."
 read_when:
-  - "Before implementing or reviewing the manifest-driven llama.cpp campaign surface, its landed execution-binding layer, or the next receipt/status projection follow-on in pi-autoresearch."
+  - "Before implementing or reviewing the manifest-driven llama.cpp campaign surface, its landed execution-binding/projection layers, or the next active AK-binding follow-on in pi-autoresearch."
   - "When deciding whether branch/lane benchmarking intent belongs in prose, runtime code, or one checked contract artifact."
 system4d:
   container: "Package-local RFC for post-target widening around manifest-driven brownfield benchmark campaigns."
@@ -23,7 +23,9 @@ The first slice from this bounded **post-target widening** RFC is now landed loc
 The bounded **manifest-driven 41/42/43 execution-binding** follow-on described below is also now landed locally through `#1636`, `#1640`, and `#1642`.
 
 The bounded **manifest campaign receipt/status projection** follow-on described below is now also landed locally through `#1644`, `#1645`, and `#1646`.
-Its closure/status artifact is [`llamacpp-campaign-projection-status.md`](./llamacpp-campaign-projection-status.md), and the remaining later follow-on for this concern is AK campaign binding rather than projection-proof work.
+Its closure/status artifact is [`llamacpp-campaign-projection-status.md`](./llamacpp-campaign-projection-status.md).
+
+The next bounded **manifest campaign AK binding** follow-on described below is now the active next slice for this concern under umbrella `#1648`, with the contract freeze in `#1649` and the implementation/proof follow-ons still pending.
 
 This RFC follows:
 
@@ -45,13 +47,14 @@ This RFC decides:
 4. the exact first slice and its non-goals
 5. the landed stage-scoped 41/42/43 execution-binding follow-on contract
 6. the next bounded receipt/status projection contract for this concern
+7. the active bounded AK-binding contract and lifecycle shape for this concern
 
 This RFC does **not** yet decide:
 
 - broad one-shot campaign execution across all stages/builds
-- AK campaign truth for this concern
+- direct AK mutation or broader lifecycle automation for this concern
 - ontology promotion for benchmark-campaign semantics
-- later AK binding or broader lifecycle automation for this concern
+- semantic winner selection or recommendation policy above workstation receipts
 
 ## C) Problem this RFC answers
 
@@ -360,11 +363,57 @@ This follow-on still does **not** include:
 - AK-backed campaign truth or lifecycle mutation
 - replacement of workstation ownership for the `41 / 42 / 43` scripts
 
-## M) Later follow-ons after receipt/status projection
+## M) Next bounded follow-on — manifest campaign AK binding to execution truth
 
-If the receipt/status projection follow-on lands cleanly, the next lawful follow-on is:
+### Decision in one sentence
 
-1. later AK binding if the campaign concept proves durable enough
+Add bounded package-local helpers that accept one exact manifest path plus one exact AK task id and derive one compact AK-ready milestone snapshot, deterministic projection key, and terminal-stage completion-candidate classification from current manifest/projection truth, while leaving actual AK evidence writes and task mutations to explicit callers.
 
-That remains later on purpose.
-It should not be smuggled into the projection slice.
+### Why this follow-on exists
+
+After projection landed, the next missing layer is no longer “can the package summarize the current manifest locally?”
+That is already real.
+
+The next missing layer is:
+
+- which exact AK task this manifest campaign currently binds to
+- which compact durable milestone the current manifest/projection state implies
+- when the highest manifest-expected stage has materially completed strongly enough to become a completion candidate
+- how later callers can reuse one deterministic package-local binding shape without guessing tasks or over-claiming workstation receipt semantics
+
+Without that layer, the package can summarize local state but still cannot reduce it into exact AK execution truth for this concern.
+
+### Binding/lifecycle contract
+
+The active bounded contract for this follow-on is frozen in:
+
+- [manifest campaign AK binding contract](./llamacpp-campaign-ak-binding-contract.md)
+
+That contract fixes these rules:
+
+1. the caller must provide an exact AK task id; no fuzzy task lookup or auto-create behavior is allowed
+2. the helper derives fresh current truth from the checked manifest plus current projection logic in `src/core/llamacppCampaign.ts`
+3. the helper maps current projection state into one compact AK milestone/check-type/projection-key/summary tuple
+4. terminal meaning is derived from the highest stage the manifest actually expects, not hard-coded to `43`
+5. terminal-stage materialization may become a completion candidate, but the helper itself must not shell AK or claim benchmark semantics the receipts do not actually prove
+
+### Follow-on done-state for tasks 1649–1651
+
+This AK-binding follow-on is done when all of the following are true:
+
+1. `#1649` freezes the exact helper/evidence/lifecycle contract in package-local docs
+2. `#1650` lands bounded helper exports in `packages/pi-autoresearch/src/core/llamacppCampaign.ts`
+3. those helpers can reduce one exact manifest + task anchor into one deterministic AK-ready binding snapshot
+4. `#1651` proves milestone mapping, terminal-stage classification, idempotent projection-key behavior, and fail-closed negative paths
+5. current-vs-target can later be updated in the proof task without overstating this slice as direct AK mutation, whole-campaign execution, or semantic winner selection
+
+### Explicit non-goals for the AK-binding follow-on
+
+This follow-on still does **not** include:
+
+- fuzzy task discovery or automatic task creation
+- direct AK writes or `ak task complete` mutation inside the package helper itself
+- parsing workstation receipt payloads into benchmark winners or recommendations
+- dumping whole per-build projection rows into AK by default
+- a whole-campaign executor
+- broader autonomy or remote-review control-plane work

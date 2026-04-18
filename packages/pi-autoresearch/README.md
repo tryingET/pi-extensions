@@ -110,7 +110,10 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, and one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded follow-on for this concern is later AK binding if the manifest-driven campaign family proves durable enough to deserve it.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, and one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth.
+
+The next active bounded follow-on for this concern is the contract-only AK binding slice frozen in [docs/project/llamacpp-campaign-ak-binding-contract.md](./docs/project/llamacpp-campaign-ak-binding-contract.md).
+That slice is not implemented yet; it only fixes the exact task-bound lifecycle/evidence shape the later helper work must satisfy.
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
