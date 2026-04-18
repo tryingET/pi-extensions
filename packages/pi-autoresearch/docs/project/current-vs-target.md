@@ -1,15 +1,15 @@
 ---
-summary: "Living current-vs-target map for @tryinget/pi-autoresearch, including the bounded runtime that exists today, the verified target control-plane state, and the AK task tree that closes the remaining gaps."
+summary: "Living current-vs-target map for @tryinget/pi-autoresearch, including the bounded runtime that exists today, the verified target control-plane state, and the AK task tree that reached that target."
 read_when:
   - "Before starting any new pi-autoresearch task in a fresh context window."
   - "When deciding what is already landed vs what still belongs to future bounded slices."
   - "When closing a pi-autoresearch workstream and needing to update the package's current-vs-target truth."
 type: "reference"
 system4d:
-  container: "Package-local living plan/status anchor for the pi-autoresearch runtime and its remaining control-plane gaps."
-  compass: "Keep bounded runtime truth separate from target-state ambition, and keep future work decomposed into fresh-context-sized slices."
-  engine: "State current reality -> define target done-state -> map gaps to umbrellas/child tasks -> require doc updates as slices land."
-  fog: "The main risks are stale planning, over-claiming the current package as a full control plane, or losing fresh-context continuity across long-running implementation waves."
+  container: "Package-local living plan/status anchor for the pi-autoresearch runtime, its reached target control-plane state, and any later widening beyond that bounded target."
+  compass: "Keep bounded runtime truth separate from future ambition, and keep any post-target work decomposed into fresh-context-sized slices."
+  engine: "State current reality -> preserve the target done-state truth -> map the landed task chain -> require doc updates when later widening starts."
+  fog: "The main risks are stale planning, over-claiming the current package as a broader autonomous plane than it is, or losing fresh-context continuity after the target rollout is already complete."
 ---
 
 # Current vs target — `@tryinget/pi-autoresearch`
@@ -23,7 +23,7 @@ It answers three questions:
 
 1. what is already real today
 2. what the actual target done-state is
-3. which scoped AK umbrellas/tasks close the remaining gaps
+3. which scoped AK umbrellas/tasks reached that target and now define the post-target baseline
 
 ## Update rule
 
@@ -79,11 +79,12 @@ When starting in a clean context, read in this order:
 
 1. [package README](../../README.md)
 2. [current-vs-target](./current-vs-target.md)
-3. [runtime machine and event-ledger status](../../../../docs/project/2026-04-16-pi-autoresearch-runtime-machine-and-ledger-status.md)
-4. [supervision and AK projection status](../../../../docs/project/2026-04-16-pi-autoresearch-supervision-and-ak-projection-status.md)
-5. [live supervision and AK lifecycle status](../../../../docs/project/pi-autoresearch-live-supervision-ak-lifecycle-status.md)
-6. [architecture correction](../../../../docs/project/pi-autoresearch-architecture-correction.md)
-7. the contract/status note for the specific active workstream below
+3. [target control-plane master status](../../../../docs/project/pi-autoresearch-target-control-plane-status.md)
+4. [runtime machine and event-ledger status](../../../../docs/project/2026-04-16-pi-autoresearch-runtime-machine-and-ledger-status.md)
+5. [supervision and AK projection status](../../../../docs/project/2026-04-16-pi-autoresearch-supervision-and-ak-projection-status.md)
+6. [live supervision and AK lifecycle status](../../../../docs/project/pi-autoresearch-live-supervision-ak-lifecycle-status.md)
+7. [architecture correction](../../../../docs/project/pi-autoresearch-architecture-correction.md)
+8. the contract/status note for the specific active follow-on work, if any
 
 ## Capability matrix
 
@@ -103,7 +104,11 @@ When starting in a clean context, read in this order:
 
 - `#1526` — **[UMBRELLA] Reach pi-autoresearch target control plane beyond the bounded runtime kernel**
 
-This umbrella closes only when all domain umbrellas below are complete and this file plus the final master status note are updated truthfully.
+Primary status artifact:
+- `docs/project/pi-autoresearch-target-control-plane-status.md`
+
+Current status:
+- Master umbrella `#1526` is landed; the repo now has the bounded target control plane described in this file, all domain umbrellas below are complete, and the closure is recorded in `docs/project/pi-autoresearch-target-control-plane-status.md` without claiming daemonized autonomy, auto-fail policy, or remote review automation.
 
 ### Workstream A — Prompt Vault decision integration
 
@@ -181,8 +186,8 @@ Do **not** let future tasks silently collapse boundaries:
 
 ## If you are starting the next task fresh
 
-1. identify the active AK task id from the task tree above
-2. read this file plus the active workstream's contract/status note
-3. inspect the scoped required paths from AK before coding
-4. keep the implementation within that bounded scope
-5. update this file when the workstream status changes
+1. read this file plus `docs/project/pi-autoresearch-target-control-plane-status.md`
+2. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
+3. identify or create the active AK task id for that new bounded slice
+4. inspect the scoped required paths from AK before coding
+5. keep the implementation within that bounded scope and update this file when the post-target baseline changes materially
