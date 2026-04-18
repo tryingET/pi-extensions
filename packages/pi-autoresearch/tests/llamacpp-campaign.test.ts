@@ -10,6 +10,8 @@ import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION,
+  buildLlamacppCampaignAkBinding,
+  buildLlamacppCampaignAkBindingDetails,
   executeLlamacppCampaignStage,
   formatLlamacppCampaignResult,
   loadLlamacppCampaignProjectionState,
@@ -605,6 +607,160 @@ test("persistLlamacppCampaignProjection writes and refreshes the bounded campaig
   });
 });
 
+test("buildLlamacppCampaignAkBinding derives a planned snapshot with a stable projection key", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    const first = buildLlamacppCampaignAkBinding({
+      cwd,
+      manifestPath,
+      taskId: 1648,
+      updatedAt: 1,
+    });
+    const second = buildLlamacppCampaignAkBinding({
+      cwd,
+      manifestPath,
+      taskId: 1648,
+      updatedAt: 2,
+    });
+    const details = buildLlamacppCampaignAkBindingDetails(first);
+
+    assert.equal(first.taskId, 1648);
+    assert.equal(first.manifest.campaignId, "llamacpp-wave-001");
+    assert.equal(first.manifest.terminalStage, 43);
+    assert.equal(first.projection.overallState, "planned_only");
+    assert.equal(first.ak.milestone, "planned");
+    assert.equal(first.ak.checkType, "autoresearch:llamacpp-campaign:planned");
+    assert.equal(first.lifecycle.completionEligible, false);
+    assert.equal(first.lifecycle.action, "evidence_only");
+    assert.equal(first.stages.stage41ExpectedBuilds, 5);
+    assert.equal(first.stages.stage42ExpectedBuilds, 3);
+    assert.equal(first.stages.stage43ExpectedBuilds, 1);
+    assert.equal(first.projection.projectionKey, second.projection.projectionKey);
+    assert.equal(details.task_id, 1648);
+    assert.equal(details.projection_key, first.projection.projectionKey);
+    assert.equal(details.milestone, "planned");
+    assert.match(
+      formatLlamacppCampaignResult({
+        action: "build_ak_binding",
+        binding: first,
+        details,
+        nextAction: "record evidence",
+      }),
+      /milestone: planned/,
+    );
+  });
+});
+
+test("buildLlamacppCampaignAkBinding maps stage milestones through terminal completion", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId: "A", apply: true });
+    let binding = buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 1648 });
+    assert.equal(binding.projection.overallState, "partially_materialized");
+    assert.equal(binding.ak.milestone, "materializing");
+    assert.equal(binding.lifecycle.completionEligible, false);
+
+    for (const buildId of ["B", "C", "D", "E"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId, apply: true });
+    }
+    binding = buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 1648 });
+    assert.equal(binding.projection.overallState, "stage41_complete");
+    assert.equal(binding.ak.milestone, "stage41_complete");
+    assert.equal(binding.lifecycle.action, "evidence_only");
+
+    for (const buildId of ["A", "B", "C"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId, apply: true });
+    }
+    binding = buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 1648 });
+    assert.equal(binding.projection.overallState, "stage42_complete");
+    assert.equal(binding.ak.milestone, "stage42_complete");
+    assert.equal(binding.lifecycle.completionEligible, false);
+
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "43", buildId: "C", apply: true });
+    binding = buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 1648 });
+    assert.equal(binding.projection.overallState, "stage43_complete");
+    assert.equal(binding.ak.milestone, "terminal_stage_complete");
+    assert.equal(binding.ak.checkType, "autoresearch:llamacpp-campaign:terminal-stage-complete");
+    assert.equal(binding.lifecycle.completionEligible, true);
+    assert.equal(binding.lifecycle.action, "complete_task_candidate");
+  });
+});
+
+test("buildLlamacppCampaignAkBinding derives truthful terminal stages for 42-only and 41-only manifests", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const payload = readJson<{
+      workflow: {
+        stage41BuildIds: string[];
+        stage42Matrix: Array<{ buildId: string; laneIds: string[] }>;
+        stage43BuildIds: string[];
+      };
+    }>(manifestPath);
+
+    payload.workflow.stage43BuildIds = [];
+    writeFile(manifestPath, `${JSON.stringify(payload, null, 2)}\n`);
+    for (const buildId of ["A", "B", "C", "D", "E"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId, apply: true });
+    }
+    for (const buildId of ["A", "B", "C"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId, apply: true });
+    }
+    let binding = buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 1650 });
+    assert.equal(binding.manifest.terminalStage, 42);
+    assert.equal(binding.ak.milestone, "terminal_stage_complete");
+    assert.equal(binding.lifecycle.completionEligible, true);
+
+    payload.workflow.stage42Matrix = [];
+    writeFile(manifestPath, `${JSON.stringify(payload, null, 2)}\n`);
+    binding = buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 1650 });
+    assert.equal(binding.manifest.terminalStage, 41);
+    assert.equal(binding.ak.milestone, "terminal_stage_complete");
+    assert.equal(binding.lifecycle.completionEligible, true);
+  });
+});
+
+test("buildLlamacppCampaignAkBinding fails closed for invalid task ids and zero-stage manifests", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    assert.throws(
+      () => buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 0 }),
+      /taskId must be a positive integer/,
+    );
+
+    const payload = readJson<{
+      workflow: {
+        stage41BuildIds: string[];
+        stage42Matrix: Array<{ buildId: string; laneIds: string[] }>;
+        stage43BuildIds: string[];
+      };
+    }>(manifestPath);
+    payload.workflow.stage41BuildIds = [];
+    payload.workflow.stage42Matrix = [];
+    payload.workflow.stage43BuildIds = [];
+    writeFile(manifestPath, `${JSON.stringify(payload, null, 2)}\n`);
+
+    assert.throws(
+      () => buildLlamacppCampaignAkBinding({ cwd, manifestPath, taskId: 1650 }),
+      /does not define any executable stage expectation/,
+    );
+  });
+});
+
 test("execution binding fails closed when the receipt root escapes the workstation repo", async () => {
   await withTempDir((cwd) => {
     const sourceRepo = initSourceRepo(cwd);
@@ -673,6 +829,40 @@ test("extension registers the llama.cpp campaign tool and executes execute_stage
     assert.match(text, /action: execute_stage/);
     assert.match(text, /stage: 41/);
     assert.match(text, /output receipt: .*A-stage41-validation\.json/);
+    assert.match(text, /## Projection/);
+    assert.match(text, /overall state: planned_only/);
+    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
+  });
+});
+
+test("extension registers the llama.cpp campaign tool and executes build_ak_binding", async () => {
+  await withTempDir(async (cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME);
+    assert.ok(tool);
+
+    const result = await tool?.execute(
+      "campaign-2",
+      {
+        action: "build_ak_binding",
+        cwd,
+        manifestPath,
+        taskId: 1648,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    const text = result?.content[0]?.text ?? "";
+    assert.match(text, /action: build_ak_binding/);
+    assert.match(text, /task id: 1648/);
+    assert.match(text, /milestone: planned/);
+    assert.match(text, /projection key: task:1648\|manifest:/);
     assert.match(text, /## Projection/);
     assert.match(text, /overall state: planned_only/);
     assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);

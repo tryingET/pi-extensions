@@ -372,6 +372,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
   assert.match(formatAutoresearchStatusText(status), /next slices: ak_campaign_binding/);
+  assert.match(buildAutoresearchHelpText(status), /derive one exact AK-ready binding snapshot/);
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
   assert.equal(
     buildAutoresearchHelpText(status).includes("llamacpp_campaign_projection_proof"),

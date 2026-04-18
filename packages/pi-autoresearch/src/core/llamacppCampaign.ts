@@ -13,12 +13,21 @@ export const AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_KIND =
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_VERSION = 1 as const;
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_SOURCE =
   "derived_from_manifest_and_receipts" as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_KIND =
+  "llamacpp_campaign_ak_binding" as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_VERSION = 1 as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_DETAILS_VERSION = 1 as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_OWNER = "pi-autoresearch" as const;
 
 const GIT_COMMIT_RE = /^[0-9a-f]{7,40}$/i;
 const PYTHON_EXECUTABLE = "python3";
 
 export type LlamacppCampaignStage = "41" | "42" | "43";
-export type LlamacppCampaignAction = "plan_matrix" | "prepare_fork" | "execute_stage";
+export type LlamacppCampaignAction =
+  | "plan_matrix"
+  | "prepare_fork"
+  | "execute_stage"
+  | "build_ak_binding";
 
 export interface LlamacppCampaignBuildSpec {
   id: string;
@@ -285,6 +294,94 @@ export interface LoadLlamacppCampaignProjectionStateResult {
   staleReason: string | null;
 }
 
+export type LlamacppCampaignAkMilestone =
+  | "planned"
+  | "materializing"
+  | "stage41_complete"
+  | "stage42_complete"
+  | "terminal_stage_complete";
+
+export type LlamacppCampaignAkLifecycleAction = "evidence_only" | "complete_task_candidate";
+
+export interface LlamacppCampaignAkBindingStageSummary {
+  buildCount: number;
+  stage41ExpectedBuilds: number;
+  stage41PresentReceipts: number;
+  stage41PresentCorpora: number;
+  stage42ExpectedBuilds: number;
+  stage42PresentReceipts: number;
+  stage43ExpectedBuilds: number;
+  stage43PresentReceipts: number;
+}
+
+export interface LlamacppCampaignAkBindingV1 {
+  type: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_KIND;
+  version: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_VERSION;
+  taskId: number;
+  manifest: {
+    path: string;
+    campaignId: string;
+    manifestKey: string;
+    receiptRootPath: string;
+    terminalStage: 41 | 42 | 43;
+  };
+  projection: {
+    overallState: LlamacppCampaignProjectionOverallState;
+    updatedAt: number;
+    projectionKey: string;
+  };
+  stages: LlamacppCampaignAkBindingStageSummary;
+  ak: {
+    milestone: LlamacppCampaignAkMilestone;
+    checkType: string;
+    result: "pass";
+    summary: string;
+  };
+  lifecycle: {
+    completionEligible: boolean;
+    action: LlamacppCampaignAkLifecycleAction;
+    reason: string;
+  };
+}
+
+export interface LlamacppCampaignAkBindingDetailsV1 {
+  contract_version: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_DETAILS_VERSION;
+  binding_owner: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_OWNER;
+  campaign_kind: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND;
+  task_id: number;
+  milestone: LlamacppCampaignAkMilestone;
+  projection_key: string;
+  manifest: {
+    path: string;
+    campaign_id: string;
+    manifest_key: string;
+    receipt_root_path: string;
+    terminal_stage: 41 | 42 | 43;
+  };
+  projection: {
+    overall_state: LlamacppCampaignProjectionOverallState;
+    updated_at: number;
+  };
+  stages: {
+    build_count: number;
+    stage41_expected_builds: number;
+    stage41_present_receipts: number;
+    stage41_present_corpora: number;
+    stage42_expected_builds: number;
+    stage42_present_receipts: number;
+    stage43_expected_builds: number;
+    stage43_present_receipts: number;
+  };
+  summary: string;
+}
+
+export interface BuildLlamacppCampaignAkBindingResult {
+  action: "build_ak_binding";
+  binding: LlamacppCampaignAkBindingV1;
+  details: LlamacppCampaignAkBindingDetailsV1;
+  nextAction: string;
+}
+
 class LlamacppCampaignManifestError extends Error {}
 
 export function loadLlamacppCampaignManifest(
@@ -549,6 +646,101 @@ export function loadLlamacppCampaignProjectionState(input: {
   };
 }
 
+export function buildLlamacppCampaignAkBinding(input: {
+  cwd: string;
+  manifestPath: string;
+  taskId: number;
+  updatedAt?: number;
+}): LlamacppCampaignAkBindingV1 {
+  const taskId = requireAkTaskId(input.taskId);
+  const resolved = loadLlamacppCampaignManifest(input.manifestPath, input.cwd);
+  const projection = buildLlamacppCampaignProjection({
+    cwd: input.cwd,
+    manifestPath: input.manifestPath,
+    updatedAt: input.updatedAt,
+  });
+  const terminalStage = deriveLlamacppCampaignTerminalStage(resolved.manifest);
+  const stages = summarizeLlamacppCampaignAkStages(projection);
+  const projectionKey = createLlamacppCampaignAkProjectionKey({
+    taskId,
+    manifestKey: projection.manifest.manifestKey,
+    terminalStage,
+    overallState: projection.status.overallState,
+    stages,
+  });
+  const akProjection = deriveLlamacppCampaignAkProjection({
+    campaignId: projection.manifest.campaignId,
+    overallState: projection.status.overallState,
+    terminalStage,
+    stages,
+  });
+
+  return {
+    type: AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_KIND,
+    version: AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_VERSION,
+    taskId,
+    manifest: {
+      path: projection.manifest.path,
+      campaignId: projection.manifest.campaignId,
+      manifestKey: projection.manifest.manifestKey,
+      receiptRootPath: projection.manifest.receiptRootPath,
+      terminalStage,
+    },
+    projection: {
+      overallState: projection.status.overallState,
+      updatedAt: projection.updatedAt,
+      projectionKey,
+    },
+    stages,
+    ak: {
+      milestone: akProjection.milestone,
+      checkType: akProjection.checkType,
+      result: "pass",
+      summary: akProjection.summary,
+    },
+    lifecycle: {
+      completionEligible: akProjection.completionEligible,
+      action: akProjection.lifecycleAction,
+      reason: akProjection.reason,
+    },
+  };
+}
+
+export function buildLlamacppCampaignAkBindingDetails(
+  binding: LlamacppCampaignAkBindingV1,
+): LlamacppCampaignAkBindingDetailsV1 {
+  return {
+    contract_version: AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_DETAILS_VERSION,
+    binding_owner: AUTORESEARCH_LLAMACPP_CAMPAIGN_AK_BINDING_OWNER,
+    campaign_kind: AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
+    task_id: binding.taskId,
+    milestone: binding.ak.milestone,
+    projection_key: binding.projection.projectionKey,
+    manifest: {
+      path: binding.manifest.path,
+      campaign_id: binding.manifest.campaignId,
+      manifest_key: binding.manifest.manifestKey,
+      receipt_root_path: binding.manifest.receiptRootPath,
+      terminal_stage: binding.manifest.terminalStage,
+    },
+    projection: {
+      overall_state: binding.projection.overallState,
+      updated_at: binding.projection.updatedAt,
+    },
+    stages: {
+      build_count: binding.stages.buildCount,
+      stage41_expected_builds: binding.stages.stage41ExpectedBuilds,
+      stage41_present_receipts: binding.stages.stage41PresentReceipts,
+      stage41_present_corpora: binding.stages.stage41PresentCorpora,
+      stage42_expected_builds: binding.stages.stage42ExpectedBuilds,
+      stage42_present_receipts: binding.stages.stage42PresentReceipts,
+      stage43_expected_builds: binding.stages.stage43ExpectedBuilds,
+      stage43_present_receipts: binding.stages.stage43PresentReceipts,
+    },
+    summary: binding.ak.summary,
+  };
+}
+
 export function planLlamacppCampaignMatrix(input: {
   cwd: string;
   manifestPath: string;
@@ -781,7 +973,8 @@ export function formatLlamacppCampaignResult(
   result:
     | PlanLlamacppCampaignMatrixResult
     | PrepareLlamacppCampaignForkResult
-    | ExecuteLlamacppCampaignStageResult,
+    | ExecuteLlamacppCampaignStageResult
+    | BuildLlamacppCampaignAkBindingResult,
 ): string {
   if (result.action === "plan_matrix") {
     const stage41Lines = result.stage41.map(
@@ -830,6 +1023,40 @@ export function formatLlamacppCampaignResult(
       "",
       "## Warnings",
       ...warningLines,
+      "",
+      `- next step: ${result.nextAction}`,
+    ].join("\n");
+  }
+
+  if (result.action === "build_ak_binding") {
+    return [
+      "# PI-AUTORESEARCH LLAMACPP CAMPAIGN",
+      "",
+      `- action: ${result.action}`,
+      `- task id: ${result.binding.taskId}`,
+      `- manifest: ${result.binding.manifest.path}`,
+      `- campaign: ${result.binding.manifest.campaignId}`,
+      `- terminal stage: ${result.binding.manifest.terminalStage}`,
+      `- receipt root: ${result.binding.manifest.receiptRootPath}`,
+      `- overall state: ${result.binding.projection.overallState}`,
+      `- projection key: ${result.binding.projection.projectionKey}`,
+      "",
+      "## AK binding",
+      `- milestone: ${result.binding.ak.milestone}`,
+      `- check type: ${result.binding.ak.checkType}`,
+      `- result: ${result.binding.ak.result}`,
+      `- summary: ${result.binding.ak.summary}`,
+      "",
+      "## Lifecycle",
+      `- completion eligible: ${result.binding.lifecycle.completionEligible ? "yes" : "no"}`,
+      `- action: ${result.binding.lifecycle.action}`,
+      `- reason: ${result.binding.lifecycle.reason}`,
+      "",
+      "## Stage counts",
+      `- stage41 receipts: ${result.binding.stages.stage41PresentReceipts}/${result.binding.stages.stage41ExpectedBuilds}`,
+      `- stage41 corpora: ${result.binding.stages.stage41PresentCorpora}/${result.binding.stages.stage41ExpectedBuilds}`,
+      `- stage42 receipts: ${result.binding.stages.stage42PresentReceipts}/${result.binding.stages.stage42ExpectedBuilds}`,
+      `- stage43 receipts: ${result.binding.stages.stage43PresentReceipts}/${result.binding.stages.stage43ExpectedBuilds}`,
       "",
       `- next step: ${result.nextAction}`,
     ].join("\n");
@@ -1310,6 +1537,165 @@ export function deriveStagePaths(
     stage42ReceiptPath: path.join(receiptRootPath, `${buildId}-stage42-q8-vs-config-i.json`),
     stage43ReceiptPath: path.join(receiptRootPath, `${buildId}-stage43-vllm-comparison.json`),
   };
+}
+
+function requireAkTaskId(taskId: number): number {
+  if (!Number.isInteger(taskId) || taskId <= 0) {
+    throw new LlamacppCampaignManifestError(
+      `taskId must be a positive integer, got ${String(taskId)}`,
+    );
+  }
+  return taskId;
+}
+
+function deriveLlamacppCampaignTerminalStage(manifest: LlamacppCampaignManifest): 41 | 42 | 43 {
+  if (manifest.workflow.stage43BuildIds.length > 0) {
+    return 43;
+  }
+  if (manifest.workflow.stage42Matrix.length > 0) {
+    return 42;
+  }
+  if (manifest.workflow.stage41BuildIds.length > 0) {
+    return 41;
+  }
+  throw new LlamacppCampaignManifestError(
+    `manifest ${manifest.campaignId} does not define any executable stage expectation for AK binding`,
+  );
+}
+
+function summarizeLlamacppCampaignAkStages(
+  projection: LlamacppCampaignProjectionV1,
+): LlamacppCampaignAkBindingStageSummary {
+  return {
+    buildCount: projection.builds.length,
+    stage41ExpectedBuilds: projection.builds.filter((build) => build.stages["41"].expected).length,
+    stage41PresentReceipts: projection.builds.filter((build) => build.stages["41"].receiptExists)
+      .length,
+    stage41PresentCorpora: projection.builds.filter((build) => build.stages["41"].corpusExists)
+      .length,
+    stage42ExpectedBuilds: projection.builds.filter((build) => build.stages["42"].expected).length,
+    stage42PresentReceipts: projection.builds.filter((build) => build.stages["42"].receiptExists)
+      .length,
+    stage43ExpectedBuilds: projection.builds.filter((build) => build.stages["43"].expected).length,
+    stage43PresentReceipts: projection.builds.filter((build) => build.stages["43"].receiptExists)
+      .length,
+  };
+}
+
+function createLlamacppCampaignAkProjectionKey(input: {
+  taskId: number;
+  manifestKey: string;
+  terminalStage: 41 | 42 | 43;
+  overallState: LlamacppCampaignProjectionOverallState;
+  stages: LlamacppCampaignAkBindingStageSummary;
+}): string {
+  return [
+    `task:${input.taskId}`,
+    `manifest:${input.manifestKey}`,
+    `terminal:${input.terminalStage}`,
+    `overall:${input.overallState}`,
+    `41:${input.stages.stage41PresentReceipts}/${input.stages.stage41ExpectedBuilds}`,
+    `42:${input.stages.stage42PresentReceipts}/${input.stages.stage42ExpectedBuilds}`,
+    `43:${input.stages.stage43PresentReceipts}/${input.stages.stage43ExpectedBuilds}`,
+  ].join("|");
+}
+
+function deriveLlamacppCampaignAkProjection(input: {
+  campaignId: string;
+  overallState: LlamacppCampaignProjectionOverallState;
+  terminalStage: 41 | 42 | 43;
+  stages: LlamacppCampaignAkBindingStageSummary;
+}): {
+  milestone: LlamacppCampaignAkMilestone;
+  checkType: string;
+  completionEligible: boolean;
+  lifecycleAction: LlamacppCampaignAkLifecycleAction;
+  summary: string;
+  reason: string;
+} {
+  const terminalCounts = getLlamacppCampaignStageCounts(input.stages, input.terminalStage);
+  const terminalComplete = terminalCounts.present >= terminalCounts.expected;
+
+  if (terminalComplete) {
+    return {
+      milestone: "terminal_stage_complete",
+      checkType: "autoresearch:llamacpp-campaign:terminal-stage-complete",
+      completionEligible: true,
+      lifecycleAction: "complete_task_candidate",
+      summary: `campaign ${input.campaignId} reached its manifest terminal stage ${input.terminalStage} with ${terminalCounts.present}/${terminalCounts.expected} expected ${pluralize("receipt", terminalCounts.expected)} present`,
+      reason: `manifest-expected terminal stage ${input.terminalStage} receipts are materially present for all ${terminalCounts.expected} expected ${pluralize("build", terminalCounts.expected)}`,
+    };
+  }
+
+  if (input.overallState === "stage42_complete") {
+    const stage43Counts = getLlamacppCampaignStageCounts(input.stages, 43);
+    return {
+      milestone: "stage42_complete",
+      checkType: "autoresearch:llamacpp-campaign:stage42-complete",
+      completionEligible: false,
+      lifecycleAction: "evidence_only",
+      summary: `campaign ${input.campaignId} reached stage 42 for ${input.stages.stage42PresentReceipts}/${input.stages.stage42ExpectedBuilds} expected ${pluralize("build", input.stages.stage42ExpectedBuilds)}; stage 43 remains pending for ${Math.max(stage43Counts.expected - stage43Counts.present, 0)} ${pluralize("build", Math.max(stage43Counts.expected - stage43Counts.present, 0))}`,
+      reason: `manifest-expected terminal stage ${input.terminalStage} is not fully materialized yet: ${terminalCounts.present}/${terminalCounts.expected} expected ${pluralize("receipt", terminalCounts.expected)} present`,
+    };
+  }
+
+  if (input.overallState === "stage41_complete") {
+    const nextStageCounts = getLlamacppCampaignStageCounts(input.stages, 42);
+    return {
+      milestone: "stage41_complete",
+      checkType: "autoresearch:llamacpp-campaign:stage41-complete",
+      completionEligible: false,
+      lifecycleAction: "evidence_only",
+      summary: `campaign ${input.campaignId} reached stage 41 for ${input.stages.stage41PresentReceipts}/${input.stages.stage41ExpectedBuilds} expected ${pluralize("build", input.stages.stage41ExpectedBuilds)}; stage 42 remains pending for ${Math.max(nextStageCounts.expected - nextStageCounts.present, 0)} ${pluralize("build", Math.max(nextStageCounts.expected - nextStageCounts.present, 0))}`,
+      reason: `manifest-expected terminal stage ${input.terminalStage} is not fully materialized yet: ${terminalCounts.present}/${terminalCounts.expected} expected ${pluralize("receipt", terminalCounts.expected)} present`,
+    };
+  }
+
+  if (input.overallState === "partially_materialized") {
+    return {
+      milestone: "materializing",
+      checkType: "autoresearch:llamacpp-campaign:materializing",
+      completionEligible: false,
+      lifecycleAction: "evidence_only",
+      summary: `campaign ${input.campaignId} is materializing; stage 41 ${input.stages.stage41PresentReceipts}/${input.stages.stage41ExpectedBuilds}, stage 42 ${input.stages.stage42PresentReceipts}/${input.stages.stage42ExpectedBuilds}, stage 43 ${input.stages.stage43PresentReceipts}/${input.stages.stage43ExpectedBuilds} expected receipts present`,
+      reason: `manifest-expected terminal stage ${input.terminalStage} is only partially materialized: ${terminalCounts.present}/${terminalCounts.expected} expected ${pluralize("receipt", terminalCounts.expected)} present`,
+    };
+  }
+
+  return {
+    milestone: "planned",
+    checkType: "autoresearch:llamacpp-campaign:planned",
+    completionEligible: false,
+    lifecycleAction: "evidence_only",
+    summary: `campaign ${input.campaignId} is planned; stage 41 ${input.stages.stage41PresentReceipts}/${input.stages.stage41ExpectedBuilds}, stage 42 ${input.stages.stage42PresentReceipts}/${input.stages.stage42ExpectedBuilds}, stage 43 ${input.stages.stage43PresentReceipts}/${input.stages.stage43ExpectedBuilds} expected receipts present`,
+    reason: `manifest-expected terminal stage ${input.terminalStage} has not materialized yet: ${terminalCounts.present}/${terminalCounts.expected} expected ${pluralize("receipt", terminalCounts.expected)} present`,
+  };
+}
+
+function getLlamacppCampaignStageCounts(
+  stages: LlamacppCampaignAkBindingStageSummary,
+  stage: 41 | 42 | 43,
+): { expected: number; present: number } {
+  if (stage === 41) {
+    return {
+      expected: stages.stage41ExpectedBuilds,
+      present: stages.stage41PresentReceipts,
+    };
+  }
+  if (stage === 42) {
+    return {
+      expected: stages.stage42ExpectedBuilds,
+      present: stages.stage42PresentReceipts,
+    };
+  }
+  return {
+    expected: stages.stage43ExpectedBuilds,
+    present: stages.stage43PresentReceipts,
+  };
+}
+
+function pluralize(word: string, count: number): string {
+  return count === 1 ? word : `${word}s`;
 }
 
 function getStage42Entry(

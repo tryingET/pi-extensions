@@ -11,6 +11,8 @@ import {
 } from "../src/core/finalize.ts";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+  buildLlamacppCampaignAkBinding,
+  buildLlamacppCampaignAkBindingDetails,
   executeLlamacppCampaignStage,
   formatLlamacppCampaignResult,
   persistLlamacppCampaignProjection,
@@ -138,10 +140,15 @@ const directionSchema = Type.Union([Type.Literal("lower"), Type.Literal("higher"
 });
 
 const campaignActionSchema = Type.Union(
-  [Type.Literal("plan_matrix"), Type.Literal("prepare_fork"), Type.Literal("execute_stage")],
+  [
+    Type.Literal("plan_matrix"),
+    Type.Literal("prepare_fork"),
+    Type.Literal("execute_stage"),
+    Type.Literal("build_ak_binding"),
+  ],
   {
     description:
-      "Load a typed llama.cpp benchmark campaign manifest, either expand the exact 41/42/43 branch-lane matrix, plan/apply the fork workspace preparation, or plan/apply one exact stage invocation.",
+      "Load a typed llama.cpp benchmark campaign manifest, either expand the exact 41/42/43 branch-lane matrix, plan/apply the fork workspace preparation, plan/apply one exact stage invocation, or derive one exact AK-ready binding snapshot for an anchored task.",
   },
 );
 
@@ -174,6 +181,13 @@ const campaignSchema = Type.Object({
     Type.Boolean({
       description:
         "For action=prepare_fork or action=execute_stage. When true, apply the fork/stage action instead of only printing the plan.",
+    }),
+  ),
+  taskId: Type.Optional(
+    Type.Number({
+      description:
+        "Only for action=build_ak_binding. Exact AK task id that this manifest campaign should reduce into a compact binding snapshot.",
+      minimum: 1,
     }),
   ),
 });
@@ -499,27 +513,30 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
     label: "Autoresearch llama.cpp Campaign",
     description:
-      "Load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, and plan/apply one exact stage invocation against the current workstation scripts.",
+      "Load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, plan/apply one exact stage invocation, or derive one exact AK-ready binding snapshot for an anchored task.",
     promptSnippet:
-      "Use this tool when the user wants a deterministic branch/benchmark matrix, fork preparation plan, or one exact 41/42/43 stage binding for a brownfield llama.cpp campaign.",
+      "Use this tool when the user wants a deterministic branch/benchmark matrix, fork preparation plan, one exact 41/42/43 stage binding, or one exact AK-ready milestone snapshot for a brownfield llama.cpp campaign.",
     promptGuidelines: [
       "Use this tool instead of freeform planning when the user names branches, cherry-picks, lanes, or the 41/42/43 workflow.",
       "Prefer action=plan_matrix before action=execute_stage so branch/lane intent is explicit before script binding.",
       "Use action=prepare_fork with apply=true only when the user clearly wants the fork workspace created or switched.",
       "Use action=execute_stage for one exact build/stage, not as a whole-campaign runner.",
+      "Use action=build_ak_binding only when the user already has an exact AK task id and wants a compact AK-ready snapshot rather than an AK mutation.",
     ],
     parameters: campaignSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as {
-        action?: "plan_matrix" | "prepare_fork" | "execute_stage";
+        action?: "plan_matrix" | "prepare_fork" | "execute_stage" | "build_ak_binding";
         cwd?: string;
         manifestPath: string;
         stage?: "41" | "42" | "43";
         buildId?: string;
         apply?: boolean;
+        taskId?: number;
       };
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "plan_matrix";
+      const updatedAt = Date.now();
       const result =
         action === "prepare_fork"
           ? prepareLlamacppCampaignFork({
@@ -535,13 +552,37 @@ export function registerPiAutoresearchExtension(
                 buildId: request.buildId ?? "",
                 apply: request.apply,
               })
-            : planLlamacppCampaignMatrix({
-                cwd,
-                manifestPath: request.manifestPath,
-              });
+            : action === "build_ak_binding"
+              ? (() => {
+                  if (request.taskId === undefined) {
+                    throw new Error(
+                      "taskId is required when action=build_ak_binding for autoresearch_llamacpp_campaign",
+                    );
+                  }
+                  const binding = buildLlamacppCampaignAkBinding({
+                    cwd,
+                    manifestPath: request.manifestPath,
+                    taskId: request.taskId,
+                    updatedAt,
+                  });
+                  return {
+                    action: "build_ak_binding" as const,
+                    binding,
+                    details: buildLlamacppCampaignAkBindingDetails(binding),
+                    nextAction:
+                      binding.lifecycle.action === "complete_task_candidate"
+                        ? `A caller above the package may now evaluate whether AK task ${binding.taskId} should be completed; this helper does not mutate AK directly.`
+                        : `Reuse or record AK evidence for task ${binding.taskId}; terminal stage ${binding.manifest.terminalStage} is not fully materialized yet.`,
+                  };
+                })()
+              : planLlamacppCampaignMatrix({
+                  cwd,
+                  manifestPath: request.manifestPath,
+                });
       const projection = persistLlamacppCampaignProjection({
         cwd,
         manifestPath: request.manifestPath,
+        updatedAt,
       });
       const text = [
         formatLlamacppCampaignResult(result),
