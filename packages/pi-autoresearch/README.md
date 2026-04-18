@@ -153,6 +153,7 @@ The public/consumer seam for this concern is now:
 - bounded role: current control status + one-step public advance + optional exact-task AK-binding context, all derived from one canonical public-control snapshot per call
 - current task posture: landed through `#1699`; no broader whole-campaign or direct-AK-mutation surface was added
 - known limitation bound in AK: task `#1709` will decide whether/how this public seam should verify that a caller-supplied positive `taskId` maps to a live AK task before treating it as exact task context
+- decision-attending RFC: [docs/project/2026-04-18-public-ak-task-verification-rfc.md](./docs/project/2026-04-18-public-ak-task-verification-rfc.md)
 
 ## Current non-goals
 

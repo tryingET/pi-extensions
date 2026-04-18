@@ -359,6 +359,9 @@ Current status:
 - one later follow-on is now explicitly deferred in AK instead of being abandoned in prose:
   - `#1709` — decide exact AK task verification semantics for the public campaign-control surface
   - current limitation: positive caller-supplied `taskId` is still treated as exact task context without live AK existence verification
+  - decision-attending RFC: `packages/pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md`
+  - AK decision record: `decision:17` — Decide public AK task verification semantics for pi-autoresearch campaign control
+  - RFC candidate direction: optional best-effort live AK verification with surfaced status, while keeping `status` / `advance` usable package-locally and leaving the technical `build_ak_binding` helper distinct
   - deferral binding: AK task `#1709`, kind `until_decision`, trigger `decision:pi-autoresearch-public-task-verification`, review `2026-04-25`
 
 ## What must stay true while implementing
@@ -374,7 +377,7 @@ Do **not** let future tasks silently collapse boundaries:
 ## If you are starting the next task fresh
 
 1. read this file plus `docs/project/pi-autoresearch-target-control-plane-status.md`
-2. if the active concern touches the landed manifest campaign projection baseline, the landed AK-binding slice, the landed campaign-local autonomy slice, or the landed public campaign-control slice, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`, and `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md` before coding
+2. if the active concern touches the landed manifest campaign projection baseline, the landed AK-binding slice, the landed campaign-local autonomy slice, the landed public campaign-control slice, or the pending public task-verification follow-on, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`, and `packages/pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md` before coding
 3. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
 4. identify or create the active AK task id for that new bounded slice
 5. inspect the scoped required paths from AK before coding
