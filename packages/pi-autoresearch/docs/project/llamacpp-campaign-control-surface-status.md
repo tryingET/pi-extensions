@@ -222,5 +222,10 @@ The manifest public campaign-control slice is now complete when read as the boun
 What comes next is not "make the package an autonomous controller in general."
 That is still out of scope.
 
-No further bounded follow-on is currently committed in `current-vs-target` for this concern.
-Any later widening would still need a new explicit bounded decision.
+One later bounded follow-on is now explicitly committed outside the package in `pi-society-orchestrator`:
+
+- `#1701` — write orchestrator-side supervision and AK evidence policy for manifest-driven pi-autoresearch campaigns
+- contract artifact: [../../pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md](../../pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md)
+- current policy direction: reuse package-derived manifest campaign AK-binding truth for exact-anchor evidence-only writes, and do not widen the concern into live polling or task lifecycle mutation in v1
+
+Any later implementation above that contract would still need a separate explicit bounded task.

@@ -372,6 +372,10 @@ Current status:
     - public `akBinding`, `taskBound`, and `completionCandidate` now require verified live task context
     - public `status` / `advance` still degrade gracefully to package-local truth when live AK verification is unavailable or the supplied task does not exist
     - the lower-level technical `build_ak_binding` helper remains a distinct caller-driven contract below the public seam
+- one next external follow-on is now committed in `pi-society-orchestrator` as a docs-only policy slice:
+  - `#1701` — write orchestrator-side supervision and AK evidence policy for manifest-driven pi-autoresearch campaigns
+  - contract artifact: `packages/pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md`
+  - current policy direction: reuse package-derived manifest campaign AK-binding truth for exact-anchor evidence-only writes, and do not widen this concern into live polling or task lifecycle mutation in v1
 
 ## What must stay true while implementing
 
