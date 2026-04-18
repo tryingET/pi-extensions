@@ -17,7 +17,7 @@ Monorepo package for the governed `pi-autoresearch` capability in Pi.
 - Workspace path: `packages/pi-autoresearch`
 - Release component key: `pi-autoresearch`
 - Extension entry: `extensions/pi-autoresearch.ts`
-- Current phase: `bounded_runtime_kernel`
+- Current phase: `live_supervised_target_control_plane`
 - Current-vs-target anchor: [docs/project/current-vs-target.md](./docs/project/current-vs-target.md)
 
 ## Why this package exists
@@ -54,6 +54,11 @@ The current boundary is now more specific: the package is the runtime owner for 
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
   - appends machine/event entries to `autoresearch.events.jsonl`
+- `autoresearch_llamacpp_campaign`
+  - loads a typed llama.cpp benchmark campaign manifest
+  - expands the exact brownfield `phasee/41-43` branch/lane matrix without re-deriving it from chat prose
+  - plans or applies fork workspace preparation for later patch transplant work under `../../fork/`
+  - does **not** yet execute those stages directly; the next contracted slice is stage-scoped execution binding
 
 ### Runtime helpers
 
@@ -62,6 +67,10 @@ The current boundary is now more specific: the package is the runtime owner for 
   - structured `METRIC name=value` parsing
   - bounded benchmark/check execution helpers
   - runtime status/help rendering that now integrates receipt summaries with machine/ledger projection
+- `src/core/llamacppCampaign.ts`
+  - typed llama.cpp benchmark campaign manifest model
+  - explicit `phasee/41-43` stage matrix expansion
+  - fork workspace planning/apply helpers with fail-closed git checks
 - `src/core/ledger.ts`
   - append-only event-ledger entry types and JSONL helpers
   - ledger replay/projector helpers for the campaign machine
@@ -96,7 +105,7 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, and append-only event ledger; the machine is wired into the current bounded runtime surfaces, and the next bounded slices are AK binding plus machine-invoked Prompt Vault decision steps.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, and one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded slices include AK binding plus any later manifest-driven run/receipt integration.
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
@@ -107,15 +116,19 @@ Interpretation rule:
 
 This package does **not** yet implement:
 
-- AK campaign binding
-- machine-invoked Prompt Vault decision steps
-- finalization branch creation
-- autonomous resume/loop lifecycle
+- AK campaign binding for the new llama.cpp campaign manifests
+- direct execution of manifest-driven 41/42/43 campaigns end to end
+- campaign receipt projection for the manifest-driven planning/prep surface
+- autonomous resume/loop lifecycle for the new manifest-driven workflow
 - shared higher-order session-control orchestration
-- an explicit operator-facing decision surface above the current automatic iterate-bridging used by the bounded run tool
+- a second control plane that duplicates workstation `lane-op` or the brownfield 41/42/43 scripts
 
 The package now includes the bounded runtime's machine/event-ledger integration, but the broader control-plane and autonomy integrations still belong to later bounded slices after the bounded runtime kernel.
 Use [docs/project/current-vs-target.md](./docs/project/current-vs-target.md) as the living package-local map for what is landed vs what still belongs to future verified slices.
+
+## Example manifest
+
+- `examples/llamacpp-wave-001.json` — scaffold for the typed llama.cpp benchmark campaign surface plus the next build-bin / receipt-root execution-binding contract
 
 ## Validation
 

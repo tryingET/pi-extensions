@@ -58,7 +58,19 @@ That means the repo now has:
 - durable status/proof notes for all four workstreams
 
 This now satisfies the target done-state defined in this file.
-What it still does **not** have is any wider daemonized autonomy, auto-fail framework, or remote-review control plane beyond that bounded target.
+It also now has one bounded **post-target widening slice** landed locally:
+
+- a typed llama.cpp benchmark campaign manifest contract
+- a bounded `autoresearch_llamacpp_campaign` tool for deterministic `plan_matrix` and `prepare_fork` behavior
+- package-local problem-intent/RFC notes for manifest-driven brownfield benchmark orchestration
+
+The next active widening slice is now contract-defined but **not yet landed**:
+
+- explicit per-build `buildBinDir` bindings for executable manifest builds
+- one explicit `workflow.executionBinding.receiptRootPath` for build-scoped 41/42/43 outputs
+- one stage-scoped execution surface above the existing workstation scripts
+
+What it still does **not** have is any wider daemonized autonomy, auto-fail framework, remote-review control plane, or direct manifest-driven 41/42/43 campaign execution beyond that bounded planning/prep surface.
 
 ## Target done-state
 
@@ -84,7 +96,9 @@ When starting in a clean context, read in this order:
 5. [supervision and AK projection status](../../../../docs/project/2026-04-16-pi-autoresearch-supervision-and-ak-projection-status.md)
 6. [live supervision and AK lifecycle status](../../../../docs/project/pi-autoresearch-live-supervision-ak-lifecycle-status.md)
 7. [architecture correction](../../../../docs/project/pi-autoresearch-architecture-correction.md)
-8. the contract/status note for the specific active follow-on work, if any
+8. [llama.cpp benchmark campaign manifest problem-intent](./2026-04-18-llamacpp-benchmark-campaign-manifest-problem-intent.md)
+9. [llama.cpp benchmark campaign manifest RFC](./2026-04-18-llamacpp-benchmark-campaign-manifest-rfc.md)
+10. the contract/status note for the specific active follow-on work, if any
 
 ## Capability matrix
 
@@ -97,6 +111,8 @@ When starting in a clean context, read in this order:
 | Live supervision / polling | Landed (Workstream D) | orchestrator can observe the runtime continuously through a bounded runner/polling policy | `packages/pi-society-orchestrator` | supervisor-runner tests + live supervision/lifecycle status note |
 | AK task lifecycle automation | Landed (bounded Workstream D) | bounded lifecycle actions are contract-bound, idempotent, fail-closed, and proven end to end | `packages/pi-society-orchestrator` | lifecycle tests + live supervision/lifecycle status note |
 | Operator-facing control plane | Landed (package + orchestrator) | operator can inspect and drive continue / rebaseline / finalize / stop from truthful package and live-supervision surfaces above the bounded kernel | package + orchestrator | control-surface tests + live control-plane tests + live supervision/lifecycle status note |
+| Manifest-driven llama.cpp benchmark planning | Landed (post-target widening) | branch lineage, stage 41/42/43 matrix, and fork prep are explicit through a checked manifest plus the bounded `autoresearch_llamacpp_campaign` tool | `packages/pi-autoresearch` | package tests + problem-intent/RFC docs + README/current-vs-target updates |
+| Manifest-driven 41/42/43 execution binding | Contracted next slice (not landed) | one manifest-listed build can plan/apply an exact stage 41, 42, or 43 workstation-script invocation through explicit build-bin + build-scoped receipt bindings | `packages/pi-autoresearch` + workstation `phasee/41-43` scripts | RFC/example contract + package tests + README/current-vs-target proof update |
 
 ## Scoped AK task tree
 
@@ -173,6 +189,34 @@ The task tree is intentionally staged:
 - Workstream A first: runtime decision integration
 - Workstreams B and C build on the runtime becoming decision-aware
 - Workstream D comes last because live supervision/lifecycle automation should target the fuller package truth, not the earlier bounded kernel alone
+
+## Post-target widening note
+
+### Manifest-driven llama.cpp benchmark campaign planning
+
+A bounded post-target widening slice is now landed locally for brownfield llama.cpp benchmarking:
+
+- checked manifest contract for branch / cherry-pick / lane / evidence intent
+- explicit `phasee/41-43` workflow anchors in the manifest
+- bounded `autoresearch_llamacpp_campaign` tool with `plan_matrix` and `prepare_fork`
+
+This slice is intentionally still **planning/prep only**.
+It does **not** yet mean the package owns direct 41/42/43 execution, campaign receipt projection for this concern, or AK-backed campaign truth.
+
+### Next active slice — bounded 41/42/43 execution binding
+
+Active umbrella:
+
+- `#1635` — **[UMBRELLA] Bind manifest-driven llama.cpp campaigns to bounded 41/42/43 execution**
+  - `#1636` — Write manifest-driven 41/42/43 execution-binding contract and done-state
+  - `#1640` — Implement bounded manifest-driven 41/42/43 execution surface in pi-autoresearch
+  - `#1642` — Prove manifest-driven 41/42/43 execution binding and update current-vs-target
+
+Current status:
+
+- `#1636` freezes the execution-binding contract in the RFC/example/current-vs-target surfaces
+- the slice is still **not landed**
+- it remains stage-scoped on purpose and does **not** yet include receipt/status projection or AK-backed campaign truth
 
 ## What must stay true while implementing
 

@@ -1,0 +1,113 @@
+{
+  "kind": "pi-autoresearch-llamacpp-campaign",
+  "version": 1,
+  "campaignId": "llamacpp-wave-001",
+  "objective": "Benchmark the highest-value llama.cpp TurboQuant branches and lanes without losing deterministic fork preparation.",
+  "sourceRepoPath": "../../../../../clone/llama-cpp-turboquant",
+  "workstationRepoPath": "../../../../../infra/workstation",
+  "fork": {
+    "targetRepoPath": "../../../../../fork/llama-cpp-turboquant",
+    "baseRef": "main",
+    "workingBranch": "campaign/llamacpp-wave-001"
+  },
+  "workflow": {
+    "kind": "phasee-41-43",
+    "stage41Script": "scripts/phasee/41-turboquant-pr45-qwen35-validation.py",
+    "stage42Script": "scripts/phasee/42-turboquant-pr45-qwen35-q8-comparison.py",
+    "stage43Script": "scripts/phasee/43-turboquant-pr45-qwen35-vllm-comparison.py",
+    "executionBinding": {
+      "receiptRootPath": "phasee/receipts/llamacpp-wave-001"
+    },
+    "stage41BuildIds": ["A", "B", "C", "D", "E"],
+    "stage42Matrix": [
+      { "buildId": "A", "laneIds": ["config_i_turbo3", "q8_0_turbo4"] },
+      { "buildId": "B", "laneIds": ["config_i_turbo3", "q8_0_turbo4"] },
+      { "buildId": "C", "laneIds": ["config_i_turbo3", "q8_0_turbo4"] }
+    ],
+    "stage43BuildIds": ["C"]
+  },
+  "builds": [
+    {
+      "id": "A",
+      "title": "current tq4 weight compression",
+      "branch": "pr/tq4-weight-compression",
+      "buildBinDir": "../../../../../clone/llama-cpp-turboquant/builds/llamacpp-wave-001/A/bin",
+      "cherryPickCommits": [],
+      "lineageSummary": "Use the current PR branch directly.",
+      "notes": ["validation-first"]
+    },
+    {
+      "id": "B",
+      "title": "turboquant kv-cache branch",
+      "branch": "feature/turboquant-kv-cache",
+      "buildBinDir": "../../../../../clone/llama-cpp-turboquant/builds/llamacpp-wave-001/B/bin",
+      "cherryPickCommits": [],
+      "lineageSummary": "Use the feature branch directly.",
+      "notes": ["candidate"]
+    },
+    {
+      "id": "C",
+      "title": "kv-cache plus weight-compression cherry-pick",
+      "branch": "feature/turboquant-kv-cache",
+      "buildBinDir": "../../../../../clone/llama-cpp-turboquant/builds/llamacpp-wave-001/C/bin",
+      "cherryPickCommits": ["0123456789abcdef0123456789abcdef01234567"],
+      "lineageSummary": "Start from the kv-cache branch and layer the weight-compression patch set explicitly.",
+      "notes": ["compound candidate"]
+    },
+    {
+      "id": "D",
+      "title": "layer-adaptive extended ctx",
+      "branch": "experiment/layer-adaptive-extended-ctx",
+      "buildBinDir": "../../../../../clone/llama-cpp-turboquant/builds/llamacpp-wave-001/D/bin",
+      "cherryPickCommits": [],
+      "lineageSummary": "Standalone experiment branch.",
+      "notes": ["context experiment"]
+    },
+    {
+      "id": "E",
+      "title": "asymmetric q8_0-K plus turbo4-V",
+      "branch": "feature/asymmetric-q8_0-K-turbo4-V",
+      "buildBinDir": "../../../../../clone/llama-cpp-turboquant/builds/llamacpp-wave-001/E/bin",
+      "cherryPickCommits": [],
+      "lineageSummary": "Standalone asymmetric cache branch.",
+      "notes": ["optional"]
+    }
+  ],
+  "lanes": [
+    {
+      "id": "config_i_turbo3",
+      "title": "Config I + turbo3",
+      "runtimeFamily": "config_i",
+      "kvCacheMode": "turbo3",
+      "notes": ["carried baseline"]
+    },
+    {
+      "id": "q8_0_turbo4",
+      "title": "q8_0 + turbo4",
+      "runtimeFamily": "q8_0",
+      "kvCacheMode": "turbo4",
+      "notes": ["primary challenger"]
+    },
+    {
+      "id": "q8_0_k_turbo4_v",
+      "title": "q8_0-K + turbo4-V",
+      "runtimeFamily": "q8_0-k",
+      "kvCacheMode": "turbo4-v",
+      "notes": ["future challenger", "not yet bound to the current stage-42 script contract"]
+    }
+  ],
+  "evidence": {
+    "expectedReceiptPaths": [
+      "phasee/receipts/llamacpp-wave-001/A-stage41-validation.json",
+      "phasee/receipts/llamacpp-wave-001/A-stage42-q8-vs-config-i.json",
+      "phasee/receipts/llamacpp-wave-001/B-stage41-validation.json",
+      "phasee/receipts/llamacpp-wave-001/B-stage42-q8-vs-config-i.json",
+      "phasee/receipts/llamacpp-wave-001/C-stage41-validation.json",
+      "phasee/receipts/llamacpp-wave-001/C-stage42-q8-vs-config-i.json",
+      "phasee/receipts/llamacpp-wave-001/C-stage43-vllm-comparison.json",
+      "phasee/receipts/llamacpp-wave-001/D-stage41-validation.json",
+      "phasee/receipts/llamacpp-wave-001/E-stage41-validation.json"
+    ],
+    "requiredMetrics": ["ppl", "pp32768_tokens_per_second", "tg128_tokens_per_second"]
+  }
+}
