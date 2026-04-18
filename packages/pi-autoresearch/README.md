@@ -62,7 +62,8 @@ The current boundary is now more specific: the package is the runtime owner for 
   - writes or refreshes one checked `autoresearch.llamacpp-campaign.json` projection artifact for bounded runtime/help use
   - derives one exact-task AK-ready binding snapshot through `action=build_ak_binding` without mutating AK directly
   - derives or applies exactly one truthful next campaign-local stage step through `action=advance_campaign`
-  - does **not** become a public campaign-control surface, a whole-campaign runner, or a replacement for workstation execution ownership
+  - remains the technical manifest-helper surface below the later public `autoresearch_llamacpp_campaign_control` seam
+  - does **not** become a whole-campaign runner or a replacement for workstation execution ownership
 
 ### Runtime helpers
 
@@ -124,11 +125,25 @@ The campaign-local autonomy slice is now landed and closed in:
 - [docs/project/llamacpp-campaign-autonomy-contract.md](./docs/project/llamacpp-campaign-autonomy-contract.md)
 - [docs/project/llamacpp-campaign-autonomy-status.md](./docs/project/llamacpp-campaign-autonomy-status.md)
 
+The next bounded public campaign-control follow-on is now contract-frozen in:
+- [docs/project/llamacpp-campaign-control-surface-contract.md](./docs/project/llamacpp-campaign-control-surface-contract.md)
+
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
 - the package owns executable runtime state and may derive compact AK-ready snapshots plus one bounded next-step autonomy view for explicit callers
 - AK still owns durable campaign truth, evidence writes, and any later task completion decision
-- the later public campaign-control surface remains a separate follow-on above this bounded helper layer
+- the later public `autoresearch_llamacpp_campaign_control` surface remains a separate follow-on above the current technical helper layer and is not implemented yet
+
+## Next bounded public campaign-control follow-on
+
+The next public/consumer seam for this concern is intended to be:
+
+- tool: `autoresearch_llamacpp_campaign_control`
+- contract: [docs/project/llamacpp-campaign-control-surface-contract.md](./docs/project/llamacpp-campaign-control-surface-contract.md)
+- bounded role: current control status + one-step public advance + optional exact-task AK-binding context
+- still pending: implementation/proof in `#1698` / `#1699`
+
+Until that follow-on lands, `autoresearch_llamacpp_campaign` remains the lower-level technical helper surface for expert/manual workflows.
 
 ## Current non-goals
 

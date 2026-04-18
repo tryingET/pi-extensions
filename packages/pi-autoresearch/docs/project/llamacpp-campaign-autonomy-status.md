@@ -184,7 +184,7 @@ That is still out of scope.
 
 The next bounded follow-on above this landed slice is the later public campaign-control surface umbrella:
 
-- freeze the public consumer/control contract in `#1697`
+- freeze the public consumer/control contract in `#1697` through [llamacpp-campaign-control-surface-contract.md](./llamacpp-campaign-control-surface-contract.md)
 - implement the bounded public surface in `#1698`
 - prove that surface without collapsing it into whole-campaign execution or direct AK mutation in `#1699`
 

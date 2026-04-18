@@ -329,6 +329,27 @@ Current status:
 - the package can now derive one current stage-wave autonomy snapshot, surface blocked next steps truthfully, and plan/apply exactly one next stage step while still staying below public campaign control, direct AK mutation, and whole-campaign execution
 - the next widening above this landed slice is the later public campaign-control surface umbrella `#1696`, not a broader hidden autonomy plane inside the package
 
+### Manifest-driven public campaign-control surface
+
+Active umbrella:
+
+- `#1696` — **[UMBRELLA] Expose a public campaign-control surface for manifest-driven pi-autoresearch campaigns**
+  - `#1697` — Write public campaign-control contract and consumer seam for manifest-driven pi-autoresearch campaigns
+  - `#1698` — Implement bounded public campaign-control surface in pi-autoresearch
+  - `#1699` — Prove public campaign-control surface and update current-vs-target
+
+Primary artifact:
+
+- `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`
+
+Current status:
+
+- campaign-local autonomy is now the landed technical baseline for this concern
+- `#1697` has now frozen the bounded public consumer/control contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`
+- the intended public seam is a dedicated `autoresearch_llamacpp_campaign_control` tool above the existing technical `autoresearch_llamacpp_campaign` actions
+- implementation/proof remain pending in `#1698` / `#1699`
+- this future public seam is still bounded to current status + one-step advance + optional exact-task AK-binding context; it is not a whole-campaign runner or direct AK mutation surface
+
 ## What must stay true while implementing
 
 Do **not** let future tasks silently collapse boundaries:
@@ -342,7 +363,7 @@ Do **not** let future tasks silently collapse boundaries:
 ## If you are starting the next task fresh
 
 1. read this file plus `docs/project/pi-autoresearch-target-control-plane-status.md`
-2. if the active concern touches the landed manifest campaign projection baseline, the landed AK-binding slice, or the landed campaign-local autonomy slice, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`, and `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-status.md` before coding
+2. if the active concern touches the landed manifest campaign projection baseline, the landed AK-binding slice, the landed campaign-local autonomy slice, or the pending public campaign-control follow-on, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-status.md`, and `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md` before coding
 3. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
 4. identify or create the active AK task id for that new bounded slice
 5. inspect the scoped required paths from AK before coding

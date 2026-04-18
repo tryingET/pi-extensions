@@ -515,16 +515,16 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
     label: "Autoresearch llama.cpp Campaign",
     description:
-      "Load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, plan/apply one exact stage invocation, or derive one exact AK-ready binding snapshot for an anchored task.",
+      "Load a typed llama.cpp benchmark campaign manifest, emit the exact 41/42/43 branch-lane matrix, plan/apply fork preparation, plan/apply one exact stage invocation, or derive one exact AK-ready binding snapshot for an anchored task. This remains the technical manifest-helper surface below the later public autoresearch_llamacpp_campaign_control seam.",
     promptSnippet:
-      "Use this tool when the user wants a deterministic branch/benchmark matrix, fork preparation plan, one exact 41/42/43 stage binding, or one exact AK-ready milestone snapshot for a brownfield llama.cpp campaign.",
+      "Use this tool when the user wants a deterministic branch/benchmark matrix, fork preparation plan, one exact 41/42/43 stage binding, or one exact AK-ready milestone snapshot for a brownfield llama.cpp campaign. This is the technical helper seam, not the later dedicated public control tool.",
     promptGuidelines: [
       "Use this tool instead of freeform planning when the user names branches, cherry-picks, lanes, or the 41/42/43 workflow.",
       "Prefer action=plan_matrix before action=execute_stage so branch/lane intent is explicit before script binding.",
       "Use action=prepare_fork with apply=true only when the user clearly wants the fork workspace created or switched.",
       "Use action=execute_stage for one exact build/stage, not as a whole-campaign runner.",
       "Use action=build_ak_binding only when the user already has an exact AK task id and wants a compact AK-ready snapshot rather than an AK mutation.",
-      "Use action=advance_campaign to derive or execute exactly one truthful next stage step; it is still not a public campaign-control plane or whole-campaign runner.",
+      "Use action=advance_campaign to derive or execute exactly one truthful next stage step; it is still not the dedicated public autoresearch_llamacpp_campaign_control surface or a whole-campaign runner.",
     ],
     parameters: campaignSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
