@@ -12,6 +12,7 @@ import {
 } from "../../../pi-autoresearch/src/runtime.ts";
 import type { AutoresearchSupervisorLedgerLike } from "../loops/autoresearch-supervisor.ts";
 import { resolveAkPath } from "./ak.ts";
+import { evaluateAutoresearchAkLifecycle } from "./autoresearch-ak-lifecycle.ts";
 import {
   type AutoresearchAkProjectorResult,
   projectAutoresearchAkMilestone,
@@ -579,20 +580,14 @@ export class AutoresearchLiveSupervisionRunner {
       });
     }
 
-    const taskStatus = projector.task?.status?.toLowerCase();
-    if (taskStatus === "completed" || taskStatus === "failed") {
-      return {
-        ok: true,
-        action: "already_terminal",
-        summary: `AK task ${record.identity.taskId} is already ${taskStatus}.`,
-      };
-    }
-
-    return {
-      ok: true,
-      action: "none",
-      summary: "No lifecycle mutation was required for this poll.",
-    };
+    return evaluateAutoresearchAkLifecycle({
+      taskId: record.identity.taskId,
+      akPath: this.resolveAkPathForCwd(observation.cwd),
+      societyDb: this.resolveSocietyDbPath(),
+      observation,
+      projector,
+      signal,
+    });
   }
 
   private scheduleNext(record: SessionRecord): void {
@@ -640,7 +635,10 @@ function deriveSessionSummary(
   projector: AutoresearchAkProjectorResult,
   lifecycle: AutoresearchLiveLifecycleOutcome,
 ): string {
-  if (lifecycle.summary.trim().length > 0 && lifecycle.action !== "none") {
+  if (
+    lifecycle.summary.trim().length > 0 &&
+    (lifecycle.action !== "none" || lifecycle.summary !== projector.candidate.reason)
+  ) {
     return lifecycle.summary;
   }
 
