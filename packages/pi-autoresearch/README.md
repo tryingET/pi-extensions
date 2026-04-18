@@ -122,7 +122,7 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth, one non-mutating AK-ready manifest-campaign binding helper layer for exact manifest/task anchors, and one bounded campaign-local autonomy helper layer for truthful one-step stage advancement.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth, one non-mutating AK-ready manifest-campaign binding helper layer for exact manifest/task anchors, one bounded campaign-local autonomy helper layer for truthful one-step stage advancement, and one bounded public campaign-control seam above those landed helper layers.
 
 The AK-binding slice is now landed and closed in:
 - [docs/project/llamacpp-campaign-ak-binding-contract.md](./docs/project/llamacpp-campaign-ak-binding-contract.md)
@@ -132,8 +132,9 @@ The campaign-local autonomy slice is now landed and closed in:
 - [docs/project/llamacpp-campaign-autonomy-contract.md](./docs/project/llamacpp-campaign-autonomy-contract.md)
 - [docs/project/llamacpp-campaign-autonomy-status.md](./docs/project/llamacpp-campaign-autonomy-status.md)
 
-The next bounded public campaign-control follow-on is now contract-frozen in:
+The bounded public campaign-control slice is now landed and closed in:
 - [docs/project/llamacpp-campaign-control-surface-contract.md](./docs/project/llamacpp-campaign-control-surface-contract.md)
+- [docs/project/llamacpp-campaign-control-surface-status.md](./docs/project/llamacpp-campaign-control-surface-status.md)
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
@@ -147,8 +148,9 @@ The public/consumer seam for this concern is now:
 
 - tool: `autoresearch_llamacpp_campaign_control`
 - contract: [docs/project/llamacpp-campaign-control-surface-contract.md](./docs/project/llamacpp-campaign-control-surface-contract.md)
+- status: [docs/project/llamacpp-campaign-control-surface-status.md](./docs/project/llamacpp-campaign-control-surface-status.md)
 - bounded role: current control status + one-step public advance + optional exact-task AK-binding context
-- current task posture: implementation landed in `#1698`; proof/status closure still pending in `#1699`
+- current task posture: landed through `#1699`; no broader whole-campaign or direct-AK-mutation surface was added
 
 ## Current non-goals
 

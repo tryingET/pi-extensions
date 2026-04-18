@@ -368,17 +368,12 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
       "autoresearch.llamacpp-campaign.json",
     ),
   );
-  assert.deepEqual(status.nextSlices, [
-    "proof/status closure for public `autoresearch_llamacpp_campaign_control` surface (`#1699`)",
-  ]);
+  assert.deepEqual(status.nextSlices, []);
   assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
   assert.match(formatAutoresearchStatusText(status), /machine state: segment_unconfigured/);
   assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
-  assert.match(
-    formatAutoresearchStatusText(status),
-    /next slices: proof\/status closure for public `autoresearch_llamacpp_campaign_control` surface/,
-  );
+  assert.match(formatAutoresearchStatusText(status), /next slices: \(none currently committed\)/);
   assert.match(buildAutoresearchHelpText(status), /exact-task AK-binding snapshot derivation/);
   assert.match(buildAutoresearchHelpText(status), /one-step campaign-local advancement/);
   assert.match(
@@ -388,10 +383,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.match(buildAutoresearchHelpText(status), /autoresearch_llamacpp_campaign_control/);
   assert.match(buildAutoresearchHelpText(status), /lower-level technical manifest work/);
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
-  assert.match(
-    buildAutoresearchHelpText(status),
-    /proof\/status closure for public `autoresearch_llamacpp_campaign_control` surface/,
-  );
+  assert.match(buildAutoresearchHelpText(status), /none currently committed in current-vs-target/);
   assert.equal(
     buildAutoresearchHelpText(status).includes("llamacpp_campaign_projection_proof"),
     false,

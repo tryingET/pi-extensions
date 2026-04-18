@@ -978,6 +978,70 @@ test("executeLlamacppCampaignControl applies one step and refreshes public contr
   });
 });
 
+test("executeLlamacppCampaignControl fails closed for blocked public apply", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    rmSync(buildBins.A, { recursive: true, force: true });
+
+    const status = inspectLlamacppCampaignControl({ cwd, manifestPath, updatedAt: 4 });
+    assert.equal(status.control.autonomy.lifecycle.phase, "blocked");
+    assert.equal(status.control.public.nextStepAction, "advance");
+    assert.match(status.control.public.reason, /blocked/);
+    assert.match(status.nextAction, /blocked/);
+
+    assert.throws(
+      () => executeLlamacppCampaignControl({ cwd, manifestPath, apply: true, updatedAt: 5 }),
+      /next campaign step is currently blocked/,
+    );
+  });
+});
+
+test("inspectLlamacppCampaignControl reports terminal completion candidacy without inventing more work", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    for (const buildId of ["A", "B", "C", "D", "E"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId, apply: true });
+    }
+    for (const buildId of ["A", "B", "C"]) {
+      executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId, apply: true });
+    }
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "43", buildId: "C", apply: true });
+
+    const status = inspectLlamacppCampaignControl({
+      cwd,
+      manifestPath,
+      taskId: 1699,
+      updatedAt: 6,
+    });
+    assert.equal(status.control.public.taskBound, true);
+    assert.equal(status.control.public.nextStepAction, "none");
+    assert.equal(status.control.public.completionCandidate, true);
+    assert.equal(status.control.autonomy.nextStep.action, "none");
+    assert.match(status.control.public.reason, /completion candidate/);
+    assert.match(status.nextAction, /may now evaluate whether AK task 1699 should be completed/);
+    assert.match(formatLlamacppCampaignControlResult(status), /completion candidate: yes/);
+
+    const plannedAdvance = executeLlamacppCampaignControl({
+      cwd,
+      manifestPath,
+      taskId: 1699,
+      updatedAt: 7,
+    });
+    assert.equal(plannedAdvance.mode, "plan");
+    assert.equal(plannedAdvance.executedStep, null);
+    assert.equal(plannedAdvance.control.public.nextStepAction, "none");
+    assert.match(plannedAdvance.nextAction, /AK task 1699 should be completed explicitly/);
+  });
+});
+
 test("execution binding fails closed when the receipt root escapes the workstation repo", async () => {
   await withTempDir((cwd) => {
     const sourceRepo = initSourceRepo(cwd);

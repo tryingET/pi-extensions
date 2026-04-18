@@ -182,10 +182,8 @@ The manifest campaign-local autonomy slice is now complete when read as the boun
 What comes next is not "make the package autonomous in general."
 That is still out of scope.
 
-The next bounded follow-on above this landed slice is the later public campaign-control surface umbrella:
+The later public campaign-control follow-on above this landed slice is now itself landed and closed in:
 
-- freeze the public consumer/control contract in `#1697` through [llamacpp-campaign-control-surface-contract.md](./llamacpp-campaign-control-surface-contract.md)
-- implement the bounded public surface in `#1698`
-- prove that surface without collapsing it into whole-campaign execution or direct AK mutation in `#1699`
+- [llamacpp-campaign-control-surface-status.md](./llamacpp-campaign-control-surface-status.md)
 
 Any later widening beyond that would still be a different decision about direct AK mutation policy or broader orchestration above this bounded helper layer.

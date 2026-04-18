@@ -1610,9 +1610,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
     llamacppCampaignProjection,
-    nextSlices: [
-      "proof/status closure for public `autoresearch_llamacpp_campaign_control` surface (`#1699`)",
-    ],
+    nextSlices: [],
   };
 }
 
