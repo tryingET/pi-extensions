@@ -201,7 +201,8 @@ One remaining follow-on is now explicitly bound in AK instead of being left as a
   - [2026-04-18-public-ak-task-verification-rfc.md](./2026-04-18-public-ak-task-verification-rfc.md)
   - [2026-04-18-review-public-ak-task-verification-rfc.md](./2026-04-18-review-public-ak-task-verification-rfc.md)
 - AK decision record: `decision:17` — Decide public AK task verification semantics for pi-autoresearch campaign control
-- current decision state: `adr_required` with outcome `accepted`; ADR artifact not yet recorded
+- current decision state: `adr_recorded` with outcome `accepted`
+- ADR artifact: [../adr/2026-04-18-public-ak-task-verification-semantics.md](../adr/2026-04-18-public-ak-task-verification-semantics.md)
 - RFC candidate direction: optional best-effort live AK verification with surfaced status, while keeping `status` / `advance` usable package-locally and leaving the lower-level technical `build_ak_binding` helper distinct
 - deferral kind: `until_decision`
 - trigger ref: `decision:pi-autoresearch-public-task-verification`
