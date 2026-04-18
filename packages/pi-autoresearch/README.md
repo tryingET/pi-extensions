@@ -110,7 +110,7 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, and one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded slices are proof closure for the projection layer plus later AK binding.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, and one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth. The machine is wired into the current bounded runtime surfaces, and the current remaining bounded follow-on for this concern is later AK binding if the manifest-driven campaign family proves durable enough to deserve it.
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
@@ -123,7 +123,7 @@ This package does **not** yet implement:
 
 - AK campaign binding for the new llama.cpp campaign manifests
 - direct execution of manifest-driven 41/42/43 campaigns end to end
-- campaign receipt projection for the manifest-driven planning/prep surface
+- semantic interpretation of manifest-stage payloads into benchmark winners, recommendations, or completion truth
 - autonomous resume/loop lifecycle for the new manifest-driven workflow
 - shared higher-order session-control orchestration
 - a second control plane that duplicates workstation `lane-op` or the brownfield 41/42/43 scripts

@@ -1604,7 +1604,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
     llamacppCampaignProjection,
-    nextSlices: ["llamacpp_campaign_projection_proof", "ak_campaign_binding"],
+    nextSlices: ["ak_campaign_binding"],
   };
 }
 

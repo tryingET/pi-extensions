@@ -22,8 +22,8 @@ The first slice from this bounded **post-target widening** RFC is now landed loc
 
 The bounded **manifest-driven 41/42/43 execution-binding** follow-on described below is also now landed locally through `#1636`, `#1640`, and `#1642`.
 
-The next bounded follow-on proposed here is **manifest campaign receipt/status projection**.
-That follow-on is not landed yet; this note now freezes its contract and artifact model so `#1645` / `#1646` can land it without widening into a second execution or campaign-truth plane.
+The bounded **manifest campaign receipt/status projection** follow-on described below is now also landed locally through `#1644`, `#1645`, and `#1646`.
+Its closure/status artifact is [`llamacpp-campaign-projection-status.md`](./llamacpp-campaign-projection-status.md), and the remaining later follow-on for this concern is AK campaign binding rather than projection-proof work.
 
 This RFC follows:
 
