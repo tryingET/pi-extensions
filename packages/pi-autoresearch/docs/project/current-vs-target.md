@@ -211,6 +211,27 @@ The task tree is intentionally staged:
 
 ## Post-target widening note
 
+### Manifest-driven llama.cpp benchmark campaign execution memory
+
+Landed umbrella:
+
+- `#1634` — **[UMBRELLA] Land post-target manifest-driven llama.cpp benchmark campaign execution memory in pi-autoresearch**
+  - `#1635` — **[UMBRELLA] Bind manifest-driven llama.cpp campaigns to bounded 41/42/43 execution**
+  - `#1643` — **[UMBRELLA] Project manifest-driven campaign receipts and runtime status**
+  - `#1648` — **[UMBRELLA] Bind manifest-driven llama.cpp campaigns to AK execution truth**
+
+Primary status artifacts:
+
+- `packages/pi-autoresearch/docs/project/llamacpp-execution-binding-status.md`
+- `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`
+- `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`
+
+Current status:
+
+- the broader post-target manifest-driven execution-memory widening is now landed locally through the three child umbrellas above
+- the package now has stage-scoped 41/42/43 execution binding, manifest campaign receipt/status projection, and exact-task non-mutating AK-ready binding derivation for this concern
+- this broader umbrella still does not imply direct AK mutation, semantic winner interpretation, or one-shot whole-campaign execution
+
 ### Manifest-driven llama.cpp benchmark campaign planning
 
 A bounded post-target widening slice is now landed locally for brownfield llama.cpp benchmarking:

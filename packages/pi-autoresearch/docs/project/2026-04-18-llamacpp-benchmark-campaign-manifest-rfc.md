@@ -1,7 +1,7 @@
 ---
-summary: "RFC for the typed manifest-driven llama.cpp campaign surface in pi-autoresearch, its landed 41/42/43 execution-binding and receipt/projection follow-ons, and the next active AK-binding follow-on, while preserving workstation execution truth and avoiding a second control plane."
+summary: "RFC for the typed manifest-driven llama.cpp campaign surface in pi-autoresearch and its landed execution-binding, receipt/projection, and AK-binding follow-ons, while preserving workstation execution truth and avoiding a second control plane."
 read_when:
-  - "Before implementing or reviewing the manifest-driven llama.cpp campaign surface, its landed execution-binding/projection layers, or the next active AK-binding follow-on in pi-autoresearch."
+  - "Before implementing or reviewing the manifest-driven llama.cpp campaign surface or its landed execution-binding, projection, and AK-binding layers in pi-autoresearch."
   - "When deciding whether branch/lane benchmarking intent belongs in prose, runtime code, or one checked contract artifact."
 system4d:
   container: "Package-local RFC for post-target widening around manifest-driven brownfield benchmark campaigns."
@@ -25,7 +25,14 @@ The bounded **manifest-driven 41/42/43 execution-binding** follow-on described b
 The bounded **manifest campaign receipt/status projection** follow-on described below is now also landed locally through `#1644`, `#1645`, and `#1646`.
 Its closure/status artifact is [`llamacpp-campaign-projection-status.md`](./llamacpp-campaign-projection-status.md).
 
-The next bounded **manifest campaign AK binding** follow-on described below is now the active next slice for this concern under umbrella `#1648`, with the contract freeze in `#1649` and the implementation/proof follow-ons still pending.
+The bounded **manifest campaign AK binding** follow-on described below is now also landed locally through `#1649`, `#1650`, and `#1651`.
+Its closure/status artifact is [`llamacpp-campaign-ak-binding-status.md`](./llamacpp-campaign-ak-binding-status.md).
+
+Together, umbrella `#1634` is now landed locally as the bounded post-target execution-memory widening for this concern across:
+
+- stage-scoped 41/42/43 execution binding
+- manifest campaign receipt/status projection
+- exact-task, non-mutating AK-ready binding derivation
 
 This RFC follows:
 
@@ -46,8 +53,8 @@ This RFC decides:
 3. the authority split between `pi-autoresearch` and workstation execution surfaces
 4. the exact first slice and its non-goals
 5. the landed stage-scoped 41/42/43 execution-binding follow-on contract
-6. the next bounded receipt/status projection contract for this concern
-7. the active bounded AK-binding contract and lifecycle shape for this concern
+6. the landed bounded receipt/status projection contract for this concern
+7. the landed bounded AK-binding contract and lifecycle shape for this concern
 
 This RFC does **not** yet decide:
 
@@ -363,7 +370,7 @@ This follow-on still does **not** include:
 - AK-backed campaign truth or lifecycle mutation
 - replacement of workstation ownership for the `41 / 42 / 43` scripts
 
-## M) Next bounded follow-on — manifest campaign AK binding to execution truth
+## M) Landed bounded follow-on — manifest campaign AK binding to execution truth
 
 ### Decision in one sentence
 
@@ -385,9 +392,10 @@ Without that layer, the package can summarize local state but still cannot reduc
 
 ### Binding/lifecycle contract
 
-The active bounded contract for this follow-on is frozen in:
+The bounded contract for this follow-on is frozen in:
 
 - [manifest campaign AK binding contract](./llamacpp-campaign-ak-binding-contract.md)
+- [manifest campaign AK binding status](./llamacpp-campaign-ak-binding-status.md)
 
 That contract fixes these rules:
 
@@ -397,15 +405,15 @@ That contract fixes these rules:
 4. terminal meaning is derived from the highest stage the manifest actually expects, not hard-coded to `43`
 5. terminal-stage materialization may become a completion candidate, but the helper itself must not shell AK or claim benchmark semantics the receipts do not actually prove
 
-### Follow-on done-state for tasks 1649–1651
+### Follow-on closure for tasks 1649–1651
 
-This AK-binding follow-on is done when all of the following are true:
+This AK-binding follow-on is now landed locally because all of the following are true:
 
-1. `#1649` freezes the exact helper/evidence/lifecycle contract in package-local docs
-2. `#1650` lands bounded helper exports in `packages/pi-autoresearch/src/core/llamacppCampaign.ts`
-3. those helpers can reduce one exact manifest + task anchor into one deterministic AK-ready binding snapshot
-4. `#1651` proves milestone mapping, terminal-stage classification, idempotent projection-key behavior, and fail-closed negative paths
-5. current-vs-target can later be updated in the proof task without overstating this slice as direct AK mutation, whole-campaign execution, or semantic winner selection
+1. `#1649` froze the exact helper/evidence/lifecycle contract in package-local docs
+2. `#1650` landed bounded helper exports in `packages/pi-autoresearch/src/core/llamacppCampaign.ts`
+3. those helpers now reduce one exact manifest + task anchor into one deterministic AK-ready binding snapshot
+4. `#1651` proved milestone mapping, terminal-stage classification, idempotent projection-key behavior, and fail-closed negative paths
+5. current-vs-target/runtime/README closure landed without overstating this slice as direct AK mutation, whole-campaign execution, or semantic winner selection
 
 ### Explicit non-goals for the AK-binding follow-on
 
