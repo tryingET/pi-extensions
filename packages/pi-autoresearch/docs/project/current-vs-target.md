@@ -99,7 +99,8 @@ When starting in a clean context, read in this order:
 8. [llama.cpp benchmark campaign manifest problem-intent](./2026-04-18-llamacpp-benchmark-campaign-manifest-problem-intent.md)
 9. [llama.cpp benchmark campaign manifest RFC](./2026-04-18-llamacpp-benchmark-campaign-manifest-rfc.md)
 10. [llama.cpp execution-binding status](./llamacpp-execution-binding-status.md)
-11. the contract/status note for the specific active follow-on work, if any
+11. [manifest campaign receipt/projection contract](./llamacpp-campaign-receipt-projection-contract.md)
+12. the contract/status note for the specific active follow-on work, if any
 
 ## Capability matrix
 
@@ -235,7 +236,10 @@ Active umbrella:
 Current status:
 
 - execution binding is now the landed baseline for this concern
-- the next missing layer is truthful receipt/status projection above that stage-scoped execution seam
+- `#1644` freezes the next-layer contract in `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`
+- that contract keeps the manifest as campaign-intent truth, keeps workstation stage outputs as execution evidence truth, and adds exactly one projection artifact: `autoresearch.llamacpp-campaign.json`
+- the code-level artifact model for that projection now lives in `packages/pi-autoresearch/src/core/llamacppCampaign.ts` and the future runtime-status shape is staged in `packages/pi-autoresearch/src/core/runtime.ts`
+- `#1645` is now the implementation slice that should write the projection artifact and integrate it into bounded runtime/help surfaces
 
 ## What must stay true while implementing
 
@@ -250,7 +254,8 @@ Do **not** let future tasks silently collapse boundaries:
 ## If you are starting the next task fresh
 
 1. read this file plus `docs/project/pi-autoresearch-target-control-plane-status.md`
-2. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
-3. identify or create the active AK task id for that new bounded slice
-4. inspect the scoped required paths from AK before coding
-5. keep the implementation within that bounded scope and update this file when the post-target baseline changes materially
+2. if the active concern is manifest campaign projection, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md` before coding
+3. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
+4. identify or create the active AK task id for that new bounded slice
+5. inspect the scoped required paths from AK before coding
+6. keep the implementation within that bounded scope and update this file when the post-target baseline changes materially

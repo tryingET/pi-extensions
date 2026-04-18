@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -6,6 +7,12 @@ export const AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME = "autoresearch_llamacpp_c
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND = "pi-autoresearch-llamacpp-campaign" as const;
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_VERSION = 1 as const;
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_WORKFLOW_KIND = "phasee-41-43" as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE = "autoresearch.llamacpp-campaign.json";
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_KIND =
+  "llamacpp_campaign_projection" as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_VERSION = 1 as const;
+export const AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_SOURCE =
+  "derived_from_manifest_and_receipts" as const;
 
 const GIT_COMMIT_RE = /^[0-9a-f]{7,40}$/i;
 const PYTHON_EXECUTABLE = "python3";
@@ -200,6 +207,72 @@ export interface ExecuteLlamacppCampaignStageResult {
   nextAction: string;
 }
 
+export type LlamacppCampaignProjectionOverallState =
+  | "planned_only"
+  | "partially_materialized"
+  | "stage41_complete"
+  | "stage42_complete"
+  | "stage43_complete";
+
+export interface LlamacppCampaignStagePaths {
+  stage41ReceiptPath: string;
+  stage41CorpusPath: string;
+  stage42ReceiptPath: string;
+  stage43ReceiptPath: string;
+}
+
+export interface LlamacppCampaignProjectionStage41Status {
+  expected: boolean;
+  receiptPath: string;
+  corpusPath: string;
+  receiptExists: boolean;
+  corpusExists: boolean;
+}
+
+export interface LlamacppCampaignProjectionStageStatus {
+  expected: boolean;
+  receiptPath: string;
+  receiptExists: boolean;
+}
+
+export interface LlamacppCampaignBuildProjection {
+  buildId: string;
+  title: string;
+  branch: string;
+  buildBinDir: string;
+  buildBinDirExists: boolean;
+  highestCompletedStage: 0 | 41 | 42 | 43;
+  notes: string[];
+  stages: {
+    "41": LlamacppCampaignProjectionStage41Status;
+    "42": LlamacppCampaignProjectionStageStatus;
+    "43": LlamacppCampaignProjectionStageStatus;
+  };
+}
+
+export interface LlamacppCampaignProjectionV1 {
+  type: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_KIND;
+  version: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_VERSION;
+  cwd: string;
+  updatedAt: number;
+  manifest: {
+    path: string;
+    campaignId: string;
+    manifestKey: string;
+    receiptRootPath: string;
+    sourceRepoPath: string;
+    workstationRepoPath: string;
+    workflowKind: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_WORKFLOW_KIND;
+  };
+  status: {
+    projectionKind: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_SOURCE;
+    overallState: LlamacppCampaignProjectionOverallState;
+    stale: boolean;
+    staleReason: string | null;
+  };
+  builds: LlamacppCampaignBuildProjection[];
+}
+
 class LlamacppCampaignManifestError extends Error {}
 
 export function loadLlamacppCampaignManifest(
@@ -250,6 +323,139 @@ export function loadLlamacppCampaignManifest(
       ),
     },
     buildBinDirs,
+  };
+}
+
+export function resolveLlamacppCampaignProjectionPath(cwd: string): string {
+  return path.join(path.resolve(cwd), AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE);
+}
+
+export function createLlamacppCampaignManifestKey(
+  resolved: ResolvedLlamacppCampaignManifest,
+): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        manifest: resolved.manifest,
+        sourceRepoPath: resolved.sourceRepoPath,
+        workstationRepoPath: resolved.workstationRepoPath,
+        forkTargetRepoPath: resolved.forkTargetRepoPath,
+        receiptRootPath: resolved.receiptRootPath,
+        workflowAnchors: resolved.workflowAnchors,
+        buildBinDirs: resolved.buildBinDirs,
+      }),
+    )
+    .digest("hex");
+}
+
+export function buildLlamacppCampaignProjection(input: {
+  cwd: string;
+  manifestPath: string;
+  updatedAt?: number;
+}): LlamacppCampaignProjectionV1 {
+  const resolved = loadLlamacppCampaignManifest(input.manifestPath, input.cwd);
+  const stage41BuildIds = new Set(resolved.manifest.workflow.stage41BuildIds);
+  const stage42BuildIds = new Set(
+    resolved.manifest.workflow.stage42Matrix.map((entry) => entry.buildId),
+  );
+  const stage43BuildIds = new Set(resolved.manifest.workflow.stage43BuildIds);
+
+  const builds = resolved.manifest.builds.map((build) => {
+    const stagePaths = deriveStagePaths(resolved.receiptRootPath, build.id);
+    const stage41Expected = stage41BuildIds.has(build.id);
+    const stage42Expected = stage42BuildIds.has(build.id);
+    const stage43Expected = stage43BuildIds.has(build.id);
+    const buildBinDir = resolved.buildBinDirs[build.id] ?? build.buildBinDir;
+    const buildBinDirExists = existsSync(buildBinDir);
+    const stage41ReceiptExists = existsSync(stagePaths.stage41ReceiptPath);
+    const stage41CorpusExists = existsSync(stagePaths.stage41CorpusPath);
+    const stage42ReceiptExists = existsSync(stagePaths.stage42ReceiptPath);
+    const stage43ReceiptExists = existsSync(stagePaths.stage43ReceiptPath);
+    const notes: string[] = [];
+
+    if (!buildBinDirExists) {
+      notes.push(`resolved buildBinDir is missing: ${buildBinDir}`);
+    }
+    if (stage41ReceiptExists && !stage41Expected) {
+      notes.push(
+        "stage-41 receipt exists for a build that is not listed in workflow.stage41BuildIds",
+      );
+    }
+    if (stage42ReceiptExists && !stage42Expected) {
+      notes.push(
+        "stage-42 receipt exists for a build that is not listed in workflow.stage42Matrix",
+      );
+    }
+    if (stage43ReceiptExists && !stage43Expected) {
+      notes.push(
+        "stage-43 receipt exists for a build that is not listed in workflow.stage43BuildIds",
+      );
+    }
+    if (stage41CorpusExists && !stage41ReceiptExists) {
+      notes.push("stage-41 corpus exists without the derived stage-41 receipt");
+    }
+    if (stage42ReceiptExists && !stage41ReceiptExists) {
+      notes.push("stage-42 receipt exists without the derived stage-41 receipt");
+    }
+    if (stage43ReceiptExists && !stage42ReceiptExists) {
+      notes.push("stage-43 receipt exists without the derived stage-42 receipt");
+    }
+
+    return {
+      buildId: build.id,
+      title: build.title,
+      branch: build.branch,
+      buildBinDir,
+      buildBinDirExists,
+      highestCompletedStage: deriveHighestCompletedStage({
+        stage41ReceiptExists,
+        stage42ReceiptExists,
+        stage43ReceiptExists,
+      }),
+      notes,
+      stages: {
+        "41": {
+          expected: stage41Expected,
+          receiptPath: stagePaths.stage41ReceiptPath,
+          corpusPath: stagePaths.stage41CorpusPath,
+          receiptExists: stage41ReceiptExists,
+          corpusExists: stage41CorpusExists,
+        },
+        "42": {
+          expected: stage42Expected,
+          receiptPath: stagePaths.stage42ReceiptPath,
+          receiptExists: stage42ReceiptExists,
+        },
+        "43": {
+          expected: stage43Expected,
+          receiptPath: stagePaths.stage43ReceiptPath,
+          receiptExists: stage43ReceiptExists,
+        },
+      },
+    } satisfies LlamacppCampaignBuildProjection;
+  });
+
+  return {
+    type: AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_KIND,
+    version: AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_VERSION,
+    cwd: path.resolve(input.cwd),
+    updatedAt: input.updatedAt ?? Date.now(),
+    manifest: {
+      path: resolved.manifestPath,
+      campaignId: resolved.manifest.campaignId,
+      manifestKey: createLlamacppCampaignManifestKey(resolved),
+      receiptRootPath: resolved.receiptRootPath,
+      sourceRepoPath: resolved.sourceRepoPath,
+      workstationRepoPath: resolved.workstationRepoPath,
+      workflowKind: resolved.manifest.workflow.kind,
+    },
+    status: {
+      projectionKind: AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_SOURCE,
+      overallState: deriveLlamacppCampaignProjectionOverallState(builds),
+      stale: false,
+      staleReason: null,
+    },
+    builds,
   };
 }
 
@@ -949,15 +1155,65 @@ function plannedForkCommands(resolved: ResolvedLlamacppCampaignManifest): Proces
   return commands.map((entry) => plannedCommandSummary(entry.command, entry.cwd));
 }
 
-function deriveStagePaths(
+function deriveLlamacppCampaignProjectionOverallState(
+  builds: LlamacppCampaignBuildProjection[],
+): LlamacppCampaignProjectionOverallState {
+  const stage41ExpectedBuilds = builds.filter((build) => build.stages["41"].expected);
+  const stage42ExpectedBuilds = builds.filter((build) => build.stages["42"].expected);
+  const stage43ExpectedBuilds = builds.filter((build) => build.stages["43"].expected);
+  const hasAnyMaterializedOutputs = builds.some(
+    (build) =>
+      build.stages["41"].receiptExists ||
+      build.stages["41"].corpusExists ||
+      build.stages["42"].receiptExists ||
+      build.stages["43"].receiptExists,
+  );
+  const stage41Complete =
+    stage41ExpectedBuilds.length > 0 &&
+    stage41ExpectedBuilds.every((build) => build.stages["41"].receiptExists);
+  const stage42Complete =
+    stage42ExpectedBuilds.length > 0 &&
+    stage42ExpectedBuilds.every((build) => build.stages["42"].receiptExists);
+  const stage43Complete =
+    stage43ExpectedBuilds.length > 0 &&
+    stage43ExpectedBuilds.every((build) => build.stages["43"].receiptExists);
+
+  if (!hasAnyMaterializedOutputs) {
+    return "planned_only";
+  }
+  if (stage43Complete && stage42Complete && stage41Complete) {
+    return "stage43_complete";
+  }
+  if (stage42Complete && stage41Complete) {
+    return "stage42_complete";
+  }
+  if (stage41Complete) {
+    return "stage41_complete";
+  }
+  return "partially_materialized";
+}
+
+function deriveHighestCompletedStage(input: {
+  stage41ReceiptExists: boolean;
+  stage42ReceiptExists: boolean;
+  stage43ReceiptExists: boolean;
+}): 0 | 41 | 42 | 43 {
+  if (input.stage43ReceiptExists) {
+    return 43;
+  }
+  if (input.stage42ReceiptExists) {
+    return 42;
+  }
+  if (input.stage41ReceiptExists) {
+    return 41;
+  }
+  return 0;
+}
+
+export function deriveStagePaths(
   receiptRootPath: string,
   buildId: string,
-): {
-  stage41ReceiptPath: string;
-  stage41CorpusPath: string;
-  stage42ReceiptPath: string;
-  stage43ReceiptPath: string;
-} {
+): LlamacppCampaignStagePaths {
   return {
     stage41ReceiptPath: path.join(receiptRootPath, `${buildId}-stage41-validation.json`),
     stage41CorpusPath: path.join(receiptRootPath, `${buildId}-stage41-corpus.txt`),

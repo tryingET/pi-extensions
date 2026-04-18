@@ -1,7 +1,7 @@
 ---
-summary: "RFC for the typed manifest-driven llama.cpp campaign surface in pi-autoresearch plus the next bounded 41/42/43 execution-binding follow-on, while preserving workstation execution truth and avoiding a second control plane."
+summary: "RFC for the typed manifest-driven llama.cpp campaign surface in pi-autoresearch, its landed 41/42/43 execution-binding follow-on, and the next bounded receipt/status projection layer, while preserving workstation execution truth and avoiding a second control plane."
 read_when:
-  - "Before implementing or reviewing the manifest-driven llama.cpp campaign surface or its bounded 41/42/43 execution-binding follow-on in pi-autoresearch."
+  - "Before implementing or reviewing the manifest-driven llama.cpp campaign surface, its landed execution-binding layer, or the next receipt/status projection follow-on in pi-autoresearch."
   - "When deciding whether branch/lane benchmarking intent belongs in prose, runtime code, or one checked contract artifact."
 system4d:
   container: "Package-local RFC for post-target widening around manifest-driven brownfield benchmark campaigns."
@@ -20,8 +20,10 @@ The first slice from this bounded **post-target widening** RFC is now landed loc
 - bounded `autoresearch_llamacpp_campaign` support for `plan_matrix` and `prepare_fork`
 - example manifest plus package-local problem-intent/RFC docs
 
-The next bounded follow-on proposed here is **manifest-driven 41/42/43 execution binding**.
-That follow-on is not landed yet; this note now freezes its contract and done-state so the next implementation/proof tasks can land it without widening into a second execution plane.
+The bounded **manifest-driven 41/42/43 execution-binding** follow-on described below is also now landed locally through `#1636`, `#1640`, and `#1642`.
+
+The next bounded follow-on proposed here is **manifest campaign receipt/status projection**.
+That follow-on is not landed yet; this note now freezes its contract and artifact model so `#1645` / `#1646` can land it without widening into a second execution or campaign-truth plane.
 
 This RFC follows:
 
@@ -41,14 +43,15 @@ This RFC decides:
 2. the new bounded tool surface that consumes that artifact
 3. the authority split between `pi-autoresearch` and workstation execution surfaces
 4. the exact first slice and its non-goals
-5. the next bounded follow-on contract for stage-scoped 41/42/43 execution binding
+5. the landed stage-scoped 41/42/43 execution-binding follow-on contract
+6. the next bounded receipt/status projection contract for this concern
 
 This RFC does **not** yet decide:
 
 - broad one-shot campaign execution across all stages/builds
 - AK campaign truth for this concern
 - ontology promotion for benchmark-campaign semantics
-- a dedicated receipt/status projection family for manifest execution actions
+- later AK binding or broader lifecycle automation for this concern
 
 ## C) Problem this RFC answers
 
@@ -191,11 +194,14 @@ The first slice described in this RFC is now the package-local baseline:
 But that landed slice is still planning/prep only.
 The next missing layer is exact execution binding to the existing workstation-owned scripts.
 
-## K) Next bounded follow-on — manifest-driven 41/42/43 execution binding
+## K) Landed bounded follow-on — manifest-driven 41/42/43 execution binding
 
 ### Decision in one sentence
 
 Extend `autoresearch_llamacpp_campaign` with one stage-scoped `execute_stage` action that can plan or apply one exact stage 41, 42, or 43 invocation for one manifest-listed build by resolving explicit build-bin and build-scoped receipt paths from the manifest, while keeping the existing workstation scripts as the owners of measurement/execution semantics.
+
+This execution-binding follow-on is now the landed baseline for the next layer.
+What follows next is no longer execution binding itself, but truthful receipt/status projection above that stage-scoped seam.
 
 ### Additional manifest contract for this follow-on
 
@@ -283,12 +289,82 @@ This follow-on still does **not** include:
 - replacing workstation ownership of the 41/42/43 scripts
 - generalizing beyond the current brownfield script contract before the scripts themselves change
 
-## L) Later follow-ons after execution binding
+## L) Next bounded follow-on — manifest campaign receipt/status projection
 
-If the execution-binding follow-on lands cleanly, the next lawful follow-ons are:
+### Decision in one sentence
 
-1. receipt/status projection for this concern
-2. later AK binding if the campaign concept proves durable enough
+Add one checked package-local `autoresearch.llamacpp-campaign.json` projection artifact that is derived from the current manifest plus the deterministic workstation stage-output paths, and later surface it through bounded runtime/help views, while keeping the manifest as campaign-intent truth, workstation stage receipts as execution evidence truth, and AK as durable campaign truth.
 
-Those are later on purpose.
-They should not be smuggled into the execution-binding slice.
+### Why this follow-on exists
+
+After execution binding landed, the next missing layer is no longer "can one exact stage be planned or applied?"
+That is already real.
+The next missing layer is:
+
+- which manifest is currently being summarized
+- which expected stage outputs currently exist per build
+- what compact overall posture that implies for the campaign
+- whether the current local summary is stale relative to the current manifest contract
+
+Without that layer, runtime/help surfaces still cannot answer the current bounded status question for this concern truthfully.
+
+### Projection artifact model
+
+This follow-on should add exactly one package-local current-state artifact:
+
+- `autoresearch.llamacpp-campaign.json`
+
+Its role is to summarize:
+
+- manifest identity (`path`, `campaignId`, `manifestKey`)
+- resolved `receiptRootPath`
+- per-build stage expectations
+- per-build stage-output presence for derived stage `41`, `42`, and `43` paths
+- a compact overall state such as `planned_only`, `partially_materialized`, `stage41_complete`, `stage42_complete`, or `stage43_complete`
+- staleness facts when the saved projection no longer matches the current manifest contract
+
+This is intentionally a **projection artifact**, not a second append-only receipt family.
+The stage outputs already exist under the workstation-owned receipt root.
+The package should summarize them, not duplicate them.
+
+### Projection rules
+
+The projection must:
+
+1. load the current manifest through the existing package validator
+2. derive the deterministic stage-output paths from the existing execution-binding contract
+3. determine stage expectation from manifest membership (`stage41BuildIds`, `stage42Matrix`, `stage43BuildIds`)
+4. use filesystem existence checks for those derived paths
+5. compute per-build and overall progress from output presence only
+6. stay explicit that receipt existence is evidence presence, not a semantic proof of benchmark success, winner selection, or AK completion
+
+### Follow-on done-state for tasks 1645–1646
+
+This projection follow-on is done when all of the following are true:
+
+1. the package can derive and write `autoresearch.llamacpp-campaign.json` from the current manifest plus derived receipt paths
+2. the artifact records manifest identity/freshness facts strongly enough to reject stale reuse
+3. the artifact records per-build expected-vs-present stage status without reinterpreting workstation script payload semantics
+4. runtime/help surfaces can report the projection truthfully
+5. tests prove projection derivation, freshness/discard behavior, and runtime/help exposure
+6. current-vs-target can later be updated in the proof task without overstating this slice as whole-campaign execution or AK campaign truth
+
+### Explicit non-goals for the projection follow-on
+
+This follow-on still does **not** include:
+
+- a second append-only package receipt log for this concern
+- parsing stage payloads into benchmark winners or recommendations
+- a one-shot `run_campaign` surface
+- hidden branch checkout or build compilation behavior
+- AK-backed campaign truth or lifecycle mutation
+- replacement of workstation ownership for the `41 / 42 / 43` scripts
+
+## M) Later follow-ons after receipt/status projection
+
+If the receipt/status projection follow-on lands cleanly, the next lawful follow-on is:
+
+1. later AK binding if the campaign concept proves durable enough
+
+That remains later on purpose.
+It should not be smuggled into the projection slice.

@@ -44,7 +44,10 @@ import {
   projectAutoresearchLedgerEntries,
   resolveAutoresearchLedgerPath,
 } from "./ledger.ts";
-import { AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME } from "./llamacppCampaign.ts";
+import {
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+  type LlamacppCampaignProjectionOverallState,
+} from "./llamacppCampaign.ts";
 import {
   AUTORESEARCH_OPERATOR_ACTIONS,
   AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
@@ -116,6 +119,23 @@ export type AutoresearchPromptVaultDecisionAvailability =
 export interface AutoresearchPromptVaultDecisionStatus {
   availability: AutoresearchPromptVaultDecisionAvailability;
   lastPostRunDecision: AutoresearchRunDecisionSummary | null;
+}
+
+export type AutoresearchLlamacppCampaignProjectionAvailability =
+  | "not_projected"
+  | "current"
+  | "stale";
+
+export interface AutoresearchLlamacppCampaignProjectionStatus {
+  availability: AutoresearchLlamacppCampaignProjectionAvailability;
+  projectionPath: string | null;
+  manifestPath: string | null;
+  campaignId: string | null;
+  manifestKey: string | null;
+  receiptRootPath: string | null;
+  overallState: LlamacppCampaignProjectionOverallState | null;
+  staleReason: string | null;
+  updatedAt: number | null;
 }
 
 export interface AutoresearchConfigReceipt {
