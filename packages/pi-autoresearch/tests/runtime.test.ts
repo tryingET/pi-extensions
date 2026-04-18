@@ -366,14 +366,15 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
       "autoresearch.llamacpp-campaign.json",
     ),
   );
-  assert.deepEqual(status.nextSlices, ["ak_campaign_binding"]);
+  assert.deepEqual(status.nextSlices, []);
   assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
   assert.match(formatAutoresearchStatusText(status), /machine state: segment_unconfigured/);
   assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
-  assert.match(formatAutoresearchStatusText(status), /next slices: ak_campaign_binding/);
+  assert.match(formatAutoresearchStatusText(status), /next slices: \(none currently committed\)/);
   assert.match(buildAutoresearchHelpText(status), /derive one exact AK-ready binding snapshot/);
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
+  assert.match(buildAutoresearchHelpText(status), /none currently committed in current-vs-target/);
   assert.equal(
     buildAutoresearchHelpText(status).includes("llamacpp_campaign_projection_proof"),
     false,

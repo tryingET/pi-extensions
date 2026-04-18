@@ -578,7 +578,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     ...currentSegmentLines,
     `- ready Prompt Vault templates: ${status.readyPromptVaultTemplates.join(", ")}`,
     `- blocked Prompt Vault templates: ${status.blockedPromptVaultTemplates.join(", ")}`,
-    `- next slices: ${status.nextSlices.join(", ")}`,
+    `- next slices: ${formatNextSlices(status.nextSlices)}`,
   ].join("\n");
 }
 
@@ -656,7 +656,9 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     ...status.blockedPromptVaultTemplates.map((name) => `- ${name}`),
     "",
     "## Next bounded slices",
-    ...status.nextSlices.map((slice) => `- ${slice}`),
+    ...(status.nextSlices.length > 0
+      ? status.nextSlices.map((slice) => `- ${slice}`)
+      : ["- none currently committed in current-vs-target"]),
   ].join("\n");
 }
 
@@ -1604,7 +1606,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     control: loadedControl?.control ?? defaultControl,
     promptVaultDecisions,
     llamacppCampaignProjection,
-    nextSlices: ["ak_campaign_binding"],
+    nextSlices: [],
   };
 }
 
@@ -2277,6 +2279,10 @@ function formatLlamacppCampaignProjectionLabel(
 
 function formatAllowedActions(actions: readonly string[]): string {
   return actions.length > 0 ? actions.join(", ") : "(none)";
+}
+
+function formatNextSlices(slices: readonly string[]): string {
+  return slices.length > 0 ? slices.join(", ") : "(none currently committed)";
 }
 
 function isAutoresearchOperatorAction(value: string): value is AutoresearchOperatorAction {

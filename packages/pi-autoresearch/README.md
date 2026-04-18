@@ -42,7 +42,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `/autoresearch`
   - opens the bounded runtime overview
   - names the current boundary honestly
-  - points to the next bounded implementation slices
+  - points to the current bounded implementation posture without inventing future slices
 
 ### Tools
 
@@ -60,6 +60,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - plans or applies fork workspace preparation for later patch transplant work under `../../fork/`
   - plans or applies one exact stage-scoped `41 | 42 | 43` invocation against the existing workstation scripts
   - writes or refreshes one checked `autoresearch.llamacpp-campaign.json` projection artifact for bounded runtime/help use
+  - derives one exact-task AK-ready binding snapshot through `action=build_ak_binding` without mutating AK directly
   - does **not** become a whole-campaign runner or replace workstation execution ownership
 
 ### Runtime helpers
@@ -75,6 +76,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - fork workspace planning/apply helpers with fail-closed git checks
   - stage-scoped execution binding for one exact `41 | 42 | 43` invocation with prerequisite fencing
   - projection artifact derivation, persistence, and refresh logic for `autoresearch.llamacpp-campaign.json`
+  - non-mutating AK-binding snapshot + compact details derivation for exact manifest/task anchors
 - `src/core/ledger.ts`
   - append-only event-ledger entry types and JSONL helpers
   - ledger replay/projector helpers for the campaign machine
@@ -110,21 +112,22 @@ Prompt Vault now already owns three durable one-shot control-plane templates for
 
 The earlier `pi-autoresearch-state-router` draft still exists as a possible later surface.
 But after the architecture correction, it is no longer the main near-term blocker for truthful runtime evolution.
-The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, and one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth.
+The package now includes a minimal internal XState campaign machine, typed event model, append-only event ledger, one bounded post-target widening surface for manifest-driven llama.cpp benchmark planning/fork preparation, one bounded follow-on surface for stage-scoped `41 | 42 | 43` execution binding, one projection-only `autoresearch.llamacpp-campaign.json` layer for bounded manifest campaign status/help truth, and one non-mutating AK-ready manifest-campaign binding helper layer for exact manifest/task anchors.
 
-The next active bounded follow-on for this concern is the contract-only AK binding slice frozen in [docs/project/llamacpp-campaign-ak-binding-contract.md](./docs/project/llamacpp-campaign-ak-binding-contract.md).
-That slice is not implemented yet; it only fixes the exact task-bound lifecycle/evidence shape the later helper work must satisfy.
+The AK-binding slice is now landed and closed in:
+- [docs/project/llamacpp-campaign-ak-binding-contract.md](./docs/project/llamacpp-campaign-ak-binding-contract.md)
+- [docs/project/llamacpp-campaign-ak-binding-status.md](./docs/project/llamacpp-campaign-ak-binding-status.md)
 
 Interpretation rule:
 - Prompt Vault owns durable decision procedures
-- the package owns executable runtime state
-- AK will own durable campaign truth when the later AK binding slice lands
+- the package owns executable runtime state and may derive compact AK-ready snapshots for explicit callers
+- AK still owns durable campaign truth, evidence writes, and any later task completion decision
 
 ## Current non-goals
 
 This package does **not** yet implement:
 
-- AK campaign binding for the new llama.cpp campaign manifests
+- direct AK writes, fuzzy task lookup, or automatic task completion for the new llama.cpp campaign manifests
 - direct execution of manifest-driven 41/42/43 campaigns end to end
 - semantic interpretation of manifest-stage payloads into benchmark winners, recommendations, or completion truth
 - autonomous resume/loop lifecycle for the new manifest-driven workflow

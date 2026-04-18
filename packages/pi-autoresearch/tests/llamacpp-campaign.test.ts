@@ -868,3 +868,43 @@ test("extension registers the llama.cpp campaign tool and executes build_ak_bind
     assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
   });
 });
+
+test("build_ak_binding tool stays non-mutating even when the terminal stage is complete", async () => {
+  await withTempDir(async (cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME);
+    assert.ok(tool);
+
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId: "A", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId: "B", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId: "C", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId: "D", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId: "E", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId: "A", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId: "B", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "42", buildId: "C", apply: true });
+    executeLlamacppCampaignStage({ cwd, manifestPath, stage: "43", buildId: "C", apply: true });
+
+    const result = await tool?.execute(
+      "campaign-3",
+      {
+        action: "build_ak_binding",
+        cwd,
+        manifestPath,
+        taskId: 1651,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    const text = result?.content[0]?.text ?? "";
+    assert.match(text, /milestone: terminal_stage_complete/);
+    assert.match(text, /completion eligible: yes/);
+    assert.match(text, /this helper does not mutate AK directly/);
+  });
+});

@@ -69,7 +69,7 @@ That gives runtime/help surfaces one truthful summary layer above deterministic 
 
 - `buildAutoresearchRuntimeStatus(...)` now exposes `llamacppCampaignProjection`
 - formatted status/help text now reports `current`, `stale`, or `not_projected`
-- the runtime now advertises only the remaining later follow-on for this concern: `ak_campaign_binding`
+- at projection-slice closure time, the runtime posture advanced to the later AK-binding follow-on for this concern; that later slice has since landed in [`llamacpp-campaign-ak-binding-status.md`](./llamacpp-campaign-ak-binding-status.md)
 
 So the operator can now answer the narrow truthful questions this slice was meant to support:
 
@@ -100,7 +100,7 @@ That keeps the projection cheap to rebuild and tied to the current manifest-driv
 - the bounded runtime status reports `not_projected` truthfully before any campaign projection exists
 - the runtime status/help surfaces expose the current projection when one exists
 - the runtime status marks the projection `stale` when refresh against the current manifest fails
-- runtime status/help no longer advertise projection-proof work as an active next slice; they now point only to later `ak_campaign_binding`
+- runtime status/help no longer advertise projection-proof work as an active next slice; at closure time they pointed forward to the later AK-binding concern, which is now closed in [`llamacpp-campaign-ak-binding-status.md`](./llamacpp-campaign-ak-binding-status.md)
 
 Together those tests close the slice's proof obligations:
 
@@ -171,6 +171,5 @@ The manifest campaign receipt/status projection slice is now complete when read 
 - truthful runtime/help exposure for `current` / `stale` / `not_projected`
 - proof/status closure that leaves AK truth, workstation semantics, and whole-campaign execution outside the package boundary
 
-What comes next is not “prove projection exists.”
-That is now landed.
-The next lawful follow-on for this concern is later AK campaign binding if the manifest family proves durable enough to justify durable campaign truth.
+What came next after this projection slice was the later AK campaign binding follow-on.
+That later slice is now also landed and closed in [`llamacpp-campaign-ak-binding-status.md`](./llamacpp-campaign-ak-binding-status.md).

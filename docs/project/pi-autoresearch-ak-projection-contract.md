@@ -48,9 +48,10 @@ That newer concern reads a different package-local source seam:
 - the deterministic stage-binding rules
 - the current manifest-campaign projection in `packages/pi-autoresearch/src/core/llamacppCampaign.ts`
 
-So when the active concern is manifest-driven llama.cpp campaign AK binding, use the package-local contract note instead:
+So when the active concern is manifest-driven llama.cpp campaign AK binding, use the package-local contract/status pair instead:
 
 - [`packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`](../../packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md)
+- [`packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`](../../packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md)
 
 Interpretation rule:
 
