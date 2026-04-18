@@ -444,10 +444,24 @@ export interface AdvanceLlamacppCampaignResult {
   nextAction: string;
 }
 
+export type LlamacppCampaignTaskVerificationState =
+  | "not_requested"
+  | "verified_live"
+  | "not_found"
+  | "verification_unavailable";
+
+export interface LlamacppCampaignTaskContextV1 {
+  suppliedTaskId: number | null;
+  verificationState: LlamacppCampaignTaskVerificationState;
+  verifiedTaskId: number | null;
+  reason: string;
+}
+
 export interface LlamacppCampaignControlSurfaceV1 {
   type: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_KIND;
   version: typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_VERSION;
   autonomy: LlamacppCampaignAutonomyV1;
+  taskContext: LlamacppCampaignTaskContextV1;
   akBinding: LlamacppCampaignAkBindingV1 | null;
   public: {
     taskBound: boolean;
@@ -955,31 +969,35 @@ function resolveLlamacppCampaignControlState(input: {
     resolved,
     projection,
   });
-  const taskId = input.taskId === undefined ? undefined : requireAkTaskId(input.taskId);
+  const taskContext = buildLlamacppCampaignTaskContext(input.taskId);
   const akBinding =
-    taskId === undefined
-      ? null
-      : buildLlamacppCampaignAkBindingFromProjection({
-          taskId,
+    taskContext.verificationState === "verified_live" && taskContext.verifiedTaskId !== null
+      ? buildLlamacppCampaignAkBindingFromProjection({
+          taskId: taskContext.verifiedTaskId,
           resolved,
           projection,
-        });
+        })
+      : null;
 
   const control = {
     type: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_KIND,
     version: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_VERSION,
     autonomy: autonomyState.autonomy,
+    taskContext,
     akBinding,
     public: {
-      taskBound: akBinding !== null,
+      taskBound: taskContext.verificationState === "verified_live" && akBinding !== null,
       nextStepAction:
         autonomyState.autonomy.lifecycle.phase === "blocked"
           ? "none"
           : autonomyState.autonomy.nextStep.action === "execute_stage"
             ? "advance"
             : "none",
-      completionCandidate: akBinding?.lifecycle.action === "complete_task_candidate",
-      reason: buildLlamacppCampaignControlReason(autonomyState.autonomy, akBinding),
+      completionCandidate:
+        taskContext.verificationState === "verified_live" &&
+        akBinding !== null &&
+        akBinding.lifecycle.action === "complete_task_candidate",
+      reason: buildLlamacppCampaignControlReason(autonomyState.autonomy, taskContext, akBinding),
     },
   } satisfies LlamacppCampaignControlSurfaceV1;
 
@@ -1313,6 +1331,12 @@ export function executeLlamacppCampaignStage(input: {
 export function formatLlamacppCampaignControlResult(
   result: InspectLlamacppCampaignControlResult | ExecuteLlamacppCampaignControlResult,
 ): string {
+  const taskContextLines = [
+    `- supplied task id: ${result.control.taskContext.suppliedTaskId ?? "(none)"}`,
+    `- verification state: ${result.control.taskContext.verificationState}`,
+    `- verified task id: ${result.control.taskContext.verifiedTaskId ?? "(none)"}`,
+    `- reason: ${result.control.taskContext.reason}`,
+  ];
   const akBindingLines = result.control.akBinding
     ? [
         `- task id: ${result.control.akBinding.taskId}`,
@@ -1321,7 +1345,7 @@ export function formatLlamacppCampaignControlResult(
         `- lifecycle action: ${result.control.akBinding.lifecycle.action}`,
         `- projection key: ${result.control.akBinding.projection.projectionKey}`,
       ]
-    : ["- (not bound to an exact AK task id)"];
+    : ["- (not bound to a verified live AK task)"];
   const selectedStepLines =
     result.action === "advance"
       ? result.executedStep
@@ -1346,8 +1370,11 @@ export function formatLlamacppCampaignControlResult(
     `- receipt root: ${result.control.autonomy.manifest.receiptRootPath}`,
     `- overall state: ${result.control.autonomy.projection.overallState}`,
     "",
+    "## Task context",
+    ...taskContextLines,
+    "",
     "## Public control",
-    `- exact task context: ${result.control.public.taskBound ? "yes" : "no"}`,
+    `- task bound: ${result.control.public.taskBound ? "yes" : "no"}`,
     `- next step action: ${result.control.public.nextStepAction}`,
     `- completion candidate: ${result.control.public.completionCandidate ? "yes" : "no"}`,
     `- reason: ${result.control.public.reason}`,
@@ -1997,6 +2024,69 @@ function requireAkTaskId(taskId: number): number {
   return taskId;
 }
 
+function buildLlamacppCampaignTaskContext(taskId?: number): LlamacppCampaignTaskContextV1 {
+  if (taskId === undefined) {
+    return {
+      suppliedTaskId: null,
+      verificationState: "not_requested",
+      verifiedTaskId: null,
+      reason: "no AK task context was requested",
+    };
+  }
+
+  const exactTaskId = requireAkTaskId(taskId);
+  const completed = spawnSync("ak", ["task", "show", String(exactTaskId), "-F", "json"], {
+    encoding: "utf8",
+  });
+  const stdout = (completed.stdout ?? "").trim();
+  const stderr = (completed.stderr ?? (completed.error ? String(completed.error) : "")).trim();
+  const exitCode = completed.status ?? (completed.error ? 1 : 0);
+
+  if (exitCode === 0) {
+    try {
+      const payload = JSON.parse(stdout) as { id?: unknown };
+      if (payload.id !== exactTaskId) {
+        return {
+          suppliedTaskId: exactTaskId,
+          verificationState: "verification_unavailable",
+          verifiedTaskId: null,
+          reason: `live AK verification for taskId ${exactTaskId} returned an unexpected task identity`,
+        };
+      }
+      return {
+        suppliedTaskId: exactTaskId,
+        verificationState: "verified_live",
+        verifiedTaskId: exactTaskId,
+        reason: `verified AK task ${exactTaskId}`,
+      };
+    } catch (error) {
+      return {
+        suppliedTaskId: exactTaskId,
+        verificationState: "verification_unavailable",
+        verifiedTaskId: null,
+        reason: `live AK verification for taskId ${exactTaskId} returned unreadable output: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  }
+
+  const combined = [stdout, stderr].filter(Boolean).join("\n");
+  if (/not found|no such task|unknown task/i.test(combined)) {
+    return {
+      suppliedTaskId: exactTaskId,
+      verificationState: "not_found",
+      verifiedTaskId: null,
+      reason: `supplied taskId ${exactTaskId} did not resolve to a live AK task`,
+    };
+  }
+
+  return {
+    suppliedTaskId: exactTaskId,
+    verificationState: "verification_unavailable",
+    verifiedTaskId: null,
+    reason: `live AK verification for taskId ${exactTaskId} is currently unavailable${stderr ? `: ${stderr}` : ""}`,
+  };
+}
+
 function deriveLlamacppCampaignTerminalStage(manifest: LlamacppCampaignManifest): 41 | 42 | 43 {
   if (manifest.workflow.stage43BuildIds.length > 0) {
     return 43;
@@ -2293,20 +2383,39 @@ function getLlamacppCampaignAutonomyStageCounts(
 
 function buildLlamacppCampaignControlReason(
   autonomy: LlamacppCampaignAutonomyV1,
+  taskContext: LlamacppCampaignTaskContextV1,
   akBinding: LlamacppCampaignAkBindingV1 | null,
 ): string {
   if (autonomy.lifecycle.phase === "blocked") {
-    return `next truthful public step is blocked for stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId}: ${autonomy.nextStep.reason}`;
+    return `next truthful public step is blocked for stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId}: ${autonomy.nextStep.reason}; ${taskContext.reason}`;
   }
 
   if (autonomy.nextStep.action === "none") {
     if (akBinding?.lifecycle.action === "complete_task_candidate") {
-      return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally and AK task ${akBinding.taskId} is now a completion candidate; this surface does not mutate AK directly`;
+      return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally and verified AK task ${akBinding.taskId} is now a completion candidate; this surface does not mutate AK directly`;
+    }
+    if (taskContext.verificationState === "not_found") {
+      return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally, but supplied taskId ${taskContext.suppliedTaskId} did not resolve to a live AK task`;
+    }
+    if (taskContext.verificationState === "verification_unavailable") {
+      return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally, but live AK verification is currently unavailable; the public view remains package-local`;
+    }
+    if (taskContext.verificationState === "not_requested") {
+      return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally and no AK task context was requested`;
     }
     return `terminal stage ${autonomy.manifest.terminalStage} is materially complete locally and no further public advance step remains`;
   }
 
-  return `stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId} is the next truthful public campaign-control step`;
+  if (taskContext.verificationState === "verified_live" && taskContext.verifiedTaskId !== null) {
+    return `stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId} is the next truthful public campaign-control step for verified AK task ${taskContext.verifiedTaskId}`;
+  }
+  if (taskContext.verificationState === "not_found") {
+    return `stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId} is the next truthful public campaign-control step, but supplied taskId ${taskContext.suppliedTaskId} did not resolve to a live AK task`;
+  }
+  if (taskContext.verificationState === "verification_unavailable") {
+    return `stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId} is the next truthful public campaign-control step, but live AK verification is currently unavailable; the public view remains package-local`;
+  }
+  return `stage ${autonomy.nextStep.stage} build ${autonomy.nextStep.buildId} is the next truthful public campaign-control step; no AK task context was requested`;
 }
 
 function buildLlamacppCampaignControlNextAction(
@@ -2314,12 +2423,21 @@ function buildLlamacppCampaignControlNextAction(
   mode: "status" | "plan" | "apply",
 ): string {
   if (control.autonomy.lifecycle.phase === "blocked") {
-    return `The next truthful public advance is blocked for stage ${control.autonomy.nextStep.stage} build ${control.autonomy.nextStep.buildId}: ${control.autonomy.nextStep.reason}`;
+    return `The next truthful public advance is blocked for stage ${control.autonomy.nextStep.stage} build ${control.autonomy.nextStep.buildId}: ${control.autonomy.nextStep.reason}; ${control.taskContext.reason}`;
   }
 
   if (control.public.nextStepAction === "none") {
     if (control.public.completionCandidate && control.akBinding) {
-      return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; a caller above the package may now evaluate whether AK task ${control.akBinding.taskId} should be completed explicitly.`;
+      return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; a caller above the package may now evaluate whether verified AK task ${control.akBinding.taskId} should be completed explicitly.`;
+    }
+    if (control.taskContext.verificationState === "not_requested") {
+      return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; no verified AK task context is currently attached.`;
+    }
+    if (control.taskContext.verificationState === "not_found") {
+      return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; supplied taskId ${control.taskContext.suppliedTaskId} did not resolve to a live AK task, so no verified AK task context is currently attached.`;
+    }
+    if (control.taskContext.verificationState === "verification_unavailable") {
+      return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; live AK verification is currently unavailable, so no verified AK task context is currently attached.`;
     }
     return `Local campaign execution is materially complete for manifest ${control.autonomy.manifest.campaignId}; no further public advance step remains.`;
   }

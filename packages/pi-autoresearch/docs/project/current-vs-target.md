@@ -356,19 +356,22 @@ Current status:
 - `#1699` closed the slice's proof/status question in `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`
 - follow-on bugfix task `#1708` then hardened the landed surface by deriving public control plus optional AK context from one canonical snapshot per call and by making blocked public states stop advertising `nextStepAction = "advance"`
 - the package can now expose one truthful public manifest campaign-control view, optionally compose exact-task AK context, fail closed on blocked/terminal public advance paths, and still stay below whole-campaign execution or direct AK mutation
-- one later follow-on is now explicitly deferred in AK instead of being abandoned in prose:
-  - `#1709` — decide exact AK task verification semantics for the public campaign-control surface
-  - current limitation: positive caller-supplied `taskId` is still treated as exact task context without live AK existence verification
-  - decision-attending artifact chain:
+- one later hardening follow-on is now landed locally under `decision:17` and task `#1709`:
+  - decision/implementation artifact chain:
     - `packages/pi-autoresearch/docs/project/2026-04-18-problem-brief-public-ak-task-verification.md`
     - `packages/pi-autoresearch/docs/project/2026-04-18-evidence-note-public-ak-task-verification.md`
     - `packages/pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md`
     - `packages/pi-autoresearch/docs/project/2026-04-18-review-public-ak-task-verification-rfc.md`
+    - `packages/pi-autoresearch/docs/adr/2026-04-18-public-ak-task-verification-semantics.md`
+    - `packages/pi-autoresearch/docs/project/2026-04-18-plan-public-ak-task-verification.md`
+    - `packages/pi-autoresearch/docs/project/2026-04-18-validation-rollout-rollback-public-ak-task-verification.md`
   - AK decision record: `decision:17` — Decide public AK task verification semantics for pi-autoresearch campaign control
-  - current decision state: `adr_recorded` with outcome `accepted`
-  - ADR artifact: `packages/pi-autoresearch/docs/adr/2026-04-18-public-ak-task-verification-semantics.md`
-  - RFC candidate direction: optional best-effort live AK verification with surfaced status, while keeping `status` / `advance` usable package-locally and leaving the technical `build_ak_binding` helper distinct
-  - deferral binding: AK task `#1709`, kind `until_decision`, trigger `decision:pi-autoresearch-public-task-verification`, review `2026-04-25`
+  - current decision state: `unblocked` with outcome `accepted`
+  - bounded runtime result:
+    - public task context now surfaces explicit verification state (`not_requested`, `verified_live`, `not_found`, `verification_unavailable`)
+    - public `akBinding`, `taskBound`, and `completionCandidate` now require verified live task context
+    - public `status` / `advance` still degrade gracefully to package-local truth when live AK verification is unavailable or the supplied task does not exist
+    - the lower-level technical `build_ak_binding` helper remains a distinct caller-driven contract below the public seam
 
 ## What must stay true while implementing
 

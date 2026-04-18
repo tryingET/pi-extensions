@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -58,6 +66,66 @@ function writeFile(target: string, content: string): void {
 
 function readJson<T>(target: string): T {
   return JSON.parse(readFileSync(target, "utf8")) as T;
+}
+
+async function withFakeAkRuntime(
+  options: { taskIds?: number[]; mode?: "tasks" | "unavailable" },
+  fn: () => Promise<void> | void,
+): Promise<void> {
+  const binDir = mkdtempSync(path.join(os.tmpdir(), "pi-autoresearch-fake-ak-"));
+  const scriptPath = path.join(binDir, "ak");
+  writeFile(
+    scriptPath,
+    `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] !== "task" || args[1] !== "show" || !args[2]) {
+  console.error("unsupported fake ak invocation");
+  process.exit(2);
+}
+const taskId = Number(args[2]);
+const mode = process.env.PI_FAKE_AK_MODE || "tasks";
+if (mode === "unavailable") {
+  console.error("database is busy");
+  process.exit(1);
+}
+const taskIds = JSON.parse(process.env.PI_FAKE_AK_TASK_IDS_JSON || "[]");
+if (taskIds.includes(taskId)) {
+  console.log(JSON.stringify({ id: taskId, repo: process.cwd(), status: "pending" }));
+  process.exit(0);
+}
+console.error(\`task \${taskId} not found\`);
+process.exit(1);
+`,
+  );
+  chmodSync(scriptPath, 0o755);
+
+  const previousPath = process.env.PATH;
+  const previousMode = process.env.PI_FAKE_AK_MODE;
+  const previousTaskIds = process.env.PI_FAKE_AK_TASK_IDS_JSON;
+  process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
+  process.env.PI_FAKE_AK_MODE = options.mode ?? "tasks";
+  process.env.PI_FAKE_AK_TASK_IDS_JSON = JSON.stringify(options.taskIds ?? []);
+
+  try {
+    await fn();
+  } finally {
+    if (previousPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = previousPath;
+    }
+    if (previousMode === undefined) {
+      delete process.env.PI_FAKE_AK_MODE;
+    } else {
+      process.env.PI_FAKE_AK_MODE = previousMode;
+    }
+    if (previousTaskIds === undefined) {
+      delete process.env.PI_FAKE_AK_TASK_IDS_JSON;
+    } else {
+      process.env.PI_FAKE_AK_TASK_IDS_JSON = previousTaskIds;
+    }
+    rmSync(binDir, { recursive: true, force: true });
+  }
 }
 
 function initSourceRepo(root: string): string {
@@ -917,8 +985,8 @@ test("advanceLlamacppCampaign fails closed in apply mode after terminal-stage co
   });
 });
 
-test("inspectLlamacppCampaignControl composes public status with optional exact-task context", async () => {
-  await withTempDir((cwd) => {
+test("inspectLlamacppCampaignControl composes public status with explicit task-context verification state", async () => {
+  await withTempDir(async (cwd) => {
     const sourceRepo = initSourceRepo(cwd);
     const buildBins = initBuildBins(cwd);
     const workstationRepo = initWorkstationRepo(cwd);
@@ -926,6 +994,7 @@ test("inspectLlamacppCampaignControl composes public status with optional exact-
 
     const unbound = inspectLlamacppCampaignControl({ cwd, manifestPath, updatedAt: 1 });
     assert.equal(unbound.action, "status");
+    assert.equal(unbound.control.taskContext.verificationState, "not_requested");
     assert.equal(unbound.control.public.taskBound, false);
     assert.equal(unbound.control.akBinding, null);
     assert.equal(unbound.control.public.nextStepAction, "advance");
@@ -937,54 +1006,112 @@ test("inspectLlamacppCampaignControl composes public status with optional exact-
       formatLlamacppCampaignControlResult(unbound),
       /PI-AUTORESEARCH LLAMACPP CAMPAIGN CONTROL/,
     );
+    assert.match(formatLlamacppCampaignControlResult(unbound), /## Task context/);
     assert.match(unbound.nextAction, /action=advance/);
 
-    const bound = inspectLlamacppCampaignControl({
-      cwd,
-      manifestPath,
-      taskId: 1698,
-      updatedAt: 2,
+    await withFakeAkRuntime({ taskIds: [1698] }, () => {
+      const bound = inspectLlamacppCampaignControl({
+        cwd,
+        manifestPath,
+        taskId: 1698,
+        updatedAt: 2,
+      });
+      assert.equal(bound.control.taskContext.verificationState, "verified_live");
+      assert.equal(bound.control.public.taskBound, true);
+      assert.equal(bound.control.akBinding?.taskId, 1698);
+      assert.equal(bound.control.public.completionCandidate, false);
+      assert.match(bound.control.public.reason, /verified AK task 1698/);
     });
-    assert.equal(bound.control.public.taskBound, true);
-    assert.equal(bound.control.akBinding?.taskId, 1698);
-    assert.equal(bound.control.public.completionCandidate, false);
-    assert.match(bound.control.public.reason, /next truthful public campaign-control step/);
+  });
+});
+
+test("inspectLlamacppCampaignControl degrades gracefully when supplied taskId does not resolve live", async () => {
+  await withTempDir(async (cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+
+    await withFakeAkRuntime({ taskIds: [] }, () => {
+      const status = inspectLlamacppCampaignControl({
+        cwd,
+        manifestPath,
+        taskId: 7001,
+        updatedAt: 3,
+      });
+      assert.equal(status.control.taskContext.verificationState, "not_found");
+      assert.equal(status.control.public.taskBound, false);
+      assert.equal(status.control.akBinding, null);
+      assert.equal(status.control.public.completionCandidate, false);
+      assert.match(status.control.public.reason, /did not resolve to a live AK task/);
+    });
   });
 });
 
 test("executeLlamacppCampaignControl applies one step and refreshes public control", async () => {
-  await withTempDir((cwd) => {
+  await withTempDir(async (cwd) => {
     const sourceRepo = initSourceRepo(cwd);
     const buildBins = initBuildBins(cwd);
     const workstationRepo = initWorkstationRepo(cwd);
     const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
     const receiptRootPath = path.join(workstationRepo, "phasee/receipts/llamacpp-wave-001");
 
-    const result = executeLlamacppCampaignControl({
-      cwd,
-      manifestPath,
-      taskId: 1698,
-      apply: true,
-      updatedAt: 3,
+    await withFakeAkRuntime({ taskIds: [1698] }, () => {
+      const result = executeLlamacppCampaignControl({
+        cwd,
+        manifestPath,
+        taskId: 1698,
+        apply: true,
+        updatedAt: 3,
+      });
+      assert.equal(result.action, "advance");
+      assert.equal(result.mode, "apply");
+      assert.equal(result.executedStep?.stage, "41");
+      assert.equal(result.executedStep?.buildId, "A");
+      assert.equal(existsSync(path.join(receiptRootPath, "A-stage41-validation.json")), true);
+      assert.equal(result.control.taskContext.verificationState, "verified_live");
+      assert.equal(result.control.public.taskBound, true);
+      assert.equal(result.control.autonomy.nextStep.stage, 41);
+      assert.equal(result.control.autonomy.nextStep.buildId, "B");
+      assert.equal(result.control.public.nextStepAction, "advance");
+      assert.equal(result.projectionPath, resolveLlamacppCampaignProjectionPath(cwd));
+      assert.equal(result.projection.updatedAt, 3);
+      assert.equal(result.projection.status.overallState, "partially_materialized");
+      assert.equal(result.control.autonomy.projection.updatedAt, result.projection.updatedAt);
+      assert.equal(
+        result.control.autonomy.projection.overallState,
+        result.projection.status.overallState,
+      );
+      assert.match(result.nextAction, /action=advance/);
     });
-    assert.equal(result.action, "advance");
-    assert.equal(result.mode, "apply");
-    assert.equal(result.executedStep?.stage, "41");
-    assert.equal(result.executedStep?.buildId, "A");
-    assert.equal(existsSync(path.join(receiptRootPath, "A-stage41-validation.json")), true);
-    assert.equal(result.control.public.taskBound, true);
-    assert.equal(result.control.autonomy.nextStep.stage, 41);
-    assert.equal(result.control.autonomy.nextStep.buildId, "B");
-    assert.equal(result.control.public.nextStepAction, "advance");
-    assert.equal(result.projectionPath, resolveLlamacppCampaignProjectionPath(cwd));
-    assert.equal(result.projection.updatedAt, 3);
-    assert.equal(result.projection.status.overallState, "partially_materialized");
-    assert.equal(result.control.autonomy.projection.updatedAt, result.projection.updatedAt);
-    assert.equal(
-      result.control.autonomy.projection.overallState,
-      result.projection.status.overallState,
-    );
-    assert.match(result.nextAction, /action=advance/);
+  });
+});
+
+test("executeLlamacppCampaignControl still applies one local step when AK verification is unavailable", async () => {
+  await withTempDir(async (cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const receiptRootPath = path.join(workstationRepo, "phasee/receipts/llamacpp-wave-001");
+
+    await withFakeAkRuntime({ mode: "unavailable" }, () => {
+      const result = executeLlamacppCampaignControl({
+        cwd,
+        manifestPath,
+        taskId: 1698,
+        apply: true,
+        updatedAt: 4,
+      });
+      assert.equal(result.mode, "apply");
+      assert.equal(result.executedStep?.stage, "41");
+      assert.equal(existsSync(path.join(receiptRootPath, "A-stage41-validation.json")), true);
+      assert.equal(result.control.taskContext.verificationState, "verification_unavailable");
+      assert.equal(result.control.public.taskBound, false);
+      assert.equal(result.control.akBinding, null);
+      assert.equal(result.control.public.completionCandidate, false);
+      assert.match(result.control.public.reason, /verification is currently unavailable/);
+    });
   });
 });
 
@@ -1011,7 +1138,7 @@ test("executeLlamacppCampaignControl fails closed for blocked public apply", asy
 });
 
 test("inspectLlamacppCampaignControl reports terminal completion candidacy without inventing more work", async () => {
-  await withTempDir((cwd) => {
+  await withTempDir(async (cwd) => {
     const sourceRepo = initSourceRepo(cwd);
     const buildBins = initBuildBins(cwd);
     const workstationRepo = initWorkstationRepo(cwd);
@@ -1025,30 +1152,39 @@ test("inspectLlamacppCampaignControl reports terminal completion candidacy witho
     }
     executeLlamacppCampaignStage({ cwd, manifestPath, stage: "43", buildId: "C", apply: true });
 
-    const status = inspectLlamacppCampaignControl({
-      cwd,
-      manifestPath,
-      taskId: 1699,
-      updatedAt: 6,
-    });
-    assert.equal(status.control.public.taskBound, true);
-    assert.equal(status.control.public.nextStepAction, "none");
-    assert.equal(status.control.public.completionCandidate, true);
-    assert.equal(status.control.autonomy.nextStep.action, "none");
-    assert.match(status.control.public.reason, /completion candidate/);
-    assert.match(status.nextAction, /may now evaluate whether AK task 1699 should be completed/);
-    assert.match(formatLlamacppCampaignControlResult(status), /completion candidate: yes/);
+    await withFakeAkRuntime({ taskIds: [1699] }, () => {
+      const status = inspectLlamacppCampaignControl({
+        cwd,
+        manifestPath,
+        taskId: 1699,
+        updatedAt: 6,
+      });
+      assert.equal(status.control.taskContext.verificationState, "verified_live");
+      assert.equal(status.control.public.taskBound, true);
+      assert.equal(status.control.public.nextStepAction, "none");
+      assert.equal(status.control.public.completionCandidate, true);
+      assert.equal(status.control.autonomy.nextStep.action, "none");
+      assert.match(status.control.public.reason, /verified AK task 1699/);
+      assert.match(
+        status.nextAction,
+        /may now evaluate whether verified AK task 1699 should be completed/,
+      );
+      assert.match(formatLlamacppCampaignControlResult(status), /completion candidate: yes/);
 
-    const plannedAdvance = executeLlamacppCampaignControl({
-      cwd,
-      manifestPath,
-      taskId: 1699,
-      updatedAt: 7,
+      const plannedAdvance = executeLlamacppCampaignControl({
+        cwd,
+        manifestPath,
+        taskId: 1699,
+        updatedAt: 7,
+      });
+      assert.equal(plannedAdvance.mode, "plan");
+      assert.equal(plannedAdvance.executedStep, null);
+      assert.equal(plannedAdvance.control.public.nextStepAction, "none");
+      assert.match(
+        plannedAdvance.nextAction,
+        /verified AK task 1699 should be completed explicitly/,
+      );
     });
-    assert.equal(plannedAdvance.mode, "plan");
-    assert.equal(plannedAdvance.executedStep, null);
-    assert.equal(plannedAdvance.control.public.nextStepAction, "none");
-    assert.match(plannedAdvance.nextAction, /AK task 1699 should be completed explicitly/);
   });
 });
 
@@ -1102,25 +1238,29 @@ test("extension registers the public llama.cpp campaign-control tool and enforce
     const tool = tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME);
     assert.ok(tool);
 
-    const statusResult = await tool?.execute(
-      "campaign-control-status-1",
-      {
-        action: "status",
-        cwd,
-        manifestPath,
-        taskId: 1698,
-      },
-      undefined,
-      undefined,
-      { cwd },
-    );
+    await withFakeAkRuntime({ taskIds: [1698] }, async () => {
+      const statusResult = await tool?.execute(
+        "campaign-control-status-1",
+        {
+          action: "status",
+          cwd,
+          manifestPath,
+          taskId: 1698,
+        },
+        undefined,
+        undefined,
+        { cwd },
+      );
 
-    const statusText = statusResult?.content[0]?.text ?? "";
-    assert.match(statusText, /action: status/);
-    assert.match(statusText, /exact task context: yes/);
-    assert.match(statusText, /next step action: advance/);
-    assert.match(statusText, /## Projection/);
-    assert.match(statusText, /overall state: planned_only/);
+      const statusText = statusResult?.content[0]?.text ?? "";
+      assert.match(statusText, /action: status/);
+      assert.match(statusText, /## Task context/);
+      assert.match(statusText, /verification state: verified_live/);
+      assert.match(statusText, /task bound: yes/);
+      assert.match(statusText, /next step action: advance/);
+      assert.match(statusText, /## Projection/);
+      assert.match(statusText, /overall state: planned_only/);
+    });
 
     const advanceResult = await tool?.execute(
       "campaign-control-advance-1",
