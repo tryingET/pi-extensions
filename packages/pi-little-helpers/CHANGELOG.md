@@ -17,7 +17,7 @@ All notable changes to this project should be documented here.
 
 ### Added
 
-- Add `sidequest` extension command to fork the current Pi session into a new Ghostty tab when supported, with fallback to a new Ghostty window.
+- Add `sidequest` extension command to fork the current Pi session into the current Ghostty window as a new tab when the active Ghostty session supports tab attach, with explicit fallback to a new Ghostty window.
 
 ## [0.2.0](https://github.com/tryingET/pi-little-helpers/compare/v0.1.3...v0.2.0) (2026-02-27)
 

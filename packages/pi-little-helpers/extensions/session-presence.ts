@@ -6,6 +6,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 const SESSION_PRESENCE_SCHEMA_VERSION = 1;
 const DEFAULT_TITLE_PREFIX = "π - ";
 const DEFAULT_TITLE_MODE = "session-short-id";
+const DEFAULT_TITLE_REFRESH_DELAYS_MS = [250, 1000, 3000];
 
 export type SessionPresenceTitleMode = "session-short-id" | "off";
 
@@ -15,6 +16,8 @@ export interface SessionPresenceOptions {
   now?: () => string;
   piBin?: string;
   titleMode?: SessionPresenceTitleMode;
+  titleBase?: string;
+  titleRefreshDelaysMs?: number[];
 }
 
 export interface SessionPresenceState {
@@ -63,6 +66,16 @@ function resolveTitleMode(options: SessionPresenceOptions): SessionPresenceTitle
 function resolvePiBin(options: SessionPresenceOptions): string {
   const configured = options.piBin ?? process.env.PI_SESSION_PRESENCE_PI_BIN?.trim();
   return configured && configured.length > 0 ? configured : "pi";
+}
+
+function resolveTitleBase(cwd: string, options: SessionPresenceOptions): string {
+  const configured = options.titleBase ?? process.env.PI_SESSION_PRESENCE_TITLE_BASE?.trim();
+  return configured && configured.length > 0 ? configured : buildWindowTitleBase(cwd);
+}
+
+function resolveTitleRefreshDelaysMs(options: SessionPresenceOptions): number[] {
+  const configured = options.titleRefreshDelaysMs ?? DEFAULT_TITLE_REFRESH_DELAYS_MS;
+  return configured.filter((value) => Number.isFinite(value) && value >= 0);
 }
 
 function resolveProcessId(options: SessionPresenceOptions): number {
@@ -144,7 +157,7 @@ function buildSessionPresenceState(
   const sessionFile = ctx.sessionManager.getSessionFile();
   const sessionName = ctx.sessionManager.getSessionName();
   const sessionIdShort = sessionId.slice(0, 8);
-  const windowTitleBase = buildWindowTitleBase(cwd);
+  const windowTitleBase = resolveTitleBase(cwd, options);
   const titleMode = resolveTitleMode(options);
   const windowTitle = buildWindowTitle(windowTitleBase, sessionIdShort, titleMode);
   const piBin = resolvePiBin(options);
@@ -205,12 +218,39 @@ function formatStatusMessage(state: SessionPresenceState, filePath: string): str
 
 export function createSessionPresenceExtension(options: SessionPresenceOptions = {}) {
   return function sessionPresenceExtension(pi: ExtensionAPI) {
+    const titleRefreshTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+    const clearTitleRefreshes = () => {
+      while (titleRefreshTimeouts.length > 0) {
+        const timeout = titleRefreshTimeouts.pop();
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      }
+    };
+
+    const scheduleTitleRefreshes = (ctx: ExtensionContext, state: SessionPresenceState) => {
+      clearTitleRefreshes();
+      if (!ctx.hasUI || !state.windowTitle) return;
+
+      for (const delayMs of resolveTitleRefreshDelaysMs(options)) {
+        titleRefreshTimeouts.push(
+          setTimeout(() => {
+            if (!ctx.hasUI || !state.windowTitle) return;
+            ctx.ui.setTitle(state.windowTitle);
+          }, delayMs),
+        );
+      }
+    };
+
     const sync = (_event: unknown, ctx: ExtensionContext) => {
-      publishPresence(ctx, options);
+      const published = publishPresence(ctx, options);
+      scheduleTitleRefreshes(ctx, published.state);
     };
 
     pi.on("session_start", sync);
     pi.on("session_shutdown", async () => {
+      clearTitleRefreshes();
       clearPresence(options);
     });
 
@@ -219,6 +259,7 @@ export function createSessionPresenceExtension(options: SessionPresenceOptions =
       handler: async (args, ctx) => {
         const mode = args.trim().toLowerCase();
         const { state, filePath } = publishPresence(ctx, options);
+        scheduleTitleRefreshes(ctx, state);
 
         if (mode === "path") {
           emitInfo(ctx, state.sessionFile ?? "ephemeral");

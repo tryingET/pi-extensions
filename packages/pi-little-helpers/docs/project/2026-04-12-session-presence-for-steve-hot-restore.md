@@ -84,6 +84,13 @@ Example:
 π - agent-kernel · 77bc82bb
 ```
 
+The base title can also be overridden through `PI_SESSION_PRESENCE_TITLE_BASE`.
+That is how special launchers such as `/sidequest` can keep a descriptive base title while still appending the dynamic Pi session suffix, for example:
+
+```text
+Sidequest: trace this failure · 6e7c38f0
+```
+
 That title is intentionally chosen so the surrounding desktop stack can correlate:
 
 - Ghostty/Niri observed window title
@@ -101,6 +108,8 @@ This keeps the directory useful even when terminals crash.
 The extension republishes on:
 
 - `session_start`
+
+It also re-applies the computed title a few times immediately after `session_start` so late startup title resets from the host/runtime do not silently strip the session-id suffix from Ghostty/Niri window titles.
 
 using the modern post-`0.65.0` lifecycle contract where `session_start` carries:
 
@@ -174,6 +183,22 @@ Default:
 
 ```text
 pi
+```
+
+### `PI_SESSION_PRESENCE_TITLE_BASE`
+
+Override the base title used before the session suffix is appended.
+
+Example:
+
+```text
+Sidequest: trace this failure
+```
+
+This produces a final title such as:
+
+```text
+Sidequest: trace this failure · 6e7c38f0
 ```
 
 ### `PI_SESSION_PRESENCE_TITLE_MODE`

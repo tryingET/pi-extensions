@@ -137,3 +137,48 @@ test("/session-presence path reports the exact session file after refreshing pre
     rmSync(presenceDir, { recursive: true, force: true });
   }
 });
+
+test("session presence can override the base title and reapply it after startup", async () => {
+  const presenceDir = createTempDir();
+
+  try {
+    const extension = createSessionPresenceExtension({
+      presenceDir,
+      processId: 626262,
+      now: () => "2026-04-12T02:32:00.000Z",
+      titleBase: "Sidequest: trace this failure",
+      titleRefreshDelaysMs: [0, 0],
+    });
+
+    const { handlers } = registerExtension(extension);
+    const sessionStart = handlers.get("session_start");
+    const sessionShutdown = handlers.get("session_shutdown");
+    assert.equal(typeof sessionStart, "function");
+
+    const harness = createContext({
+      cwd: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      sessionId: "6e7c38f0-8b33-40ed-aa6f-4852c5aa64c4",
+      sessionFile:
+        "/home/tryinget/.pi/agent/sessions/--home-tryinget-ai-society-softwareco-owned-pi-extensions--/2026-04-18T10-21-37-313Z_6e7c38f0-8b33-40ed-aa6f-4852c5aa64c4.jsonl",
+      sessionName: undefined,
+    });
+
+    await sessionStart({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const state = JSON.parse(readFileSync(path.join(presenceDir, "626262.json"), "utf8"));
+    assert.equal(state.windowTitleBase, "Sidequest: trace this failure");
+    assert.equal(state.windowTitle, "Sidequest: trace this failure · 6e7c38f0");
+    assert.deepEqual(harness.titles, [
+      "Sidequest: trace this failure · 6e7c38f0",
+      "Sidequest: trace this failure · 6e7c38f0",
+      "Sidequest: trace this failure · 6e7c38f0",
+    ]);
+
+    if (typeof sessionShutdown === "function") {
+      await sessionShutdown({}, harness.ctx);
+    }
+  } finally {
+    rmSync(presenceDir, { recursive: true, force: true });
+  }
+});

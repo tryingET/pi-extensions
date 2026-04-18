@@ -25,7 +25,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `html-output-browser` | Auto-open written/edited HTML files in the browser and append clickable `file://` links to the tool output |
 | `package-update-notify` | Check for updates to pinned npm/git packages in Pi settings |
 | `session-presence` | Publish exact Pi session identity for Steve's Ghostty/Niri hourly observation and hot restore flow |
-| `sidequest` | Fork the current Pi session into a new Ghostty tab when supported, otherwise a new Ghostty window |
+| `sidequest` | Fork the current Pi session into the current Ghostty window as a new tab when the current Ghostty session itself supports tab attach; otherwise a new Ghostty window |
 | `stash` | Persist and restore stashed editor content across sessions |
 
 Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
@@ -37,7 +37,9 @@ This package now includes a deliberately **Steve-specific** helper for exact Pi 
 The `session-presence` extension does two things:
 
 1. writes a live sidecar JSON for the current Pi process under `$XDG_RUNTIME_DIR/pi-session-presence/` (fallback `~/.local/state/pi-session-presence/`)
-2. sets the terminal title to include the short Pi session id, for example `π - agent-kernel · 77bc82bb`
+2. sets and briefly re-applies the terminal title so it keeps the short Pi session id, for example `π - agent-kernel · 77bc82bb`
+
+The title base can also be overridden for special flows such as `/sidequest`, so a forked tab/window can read like `Sidequest: trace this failure · 6e7c38f0` instead of only using the cwd label.
 
 This lets the workstation hourly observer join:
 
@@ -91,6 +93,8 @@ Then in Pi:
 
 1. run `/reload`
 2. verify `/codeblocks`, `/sidequest "test prompt"`, `/session-presence`, the `stash` shortcuts/commands, and any `write`/`edit` flow that produces an `.html` file in a real session
+3. for `/sidequest`, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
+4. if `/sidequest` does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
 
 ## Docs discovery
 
