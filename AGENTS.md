@@ -54,6 +54,7 @@ Do not duplicate:
 ## Agent discoverability
 - Repo-specific operator knowledge should live primarily in repo-owned skills under `.pi/skills/`.
 - Repo-specific explicit invocation helpers should live under `.pi/prompts/` when a named entrypoint is useful.
+- If a prompt/helper stops being repo-specific, move it to the owning shared package or runtime instead of accumulating generic prompts at the monorepo root.
 - Keep this root `AGENTS.md` stable and structural; put package-family/operator depth into canonical docs and repo-owned skills instead of bloating this file.
 
 ## Direction workflow

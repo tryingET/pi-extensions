@@ -3,14 +3,10 @@ description: Deep-dive pi-extensions monorepo ownership, package selection, or e
 ---
 Work inside `/home/tryinget/ai-society/softwareco/owned/pi-extensions`.
 
-Read in order:
-1. `README.md`
-2. `README.terse.md`
-3. `docs/project/root-capabilities.md`
-4. the most relevant package README / `docs/project/*` after the root docs identify the owner package
+This prompt stays repo-local because it routes into pi-extensions-specific root docs, package families, and repo-owned operator surfaces.
+If it ever becomes generic extension-routing guidance that no longer depends on this monorepo's own structure, move that generic form to a shared owner instead of leaving it here.
 
-Use this repo-local prompt only for `pi-extensions`-specific package selection, ownership, or runtime-boundary questions.
-If the prompt would apply generically across multiple repos or upstream Pi, move it to the shared owner instead of growing this repo-local surface.
+Load the `pi-extensions-operator` skill first when it is available in this repo checkout; otherwise follow `README.md`, `README.terse.md`, and `docs/project/root-capabilities.md` in that order.
 
 Focus question:
 $@

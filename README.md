@@ -38,6 +38,20 @@ scripts/         # CI/utility scripts
   - `packages/pi-society-orchestrator`
 - For the shortest package map and outsider framing, see [README.terse.md](README.terse.md).
 
+## Fresh-context routing
+
+Start at the monorepo root only when you need package selection, root validation/release surfaces, or repo-owned operator prompts/skills.
+
+When cues overlap, route by owner before diving deeper:
+
+- `packages/pi-society-orchestrator` — coordination/control-plane questions that compose lower-plane owners, such as loops, routing selection, runtime-status wording, evidence intent, or exact supervision flows
+- `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, prompt-envelope application, session artifacts, and runtime/operator visibility tied to execution ownership
+- `packages/pi-vault-client` — Prompt Vault query/retrieve/mutate/rate flows, schema compatibility, and prompt-plane governance
+- `packages/pi-ontology-workflows` — ontology inspection/change workflows and ROCS-facing operator surfaces
+- monorepo root docs — only for package-family selection, release/governance control-plane surfaces, and repo-owned prompts/skills such as `.pi/prompts/commit.md` and `.pi/prompts/pi-extensions-deep-dive.md`
+
+Generic prompts that stop depending on pi-extensions-specific routing or workflow should move to a shared owner instead of accumulating in the root `.pi/prompts/` directory.
+
 ## Package Manager
 
 - **npm** — monorepo validation surface at root plus per-package manifests under `packages/` and `apps/`
@@ -169,11 +183,12 @@ Use `tpl-package` from your L1 templates to add packages:
   - package-local `AGENTS.md` / `docs/project/resources.md`
 - Upstream lane CLI:
   - `uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo`
-- Agent/operator feedback prompt:
-  - `.pi/prompts/commit.md`
-- Repo-owned agent/operator routing entrypoint:
-  - `.pi/prompts/pi-extensions-deep-dive.md` — root-level deep-dive prompt for package-selection and ownership questions inside this monorepo
-  - keep prompts here only when they are specific to `pi-extensions`; generic prompts should live with the shared owner package or upstream Pi instead of accumulating at repo root
+- Repo-owned operator prompts (`.pi/prompts/`):
+  - `.pi/prompts/commit.md` — repo-local commit workflow / validation gate prompt
+  - `.pi/prompts/pi-extensions-deep-dive.md` — repo-local discoverability / routing prompt for package-selection and ownership questions inside this monorepo
+  - keep prompts here only when they are specific to `pi-extensions`; they encode monorepo workflow and fresh-context routing, not reusable package/runtime semantics
+- Package-owned prompts:
+  - installable prompt bundles stay in each package's `prompts/` directory and are exposed via package-local `package.json#pi.prompts`
 - Community/process docs:
   - `CONTRIBUTING.md`
   - `CODE_OF_CONDUCT.md`

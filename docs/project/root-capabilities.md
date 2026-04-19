@@ -42,14 +42,16 @@ system4d:
 - `.githooks/pre-push`
 - `scripts/install-hooks.sh`
 - `.pi/prompts/commit.md`
+  - repo-local commit workflow / validation gate prompt
 
-### Repo-local agent/operator routing
+### Repo-owned operator prompt entrypoints
 - `.pi/prompts/pi-extensions-deep-dive.md`
+  - repo-local discoverability / routing prompt for fresh-context package-selection and ownership questions inside this monorepo
 - root docs that decide package selection and ownership boundaries:
   - `README.md`
   - `README.terse.md`
   - `docs/project/root-capabilities.md`
-- keep this surface repo-specific; generic prompts belong with the shared owner package or upstream Pi rather than the monorepo root
+- keep this surface repo-specific; these prompts encode monorepo workflow + routing, while installable package prompts belong in package-local `prompts/` directories exposed via `package.json#pi.prompts`
 
 ### Review / governance feedback
 - `.github/pull_request_template.md`
@@ -83,6 +85,13 @@ system4d:
 - `docs/tech-stack.local.md`
 - `docs/project/tech-stack-review-surfaces.md`
 - `docs/project/reduced-form-migration-contract.md`
+
+### Repo-owned operator routing surfaces
+- repo-root prompts that encode pi-extensions-specific workflow or package-selection entrypoints:
+  - `.pi/prompts/commit.md`
+  - `.pi/prompts/pi-extensions-deep-dive.md`
+- repo-root skills under `.pi/skills/` when the operator needs pi-extensions-specific routing or package-family grounding
+- decision rule: keep repo-root prompts only when they depend on pi-extensions-specific routing, release, or workflow truth; move generic prompts to the owning shared package/runtime instead of treating the monorepo root as a generic prompt warehouse
 
 ## Root does not own
 

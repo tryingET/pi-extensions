@@ -9,6 +9,10 @@ system4d:
 
 Create commits for the requested changes.
 
+Scope note:
+- This prompt stays repo-local because it encodes pi-extensions-specific staging, validation, and provenance rules.
+- If a lighter generic commit helper becomes reusable outside this monorepo, move that generic form to a shared owner instead of keeping a second generic copy here.
+
 Mandatory workflow:
 
 1. Build commit groups with clear intent.
