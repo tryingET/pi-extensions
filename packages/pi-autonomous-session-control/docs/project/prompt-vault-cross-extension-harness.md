@@ -38,10 +38,19 @@ Required for live run:
 ## Expected assertions
 
 - `vault_query` and `vault_retrieve` tools are registered.
+- `dispatch_subagent` advertises the prompt-envelope provenance contract on its exposed tool description.
 - Retrieval output is parseable into prompt envelope fields.
 - `dispatch_subagent` applies envelope (`prompt_applied=true`).
-- Result details contain prompt provenance.
+- Result details preserve prompt provenance (`prompt_name`, `prompt_source`, `prompt_tags`).
 - Generated system prompt contains `[Prompt Envelope]` header.
+
+## Cross-extension coherence anchor
+
+This harness is the live discoverability/coherence check for the exposed-tool chain:
+
+- vault-client proves the visible query/retrieve tools are actually registered
+- ASC proves `dispatch_subagent` preserves prompt provenance at the execution boundary
+- the combined run keeps the tool-surface inventory and public-execution contract honest without inventing a second local prompt story
 
 ## Reproducible recipe for live harness execution
 

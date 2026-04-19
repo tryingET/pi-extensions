@@ -3,7 +3,12 @@
  */
 
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { createSubagentState, registerSubagentTool } from "../../extensions/self/subagent.ts";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
 
 test("self tool is registered", async () => {
@@ -29,6 +34,56 @@ test("dispatch_subagent tool is registered in default extension", async () => {
   assert.ok(harness.tools.has("dispatch_subagent"), "dispatch_subagent should be registered");
 
   await cleanup(tempDir);
+});
+
+test("registerSubagentTool advertises prompt-envelope provenance on dispatch_subagent", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-registration-prompts-"));
+  const tools = new Map();
+
+  try {
+    registerSubagentTool(
+      {
+        registerTool(definition) {
+          tools.set(definition.name, definition);
+        },
+      },
+      createSubagentState(sessionsDir),
+      () => "test/model",
+      async () => ({
+        output: "ok",
+        exitCode: 0,
+        elapsed: 10,
+        status: "done",
+      }),
+    );
+
+    const tool = tools.get("dispatch_subagent");
+    assert.ok(tool, "dispatch_subagent should be registered");
+    assert.match(tool.description, /Prompt envelope \(optional\):/);
+    assert.match(tool.description, /prompt_name \/ prompt_content \/ prompt_tags \/ prompt_source/);
+    assert.match(tool.description, /Provenance is returned in details/);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("package manifest exposes package-owned prompts through pi.prompts", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
+
+  assert.deepEqual(manifest.pi?.prompts, ["./prompts"]);
+
+  for (const fileName of [
+    "extension-sop.md",
+    "implementation-planning.md",
+    "init-project-docs.md",
+    "security-review.md",
+  ]) {
+    assert.equal(
+      existsSync(new URL(`../../prompts/${fileName}`, import.meta.url)),
+      true,
+      `expected packaged prompt ${fileName} to exist`,
+    );
+  }
 });
 
 test("event handlers are registered", async () => {

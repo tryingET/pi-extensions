@@ -21,6 +21,10 @@ This inventory combines:
 
 Date: 2026-03-05
 
+Cross-extension coherence note:
+- `tests/prompt-vault-cross-extension-live.test.mjs` is the live harness that checks the visible `vault_query`/`vault_retrieve` tool chain still lands in ASC-owned prompt provenance on `dispatch_subagent`.
+- Treat that harness as the executable companion to this inventory when exposed-tool discoverability is in doubt.
+
 ---
 
 ## A) Callable tools in this coding session (with trace)
@@ -59,6 +63,18 @@ These are registered by this repo’s extension code:
 | `dispatch_subagent` | `extensions/self/subagent.ts` | Visible |
 
 Note: this inventory now matches the coding harness tool API list for project-local tools (`self`, `dispatch_subagent`).
+
+---
+
+## Prompt/tool discoverability rules
+
+Keep these surfaces distinct:
+
+- package-owned prompt assets live in `prompts/` and are exposed through `package.json#pi.prompts`
+- package-local runtime/tool surfaces are `self` and `dispatch_subagent`
+- prompt-envelope provenance is a tool-result surface on `dispatch_subagent` (`prompt_applied`, `prompt_name`, `prompt_source`, `prompt_tags`, `prompt_warning`)
+- live cross-extension coherence is proven by the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` harness path, which should preserve the `vault-client-live` provenance label when the prompt came from the live vault-client tool chain
+- repo-root `.pi/prompts/*` files in the monorepo root are repo-owned operator prompts, not ASC package prompts
 
 ---
 

@@ -85,6 +85,7 @@ The current seam proof is intentionally split across distinct truth layers:
 
 - **ASC package-local contract truth** — `tests/public-execution-contract.test.mjs`, `tests/public-execution-parity.test.mjs`, `tests/dispatch-subagent-diagnostics.test.mjs`, `tests/subagent-protocol.test.mjs`, `tests/subagent-transport-live.test.mjs`, and `tests/subagent-file-lock.test.mjs` prove the seam semantics and transport-safety invariants owned by ASC.
 - **Orchestrator package-local consumer truth** — `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves the expected timeout/truncation/abort and `result.details` semantics in repo-local source, and `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` fail-closes private ASC imports plus orchestrator-local runtime revival drift.
+- **Cross-extension discoverability truth** — `tests/prompt-vault-cross-extension-live.test.mjs` proves the real `vault_query`/`vault_retrieve` registration path stays coherent with ASC-owned prompt provenance on `dispatch_subagent`, so exposed-tool discoverability and execution-boundary truth do not drift apart.
 - **Installed-package smoke / packaging truth** — `cd packages/pi-society-orchestrator && npm run release:check` proves the packaged orchestrator artifact can still import and use the seam after install, including the current bundled ASC bridge while the temporary lifecycle in [bundled ASC bridge lifecycle](../../../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains active.
 
 Shared across those layers is the [execution seam casebook](../../../../governance/execution-seam-cases/README.md): named canonical scenarios such as `timeout-empty-output`, `assistant-protocol-semantic-error`, `assistant-protocol-parse-error`, and `bundled-bridge-import` that turn learned seam failures into reusable compatibility memory.
@@ -125,6 +126,16 @@ Useful properties:
 - `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
 - `getDispatchSubagentDisplayOutput(result)` is the exported compatibility helper for consumers that want the same normalized body shaping without reimplementing fallback logic
+
+## Prompt-related surfaces outside this seam
+
+Keep three concerns separate:
+
+- package-owned prompt assets in `prompts/`, exposed via `package.json#pi.prompts`
+- tool-layer prompt-envelope provenance surfaced by `dispatch_subagent` result details (`prompt_applied`, `prompt_name`, `prompt_source`, `prompt_tags`, `prompt_warning`)
+- the headless execution runtime in `pi-autonomous-session-control/execution`, which executes requests but does not own package prompt distribution
+
+The live cross-extension harness plus prompt-envelope integration tests should prove the tool-layer provenance contract without turning the headless execution seam into a second prompt-distribution owner.
 
 ## Non-goals
 

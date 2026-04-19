@@ -13,7 +13,8 @@ system4d:
 
 - [Extension entrypoint](../../extensions/self.ts)
 - [Extension runtime modules](../../extensions/self)
-- [Prompt templates](../../prompts)
+- [Packaged prompt templates](../../prompts)
+  - exposed through `package.json#pi.prompts`; this is the package-owned prompt asset surface, distinct from repo-root `.pi/prompts/*` operator prompts
 - [Organization operating model](../org/operating_model.md)
 - [Security policy](../../policy/security-policy.json)
 - [Validation script](../../scripts/validate-structure.sh)

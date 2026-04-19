@@ -194,6 +194,8 @@ test(
       assert.ok(queryTool, "vault_query should be registered");
       assert.ok(retrieveTool, "vault_retrieve should be registered");
       assert.ok(dispatchTool, "dispatch_subagent should be registered");
+      assert.match(dispatchTool.description, /Prompt envelope \(optional\):/);
+      assert.match(dispatchTool.description, /Provenance is returned in details/);
 
       const queryResult = await queryTool.execute(
         "tc-x-1",
@@ -240,8 +242,10 @@ test(
       assert.equal(dispatchResult.details.prompt_applied, true);
       assert.equal(dispatchResult.details.prompt_name, envelope.prompt_name);
       assert.equal(dispatchResult.details.prompt_source, "vault-client-live");
+      assert.deepEqual(dispatchResult.details.prompt_tags, envelope.prompt_tags);
       assert.match(capturedDef.systemPrompt, /^\[Prompt Envelope\]/);
       assert.match(capturedDef.systemPrompt, new RegExp(`name: ${envelope.prompt_name}`));
+      assert.match(capturedDef.systemPrompt, /source: vault-client-live/);
     } finally {
       await rm(sessionsDir, { recursive: true, force: true });
     }
