@@ -36,6 +36,19 @@ This package was scaffolded from [`../pi-extensions-template`](../pi-extensions-
 
 That means the package is still carrying some brownfield transition code while it converges toward the layered architecture above.
 
+## Fresh-context route adjudication
+
+Use this package when the real question is about coordinating or presenting multiple lower-plane owners together.
+
+Route by owner when the ask is narrower:
+- `pi-society-orchestrator` — loops, routing selection, `/runtime-status`, `/evidence`, exact supervision flows, or other coordination/control-plane behavior that composes lower-plane owners
+- `pi-autonomous-session-control` — subagent runtime behavior, prompt-envelope application, session artifacts, dashboard/inspection surfaces, and execution-plane invariants
+- `pi-vault-client` — Prompt Vault query/retrieve/mutate/rate flows, schema diagnostics, and prompt-plane governance
+- `pi-ontology-workflows` / `rocs-cli` — ontology inspection/change/context questions
+- `ak` — canonical society-state authority for tasks, evidence, decisions, and repo registration truth
+
+If overloaded cues mix several of those planes, start here only when the adjudication between owners is itself the problem.
+
 ## Workspace placement
 
 For workspace-level placement and source hierarchy, read:
@@ -63,7 +76,7 @@ Before any new UI or extraction moves, Phase A capability discovery established 
 
 Primary execution-boundary packet:
 
-- [Subagent execution-boundary map](docs/project/subagent-execution-boundary-map.md) — central entrypoint for what is evidence vs decision vs seam proposal vs backlog
+- [Subagent execution-boundary map](docs/project/subagent-execution-boundary-map.md) — central entrypoint for what is evidence vs decision vs seam proposal vs backlog, and the first stop for fresh-context routing when cues overload package ownership + runtime/operator questions
 - [Execution seam charter](docs/project/2026-03-31-execution-seam-charter.md) — why the seam exists and how small it should stay
 - [Execution seam review](docs/project/2026-03-31-execution-seam-review.md) — latest time-boxed answer on whether the seam still earns its keep and how many real consumers exist today
 - [Phase A UI capability discovery](docs/project/2026-03-10-ui-capability-discovery.md) — evidence for package placement

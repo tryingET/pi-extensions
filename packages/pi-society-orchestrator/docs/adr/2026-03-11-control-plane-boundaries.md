@@ -160,6 +160,22 @@ Implications of Phase A:
 | Subagent execution runtime | ASC | It already owns `dispatch_subagent`, prompt envelope application, session lifecycle, invariants, dashboards, and test depth | Reuse ASC execution behavior rather than maintain a parallel runtime |
 | Coordination intelligence | `pi-society-orchestrator` | This is the package’s differentiator and correct abstraction layer | Own loops, sequencing, routing, escalation, evidence intent, synthesis |
 
+### Fresh-context route adjudication rule
+
+When cues overlap, first decide whether the operator is asking an owner-local implementation question or a cross-plane coordination question.
+
+Start in `pi-society-orchestrator` only for the latter:
+- loop sequencing, routing selection, runtime-status wording, evidence intent, or exact supervision flows that compose lower-plane owners
+- ambiguous cases where the main problem is choosing the right lower-plane owner and preserving their boundaries
+
+Route directly to the canonical owner when the ask is narrower:
+- ASC for execution-plane runtime behavior and subagent lifecycle semantics
+- `pi-vault-client` for prompt-plane retrieval, governance, and schema truth
+- `ak` for society-state authority
+- `rocs-cli` / `pi-ontology-workflows` for ontology questions
+
+This adjudication rule is discoverability guidance only; it does not create a second owner layer above those packages.
+
 ### Presentation-helper extraction rule
 
 Do **not** create a dedicated orchestrator UI-helper package yet.

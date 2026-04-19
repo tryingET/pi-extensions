@@ -44,6 +44,38 @@ This file is the **single starting point** so the packet stops feeling scattered
   - orchestrator tarballs currently bundle `pi-autonomous-session-control`
   - installed-package smoke now lifts bundled dependencies and host peers so direct node imports stay truthful during headless validation
 
+## Fresh-context route adjudication for overloaded cues
+
+When a fresh-context question overloads multiple planes at once, adjudicate it in this order so discoverability hardening points to the right owner instead of copying truth into a second place.
+
+| If the cue sounds like... | Start here | Why |
+|---|---|---|
+| "Who owns subagent/runtime behavior?" | [ADR — control-plane boundaries](../adr/2026-03-11-control-plane-boundaries.md) + [ASC README](../../pi-autonomous-session-control/README.md) | ownership truth stays with the decision layer plus the current owner package |
+| "How does orchestrator preserve package-local policy while delegating?" | `../../pi-society-orchestrator/src/runtime/subagent.ts` | this is the consumer-side adapter over the ASC public runtime |
+| "How do operators inspect or change routing?" | [README](../../README.md), [runtime status semantics](runtime-status-semantics.md), `/runtime-status`, and `/agents-team` | operator-visible routing discoverability belongs in the runtime-status surfaces, not in the execution adapter |
+| "Which live surfaces prove prompt/tool coherence across packages?" | [ASC tool surface overview](../../pi-autonomous-session-control/docs/project/tool-surface-overview.md) plus the ASC harness docs/tests | cross-extension provenance and exposed-tool discoverability live with the runtime/tool owner |
+| "I only know the cues are overloaded and want the right read order first." | **This file** | the packet map remains the central router before deeper evidence/decision/code reads |
+
+Route-adjudication rule:
+- keep owner truth in the ADR + ASC README
+- keep consumer policy in `src/runtime/subagent.ts`
+- keep operator-visible routing discoverability in the runtime-status surfaces
+- do not duplicate ASC ownership prose inside runtime prompts, fixture text, or orchestrator-local helper copy
+
+## Overloaded cue adjudication
+
+When fresh-context cues overlap across execution, prompt, ontology, and society planes, use this quick adjudication table before widening:
+
+| If the operator is really asking about... | Start here | Why |
+|---|---|---|
+| loops, routing selection, `/runtime-status`, `/evidence`, or exact supervision flows that compose lower-plane owners | `pi-society-orchestrator` | coordination/control-plane owner |
+| subagent runtime behavior, prompt-envelope application, session artifacts, or execution invariants | `pi-autonomous-session-control` | execution-plane owner |
+| Prompt Vault retrieval, schema/governance, or prompt-plane preparation | `pi-vault-client` | prompt-plane owner |
+| ontology inspect/change/context questions | `pi-ontology-workflows` / `rocs-cli` | ontology workflow owner |
+| task/evidence/decision DB truth | `ak` | canonical society-state owner |
+
+This map is for adjudication, not for flattening ownership. If the lower-plane owner is already clear, go there directly; return here only when the coordination between owners is the real problem.
+
 ## Read order
 
 1. **This file** — one-screen orientation and current AK wave
