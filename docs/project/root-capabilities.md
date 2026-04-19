@@ -43,6 +43,14 @@ system4d:
 - `scripts/install-hooks.sh`
 - `.pi/prompts/commit.md`
 
+### Repo-local agent/operator routing
+- `.pi/prompts/pi-extensions-deep-dive.md`
+- root docs that decide package selection and ownership boundaries:
+  - `README.md`
+  - `README.terse.md`
+  - `docs/project/root-capabilities.md`
+- keep this surface repo-specific; generic prompts belong with the shared owner package or upstream Pi rather than the monorepo root
+
 ### Review / governance feedback
 - `.github/pull_request_template.md`
 - `.github/CODEOWNERS`
@@ -89,6 +97,7 @@ system4d:
 - no root `.vscode/settings.json`
 - no claim that root is a full npm workspace manifest
 - no blind reuse of standalone-package release workflows; root release automation must stay explicitly redesigned for monorepo component mode
+- no repo-root claim over generic cross-repo prompts, upstream Pi command semantics, or package-local operator docs that belong in a specific package
 
 ## Placement rule
 

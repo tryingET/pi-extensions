@@ -171,6 +171,9 @@ Use `tpl-package` from your L1 templates to add packages:
   - `uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo`
 - Agent/operator feedback prompt:
   - `.pi/prompts/commit.md`
+- Repo-owned agent/operator routing entrypoint:
+  - `.pi/prompts/pi-extensions-deep-dive.md` — root-level deep-dive prompt for package-selection and ownership questions inside this monorepo
+  - keep prompts here only when they are specific to `pi-extensions`; generic prompts should live with the shared owner package or upstream Pi instead of accumulating at repo root
 - Community/process docs:
   - `CONTRIBUTING.md`
   - `CODE_OF_CONDUCT.md`

@@ -51,6 +51,10 @@ Do not duplicate:
 - Verify with a real command/tool call after reload; do not assume install alone updated the active runtime.
 - Keep package-specific install examples in package docs/AGENTS; keep this root rule generic.
 
+## Agent discoverability
+- Repo-specific operator knowledge should live primarily in repo-owned skills under `.pi/skills/`.
+- Repo-specific explicit invocation helpers should live under `.pi/prompts/` when a named entrypoint is useful.
+- Keep this root `AGENTS.md` stable and structural; put package-family/operator depth into canonical docs and repo-owned skills instead of bloating this file.
 
 ## Direction workflow
 - When this repo's direction docs under `docs/project/` change, or when current posture needs verification, use `ak direction import|check|export` from the repo root.
