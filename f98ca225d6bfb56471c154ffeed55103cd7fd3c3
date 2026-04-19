@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f98ca225d6bfb56471c154ffeed55103cd7fd3c3"
+created_at: "2026-04-19T13:49:34Z"
+intent: "Classify pi-extensions repo-owned prompt and routing surfaces at monorepo root"
+files:
+  - "AGENTS.md"
+  - "README.md"
+  - "docs/project/root-capabilities.md"
+  - ".pi/prompts/commit.md"
+  - ".pi/prompts/pi-extensions-deep-dive.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 3
+  rationale: "Keep repo-root prompts discoverability-specific and route generic prompts to shared owners"
+links:
+  task_ids:
+    - 1786
