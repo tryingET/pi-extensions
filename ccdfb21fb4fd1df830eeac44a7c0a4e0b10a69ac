@@ -3,23 +3,21 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "ccdfb21fb4fd1df830eeac44a7c0a4e0b10a69ac"
-created_at: "2026-04-19T13:51:31Z"
-intent: "Add executable discoverability route fixtures and routing-surface assertions for pi-society-orchestrator."
+created_at: "2026-04-19T13:53:30Z"
+intent: "Add executable discoverability route fixtures for pi-society-orchestrator"
 files:
-  - "packages/pi-society-orchestrator/src/runtime/subagent.ts"
-  - "packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs"
   - "packages/pi-society-orchestrator/tests/discoverability-route-fixtures.test.mjs"
 validation:
   fast_gate:
     command: "npm run quality:pre-commit"
     status: "pass"
   full_gate:
-    command: "npm run quality:pre-push"
-    status: "pending"
+    command: "ROCS_WORKSPACE_ROOT=/home/tryinget/ai-society npm run quality:pre-push"
+    status: "fail"
 group:
-  index: 1
-  total: 2
-  rationale: "Bind the fresh-context routing packet to executable guardrails without duplicating owner truth in new runtime code."
+  index: 3
+  total: 4
+  rationale: "Lock fresh-context route packet coverage to canonical owner surfaces and the ASC public seam"
 links:
   task_ids:
     - 1784
