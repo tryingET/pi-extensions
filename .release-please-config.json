@@ -9,6 +9,10 @@
       "release-type": "node",
       "component": "pi-autonomous-session-control"
     },
+    "packages/pi-autoresearch": {
+      "release-type": "node",
+      "component": "pi-autoresearch"
+    },
     "packages/pi-context-overlay": {
       "release-type": "node",
       "component": "pi-context-overlay"
