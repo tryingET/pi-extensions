@@ -12,6 +12,11 @@ import {
 import type { AgentDef } from "./agent-profiles.ts";
 import type { ExecutionLike } from "./execution-status.ts";
 
+/**
+ * Consumer-side adapter over ASC's public execution seam.
+ * Keep execution ownership truth in the boundary packet / ADR / ASC README; this module only
+ * preserves orchestrator-local prompt composition and output policy.
+ */
 const DEFAULT_PI_SUBAGENT_TIMEOUT_MS =
   Number.parseInt(process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS || "", 10) || 10 * 60 * 1000;
 const DEFAULT_PI_OUTPUT_CHARS =

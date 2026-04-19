@@ -1251,6 +1251,7 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
 
   assert.equal(notifications.length, 1);
   assert.match(notifications[0].message, /Routing: all agents/);
+  assert.match(notifications[0].message, /\/agents-team\s+Select routing scope/);
   assert.match(notifications[0].message, /\/runtime-status\s+Inspect runtime truth/);
   assert.doesNotMatch(notifications[0].message, /Team: full/);
   assert.ok(footerFactory, "expected session_start to register a footer");
