@@ -3,27 +3,25 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "ca216b0cad4000b755da61fc871b3c42a13f8c81"
-created_at: "2026-04-19T13:51:56Z"
-intent: "Clarify ASC prompt-surface ownership and prove exposed-tool provenance through deterministic and live harness coverage."
+created_at: "2026-04-19T13:53:30Z"
+intent: "Harden ASC prompt discoverability and cross-extension provenance coverage"
 files:
   - "packages/pi-autonomous-session-control/README.md"
   - "packages/pi-autonomous-session-control/docs/project/prompt-vault-cross-extension-harness.md"
   - "packages/pi-autonomous-session-control/docs/project/public-execution-contract.md"
-  - "packages/pi-autonomous-session-control/docs/project/resources.md"
   - "packages/pi-autonomous-session-control/docs/project/tool-surface-overview.md"
   - "packages/pi-autonomous-session-control/tests/prompt-vault-cross-extension-live.test.mjs"
-  - "packages/pi-autonomous-session-control/tests/self/registration.test.mjs"
 validation:
   fast_gate:
     command: "npm run quality:pre-commit"
     status: "pass"
   full_gate:
-    command: "npm run quality:pre-push"
-    status: "pending"
+    command: "ROCS_WORKSPACE_ROOT=/home/tryinget/ai-society npm run quality:pre-push"
+    status: "fail"
 group:
-  index: 2
-  total: 2
-  rationale: "Keep package-owned prompts, tool-surface provenance, and cross-extension harness truth aligned in one package-local slice."
+  index: 4
+  total: 4
+  rationale: "Keep exposed-tool discoverability aligned with ASC-owned prompt provenance across the live vault-client chain"
 links:
   task_ids:
     - 1785
