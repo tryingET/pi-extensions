@@ -405,6 +405,13 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   type RuntimeStatusContext = TeamScopedContext & {
     cwd: string;
     model?: { id?: string };
+    getContextUsage?: () =>
+      | {
+          tokens: number | null;
+          contextWindow: number;
+          percent: number | null;
+        }
+      | undefined;
   };
   type RuntimeSnapshot = ReturnType<typeof createRuntimeTruthSnapshot>;
   type FooterTheme = {
@@ -421,11 +428,95 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
     disposed: boolean;
   };
 
+  function getSessionEntriesForUsage(ctx: RuntimeStatusContext): unknown[] {
+    const sessionManager = ctx.sessionManager;
+    if (!sessionManager || typeof sessionManager !== "object") {
+      return [];
+    }
+
+    const manager = sessionManager as {
+      getEntries?: () => unknown;
+      getBranch?: () => unknown;
+    };
+
+    try {
+      if (typeof manager.getEntries === "function") {
+        const entries = manager.getEntries();
+        return Array.isArray(entries) ? entries : [];
+      }
+      if (typeof manager.getBranch === "function") {
+        const entries = manager.getBranch();
+        return Array.isArray(entries) ? entries : [];
+      }
+    } catch {
+      return [];
+    }
+
+    return [];
+  }
+
+  function normalizeSessionTokenCount(value: unknown): number {
+    return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0;
+  }
+
+  function summarizeSessionTokens(ctx: RuntimeStatusContext) {
+    let input = 0;
+    let output = 0;
+    let cacheRead = 0;
+    let cacheWrite = 0;
+
+    for (const entry of getSessionEntriesForUsage(ctx)) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+
+      const messageEntry = entry as {
+        type?: unknown;
+        message?: {
+          role?: unknown;
+          usage?: {
+            input?: unknown;
+            output?: unknown;
+            cacheRead?: unknown;
+            cacheWrite?: unknown;
+          };
+        };
+      };
+      if (messageEntry.type !== "message" || messageEntry.message?.role !== "assistant") {
+        continue;
+      }
+
+      input += normalizeSessionTokenCount(messageEntry.message.usage?.input);
+      output += normalizeSessionTokenCount(messageEntry.message.usage?.output);
+      cacheRead += normalizeSessionTokenCount(messageEntry.message.usage?.cacheRead);
+      cacheWrite += normalizeSessionTokenCount(messageEntry.message.usage?.cacheWrite);
+    }
+
+    return { input, output, cacheRead, cacheWrite };
+  }
+
+  function readContextUsage(ctx: RuntimeStatusContext) {
+    try {
+      return ctx.getContextUsage?.();
+    } catch {
+      return undefined;
+    }
+  }
+
   function buildRuntimeSnapshot(ctx: RuntimeStatusContext, toolsResult?: CognitiveToolsResult) {
+    const contextUsage = readContextUsage(ctx);
+
     return createRuntimeTruthSnapshot({
       cwd: ctx.cwd,
       model: ctx.model?.id,
       activeTeam: sessionTeams.getTeam(ctx),
+      contextUsage: contextUsage
+        ? {
+            tokens: contextUsage.tokens,
+            contextWindow: contextUsage.contextWindow,
+          }
+        : undefined,
+      sessionTokens: summarizeSessionTokens(ctx),
       societyDbPath: SOCIETY_DB,
       societyDbAvailable: fs.existsSync(SOCIETY_DB),
       vaultAvailable: toolsResult ? !isBoundaryFailure(toolsResult) : false,

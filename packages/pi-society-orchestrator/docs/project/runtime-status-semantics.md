@@ -21,7 +21,7 @@ That module owns the shared descriptor and snapshot/report helpers for:
 - orchestration owner vs execution owner
 - the `orchestrator→ASC` seam label
 - routing label and current routing scope
-- live DB/vault status summary for `/runtime-status`
+- live context, session-token, DB, and Vault status summaries for `/runtime-status`
 - footer/status surface contracts
 
 ## Current truth contract
@@ -46,9 +46,11 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
    - advertises `/agents-team` as a routing selector and `/runtime-status` as the direct inspector
 3. footer
    - primary left slots: `<model> · orchestrator→ASC`
+   - optional context slot: `ctx <tokens>` when current context usage is known
+   - optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage
    - optional health slots: `DB✓|DB✗ · Vault✓|Vault✗` when width allows
    - right side: `Routing: <team>`
-   - compact widths should drop optional health slots first, then the seam, before sacrificing routing visibility
+   - compact widths should drop optional health slots first, then the session-token slot, then the context slot, then the seam, before sacrificing routing visibility
    - footer health badges may refresh after startup if Vault health changes during the session
 4. `/agents-team`
    - treats the choice as routing scope selection, not generic "team" wording
@@ -62,7 +64,7 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
 - Do **not** regress to stale footer/status wording such as `orchestra` or `Team: ...` for the operator-facing runtime surfaces covered here.
 - Prefer `Routing` when describing the active agent-scope selection.
 - Keep footer/status wording short; put richer explanation in `/runtime-status` and docs.
-- Protect routing visibility before optional health badges, model, and finally the seam when compacting the footer.
+- Protect routing visibility before optional health badges, optional session-token summaries, optional context slots, model, and finally the seam when compacting the footer.
 
 ## Change rule
 

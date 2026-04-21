@@ -19,6 +19,18 @@ export interface RuntimeTruthDescriptor {
   runtimeStatusCommand: string;
 }
 
+export interface RuntimeSessionTokenTotals {
+  input: number;
+  cacheRead: number;
+  cacheWrite: number;
+  output: number;
+}
+
+export interface RuntimeContextUsageSnapshot {
+  tokens: number | null;
+  contextWindow: number | null;
+}
+
 export interface RuntimeTruthSnapshot {
   descriptor: RuntimeTruthDescriptor;
   cwd: string;
@@ -28,6 +40,8 @@ export interface RuntimeTruthSnapshot {
     defaultTeam: AgentTeam;
     allowedAgents: string[];
   };
+  contextUsage: RuntimeContextUsageSnapshot;
+  sessionTokens: RuntimeSessionTokenTotals;
   societyDb: {
     path: string;
     available: boolean;
@@ -72,6 +86,8 @@ export function createRuntimeTruthSnapshot(params: {
   model?: string;
   activeTeam?: AgentTeam;
   defaultTeam?: AgentTeam;
+  contextUsage?: Partial<RuntimeContextUsageSnapshot>;
+  sessionTokens?: Partial<RuntimeSessionTokenTotals>;
   societyDbPath: string;
   societyDbAvailable: boolean;
   vaultAvailable: boolean;
@@ -89,6 +105,16 @@ export function createRuntimeTruthSnapshot(params: {
       defaultTeam,
       allowedAgents: [...AGENT_TEAMS[activeTeam]],
     },
+    contextUsage: {
+      tokens: normalizeNullableTokenCount(params.contextUsage?.tokens),
+      contextWindow: normalizeNullableTokenCount(params.contextUsage?.contextWindow),
+    },
+    sessionTokens: {
+      input: normalizeTokenCount(params.sessionTokens?.input),
+      cacheRead: normalizeTokenCount(params.sessionTokens?.cacheRead),
+      cacheWrite: normalizeTokenCount(params.sessionTokens?.cacheWrite),
+      output: normalizeTokenCount(params.sessionTokens?.output),
+    },
     societyDb: {
       path: params.societyDbPath,
       available: params.societyDbAvailable,
@@ -98,6 +124,80 @@ export function createRuntimeTruthSnapshot(params: {
       summary: params.vaultSummary,
     },
   };
+}
+
+function normalizeTokenCount(value: number | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function normalizeNullableTokenCount(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : null;
+}
+
+function formatTokenCount(value: number): string {
+  if (value < 1000) return value.toString();
+  if (value < 10_000) return `${(value / 1000).toFixed(1)}k`;
+  if (value < 1_000_000) return `${Math.round(value / 1000)}k`;
+  if (value < 10_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  return `${Math.round(value / 1_000_000)}M`;
+}
+
+function formatTokenCountVerbose(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function getRuntimeSessionCacheTokens(snapshot: RuntimeTruthSnapshot): number {
+  return snapshot.sessionTokens.cacheRead + snapshot.sessionTokens.cacheWrite;
+}
+
+function hasRuntimeContextUsage(snapshot: RuntimeTruthSnapshot): boolean {
+  return snapshot.contextUsage.tokens !== null;
+}
+
+function hasRuntimeSessionTokenUsage(snapshot: RuntimeTruthSnapshot): boolean {
+  return (
+    snapshot.sessionTokens.input > 0 ||
+    snapshot.sessionTokens.cacheRead > 0 ||
+    snapshot.sessionTokens.cacheWrite > 0 ||
+    snapshot.sessionTokens.output > 0
+  );
+}
+
+export function formatRuntimeContextUsageSummary(snapshot: RuntimeTruthSnapshot): string {
+  return `ctx ${formatTokenCount(snapshot.contextUsage.tokens ?? 0)}`;
+}
+
+export function formatRuntimeContextUsageStatus(snapshot: RuntimeTruthSnapshot): string {
+  const tokens = snapshot.contextUsage.tokens;
+  const window = snapshot.contextUsage.contextWindow;
+
+  if (tokens !== null && window !== null) {
+    return `${formatTokenCountVerbose(tokens)} tokens (window ${formatTokenCountVerbose(window)})`;
+  }
+  if (tokens !== null) {
+    return `${formatTokenCountVerbose(tokens)} tokens`;
+  }
+  if (window !== null) {
+    return `unknown (window ${formatTokenCountVerbose(window)})`;
+  }
+  return "unavailable";
+}
+
+export function formatRuntimeSessionTokenSummary(snapshot: RuntimeTruthSnapshot): string {
+  return [
+    `↑${formatTokenCount(snapshot.sessionTokens.input)}`,
+    `↺${formatTokenCount(getRuntimeSessionCacheTokens(snapshot))}`,
+    `↓${formatTokenCount(snapshot.sessionTokens.output)}`,
+  ].join(" ");
+}
+
+export function formatRuntimeSessionTokenStatus(snapshot: RuntimeTruthSnapshot): string {
+  const cacheTotal = getRuntimeSessionCacheTokens(snapshot);
+  return [
+    `in ${formatTokenCountVerbose(snapshot.sessionTokens.input)}`,
+    `cache ${formatTokenCountVerbose(cacheTotal)} (${formatTokenCountVerbose(snapshot.sessionTokens.cacheRead)} read + ${formatTokenCountVerbose(snapshot.sessionTokens.cacheWrite)} write)`,
+    `out ${formatTokenCountVerbose(snapshot.sessionTokens.output)}`,
+  ].join(" · ");
 }
 
 export function formatRuntimeRoutingStatus(snapshot: RuntimeTruthSnapshot): string {
@@ -135,6 +235,26 @@ export function buildRuntimeFooterSlots(snapshot: RuntimeTruthSnapshot): {
         compact: truncateToWidth(modelLabel, 18, "...", true),
       },
       { id: "seam", tone: "accent", full: seamLabel },
+      ...(hasRuntimeContextUsage(snapshot)
+        ? [
+            {
+              id: "context",
+              tone: "dim" as const,
+              full: formatRuntimeContextUsageSummary(snapshot),
+              optional: true,
+            },
+          ]
+        : []),
+      ...(hasRuntimeSessionTokenUsage(snapshot)
+        ? [
+            {
+              id: "session-tokens",
+              tone: "dim" as const,
+              full: formatRuntimeSessionTokenSummary(snapshot),
+              optional: true,
+            },
+          ]
+        : []),
       {
         id: "db",
         tone: snapshot.societyDb.available ? "accent" : "warning",
@@ -245,11 +365,15 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
     `- model: \`${snapshot.model}\``,
     `- routing: \`${activeRoutingDisplay}\`${activeRoutingInternalNote} (${routingAgents})`,
     `- default routing: \`${defaultRoutingDisplay}\`${defaultRoutingInternalNote}`,
+    `- context: ${formatRuntimeContextUsageStatus(snapshot)}`,
+    `- session tokens: ${formatRuntimeSessionTokenStatus(snapshot)}`,
     `- society db: ${dbStatus} — \`${snapshot.societyDb.path}\``,
     `- vault: ${snapshot.vault.summary}`,
     "",
     "## Surface contracts",
     `- footer left: \`${formatRuntimeFooterLeft(snapshot)}\``,
+    "- footer optional context slot: `ctx <tokens>` when current context usage is known",
+    "- footer optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage",
     "- footer optional slots: `DB✓|DB✗ · Vault✓|Vault✗` when width allows",
     `- footer right: \`${routing}\``,
     `- operator-visible status should present orchestrator as the coordination plane while ASC owns execution/runtime behavior`,

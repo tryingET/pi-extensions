@@ -632,6 +632,31 @@ try {
   assert.ok(runtimeStatus, "runtime-status command not registered");
   assert.ok(sessionStart, "session_start handler not registered");
 
+  const sessionUsageManager = {
+    id: "installed-runtime-status-session",
+    getEntries() {
+      return [
+        {
+          type: "message",
+          message: {
+            role: "assistant",
+            usage: {
+              input: 1200,
+              output: 400,
+              cacheRead: 300,
+              cacheWrite: 200,
+            },
+          },
+        },
+      ];
+    },
+  };
+  const getContextUsage = () => ({
+    tokens: 20000,
+    contextWindow: 128000,
+    percent: 15.625,
+  });
+
   const startupNotifications = [];
   let footerFactory;
   await sessionStart(
@@ -640,6 +665,8 @@ try {
       hasUI: true,
       cwd: tempRoot,
       model: { id: "installed-model" },
+      sessionManager: sessionUsageManager,
+      getContextUsage,
       ui: {
         notify(message, level) {
           startupNotifications.push({ message, level });
@@ -666,6 +693,8 @@ try {
   );
   const renderedFooter = footer.render(120)[0];
   assert.match(renderedFooter, /orchestrator→ASC/);
+  assert.match(renderedFooter, /ctx 20k/);
+  assert.match(renderedFooter, /↑1\.2k ↺500 ↓400/);
   assert.match(renderedFooter, /Routing: all agents/);
   assert.match(renderedFooter, /DB(?:✓|✗)/);
   assert.match(renderedFooter, /Vault(?:✓|✗)/);
@@ -682,6 +711,8 @@ try {
     hasUI: true,
     cwd: tempRoot,
     model: { id: "installed-model" },
+    sessionManager: sessionUsageManager,
+    getContextUsage,
     ui: {
       async editor(title, text) {
         runtimeStatusEditors.push({ title, text });
@@ -692,6 +723,19 @@ try {
 
   assert.equal(runtimeStatusEditors.length, 1);
   assert.equal(runtimeStatusEditors[0]?.title, "Runtime Status");
+  assert.match(runtimeStatusEditors[0]?.text || "", /context: 20,000 tokens \(window 128,000\)/);
+  assert.match(
+    runtimeStatusEditors[0]?.text || "",
+    /session tokens: in 1,200 · cache 500 \(300 read \+ 200 write\) · out 400/,
+  );
+  assert.match(
+    runtimeStatusEditors[0]?.text || "",
+    /footer optional context slot: `ctx <tokens>` when current context usage is known/,
+  );
+  assert.match(
+    runtimeStatusEditors[0]?.text || "",
+    /footer optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage/,
+  );
   assert.match(
     runtimeStatusEditors[0]?.text || "",
     /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/,

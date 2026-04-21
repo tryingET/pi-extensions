@@ -37,6 +37,36 @@ const assistantProtocolSemanticErrorCase = loadExecutionSeamCase(
 );
 const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protocol-parse-error");
 
+function createSessionUsageManager() {
+  return {
+    id: "runtime-status-test-session",
+    getEntries() {
+      return [
+        {
+          type: "message",
+          message: {
+            role: "assistant",
+            usage: {
+              input: 1200,
+              output: 400,
+              cacheRead: 300,
+              cacheWrite: 200,
+            },
+          },
+        },
+      ];
+    },
+  };
+}
+
+function createContextUsage() {
+  return {
+    tokens: 20000,
+    contextWindow: 128000,
+    percent: 15.625,
+  };
+}
+
 test("runAkCommand injects AK_DB when environment does not provide one", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-ak-"));
   const marker = path.join(tempDir, "ak-db.txt");
@@ -1162,6 +1192,16 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
     cwd: "/tmp/runtime-truth",
     model: "test-model",
     activeTeam: "quality",
+    contextUsage: {
+      tokens: 20000,
+      contextWindow: 128000,
+    },
+    sessionTokens: {
+      input: 1200,
+      output: 400,
+      cacheRead: 300,
+      cacheWrite: 200,
+    },
     societyDbPath: "/tmp/society.db",
     societyDbAvailable: true,
     vaultAvailable: true,
@@ -1172,7 +1212,17 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
   assert.match(text, /coordination owner: `pi-society-orchestrator`/);
   assert.match(text, /execution owner: `pi-autonomous-session-control`/);
   assert.match(text, /routing: `quality` \(reviewer, researcher\)/);
+  assert.match(text, /context: 20,000 tokens \(window 128,000\)/);
+  assert.match(text, /session tokens: in 1,200 · cache 500 \(300 read \+ 200 write\) · out 400/);
   assert.match(text, /footer left: `test-model · orchestrator→ASC`/);
+  assert.match(
+    text,
+    /footer optional context slot: `ctx <tokens>` when current context usage is known/,
+  );
+  assert.match(
+    text,
+    /footer optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage/,
+  );
   assert.match(text, /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/);
   assert.match(text, /footer right: `Routing: quality`/);
 });
@@ -1195,6 +1245,10 @@ test("runtime-status command opens a runtime truth inspector", async () => {
     hasUI: true,
     cwd: process.cwd(),
     model: { id: "test-model" },
+    sessionManager: createSessionUsageManager(),
+    getContextUsage() {
+      return createContextUsage();
+    },
     ui: {
       async editor(title, text) {
         editors.push({ title, text });
@@ -1208,7 +1262,20 @@ test("runtime-status command opens a runtime truth inspector", async () => {
   assert.match(editors[0].text, /^# Society Orchestrator Runtime Status/m);
   assert.match(editors[0].text, /routing selector: `\/agents-team`/);
   assert.match(editors[0].text, /inspector: `\/runtime-status`/);
+  assert.match(editors[0].text, /context: 20,000 tokens \(window 128,000\)/);
+  assert.match(
+    editors[0].text,
+    /session tokens: in 1,200 · cache 500 \(300 read \+ 200 write\) · out 400/,
+  );
   assert.match(editors[0].text, /footer left: `test-model · orchestrator→ASC`/);
+  assert.match(
+    editors[0].text,
+    /footer optional context slot: `ctx <tokens>` when current context usage is known/,
+  );
+  assert.match(
+    editors[0].text,
+    /footer optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage/,
+  );
   assert.match(
     editors[0].text,
     /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/,
@@ -1238,6 +1305,10 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
       hasUI: true,
       cwd: process.cwd(),
       model: { id: "test-model" },
+      sessionManager: createSessionUsageManager(),
+      getContextUsage() {
+        return createContextUsage();
+      },
       ui: {
         notify(message, level) {
           notifications.push({ message, level });
@@ -1267,6 +1338,8 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
   );
   const rendered = footer.render(120)[0];
   assert.match(rendered, /orchestrator→ASC/);
+  assert.match(rendered, /ctx 20k/);
+  assert.match(rendered, /↑1\.2k ↺500 ↓400/);
   assert.match(rendered, /Routing: all agents/);
   assert.match(rendered, /DB(?:✓|✗)/);
   assert.match(rendered, /Vault(?:✓|✗)/);
@@ -1275,6 +1348,8 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
   const compactRendered = footer.render(40)[0];
   assert.match(compactRendered, /orchestrator→ASC/);
   assert.match(compactRendered, /Routing:/);
+  assert.doesNotMatch(compactRendered, /ctx 20k/);
+  assert.doesNotMatch(compactRendered, /↑1\.2k/);
   assert.doesNotMatch(compactRendered, /DB(?:✓|✗)/);
   assert.doesNotMatch(compactRendered, /Vault(?:✓|✗)/);
 
