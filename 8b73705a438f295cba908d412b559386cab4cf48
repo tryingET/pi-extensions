@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8b73705a438f295cba908d412b559386cab4cf48"
+created_at: "2026-04-21T04:33:51Z"
+intent: "Add whole-session token totals and live context usage display to the orchestrator footer and /runtime-status report"
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/docs/project/runtime-status-semantics.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/scripts/release-smoke.mjs"
+  - "packages/pi-society-orchestrator/src/runtime/status-semantics.ts"
+  - "packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs"
+validation:
+  fast_gate:
+    command: "cd packages/pi-society-orchestrator && node --test tests/runtime-shared-paths.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-society-orchestrator && npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Single cohesive feature: session tokens + context usage in footer/runtime-status surfaces"
