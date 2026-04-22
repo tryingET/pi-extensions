@@ -377,6 +377,41 @@ Current status:
   - contract artifact: `packages/pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md`
   - current policy direction: reuse package-derived manifest campaign AK-binding truth for exact-anchor evidence-only writes, and do not widen this concern into live polling or task lifecycle mutation in v1
 
+### Proposed self-hosting contract concern
+
+A newer **not-yet-landed** post-target widening concern now exists for supervised self-hosting against `packages/pi-autoresearch` itself.
+
+Current artifact chain:
+
+- `packages/pi-autoresearch/docs/project/2026-04-22-pi-autoresearch-self-hosting-problem-intent.md`
+- `packages/pi-autoresearch/docs/project/2026-04-22-problem-brief-self-hosting-contract.md`
+- `packages/pi-autoresearch/docs/project/2026-04-22-evidence-note-self-hosting-contract.md`
+- `packages/pi-autoresearch/docs/project/2026-04-22-pi-autoresearch-self-hosting-rfc.md`
+- `packages/pi-autoresearch/docs/project/2026-04-22-review-self-hosting-rfc.md`
+
+AK decision/runtime anchor:
+
+- `decision:18` — `Supervised self-hosting contract for pi-autoresearch`
+- current decision state: `unblocked` with outcome `accepted`
+- current legality chain: repo-tracked problem brief + evidence note + current-track review memo are attached in AK, the ADR is recorded, bounded post-ADR continuation artifacts now exist, and the first bounded execution family has now been materialized + reevaluated in AK:
+  - `packages/pi-autoresearch/docs/adr/2026-04-22-supervised-self-hosting-contract.md`
+  - `packages/pi-autoresearch/docs/project/2026-04-22-plan-self-hosting-contract-first-slice.md`
+  - `packages/pi-autoresearch/docs/project/2026-04-22-validation-rollout-rollback-self-hosting-contract.md`
+  - `#1806` — `[UMBRELLA] Implement first bounded self-hosting slice for pi-autoresearch`
+  - `#1807` — `SH-1 — validate self-hosting contract and evaluator lock artifacts`
+  - `#1808` — `SH-2 — implement controller/candidate execution isolation for self-hosting`
+  - `#1809` — `SH-3 — implement snapshot-owned evaluator entrypoints for self-hosting`
+  - `#1810` — `SH-4 — implement self-hosting applicability classification gates`
+  - `#1811` — `SH-5 — implement self-hosting promotion and rollback record`
+- current execution state: SH-1 is now landed locally via checked contract/lock validators in `packages/pi-autoresearch/src/core/selfHosting.ts` plus focused proof in `packages/pi-autoresearch/tests/self-hosting.test.ts`; SH-2 through SH-5 remain pending, so the broader self-hosting runtime feature is still not landed
+- current scope posture: self-hosting remains an accepted but **not-yet-landed** Tier 1 contract concern, not current package baseline behavior; what is now landed is the decision/ADR/execution-memory substrate around the concern plus the first schema/lock validation unit, not the runtime feature itself
+
+Interpretation rule:
+
+- this concern is now review-shaped and decision-tracked
+- it does **not** yet change the package's current truthful state
+- no self-hosting behavior should be described as landed until ADR + post-ADR execution artifacts exist and the implementation actually lands
+
 ## What must stay true while implementing
 
 Do **not** let future tasks silently collapse boundaries:
@@ -390,7 +425,7 @@ Do **not** let future tasks silently collapse boundaries:
 ## If you are starting the next task fresh
 
 1. read this file plus `docs/project/pi-autoresearch-target-control-plane-status.md`
-2. if the active concern touches the landed manifest campaign projection baseline, the landed AK-binding slice, the landed campaign-local autonomy slice, the landed public campaign-control slice, or the pending public task-verification follow-on, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`, `packages/pi-autoresearch/docs/project/2026-04-18-problem-brief-public-ak-task-verification.md`, `packages/pi-autoresearch/docs/project/2026-04-18-evidence-note-public-ak-task-verification.md`, `packages/pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md`, and `packages/pi-autoresearch/docs/project/2026-04-18-review-public-ak-task-verification-rfc.md` before coding
+2. if the active concern touches the landed manifest campaign projection baseline, the landed AK-binding slice, the landed campaign-local autonomy slice, the landed public campaign-control slice, the public task-verification follow-on, or the newer self-hosting contract concern, read `packages/pi-autoresearch/docs/project/llamacpp-campaign-receipt-projection-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-projection-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-ak-binding-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-autonomy-status.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`, `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`, `packages/pi-autoresearch/docs/project/2026-04-18-problem-brief-public-ak-task-verification.md`, `packages/pi-autoresearch/docs/project/2026-04-18-evidence-note-public-ak-task-verification.md`, `packages/pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md`, `packages/pi-autoresearch/docs/project/2026-04-18-review-public-ak-task-verification-rfc.md`, `packages/pi-autoresearch/docs/project/2026-04-22-pi-autoresearch-self-hosting-problem-intent.md`, `packages/pi-autoresearch/docs/project/2026-04-22-problem-brief-self-hosting-contract.md`, `packages/pi-autoresearch/docs/project/2026-04-22-evidence-note-self-hosting-contract.md`, `packages/pi-autoresearch/docs/project/2026-04-22-pi-autoresearch-self-hosting-rfc.md`, and `packages/pi-autoresearch/docs/project/2026-04-22-review-self-hosting-rfc.md` before coding
 3. decide whether the work is a genuine post-target widening rather than unfinished Workstreams A-D
 4. identify or create the active AK task id for that new bounded slice
 5. inspect the scoped required paths from AK before coding

@@ -5,5 +5,6 @@ export * from "./core/ledger.ts";
 export * from "./core/llamacppCampaign.ts";
 export * from "./core/resume.ts";
 export * from "./core/runtime.ts";
+export * from "./core/selfHosting.ts";
 export * from "./machine/campaign.ts";
 export * from "./machine/events.ts";
