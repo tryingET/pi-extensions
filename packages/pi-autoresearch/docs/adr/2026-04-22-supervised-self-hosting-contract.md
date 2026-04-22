@@ -91,27 +91,66 @@ The accepted contract therefore needed durable answers to:
 
 Adopt bounded self-hosting only as a **supervised controller/candidate/judge/promotion split**.
 
-This decision was reached after a many-of-the-greats confrontation among three first-rate schools:
+### Many-of-the-greats adjudication
 
-1. **Hermetic evaluation maximalism**
-   - if the candidate can redefine evaluator entrypoints through any mutable path, the judge is not frozen
-2. **Brownfield controller pragmatism**
-   - the first slice should reuse the already-landed package/orchestrator surfaces through controller-subprocess-against-candidate execution rather than waiting for a whole new platform
-3. **Governance legality discipline**
-   - self-hosting changes authority boundary, lifecycle legality, default workflow behavior, and packet shape, so it must move through AK decision workflow and explicit promotion/rollback records
+The decisive disagreement inside this decision was not whether self-hosting is useful.
+It was what must remain outside the candidate if self-hosting is to stay architecturally true.
 
-The accepted decision is a true synthesis:
+Three first-rate schools define the real argument.
 
-- from hermetic evaluation maximalism:
-  - evaluator entrypoints are snapshot-owned and hash-checked
-  - candidate-owned package-manager scripts and wrapper commands may never define the judge
-- from brownfield controller pragmatism:
-  - the first slice uses a stable controller and separate candidate worktree
-  - evaluation is by subprocess against the candidate rather than in-process mutation
-- from governance legality discipline:
-  - this concern moves through `ak decision`
-  - ADR legality comes from the AK review closure path
-  - promotion and rollback are explicit reversible acts above the package
+**Hermetic evaluation maximalism** insists that self-hosting is not serious unless the evaluator is meaningfully outside the candidate's mutation surface.
+Its decisive insight is that most self-improvement systems do not fail by obvious cheating.
+They fail by **transitive evaluator drift**: candidate-owned scripts, package-manager indirection, runtime selection glue, or wrapper commands silently redefine success.
+On this view, separate worktrees are not enough if the candidate can still choose the real exam through mutable command resolution.
+So the accepted contract freezes snapshot-owned evaluator entrypoints outside the candidate and fails closed on drift.
+
+**Brownfield controller pragmatism** insists that the first truthful slice should reuse the already-landed package and orchestrator surfaces rather than wait for a wholly separate evaluation platform.
+Its decisive insight is that a contract that cannot be adopted in the current system is not yet a real contract.
+Controller-subprocess-against-candidate execution is materially safer than in-process recursion, and bounded brownfield reuse can still be honest if the critical seams stay explicit.
+On this view, the repo already has bounded runtime, finalization, and supervision primitives worth reusing, so the first slice should prove the minimum truthful architecture rather than wait for the maximum elegant one.
+
+**Governance legality discipline** insists that the decisive issue is not only technical isolation but authority isolation.
+Runtime success is evidence, not promotion authority.
+Because this concern changes authority boundary, lifecycle legality, default workflow behavior, and packet shape, it must be treated as an AK decision concern rather than an ordinary repo-local implementation note.
+Its decisive insight is that even a technically sound runner is still illegitimate if adoption authority quietly migrates downward into local runtime state.
+So promotion, rollback, and controller rotation remain explicit reversible acts above the package, and ADR legality comes through the AK review/passport closure path rather than file chronology alone.
+
+These schools do not disagree about every point.
+They disagree about what counts as sufficient separation.
+Hermetic evaluation maximalism and brownfield controller pragmatism disagree about how much evaluator machinery is required before the first slice is honest.
+Brownfield controller pragmatism and governance legality discipline disagree about how close technical success can come to adoption authority.
+Hermetic evaluation maximalism and governance legality discipline identify different fatal failure modes: false judging versus illicit self-ratification.
+The accepted architecture therefore cannot simply choose one school and discard the others.
+
+The accepted decision is a **true synthesis** rather than a compromise by vagueness.
+It accepts the brownfield controller model only on the condition that the hermetic evaluator rule and the governance rule both remain intact.
+Self-hosting is therefore permitted only where both separations hold at once: evaluator truth is frozen outside the candidate, and promotion authority remains outside the package runtime.
+
+That means the first slice uses:
+
+- a stable controller
+- a separate candidate worktree
+- snapshot-owned evaluator entrypoints
+- an explicit hash-checked evaluator lock
+- explicit applicability gates
+- external promotion and rollback records
+
+What survives from each school is deliberate.
+From hermetic evaluation maximalism, the contract keeps snapshot-owned evaluator entrypoints and rejects candidate-owned dispatch as judge definition.
+From brownfield controller pragmatism, it keeps controller-subprocess-against-candidate execution, separate candidate worktrees, and reuse of bounded finalization and supervision surfaces where that reuse is truthful.
+From governance legality discipline, it keeps AK decision workflow as the front door for the concern, repo-tracked decision artifacts, and promotion/rollback authority above the package.
+
+This path is justified because the live disagreement is not merely safety versus practicality.
+It is whether practicality can be made truthful without surrendering evaluator integrity or authority integrity.
+The accepted contract says yes, but only under a design that refuses both candidate-owned judging and package-local promotion.
+
+What remains unresolved is narrower than the main architecture choice.
+Later slices may still need to decide how externalized the evaluator substrate should become over time, how broad transfer-suite coverage should become before default promotion is credible, and how much controller-rotation ergonomics can improve without weakening the authority boundary.
+
+Practical consequence:
+
+`pi-autoresearch` may optimize itself only as a candidate under supervision, never as its own judge or promoter.
+Any design that allows candidate-owned evaluator dispatch or treats local success as implicit promotion falls outside the accepted architecture.
 
 ### Scope
 - in scope:

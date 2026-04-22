@@ -19,6 +19,10 @@ The first self-hosting slice is only truthful if all of the following are proven
 5. applicability outcomes obey the accepted thresholds and coverage rules
 6. promotion/rollback records cannot imply package-local self-promotion
 
+Interpretation rule:
+- the slice is only truthful if it preserves both accepted separations at once
+- evaluator truth must stay outside the candidate, and promotion authority must stay outside the package runtime
+
 ## Unit-to-proof mapping
 
 ### SH-1 — schema and lock artifact truth

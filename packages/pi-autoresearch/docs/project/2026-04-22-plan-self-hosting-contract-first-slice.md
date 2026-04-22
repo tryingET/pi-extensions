@@ -23,6 +23,10 @@ Land the minimum package/orchestrator surfaces required to make supervised self-
 - typed applicability classification
 - explicit promotion/rollback record
 
+Interpretation rule:
+- the accepted architecture is a bounded synthesis, not a loose blend
+- brownfield controller reuse is allowed only while evaluator truth stays snapshot-owned outside the candidate and promotion authority stays external above the package
+
 ## Execution graph
 
 The first slice has one dominant dependency shape:
