@@ -49,6 +49,10 @@ Evidence shape:
 - focused isolation tests
 - failure-path tests for scope violations
 
+Current proof status:
+- landed locally via `packages/pi-autoresearch/src/core/selfHosting.ts`
+- current coverage proves candidate worktree preparation preserves the controller branch, candidate subprocess execution stays rooted in a child process under the candidate worktree, and off-limits / out-of-scope mutation fails closed via `packages/pi-autoresearch/tests/self-hosting.test.ts`
+
 ### SH-3 — snapshot-owned evaluator entrypoints
 
 Required proof:

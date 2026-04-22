@@ -403,8 +403,8 @@ AK decision/runtime anchor:
   - `#1809` — `SH-3 — implement snapshot-owned evaluator entrypoints for self-hosting`
   - `#1810` — `SH-4 — implement self-hosting applicability classification gates`
   - `#1811` — `SH-5 — implement self-hosting promotion and rollback record`
-- current execution state: SH-1 is now landed locally via checked contract/lock validators in `packages/pi-autoresearch/src/core/selfHosting.ts` plus focused proof in `packages/pi-autoresearch/tests/self-hosting.test.ts`; SH-2 through SH-5 remain pending, so the broader self-hosting runtime feature is still not landed
-- current scope posture: self-hosting remains an accepted but **not-yet-landed** Tier 1 contract concern, not current package baseline behavior; what is now landed is the decision/ADR/execution-memory substrate around the concern plus the first schema/lock validation unit, not the runtime feature itself
+- current execution state: SH-1 and SH-2 are now landed locally via checked self-hosting artifact validators plus controller/candidate isolation helpers in `packages/pi-autoresearch/src/core/selfHosting.ts` and focused proof in `packages/pi-autoresearch/tests/self-hosting.test.ts`; SH-3 through SH-5 remain pending, so the broader self-hosting runtime feature is still not landed
+- current scope posture: self-hosting remains an accepted but **not-yet-landed** Tier 1 contract concern, not current package baseline behavior; what is now landed is the decision/ADR/execution-memory substrate around the concern plus the schema/lock validation unit and the controller/candidate execution-isolation unit, not the runtime feature itself
 
 Interpretation rule:
 

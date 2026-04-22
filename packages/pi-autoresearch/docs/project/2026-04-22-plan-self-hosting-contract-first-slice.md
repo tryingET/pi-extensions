@@ -96,6 +96,10 @@ Interpretation rule:
 - validation / evidence required:
   - proof that candidate runtime code is not imported into the controller process
   - proof that off-limits path mutation fails closed
+- current execution status:
+  - landed locally via controller/candidate isolation helpers in `packages/pi-autoresearch/src/core/selfHosting.ts`
+  - focused proof now lives in `packages/pi-autoresearch/tests/self-hosting.test.ts`
+  - follow-on tasks should reuse the landed worktree-preparation, scope-check, and candidate-subprocess helpers rather than widening back into in-process candidate loading
 
 ### SH-3 — snapshot-owned evaluator entrypoints
 

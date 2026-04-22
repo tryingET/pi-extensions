@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 export const AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE = "autoresearch.self-hosting.json";
@@ -643,6 +644,295 @@ export function validateAutoresearchSelfHostingArtifactsPair(
   }
 }
 
+export class AutoresearchSelfHostingIsolationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AutoresearchSelfHostingIsolationError";
+  }
+}
+
+export interface AutoresearchSelfHostingCommandSummary {
+  command: string[];
+  cwd: string;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+  signal: string | null;
+}
+
+export interface AutoresearchSelfHostingCandidateWorktreeState {
+  worktreePath: string;
+  branchName: string;
+  baseRef: string;
+  baseCommit: string;
+  exists: boolean;
+  registered: boolean;
+  branch: string | null;
+  head: string | null;
+  commonDir: string | null;
+  commonDirMatchesController: boolean;
+}
+
+export interface PrepareAutoresearchSelfHostingCandidateWorktreeInput {
+  cwd: string;
+  apply?: boolean;
+}
+
+export interface PrepareAutoresearchSelfHostingCandidateWorktreeResult {
+  action: "prepare_candidate_worktree";
+  mode: "plan" | "apply";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerCwd: string;
+  controllerRepoRoot: string;
+  controllerBranchBefore: string | null;
+  controllerBranchAfter: string | null;
+  candidate: AutoresearchSelfHostingCandidateWorktreeState;
+  commands: AutoresearchSelfHostingCommandSummary[];
+  nextStep: string;
+}
+
+export interface AutoresearchSelfHostingCandidateScopeStatus {
+  action: "check_candidate_scope";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerRepoRoot: string;
+  candidateWorktreePath: string;
+  changedPaths: string[];
+  offLimitsPaths: string[];
+  outOfScopePaths: string[];
+  ok: boolean;
+}
+
+export interface ExecuteAutoresearchSelfHostingCandidateSubprocessInput {
+  cwd: string;
+  command: [string, ...string[]];
+  env?: Record<string, string | undefined>;
+  timeoutMs?: number;
+}
+
+export interface ExecuteAutoresearchSelfHostingCandidateSubprocessResult {
+  action: "run_candidate_subprocess";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerCwd: string;
+  candidateCwd: string;
+  controllerPid: number;
+  scope: AutoresearchSelfHostingCandidateScopeStatus;
+  postCommandScope: AutoresearchSelfHostingCandidateScopeStatus;
+  command: AutoresearchSelfHostingCommandSummary;
+  nextStep: string;
+}
+
+export function prepareAutoresearchSelfHostingCandidateWorktree(
+  input: PrepareAutoresearchSelfHostingCandidateWorktreeInput,
+): PrepareAutoresearchSelfHostingCandidateWorktreeResult {
+  const artifacts = loadAutoresearchSelfHostingArtifacts(input.cwd);
+  const controllerRepoRoot = resolveGitTopLevel(artifacts.cwd);
+  const controllerBranchBefore = readCurrentGitBranch(controllerRepoRoot);
+  const baseCommit = resolveGitCommit(
+    controllerRepoRoot,
+    artifacts.contract.candidate.baseRef,
+    `${artifacts.contract.candidate.baseRef}^{commit}`,
+  );
+  let candidate = inspectAutoresearchSelfHostingCandidateWorktreeState(
+    controllerRepoRoot,
+    artifacts.contract.candidate.worktreePath,
+    artifacts.contract.candidate.branchName,
+    artifacts.contract.candidate.baseRef,
+    baseCommit,
+  );
+
+  if (candidate.exists && !candidate.registered) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Candidate worktree path ${JSON.stringify(candidate.worktreePath)} already exists but is not a registered worktree for the controller repo.`,
+    );
+  }
+
+  const command = [
+    "git",
+    "worktree",
+    "add",
+    "-B",
+    artifacts.contract.candidate.branchName,
+    artifacts.contract.candidate.worktreePath,
+    artifacts.contract.candidate.baseRef,
+  ];
+  const commands: AutoresearchSelfHostingCommandSummary[] = [];
+
+  if (!candidate.registered) {
+    if (input.apply) {
+      commands.push(
+        runCommandSummary(
+          command[0],
+          command.slice(1),
+          controllerRepoRoot,
+          `${artifacts.contract.campaignId}:create_candidate_worktree`,
+        ),
+      );
+      candidate = inspectAutoresearchSelfHostingCandidateWorktreeState(
+        controllerRepoRoot,
+        artifacts.contract.candidate.worktreePath,
+        artifacts.contract.candidate.branchName,
+        artifacts.contract.candidate.baseRef,
+        baseCommit,
+      );
+      if (!candidate.registered) {
+        throw new AutoresearchSelfHostingIsolationError(
+          `Candidate worktree ${JSON.stringify(candidate.worktreePath)} was not registered after creation.`,
+        );
+      }
+    } else {
+      commands.push(planCommandSummary(command, controllerRepoRoot));
+    }
+  }
+
+  if (candidate.registered && candidate.branch !== artifacts.contract.candidate.branchName) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Candidate worktree ${JSON.stringify(candidate.worktreePath)} is on branch ${JSON.stringify(candidate.branch)}, expected ${JSON.stringify(artifacts.contract.candidate.branchName)}.`,
+    );
+  }
+
+  const controllerBranchAfter = readCurrentGitBranch(controllerRepoRoot);
+  if (controllerBranchBefore !== controllerBranchAfter) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Controller branch changed during candidate worktree preparation: before=${JSON.stringify(controllerBranchBefore)} after=${JSON.stringify(controllerBranchAfter)}.`,
+    );
+  }
+
+  return {
+    action: "prepare_candidate_worktree",
+    mode: input.apply ? "apply" : "plan",
+    campaignId: artifacts.contract.campaignId,
+    executionModel: artifacts.contract.controller.executionModel,
+    controllerCwd: artifacts.contract.controller.controllerCwd,
+    controllerRepoRoot,
+    controllerBranchBefore,
+    controllerBranchAfter,
+    candidate,
+    commands,
+    nextStep: input.apply
+      ? `Validate candidate mutation scope before running any candidate code, then execute candidate logic only through subprocess commands rooted at ${candidate.worktreePath}.`
+      : `Run prepareAutoresearchSelfHostingCandidateWorktree with apply=true to materialize the candidate worktree at ${candidate.worktreePath}.`,
+  };
+}
+
+export function inspectAutoresearchSelfHostingCandidateScope(
+  cwd: string,
+): AutoresearchSelfHostingCandidateScopeStatus {
+  const artifacts = loadAutoresearchSelfHostingArtifacts(cwd);
+  const controllerRepoRoot = resolveGitTopLevel(artifacts.cwd);
+  assertAutoresearchSelfHostingCandidateWorktreeRegistered(controllerRepoRoot, artifacts.contract);
+
+  const changedPaths = listGitStatusPaths(artifacts.contract.candidate.worktreePath);
+  const offLimitsPaths = changedPaths.filter((candidatePath) =>
+    matchesAnyPathSpec(candidatePath, artifacts.contract.candidate.offLimits),
+  );
+  const outOfScopePaths = changedPaths.filter(
+    (candidatePath) =>
+      !matchesAnyPathSpec(candidatePath, artifacts.contract.candidate.allowedPaths),
+  );
+
+  return {
+    action: "check_candidate_scope",
+    campaignId: artifacts.contract.campaignId,
+    executionModel: artifacts.contract.controller.executionModel,
+    controllerRepoRoot,
+    candidateWorktreePath: artifacts.contract.candidate.worktreePath,
+    changedPaths,
+    offLimitsPaths,
+    outOfScopePaths,
+    ok: offLimitsPaths.length === 0 && outOfScopePaths.length === 0,
+  };
+}
+
+export function assertAutoresearchSelfHostingCandidateScope(
+  cwd: string,
+): AutoresearchSelfHostingCandidateScopeStatus {
+  const status = inspectAutoresearchSelfHostingCandidateScope(cwd);
+  if (status.ok) {
+    return status;
+  }
+  const problems: string[] = [];
+  if (status.offLimitsPaths.length > 0) {
+    problems.push(
+      `off-limits mutations: ${status.offLimitsPaths.map((entry) => JSON.stringify(entry)).join(", ")}`,
+    );
+  }
+  if (status.outOfScopePaths.length > 0) {
+    problems.push(
+      `out-of-scope mutations: ${status.outOfScopePaths.map((entry) => JSON.stringify(entry)).join(", ")}`,
+    );
+  }
+  throw new AutoresearchSelfHostingIsolationError(
+    `Candidate worktree scope check failed for ${JSON.stringify(status.candidateWorktreePath)}: ${problems.join("; ")}`,
+  );
+}
+
+export function executeAutoresearchSelfHostingCandidateSubprocess(
+  input: ExecuteAutoresearchSelfHostingCandidateSubprocessInput,
+): ExecuteAutoresearchSelfHostingCandidateSubprocessResult {
+  const artifacts = loadAutoresearchSelfHostingArtifacts(input.cwd);
+  const controllerRepoRoot = resolveGitTopLevel(artifacts.cwd);
+  assertAutoresearchSelfHostingCandidateWorktreeRegistered(controllerRepoRoot, artifacts.contract);
+  const scope = assertAutoresearchSelfHostingCandidateScope(input.cwd);
+
+  const command = runCommandSummary(
+    input.command[0],
+    input.command.slice(1),
+    artifacts.contract.candidate.worktreePath,
+    `${artifacts.contract.campaignId}:candidate_subprocess`,
+    {
+      timeoutMs: input.timeoutMs,
+      env: {
+        ...input.env,
+        PI_AUTORESEARCH_SELF_HOSTING_CAMPAIGN_ID: artifacts.contract.campaignId,
+        PI_AUTORESEARCH_SELF_HOSTING_EXECUTION_MODEL: artifacts.contract.controller.executionModel,
+        PI_AUTORESEARCH_SELF_HOSTING_CONTROLLER_CWD: artifacts.contract.controller.controllerCwd,
+        PI_AUTORESEARCH_SELF_HOSTING_CANDIDATE_CWD: artifacts.contract.candidate.worktreePath,
+      },
+    },
+  );
+  const postCommandScope = inspectAutoresearchSelfHostingCandidateScope(input.cwd);
+  if (!postCommandScope.ok) {
+    const problems: string[] = [];
+    if (postCommandScope.offLimitsPaths.length > 0) {
+      problems.push(
+        `off-limits mutations after subprocess: ${postCommandScope.offLimitsPaths
+          .map((entry) => JSON.stringify(entry))
+          .join(", ")}`,
+      );
+    }
+    if (postCommandScope.outOfScopePaths.length > 0) {
+      problems.push(
+        `out-of-scope mutations after subprocess: ${postCommandScope.outOfScopePaths
+          .map((entry) => JSON.stringify(entry))
+          .join(", ")}`,
+      );
+    }
+    throw new AutoresearchSelfHostingIsolationError(
+      `Candidate subprocess violated scope after execution: ${problems.join("; ")}`,
+    );
+  }
+
+  return {
+    action: "run_candidate_subprocess",
+    campaignId: artifacts.contract.campaignId,
+    executionModel: artifacts.contract.controller.executionModel,
+    controllerCwd: artifacts.contract.controller.controllerCwd,
+    candidateCwd: artifacts.contract.candidate.worktreePath,
+    controllerPid: process.pid,
+    scope,
+    postCommandScope,
+    command,
+    nextStep:
+      command.exitCode === 0
+        ? `Candidate subprocess completed under controller_subprocess_against_candidate; continue with snapshot-owned evaluator entrypoint work in SH-3.`
+        : `Candidate subprocess failed with exit code ${JSON.stringify(command.exitCode)}; inspect stderr/stdout before retrying so the controller does not silently become the candidate.`,
+  };
+}
+
 function loadJsonObject(filePath: string): Record<string, unknown> {
   let raw: string;
   try {
@@ -671,6 +961,225 @@ function resolveArtifactPath(cwd: string, artifactPath: string): string {
   return isAbsolutePath(artifactPath)
     ? path.normalize(artifactPath)
     : path.resolve(cwd, artifactPath);
+}
+
+function resolveGitTopLevel(cwd: string): string {
+  return runGitCommand(cwd, ["rev-parse", "--show-toplevel"]);
+}
+
+function resolveGitCommit(cwd: string, ref: string, label: string): string {
+  try {
+    return runGitCommand(cwd, ["rev-parse", "--verify", label]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new AutoresearchSelfHostingIsolationError(
+      `Unable to resolve git ref ${JSON.stringify(ref)} in ${cwd}: ${message}`,
+    );
+  }
+}
+
+function readCurrentGitBranch(cwd: string): string | null {
+  const branch = runGitCommand(cwd, ["branch", "--show-current"]);
+  return branch.length === 0 ? null : branch;
+}
+
+function inspectAutoresearchSelfHostingCandidateWorktreeState(
+  controllerRepoRoot: string,
+  worktreePath: string,
+  branchName: string,
+  baseRef: string,
+  baseCommit: string,
+): AutoresearchSelfHostingCandidateWorktreeState {
+  if (!existsSync(worktreePath)) {
+    return {
+      worktreePath,
+      branchName,
+      baseRef,
+      baseCommit,
+      exists: false,
+      registered: false,
+      branch: null,
+      head: null,
+      commonDir: null,
+      commonDirMatchesController: false,
+    };
+  }
+
+  const controllerCommonDir = resolveGitPathOutput(
+    controllerRepoRoot,
+    runGitCommand(controllerRepoRoot, ["rev-parse", "--git-common-dir"]),
+  );
+
+  try {
+    const candidateTopLevel = runGitCommand(worktreePath, ["rev-parse", "--show-toplevel"]);
+    const candidateCommonDir = resolveGitPathOutput(
+      worktreePath,
+      runGitCommand(worktreePath, ["rev-parse", "--git-common-dir"]),
+    );
+    const candidateBranch = readCurrentGitBranch(worktreePath);
+    const candidateHead = runGitCommand(worktreePath, ["rev-parse", "HEAD"]);
+    return {
+      worktreePath,
+      branchName,
+      baseRef,
+      baseCommit,
+      exists: true,
+      registered:
+        path.resolve(candidateTopLevel) === path.resolve(worktreePath) &&
+        candidateCommonDir === controllerCommonDir,
+      branch: candidateBranch,
+      head: candidateHead,
+      commonDir: candidateCommonDir,
+      commonDirMatchesController: candidateCommonDir === controllerCommonDir,
+    };
+  } catch {
+    return {
+      worktreePath,
+      branchName,
+      baseRef,
+      baseCommit,
+      exists: true,
+      registered: false,
+      branch: null,
+      head: null,
+      commonDir: null,
+      commonDirMatchesController: false,
+    };
+  }
+}
+
+function assertAutoresearchSelfHostingCandidateWorktreeRegistered(
+  controllerRepoRoot: string,
+  contract: AutoresearchSelfHostingContractV1,
+): AutoresearchSelfHostingCandidateWorktreeState {
+  const candidate = inspectAutoresearchSelfHostingCandidateWorktreeState(
+    controllerRepoRoot,
+    contract.candidate.worktreePath,
+    contract.candidate.branchName,
+    contract.candidate.baseRef,
+    resolveGitCommit(
+      controllerRepoRoot,
+      contract.candidate.baseRef,
+      `${contract.candidate.baseRef}^{commit}`,
+    ),
+  );
+  if (!candidate.registered) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Candidate worktree ${JSON.stringify(contract.candidate.worktreePath)} is not registered for controller repo ${JSON.stringify(controllerRepoRoot)}.`,
+    );
+  }
+  if (candidate.branch !== contract.candidate.branchName) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Candidate worktree ${JSON.stringify(contract.candidate.worktreePath)} is on branch ${JSON.stringify(candidate.branch)}, expected ${JSON.stringify(contract.candidate.branchName)}.`,
+    );
+  }
+  return candidate;
+}
+
+function resolveGitPathOutput(cwd: string, raw: string): string {
+  return path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(cwd, raw);
+}
+
+function planCommandSummary(command: string[], cwd: string): AutoresearchSelfHostingCommandSummary {
+  return {
+    command: [...command],
+    cwd,
+    exitCode: 0,
+    stdout: "",
+    stderr: "",
+    timedOut: false,
+    signal: null,
+  };
+}
+
+function runCommandSummary(
+  executable: string,
+  args: string[],
+  cwd: string,
+  label: string,
+  options: { env?: Record<string, string | undefined>; timeoutMs?: number } = {},
+): AutoresearchSelfHostingCommandSummary {
+  const env = {
+    ...process.env,
+    ...options.env,
+  };
+  const result = spawnSync(executable, args, {
+    cwd,
+    env,
+    encoding: "utf8",
+    timeout: options.timeoutMs,
+  });
+
+  if (result.error && result.error.name !== "TimeoutError") {
+    throw new AutoresearchSelfHostingIsolationError(
+      `${label} failed to start ${JSON.stringify([executable, ...args])}: ${result.error.message}`,
+    );
+  }
+
+  return {
+    command: [executable, ...args],
+    cwd,
+    exitCode: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+    timedOut: result.error?.name === "TimeoutError",
+    signal: result.signal ?? null,
+  };
+}
+
+function runGitCommand(cwd: string, args: string[], options: { trim?: boolean } = {}): string {
+  const summary = runCommandSummary("git", args, cwd, `git:${args[0] ?? "command"}`);
+  if (summary.exitCode !== 0) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Git command failed in ${cwd}: ${JSON.stringify(summary.command)} => ${summary.stderr || summary.stdout}`,
+    );
+  }
+  return options.trim === false ? summary.stdout : summary.stdout.trim();
+}
+
+function listGitStatusPaths(cwd: string): string[] {
+  const raw = runGitCommand(cwd, ["status", "--porcelain=v1", "--untracked-files=all"], {
+    trim: false,
+  });
+  const paths = raw
+    .split(/\r?\n/u)
+    .flatMap((line) => extractPorcelainPaths(line))
+    .map((entry) => normalizeSelfHostingRelativePath(entry))
+    .filter((entry) => entry.length > 0);
+  return [...new Set(paths)].sort();
+}
+
+function extractPorcelainPaths(line: string): string[] {
+  if (line.trim().length === 0) {
+    return [];
+  }
+  const pathPortion = line.slice(3).trim();
+  if (pathPortion.length === 0) {
+    return [];
+  }
+  if (pathPortion.includes(" -> ")) {
+    return pathPortion.split(" -> ").map((entry) => entry.trim());
+  }
+  return [pathPortion];
+}
+
+function normalizeSelfHostingRelativePath(entry: string): string {
+  return entry.replace(/\\/gu, "/").replace(/^\.\//u, "");
+}
+
+function matchesAnyPathSpec(candidatePath: string, specs: readonly string[]): boolean {
+  return specs.some((spec) => matchesPathSpec(candidatePath, spec));
+}
+
+function matchesPathSpec(candidatePath: string, spec: string): boolean {
+  const normalizedPath = normalizeSelfHostingRelativePath(candidatePath);
+  const normalizedSpec = normalizeSelfHostingRelativePath(spec);
+  const pattern = normalizedSpec
+    .replace(/[|\\{}()[\]^$+?.]/gu, "\\$&")
+    .replace(/\*\*/gu, "::DOUBLE_STAR::")
+    .replace(/\*/gu, "[^/]*")
+    .replace(/::DOUBLE_STAR::/gu, ".*");
+  return new RegExp(`^${pattern}$`, "u").test(normalizedPath);
 }
 
 function groupSuiteIdsByClass(

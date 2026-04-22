@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -11,7 +12,11 @@ import {
   type AutoresearchSelfHostingContractV1,
   type AutoresearchSelfHostingEvaluatorLockV1,
   AutoresearchSelfHostingValidationError,
+  assertAutoresearchSelfHostingCandidateScope,
+  executeAutoresearchSelfHostingCandidateSubprocess,
+  inspectAutoresearchSelfHostingCandidateScope,
   loadAutoresearchSelfHostingArtifacts,
+  prepareAutoresearchSelfHostingCandidateWorktree,
   resolveAutoresearchSelfHostingEvaluatorLockPath,
   validateAutoresearchSelfHostingArtifactsPair,
   validateAutoresearchSelfHostingContract,
@@ -34,6 +39,95 @@ function sha256(value: string): string {
 function writeJson(target: string, payload: unknown): void {
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(target, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+function writeFile(target: string, content: string): void {
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, content, "utf8");
+}
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+}
+
+function initSelfHostingRepo(root: string): void {
+  git(root, "init", "-b", "main");
+  git(root, "config", "user.name", "Pi Test");
+  git(root, "config", "user.email", "pi-test@example.com");
+  writeFile(path.join(root, "README.md"), "# self-hosting test\n");
+  writeFile(
+    path.join(root, "packages/pi-autoresearch/src/runtime.ts"),
+    "export const runtime = 'base';\n",
+  );
+  writeFile(
+    path.join(root, "packages/pi-autoresearch/src/core/runtime.ts"),
+    "export const nestedRuntime = 'base';\n",
+  );
+  writeFile(
+    path.join(root, "evaluator-snapshot/suites/locked.mjs"),
+    "export const locked = true;\n",
+  );
+  writeFile(
+    path.join(root, "packages/pi-autoresearch/tests/emit-pid.mjs"),
+    [
+      "const payload = {",
+      "  pid: process.pid,",
+      "  cwd: process.cwd(),",
+      "  controllerCwd: process.env.PI_AUTORESEARCH_SELF_HOSTING_CONTROLLER_CWD ?? null,",
+      "  candidateCwd: process.env.PI_AUTORESEARCH_SELF_HOSTING_CANDIDATE_CWD ?? null,",
+      "  campaignId: process.env.PI_AUTORESEARCH_SELF_HOSTING_CAMPAIGN_ID ?? null,",
+      "};",
+      "process.stdout.write(JSON.stringify(payload));",
+      "",
+    ].join("\n"),
+  );
+  writeFile(
+    path.join(root, "packages/pi-autoresearch/tests/mutate-offlimits.mjs"),
+    [
+      "import { writeFileSync } from 'node:fs';",
+      "writeFileSync('evaluator-snapshot/suites/locked.mjs', \"export const locked = 'mutated';\\n\", 'utf8');",
+      "process.stdout.write('mutated');",
+      "",
+    ].join("\n"),
+  );
+  git(root, "add", ".");
+  git(root, "commit", "-m", "initial self-hosting fixture");
+}
+
+function writeSelfHostingArtifacts(
+  root: string,
+  contract: AutoresearchSelfHostingContractV1,
+): void {
+  writeJson(path.join(root, AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE), contract);
+  writeJson(
+    resolveAutoresearchSelfHostingEvaluatorLockPath(root, contract.evaluator.lockPath),
+    createValidEvaluatorLock(),
+  );
+  git(root, "add", AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE, contract.evaluator.lockPath);
+  git(root, "commit", "-m", "add self-hosting artifacts");
+}
+
+function createRepoBackedContract(root: string): AutoresearchSelfHostingContractV1 {
+  const contract = createValidContract(root);
+  contract.candidate.worktreePath = path.join(
+    path.dirname(root),
+    `${path.basename(root)}-candidate`,
+  );
+  return contract;
+}
+
+function createPreparedCandidateRepo(root: string): {
+  contract: AutoresearchSelfHostingContractV1;
+  candidateWorktreePath: string;
+} {
+  initSelfHostingRepo(root);
+  const contract = createRepoBackedContract(root);
+  writeSelfHostingArtifacts(root, contract);
+  const prepareResult = prepareAutoresearchSelfHostingCandidateWorktree({ cwd: root, apply: true });
+  return {
+    contract,
+    candidateWorktreePath: prepareResult.candidate.worktreePath,
+  };
 }
 
 function createValidEvaluatorLock(): AutoresearchSelfHostingEvaluatorLockV1 {
@@ -362,4 +456,122 @@ test("validateAutoresearchSelfHostingArtifactsPair rejects campaign, manifest, a
     () => validateAutoresearchSelfHostingArtifactsPair(transferScopeContract, transferScopeLock),
     AutoresearchSelfHostingValidationError,
   );
+});
+
+test("prepareAutoresearchSelfHostingCandidateWorktree plans and applies a separate candidate worktree without changing the controller branch", async () => {
+  await withTempDir((root) => {
+    initSelfHostingRepo(root);
+    const contract = createRepoBackedContract(root);
+    writeSelfHostingArtifacts(root, contract);
+
+    const plan = prepareAutoresearchSelfHostingCandidateWorktree({ cwd: root });
+    assert.equal(plan.mode, "plan");
+    assert.equal(plan.candidate.registered, false);
+    assert.equal(plan.controllerBranchBefore, "main");
+    assert.equal(plan.controllerBranchAfter, "main");
+    assert.equal(plan.commands.length, 1);
+    assert.deepEqual(plan.commands[0].command, [
+      "git",
+      "worktree",
+      "add",
+      "-B",
+      contract.candidate.branchName,
+      contract.candidate.worktreePath,
+      contract.candidate.baseRef,
+    ]);
+
+    const applied = prepareAutoresearchSelfHostingCandidateWorktree({ cwd: root, apply: true });
+    assert.equal(applied.mode, "apply");
+    assert.equal(applied.candidate.registered, true);
+    assert.equal(applied.candidate.branch, contract.candidate.branchName);
+    assert.equal(applied.controllerBranchBefore, "main");
+    assert.equal(applied.controllerBranchAfter, "main");
+    assert.equal(git(root, "branch", "--show-current"), "main");
+    assert.equal(
+      git(applied.candidate.worktreePath, "branch", "--show-current"),
+      contract.candidate.branchName,
+    );
+    assert.equal(
+      git(applied.candidate.worktreePath, "rev-parse", "--show-toplevel"),
+      applied.candidate.worktreePath,
+    );
+  });
+});
+
+test("candidate scope check allows nested in-scope edits and rejects nested off-limits mutation", async () => {
+  await withTempDir((root) => {
+    const { candidateWorktreePath } = createPreparedCandidateRepo(root);
+    writeFile(
+      path.join(candidateWorktreePath, "packages/pi-autoresearch/src/core/runtime.ts"),
+      "export const nestedRuntime = 'candidate';\n",
+    );
+
+    const scoped = inspectAutoresearchSelfHostingCandidateScope(root);
+    assert.equal(scoped.ok, true);
+    assert.deepEqual(scoped.offLimitsPaths, []);
+    assert.deepEqual(scoped.outOfScopePaths, []);
+    assert.ok(scoped.changedPaths.includes("packages/pi-autoresearch/src/core/runtime.ts"));
+
+    writeFile(
+      path.join(candidateWorktreePath, "evaluator-snapshot/suites/locked.mjs"),
+      "export const locked = 'mutated';\n",
+    );
+    assert.throws(() => assertAutoresearchSelfHostingCandidateScope(root), /off-limits mutations/u);
+  });
+});
+
+test("candidate scope check rejects out-of-scope mutation", async () => {
+  await withTempDir((root) => {
+    const { candidateWorktreePath } = createPreparedCandidateRepo(root);
+    writeFile(path.join(candidateWorktreePath, "README.md"), "# changed outside scope\n");
+
+    assert.throws(
+      () => assertAutoresearchSelfHostingCandidateScope(root),
+      /out-of-scope mutations/u,
+    );
+  });
+});
+
+test("executeAutoresearchSelfHostingCandidateSubprocess runs candidate code in a child process rooted at the candidate worktree", async () => {
+  await withTempDir((root) => {
+    const { contract, candidateWorktreePath } = createPreparedCandidateRepo(root);
+
+    const result = executeAutoresearchSelfHostingCandidateSubprocess({
+      cwd: root,
+      command: ["node", "packages/pi-autoresearch/tests/emit-pid.mjs"],
+    });
+    assert.equal(result.command.exitCode, 0);
+    assert.equal(result.candidateCwd, candidateWorktreePath);
+    assert.equal(result.controllerCwd, root);
+    assert.equal(result.scope.ok, true);
+    assert.equal(result.postCommandScope.ok, true);
+    const payload = JSON.parse(result.command.stdout) as {
+      pid: number;
+      cwd: string;
+      controllerCwd: string;
+      candidateCwd: string;
+      campaignId: string;
+    };
+    assert.notEqual(payload.pid, process.pid);
+    assert.equal(payload.cwd, candidateWorktreePath);
+    assert.equal(payload.controllerCwd, root);
+    assert.equal(payload.candidateCwd, candidateWorktreePath);
+    assert.equal(payload.campaignId, contract.campaignId);
+    assert.equal(git(root, "branch", "--show-current"), "main");
+  });
+});
+
+test("executeAutoresearchSelfHostingCandidateSubprocess fails closed when the child mutates an off-limits path", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+
+    assert.throws(
+      () =>
+        executeAutoresearchSelfHostingCandidateSubprocess({
+          cwd: root,
+          command: ["node", "packages/pi-autoresearch/tests/mutate-offlimits.mjs"],
+        }),
+      /violated scope after execution/u,
+    );
+  });
 });
