@@ -377,9 +377,9 @@ Current status:
   - contract artifact: `packages/pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md`
   - current policy direction: reuse package-derived manifest campaign AK-binding truth for exact-anchor evidence-only writes, and do not widen this concern into live polling or task lifecycle mutation in v1
 
-### Proposed self-hosting contract concern
+### Landed bounded self-hosting contract slice
 
-A newer **not-yet-landed** post-target widening concern now exists for supervised self-hosting against `packages/pi-autoresearch` itself.
+A newer post-target widening slice is now landed for supervised self-hosting against `packages/pi-autoresearch` itself.
 
 Current artifact chain:
 
@@ -412,7 +412,7 @@ Interpretation rule:
 - it now changes the package's truthful state by landing the bounded self-hosting contract/evaluator/applicability/promotion-record substrate
 - broader claims beyond that slice still remain out of scope until later bounded work lands
 
-## What must stay true while implementing
+## What must stay true after landing and in future follow-ons
 
 Do **not** let future tasks silently collapse boundaries:
 
