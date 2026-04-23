@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "180b2fad175ae8d11623677abf9c255acfa18fd9"
+created_at: "2026-04-23T12:23:53Z"
+intent: "Refresh ontology authority receipts after strict ref-resolution validation rewrote the generated dist metadata."
+files:
+  - "ontology/dist/authority-receipt.json"
+  - "ontology/dist/authority-receipt.validate.json"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 16
+  total: 16
+  rationale: "Capture the generated ontology authority receipt rewrite caused by the final validation pass."
