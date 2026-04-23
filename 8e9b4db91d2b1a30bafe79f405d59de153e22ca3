@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "8e9b4db91d2b1a30bafe79f405d59de153e22ca3"
-created_at: "2026-04-23T13:33:15Z"
+created_at: "2026-04-23T13:59:48Z"
 intent: "Refresh generated ontology authority receipts after CI validation rewrote them back to the authoritative strict workspace-ref mode."
 files:
   - "ontology/dist/authority-receipt.json"
@@ -14,4 +14,4 @@ validation:
     status: "pass"
   full_gate:
     command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
-    status: "pending"
+    status: "pass"
