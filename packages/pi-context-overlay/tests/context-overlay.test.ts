@@ -69,15 +69,18 @@ test("ContextOverlayComponent never exceeds the requested width", () => {
       totalEstimatedTokens: 321,
       groups: [
         {
-          id: "project",
+          id: "system.otherFiles",
           label: "Project Context",
           tokens: 200,
           percent: 62.3,
+          count: 1,
           items: [
             {
               id: "1",
+              groupId: "system.otherFiles",
               label: "Very long context item label that used to pressure narrow overlays",
               tokens: 120,
+              chars: 240,
               preview:
                 "Long preview line one\nLong preview line two\nLong preview line three\nLong preview line four",
               path: "/tmp/some/really/long/path/to/a/context/file/that/needs/truncation.md",

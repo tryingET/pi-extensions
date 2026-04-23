@@ -4,10 +4,13 @@ import * as PiCodingAgent from "@mariozechner/pi-coding-agent";
 import { matchesKey, type TUI, truncateToWidth } from "@mariozechner/pi-tui";
 import type { ContextSnapshot } from "./types.js";
 
-/** @typedef {AppKeybinding|"tui.select.cancel"|"app.tools.expand"} OverlayBinding */
+type OverlayBinding = AppKeybinding | "tui.select.cancel" | "app.tools.expand";
 
-/** @param {KeybindingsManager} keybindings @param {string} data @param {OverlayBinding} binding */
-function matchesBinding(keybindings, data, binding) {
+function matchesBinding(
+  keybindings: KeybindingsManager,
+  data: string,
+  binding: OverlayBinding,
+): boolean {
   try {
     return keybindings.matches(data, binding);
   } catch {
@@ -15,8 +18,7 @@ function matchesBinding(keybindings, data, binding) {
   }
 }
 
-/** @param {OverlayBinding} binding @param {string} description */
-function keyHint(binding, description) {
+function keyHint(binding: OverlayBinding, description: string): string {
   return PiCodingAgent.keyHint(binding, description);
 }
 
@@ -151,8 +153,9 @@ export class ContextOverlayComponent {
     const mode = this.frozen
       ? this.theme.fg("warning", "FROZEN")
       : this.theme.fg("success", "LIVE");
+    const usagePercent = usage?.percent;
     const usageText = usage
-      ? `${usage.tokens}/${usage.contextWindow} (${usage.percent.toFixed(1)}%)`
+      ? `${usage.tokens}/${usage.contextWindow} (${usagePercent == null ? "?" : usagePercent.toFixed(1)}%)`
       : `~${this.snapshot.totalEstimatedTokens} est`;
     const title = `${this.theme.fg("accent", "Context Inspector")} • ${mode} • ${usageText} • ${this.snapshot.modelLabel}`;
     return truncateToWidth(title, innerW, "...", true);

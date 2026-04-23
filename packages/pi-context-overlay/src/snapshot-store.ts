@@ -41,7 +41,7 @@ export class ContextSnapshotStore {
   }
 
   buildSnapshot(modelLabel: string): ContextSnapshot {
-    const groups = buildGroups(this.systemPrompt, this.messages, this.usage?.tokens);
+    const groups = buildGroups(this.systemPrompt, this.messages, this.usage?.tokens ?? undefined);
     const estimated = groups.reduce((acc, g) => acc + g.tokens, 0);
 
     return {
