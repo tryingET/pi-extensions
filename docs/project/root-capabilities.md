@@ -20,6 +20,7 @@ system4d:
   - `npm run quality:pre-push`
   - `npm run quality:ci`
   - `npm run check`
+  - `npm run release:contracts:validate`
   - `npm run compat:canary:list`
   - `npm run compat:canary`
   - `npm run compat:canary:validate`
@@ -29,8 +30,12 @@ system4d:
   - `scripts/ci/full.sh`
   - `scripts/ci/packages.sh`
   - `scripts/package-quality-gate.sh`
+  - `scripts/validate-package-release-contracts.mjs`
   - `scripts/pi-host-compatibility-canary.mjs`
   - `scripts/tech-stack-review-surfaces.mjs`
+- Validation composition:
+  - root pre-commit = `scripts/ci/smoke.sh --staged-only` + `scripts/ci/packages.sh pre-commit --staged-only`
+  - root pre-push / CI = `scripts/ci/full.sh`
 - Dedicated CI workflow:
   - `.github/workflows/compatibility-canary.yml`
 - Root-owned compatibility contract:
@@ -51,6 +56,9 @@ system4d:
   - `README.md`
   - `README.terse.md`
   - `docs/project/root-capabilities.md`
+- live inventory/audit helpers that those root docs should stay aligned with:
+  - `scripts/release-components.mjs`
+  - `scripts/tech-stack-review-surfaces.mjs`
 - keep this surface repo-specific; these prompts encode monorepo workflow + routing, while installable package prompts belong in package-local `prompts/` directories exposed via `package.json#pi.prompts`
 
 ### Review / governance feedback

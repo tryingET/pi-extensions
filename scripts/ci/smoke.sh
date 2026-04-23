@@ -17,25 +17,52 @@ need_cmd sed
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || die_env "not a git repo"
 cd "$repo_root"
 
-base_branch="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_DEFAULT_BRANCH:-}}"
-if [ -z "$base_branch" ]; then
-  base_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)"
-fi
-[ -n "$base_branch" ] || base_branch="main"
+usage() {
+  err "Usage: ./scripts/ci/smoke.sh [--staged-only]"
+}
 
-base_ref=""
-if git remote get-url origin >/dev/null 2>&1; then
-  git fetch --no-tags origin "$base_branch" >/dev/null 2>&1 || true
-  if git show-ref --verify --quiet "refs/remotes/origin/$base_branch"; then
-    base_ref="origin/$base_branch"
+mode="base-ref"
+case "${1:-}" in
+  "") ;;
+  --staged-only)
+    mode="staged-only"
+    shift
+    ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+
+[ $# -eq 0 ] || { usage; exit 1; }
+
+if [ "$mode" = "staged-only" ]; then
+  changed_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+else
+  base_branch="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_DEFAULT_BRANCH:-}}"
+  if [ -z "$base_branch" ]; then
+    base_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)"
   fi
-fi
-if [ -z "$base_ref" ] && git show-ref --verify --quiet "refs/heads/$base_branch"; then
-  base_ref="$base_branch"
-fi
-[ -n "$base_ref" ] || die_env "cannot resolve base ref for branch '$base_branch' (need origin/$base_branch or local $base_branch)"
+  [ -n "$base_branch" ] || base_branch="main"
 
-changed_files="$(git diff --name-only "$base_ref"...HEAD)"
+  base_ref=""
+  if git remote get-url origin >/dev/null 2>&1; then
+    git fetch --no-tags origin "$base_branch" >/dev/null 2>&1 || true
+    if git show-ref --verify --quiet "refs/remotes/origin/$base_branch"; then
+      base_ref="origin/$base_branch"
+    fi
+  fi
+  if [ -z "$base_ref" ] && git show-ref --verify --quiet "refs/heads/$base_branch"; then
+    base_ref="$base_branch"
+  fi
+  [ -n "$base_ref" ] || die_env "cannot resolve base ref for branch '$base_branch' (need origin/$base_branch or local $base_branch)"
+
+  changed_files="$(git diff --name-only "$base_ref"...HEAD)"
+fi
 protected_hits="$(printf '%s\n' "$changed_files" | grep -nE '^(docs/_core($|/))' || true)"
 if [ -n "$protected_hits" ]; then
   err "error: protected core paths modified:"

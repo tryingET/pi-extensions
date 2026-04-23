@@ -80,7 +80,9 @@ Behavior:
 - run package-local structure validation for that package root when the package declares the full monorepo scaffold contract
 - otherwise skip structure validation explicitly and continue with runtime/package validation
 - run lint/typecheck/tests in that package root
-- run `npm pack --dry-run` when stage requires packaging validation
+- when stage requires packaging validation, prefer package-owned `scripts.release:check:quick` so the shared gate proves packed-artifact/install reality instead of only working-tree packability
+- if `scripts.release:check:quick` is absent, fall back to `npm pack --dry-run` for publishable packages
+- private packages without a quick release check may skip the packaging step explicitly
 
 ### `package-group`
 
@@ -120,6 +122,8 @@ Behavior:
 - typecheck
 - test
 - package packaging check
+  - prefer `npm run release:check:quick` when available
+  - otherwise fall back to `npm pack --dry-run` for publishable packages
 
 ## Package wrapper contract
 

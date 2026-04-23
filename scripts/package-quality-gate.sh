@@ -2,6 +2,17 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -n "${PI_EXTENSIONS_TMPDIR:-}" ]]; then
+  TMP_ROOT="$PI_EXTENSIONS_TMPDIR"
+elif [[ -n "${HOME:-}" ]]; then
+  TMP_ROOT="$HOME/.pi/tmp/pi-extensions"
+else
+  TMP_ROOT="$REPO_ROOT/.git/tmp"
+fi
+mkdir -p "$TMP_ROOT"
+export TMPDIR="$TMP_ROOT"
+export TMP="$TMP_ROOT"
+export TEMP="$TMP_ROOT"
 
 usage() {
   cat <<'USAGE' >&2
@@ -108,13 +119,18 @@ run_typecheck_target() {
     return 0
   fi
 
+  if [[ -x "$workdir/node_modules/.bin/tsgo" ]]; then
+    (cd "$workdir" && ./node_modules/.bin/tsgo --noEmit)
+    return 0
+  fi
+
   if [[ -x "$workdir/node_modules/.bin/tsc" ]]; then
     (cd "$workdir" && ./node_modules/.bin/tsc --noEmit)
     return 0
   fi
 
-  echo "typecheck: tsconfig.json found but local tsc binary is unavailable in $(relative_target "$workdir")." >&2
-  echo "Run 'npm install' (or add typescript to devDependencies)." >&2
+  echo "typecheck: tsconfig.json found but neither local tsgo nor local tsc is available in $(relative_target "$workdir")." >&2
+  echo "Run 'npm install' (and prefer @typescript/native-preview with typescript fallback when the package has a real compile boundary)." >&2
   exit 1
 }
 
@@ -194,8 +210,41 @@ run_structure_validation_target() {
   (cd "$workdir" && bash ./scripts/validate-structure.sh "$@")
 }
 
+has_npm_script() {
+  local workdir="$1"
+  local script_name="$2"
+  python3 - "$workdir/package.json" "$script_name" <<'PY'
+import json, sys
+pkg = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+name = sys.argv[2]
+value = pkg.get('scripts', {}).get(name)
+sys.exit(0 if isinstance(value, str) and value.strip() else 1)
+PY
+}
+
+is_private_package() {
+  local workdir="$1"
+  python3 - "$workdir/package.json" <<'PY'
+import json, sys
+pkg = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+sys.exit(0 if pkg.get('private') is True else 1)
+PY
+}
+
 run_packaging_target() {
   local workdir="$1"
+  if has_npm_script "$workdir" "release:check:quick"; then
+    echo "packaging: running scripts.release:check:quick ($(relative_target "$workdir"))"
+    (cd "$workdir" && npm run release:check:quick)
+    return 0
+  fi
+
+  if is_private_package "$workdir"; then
+    echo "packaging: skipped ($(relative_target "$workdir"), private package without release:check:quick)"
+    return 0
+  fi
+
+  echo "packaging: fallback to npm pack --dry-run ($(relative_target "$workdir"), no release:check:quick script)"
   (cd "$workdir" && npm pack --dry-run)
 }
 

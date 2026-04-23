@@ -32,11 +32,13 @@ scripts/         # CI/utility scripts
   - `packages/pi-little-helpers`
   - `packages/pi-prompt-template-accelerator`
   - `packages/pi-interaction/*`
-- Extra-stack packages:
+- Extra-stack / boundary-heavy starting points:
+  - `packages/pi-autoresearch`
   - `packages/pi-vault-client`
   - `packages/pi-ontology-workflows`
   - `packages/pi-society-orchestrator`
 - For the shortest package map and outsider framing, see [README.terse.md](README.terse.md).
+- For live release-component inventory, run `node ./scripts/release-components.mjs list --json`.
 
 ## Fresh-context routing
 
@@ -46,6 +48,7 @@ When cues overlap, route by owner before diving deeper:
 
 - `packages/pi-society-orchestrator` — coordination/control-plane questions that compose lower-plane owners, such as loops, routing selection, runtime-status wording, evidence intent, or exact supervision flows
 - `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, prompt-envelope application, session artifacts, and runtime/operator visibility tied to execution ownership
+- `packages/pi-autoresearch` — bounded experiment-loop runtime ownership, manifest-campaign planning/control, and local campaign receipt/machine surfaces
 - `packages/pi-vault-client` — Prompt Vault query/retrieve/mutate/rate flows, schema compatibility, and prompt-plane governance
 - `packages/pi-ontology-workflows` — ontology inspection/change workflows and ROCS-facing operator surfaces
 - monorepo root docs — only for package-family selection, release/governance control-plane surfaces, and repo-owned prompts/skills such as `.pi/prompts/commit.md` and `.pi/prompts/pi-extensions-deep-dive.md`
@@ -58,7 +61,8 @@ Generic prompts that stop depending on pi-extensions-specific routing or workflo
 - Languages — defined per-package (see `packages/` and `apps/`)
 - Root `package.json` currently exists to expose consistent validation commands; it is not a full npm workspace manifest.
 - Root validation routes through `scripts/quality-gate.sh`.
-- Root pre-push/CI validation aggregates root infrastructure checks plus package checks orchestrated via `scripts/package-quality-gate.sh` from `scripts/ci/packages.sh`.
+- Root pre-commit validation runs root infrastructure smoke plus staged package pre-commit fan-out.
+- Root pre-push/CI validation aggregates root infrastructure checks, package release-contract validation, and package checks orchestrated via `scripts/package-quality-gate.sh` from `scripts/ci/packages.sh`.
 - Editor/formatter configuration remains package-local; the monorepo root intentionally does not define a root `biome.jsonc` or root `.vscode/settings.json`.
 
 ## Quick Commands
@@ -68,7 +72,7 @@ Generic prompts that stop depending on pi-extensions-specific routing or workflo
 ./scripts/rocs.sh --doctor
 ./scripts/rocs.sh version
 
-# AK task / work-item wrapper
+# AK task / work-item CLI
 ak --doctor
 ak task ready
 
@@ -83,7 +87,7 @@ just doctor
 # no just build/dev: the monorepo root has no single buildable or long-running app/watch surface
 
 # CI lanes / canonical root validation
-./scripts/quality-gate.sh pre-commit   # canonical root quality-gate wrapper
+./scripts/quality-gate.sh pre-commit   # root smoke + staged package pre-commit fan-out
 ./scripts/quality-gate.sh pre-push
 ./scripts/quality-gate.sh ci
 ./scripts/ci/smoke.sh                  # root infrastructure smoke checks
@@ -93,6 +97,9 @@ npm run quality:pre-commit
 npm run quality:pre-push
 npm run quality:ci
 npm run check
+node ./scripts/release-components.mjs list --json   # live release-component inventory
+npm run tech-stack:review-surfaces                  # live package-local tech-stack audit
+npm run release:contracts:validate  # validate publish/package release floors for non-private packages
 npm run compat:canary:list          # list host-compatibility scenarios + exact host contract
 npm run compat:canary               # local mirror of the dedicated compatibility-canary workflow (auto-aligns scenario packages to the pinned host contract)
 PI_HOST_COMPAT_CANARY=1 ./scripts/ci/full.sh   # optional local full-lane mirror
@@ -143,8 +150,7 @@ Use `tpl-package` from your L1 templates to add packages:
 
 ## Governance
 
-- AK task/work-item operations should go through the repo-root wrapper `ak`.
-  - From package directories, call the ancestor wrapper (for example `../.ak ...`).
+- AK task/work-item operations should use plain installed `ak` from the repo root or package directories; repo identity still belongs to the monorepo root.
 - New package-local architecture/process docs should use `docs/project/` for dated RFCs/runbooks/notes and `docs/adr/` for adopted decisions; avoid creating new package-local `docs/dev/` trees.
 - Work items: `governance/work-items.json`
 - Policies: `policy/`

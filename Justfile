@@ -10,6 +10,8 @@ help:
 test:
     if [ -f ./scripts/release-components.test.mjs ]; then node --test ./scripts/release-components.test.mjs; fi
     if [ -f ./scripts/pi-host-compatibility-canary.test.mjs ]; then node --test ./scripts/pi-host-compatibility-canary.test.mjs; fi
+    if [ -f ./scripts/package-quality-gate.test.mjs ]; then node --test ./scripts/package-quality-gate.test.mjs; fi
+    if [ -f ./scripts/root-doc-alignment.test.mjs ]; then node --test ./scripts/root-doc-alignment.test.mjs; fi
     ./scripts/ci/packages.sh
 
 # Fast local validation gate
@@ -20,6 +22,7 @@ check:
 lint:
     ./scripts/ci/smoke.sh
     npm run release:components:check
+    npm run release:contracts:validate
     npm run compat:canary:validate
 
 # Root formatting stays package-local for now
