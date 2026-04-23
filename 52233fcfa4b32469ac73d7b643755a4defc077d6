@@ -1,0 +1,29 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "52233fcfa4b32469ac73d7b643755a4defc077d6"
+created_at: "2026-04-23T12:03:19Z"
+intent: "Add the post-contrib dual-packet RFC/ADR decision packet for orchestrator workflow UX and peer-session messaging."
+files:
+  - "docs/decisions/peer-session-messaging-primitive.md"
+  - "docs/project/2026-04-22-ak-decision-attachment-summaries-dual-packet.md"
+  - "docs/project/2026-04-22-ak-decision-body-drafts-dual-packet.md"
+  - "docs/project/2026-04-22-dual-packet-decision-map.md"
+  - "docs/project/2026-04-22-dual-salvage-packet-orchestrator-ux-and-peer-messaging.md"
+  - "docs/project/2026-04-22-rfc-peer-session-messaging-primitive.md"
+  - "docs/project/2026-04-22-subagent-contrib-salvage-boundary-status.md"
+  - "docs/project/decision-runtime-and-roadmap.md"
+  - "packages/pi-society-orchestrator/docs/adr/2026-04-22-chain-parallel-worktree-ux-over-asc.md"
+  - "packages/pi-society-orchestrator/docs/project/2026-04-22-rfc-chain-parallel-worktree-ux-over-asc.md"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 11
+  total: 13
+  rationale: "Keep the root decision packet and its paired orchestrator ADR/RFC artifacts together for AK handoff."
