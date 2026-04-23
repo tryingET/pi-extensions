@@ -32,6 +32,13 @@ Portable ROCS launcher with deterministic resolution order:
   4) workspace core ~/ai-society/core/rocs-cli (or ROCS_CORE_PROJECT)
   5) rocs on PATH
 
+When --resolve-refs is present and --workspace-root is omitted, the launcher
+will inject an inferred workspace root from (in order):
+  - PI_ONTOLOGY_WORKSPACE_ROOT
+  - ROCS_WORKSPACE_ROOT
+  - repo ancestry containing core/rocs-cli or core/ontology-kernel
+  - the parent workspace of ROCS_CORE_PROJECT
+
 Examples:
   ./scripts/rocs.sh version
   ./scripts/rocs.sh validate --repo .
@@ -123,6 +130,54 @@ runner_desc() {
   esac
 }
 
+normalize_existing_dir() {
+  candidate="${1:-}"
+  [ -n "$candidate" ] || return 1
+  [ -d "$candidate" ] || return 1
+  CDPATH= cd -- "$candidate" && pwd
+}
+
+infer_workspace_root_from_repo() {
+  current="$repo_root"
+  while :; do
+    if [ -d "$current/core/rocs-cli" ] || [ -d "$current/core/ontology-kernel" ]; then
+      printf '%s\n' "$current"
+      return 0
+    fi
+    parent="$(dirname "$current")"
+    [ "$parent" != "$current" ] || return 1
+    current="$parent"
+  done
+}
+
+infer_workspace_root_from_core_project() {
+  [ -d "$core_project_default" ] || return 1
+  core_dir="$(dirname "$core_project_default")"
+  [ "$(basename "$core_dir")" = "core" ] || return 1
+  workspace_root="$(dirname "$core_dir")"
+  if [ -d "$workspace_root/core/rocs-cli" ] || [ -d "$workspace_root/core/ontology-kernel" ]; then
+    printf '%s\n' "$workspace_root"
+    return 0
+  fi
+  return 1
+}
+
+resolve_workspace_root() {
+  normalize_existing_dir "${PI_ONTOLOGY_WORKSPACE_ROOT:-}" || \
+    normalize_existing_dir "${ROCS_WORKSPACE_ROOT:-}" || \
+    infer_workspace_root_from_repo || \
+    infer_workspace_root_from_core_project
+}
+
+has_arg() {
+  needle="$1"
+  shift
+  for arg in "$@"; do
+    [ "$arg" = "$needle" ] && return 0
+  done
+  return 1
+}
+
 doctor() {
   runner="$(select_runner)"
 
@@ -135,6 +190,7 @@ doctor() {
   say "- has rocs on PATH: $(has_cmd rocs && printf yes || printf no)"
   say "- has vendored tools/rocs-cli: $([ -d "$repo_root/tools/rocs-cli" ] && printf yes || printf no)"
   say "- local project is rocs-cli: $(is_local_rocs_project && printf yes || printf no)"
+  say "- resolved workspace_root: $(resolve_workspace_root 2>/dev/null || printf unavailable)"
   say "- selected runner: $(runner_desc "$runner")"
 
   if [ "$runner" = "missing" ] || [ "$runner" = "vendored-missing-runtime" ]; then
@@ -161,6 +217,13 @@ if [ "${1:-}" = "--which" ]; then
     exit 1
   fi
   exit 0
+fi
+
+if has_arg "--resolve-refs" "$@" && ! has_arg "--workspace-root" "$@"; then
+  inferred_workspace_root="$(resolve_workspace_root 2>/dev/null || true)"
+  if [ -n "$inferred_workspace_root" ]; then
+    set -- "$@" "--workspace-root" "$inferred_workspace_root"
+  fi
 fi
 
 case "$runner" in
