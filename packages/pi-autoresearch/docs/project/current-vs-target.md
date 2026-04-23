@@ -403,14 +403,14 @@ AK decision/runtime anchor:
   - `#1809` — `SH-3 — implement snapshot-owned evaluator entrypoints for self-hosting`
   - `#1810` — `SH-4 — implement self-hosting applicability classification gates`
   - `#1811` — `SH-5 — implement self-hosting promotion and rollback record`
-- current execution state: SH-1 through SH-4 are now landed locally via checked self-hosting artifact validators, controller/candidate isolation helpers, locked evaluator-suite resolution/execution helpers, and typed applicability-classification helpers in `packages/pi-autoresearch/src/core/selfHosting.ts` plus focused proof in `packages/pi-autoresearch/tests/self-hosting.test.ts`; SH-5 remains pending, so the broader self-hosting runtime feature is still not landed
-- current scope posture: self-hosting remains an accepted but **not-yet-landed** Tier 1 contract concern, not current package baseline behavior; what is now landed is the decision/ADR/execution-memory substrate around the concern plus the schema/lock validation unit, the controller/candidate execution-isolation unit, the snapshot-owned evaluator-entrypoint unit, and the applicability-classification unit, not the full runtime feature itself
+- current execution state: SH-1 through SH-5 are now landed locally via checked self-hosting artifact validators, controller/candidate isolation helpers, locked evaluator-suite resolution/execution helpers, typed applicability-classification helpers, and promotion/rollback record helpers in `packages/pi-autoresearch/src/core/selfHosting.ts` plus focused proof in `packages/pi-autoresearch/tests/self-hosting.test.ts`
+- current scope posture: self-hosting is now an accepted and locally landed Tier 1 bounded capability slice, but only in the supervised controller/candidate/evaluator/promotion-record form from `decision:18`; it is still not package-local self-promotion, not automatic controller rotation, and not self-sovereign baseline behavior
 
 Interpretation rule:
 
-- this concern is now review-shaped and decision-tracked
-- it does **not** yet change the package's current truthful state
-- no self-hosting behavior should be described as landed until ADR + post-ADR execution artifacts exist and the implementation actually lands
+- this concern is now review-shaped, decision-tracked, and implemented for the first bounded slice
+- it now changes the package's truthful state by landing the bounded self-hosting contract/evaluator/applicability/promotion-record substrate
+- broader claims beyond that slice still remain out of scope until later bounded work lands
 
 ## What must stay true while implementing
 

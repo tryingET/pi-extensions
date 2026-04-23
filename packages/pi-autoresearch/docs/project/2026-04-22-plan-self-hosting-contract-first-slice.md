@@ -180,6 +180,10 @@ Interpretation rule:
 - validation / evidence required:
   - proof that controller rotation cannot be reported without approvals and rollback target
   - proof that rollback updates the record truthfully
+- current execution status:
+  - landed locally via promotion-record validation/load helpers plus plan/apply promotion-readiness and rollback-record helpers in `packages/pi-autoresearch/src/core/selfHosting.ts`
+  - focused proof now lives in `packages/pi-autoresearch/tests/self-hosting.test.ts`
+  - follow-on tasks should reuse the landed promotion-record helpers rather than implying package-local self-promotion or ad hoc rollback bookkeeping
 
 ## Structural rules for implementation
 

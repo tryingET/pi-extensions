@@ -9,9 +9,11 @@ import test from "node:test";
 import {
   AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE,
   AUTORESEARCH_SELF_HOSTING_EVALUATOR_LOCK_FILE,
+  AUTORESEARCH_SELF_HOSTING_PROMOTION_RECORD_FILE,
   type AutoresearchSelfHostingApplicabilitySuiteOutcome,
   type AutoresearchSelfHostingContractV1,
   type AutoresearchSelfHostingEvaluatorLockV1,
+  type AutoresearchSelfHostingPromotionRecordV1,
   AutoresearchSelfHostingValidationError,
   assertAutoresearchSelfHostingCandidateScope,
   classifyAutoresearchSelfHostingApplicability,
@@ -19,12 +21,16 @@ import {
   executeAutoresearchSelfHostingEvaluatorSuite,
   inspectAutoresearchSelfHostingCandidateScope,
   loadAutoresearchSelfHostingArtifacts,
+  loadAutoresearchSelfHostingPromotionRecord,
   prepareAutoresearchSelfHostingCandidateWorktree,
+  prepareAutoresearchSelfHostingPromotionRecord,
+  recordAutoresearchSelfHostingRollback,
   resolveAutoresearchSelfHostingEvaluatorLockPath,
   resolveAutoresearchSelfHostingEvaluatorSuite,
   validateAutoresearchSelfHostingArtifactsPair,
   validateAutoresearchSelfHostingContract,
   validateAutoresearchSelfHostingEvaluatorLock,
+  validateAutoresearchSelfHostingPromotionRecord,
 } from "../src/core/selfHosting.ts";
 
 async function withTempDir(fn: (cwd: string) => Promise<void> | void): Promise<void> {
@@ -442,6 +448,24 @@ function createValidContract(cwd: string): AutoresearchSelfHostingContractV1 {
       promotionRecordPath: "autoresearch.self-hosting.promotion.json",
       rollbackControllerRef: "pi-autoresearch@stable",
     },
+  };
+}
+
+function createValidPromotionRecord(): AutoresearchSelfHostingPromotionRecordV1 {
+  return {
+    type: "self_hosting_promotion_record",
+    version: 1,
+    campaignId: "self-hosting-wave-001",
+    approvedBy: [],
+    approvedAt: null,
+    previousControllerRef: "pi-autoresearch@stable",
+    promotedCandidateRef: null,
+    evaluatorManifestHash: sha256("manifest"),
+    evidenceRefs: ["evidence:classification"],
+    status: "planned",
+    rollbackControllerRef: "pi-autoresearch@stable",
+    rollbackReason: null,
+    rolledBackAt: null,
   };
 }
 
@@ -1054,5 +1078,156 @@ test("classifyAutoresearchSelfHostingApplicability blocks default promotion when
       ),
     );
     assert.deepEqual(result.suiteSummary.transferCriticalFailureSuiteIds, ["transfer-operator"]);
+  });
+});
+
+test("validateAutoresearchSelfHostingPromotionRecord rejects rotation without approvals and rollback truth without timestamps", () => {
+  const invalidRotated = createValidPromotionRecord();
+  invalidRotated.status = "rotated";
+  invalidRotated.promotedCandidateRef = "candidate-ref";
+  assert.throws(
+    () =>
+      validateAutoresearchSelfHostingPromotionRecord(
+        invalidRotated as unknown as Record<string, unknown>,
+        "promotion.json",
+      ),
+    /approvedBy must contain at least one approval/u,
+  );
+
+  const invalidRollback = createValidPromotionRecord();
+  invalidRollback.status = "rolled_back";
+  invalidRollback.approvedBy = ["operator_review"];
+  invalidRollback.approvedAt = 1;
+  invalidRollback.promotedCandidateRef = "candidate-ref";
+  invalidRollback.rollbackReason = "post-promotion regression";
+  assert.throws(
+    () =>
+      validateAutoresearchSelfHostingPromotionRecord(
+        invalidRollback as unknown as Record<string, unknown>,
+        "promotion.json",
+      ),
+    /rollbackReason and rolledBackAt must either both be null or both be populated/u,
+  );
+});
+
+test("prepareAutoresearchSelfHostingPromotionRecord keeps promotion planned until required approvals are present", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+    const classification = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 90,
+      },
+    });
+
+    const result = prepareAutoresearchSelfHostingPromotionRecord({
+      cwd: root,
+      classification,
+      evidenceRefs: ["evidence:classification"],
+    });
+
+    assert.equal(result.record.status, "planned");
+    assert.equal(result.record.approvedAt, null);
+    assert.equal(result.promotionReady, false);
+    assert.deepEqual(result.missingApprovals, ["operator_review"]);
+    assert.equal(result.record.rollbackControllerRef, "pi-autoresearch@stable");
+    assert.match(result.nextStep, /missing "operator_review"/u);
+  });
+});
+
+test("prepareAutoresearchSelfHostingPromotionRecord requires approvals before reporting controller rotation", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+    const classification = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 90,
+      },
+    });
+
+    assert.throws(
+      () =>
+        prepareAutoresearchSelfHostingPromotionRecord({
+          cwd: root,
+          classification,
+          evidenceRefs: ["evidence:classification"],
+          status: "rotated",
+        }),
+      /required approvals are missing/u,
+    );
+  });
+});
+
+test("prepareAutoresearchSelfHostingPromotionRecord applies a rotated record and recordAutoresearchSelfHostingRollback updates it truthfully", async () => {
+  await withTempDir((root) => {
+    const { candidateWorktreePath } = createPreparedCandidateRepo(root);
+    const classification = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 90,
+      },
+    });
+    const candidateHead = git(candidateWorktreePath, "rev-parse", "HEAD");
+
+    const promotion = prepareAutoresearchSelfHostingPromotionRecord({
+      cwd: root,
+      classification,
+      approvedBy: ["operator_review"],
+      approvedAt: 1,
+      evidenceRefs: ["evidence:classification"],
+      promotedCandidateRef: candidateHead,
+      status: "rotated",
+      apply: true,
+    });
+
+    assert.equal(promotion.record.status, "rotated");
+    assert.equal(promotion.promotionReady, true);
+    assert.equal(promotion.record.promotedCandidateRef, candidateHead);
+    assert.equal(
+      existsSync(path.join(root, AUTORESEARCH_SELF_HOSTING_PROMOTION_RECORD_FILE)),
+      true,
+    );
+
+    const loadedPromotion = loadAutoresearchSelfHostingPromotionRecord(root);
+    assert.equal(loadedPromotion.status, "rotated");
+    assert.deepEqual(loadedPromotion.approvedBy, ["operator_review"]);
+
+    const rotatedContract = JSON.parse(
+      readFileSync(path.join(root, AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE), "utf8"),
+    ) as AutoresearchSelfHostingContractV1;
+    rotatedContract.controller.ref = candidateHead;
+    writeJson(path.join(root, AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE), rotatedContract);
+
+    const loadedAfterControllerRotation = loadAutoresearchSelfHostingPromotionRecord(root);
+    assert.equal(loadedAfterControllerRotation.status, "rotated");
+    assert.equal(loadedAfterControllerRotation.previousControllerRef, "pi-autoresearch@stable");
+
+    const rollback = recordAutoresearchSelfHostingRollback({
+      cwd: root,
+      rollbackReason: "post-promotion verification failed",
+      rolledBackAt: 2,
+      evidenceRefs: ["evidence:rollback"],
+      apply: true,
+    });
+
+    assert.equal(rollback.previousRecord.status, "rotated");
+    assert.equal(rollback.record.status, "rolled_back");
+    assert.equal(rollback.record.rollbackReason, "post-promotion verification failed");
+    assert.equal(rollback.record.rolledBackAt, 2);
+    assert.deepEqual(rollback.record.evidenceRefs, [
+      "evidence:classification",
+      "evidence:rollback",
+    ]);
+    assert.match(rollback.nextStep, /restore controller/u);
+
+    const loadedRollback = loadAutoresearchSelfHostingPromotionRecord(root);
+    assert.equal(loadedRollback.status, "rolled_back");
+    assert.equal(loadedRollback.rollbackReason, "post-promotion verification failed");
   });
 });

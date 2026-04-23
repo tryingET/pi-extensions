@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE = "autoresearch.self-hosting.json";
@@ -35,6 +35,13 @@ const EVALUATOR_ENTRYPOINT_KINDS = ["snapshot_script", "snapshot_node_module"] a
 const SUBJECT_CWD_MODES = ["snapshot", "candidate"] as const;
 const METRIC_DIRECTIONS = ["lower", "higher"] as const;
 const PROMOTION_APPROVALS = ["operator_review", "orchestrator_supervision"] as const;
+const PROMOTION_RECORD_STATUSES = [
+  "planned",
+  "approved",
+  "rotated",
+  "rolled_back",
+  "superseded",
+] as const;
 
 export const AUTORESEARCH_SELF_HOSTING_APPLICABILITY_OUTCOMES = [
   "reject",
@@ -59,6 +66,8 @@ export type AutoresearchSelfHostingEvaluatorEntrypointKind =
 export type AutoresearchSelfHostingSubjectCwdMode = (typeof SUBJECT_CWD_MODES)[number];
 export type AutoresearchSelfHostingMetricDirection = (typeof METRIC_DIRECTIONS)[number];
 export type AutoresearchSelfHostingPromotionApproval = (typeof PROMOTION_APPROVALS)[number];
+export type AutoresearchSelfHostingPromotionRecordStatus =
+  (typeof PROMOTION_RECORD_STATUSES)[number];
 
 export interface AutoresearchSelfHostingContractV1 {
   type: typeof AUTORESEARCH_SELF_HOSTING_CONTRACT_KIND;
@@ -147,6 +156,22 @@ export interface AutoresearchSelfHostingEvaluatorLockV1 {
   suites: AutoresearchSelfHostingEvaluatorSuiteV1[];
 }
 
+export interface AutoresearchSelfHostingPromotionRecordV1 {
+  type: typeof AUTORESEARCH_SELF_HOSTING_PROMOTION_RECORD_KIND;
+  version: typeof AUTORESEARCH_SELF_HOSTING_VERSION;
+  campaignId: string;
+  approvedBy: AutoresearchSelfHostingPromotionApproval[];
+  approvedAt: number | null;
+  previousControllerRef: string;
+  promotedCandidateRef: string | null;
+  evaluatorManifestHash: string;
+  evidenceRefs: string[];
+  status: AutoresearchSelfHostingPromotionRecordStatus;
+  rollbackControllerRef: string;
+  rollbackReason: string | null;
+  rolledBackAt: number | null;
+}
+
 export interface LoadedAutoresearchSelfHostingArtifacts {
   cwd: string;
   contractPath: string;
@@ -196,6 +221,19 @@ export function loadAutoresearchSelfHostingEvaluatorLock(
   const resolvedPath = resolveArtifactPath(cwd, lockPath);
   const payload = loadJsonObject(resolvedPath);
   return validateAutoresearchSelfHostingEvaluatorLock(payload, resolvedPath);
+}
+
+export function loadAutoresearchSelfHostingPromotionRecord(
+  cwd: string,
+  promotionRecordPath?: string,
+): AutoresearchSelfHostingPromotionRecordV1 {
+  const contract = loadAutoresearchSelfHostingContract(cwd);
+  const resolvedPath = resolveAutoresearchSelfHostingPromotionRecordPath(
+    path.resolve(cwd),
+    promotionRecordPath ?? contract.promotion.promotionRecordPath,
+  );
+  const payload = loadJsonObject(resolvedPath);
+  return validateAutoresearchSelfHostingPromotionRecord(payload, resolvedPath);
 }
 
 export function loadAutoresearchSelfHostingArtifacts(
@@ -566,6 +604,60 @@ export function validateAutoresearchSelfHostingEvaluatorLock(
   };
 }
 
+export function validateAutoresearchSelfHostingPromotionRecord(
+  payload: Record<string, unknown>,
+  filePath: string,
+): AutoresearchSelfHostingPromotionRecordV1 {
+  const kind = readLiteral(
+    payload.type,
+    `${filePath}:type`,
+    AUTORESEARCH_SELF_HOSTING_PROMOTION_RECORD_KIND,
+  );
+  const version = readLiteral(
+    readInteger(payload.version, `${filePath}:version`),
+    `${filePath}:version`,
+    AUTORESEARCH_SELF_HOSTING_VERSION,
+  );
+  const approvedBy = readLiteralUnionArray(
+    payload.approvedBy,
+    `${filePath}:approvedBy`,
+    PROMOTION_APPROVALS,
+  );
+  const evidenceRefs = readStringArray(payload.evidenceRefs, `${filePath}:evidenceRefs`);
+  ensureUnique(evidenceRefs, `${filePath}:evidenceRefs`);
+
+  const record: AutoresearchSelfHostingPromotionRecordV1 = {
+    type: kind,
+    version,
+    campaignId: readId(payload.campaignId, `${filePath}:campaignId`),
+    approvedBy,
+    approvedAt: readNullableNonNegativeNumber(payload.approvedAt, `${filePath}:approvedAt`),
+    previousControllerRef: readString(
+      payload.previousControllerRef,
+      `${filePath}:previousControllerRef`,
+    ),
+    promotedCandidateRef: readNullableString(
+      payload.promotedCandidateRef,
+      `${filePath}:promotedCandidateRef`,
+    ),
+    evaluatorManifestHash: readSha256(
+      payload.evaluatorManifestHash,
+      `${filePath}:evaluatorManifestHash`,
+    ),
+    evidenceRefs,
+    status: readLiteralUnion(payload.status, `${filePath}:status`, PROMOTION_RECORD_STATUSES),
+    rollbackControllerRef: readString(
+      payload.rollbackControllerRef,
+      `${filePath}:rollbackControllerRef`,
+    ),
+    rollbackReason: readNullableString(payload.rollbackReason, `${filePath}:rollbackReason`),
+    rolledBackAt: readNullableNonNegativeNumber(payload.rolledBackAt, `${filePath}:rolledBackAt`),
+  };
+
+  validateAutoresearchSelfHostingPromotionRecordState(record, filePath);
+  return record;
+}
+
 export function validateAutoresearchSelfHostingArtifactsPair(
   contract: AutoresearchSelfHostingContractV1,
   evaluatorLock: AutoresearchSelfHostingEvaluatorLockV1,
@@ -650,6 +742,51 @@ export function validateAutoresearchSelfHostingArtifactsPair(
         `Evaluator lock transfer suites do not satisfy required coverage kind ${JSON.stringify(requiredCoverageKind)}`,
       );
     }
+  }
+}
+
+export function validateAutoresearchSelfHostingPromotionRecordPair(
+  contract: AutoresearchSelfHostingContractV1,
+  evaluatorLock: AutoresearchSelfHostingEvaluatorLockV1,
+  record: AutoresearchSelfHostingPromotionRecordV1,
+): void {
+  if (record.campaignId !== contract.campaignId) {
+    throw new AutoresearchSelfHostingValidationError(
+      `Self-hosting promotion record campaignId ${JSON.stringify(record.campaignId)} does not match self-hosting contract campaignId ${JSON.stringify(contract.campaignId)}`,
+    );
+  }
+  if (record.evaluatorManifestHash !== evaluatorLock.manifestHash) {
+    throw new AutoresearchSelfHostingValidationError(
+      "Self-hosting promotion record evaluatorManifestHash does not match evaluator lock manifestHash.",
+    );
+  }
+  if (record.previousControllerRef !== contract.controller.ref) {
+    throw new AutoresearchSelfHostingValidationError(
+      "Self-hosting promotion record previousControllerRef does not match controller.ref.",
+    );
+  }
+  if (record.rollbackControllerRef !== contract.promotion.rollbackControllerRef) {
+    throw new AutoresearchSelfHostingValidationError(
+      "Self-hosting promotion record rollbackControllerRef does not match promotion.rollbackControllerRef.",
+    );
+  }
+
+  const unexpectedApprovals = record.approvedBy.filter(
+    (approval) => !contract.promotion.requiredApprovals.includes(approval),
+  );
+  if (unexpectedApprovals.length > 0) {
+    throw new AutoresearchSelfHostingValidationError(
+      `Self-hosting promotion record includes approvals outside the contract-required set: ${formatAutoresearchSelfHostingEntries(unexpectedApprovals)}`,
+    );
+  }
+
+  const missingRequiredApprovals = contract.promotion.requiredApprovals.filter(
+    (approval) => !record.approvedBy.includes(approval),
+  );
+  if (record.status !== "planned" && missingRequiredApprovals.length > 0) {
+    throw new AutoresearchSelfHostingValidationError(
+      `Self-hosting promotion record status ${JSON.stringify(record.status)} requires approvals ${formatAutoresearchSelfHostingEntries(contract.promotion.requiredApprovals)}, but is missing ${formatAutoresearchSelfHostingEntries(missingRequiredApprovals)}.`,
+    );
   }
 }
 
@@ -853,6 +990,55 @@ export interface AutoresearchSelfHostingApplicabilityClassification {
   variantBlockers: string[];
   defaultPromotionBlockers: string[];
   blockingReasons: string[];
+  nextStep: string;
+}
+
+export interface PrepareAutoresearchSelfHostingPromotionRecordInput {
+  cwd: string;
+  classification: AutoresearchSelfHostingApplicabilityClassification;
+  approvedBy?: AutoresearchSelfHostingPromotionApproval[];
+  approvedAt?: number;
+  evidenceRefs?: string[];
+  promotedCandidateRef?: string;
+  status?: Exclude<AutoresearchSelfHostingPromotionRecordStatus, "rolled_back">;
+  apply?: boolean;
+}
+
+export interface PrepareAutoresearchSelfHostingPromotionRecordResult {
+  action: "prepare_promotion_record";
+  mode: "plan" | "apply";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerCwd: string;
+  candidateCwd: string;
+  promotionRecordPath: string;
+  scope: AutoresearchSelfHostingCandidateScopeStatus;
+  classificationOutcome: AutoresearchSelfHostingApplicabilityOutcome;
+  requiredApprovals: AutoresearchSelfHostingPromotionApproval[];
+  missingApprovals: AutoresearchSelfHostingPromotionApproval[];
+  promotionReady: boolean;
+  record: AutoresearchSelfHostingPromotionRecordV1;
+  nextStep: string;
+}
+
+export interface RecordAutoresearchSelfHostingRollbackInput {
+  cwd: string;
+  rollbackReason: string;
+  rolledBackAt?: number;
+  evidenceRefs?: string[];
+  apply?: boolean;
+}
+
+export interface RecordAutoresearchSelfHostingRollbackResult {
+  action: "record_promotion_rollback";
+  mode: "plan" | "apply";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerCwd: string;
+  candidateCwd: string;
+  promotionRecordPath: string;
+  previousRecord: AutoresearchSelfHostingPromotionRecordV1;
+  record: AutoresearchSelfHostingPromotionRecordV1;
   nextStep: string;
 }
 
@@ -1486,6 +1672,144 @@ export function classifyAutoresearchSelfHostingApplicability(
   };
 }
 
+export function prepareAutoresearchSelfHostingPromotionRecord(
+  input: PrepareAutoresearchSelfHostingPromotionRecordInput,
+): PrepareAutoresearchSelfHostingPromotionRecordResult {
+  const artifacts = loadAutoresearchSelfHostingArtifacts(input.cwd);
+  const controllerRepoRoot = resolveGitTopLevel(artifacts.cwd);
+  const candidate = assertAutoresearchSelfHostingCandidateWorktreeRegistered(
+    controllerRepoRoot,
+    artifacts.contract,
+  );
+  const scope = assertAutoresearchSelfHostingCandidateScope(input.cwd);
+  assertAutoresearchSelfHostingPromotionClassification(
+    input.classification,
+    artifacts.contract,
+    candidate.worktreePath,
+  );
+
+  const requiredApprovals = [...artifacts.contract.promotion.requiredApprovals];
+  const approvedBy = normalizeAutoresearchSelfHostingPromotionApprovals(
+    input.approvedBy,
+    "approvedBy",
+  );
+  const missingApprovals = requiredApprovals.filter((approval) => !approvedBy.includes(approval));
+  const status = input.status ?? (missingApprovals.length === 0 ? "approved" : "planned");
+  if (status !== "planned" && missingApprovals.length > 0) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Cannot report self-hosting promotion status ${JSON.stringify(status)} while required approvals are missing: ${formatAutoresearchSelfHostingEntries(missingApprovals)}.`,
+    );
+  }
+
+  const promotionRecordPath = resolveAutoresearchSelfHostingPromotionRecordPath(
+    artifacts.cwd,
+    artifacts.contract.promotion.promotionRecordPath,
+  );
+  const record: AutoresearchSelfHostingPromotionRecordV1 = {
+    type: AUTORESEARCH_SELF_HOSTING_PROMOTION_RECORD_KIND,
+    version: AUTORESEARCH_SELF_HOSTING_VERSION,
+    campaignId: artifacts.contract.campaignId,
+    approvedBy,
+    approvedAt:
+      status === "planned"
+        ? null
+        : (normalizeAutoresearchSelfHostingTimestamp(input.approvedAt, "approvedAt") ?? Date.now()),
+    previousControllerRef: artifacts.contract.controller.ref,
+    promotedCandidateRef:
+      normalizeOptionalAutoresearchSelfHostingString(
+        input.promotedCandidateRef,
+        "promotedCandidateRef",
+      ) ?? resolveGitCommit(candidate.worktreePath, "HEAD", "HEAD"),
+    evaluatorManifestHash: artifacts.evaluatorLock.manifestHash,
+    evidenceRefs: normalizeAutoresearchSelfHostingEvidenceRefs(input.evidenceRefs, "evidenceRefs"),
+    status,
+    rollbackControllerRef: artifacts.contract.promotion.rollbackControllerRef,
+    rollbackReason: null,
+    rolledBackAt: null,
+  };
+  validateAutoresearchSelfHostingPromotionRecordState(record, promotionRecordPath);
+  validateAutoresearchSelfHostingPromotionRecordPair(
+    artifacts.contract,
+    artifacts.evaluatorLock,
+    record,
+  );
+
+  if (input.apply) {
+    writeAutoresearchSelfHostingPromotionRecordFile(promotionRecordPath, record);
+  }
+
+  const promotionReady = status === "approved" || status === "rotated";
+  return {
+    action: "prepare_promotion_record",
+    mode: input.apply ? "apply" : "plan",
+    campaignId: artifacts.contract.campaignId,
+    executionModel: artifacts.contract.controller.executionModel,
+    controllerCwd: artifacts.contract.controller.controllerCwd,
+    candidateCwd: candidate.worktreePath,
+    promotionRecordPath,
+    scope,
+    classificationOutcome: input.classification.outcome,
+    requiredApprovals,
+    missingApprovals,
+    promotionReady,
+    record,
+    nextStep:
+      status === "planned"
+        ? `Promotion stays planned until external approvals are present: missing ${formatAutoresearchSelfHostingEntries(missingApprovals)}.`
+        : status === "approved"
+          ? "Promotion readiness is now explicit; controller rotation still remains an external act above the package runtime."
+          : status === "rotated"
+            ? "Controller rotation has been recorded; run post-promotion verification and record rollback explicitly if regressions appear."
+            : "Promotion record has been superseded; keep promotion authority external and avoid package-local self-promotion.",
+  };
+}
+
+export function recordAutoresearchSelfHostingRollback(
+  input: RecordAutoresearchSelfHostingRollbackInput,
+): RecordAutoresearchSelfHostingRollbackResult {
+  const artifacts = loadAutoresearchSelfHostingArtifacts(input.cwd);
+  const current = loadAutoresearchSelfHostingPromotionRecord(input.cwd);
+  if (current.status !== "rotated") {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Cannot record self-hosting rollback while promotion record status is ${JSON.stringify(current.status)}; only a rotated controller can be rolled back.`,
+    );
+  }
+
+  const promotionRecordPath = resolveAutoresearchSelfHostingPromotionRecordPath(
+    artifacts.cwd,
+    artifacts.contract.promotion.promotionRecordPath,
+  );
+  const record: AutoresearchSelfHostingPromotionRecordV1 = {
+    ...current,
+    evidenceRefs: uniqueSortedEntries([
+      ...current.evidenceRefs,
+      ...normalizeAutoresearchSelfHostingEvidenceRefs(input.evidenceRefs, "evidenceRefs"),
+    ]),
+    status: "rolled_back",
+    rollbackReason: readString(input.rollbackReason, "rollbackReason"),
+    rolledBackAt:
+      normalizeAutoresearchSelfHostingTimestamp(input.rolledBackAt, "rolledBackAt") ?? Date.now(),
+  };
+  validateAutoresearchSelfHostingPromotionRecordState(record, promotionRecordPath);
+
+  if (input.apply) {
+    writeAutoresearchSelfHostingPromotionRecordFile(promotionRecordPath, record);
+  }
+
+  return {
+    action: "record_promotion_rollback",
+    mode: input.apply ? "apply" : "plan",
+    campaignId: current.campaignId,
+    executionModel: artifacts.contract.controller.executionModel,
+    controllerCwd: artifacts.contract.controller.controllerCwd,
+    candidateCwd: artifacts.contract.candidate.worktreePath,
+    promotionRecordPath,
+    previousRecord: current,
+    record,
+    nextStep: `Rollback is now explicit; restore controller ${JSON.stringify(record.rollbackControllerRef)} above the package and rerun post-promotion verification against the restored controller.`,
+  };
+}
+
 function normalizeAutoresearchSelfHostingApplicabilitySuiteOutcomes(
   value: unknown,
 ): AutoresearchSelfHostingApplicabilitySuiteOutcome[] {
@@ -1535,6 +1859,142 @@ function computeAutoresearchSelfHostingMetricImprovementPercent(
     return favorableDelta > 0 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
   }
   return (favorableDelta / Math.abs(baseline)) * 100;
+}
+
+function assertAutoresearchSelfHostingPromotionClassification(
+  classification: AutoresearchSelfHostingApplicabilityClassification,
+  contract: AutoresearchSelfHostingContractV1,
+  candidateCwd: string,
+): void {
+  if (classification.campaignId !== contract.campaignId) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting applicability classification campaignId ${JSON.stringify(classification.campaignId)} does not match contract campaignId ${JSON.stringify(contract.campaignId)}.`,
+    );
+  }
+  if (
+    path.resolve(classification.controllerCwd) !== path.resolve(contract.controller.controllerCwd)
+  ) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting applicability classification controllerCwd ${JSON.stringify(classification.controllerCwd)} does not match contract controllerCwd ${JSON.stringify(contract.controller.controllerCwd)}.`,
+    );
+  }
+  if (path.resolve(classification.candidateCwd) !== path.resolve(candidateCwd)) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting applicability classification candidateCwd ${JSON.stringify(classification.candidateCwd)} does not match candidate worktree ${JSON.stringify(candidateCwd)}.`,
+    );
+  }
+  if (classification.outcome !== "default_promotion_candidate") {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting promotion record requires a default_promotion_candidate classification, got ${JSON.stringify(classification.outcome)}.`,
+    );
+  }
+  if (
+    classification.blockingReasons.length > 0 ||
+    classification.rejectReasons.length > 0 ||
+    classification.defaultPromotionBlockers.length > 0
+  ) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting promotion record cannot be prepared while applicability classification still reports blockers: ${formatAutoresearchSelfHostingEntries(classification.blockingReasons)}.`,
+    );
+  }
+}
+
+function validateAutoresearchSelfHostingPromotionRecordState(
+  record: AutoresearchSelfHostingPromotionRecordV1,
+  label: string,
+): void {
+  if ((record.rollbackReason === null) !== (record.rolledBackAt === null)) {
+    throw new AutoresearchSelfHostingValidationError(
+      `${label}:rollbackReason and rolledBackAt must either both be null or both be populated`,
+    );
+  }
+  if (record.status === "planned") {
+    if (record.approvedAt !== null) {
+      throw new AutoresearchSelfHostingValidationError(
+        `${label}:approvedAt must stay null while status is "planned"`,
+      );
+    }
+    if (record.rollbackReason !== null || record.rolledBackAt !== null) {
+      throw new AutoresearchSelfHostingValidationError(
+        `${label}:planned promotion record must not include rollback fields`,
+      );
+    }
+    return;
+  }
+  if (record.approvedBy.length === 0) {
+    throw new AutoresearchSelfHostingValidationError(
+      `${label}:approvedBy must contain at least one approval when status is ${JSON.stringify(record.status)}`,
+    );
+  }
+  if (record.approvedAt === null) {
+    throw new AutoresearchSelfHostingValidationError(
+      `${label}:approvedAt must be populated when status is ${JSON.stringify(record.status)}`,
+    );
+  }
+  if (record.promotedCandidateRef === null) {
+    throw new AutoresearchSelfHostingValidationError(
+      `${label}:promotedCandidateRef must be populated when status is ${JSON.stringify(record.status)}`,
+    );
+  }
+  if (record.status === "rolled_back") {
+    if (record.rollbackReason === null || record.rolledBackAt === null) {
+      throw new AutoresearchSelfHostingValidationError(
+        `${label}:rolled_back promotion record must include rollbackReason and rolledBackAt`,
+      );
+    }
+    return;
+  }
+  if (record.rollbackReason !== null || record.rolledBackAt !== null) {
+    throw new AutoresearchSelfHostingValidationError(
+      `${label}:${record.status} promotion record must not include rollback fields`,
+    );
+  }
+}
+
+function normalizeAutoresearchSelfHostingPromotionApprovals(
+  approvals: readonly AutoresearchSelfHostingPromotionApproval[] | undefined,
+  label: string,
+): AutoresearchSelfHostingPromotionApproval[] {
+  if (!approvals) {
+    return [];
+  }
+  const normalized = approvals.map((entry, index) =>
+    readLiteralUnion(entry, `${label}[${index}]`, PROMOTION_APPROVALS),
+  );
+  ensureUnique(normalized, label);
+  return normalized;
+}
+
+function normalizeAutoresearchSelfHostingEvidenceRefs(
+  evidenceRefs: readonly string[] | undefined,
+  label: string,
+): string[] {
+  if (!evidenceRefs) {
+    return [];
+  }
+  const normalized = evidenceRefs.map((entry, index) => readString(entry, `${label}[${index}]`));
+  ensureUnique(normalized, label);
+  return normalized;
+}
+
+function normalizeAutoresearchSelfHostingTimestamp(
+  value: number | undefined,
+  label: string,
+): number | null {
+  if (value === undefined) {
+    return null;
+  }
+  return readNonNegativeNumber(value, label);
+}
+
+function normalizeOptionalAutoresearchSelfHostingString(
+  value: string | undefined,
+  label: string,
+): string | null {
+  if (value === undefined) {
+    return null;
+  }
+  return readString(value, label);
 }
 
 function describeAutoresearchSelfHostingScopeProblems(
@@ -1739,6 +2199,14 @@ function isPathWithinRoot(rootPath: string, candidatePath: string): boolean {
 
 function hashFileSha256(filePath: string): string {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
+}
+
+function writeAutoresearchSelfHostingPromotionRecordFile(
+  filePath: string,
+  record: AutoresearchSelfHostingPromotionRecordV1,
+): void {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
 }
 
 function isNodeLikeEntrypoint(entrypointPath: string): boolean {
@@ -2124,6 +2592,13 @@ function readString(value: unknown, label: string): string {
   return value.trim();
 }
 
+function readNullableString(value: unknown, label: string): string | null {
+  if (value === null) {
+    return null;
+  }
+  return readString(value, label);
+}
+
 function readStringArray(value: unknown, label: string): string[] {
   if (!Array.isArray(value)) {
     throw new AutoresearchSelfHostingValidationError(`${label} must be an array of strings`);
@@ -2172,6 +2647,13 @@ function readNonNegativeNumber(value: unknown, label: string): number {
     throw new AutoresearchSelfHostingValidationError(`${label} must be a non-negative number`);
   }
   return value;
+}
+
+function readNullableNonNegativeNumber(value: unknown, label: string): number | null {
+  if (value === null) {
+    return null;
+  }
+  return readNonNegativeNumber(value, label);
 }
 
 function readLiteral<T extends string | number>(value: unknown, label: string, literal: T): T {

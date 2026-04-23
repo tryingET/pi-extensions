@@ -88,11 +88,15 @@ Current proof status:
 
 Required proof:
 - promotion readiness cannot be reported without approvals and rollback target
-- rollback updates the record truthfully and preserves the controller-restoration path
+- rollback updates the record truthfully and preserves the metadata needed for an external controller-restoration step
 
 Evidence shape:
 - promotion-record tests
 - rollback-record tests
+
+Current proof status:
+- landed locally via promotion-record validation/load helpers plus plan/apply promotion-readiness and rollback-record helpers in `packages/pi-autoresearch/src/core/selfHosting.ts`
+- current coverage proves promotion stays `planned` until required approvals exist, controller rotation cannot be reported without those approvals, and rollback rewrites the record truthfully while preserving the metadata for an external controller-restoration step via `packages/pi-autoresearch/tests/self-hosting.test.ts`
 
 ## Rollout posture
 
