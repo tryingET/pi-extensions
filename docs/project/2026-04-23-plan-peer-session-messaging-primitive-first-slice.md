@@ -33,8 +33,8 @@ Interpretation rule:
 
 This slice must land in a **new separate narrow package** under `packages/`.
 
-Exact package/folder naming is an execution-scoped choice for the first scaffold commit.
-It is **not** treated as architecture-significant as long as all of the following remain true:
+The first scaffold commit now uses `packages/pi-peer-messaging`.
+That name remains an execution-scoped choice rather than an architecture-significant commitment as long as all of the following remain true:
 
 - the package remains separate from `pi-society-orchestrator`
 - the package remains separate from `pi-autonomous-session-control`
@@ -81,7 +81,8 @@ Interpretation rule:
   - package contract tests
   - docs proving the stable core vs adapter boundary
 - current execution status:
-  - not started; this plan is the first bounded post-ADR execution memory
+  - implemented at `packages/pi-peer-messaging` as a private/source-first scaffold with contract exports, boundary metadata, and package contract tests
+  - publish/release proofing is intentionally deferred to PM-5 so PM-1 can stay contract-first
 
 ### PM-2 — same-machine broker/client runtime + presence
 

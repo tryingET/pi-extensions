@@ -82,6 +82,11 @@ They are never canonical operational state, evidence, or legal effect by themsel
 
 If a consumer later wants to turn a message into durable workflow meaning, that consumer must do so through its own owned contract and the appropriate canonical authority surface.
 
+### Current implementation note
+
+The first bounded scaffold for this decision currently lives at `packages/pi-peer-messaging`.
+That package is intentionally private/source-first in PM-1 so the stable core contract can land before publish/release proofing, broker/runtime behavior, or the `intercom`-compatible adapter.
+
 ## Context
 
 The owned stack already has:
