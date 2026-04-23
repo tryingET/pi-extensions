@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "7f0b7d9c0b2fab7f021b26e2ce51e89b47a92b1b"
+created_at: "2026-04-23T12:15:21Z"
+intent: "Refine the rationale sections in the dual-packet ADRs for peer messaging and orchestrator workflow composition."
+files:
+  - "docs/decisions/peer-session-messaging-primitive.md"
+  - "packages/pi-society-orchestrator/docs/adr/2026-04-22-chain-parallel-worktree-ux-over-asc.md"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 15
+  total: 15
+  rationale: "Keep the ADR rationale refinements separate from the initial packet-creation commit."
