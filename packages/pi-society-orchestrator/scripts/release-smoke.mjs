@@ -675,6 +675,8 @@ try {
   const loopExecute = harness.tools.get("loop_execute");
   const workflowExecute = harness.tools.get("workflow_execute");
   const agentsTeam = harness.commands.get("agents-team");
+  const workflowCommand = harness.commands.get("workflow");
+  const workflowsCommand = harness.commands.get("workflows");
   const runtimeStatus = harness.commands.get("runtime-status");
   const sessionStart = harness.events.get("session_start");
 
@@ -682,6 +684,8 @@ try {
   assert.ok(loopExecute, "loop_execute not registered");
   assert.ok(workflowExecute, "workflow_execute not registered");
   assert.ok(agentsTeam, "agents-team command not registered");
+  assert.ok(workflowCommand, "workflow command not registered");
+  assert.ok(workflowsCommand, "workflows command not registered");
   assert.ok(runtimeStatus, "runtime-status command not registered");
   assert.ok(sessionStart, "session_start handler not registered");
 
@@ -773,6 +777,49 @@ try {
       notify() {},
     },
   });
+
+  const workflowNotifications = [];
+  let workflowEditorText = "";
+  await workflowCommand.handler("Inspect installed workflow wrapper behavior", {
+    hasUI: true,
+    cwd: tempRoot,
+    ui: {
+      setEditorText(text) {
+        workflowEditorText = text;
+      },
+      notify(message, level) {
+        workflowNotifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(workflowEditorText, /^workflow_execute\(/);
+  assert.match(workflowEditorText, /Inspect installed workflow wrapper behavior/);
+  assert.deepEqual(workflowNotifications, [
+    {
+      message: "Seeded workflow_execute chain for: Inspect installed workflow wrapper behavior",
+      level: "info",
+    },
+  ]);
+
+  const workflowGuideEditors = [];
+  await workflowsCommand.handler("", {
+    hasUI: true,
+    cwd: tempRoot,
+    ui: {
+      async editor(title, text) {
+        workflowGuideEditors.push({ title, text });
+      },
+    },
+  });
+
+  assert.equal(workflowGuideEditors.length, 1);
+  assert.equal(workflowGuideEditors[0]?.title, "Workflow wrappers");
+  assert.match(
+    workflowGuideEditors[0]?.text || "",
+    /Thin command adapters over `workflow_execute`/,
+  );
+  console.log("installed workflow wrapper commands smoke: ok");
 
   assert.equal(runtimeStatusEditors.length, 1);
   assert.equal(runtimeStatusEditors[0]?.title, "Runtime Status");

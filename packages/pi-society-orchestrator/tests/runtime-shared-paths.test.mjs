@@ -1764,6 +1764,80 @@ test("agents-team command stores team selection per session key", async () => {
   }
 });
 
+test("workflow command seeds a workflow_execute call into the editor", async () => {
+  const commands = new Map();
+
+  extension({
+    registerTool() {},
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+    on() {},
+  });
+
+  const command = commands.get("workflow");
+  assert.ok(command, "expected workflow command to register");
+
+  const notifications = [];
+  let editorText = "";
+  await command.handler("Inspect the current repo for workflow entry points", {
+    hasUI: true,
+    cwd: process.cwd(),
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+      notify(message, level) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(editorText, /^workflow_execute\(/);
+  assert.match(editorText, /"mode": "chain"/);
+  assert.match(editorText, /Inspect the current repo for workflow entry points/);
+  assert.match(editorText, /Review the findings from:/);
+  assert.deepEqual(notifications, [
+    {
+      message:
+        "Seeded workflow_execute chain for: Inspect the current repo for workflow entry points",
+      level: "info",
+    },
+  ]);
+});
+
+test("workflows command shows wrapper usage and examples", async () => {
+  const commands = new Map();
+
+  extension({
+    registerTool() {},
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+    on() {},
+  });
+
+  const command = commands.get("workflows");
+  assert.ok(command, "expected workflows command to register");
+
+  const editors = [];
+  await command.handler("", {
+    hasUI: true,
+    cwd: process.cwd(),
+    ui: {
+      async editor(title, text) {
+        editors.push({ title, text });
+      },
+    },
+  });
+
+  assert.equal(editors.length, 1);
+  assert.equal(editors[0]?.title, "Workflow wrappers");
+  assert.match(editors[0]?.text || "", /Thin command adapters over `workflow_execute`/);
+  assert.match(editors[0]?.text || "", /\/workflow \[objective\]/);
+  assert.match(editors[0]?.text || "", /reserve worktree mode for eligible mutation cases/);
+});
+
 test("validateLoopAgentsForTeam surfaces incompatible loop phases before execution", () => {
   const failures = validateLoopAgentsForTeam({
     phases: BUILT_IN_PLUGINS.strategic.phases,

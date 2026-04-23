@@ -17,6 +17,8 @@
  *   /runtime-boundary-telemetry    — Inspect lower-plane boundary telemetry
  *   /ontology <concept>            — Query ontology
  *   /evidence                      — Show recent evidence via ak evidence search
+ *   /workflow [objective]          — Seed a workflow_execute call in the editor
+ *   /workflows                     — Show workflow wrapper usage and examples
  *   /loops                         — List available loop types
  *   /loop <type> <objective>       — Execute a loop
  *
@@ -406,6 +408,66 @@ function createAutoresearchManifestCampaignToolResult(
     content: [{ type: "text" as const, text }],
     details,
   };
+}
+
+function buildWorkflowExecuteInvocation(objective?: string): string {
+  const trimmedObjective = objective?.trim();
+  const request = trimmedObjective
+    ? {
+        mode: "chain",
+        steps: [
+          {
+            kind: "step",
+            agent: "scout",
+            objective: trimmedObjective,
+          },
+          {
+            kind: "step",
+            agent: "reviewer",
+            objective: `Review the findings from: ${trimmedObjective}`,
+          },
+        ],
+      }
+    : {
+        mode: "chain",
+        steps: [
+          {
+            kind: "step",
+            agent: "scout",
+            objective: "Inspect the current repo and identify the relevant workflow entry points.",
+          },
+          {
+            kind: "step",
+            agent: "reviewer",
+            objective:
+              "Review the discovered workflow surface and summarize the main runtime risks.",
+          },
+        ],
+      };
+
+  return `workflow_execute(${JSON.stringify({ request }, null, 2)})`;
+}
+
+function formatWorkflowWrapperGuide(): string {
+  return [
+    "# Workflow wrappers",
+    "",
+    "Thin command adapters over `workflow_execute`:",
+    "- `/workflow [objective]` seeds a starter `workflow_execute(...)` call in the editor",
+    "- `/workflows` shows this short guide",
+    "",
+    "## Recommended first use",
+    "",
+    "```js",
+    buildWorkflowExecuteInvocation(),
+    "```",
+    "",
+    "## Notes",
+    "- prefer chain for dependent work",
+    "- use parallel only for independent tasks",
+    "- reserve worktree mode for eligible mutation cases",
+    "- wrappers are adapters only; `workflow_execute` remains the core surface",
+  ].join("\n");
 }
 
 // ============================================================================
@@ -1542,6 +1604,30 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     },
   });
 
+  pi.registerCommand("workflow", {
+    description: "Seed a workflow_execute call in the editor: /workflow [objective]",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const objective = (args || "").trim();
+      ctx.ui.setEditorText(buildWorkflowExecuteInvocation(objective || undefined));
+      ctx.ui.notify(
+        objective
+          ? `Seeded workflow_execute chain for: ${objective}`
+          : "Inserted starter workflow_execute template.",
+        "info",
+      );
+    },
+  });
+
+  pi.registerCommand("workflows", {
+    description: "Show workflow wrapper usage and examples",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+      await ctx.ui.editor("Workflow wrappers", formatWorkflowWrapperGuide());
+    },
+  });
+
   pi.registerCommand("ontology", {
     description: "Search ontology concepts",
     handler: async (args, ctx) => {
@@ -1775,6 +1861,8 @@ and failureKind truth, and produces a structured aggregated output with workflow
         `/runtime-boundary-telemetry Inspect lower-plane telemetry\n` +
         `/evidence           Show evidence\n` +
         `/ontology <query>   Search ontology\n` +
+        `/workflow [obj]     Seed workflow_execute call\n` +
+        `/workflows          Show workflow wrapper usage\n` +
         `/loops              List loop types\n` +
         `/loop <type> <obj>  Execute loop`,
       isBoundaryFailure(toolsResult) ? "warning" : "info",

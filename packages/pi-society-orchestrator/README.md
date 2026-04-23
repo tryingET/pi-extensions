@@ -129,6 +129,8 @@ Primary tools and commands exposed by the imported extension include:
 - `/runtime-boundary-telemetry` (editor-backed inspector for session-local lower-plane command telemetry across sqlite3/ak/rocs and other orchestrator boundary calls)
 - `/evidence` (recent evidence preview via `ak evidence search`)
 - `/ontology <query>`
+- `/workflow [objective]` (seed a thin `workflow_execute(...)` wrapper call into the editor)
+- `/workflows` (show workflow wrapper usage/examples)
 - `/loops`
 - `/loop <type> <objective>`
 
