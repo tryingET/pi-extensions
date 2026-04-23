@@ -153,12 +153,32 @@ Interpretation rule:
 
 ## AK task materialization status
 
-No bounded AK task family is materialized yet for this packet.
-That is intentional.
+The bounded AK task family for this first slice is now materialized.
+
+Current task family:
+
+- `#1817` — `[UMBRELLA] Implement first bounded workflow-composition slice over ASC in pi-society-orchestrator`
+- `#1813` — `WF-1 — define workflow core contract for chain/parallel over ASC in pi-society-orchestrator`
+- `#1814` — `WF-2 — implement thin workflow adapter over ASC public seam in pi-society-orchestrator`
+- `#1815` — `WF-3 — implement truthful chain/parallel aggregation over preserved ASC step truth`
+- `#1816` — `WF-4 — implement bounded worktree coordination for eligible parallel groups`
+
+Dependency shape now encoded in AK:
+
+- umbrella `#1817` depends on `#1813-#1816`
+- `#1814` depends on `#1813`
+- `#1815` depends on `#1814`
+- `#1816` depends on `#1815`
+
+Decision/runtime posture:
+
+- `decision:20` remains the canonical architecture anchor for this packet
+- this task family was materialized **after** `decision:20` was already advanced to `unblocked`
+- the current AK surface does not provide a clean late-link path for new `post_adr_execution` tasks after that point without reopening reevaluation, so the task family remains repo-task execution truth while `decision:20` remains the canonical decision-runtime truth
 
 Interpretation rule:
-- this plan is the post-ADR execution memory
-- if implementation proceeds, materialize a bounded task family from this plan rather than using the plan itself as a shadow task queue
+- this plan is now both execution memory and the narrative companion to a live AK task family
+- future executors should use the AK task family as the executable leaf queue rather than re-deriving work from this document alone
 
 ## Expected follow-on after this plan lands
 

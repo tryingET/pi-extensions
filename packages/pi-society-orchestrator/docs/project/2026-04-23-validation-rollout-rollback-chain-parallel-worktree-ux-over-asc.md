@@ -147,12 +147,24 @@ Implementation-phase tests should then prove the architecture invariants named a
 
 ## AK execution alignment
 
-`decision:20` is the canonical decision-runtime home for this packet.
-No implementation task family is linked yet.
+`decision:20` remains the canonical decision-runtime home for this packet.
+A bounded repo-local execution family is now materialized in AK:
+
+- `#1817` umbrella
+- `#1813` WF-1
+- `#1814` WF-2
+- `#1815` WF-3
+- `#1816` WF-4
+
+Current truth split:
+
+- `decision:20` owns the accepted architecture and legality chain
+- tasks `#1813-#1817` now own the executable leaf queue for the first slice
+- because the task family was created after `decision:20` was already `unblocked`, the current AK surface does not provide a clean late-link path for new `post_adr_execution` tasks without reopening reevaluation, so the tasks remain unlinked while the decision remains the canonical architecture anchor
 
 Interpretation rule:
-- this validation note establishes the rollout/rollback contract first
-- later implementation should materialize bounded AK tasks rather than treating this document as execution authority
+- this validation note no longer waits for task materialization
+- future implementation should use the bounded AK task family rather than treating this document as execution authority
 
 ## Bottom line
 
