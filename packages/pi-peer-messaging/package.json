@@ -1,7 +1,6 @@
 {
   "name": "@tryinget/pi-peer-messaging",
   "version": "0.1.0",
-  "private": true,
   "description": "Stable core contract for same-machine peer-session messaging in pi",
   "type": "module",
   "main": "./index.ts",
@@ -25,20 +24,30 @@
     "peer-session",
     "same-machine"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "fix": "bash ../../scripts/package-quality-gate.sh fix . --mode simple-package",
-    "lint": "bash ../../scripts/package-quality-gate.sh lint . --mode simple-package",
-    "typecheck": "bash ../../scripts/package-quality-gate.sh typecheck . --mode simple-package",
-    "test": "bash ../../scripts/package-quality-gate.sh test . --mode simple-package",
-    "quality:pre-commit": "bash ../../scripts/package-quality-gate.sh pre-commit . --mode simple-package",
-    "quality:pre-push": "bash ../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
-    "quality:ci": "bash ../../scripts/package-quality-gate.sh ci . --mode simple-package",
-    "check": "npm run quality:ci"
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "npm run quality:ci",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --docs docs --json",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
   },
   "files": [
+    "docs",
     "extensions",
     "index.ts",
     "src"
@@ -60,5 +69,9 @@
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "tsx": "^4.20.5",
     "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*"
   }
 }

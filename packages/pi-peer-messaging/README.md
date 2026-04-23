@@ -2,26 +2,31 @@
 
 Stable core contract for the accepted same-machine peer-session messaging primitive in `pi-extensions`.
 
-## Current posture
+- Workspace path: `packages/pi-peer-messaging`
+- Release component key: `pi-peer-messaging`
+- First public adapter: `intercom`
 
-PM-1 established the stable core contract.
-PM-2 added the deterministic same-machine broker/client presence runtime.
-PM-3 landed fail-closed direct `send` / correlated `ask` semantics.
-PM-4 now adds one thin `intercom`-compatible tool adapter over that stable core while keeping the package **private/source-first** until PM-5 handles publish/release proofing.
+## Package posture
 
-Current posture:
+This package now lands the full first bounded slice:
 
-- the package is separate from `pi-society-orchestrator`
-- the package is separate from `pi-autonomous-session-control`
-- same-machine runtime, path, framing, spawn, and presence behavior live here
-- fail-closed direct `send` / correlated `ask` semantics now live here
-- `send` fails closed as a `DeliveryResult`, while `ask` fails closed by rejecting on delivery failure, timeout, disconnect, or ambiguous reply correlation
-- one thin `intercom`-compatible tool adapter now ships above the stable core
-- overlay/picker UX is still intentionally deferred
+- PM-1 — stable core contract
+- PM-2 — deterministic same-machine broker/client presence runtime
+- PM-3 — fail-closed direct `send` / correlated `ask` semantics
+- PM-4 — thin `intercom`-compatible tool adapter over the stable core
+- PM-5 — package docs, validation surface, and release-proofing
 
-## What this package owns right now
+The package stays intentionally narrow:
 
-The package now makes the stable core plus the PM-2 / PM-4 runtime and adapter surface explicit:
+- separate from `pi-society-orchestrator`
+- separate from `pi-autonomous-session-control`
+- same-machine only
+- communication only, never canonical authority by convenience
+- no room/swarm/network semantics in this first slice
+
+## Stable core first
+
+The stable package contract is the communication primitive exported from `index.ts`:
 
 - `PeerPresence`
 - `PeerAttachment`
@@ -32,36 +37,167 @@ The package now makes the stable core plus the PM-2 / PM-4 runtime and adapter s
 - `DEFAULT_ASK_TIMEOUT_MS`
 - `PEER_ATTACHMENT_TYPES`
 - `PEER_MESSAGING_BOUNDARY`
-- runtime-shape assertion helpers
-- presence helpers such as runtime-only fallback alias resolution
-- local path/framing helpers for same-machine IPC
-- `createPeerMessagingRuntime()` for broker spawn/reconnect, local presence registration/listing/status, direct `send`, direct `ask`, and inbound message subscription helpers
-- `createStubPeerMessagingRuntime()` for contract-first development where the live runtime is not needed
-- `extensions/intercom.ts` for the thin `intercom`-compatible tool adapter over that core
+- `createPeerMessagingRuntime()`
+- `createStubPeerMessagingRuntime()`
 
-## Boundary guardrails
+Decision-level guardrails kept visible by the package:
 
-The exported contract keeps these decision-level rules visible:
-
-- same-machine only
-- communication only, never canonical authority by convenience
 - duplicate visible names fail closed
-- session-id targeting wins over address-label targeting
-- `ask` keeps a bounded documented default timeout and explicit reply correlation
-- runtime fallback aliases are addressability-only and non-persistent
+- exact session id targeting wins over name-like targeting
+- `ask` uses explicit reply correlation
+- `ask` keeps a bounded documented default timeout
 - one in-flight `ask` per local session in the first stable contract
-- the first stable adapter remains an `intercom`-compatible concern above this core, not the authority model itself
+- runtime fallback aliases are addressability-only and non-persistent
 
-## Still not in PM-4
+## Intercom-compatible adapter second
 
-This package does **not** yet implement:
+The first public adapter is the package-local `intercom` tool surface exposed by:
 
-- overlay/picker/dashboard UX beyond the thin tool adapter
-- orchestrator or ASC policy helpers
-- any networked or cross-machine behavior
+- `extensions/intercom.ts`
+- `src/intercom-adapter.ts`
 
-## Validation
+It is useful on purpose, but it is still only an adapter.
+It does **not** redefine the authority model.
+
+Supported actions:
+
+- `intercom({ action: "list" })`
+- `intercom({ action: "send", ... })`
+- `intercom({ action: "ask", ... })`
+- `intercom({ action: "reply", ... })`
+- `intercom({ action: "pending" })`
+- `intercom({ action: "status" })`
+
+## Install
+
+Local package install during development:
 
 ```bash
-npm run check
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-peer-messaging
 ```
+
+Published-package install once released:
+
+```bash
+pi install npm:@tryinget/pi-peer-messaging
+```
+
+Then in Pi:
+
+1. run `/reload`
+2. verify `intercom({ action: "status" })`
+3. verify a real `send` / `ask` flow across two sessions
+
+## Operator examples
+
+### Direct send
+
+```ts
+intercom({
+  action: "send",
+  to: "worker",
+  message: "Please review src/runtime.ts before I commit.",
+});
+```
+
+### Direct ask
+
+```ts
+intercom({
+  action: "ask",
+  to: "worker",
+  message: "Should I keep the adapter here or move it into a higher-level package?",
+});
+```
+
+### Duplicate-name disambiguation
+
+When multiple peers share the same visible name, the adapter fails closed and points you at exact ids:
+
+```ts
+intercom({ action: "send", to: "worker", message: "Need a decision." })
+// → Message to "worker" was not delivered: Multiple peers matched "worker". Use the exact session id instead.
+//   Matching peers: worker (worker-s) → worker-session-aaaaaaaa; worker (worker-s) → worker-session-bbbbbbbb
+```
+
+Truthful recovery path:
+
+1. `intercom({ action: "list" })`
+2. choose the exact session id
+3. retry with that exact id
+
+```ts
+intercom({
+  action: "send",
+  to: "worker-session-aaaaaaaa",
+  message: "Need a decision.",
+});
+```
+
+## Runtime dependencies
+
+This package expects Pi host runtime APIs and declares them as peer dependencies:
+
+- `@mariozechner/pi-coding-agent`
+- `@mariozechner/pi-ai`
+
+## Package checks
+
+From the package directory:
+
+```bash
+npm install
+npm run docs:list
+npm run check
+npm run release:check:quick
+```
+
+Full tarball + installed-package smoke path:
+
+```bash
+npm run release:check
+```
+
+From the monorepo root:
+
+```bash
+bash ./scripts/package-quality-gate.sh ci packages/pi-peer-messaging
+npm run release:contracts:validate
+```
+
+## Docs discovery
+
+```bash
+npm run docs:list
+npm run docs:list:workspace
+npm run docs:list:json
+```
+
+Package-local contract note:
+
+- [docs/project/intercom-adapter-contract.md](docs/project/intercom-adapter-contract.md)
+
+## Release metadata
+
+This package now ships a publishable component surface.
+The bounded release proof comes from:
+
+- `files[]` in `package.json`
+- `scripts/release-check.sh`
+- `scripts/release-smoke.sh`
+- `x-pi-template.workspacePath`
+- `x-pi-template.releaseComponent`
+- `x-pi-template.releaseConfigMode`
+
+Monorepo release automation stays root-owned.
+This package only owns truthful package-local metadata and proof surfaces.
+
+## Non-goals
+
+This package does **not** approve:
+
+- orchestration policy inside the transport primitive
+- execution/runtime ownership changes
+- dashboard or room semantics
+- cross-machine transport
+- treating message delivery or reply receipt as canonical completion

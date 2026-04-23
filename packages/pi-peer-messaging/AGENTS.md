@@ -20,4 +20,6 @@ PM-4 now lands one thin `intercom`-compatible tool adapter above that core while
 - Keep the `intercom`-compatible surface as an adapter concern above the core contract.
 
 ## Validation
+- `npm run docs:list`
 - `npm run check`
+- `npm run release:check:quick`
