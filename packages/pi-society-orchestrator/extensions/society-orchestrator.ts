@@ -34,6 +34,7 @@
  *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions
  *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
  *   loop_execute                   — Execute structured loops
+ *   workflow_execute               — Execute chain/parallel workflow compositions
  */
 
 import * as fs from "node:fs";
@@ -93,6 +94,11 @@ import {
 } from "../src/runtime/status-semantics.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore, type TeamScopedContext } from "../src/runtime/team-state.ts";
+import { WORKFLOW_AGENT_NAMES } from "../src/runtime/workflow.ts";
+import {
+  createWorkflowExecutor,
+  WorkflowExecutionError,
+} from "../src/runtime/workflow-execution.ts";
 
 // ============================================================================
 // CONFIGURATION
@@ -1559,6 +1565,175 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       }
 
       await ctx.ui.editor("Ontology", formatOntologyConcepts(results.value));
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: workflow_execute
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "workflow_execute",
+    label: "Execute Workflow",
+    description: `Execute a bounded chain or parallel workflow composition over the ASC-backed subagent executor.
+
+Supports:
+- chain: sequential step execution; halts on first failure
+- parallel: concurrent step execution within parallel groups
+- worktree isolation: optional git worktree coordination for eligible parallel groups
+
+Each step dispatches a named agent (scout, builder, reviewer, researcher) with a cognitive tool.
+The workflow executor validates the request against the active team, preserves step-level status
+and failureKind truth, and produces a structured aggregated output with workflow/group/task summaries.`,
+    promptSnippet:
+      "Execute a chain or parallel workflow composition over the orchestrator's ASC-backed subagent seam.",
+    promptGuidelines: [
+      "Use workflow_execute when the task decomposes into a structured sequence of agent steps rather than a single cognitive dispatch.",
+      "Prefer chain mode for dependent steps; use parallel groups for independent work that can run concurrently.",
+      "Set worktree: true on parallel groups only when steps may mutate files and git isolation is required.",
+    ],
+    parameters: Type.Object({
+      request: Type.Object({
+        mode: Type.Union([Type.Literal("chain"), Type.Literal("parallel")], {
+          description:
+            "Workflow mode: chain (sequential, halt on failure) or parallel (concurrent within groups)",
+        }),
+        cwd: Type.Optional(Type.String({ description: "Shared working directory for all steps" })),
+        steps: Type.Array(
+          Type.Union([
+            Type.Object({
+              kind: Type.Literal("step"),
+              agent: Type.Union(WORKFLOW_AGENT_NAMES.map((name) => Type.Literal(name))),
+              objective: Type.String({ description: "What this step should accomplish" }),
+              cwd: Type.Optional(Type.String({ description: "Step-specific cwd override" })),
+            }),
+            Type.Object({
+              kind: Type.Literal("parallel"),
+              concurrency: Type.Optional(Type.Number({ description: "Max concurrent tasks" })),
+              worktree: Type.Optional(Type.Boolean({ description: "Use git worktree isolation" })),
+              tasks: Type.Array(
+                Type.Object({
+                  kind: Type.Literal("step"),
+                  agent: Type.Union(WORKFLOW_AGENT_NAMES.map((name) => Type.Literal(name))),
+                  objective: Type.String({ description: "What this task should accomplish" }),
+                  cwd: Type.Optional(Type.String({ description: "Task-specific cwd override" })),
+                }),
+              ),
+            }),
+          ]),
+        ),
+      }),
+    }),
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const { request } = params as { request: unknown };
+      const activeTeam = sessionTeams.getTeam(ctx);
+      const model = ctx.model
+        ? `${ctx.model.provider}/${ctx.model.id}`
+        : "openrouter/google/gemini-2.5-flash-preview";
+
+      // Load cognitive tool for workflow context
+      const toolResult = await getCognitiveToolByName("controlled", { cwd: ctx.cwd }, signal);
+      const cognitiveToolContent =
+        toolResult && !isBoundaryFailure(toolResult) && toolResult.value
+          ? toolResult.value.content
+          : "FRAMEWORK: workflow execution";
+
+      const workflowExecutor = createWorkflowExecutor({
+        sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "workflows"),
+      });
+
+      try {
+        const result = await workflowExecutor.execute({
+          request,
+          activeTeam,
+          model,
+          cwd: ctx.cwd,
+          cognitiveToolContent,
+          signal,
+        });
+
+        const statusIcon = result.status === "done" ? "✓" : "✗";
+        const truncatedOutput =
+          result.aggregatedOutput.length > 8000
+            ? `${result.aggregatedOutput.slice(0, 8000)}\n\n... [truncated]`
+            : result.aggregatedOutput;
+
+        const summary = `${statusIcon} Workflow (${result.mode}) — ${result.status} — ${result.steps.length} step(s) executed`;
+
+        return {
+          content: [{ type: "text" as const, text: `${summary}\n\n${truncatedOutput}` }],
+          details: {
+            ok: result.status === "done",
+            mode: result.mode,
+            status: result.status,
+            stepCount: result.steps.length,
+            stepStatuses: result.steps.map((step) => ({
+              index: step.index,
+              agent: step.agent,
+              status: step.status,
+              failureKind: step.failureKind || null,
+            })),
+            worktreeSummary: result.worktreeSummary || null,
+          },
+        };
+      } catch (error) {
+        if (error instanceof WorkflowExecutionError) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Workflow execution failed: ${error.message}${error.issues ? `\nIssues: ${error.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ")}` : ""}`,
+              },
+            ],
+            details: {
+              ok: false,
+              errorCode: error.code,
+              issues:
+                error.issues?.map((issue) => ({
+                  path: issue.path,
+                  code: issue.code,
+                  message: issue.message,
+                })) || [],
+            },
+          };
+        }
+
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Workflow execution failed: ${message}` }],
+          details: { ok: false, error: message },
+        };
+      }
+    },
+    renderCall(args, theme) {
+      const a = args as { request?: { mode?: string; steps?: unknown[] } };
+      const mode = a.request?.mode || "?";
+      const stepCount = a.request?.steps?.length ?? 0;
+      return new Text(
+        theme.fg("toolTitle", theme.bold("workflow_execute ")) +
+          theme.fg("accent", mode) +
+          theme.fg("dim", ` — ${stepCount} node(s)`),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, theme) {
+      const details = result.details as
+        | { ok?: boolean; mode?: string; status?: string; stepCount?: number }
+        | undefined;
+      if (!details) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text.slice(0, 200) : "", 0, 0);
+      }
+
+      const icon = details.ok ? "✓" : "✗";
+      const color = details.ok ? "success" : "error";
+      return new Text(
+        theme.fg(color, `${icon} ${details.mode} workflow`) +
+          theme.fg("dim", ` — ${details.status} — ${details.stepCount} step(s)`),
+        0,
+        0,
+      );
     },
   });
 
