@@ -593,6 +593,7 @@ test("rewind runtime projects bounded recovery milestones into Replay Fabric whe
       assert.ok(
         replayFabric.requests.every((request) => request.sessionId === "session-projection"),
       );
+      assert.ok(replayFabric.requests.every((request) => request.repoPath === gitHarness.repoRoot));
       assert.ok(replayFabric.requests.every((request) => typeof request.artifactRef === "string"));
 
       for (const request of replayFabric.requests) {

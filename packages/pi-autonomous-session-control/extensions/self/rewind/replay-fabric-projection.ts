@@ -163,6 +163,7 @@ export async function projectRecoveryMilestoneIfConfigured(
     restoreMode: input.restoreMode,
     correlationId: buildRewindCorrelationId(input.sessionId),
     status: input.status,
+    repoPath: repoRoot,
     artifactRef,
     metadata: {
       guidanceOnly: true,
