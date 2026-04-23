@@ -37,5 +37,6 @@ export {
 export type {
   CreatePeerMessagingRuntimeOptions,
   ManagedPeerMessagingRuntime,
+  PeerMessageListener,
 } from "./src/runtime.ts";
 export { createPeerMessagingRuntime } from "./src/runtime.ts";

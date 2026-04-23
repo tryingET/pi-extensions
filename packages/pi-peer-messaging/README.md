@@ -5,18 +5,21 @@ Stable core contract for the accepted same-machine peer-session messaging primit
 ## Current posture
 
 PM-1 established the stable core contract.
-PM-2 now adds the deterministic same-machine broker/client presence runtime while keeping the package **private/source-first** until PM-5 handles publish/release proofing.
+PM-2 added the deterministic same-machine broker/client presence runtime.
+PM-3 now lands fail-closed direct `send` / correlated `ask` semantics while keeping the package **private/source-first** until PM-5 handles publish/release proofing.
 
 Current posture:
 
 - the package is separate from `pi-society-orchestrator`
 - the package is separate from `pi-autonomous-session-control`
-- same-machine runtime, path, framing, spawn, and presence behavior now live here
-- direct `send` / correlated `ask` semantics and the `intercom`-compatible adapter are still deferred to follow-on tasks
+- same-machine runtime, path, framing, spawn, and presence behavior live here
+- fail-closed direct `send` / correlated `ask` semantics now live here
+- `send` fails closed as a `DeliveryResult`, while `ask` fails closed by rejecting on delivery failure, timeout, disconnect, or ambiguous reply correlation
+- the `intercom`-compatible adapter is still deferred to a follow-on task
 
 ## What this package owns right now
 
-The package now makes both the stable core and PM-2 runtime surface explicit:
+The package now makes the stable core plus the PM-2 / PM-3 runtime surface explicit:
 
 - `PeerPresence`
 - `PeerAttachment`
@@ -30,8 +33,8 @@ The package now makes both the stable core and PM-2 runtime surface explicit:
 - runtime-shape assertion helpers
 - presence helpers such as runtime-only fallback alias resolution
 - local path/framing helpers for same-machine IPC
-- `createPeerMessagingRuntime()` for broker spawn/reconnect and local presence registration/listing/status
-- `createStubPeerMessagingRuntime()` for contract-first development where PM-2 runtime behavior is not needed
+- `createPeerMessagingRuntime()` for broker spawn/reconnect, local presence registration/listing/status, direct `send`, direct `ask`, and inbound message subscription helpers
+- `createStubPeerMessagingRuntime()` for contract-first development where the live runtime is not needed
 
 ## Boundary guardrails
 
@@ -46,12 +49,11 @@ The exported contract keeps these decision-level rules visible:
 - one in-flight `ask` per local session in the first stable contract
 - the first stable adapter remains an `intercom`-compatible concern above this core, not the authority model itself
 
-## Still not in PM-2
+## Still not in PM-3
 
 This package does **not** yet implement:
 
-- public direct `send` / correlated `ask` runtime semantics
-- tool/overlay adapters
+- the `intercom`-compatible tool / overlay adapter
 - orchestrator or ASC policy helpers
 - any networked or cross-machine behavior
 
