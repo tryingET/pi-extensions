@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["index.ts", "src/**/*.ts", "tests/**/*.ts"]
+  "include": ["extensions/**/*.ts", "index.ts", "src/**/*.ts", "tests/**/*.ts"]
 }

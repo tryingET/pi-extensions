@@ -9,8 +9,8 @@ type: "reference"
 
 ## Scope
 This package owns the communication-only stable core plus the same-machine broker/client runtime for peer-session messaging.
-PM-3 now lands fail-closed direct `send` / correlated `ask` semantics over that runtime.
-The `intercom`-compatible adapter still lands in a later task.
+PM-3 landed fail-closed direct `send` / correlated `ask` semantics over that runtime.
+PM-4 now lands one thin `intercom`-compatible tool adapter above that core while keeping overlay/picker UX deferred.
 
 ## Guardrails
 - Keep the package communication-only; do not treat messages or replies as canonical authority, evidence, or workflow completion.

@@ -70,7 +70,7 @@ export const PEER_MESSAGING_BOUNDARY = Object.freeze({
   sameMachineOnly: true,
   communicationOnly: true,
   canonicalAuthority: false,
-  adapterSurface: "deferred-intercom-compatible-adapter",
+  adapterSurface: "intercom-compatible-tool-adapter",
   duplicateNameDelivery: "fail-closed",
   defaultAskTimeoutMs: DEFAULT_ASK_TIMEOUT_MS,
   askTimeoutBehavior: "bounded-default-applied",
