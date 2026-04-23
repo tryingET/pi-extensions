@@ -5,7 +5,9 @@ function isMissing(value) {
 function isLowSignalRough(value) {
   if (!value) return true;
   const normalized = value.trim().toLowerCase();
-  return /^(continue|ok|okay|yes|y|go on|next|proceed|done|thanks|thank you|thx)\.?$/.test(normalized);
+  return /^(continue|ok|okay|yes|y|go on|next|proceed|done|thanks|thank you|thx)\.?$/.test(
+    normalized,
+  );
 }
 
 function isStrictObjectiveHint(hint) {
@@ -23,7 +25,11 @@ function inferSlotFromHint(index, hint) {
   const text = (hint ?? "").toLowerCase();
 
   if (/system4d|mode|off|lite|full/.test(text)) return "mode";
-  if (/constraint|constraints|extra|extras|preference|preferences|requirement|requirements|notes?|override|overrides|context-pack/.test(text)) {
+  if (
+    /constraint|constraints|extra|extras|preference|preferences|requirement|requirements|notes?|override|overrides|context-pack/.test(
+      text,
+    )
+  ) {
     return "extras";
   }
   if (/workflow|audience|context|repo|branch|project|environment/.test(text)) return "context";
@@ -44,7 +50,6 @@ function getSlotValue(slot, inferred) {
       return inferred.contextSummary;
     case "mode":
       return inferred.system4dMode || "lite";
-    case "extras":
     default:
       return inferred.extrasSummary;
   }

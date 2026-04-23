@@ -121,7 +121,8 @@ export function createPtxPromptTemplateAccessor(options) {
         suggestionMode: "deterministic-only",
         usesSelectedModelForPrefill: false,
         promptCommandCount: promptCommands.length,
-        prefillablePromptCommandCount: promptCommands.filter((command) => command.prefillable).length,
+        prefillablePromptCommandCount: promptCommands.filter((command) => command.prefillable)
+          .length,
         liveTrigger,
         modelLifecycle,
       };

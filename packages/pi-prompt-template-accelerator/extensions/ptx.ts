@@ -9,23 +9,23 @@
 import { readFile } from "node:fs/promises";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { buildTransformedCommand } from "../src/buildTransformedCommand.js";
+import { getCommandPath, isPromptCommand } from "../src/commandProvenance.js";
 import { runFzfProbe, selectFuzzyCandidate } from "../src/fuzzySelector.js";
 import { parseRawCommand, RawCommandParseError } from "../src/parseRawCommand.js";
 import { parseTemplatePlaceholders } from "../src/parseTemplatePlaceholders.js";
 import { planPromptTemplateTransform } from "../src/planPromptTemplateTransform.js";
-import { getCommandPath, isPromptCommand } from "../src/commandProvenance.js";
-import {
-  createInitialPtxModelLifecycleState,
-  observePtxModelSelection,
-  registerPtxCapabilityBridges,
-  unregisterPtxCapabilityBridges,
-} from "../src/ptxRuntimeRegistry.js";
 import { toPtxCandidates } from "../src/ptxCandidateAdapter.js";
 import {
   formatNoPromptTemplateAvailabilityWarning,
   formatNoPromptTemplateSelectionWarning,
 } from "../src/ptxNoCandidateMessage.js";
 import { loadPtxPolicyConfig } from "../src/ptxPolicyConfig.js";
+import {
+  createInitialPtxModelLifecycleState,
+  observePtxModelSelection,
+  registerPtxCapabilityBridges,
+  unregisterPtxCapabilityBridges,
+} from "../src/ptxRuntimeRegistry.js";
 
 const PREFIX = "$$";
 const LIVE_TRIGGER_ID = "ptx-template-picker";
@@ -64,11 +64,84 @@ type PromptCommandLike = {
   } | null;
 };
 
+type NotifyLevel = "info" | "warning" | "error";
+
+type PtxContextLike = {
+  cwd?: unknown;
+  hasUI?: boolean;
+  ui?: {
+    notify?: (message: string, level?: NotifyLevel) => void;
+    select?: (title: string, options: string[]) => Promise<string | undefined> | string | undefined;
+    setText?: (text: string) => void;
+    setEditorText?: (text: string) => void;
+  };
+};
+
+type PtxLiveTriggerApi = {
+  setText?: (text: string) => void;
+  notify?: (message: string, level?: NotifyLevel) => void;
+};
+
+type PtxLiveTriggerParsed = {
+  meta?: {
+    parsedArgs?: unknown;
+  };
+  context?: unknown;
+};
+
+type PtxApplySelectionArgs = {
+  selected?: unknown;
+  parsed?: PtxLiveTriggerParsed;
+  context?: PtxContextLike;
+  api?: PtxLiveTriggerApi;
+};
+
+type PtxNoCandidatesArgs = {
+  reason?: string;
+  api?: PtxLiveTriggerApi;
+};
+
+type PtxErrorArgs = {
+  error?: unknown;
+  api?: PtxLiveTriggerApi;
+};
+
+type ModelSelectEvent = {
+  model?: unknown;
+};
+
+type TemplateSuggestionResult = {
+  transformed?: string;
+  warning?: string;
+};
+
+type PtxModelLifecycleState = ReturnType<typeof createInitialPtxModelLifecycleState>;
+
+type TriggerSurface = {
+  registerPickerInteraction?: (config: Record<string, unknown>) =>
+    | {
+        unregister?: (() => void) | undefined;
+      }
+    | undefined;
+  splitQueryAndContext?: (
+    value: string,
+    separator: string,
+  ) => {
+    query: string;
+    context: string;
+  };
+};
+
+type LiveTriggerRegistrationResult = {
+  unregister: () => void;
+  reason: string;
+};
+
 function asErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function resolvePolicyLookupCwd(ctx: any): string {
+function resolvePolicyLookupCwd(ctx: PtxContextLike): string {
   const cwd = typeof ctx?.cwd === "string" ? ctx.cwd.trim() : "";
   return cwd.length > 0 ? cwd : process.cwd();
 }
@@ -77,12 +150,17 @@ function formatPolicyConfigError(configPath: string, error: unknown): string {
   return `PTX policy config error at ${configPath}: ${asErrorMessage(error)}`;
 }
 
-function formatTemplateAmbiguityWarning(commandName: string, plan: {
-  matches?: unknown[];
-  prefillableMatches?: unknown[];
-}): string {
+function formatTemplateAmbiguityWarning(
+  commandName: string,
+  plan: {
+    matches?: unknown[];
+    prefillableMatches?: unknown[];
+  },
+): string {
   const totalCount = Array.isArray(plan.matches) ? plan.matches.length : 0;
-  const prefillableCount = Array.isArray(plan.prefillableMatches) ? plan.prefillableMatches.length : 0;
+  const prefillableCount = Array.isArray(plan.prefillableMatches)
+    ? plan.prefillableMatches.length
+    : 0;
   return `Template name is ambiguous: /${commandName} (${prefillableCount} prefillable matches, ${totalCount} total). Use picker or '/ptx-select ${commandName}'.`;
 }
 
@@ -108,7 +186,9 @@ function buildRawFallbackCommand(commandName: string, providedArgs: string[]): s
   }
 }
 
-function candidateToTemplateCommand(candidate: PtxTemplateCandidate | null | undefined): TemplateCommandOverride | undefined {
+function candidateToTemplateCommand(
+  candidate: PtxTemplateCandidate | null | undefined,
+): TemplateCommandOverride | undefined {
   const name = String(candidate?.commandName ?? candidate?.id ?? "")
     .trim()
     .replace(/^\/+/, "");
@@ -120,7 +200,10 @@ function candidateToTemplateCommand(candidate: PtxTemplateCandidate | null | und
     source: "prompt",
   };
 
-  if (typeof candidate?.commandDescription === "string" && candidate.commandDescription.trim().length > 0) {
+  if (
+    typeof candidate?.commandDescription === "string" &&
+    candidate.commandDescription.trim().length > 0
+  ) {
     templateCommand.description = candidate.commandDescription.trim();
   }
 
@@ -133,11 +216,11 @@ function candidateToTemplateCommand(candidate: PtxTemplateCandidate | null | und
 
 async function buildTemplateSuggestion(options: {
   pi: ExtensionAPI;
-  ctx: any;
+  ctx: PtxContextLike;
   commandName: string;
   providedArgs: string[];
   templateCommand?: TemplateCommandOverride;
-}): Promise<{ transformed?: string; warning?: string }> {
+}): Promise<TemplateSuggestionResult> {
   const rawText = buildTransformedCommand(options.commandName, options.providedArgs);
   const policyLoad = await loadPtxPolicyConfig({ cwd: resolvePolicyLookupCwd(options.ctx) });
 
@@ -164,7 +247,9 @@ async function buildTemplateSuggestion(options: {
             transformed: rawText,
             warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason}); inserted raw command without inferred args.`,
           }
-        : { warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason}).` };
+        : {
+            warning: `Template blocked by PTX policy: /${options.commandName} (${plan.policy.reason}).`,
+          };
     case "template-name-ambiguous":
       return { warning: formatTemplateAmbiguityWarning(options.commandName, plan) };
     case "template-path-missing":
@@ -185,8 +270,7 @@ async function buildTemplateSuggestion(options: {
           }
         : { warning: `Template not found: /${options.commandName}` };
     case "parse-error":
-      return { warning: `PTX parse error: ${plan.error.message}` };
-    case "not-slash-command":
+      return { warning: `PTX parse error: ${asErrorMessage(plan.error)}` };
     default:
       return { warning: `PTX input error: expected slash command after '${PREFIX}'.` };
   }
@@ -194,12 +278,14 @@ async function buildTemplateSuggestion(options: {
 
 function selectionModeMessage(selection: { mode: "fzf" | "fallback"; reason?: string }): string {
   if (selection.mode === "fzf") return "selection mode=fzf";
-  return selection.reason ? `selection mode=fallback (${selection.reason})` : "selection mode=fallback";
+  return selection.reason
+    ? `selection mode=fallback (${selection.reason})`
+    : "selection mode=fallback";
 }
 
 async function pickTemplate(options: {
   pi: ExtensionAPI;
-  ctx: any;
+  ctx: PtxContextLike;
   query: string;
   title: string;
 }): Promise<{
@@ -208,7 +294,9 @@ async function pickTemplate(options: {
   reason?: string;
 }> {
   const commands = options.pi.getCommands();
-  const promptCommands = commands.filter((command) => isPromptCommand(command as PromptCommandLike));
+  const promptCommands = commands.filter((command) =>
+    isPromptCommand(command as PromptCommandLike),
+  );
   const candidates = toPtxCandidates(commands);
 
   if (candidates.length === 0) {
@@ -236,16 +324,16 @@ function formatArgContract(templateText: string): string {
   if (usage.usesAllArgs) parts.push("$@");
   for (const slice of usage.slices ?? []) {
     parts.push(
-      slice.length
-        ? `${"${@:"}${slice.start}:${slice.length}}`
-        : `${"${@:"}${slice.start}}`,
+      slice.length ? `${"${@:"}${slice.start}:${slice.length}}` : `${"${@:"}${slice.start}}`,
     );
   }
   return parts.length > 0 ? parts.join(", ") : "none";
 }
 
-async function inspectPromptCommands(commands: Array<Record<string, unknown>>) {
-  const promptCommands = commands.filter((command) => isPromptCommand(command as PromptCommandLike));
+async function inspectPromptCommands(commands: readonly PromptCommandLike[]) {
+  const promptCommands = commands.filter((command) =>
+    isPromptCommand(command as PromptCommandLike),
+  );
   return await Promise.all(
     promptCommands.map(async (command) => {
       const name = String(command.name || "").trim();
@@ -282,12 +370,14 @@ async function inspectPromptCommands(commands: Array<Record<string, unknown>>) {
   );
 }
 
-async function loadTriggerSurface() {
+async function loadTriggerSurface(): Promise<TriggerSurface | null> {
   try {
-    return await import("@tryinget/pi-interaction");
+    const interactionModuleName = "@tryinget/pi-interaction";
+    return (await import(interactionModuleName)) as TriggerSurface;
   } catch {
     try {
-      return await import("@tryinget/pi-trigger-adapter");
+      const triggerAdapterModuleName = "@tryinget/pi-trigger-adapter";
+      return (await import(triggerAdapterModuleName)) as TriggerSurface;
     } catch {
       return null;
     }
@@ -296,7 +386,7 @@ async function loadTriggerSurface() {
 
 async function maybeRegisterLiveTrigger(options: {
   pi: ExtensionAPI;
-}) {
+}): Promise<LiveTriggerRegistrationResult> {
   try {
     const inputTriggers = await loadTriggerSurface();
     if (!inputTriggers) {
@@ -307,7 +397,13 @@ async function maybeRegisterLiveTrigger(options: {
       return { unregister: () => {}, reason: "registerPickerInteraction-unavailable" };
     }
 
-    const splitQueryAndContext =
+    const splitQueryAndContext: (
+      value: string,
+      separator: string,
+    ) => {
+      query: string;
+      context: string;
+    } =
       typeof inputTriggers.splitQueryAndContext === "function"
         ? inputTriggers.splitQueryAndContext
         : (value: string) => ({ query: value, context: "" });
@@ -350,7 +446,9 @@ async function maybeRegisterLiveTrigger(options: {
       },
       loadCandidates: () => {
         const commands = options.pi.getCommands();
-        const promptCommands = commands.filter((command) => isPromptCommand(command as PromptCommandLike));
+        const promptCommands = commands.filter((command) =>
+          isPromptCommand(command as PromptCommandLike),
+        );
         const candidates = toPtxCandidates(commands);
         return {
           candidates,
@@ -366,20 +464,26 @@ async function maybeRegisterLiveTrigger(options: {
       },
       selectTitle: ({ query }: { query: string }) =>
         query ? `PTX template picker (query: ${query})` : "PTX template picker",
-      applySelection: async ({ selected, parsed, context, api }: any) => {
+      applySelection: async ({ selected, parsed, context, api }: PtxApplySelectionArgs) => {
         const parsedArgs = Array.isArray(parsed?.meta?.parsedArgs) ? parsed.meta.parsedArgs : [];
         const contextArg = String(parsed?.context ?? "").trim();
         const providedArgs = contextArg ? [...parsedArgs, contextArg] : parsedArgs;
         const selectedCandidate = selected as PtxTemplateCandidate | undefined;
         const templateCommand = candidateToTemplateCommand(selectedCandidate);
-        const commandName = templateCommand?.name ?? String(selectedCandidate?.id ?? "").replace(/^\/+/, "").trim();
-        const rawFallback = commandName ? buildRawFallbackCommand(commandName, providedArgs) : undefined;
+        const commandName =
+          templateCommand?.name ??
+          String(selectedCandidate?.id ?? "")
+            .replace(/^\/+/, "")
+            .trim();
+        const rawFallback = commandName
+          ? buildRawFallbackCommand(commandName, providedArgs)
+          : undefined;
 
-        let suggestion;
+        let suggestion: TemplateSuggestionResult;
         try {
           suggestion = await buildTemplateSuggestion({
             pi: options.pi,
-            ctx: context,
+            ctx: context ?? {},
             commandName,
             providedArgs,
             templateCommand,
@@ -397,7 +501,10 @@ async function maybeRegisterLiveTrigger(options: {
           if (rawFallback) {
             api?.setText?.(rawFallback);
           }
-          api?.notify?.(suggestion.warning ?? `Unable to build suggestion for /${commandName}`, "warning");
+          api?.notify?.(
+            suggestion.warning ?? `Unable to build suggestion for /${commandName}`,
+            "warning",
+          );
           return;
         }
 
@@ -406,16 +513,17 @@ async function maybeRegisterLiveTrigger(options: {
           api?.notify?.(suggestion.warning, "warning");
         }
       },
-      onNoCandidates: ({ reason, api }: any) => {
+      onNoCandidates: ({ reason, api }: PtxNoCandidatesArgs) => {
         api?.notify?.(formatNoPromptTemplateAvailabilityWarning(reason), "warning");
       },
-      onError: ({ error, api }: any) => {
+      onError: ({ error, api }: PtxErrorArgs) => {
         api?.notify?.(`PTX live picker error: ${asErrorMessage(error)}`, "error");
       },
     });
 
     return {
-      unregister: typeof registration?.unregister === "function" ? registration.unregister : () => {},
+      unregister:
+        typeof registration?.unregister === "function" ? registration.unregister : () => {},
       reason: "registered",
     };
   } catch {
@@ -426,11 +534,11 @@ async function maybeRegisterLiveTrigger(options: {
 export default function ptxExtension(pi: ExtensionAPI) {
   let unregisterLivePicker: (() => void) | null = null;
   let sessionActive = true;
-  let liveTriggerState = {
+  let liveTriggerState: { status: string; reason: string } = {
     status: "pending",
     reason: "initializing",
   };
-  let modelLifecycleState = createInitialPtxModelLifecycleState();
+  let modelLifecycleState: PtxModelLifecycleState = createInitialPtxModelLifecycleState();
 
   registerPtxCapabilityBridges({
     getCommands: () => pi.getCommands(),
@@ -453,7 +561,7 @@ export default function ptxExtension(pi: ExtensionAPI) {
     };
   });
 
-  pi.on("model_select", (event: any) => {
+  pi.on("model_select", (event: ModelSelectEvent) => {
     modelLifecycleState = observePtxModelSelection(modelLifecycleState, event?.model);
   });
 
@@ -487,7 +595,7 @@ export default function ptxExtension(pi: ExtensionAPI) {
       parsed = parseSelectorInvocation(rawAfterPrefix);
     } catch (error) {
       if (error instanceof RawCommandParseError) {
-        const message = `PTX parse error: ${error.message}`;
+        const message = `PTX parse error: ${asErrorMessage(error)}`;
         if (!ctx.hasUI) return { action: "transform" as const, text: message };
         ctx.ui.notify(message, "warning");
         return { action: "handled" as const };
@@ -509,7 +617,9 @@ export default function ptxExtension(pi: ExtensionAPI) {
         pi,
         ctx,
         query: parsed.query,
-        title: parsed.query ? `PTX template picker (query: ${parsed.query})` : "PTX template picker",
+        title: parsed.query
+          ? `PTX template picker (query: ${parsed.query})`
+          : "PTX template picker",
       });
 
       if (!selection.selected) {
@@ -518,10 +628,11 @@ export default function ptxExtension(pi: ExtensionAPI) {
       }
 
       const templateCommand = candidateToTemplateCommand(selection.selected);
-      const commandName = templateCommand?.name ?? String(selection.selected.id).replace(/^\/+/, "").trim();
+      const commandName =
+        templateCommand?.name ?? String(selection.selected.id).replace(/^\/+/, "").trim();
       const rawFallback = buildRawFallbackCommand(commandName, parsed.args);
 
-      let suggestion;
+      let suggestion: TemplateSuggestionResult;
       try {
         suggestion = await buildTemplateSuggestion({
           pi,
@@ -543,7 +654,10 @@ export default function ptxExtension(pi: ExtensionAPI) {
         if (rawFallback) {
           ctx.ui.setEditorText(rawFallback);
         }
-        ctx.ui.notify(suggestion.warning ?? `Unable to build suggestion for /${commandName}`, "warning");
+        ctx.ui.notify(
+          suggestion.warning ?? `Unable to build suggestion for /${commandName}`,
+          "warning",
+        );
         return { action: "handled" as const };
       }
 
@@ -551,7 +665,10 @@ export default function ptxExtension(pi: ExtensionAPI) {
       if (suggestion.warning) {
         ctx.ui.notify(suggestion.warning, "warning");
       } else {
-        ctx.ui.notify(`Suggestion for /${commandName}. ${selectionModeMessage(selection)}.`, "info");
+        ctx.ui.notify(
+          `Suggestion for /${commandName}. ${selectionModeMessage(selection)}.`,
+          "info",
+        );
       }
       return { action: "handled" as const };
     }
@@ -577,7 +694,10 @@ export default function ptxExtension(pi: ExtensionAPI) {
     description: "Show template accelerator status",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
-      ctx.ui.notify(`Template Accelerator active. Use '${PREFIX} /query' or '/ptx-select [query]'.`, "info");
+      ctx.ui.notify(
+        `Template Accelerator active. Use '${PREFIX} /query' or '/ptx-select [query]'.`,
+        "info",
+      );
     },
   });
 
@@ -600,10 +720,11 @@ export default function ptxExtension(pi: ExtensionAPI) {
       }
 
       const templateCommand = candidateToTemplateCommand(selection.selected);
-      const commandName = templateCommand?.name ?? String(selection.selected.id).replace(/^\/+/, "").trim();
+      const commandName =
+        templateCommand?.name ?? String(selection.selected.id).replace(/^\/+/, "").trim();
       const rawFallback = buildRawFallbackCommand(commandName, []);
 
-      let suggestion;
+      let suggestion: TemplateSuggestionResult;
       try {
         suggestion = await buildTemplateSuggestion({
           pi,
@@ -646,7 +767,10 @@ export default function ptxExtension(pi: ExtensionAPI) {
       const query = args.trim().toLowerCase();
       const inspected = await inspectPromptCommands(pi.getCommands());
       const filtered = query
-        ? inspected.filter((row) => row.name.toLowerCase().includes(query) || row.path.toLowerCase().includes(query))
+        ? inspected.filter(
+            (row) =>
+              row.name.toLowerCase().includes(query) || row.path.toLowerCase().includes(query),
+          )
         : inspected;
 
       const output = [

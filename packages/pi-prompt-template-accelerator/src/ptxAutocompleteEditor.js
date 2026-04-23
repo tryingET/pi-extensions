@@ -23,12 +23,12 @@ function stripPreviewPrefix(text) {
 
 function isDollarSlashContext(textBeforeCursor) {
   const afterDollar = stripDollarPrefix(textBeforeCursor);
-  return afterDollar !== null && afterDollar.startsWith("/");
+  return afterDollar?.startsWith("/") ?? false;
 }
 
 function isPreviewSlashContext(textBeforeCursor) {
   const afterPreview = stripPreviewPrefix(textBeforeCursor);
-  return afterPreview !== null && afterPreview.startsWith("/");
+  return afterPreview?.startsWith("/") ?? false;
 }
 
 function isDollarCommandNameContext(textBeforeCursor) {
@@ -76,7 +76,10 @@ export class PtxAutocompleteEditor extends CustomEditor {
     const line = this.getLines()[cursor.line] ?? "";
     const textBeforeCursor = line.slice(0, cursor.col);
 
-    if (isDollarCommandNameContext(textBeforeCursor) || isPreviewCommandNameContext(textBeforeCursor)) {
+    if (
+      isDollarCommandNameContext(textBeforeCursor) ||
+      isPreviewCommandNameContext(textBeforeCursor)
+    ) {
       this.tryTriggerAutocomplete(true);
       return;
     }

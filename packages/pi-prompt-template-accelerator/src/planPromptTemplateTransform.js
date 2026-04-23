@@ -3,10 +3,10 @@ import { buildTransformedCommand } from "./buildTransformedCommand.js";
 import { inferContextArgs } from "./inferContextArgs.js";
 import { mapArgsByUsage } from "./mapArgsByUsage.js";
 import { parseRawCommand, RawCommandParseError } from "./parseRawCommand.js";
-import { parseTemplatePlaceholders } from "./parseTemplatePlaceholders.js";
 import { parseTemplateArgHints } from "./parseTemplateArgHints.js";
-import { resolvePromptTemplate } from "./resolvePromptTemplate.js";
+import { parseTemplatePlaceholders } from "./parseTemplatePlaceholders.js";
 import { resolveTemplatePolicy } from "./ptxPolicyConfig.js";
+import { resolvePromptTemplate } from "./resolvePromptTemplate.js";
 
 function normalizeTemplateCommandOverride(value) {
   if (!value || typeof value !== "object") return undefined;
@@ -33,7 +33,13 @@ function normalizeTemplateCommandOverride(value) {
 /**
  * Build a deterministic transform plan for a raw slash command.
  */
-export async function planPromptTemplateTransform({ pi, ctx, rawText, policyConfig, templateCommandOverride }) {
+export async function planPromptTemplateTransform({
+  pi,
+  ctx,
+  rawText,
+  policyConfig,
+  templateCommandOverride,
+}) {
   let parsed;
   try {
     parsed = parseRawCommand(rawText);

@@ -58,7 +58,11 @@ function normalizeTemplateOverrides(value) {
     const fallback =
       rawOverride.fallback === undefined
         ? undefined
-        : normalizeEnum(rawOverride.fallback, FALLBACK_VALUES, DEFAULT_PTX_POLICY_CONFIG.defaultFallback);
+        : normalizeEnum(
+            rawOverride.fallback,
+            FALLBACK_VALUES,
+            DEFAULT_PTX_POLICY_CONFIG.defaultFallback,
+          );
 
     normalized[commandName] = {
       ...(policy ? { policy } : {}),
@@ -85,8 +89,16 @@ export function normalizePtxPolicyConfig(input) {
   const raw = input && typeof input === "object" && !Array.isArray(input) ? input : {};
 
   return {
-    defaultPolicy: normalizeEnum(raw.defaultPolicy, POLICY_VALUES, DEFAULT_PTX_POLICY_CONFIG.defaultPolicy),
-    defaultFallback: normalizeEnum(raw.defaultFallback, FALLBACK_VALUES, DEFAULT_PTX_POLICY_CONFIG.defaultFallback),
+    defaultPolicy: normalizeEnum(
+      raw.defaultPolicy,
+      POLICY_VALUES,
+      DEFAULT_PTX_POLICY_CONFIG.defaultPolicy,
+    ),
+    defaultFallback: normalizeEnum(
+      raw.defaultFallback,
+      FALLBACK_VALUES,
+      DEFAULT_PTX_POLICY_CONFIG.defaultFallback,
+    ),
     allowlist: normalizeNameList(raw.allowlist),
     blocklist: normalizeNameList(raw.blocklist),
     templates: normalizeTemplateOverrides(raw.templates),

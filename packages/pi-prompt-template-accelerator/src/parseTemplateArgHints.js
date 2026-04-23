@@ -44,29 +44,35 @@ export function parseTemplateArgHints(templateText) {
     const hint = normalizeHintLine(line);
     if (!hint) continue;
 
-    let match;
-
     const positionalRegex = /\$(\d+)/g;
-    while ((match = positionalRegex.exec(line)) !== null) {
-      if (isEscapedOrDoubled(line, match.index)) continue;
-      const index = Number.parseInt(match[1], 10);
-      if (!Number.isFinite(index) || index < 1) continue;
-      if (positionalHints[index] === undefined) {
-        positionalHints[index] = hint;
+    let match = positionalRegex.exec(line);
+    while (match !== null) {
+      if (!isEscapedOrDoubled(line, match.index)) {
+        const index = Number.parseInt(match[1], 10);
+        if (Number.isFinite(index) && index >= 1 && positionalHints[index] === undefined) {
+          positionalHints[index] = hint;
+        }
       }
+      match = positionalRegex.exec(line);
     }
 
     const allArgsRegex = /\$@|\$ARGUMENTS\b/g;
-    while ((match = allArgsRegex.exec(line)) !== null) {
-      if (isEscapedOrDoubled(line, match.index)) continue;
-      addUniqueRestHint(restHints, 1, hint);
+    match = allArgsRegex.exec(line);
+    while (match !== null) {
+      if (!isEscapedOrDoubled(line, match.index)) {
+        addUniqueRestHint(restHints, 1, hint);
+      }
+      match = allArgsRegex.exec(line);
     }
 
     const sliceRegex = /\$\{@:(\d+)(?::(\d+))?\}/g;
-    while ((match = sliceRegex.exec(line)) !== null) {
-      if (isEscapedOrDoubled(line, match.index)) continue;
-      const start = Number.parseInt(match[1], 10);
-      addUniqueRestHint(restHints, start, hint);
+    match = sliceRegex.exec(line);
+    while (match !== null) {
+      if (!isEscapedOrDoubled(line, match.index)) {
+        const start = Number.parseInt(match[1], 10);
+        addUniqueRestHint(restHints, start, hint);
+      }
+      match = sliceRegex.exec(line);
     }
   }
 

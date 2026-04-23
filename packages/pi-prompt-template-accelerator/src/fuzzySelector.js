@@ -3,15 +3,13 @@ import { spawnSync } from "node:child_process";
 const DEFAULT_TIMEOUT_MS = 2500;
 
 function normalize(value) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function lower(value) {
   return normalize(value).toLowerCase();
-}
-
-function buildSearchText(candidate) {
-  return lower(`${candidate.id} ${candidate.label} ${candidate.detail ?? ""}`);
 }
 
 function subsequenceScore(haystack, needle) {
@@ -146,7 +144,9 @@ function buildOptionLabels(candidates) {
   const byLabel = new Map();
 
   for (const candidate of candidates) {
-    const baseLabel = candidate.detail ? `${candidate.label} — ${candidate.detail}` : candidate.label;
+    const baseLabel = candidate.detail
+      ? `${candidate.label} — ${candidate.detail}`
+      : candidate.label;
     const count = byLabel.get(baseLabel) ?? 0;
     byLabel.set(baseLabel, count + 1);
 

@@ -111,7 +111,9 @@ export class DollarPrefixAutocompleteProvider {
 
     const adaptation = getDollarSlashAdaptation(lines, cursorLine, cursorCol);
     if (!adaptation) {
-      return normalizeMaybeAsyncSuggestions(this.inner.getForceFileSuggestions(lines, cursorLine, cursorCol));
+      return normalizeMaybeAsyncSuggestions(
+        this.inner.getForceFileSuggestions(lines, cursorLine, cursorCol),
+      );
     }
 
     return normalizeMaybeAsyncSuggestions(
@@ -131,7 +133,11 @@ export class DollarPrefixAutocompleteProvider {
       return this.inner.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
     }
 
-    return this.inner.shouldTriggerFileCompletion(adaptation.adaptedLines, cursorLine, adaptation.adaptedCursorCol);
+    return this.inner.shouldTriggerFileCompletion(
+      adaptation.adaptedLines,
+      cursorLine,
+      adaptation.adaptedCursorCol,
+    );
   }
 }
 

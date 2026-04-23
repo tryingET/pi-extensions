@@ -23,7 +23,8 @@ function extractTextFromContent(content) {
 function isLowSignalObjectiveHint(value) {
   if (!value) return true;
   const normalized = value.trim().toLowerCase();
-  if (/^(continue|ok|okay|yes|y|go on|next|proceed|done|thanks|thank you|thx)\.?$/.test(normalized)) return true;
+  if (/^(continue|ok|okay|yes|y|go on|next|proceed|done|thanks|thank you|thx)\.?$/.test(normalized))
+    return true;
   if (/must\s*replace|placeholder|something like that/.test(normalized)) return true;
   return false;
 }
@@ -100,7 +101,9 @@ export async function inferContextArgs({ pi, ctx, providedArgs }) {
 
   const firstProvidedArgRaw = providedArgs.find((arg) => arg.trim().length > 0);
   const firstProvidedArg =
-    firstProvidedArgRaw && !isLowSignalObjectiveHint(firstProvidedArgRaw) ? firstProvidedArgRaw : undefined;
+    firstProvidedArgRaw && !isLowSignalObjectiveHint(firstProvidedArgRaw)
+      ? firstProvidedArgRaw
+      : undefined;
   const roughThought = firstProvidedArg || objectiveHint || "<MUST_REPLACE_PRIMARY_OBJECTIVE>";
 
   const contextParts = [`repo=${repoName}`, `cwd=${cwd}`];

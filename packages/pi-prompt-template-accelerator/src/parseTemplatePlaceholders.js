@@ -5,11 +5,12 @@ function isEscapedOrDoubled(text, index) {
 }
 
 function hasUnescapedMatch(text, regex) {
-  let match;
-  while ((match = regex.exec(text)) !== null) {
+  let match = regex.exec(text);
+  while (match !== null) {
     if (!isEscapedOrDoubled(text, match.index)) {
       return true;
     }
+    match = regex.exec(text);
   }
   return false;
 }
@@ -25,27 +26,31 @@ export function parseTemplatePlaceholders(templateText) {
   const positional = new Set();
   const slices = [];
 
-  let match;
-
   const positionalRegex = /\$(\d+)/g;
-  while ((match = positionalRegex.exec(templateText)) !== null) {
-    if (isEscapedOrDoubled(templateText, match.index)) continue;
-    const index = Number.parseInt(match[1], 10);
-    if (Number.isFinite(index) && index > 0) positional.add(index);
+  let match = positionalRegex.exec(templateText);
+  while (match !== null) {
+    if (!isEscapedOrDoubled(templateText, match.index)) {
+      const index = Number.parseInt(match[1], 10);
+      if (Number.isFinite(index) && index > 0) positional.add(index);
+    }
+    match = positionalRegex.exec(templateText);
   }
 
   const sliceRegex = /\$\{@:(\d+)(?::(\d+))?\}/g;
-  while ((match = sliceRegex.exec(templateText)) !== null) {
-    if (isEscapedOrDoubled(templateText, match.index)) continue;
-    const start = Number.parseInt(match[1], 10);
-    const length = match[2] === undefined ? undefined : Number.parseInt(match[2], 10);
+  match = sliceRegex.exec(templateText);
+  while (match !== null) {
+    if (!isEscapedOrDoubled(templateText, match.index)) {
+      const start = Number.parseInt(match[1], 10);
+      const length = match[2] === undefined ? undefined : Number.parseInt(match[2], 10);
 
-    if (!Number.isFinite(start) || start < 1) continue;
-
-    slices.push({
-      start,
-      ...(Number.isFinite(length) && length > 0 ? { length } : {}),
-    });
+      if (Number.isFinite(start) && start >= 1) {
+        slices.push({
+          start,
+          ...(Number.isFinite(length) && length > 0 ? { length } : {}),
+        });
+      }
+    }
+    match = sliceRegex.exec(templateText);
   }
 
   const usesAllArgs =
@@ -55,7 +60,8 @@ export function parseTemplatePlaceholders(templateText) {
 
   return {
     positionalIndexes,
-    highestPositionalIndex: positionalIndexes.length > 0 ? positionalIndexes[positionalIndexes.length - 1] : 0,
+    highestPositionalIndex:
+      positionalIndexes.length > 0 ? positionalIndexes[positionalIndexes.length - 1] : 0,
     usesAllArgs,
     slices,
   };

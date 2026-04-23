@@ -17,7 +17,9 @@ export function formatNoPromptTemplateAvailabilityWarning(reason) {
     case "no-prefillable-prompt-templates":
       return `No prompt templates available (no-prefillable-prompt-templates). Prompt commands are visible, but none expose a usable template path for PTX prefill. Use '${DEBUG_COMMAND}' in a UI session to inspect path/status drift.`;
     default:
-      return reason ? `No prompt templates available (${reason}).` : "No prompt templates available.";
+      return reason
+        ? `No prompt templates available (${reason}).`
+        : "No prompt templates available.";
   }
 }
 

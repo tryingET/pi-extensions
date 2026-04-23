@@ -1,7 +1,9 @@
 import { getCommandPath, getCommandSource } from "./commandProvenance.js";
 
 function truncate(value, max = 80) {
-  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!text) return "";
   return text.length <= max ? text : `${text.slice(0, max - 3)}...`;
 }
@@ -76,5 +78,10 @@ export function toPtxCandidates(commands) {
           ? command.description.trim()
           : undefined,
     }))
-    .sort((a, b) => a.label.localeCompare(b.label) || a.detail.localeCompare(b.detail) || a.id.localeCompare(b.id));
+    .sort(
+      (a, b) =>
+        a.label.localeCompare(b.label) ||
+        a.detail.localeCompare(b.detail) ||
+        a.id.localeCompare(b.id),
+    );
 }
