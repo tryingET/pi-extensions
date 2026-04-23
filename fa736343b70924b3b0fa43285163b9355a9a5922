@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "fa736343b70924b3b0fa43285163b9355a9a5922"
+created_at: "2026-04-23T12:42:31Z"
+intent: "Align the peer-session messaging plan and validation notes with the newly materialized AK task family."
+files:
+  - "docs/project/2026-04-23-plan-peer-session-messaging-primitive-first-slice.md"
+  - "docs/project/2026-04-23-validation-rollout-rollback-peer-session-messaging-primitive.md"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 19
+  total: 19
+  rationale: "Keep the peer-messaging execution-memory and validation notes synchronized with current AK linkage truth."
