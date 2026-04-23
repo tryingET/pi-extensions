@@ -130,20 +130,50 @@ It is whether this workflow-composition layer belongs in orchestrator, and how n
 
 ## Decision synthesis
 
-This decision was chosen by forcing three strong architectural instincts into direct confrontation:
+Several strong architectural instincts compete here, and the disagreement is substantive rather than stylistic.
 
-1. **boundary discipline**
-   - preserve ASC execution ownership and prevent convenience surfaces from becoming authority
-2. **workflow ergonomics pragmatism**
-   - recover the useful operator-facing chain / parallel / worktree capabilities that contrib `pi-subagents` made legible
-3. **premature generalization pressure**
-   - avoid turning the first slice into a contrib-style registry model, builder-first model, or shared engine before evidence justifies it
+### Boundary-first discipline
 
-The accepted synthesis is:
+This position says the only durable win is to keep one execution owner and one authority model.
+From this view, any workflow surface that drifts into local spawn logic, local lifecycle truth, or persistence-led authority is already a regression, even if the UX feels better in the moment.
+What it sees correctly is that brownfield convenience usually reintroduces shadow runtimes by degrees rather than by announcement.
 
-- side with **boundary discipline** for the stable core and execution seam
-- side with **workflow ergonomics pragmatism** for the first public adapters
-- reject **premature generalization pressure** as a first-slice driver unless later evidence proves the orchestrator-local workflow core is too narrow or too local
+### Ergonomics-first recovery
+
+This position says the owned stack still lacks a usable operator surface for multi-step delegation.
+From this view, a pure boundary story that offers only direct dispatch and generic loops leaves real coordination value stranded in contrib.
+What it sees correctly is that chain / parallel / worktree UX is not decorative; it is the practical reason to rebuild a workflow layer at all.
+
+### Abstraction-first reuse
+
+This position says the cleanest answer is to extract a generic engine or persistence model up front.
+From this view, package-local workflow logic is only a temporary special case and should be generalized before it hardens.
+What it sees correctly is that successful local workflow cores often create later reuse pressure.
+
+### Minimalist no-new-surface discipline
+
+This position says the safest move is to add nothing and route operators to existing loops and dispatch paths.
+What it sees correctly is that every new surface creates new implied contracts and maintenance burden.
+
+The collisions between these positions are real:
+
+- boundary-first and ergonomics-first can coexist only if ergonomics stays strictly downstream of the workflow core and the ASC seam
+- boundary-first and persistence-first cannot govern the first slice together, because a saved-workflow registry would immediately start acting like the authority model
+- abstraction-first and evidence-first cannot both win today, because there is no proven second consumer yet
+- loops-only minimalism and workflow-composition recovery cannot both describe the missing surface, because the gap is not phase-loop execution but arbitrary multi-step fan-out/fan-in coordination
+
+The chosen architecture is therefore an ordered dominance, not a compromise:
+
+1. boundary discipline governs execution ownership and authority
+2. workflow ergonomics is admitted only as a thin adapter layer above that boundary
+3. shared-engine and persistence pressure are deferred until real evidence appears
+4. loops remain a separate family unless later evidence proves convergence is the better architecture
+
+This ordering preserves the only synthesis that does not smuggle contradiction back into the package:
+
+- ASC remains the only execution/runtime owner
+- orchestrator gains the missing workflow-composition surface where it legitimately belongs
+- commands, builders, and saved workflows stay subordinate to the workflow core rather than redefining it
 
 ## Options considered
 

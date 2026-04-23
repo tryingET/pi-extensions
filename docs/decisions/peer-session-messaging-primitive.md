@@ -112,22 +112,33 @@ It is where it should live, and how narrow it should stay.
 - avoid hidden authority drift and avoid transport/policy coupling
 - keep rollback simple if the first slice proves wrong
 
-## Decision synthesis
+## Decision rationale
 
-This decision was chosen by forcing three strong architectural instincts into direct confrontation:
+The live disagreement was not whether local peer messaging is useful.
+That is already clear from the contrib prior art and the current gap in the owned stack.
+The real disagreement was what that usefulness entitles the concern to own.
 
-1. **boundary purism**
-   - keep the primitive very small and prevent orchestration or authority leakage
-2. **compatibility pragmatism**
-   - preserve an `intercom`-compatible public adapter where that materially lowers migration and adoption cost
-3. **future-scale ambition**
-   - avoid foreclosing later collaboration growth if future evidence exceeds same-machine 1:1 messaging
+One strong path would place peer messaging inside orchestrator because coordination UX is where operators most visibly feel the need for session-to-session communication.
+That path correctly sees that messaging often serves workflow composition, escalation, and operator coordination.
+But it mistakes the most obvious early consumer for the owner of the transport semantics themselves.
+If accepted, addressing, reply correlation, and delivery rules would drift toward workflow-specific meaning.
 
-The accepted synthesis is:
+Another strong path would place peer messaging inside ASC because ask/reply behavior often appears adjacent to delegated execution and live runtime activity.
+That path correctly sees that peer communication can accompany execution.
+But adjacency is not ownership.
+If accepted, it would blur execution/runtime authority with a communication primitive that must remain usable outside delegated-run semantics.
 
-- side with **boundary purism** for the stable core
-- side with **compatibility pragmatism** for the first public adapter
-- reject **future-scale ambition** as a first-slice driver unless later evidence proves the primitive itself is the limiting layer
+The accepted path is stricter than either convenience move.
+It keeps peer messaging as a separate primitive and forces orchestrator, ASC, and any later package to consume it rather than own it.
+That rule means:
+
+- coordination pressure proves consumption, not ownership
+- execution adjacency proves coexistence, not runtime identity
+- messages remain communication rather than canonical authority
+
+The resulting contract is intentionally narrow but durable.
+It preserves a separate same-machine primitive, keeps `intercom` compatibility where that lowers migration friction, and refuses to widen the core merely because a higher-level package can imagine richer collaboration semantics.
+Any future widening must be justified by evidence that the primitive itself is the limiting layer across real consumers, not by the convenience of one consumer's policy.
 
 ## Options considered
 
@@ -234,6 +245,16 @@ The owned package should preserve an **`intercom`-compatible first public adapte
 It does not make the adapter name the architecture authority.
 
 By default, treat that `intercom`-compatible first public adapter as stable unless a later explicit compatibility decision changes it.
+Compatibility is allowed to reduce migration cost.
+It is not allowed to redefine owner boundaries or promote the adapter surface into the stable semantic core.
+
+## Consumer boundary
+
+Higher-level packages may consume this primitive for planner/worker handoffs, escalation flows, or workflow-specific messaging semantics.
+Those meanings do **not** back-propagate into the primitive itself.
+
+If one consumer wants richer coordination behavior, the default move is to build that behavior above the primitive.
+The primitive should widen only when multiple real consumers are blocked by missing transport semantics rather than by differences in higher-level policy.
 
 ## Scope limits carried by this decision
 
@@ -279,6 +300,8 @@ Before this decision should be treated as successfully landed in implementation,
 - duplicate visible names fail closed and require exact targeting
 - runtime fallback aliases remain non-persistent and addressability-only
 - adapters surface duplicate-name ambiguity clearly
+- the first stable contract keeps one in-flight `ask` per local session unless a later explicit decision changes that rule
+- the `intercom`-compatible public adapter remains an adapter over the stable core rather than the authority model
 - message delivery and reply receipt never count as canonical state, evidence, or workflow completion by convenience
 
 ## Consequences
@@ -295,6 +318,7 @@ Before this decision should be treated as successfully landed in implementation,
 
 - one more package boundary to maintain
 - first-slice constraints remain intentionally narrow
+- preserving `intercom` compatibility creates an explicit adapter-support obligation even though authority remains below that surface
 - future pressure for broader transport or richer collaboration semantics will require another explicit decision
 - consumers must still own their own workflow meaning instead of relying on the primitive to provide it
 
@@ -307,6 +331,8 @@ This ADR does **not** say:
 - peer messaging belongs in ASC
 - a room/network fabric is now approved
 - richer coordination policy should live inside the primitive package
+- early consumer demand from orchestrator or ASC is enough to change transport ownership
+- a single consumer's richer coordination needs are enough to widen the primitive by default
 
 ## Bottom line
 
