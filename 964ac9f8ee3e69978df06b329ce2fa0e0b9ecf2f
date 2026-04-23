@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "964ac9f8ee3e69978df06b329ce2fa0e0b9ecf2f"
-created_at: "2026-04-23T12:30:42Z"
+created_at: "2026-04-23T12:39:22Z"
 intent: "Stabilize the little-helpers stash picker and align helper notifications with supported UI levels."
 files:
   - "packages/pi-little-helpers/extensions/code-block-picker.ts"
@@ -22,5 +22,5 @@ validation:
     status: "pass"
 group:
   index: 8
-  total: 16
+  total: 17
   rationale: "Keep the stash picker fix and its package-local typing/tooling alignment together."
