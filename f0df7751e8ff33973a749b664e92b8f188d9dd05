@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "f0df7751e8ff33973a749b664e92b8f188d9dd05"
-created_at: "2026-04-23T13:28:51Z"
+created_at: "2026-04-23T13:59:47Z"
 intent: "Scaffold the private/source-first peer messaging core contract package with boundary metadata and contract tests."
 files:
   - "packages/pi-peer-messaging/.gitignore"
@@ -23,4 +23,4 @@ validation:
     status: "pending"
   full_gate:
     command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
-    status: "pending"
+    status: "pass"
