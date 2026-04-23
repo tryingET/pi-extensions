@@ -14,6 +14,7 @@
  *   /cognitive                     — List available cognitive tools
  *   /agents-team                   — Select routing scope
  *   /runtime-status                — Inspect runtime truth
+ *   /runtime-boundary-telemetry    — Inspect lower-plane boundary telemetry
  *   /ontology <concept>            — Query ontology
  *   /evidence                      — Show recent evidence via ak evidence search
  *   /loops                         — List available loop types
@@ -28,6 +29,7 @@
  *   cognitive_dispatch             — Cognitive-first agent dispatch
  *   society_query                  — Bounded read-only diagnostic SQL against society.db
  *   evidence_record                — Record evidence
+ *   orchestrator_boundary_telemetry — Inspect lower-plane boundary telemetry
  *   ontology_context               — Get relevant ontology
  *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions
  *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
@@ -64,7 +66,13 @@ import {
   type AutoresearchLiveSupervisionSessionV1,
   describeAutoresearchLiveNextStep,
 } from "../src/runtime/autoresearch-supervisor-runner.ts";
-import { isBoundaryFailure } from "../src/runtime/boundaries.ts";
+import {
+  getBoundaryTelemetryStats,
+  getLatestBoundaryTelemetryFailure,
+  isBoundaryFailure,
+  listBoundaryTelemetry,
+  summarizeBoundaryTelemetry,
+} from "../src/runtime/boundaries.ts";
 import { getCognitiveToolByName, listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
 import {
   type EvidenceEntry,
@@ -517,6 +525,10 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
           }
         : undefined,
       sessionTokens: summarizeSessionTokens(ctx),
+      boundaryTelemetry: {
+        ...getBoundaryTelemetryStats(),
+        latestFailure: getLatestBoundaryTelemetryFailure(),
+      },
       societyDbPath: SOCIETY_DB,
       societyDbAvailable: fs.existsSync(SOCIETY_DB),
       vaultAvailable: toolsResult ? !isBoundaryFailure(toolsResult) : false,
@@ -553,7 +565,7 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
     return Date.now() - state.lastProbeAt >= getFooterHealthRefreshMs();
   }
 
-  function refreshFooterHealth(state: FooterHealthState, tui?: FooterTui) {
+  function refreshFooterHealth(state: FooterHealthState, cwd?: string, tui?: FooterTui) {
     if (!shouldRefreshFooterHealth(state)) {
       return;
     }
@@ -563,7 +575,7 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
     state.probeInFlight = (async () => {
       let nextToolsResult: CognitiveToolsResult;
       try {
-        nextToolsResult = await listCognitiveTools(resolveVaultDir());
+        nextToolsResult = await listCognitiveTools({ cwd });
       } catch (error) {
         nextToolsResult = {
           ok: false,
@@ -714,6 +726,55 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   });
 
   // ===========================================================================
+  // TOOL: orchestrator_boundary_telemetry
+  // ===========================================================================
+
+  pi.registerTool({
+    name: "orchestrator_boundary_telemetry",
+    label: "Orchestrator Boundary Telemetry",
+    description: `Inspect session-local lower-plane execution telemetry for the orchestrator.
+
+Use when investigating sqlite3, ak, rocs, or other boundary command behavior.
+Reports call counts, latency summary, command mix, and recent boundary events captured by the orchestrator runtime.`,
+    promptSnippet: "Inspect session-local lower-plane execution telemetry for the orchestrator.",
+    promptGuidelines: [
+      "Use orchestrator_boundary_telemetry when investigating lower-plane command behavior such as sqlite3, ak, or rocs.",
+    ],
+    parameters: Type.Object({
+      limit: Type.Optional(
+        Type.Number({ description: "Max recent events to include (default: 15)" }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      const requestedLimit = Math.floor(Number((params as { limit?: number }).limit));
+      const recentEvents = listBoundaryTelemetry(
+        Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 15,
+      );
+      const stats = getBoundaryTelemetryStats();
+      const latestFailure = getLatestBoundaryTelemetryFailure();
+      return {
+        content: [{ type: "text", text: summarizeBoundaryTelemetry() }],
+        details: {
+          ...stats,
+          latestFailure,
+          recentEvents,
+        },
+      };
+    },
+    renderCall(_args, theme) {
+      return new Text(theme.fg("toolTitle", theme.bold("orchestrator_boundary_telemetry")), 0, 0);
+    },
+    renderResult(result, _options, _theme) {
+      const details = (result.details || {}) as { totalCalls?: number; failureCount?: number };
+      return new Text(
+        `${details.totalCalls ?? 0} calls, ${details.failureCount ?? 0} failures`,
+        0,
+        0,
+      );
+    },
+  });
+
+  // ===========================================================================
   // TOOL: cognitive_dispatch
   // ===========================================================================
 
@@ -857,15 +918,12 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       const evidenceOutcome = executionOutcome.evidence;
       const summary = `${icon} [${agentToUse} + ${toolToUse}] ${status} in ${Math.round(result.elapsed / 1000)}s`;
       const evidenceAkError = "akError" in evidenceOutcome ? evidenceOutcome.akError : undefined;
-      const evidenceSqlError = "sqlError" in evidenceOutcome ? evidenceOutcome.sqlError : undefined;
       const evidenceDiagnostics = [
         evidenceAkError ? `ak error: ${evidenceAkError.slice(0, 120)}` : undefined,
-        evidenceSqlError ? `sql error: ${evidenceSqlError.slice(0, 120)}` : undefined,
       ].filter(Boolean);
-      const evidenceNote =
-        evidenceOutcome.via === "ak" || evidenceOutcome.via === "sql-direct"
-          ? ""
-          : `\nEvidence path: ${evidenceOutcome.via}${evidenceDiagnostics.length > 0 ? ` (${evidenceDiagnostics.join("; ")})` : ""}`;
+      const evidenceNote = evidenceOutcome.ok
+        ? ""
+        : `\nEvidence path: ${evidenceOutcome.via}${evidenceDiagnostics.length > 0 ? ` (${evidenceDiagnostics.join("; ")})` : ""}`;
 
       const truncated =
         result.output.length > 6000
@@ -955,7 +1013,6 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
 
       const failureDiagnostics = [
         outcome.akError ? `ak error: ${outcome.akError.slice(0, 200)}` : undefined,
-        outcome.sqlError ? `sql error: ${outcome.sqlError.slice(0, 200)}` : undefined,
       ].filter(Boolean);
 
       return {
@@ -964,14 +1021,13 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             type: "text",
             text: outcome.ok
               ? `Evidence recorded via ${outcome.via}: ${check_type} = ${result}`
-              : `Failed to record evidence (ak and SQL both failed). ${failureDiagnostics.join("; ") || "unknown failure"}`,
+              : `Failed to record evidence via the canonical ak path. ${failureDiagnostics.join("; ") || "unknown failure"}`,
           },
         ],
         details: {
           ok: outcome.ok,
           via: outcome.via,
           akError: outcome.akError,
-          sqlError: outcome.sqlError,
         },
       };
     },
@@ -1378,7 +1434,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
-      const toolsResult = await listCognitiveTools(resolveVaultDir());
+      const toolsResult = await listCognitiveTools({ cwd: ctx.cwd });
       if (isBoundaryFailure(toolsResult)) {
         ctx.ui.notify(`Failed to list cognitive tools: ${toolsResult.error}`, "error");
         return;
@@ -1466,9 +1522,17 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
-      const toolsResult = await listCognitiveTools(resolveVaultDir());
+      const toolsResult = await listCognitiveTools({ cwd: ctx.cwd });
       const snapshot = buildRuntimeSnapshot(ctx, toolsResult);
       await ctx.ui.editor("Runtime Status", formatRuntimeStatusReport(snapshot));
+    },
+  });
+
+  pi.registerCommand("runtime-boundary-telemetry", {
+    description: "Inspect lower-plane boundary execution telemetry",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+      await ctx.ui.editor("Runtime Boundary Telemetry", summarizeBoundaryTelemetry());
     },
   });
 
@@ -1517,7 +1581,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
 
-    const toolsResult = await listCognitiveTools(resolveVaultDir());
+    const toolsResult = await listCognitiveTools({ cwd: ctx.cwd });
     const footerHealthState = createFooterHealthState(toolsResult);
     const snapshot = buildRuntimeSnapshot(ctx, footerHealthState.latestToolsResult);
     const dbOk = snapshot.societyDb.available;
@@ -1533,6 +1597,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         `/cognitive          List cognitive tools\n` +
         `${snapshot.descriptor.routingSelectorCommand.padEnd(20, " ")}Select routing scope\n` +
         `${snapshot.descriptor.runtimeStatusCommand.padEnd(20, " ")}Inspect runtime truth\n` +
+        `/runtime-boundary-telemetry Inspect lower-plane telemetry\n` +
         `/evidence           Show evidence\n` +
         `/ontology <query>   Search ontology\n` +
         `/loops              List loop types\n` +
@@ -1547,7 +1612,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       },
       invalidate() {},
       render(width: number): string[] {
-        refreshFooterHealth(footerHealthState, tui);
+        refreshFooterHealth(footerHealthState, ctx.cwd, tui);
         const footerSnapshot = buildRuntimeSnapshot(ctx, footerHealthState.latestToolsResult);
         return [renderRuntimeFooterLine(width, theme, footerSnapshot)];
       },

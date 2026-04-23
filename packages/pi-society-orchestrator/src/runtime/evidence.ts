@@ -11,7 +11,6 @@ import {
   escapeSqlLiteral,
   isBoundaryFailure,
   querySqliteJsonAsync,
-  runSqliteStatementAsync,
 } from "./boundaries.ts";
 import {
   type ExecutionLike,
@@ -29,9 +28,8 @@ export interface EvidenceEntry {
 
 export interface EvidenceWriteResult {
   ok: boolean;
-  via: "ak" | "sql-direct" | "sql-fallback" | "failed";
+  via: "ak" | "failed";
   akError?: string;
-  sqlError?: string;
 }
 
 export interface SkippedEvidenceWriteResult {
@@ -80,37 +78,20 @@ export interface FinalizeExecutionEffectsResult {
 
 const repoBootstrapCache = new Map<string, RepoBootstrapReport>();
 
-function buildEvidenceInsertSql(entry: EvidenceEntry): string {
-  const taskIdSql = typeof entry.task_id === "number" ? `${entry.task_id}` : "NULL";
-  const detailsJson = entry.details ? escapeSqlLiteral(JSON.stringify(entry.details)) : "{}";
-  const checkTypeSql = escapeSqlLiteral(entry.check_type);
-  const resultSql = escapeSqlLiteral(entry.result);
-  return `INSERT INTO evidence (task_id, check_type, result, details) VALUES (${taskIdSql}, '${checkTypeSql}', '${resultSql}', '${detailsJson}')`;
+function truncateAkError(error: string | undefined, fallback: string): string {
+  const normalized = (error || "").trim();
+  return (normalized.length > 0 ? normalized : fallback).slice(0, 500);
 }
 
-async function writeEvidenceViaSql(
-  entry: EvidenceEntry,
-  signal: AbortSignal | undefined,
-  config: RecordEvidenceConfig,
-  outcome: { via: "sql-direct" | "sql-fallback"; akError?: string },
-): Promise<EvidenceWriteResult> {
-  const sql = buildEvidenceInsertSql(entry);
-  const sqlResult = await (config.runSql || runSqliteStatementAsync)(config.societyDb, sql, signal);
+function describeRepoBootstrapFailure(report: RepoBootstrapReport): string {
+  const prefix =
+    report.outcome === "explicit_only"
+      ? "ak repo bootstrap requires explicit repo registration before evidence can be recorded"
+      : report.outcome === "excluded"
+        ? "ak repo bootstrap excluded the current cwd from canonical repo registration"
+        : "ak repo bootstrap did not establish canonical repo registration";
 
-  if (isBoundaryFailure(sqlResult)) {
-    return {
-      ok: false,
-      via: "failed",
-      akError: outcome.akError,
-      sqlError: sqlResult.error.slice(0, 500),
-    };
-  }
-
-  return {
-    ok: true,
-    via: outcome.via,
-    akError: outcome.akError,
-  };
+  return [prefix, report.reason?.trim(), report.guidance?.trim()].filter(Boolean).join(". ");
 }
 
 async function findRegisteredRepoAncestor(
@@ -146,7 +127,7 @@ async function determineEvidenceWriteMode(
   config: RecordEvidenceConfig,
   signal: AbortSignal | undefined,
   repoPath: string,
-): Promise<{ mode: "ak" | "sql-direct" | "failed"; akError?: string }> {
+): Promise<{ mode: "ak" | "failed"; akError?: string }> {
   const registeredRepo = await findRegisteredRepoAncestor(config, signal, repoPath);
   if (isBoundaryFailure(registeredRepo)) {
     return { mode: "ak" };
@@ -157,8 +138,17 @@ async function determineEvidenceWriteMode(
   }
 
   const cachedBootstrap = repoBootstrapCache.get(repoPath);
-  if (cachedBootstrap?.outcome === "explicit_only" || cachedBootstrap?.outcome === "excluded") {
-    return { mode: "sql-direct" };
+  if (cachedBootstrap) {
+    if (
+      cachedBootstrap.outcome === "registered" ||
+      cachedBootstrap.outcome === "already_registered"
+    ) {
+      return { mode: "ak" };
+    }
+    return {
+      mode: "failed",
+      akError: describeRepoBootstrapFailure(cachedBootstrap),
+    };
   }
 
   const bootstrapResult = await (config.runRepoBootstrap || runAkRepoBootstrap)({
@@ -169,25 +159,20 @@ async function determineEvidenceWriteMode(
   });
 
   if (!bootstrapResult.ok) {
-    if (signal?.aborted || bootstrapResult.aborted || bootstrapResult.timedOut) {
-      return {
-        mode: "failed",
-        akError: bootstrapResult.stderr.slice(0, 500),
-      };
-    }
-
     return {
-      mode: "sql-direct",
-      akError: bootstrapResult.stderr.slice(0, 500),
+      mode: "failed",
+      akError: truncateAkError(bootstrapResult.stderr, "ak repo bootstrap failed"),
     };
   }
 
   if (!bootstrapResult.report) {
     return {
-      mode: "sql-direct",
+      mode: "failed",
       akError: "ak repo bootstrap did not return a structured report",
     };
   }
+
+  repoBootstrapCache.set(repoPath, bootstrapResult.report);
 
   if (
     bootstrapResult.report.outcome === "registered" ||
@@ -196,8 +181,10 @@ async function determineEvidenceWriteMode(
     return { mode: "ak" };
   }
 
-  repoBootstrapCache.set(repoPath, bootstrapResult.report);
-  return { mode: "sql-direct" };
+  return {
+    mode: "failed",
+    akError: describeRepoBootstrapFailure(bootstrapResult.report),
+  };
 }
 
 export async function recordEvidence(
@@ -215,12 +202,6 @@ export async function recordEvidence(
   }
 
   const mode = await determineEvidenceWriteMode(config, signal, repoPath);
-  if (mode.mode === "sql-direct") {
-    return writeEvidenceViaSql(entry, signal, config, {
-      via: "sql-direct",
-      akError: mode.akError,
-    });
-  }
   if (mode.mode === "failed") {
     return {
       ok: false,
@@ -240,18 +221,11 @@ export async function recordEvidence(
     return { ok: true, via: "ak" };
   }
 
-  if (signal?.aborted || akResult.aborted || akResult.timedOut) {
-    return {
-      ok: false,
-      via: "failed",
-      akError: akResult.stderr.slice(0, 500),
-    };
-  }
-
-  return writeEvidenceViaSql(entry, signal, config, {
-    via: "sql-fallback",
-    akError: akResult.stderr.slice(0, 500),
-  });
+  return {
+    ok: false,
+    via: "failed",
+    akError: truncateAkError(akResult.stderr, "ak evidence record failed"),
+  };
 }
 
 export async function finalizeExecutionEffects(

@@ -336,10 +336,7 @@ export async function projectAutoresearchAkMilestone(
       candidate,
       task: task.value,
       evidence,
-      error:
-        evidence.akError ||
-        evidence.sqlError ||
-        "failed to record autoresearch AK milestone evidence",
+      error: evidence.akError || "failed to record autoresearch AK milestone evidence",
     };
   }
 

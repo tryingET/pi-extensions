@@ -54,16 +54,16 @@ That means orchestrator now consumes package-owned prompt-plane behavior for:
 
 instead of reading raw prompt bodies directly with local `dolt sql` in the execution path.
 
-### 2. Orchestrator still keeps a bounded local metadata listing path
+### 2. Metadata listing now also routes through the public prompt-plane seam
 
-`listCognitiveTools(...)` remains a narrow local metadata listing helper for `/cognitive`, runtime-status health summaries, and footer health checks.
+`listCognitiveTools(...)` now lists visible cognitive templates through the same `pi-vault-client/prompt-plane` consumer seam instead of running local `dolt sql` metadata reads inside orchestrator.
 
-This is intentionally narrower than the old raw prompt-body path:
-- **prompt bodies / prepared text** now come from `pi-vault-client`
-- **catalog metadata** is still local until `pi-vault-client` exposes a supported public list/query seam suited to this consumer use case
+That means the owning package now also defines:
+- visibility-aware catalog listing
+- company-context fail-closed behavior for metadata views
+- the exact active/exported template subset visible to orchestrator UIs
 
-Do not read this as prompt-plane ownership remaining local.
-It is a bounded metadata gap, not a reason to move prepared prompt semantics back into orchestrator.
+This closes the old bounded metadata gap and removes the duplicated Dolt temp/home sandbox logic from orchestrator.
 
 ### 3. Guardrails now fail closed on private Vault imports
 
@@ -79,10 +79,10 @@ and does **not** drift back to:
 ### Canonical now
 - prepared cognitive-tool prompt text for direct dispatch and loops: `pi-vault-client`
 - prompt-plane render / company / visibility semantics: `pi-vault-client`
+- prompt catalog/list semantics used by orchestrator metadata views: `pi-vault-client`
 - orchestrator-side agent routing / loop sequencing / execution synthesis: `pi-society-orchestrator`
 
 ### Still deferred
-- public prompt catalog/list seam for orchestrator metadata views
 - any broader continuation-envelope orchestration beyond exact prompt loading
 
 ## Validation for this slice

@@ -9,9 +9,13 @@ import {
   buildSqlContainsExpression,
   execFileText,
   execFileTextAsync,
+  getBoundaryTelemetryStats,
   isReadOnlySql,
+  listBoundaryTelemetry,
   querySqliteJson,
   querySqliteJsonAsync,
+  resetBoundaryTelemetry,
+  summarizeBoundaryTelemetry,
 } from "../src/runtime/boundaries.ts";
 
 test("isReadOnlySql accepts read-only statements and rejects mutating or stacked SQL", () => {
@@ -133,6 +137,47 @@ test("querySqliteJsonAsync keeps runtime society reads off the blocking path", a
       assert.deepEqual(result.value, [{ concept: "safe" }]);
     }
   } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("boundary telemetry summarizes lower-plane command usage", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-boundary-telemetry-"));
+  const dbPath = path.join(tempDir, "ontology.db");
+
+  try {
+    resetBoundaryTelemetry();
+    execFileSync(
+      "sqlite3",
+      [dbPath, "CREATE TABLE ontology(concept text); INSERT INTO ontology VALUES ('safe');"],
+      { encoding: "utf-8" },
+    );
+
+    const success = querySqliteJson(dbPath, "SELECT concept FROM ontology LIMIT 1");
+    assert.equal(success.ok, true);
+
+    const failure = execFileText(process.execPath, ["-e", "process.exit(7)"]);
+    assert.equal(failure.ok, false);
+
+    const stats = getBoundaryTelemetryStats();
+    assert.equal(stats.totalCalls, 2);
+    assert.equal(stats.successCount, 1);
+    assert.equal(stats.failureCount, 1);
+    assert.equal(stats.commandCounts["sqlite3:select"], 1);
+    assert.equal(stats.commandCounts.node, 1);
+
+    const recent = listBoundaryTelemetry(5);
+    assert.equal(recent.length, 2);
+    assert.equal(recent.at(-1)?.exitCode, 7);
+
+    const summary = summarizeBoundaryTelemetry();
+    assert.match(summary, /# Orchestrator Boundary Telemetry/);
+    assert.match(summary, /command_mix: .*sqlite3:select=1/);
+    assert.match(summary, /command_mix: .*node=1/);
+    assert.match(summary, /failure_count: 1/);
+    assert.match(summary, /latest_failure:/);
+  } finally {
+    resetBoundaryTelemetry();
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });

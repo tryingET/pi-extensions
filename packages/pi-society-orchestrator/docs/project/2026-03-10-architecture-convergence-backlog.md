@@ -217,7 +217,7 @@ Goal for this wave:
 |---|---|---|---|
 | `extensions/society-orchestrator.ts` + `src/runtime/society.ts` (`society_query`, `/evidence`) | `/evidence` now uses `ak evidence search`; `society_query` remains a dedicated raw sqlite diagnostic exception helper | canonical AK read/query surface when it exists; until then keep only the bounded diagnostic exception | partial |
 | `src/runtime/cognitive-tools.ts` | exact cognitive-tool prompt preparation now consumes `pi-vault-client/prompt-plane`; bounded local metadata listing remains for `/cognitive` and runtime-health counts | supported `pi-vault-client` prompt-plane seam for prepared prompt bodies, plus either a future public catalog/list seam or an explicit local-listing decision | partial |
-| `src/runtime/evidence.ts` | evidence writes now route through shared `recordEvidence(...)` with `ak` first and explicit SQL fallback | canonical `ak` evidence path only (or explicit audited fallback) | partial |
+| `src/runtime/evidence.ts` | evidence writes now route through shared `recordEvidence(...)` and fail closed unless the canonical `ak` path is available | canonical `ak` evidence path only | complete |
 | `extensions/society-orchestrator.ts` + `src/runtime/ontology.ts` | ontology reads now resolve through shared ROCS build/id-index artifacts instead of local SQL table assumptions | `rocs-cli`-backed ontology adapter | complete |
 
 ### Inventory command used

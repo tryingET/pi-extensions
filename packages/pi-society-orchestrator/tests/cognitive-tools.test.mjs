@@ -33,14 +33,15 @@ function seedVault(vaultDir) {
         "INSERT INTO prompt_templates VALUES",
         "(1,'inversion','cognitive','one_shot','bounded','software','[\"software\"]',NULL,'Find hidden bugs','shadow analysis','active',true,1),",
         "(2,'audit','cognitive','one_shot','bounded','software','[\"software\"]',NULL,'Review quality','quality pass','active',true,1),",
-        "(3,'builder-playbook','procedure','one_shot','bounded','software','[\"software\"]',NULL,'Build things','do work','active',true,1);",
+        "(3,'builder-playbook','procedure','one_shot','bounded','software','[\"software\"]',NULL,'Build things','do work','active',true,1),",
+        "(4,'finance-audit','cognitive','one_shot','bounded','finance','[\"finance\"]',NULL,'Finance review','finance pass','active',true,1);",
       ].join(" "),
     ],
     { cwd: vaultDir, encoding: "utf-8" },
   );
 }
 
-test("cognitive tool helpers keep metadata listing local but load prepared prompt bodies via the prompt-plane seam", async () => {
+test("cognitive tool helpers use the prompt-plane seam for both listing and exact preparation", async () => {
   const vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-vault-"));
   const previousVaultDir = process.env.VAULT_DIR;
   const previousPiCompany = process.env.PI_COMPANY;
@@ -50,7 +51,7 @@ test("cognitive tool helpers keep metadata listing local but load prepared promp
     process.env.VAULT_DIR = vaultDir;
     delete process.env.PI_COMPANY;
 
-    const listed = await listCognitiveTools(vaultDir);
+    const listed = await listCognitiveTools({ currentCompany: "software" });
     assert.equal(listed.ok, true);
     if (listed.ok) {
       assert.deepEqual(

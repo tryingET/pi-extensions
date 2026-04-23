@@ -1,9 +1,4 @@
-import {
-  type BoundaryFailure,
-  type BoundaryResult,
-  isBoundaryFailure,
-  queryDoltJsonAsync,
-} from "./boundaries.ts";
+import { type BoundaryResult, isBoundaryFailure } from "./boundaries.ts";
 
 export interface CognitiveTool {
   name: string;
@@ -28,36 +23,38 @@ interface PreparedPromptPlaneCandidate {
   blocking_reason?: string;
 }
 
+interface VisiblePromptPlaneTemplate {
+  name: string;
+  description: string;
+  artifact_kind: string;
+}
+
+interface ListedPromptPlaneTemplatesResult {
+  ok: boolean;
+  status: "ready" | "blocked";
+  templates?: VisiblePromptPlaneTemplate[];
+  blocking_reason?: string;
+}
+
 interface VaultPromptPlaneRuntime {
   prepareSelection(
     request: { query: string; context?: string },
     ctx?: CognitiveToolLookupContext,
   ): Promise<PreparedPromptPlaneCandidate>;
-}
-
-let promptPlaneRuntimePromise: Promise<VaultPromptPlaneRuntime> | null = null;
-
-function propagateFailure<T>(result: BoundaryFailure): BoundaryResult<T> {
-  return {
-    ok: false,
-    error: result.error,
-    exitCode: result.exitCode,
-    stderr: result.stderr,
-    stdout: result.stdout,
-  };
+  listVisibleTemplates(
+    request?: { filters?: { artifact_kind?: string[] }; limit?: number },
+    ctx?: CognitiveToolLookupContext,
+  ): Promise<ListedPromptPlaneTemplatesResult>;
 }
 
 async function getPromptPlaneRuntime(): Promise<BoundaryResult<VaultPromptPlaneRuntime>> {
   try {
-    promptPlaneRuntimePromise ??= import("pi-vault-client/prompt-plane").then((module) =>
-      module.createVaultPromptPlaneRuntime(),
-    );
+    const module = await import("pi-vault-client/prompt-plane");
     return {
       ok: true,
-      value: await promptPlaneRuntimePromise,
+      value: module.createVaultPromptPlaneRuntime(),
     };
   } catch (error) {
-    promptPlaneRuntimePromise = null;
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
@@ -133,24 +130,42 @@ export async function getCognitiveToolByName(
 }
 
 export async function listCognitiveTools(
-  vaultDir: string,
+  context: CognitiveToolLookupContext = {},
   signal?: AbortSignal,
 ): Promise<BoundaryResult<CognitiveTool[]>> {
-  const result = await queryDoltJsonAsync(
-    vaultDir,
-    "SELECT name, artifact_kind, description FROM prompt_templates WHERE artifact_kind = 'cognitive' AND status = 'active' ORDER BY name",
-    signal,
-  );
-  if (isBoundaryFailure(result)) {
-    return propagateFailure(result);
+  signal?.throwIfAborted();
+
+  const runtime = await getPromptPlaneRuntime();
+  if (isBoundaryFailure(runtime)) {
+    return runtime;
+  }
+
+  let listed: ListedPromptPlaneTemplatesResult;
+  try {
+    listed = await runtime.value.listVisibleTemplates(
+      { filters: { artifact_kind: ["cognitive"] }, limit: 50 },
+      context,
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (!listed.ok) {
+    return {
+      ok: false,
+      error: listed.blocking_reason || "Failed to list visible cognitive tools.",
+    };
   }
 
   return {
     ok: true,
-    value: result.value.rows.map((row) => ({
-      name: String(row.name || ""),
+    value: (listed.templates || []).map((template) => ({
+      name: template.name,
       type: "cognitive" as const,
-      description: String(row.description || ""),
+      description: template.description,
       content: "",
     })),
   };

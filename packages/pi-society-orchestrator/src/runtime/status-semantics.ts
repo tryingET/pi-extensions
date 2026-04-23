@@ -17,6 +17,7 @@ export interface RuntimeTruthDescriptor {
   routingLabel: string;
   routingSelectorCommand: string;
   runtimeStatusCommand: string;
+  boundaryTelemetryCommand: string;
 }
 
 export interface RuntimeSessionTokenTotals {
@@ -29,6 +30,23 @@ export interface RuntimeSessionTokenTotals {
 export interface RuntimeContextUsageSnapshot {
   tokens: number | null;
   contextWindow: number | null;
+}
+
+export interface RuntimeBoundaryTelemetryFailureSnapshot {
+  timestamp: string;
+  command: string;
+  exitCode?: number | null;
+  error?: string;
+}
+
+export interface RuntimeBoundaryTelemetrySnapshot {
+  totalCalls: number;
+  successCount: number;
+  failureCount: number;
+  averageLatencyMs: number;
+  maxLatencyMs: number;
+  commandCounts: Record<string, number>;
+  latestFailure: RuntimeBoundaryTelemetryFailureSnapshot | null;
 }
 
 export interface RuntimeTruthSnapshot {
@@ -50,6 +68,7 @@ export interface RuntimeTruthSnapshot {
     available: boolean;
     summary: string;
   };
+  boundaryTelemetry: RuntimeBoundaryTelemetrySnapshot;
 }
 
 export type RuntimeFooterSlotTone = "dim" | "accent" | "warning";
@@ -79,6 +98,7 @@ export const RUNTIME_TRUTH_DESCRIPTOR: RuntimeTruthDescriptor = Object.freeze({
   routingLabel: "Routing",
   routingSelectorCommand: "/agents-team",
   runtimeStatusCommand: "/runtime-status",
+  boundaryTelemetryCommand: "/runtime-boundary-telemetry",
 });
 
 export function createRuntimeTruthSnapshot(params: {
@@ -92,6 +112,7 @@ export function createRuntimeTruthSnapshot(params: {
   societyDbAvailable: boolean;
   vaultAvailable: boolean;
   vaultSummary: string;
+  boundaryTelemetry?: Partial<RuntimeBoundaryTelemetrySnapshot>;
 }): RuntimeTruthSnapshot {
   const activeTeam = params.activeTeam ?? DEFAULT_AGENT_TEAM;
   const defaultTeam = params.defaultTeam ?? DEFAULT_AGENT_TEAM;
@@ -122,6 +143,34 @@ export function createRuntimeTruthSnapshot(params: {
     vault: {
       available: params.vaultAvailable,
       summary: params.vaultSummary,
+    },
+    boundaryTelemetry: {
+      totalCalls: normalizeTokenCount(params.boundaryTelemetry?.totalCalls),
+      successCount: normalizeTokenCount(params.boundaryTelemetry?.successCount),
+      failureCount: normalizeTokenCount(params.boundaryTelemetry?.failureCount),
+      averageLatencyMs:
+        typeof params.boundaryTelemetry?.averageLatencyMs === "number" &&
+        Number.isFinite(params.boundaryTelemetry.averageLatencyMs)
+          ? Math.max(0, params.boundaryTelemetry.averageLatencyMs)
+          : 0,
+      maxLatencyMs:
+        typeof params.boundaryTelemetry?.maxLatencyMs === "number" &&
+        Number.isFinite(params.boundaryTelemetry.maxLatencyMs)
+          ? Math.max(0, params.boundaryTelemetry.maxLatencyMs)
+          : 0,
+      commandCounts: { ...(params.boundaryTelemetry?.commandCounts || {}) },
+      latestFailure: params.boundaryTelemetry?.latestFailure
+        ? {
+            timestamp: String(params.boundaryTelemetry.latestFailure.timestamp || ""),
+            command: String(params.boundaryTelemetry.latestFailure.command || "unknown"),
+            ...(params.boundaryTelemetry.latestFailure.exitCode !== undefined
+              ? { exitCode: params.boundaryTelemetry.latestFailure.exitCode }
+              : {}),
+            ...(params.boundaryTelemetry.latestFailure.error
+              ? { error: String(params.boundaryTelemetry.latestFailure.error) }
+              : {}),
+          }
+        : null,
     },
   };
 }
@@ -206,6 +255,47 @@ export function formatRuntimeRoutingStatus(snapshot: RuntimeTruthSnapshot): stri
 
 export function formatRuntimeFooterLeft(snapshot: RuntimeTruthSnapshot): string {
   return `${snapshot.model} · ${snapshot.descriptor.executionSeamLabel}`;
+}
+
+function formatRuntimeBoundaryTelemetrySummary(snapshot: RuntimeTruthSnapshot): string {
+  const telemetry = snapshot.boundaryTelemetry;
+  if (telemetry.totalCalls === 0) {
+    return "0 calls recorded";
+  }
+
+  return [
+    `${telemetry.totalCalls} calls`,
+    `${telemetry.successCount} ok`,
+    `${telemetry.failureCount} fail`,
+    `avg ${telemetry.averageLatencyMs.toFixed(1)}ms`,
+    `max ${telemetry.maxLatencyMs.toFixed(1)}ms`,
+  ].join(" · ");
+}
+
+function formatRuntimeBoundaryTelemetryCommandMix(snapshot: RuntimeTruthSnapshot): string {
+  const entries = Object.entries(snapshot.boundaryTelemetry.commandCounts).sort(
+    (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+  );
+  if (entries.length === 0) {
+    return "none recorded";
+  }
+  return entries.map(([command, count]) => `${command}=${count}`).join(", ");
+}
+
+function formatRuntimeBoundaryLatestFailure(snapshot: RuntimeTruthSnapshot): string {
+  const latestFailure = snapshot.boundaryTelemetry.latestFailure;
+  if (!latestFailure) {
+    return "none recorded";
+  }
+
+  const parts = [latestFailure.timestamp, latestFailure.command];
+  if (latestFailure.exitCode !== undefined) {
+    parts.push(`exit=${latestFailure.exitCode}`);
+  }
+  if (latestFailure.error) {
+    parts.push(String(latestFailure.error).replace(/\s+/g, " ").trim().slice(0, 160));
+  }
+  return parts.join(" · ");
 }
 
 export function selectRuntimeFooterSlotText(slot: RuntimeFooterSlot, compactModel = false): string {
@@ -359,6 +449,7 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
     `- routing label: \`${descriptor.routingLabel}\``,
     `- routing selector: \`${descriptor.routingSelectorCommand}\``,
     `- inspector: \`${descriptor.runtimeStatusCommand}\``,
+    `- boundary telemetry inspector: \`${descriptor.boundaryTelemetryCommand}\``,
     "",
     "## Live status",
     `- cwd: \`${snapshot.cwd}\``,
@@ -369,6 +460,9 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
     `- session tokens: ${formatRuntimeSessionTokenStatus(snapshot)}`,
     `- society db: ${dbStatus} — \`${snapshot.societyDb.path}\``,
     `- vault: ${snapshot.vault.summary}`,
+    `- lower-plane telemetry: ${formatRuntimeBoundaryTelemetrySummary(snapshot)}`,
+    `- lower-plane command mix: ${formatRuntimeBoundaryTelemetryCommandMix(snapshot)}`,
+    `- latest lower-plane failure: ${formatRuntimeBoundaryLatestFailure(snapshot)}`,
     "",
     "## Surface contracts",
     `- footer left: \`${formatRuntimeFooterLeft(snapshot)}\``,

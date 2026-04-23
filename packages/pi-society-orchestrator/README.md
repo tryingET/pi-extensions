@@ -124,7 +124,8 @@ Primary tools and commands exposed by the imported extension include:
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
 - `/cognitive`
 - `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
-- `/runtime-status` (editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, and live DB/vault status)
+- `/runtime-status` (editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, live DB/vault status, a lower-plane telemetry summary, and the latest failing boundary-event preview)
+- `/runtime-boundary-telemetry` (editor-backed inspector for session-local lower-plane command telemetry across sqlite3/ak/rocs and other orchestrator boundary calls)
 - `/evidence` (recent evidence preview via `ak evidence search`)
 - `/ontology <query>`
 - `/loops`
@@ -134,6 +135,8 @@ Primary tools and commands exposed by the imported extension include:
 
 - Runtime hardening is in place for agent/team routing, shared execution/evidence policy, timeout-bound supervised lower-plane calls, `rocs-cli`-backed ontology resolution, and a dedicated society runtime helper for the residual read-side boundary.
 - Operator-visible runtime truth now has a shared package-local surface in `src/runtime/status-semantics.ts`; `/runtime-status`, `session_start`, footer/statusline wording, routing-selection notices, and installed-package smoke assertions now derive from that shared contract instead of scattered literals.
+- `/runtime-status` now also includes a concise summary of session-local lower-plane boundary telemetry plus the latest failing boundary-event preview, while `/runtime-boundary-telemetry` remains the detailed inspector.
+- The detailed boundary summary now aligns its core field names with `pi-vault-client` telemetry where that is semantically truthful: `total_calls`, `success_count`, `failure_count`, `retained_events`, `average_latency_ms`, `max_latency_ms`, `command_mix`, and `latest_failure`.
 - The session footer now uses prioritized slots: model + `orchestrator→ASC` render when width allows, a compact current-context slot (`ctx 20k`) appears when context usage is known, a compact session-token summary (`↑input ↺cache ↓output`) appears once the session has usage, `DB`/`Vault` health badges remain optional, and narrow widths drop badges first, then the session-token summary, then the context slot, then the seam, before sacrificing routing visibility.
 - Footer health badges are no longer frozen at startup; subsequent renders can refresh Vault health after startup drift so the footer converges back toward `/runtime-status` truth.
 - `cognitive_dispatch` and `loop_execute` now route subagent execution through ASC's public execution contract via `src/runtime/subagent.ts` instead of carrying a second local spawn/runtime implementation.
@@ -143,10 +146,11 @@ Primary tools and commands exposed by the imported extension include:
 - `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
 - Exact cognitive-tool prompt preparation for `cognitive_dispatch` and loop execution now consumes the supported `pi-vault-client/prompt-plane` seam instead of reading raw prompt bodies with package-local `dolt sql`; the remaining local Prompt Vault path is the bounded metadata listing used by `/cognitive` and runtime-health summaries.
 - Installed-package `release:check` now proves guarded-bootstrap, timeout, truncation, team-mismatch, and successful package-owned KES loop emission through a deterministic headless harness against an isolated installed dependency set rooted in the target tarball, including the current bundled `pi-autonomous-session-control` publish bridge and the local `pi-vault-client` prompt-plane dependency path.
+- `release:check` now also enforces the bundled-bridge lifecycle trigger: once `pi-autonomous-session-control` is visible on the npm registry, the orchestrator package must cut over to a normal dependency instead of silently continuing to ship the bundle.
 - Invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and structured `loop_execute` failure output instead of leaking raw filesystem exceptions.
-- That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md).
+- That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md). The package release-check now consults that trigger directly so the bundle cannot linger by inertia after ASC publication.
 - The first time-boxed [execution seam review](docs/project/2026-03-31-execution-seam-review.md) now records that this package remains the only real external runtime consumer and that installed-package smoke is verification evidence rather than a second consumer.
-- Remaining uncertainty is narrow: `recordEvidence(...)` still retains SQL fallback, `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the `/cognitive` catalog/health listing still uses a bounded local metadata query until `pi-vault-client` exposes a supported public catalog seam, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
+- Remaining uncertainty is narrow: `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the `/cognitive` catalog/health listing still uses a bounded local metadata query until `pi-vault-client` exposes a supported public catalog seam, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
 - Manifest-driven `pi-autoresearch` campaigns now also have a bounded orchestrator-side observation/evidence surface:
   - contract: [pi-autoresearch manifest campaign supervision contract](docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md)
   - status: [pi-autoresearch manifest campaign supervision status](docs/project/pi-autoresearch-manifest-campaign-supervision-status.md)
@@ -229,16 +233,17 @@ For package-local architecture/process docs, prefer:
 - avoid new `docs/dev/` trees
 
 The runtime now also shares package-local helpers for:
-- no-shell lower-plane command execution (`sqlite3`, `dolt`, `ak`, `rocs-cli`)
+- no-shell lower-plane command execution (`sqlite3`, `ak`, `rocs-cli`)
+- session-local lower-plane boundary telemetry for those command paths, with command mix, latency, success/failure, and recent event inspection via `/runtime-boundary-telemetry` and `orchestrator_boundary_telemetry`
 - async, timeout-bound lower-plane runtime calls for `sqlite3`, `dolt`, and `rocs-cli` instead of synchronous runtime `execFileSync` reads
 - cognitive-tool prompt preparation through the supported `pi-vault-client/prompt-plane` seam, plus a bounded local metadata listing helper for `/cognitive` and runtime-health surfaces
 - `rocs-cli`-backed ontology resolution via ROCS build/index artifacts instead of raw ontology SQL reads
 - fail-closed agent/team routing plus session-identity-scoped, capacity-bounded team state for direct dispatch and loop execution
-- shared execution/evidence policy across direct dispatch and loop execution (abort skips evidence, timeout/protocol failure records fail evidence, SQL fallback eligibility is consistent)
+- shared execution/evidence policy across direct dispatch and loop execution (abort skips evidence, timeout/protocol failure records fail evidence, and non-canonical repo contexts fail closed instead of writing directly to sqlite)
 - abortable, timeout-bound, capture-bounded child-process supervision for `ak` and Pi subagents
 - explicit `societyDb` targeting for `ak`-backed runtime paths so ambient `AK_DB` does not silently override the configured package DB target
 - repo-local `scripts/ak.sh` discovery for runtime `ak` calls when available, so live sessions prefer the same wrapper/runner lineage used by repo operators before falling back to explicit `AGENT_KERNEL`, the built agent-kernel binary, or `ak` on PATH
-- evidence writes now preflight for a registered repo ancestor in `society.db`; when none exists, they consume the AK-owned `ak repo bootstrap --path <cwd>` surface before deciding whether to use the canonical `ak` evidence path or the bounded direct-SQL fallback for explicit-only, excluded, or otherwise unavailable repo contexts
+- evidence writes now preflight for a registered repo ancestor in `society.db`; when none exists, they consume the AK-owned `ak repo bootstrap --path <cwd>` surface and fail closed unless that canonical repo-registration path makes `ak evidence record` truthful
 - subagent prompt composition + spawn behavior across direct dispatch and loop execution
 - explicit society-read boundary helpers: `society_query` goes through a dedicated diagnostic exception helper, while `/evidence` now previews recent entries through `ak evidence search`
 

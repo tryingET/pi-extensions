@@ -286,8 +286,7 @@ export class AutoresearchManifestCampaignSupervisor {
     );
 
     if (!evidence.ok) {
-      const error =
-        evidence.akError || evidence.sqlError || "failed to record manifest campaign evidence";
+      const error = evidence.akError || "failed to record manifest campaign evidence";
       return {
         ok: false,
         action: "blocked",

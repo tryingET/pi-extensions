@@ -16,6 +16,7 @@ import {
   validateLoopAgentsForTeam,
 } from "../src/runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommand, runAkCommandAsync } from "../src/runtime/ak.ts";
+import { resetBoundaryTelemetry } from "../src/runtime/boundaries.ts";
 import { finalizeExecutionEffects, recordEvidence } from "../src/runtime/evidence.ts";
 import { getExecutionStatus, isExecutionSuccess } from "../src/runtime/execution-status.ts";
 import { superviseProcess } from "../src/runtime/process-supervisor.ts";
@@ -731,7 +732,7 @@ test("finalizeExecutionEffects skips evidence writes for aborted executions", as
   assert.equal(evidenceCalls, 0);
 });
 
-test("finalizeExecutionEffects records fail evidence for timed-out executions", async () => {
+test("finalizeExecutionEffects prepares fail evidence for timed-out executions", async () => {
   const entries = [];
 
   const outcome = await finalizeExecutionEffects({
@@ -743,13 +744,13 @@ test("finalizeExecutionEffects records fail evidence for timed-out executions", 
     }),
     async recordEvidence(entry) {
       entries.push(entry);
-      return { ok: true, via: "sql-fallback", akError: "ak failed" };
+      return { ok: false, via: "failed", akError: "ak failed" };
     },
   });
 
   assert.equal(outcome.status, "timed_out");
   assert.equal(outcome.success, false);
-  assert.equal(outcome.evidence.via, "sql-fallback");
+  assert.equal(outcome.evidence.via, "failed");
   assert.deepEqual(entries, [
     {
       check_type: "validation:timed_out",
@@ -875,7 +876,7 @@ test("recordEvidence bootstraps a missing repo registration through ak before wr
   assert.equal(sqlWrites, 0);
 });
 
-test("recordEvidence writes directly via SQL when guarded bootstrap excludes the current cwd", async () => {
+test("recordEvidence fails closed when guarded bootstrap excludes the current cwd", async () => {
   const cwd = path.join(os.tmpdir(), `pi-orch-excluded-${Date.now()}`);
   let bootstrapCalls = 0;
   let akCalls = 0;
@@ -930,15 +931,15 @@ test("recordEvidence writes directly via SQL when guarded bootstrap excludes the
     },
   );
 
-  assert.equal(outcome.ok, true);
-  assert.equal(outcome.via, "sql-direct");
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.via, "failed");
   assert.equal(bootstrapCalls, 1);
   assert.equal(akCalls, 0);
-  assert.equal(sqlWrites, 1);
-  assert.equal(outcome.akError, undefined);
+  assert.equal(sqlWrites, 0);
+  assert.match(outcome.akError || "", /excluded the current cwd/i);
 });
 
-test("recordEvidence caches excluded guarded-bootstrap results for the same cwd", async () => {
+test("recordEvidence caches excluded guarded-bootstrap failures for the same cwd", async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-bootstrap-cache-"));
   let bootstrapCalls = 0;
   let sqlWrites = 0;
@@ -994,16 +995,18 @@ test("recordEvidence caches excluded guarded-bootstrap results for the same cwd"
       config,
     );
 
-    assert.equal(first.via, "sql-direct");
-    assert.equal(second.via, "sql-direct");
+    assert.equal(first.via, "failed");
+    assert.equal(second.via, "failed");
     assert.equal(bootstrapCalls, 1);
-    assert.equal(sqlWrites, 2);
+    assert.equal(sqlWrites, 0);
+    assert.match(first.akError || "", /excluded/i);
+    assert.match(second.akError || "", /excluded/i);
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
 
-test("recordEvidence refuses direct SQL fallback after guarded bootstrap times out", async () => {
+test("recordEvidence fails closed after guarded bootstrap times out", async () => {
   let akCalls = 0;
   let sqlWrites = 0;
 
@@ -1050,7 +1053,7 @@ test("recordEvidence refuses direct SQL fallback after guarded bootstrap times o
   assert.match(outcome.akError || "", /bootstrap timed out/);
 });
 
-test("recordEvidence falls back to SQL after non-timeout ak failure", async () => {
+test("recordEvidence fails closed after non-timeout ak failure", async () => {
   let sqlWrites = 0;
 
   const outcome = await recordEvidence(
@@ -1077,13 +1080,13 @@ test("recordEvidence falls back to SQL after non-timeout ak failure", async () =
     },
   );
 
-  assert.equal(outcome.ok, true);
-  assert.equal(outcome.via, "sql-fallback");
-  assert.equal(sqlWrites, 1);
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.via, "failed");
+  assert.equal(sqlWrites, 0);
   assert.match(outcome.akError || "", /ak unavailable/);
 });
 
-test("recordEvidence refuses SQL fallback after ak timeout", async () => {
+test("recordEvidence fails closed after ak timeout", async () => {
   let sqlWrites = 0;
 
   const outcome = await recordEvidence(
@@ -1202,6 +1205,23 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
       cacheRead: 300,
       cacheWrite: 200,
     },
+    boundaryTelemetry: {
+      totalCalls: 5,
+      successCount: 4,
+      failureCount: 1,
+      averageLatencyMs: 12.3,
+      maxLatencyMs: 45.6,
+      commandCounts: {
+        "sqlite3:select": 3,
+        "ak:evidence": 2,
+      },
+      latestFailure: {
+        timestamp: "2026-04-21T15:00:00.000Z",
+        command: "ak:evidence",
+        exitCode: 7,
+        error: "process exited with code 7",
+      },
+    },
     societyDbPath: "/tmp/society.db",
     societyDbAvailable: true,
     vaultAvailable: true,
@@ -1212,8 +1232,15 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
   assert.match(text, /coordination owner: `pi-society-orchestrator`/);
   assert.match(text, /execution owner: `pi-autonomous-session-control`/);
   assert.match(text, /routing: `quality` \(reviewer, researcher\)/);
+  assert.match(text, /boundary telemetry inspector: `\/runtime-boundary-telemetry`/);
   assert.match(text, /context: 20,000 tokens \(window 128,000\)/);
   assert.match(text, /session tokens: in 1,200 · cache 500 \(300 read \+ 200 write\) · out 400/);
+  assert.match(text, /lower-plane telemetry: 5 calls · 4 ok · 1 fail · avg 12\.3ms · max 45\.6ms/);
+  assert.match(text, /lower-plane command mix: sqlite3:select=3, ak:evidence=2/);
+  assert.match(
+    text,
+    /latest lower-plane failure: 2026-04-21T15:00:00\.000Z · ak:evidence · exit=7 · process exited with code 7/,
+  );
   assert.match(text, /footer left: `test-model · orchestrator→ASC`/);
   assert.match(
     text,
@@ -1228,6 +1255,7 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
 });
 
 test("runtime-status command opens a runtime truth inspector", async () => {
+  resetBoundaryTelemetry();
   const commands = new Map();
   extension({
     registerTool() {},
@@ -1262,11 +1290,15 @@ test("runtime-status command opens a runtime truth inspector", async () => {
   assert.match(editors[0].text, /^# Society Orchestrator Runtime Status/m);
   assert.match(editors[0].text, /routing selector: `\/agents-team`/);
   assert.match(editors[0].text, /inspector: `\/runtime-status`/);
+  assert.match(editors[0].text, /boundary telemetry inspector: `\/runtime-boundary-telemetry`/);
   assert.match(editors[0].text, /context: 20,000 tokens \(window 128,000\)/);
   assert.match(
     editors[0].text,
     /session tokens: in 1,200 · cache 500 \(300 read \+ 200 write\) · out 400/,
   );
+  assert.match(editors[0].text, /lower-plane telemetry:/);
+  assert.match(editors[0].text, /lower-plane command mix:/);
+  assert.match(editors[0].text, /latest lower-plane failure: none recorded/);
   assert.match(editors[0].text, /footer left: `test-model · orchestrator→ASC`/);
   assert.match(
     editors[0].text,
@@ -1282,6 +1314,41 @@ test("runtime-status command opens a runtime truth inspector", async () => {
   );
   assert.match(editors[0].text, /footer right: `Routing: all agents`/);
   assert.match(editors[0].text, /routing: `all agents` \[internal: `full`\]/);
+  resetBoundaryTelemetry();
+});
+
+test("runtime-boundary-telemetry command opens a lower-plane telemetry inspector", async () => {
+  resetBoundaryTelemetry();
+  const commands = new Map();
+  extension({
+    registerTool() {},
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+    on() {},
+  });
+
+  const editors = [];
+  const command = commands.get("runtime-boundary-telemetry");
+  assert.ok(command, "expected runtime-boundary-telemetry command to register");
+
+  await command.handler("", {
+    hasUI: true,
+    cwd: process.cwd(),
+    model: { id: "test-model" },
+    ui: {
+      async editor(title, text) {
+        editors.push({ title, text });
+      },
+      notify() {},
+    },
+  });
+
+  assert.equal(editors.length, 1);
+  assert.equal(editors[0].title, "Runtime Boundary Telemetry");
+  assert.match(editors[0].text, /^# Orchestrator Boundary Telemetry/m);
+  assert.match(editors[0].text, /Recent events/);
+  resetBoundaryTelemetry();
 });
 
 test("session_start surfaces routing status and the orchestrator to ASC seam in the footer", async () => {
@@ -1422,7 +1489,23 @@ test("session_start footer refreshes vault health after startup drift", async ()
       [
         "sql",
         "-q",
-        "create table prompt_templates (name text, artifact_kind text, description text, content text, status text); insert into prompt_templates values ('inv', 'cognitive', 'desc', 'body', 'active');",
+        [
+          "create table prompt_templates (",
+          "name text,",
+          "description text,",
+          "content text,",
+          "artifact_kind text,",
+          "control_mode text,",
+          "formalization_level text,",
+          "owner_company text,",
+          "visibility_companies json,",
+          "controlled_vocabulary json,",
+          "status text,",
+          "export_to_pi boolean,",
+          "version int",
+          ");",
+          "insert into prompt_templates values ('inv', 'desc', 'body', 'cognitive', 'one_shot', 'bounded', 'software', '[\"software\"]', NULL, 'active', true, 1);",
+        ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
     );
@@ -1509,7 +1592,23 @@ test("session_start footer health retries respect the refresh interval", async (
       [
         "sql",
         "-q",
-        "create table prompt_templates (name text, artifact_kind text, description text, content text, status text); insert into prompt_templates values ('inv', 'cognitive', 'desc', 'body', 'active');",
+        [
+          "create table prompt_templates (",
+          "name text,",
+          "description text,",
+          "content text,",
+          "artifact_kind text,",
+          "control_mode text,",
+          "formalization_level text,",
+          "owner_company text,",
+          "visibility_companies json,",
+          "controlled_vocabulary json,",
+          "status text,",
+          "export_to_pi boolean,",
+          "version int",
+          ");",
+          "insert into prompt_templates values ('inv', 'desc', 'body', 'cognitive', 'one_shot', 'bounded', 'software', '[\"software\"]', NULL, 'active', true, 1);",
+        ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
     );

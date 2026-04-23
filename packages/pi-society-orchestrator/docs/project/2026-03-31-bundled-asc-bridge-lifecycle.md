@@ -68,6 +68,11 @@ Run the bridge-retirement review at the earliest of:
 
 Do not wait for a vague later cleanup once one of those triggers fires.
 
+Operational enforcement:
+- `packages/pi-society-orchestrator/scripts/validate-asc-bridge-lifecycle.mjs`
+- `npm run release:check`
+- current enforcement rule: if `pi-autonomous-session-control` is visible on the npm registry while orchestrator still carries the bundled bridge, release-check fails closed and forces the cutover conversation immediately
+
 ## What does *not* justify keeping the bridge
 
 These are insufficient reasons to preserve bundling:

@@ -46,6 +46,20 @@ function escapeSql(value) {
   return value.replaceAll("'", "''");
 }
 
+function insertEvidenceRow(dbPath, { taskId, checkType, result, details }) {
+  execFileSync(
+    "sqlite3",
+    [
+      dbPath,
+      [
+        "INSERT INTO evidence (task_id, check_type, result, details)",
+        `VALUES (${taskId}, '${escapeSql(checkType)}', '${escapeSql(result)}', '${escapeSql(JSON.stringify(details))}');`,
+      ].join(" "),
+    ],
+    { encoding: "utf8" },
+  );
+}
+
 function createBinding({
   taskId = 4201,
   manifestPath,
@@ -314,10 +328,16 @@ test("recordEvidence records package-derived evidence exactly once per projectio
       }
 
       if (params.args[0] === "evidence" && params.args[1] === "record") {
+        insertEvidenceRow(dbPath, {
+          taskId: Number(params.args[params.args.indexOf("--task") + 1]),
+          checkType: params.args[params.args.indexOf("--check-type") + 1],
+          result: params.args[params.args.indexOf("--result") + 1],
+          details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
+        });
         return {
-          ok: false,
-          stdout: "",
-          stderr: "force sql fallback",
+          ok: true,
+          stdout: "ak-ok",
+          stderr: "",
         };
       }
 
@@ -333,7 +353,7 @@ test("recordEvidence records package-derived evidence exactly once per projectio
 
   assert.equal(first.ok, true);
   assert.equal(first.action, "recorded");
-  assert.equal(first.evidence?.via, "sql-fallback");
+  assert.equal(first.evidence?.via, "ak");
   assert.equal(first.task?.repo, repoRoot);
 
   const rowsAfterFirst = queryRows(
@@ -410,10 +430,16 @@ test("recordEvidence stays evidence-only for terminal_stage_complete milestones"
       }
 
       if (params.args[0] === "evidence" && params.args[1] === "record") {
+        insertEvidenceRow(dbPath, {
+          taskId: Number(params.args[params.args.indexOf("--task") + 1]),
+          checkType: params.args[params.args.indexOf("--check-type") + 1],
+          result: params.args[params.args.indexOf("--result") + 1],
+          details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
+        });
         return {
-          ok: false,
-          stdout: "",
-          stderr: "force sql fallback",
+          ok: true,
+          stdout: "ak-ok",
+          stderr: "",
         };
       }
 

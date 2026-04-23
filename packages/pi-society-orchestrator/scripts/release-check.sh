@@ -20,6 +20,9 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
   exit 1
 fi
 
+echo "== ASC bridge lifecycle"
+node ./scripts/validate-asc-bridge-lifecycle.mjs
+
 echo "== npm pack --dry-run --json"
 PACK_JSON="$(npm pack --dry-run --json)"
 echo "$PACK_JSON"
