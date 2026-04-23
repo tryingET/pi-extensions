@@ -1,0 +1,40 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "b8ac226a90026a22887c7861fa0b0eb10bfd3817"
+created_at: "2026-04-23T11:55:18Z"
+intent: "Add Prompt Vault Dolt telemetry, metrics-disabled temp-home hardening, and prompt-plane listing support."
+files:
+  - "diary/2026-04-21--dolt-metrics-disabled-temp-home-for-vault-surfaces.md"
+  - "packages/pi-vault-client/README.md"
+  - "packages/pi-vault-client/package-lock.json"
+  - "packages/pi-vault-client/package.json"
+  - "packages/pi-vault-client/src/promptPlane.d.ts"
+  - "packages/pi-vault-client/src/promptPlane.js"
+  - "packages/pi-vault-client/src/promptPlane.ts"
+  - "packages/pi-vault-client/src/vaultCommands.js"
+  - "packages/pi-vault-client/src/vaultCommands.ts"
+  - "packages/pi-vault-client/src/vaultDb.js"
+  - "packages/pi-vault-client/src/vaultDb.ts"
+  - "packages/pi-vault-client/src/vaultTools.js"
+  - "packages/pi-vault-client/src/vaultTools.ts"
+  - "packages/pi-vault-client/src/vaultTypes.js"
+  - "packages/pi-vault-client/src/vaultTypes.ts"
+  - "packages/pi-vault-client/tests/prompt-plane.test.mjs"
+  - "packages/pi-vault-client/tests/vault-dolt-integration.test.mjs"
+  - "packages/pi-vault-client/tests/vault-query-regression.test.mjs"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 5
+  total: 13
+  rationale: "Keep the vault Dolt temp-home hardening, telemetry surface, prompt-plane listing seam, and evidence note together."
+links:
+  diary:
+    - "diary/2026-04-21--dolt-metrics-disabled-temp-home-for-vault-surfaces.md"
