@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "bfe344a76ca7257cb74f4c07b5cf91a7ec630e25"
+created_at: "2026-04-23T12:32:14Z"
+intent: "Update the post-ADR execution plans and validation notes for the workflow and peer-messaging decision packets."
+files:
+  - "docs/project/2026-04-23-plan-peer-session-messaging-primitive-first-slice.md"
+  - "docs/project/2026-04-23-validation-rollout-rollback-peer-session-messaging-primitive.md"
+  - "packages/pi-society-orchestrator/docs/project/2026-04-23-plan-chain-parallel-worktree-ux-over-asc-first-slice.md"
+  - "packages/pi-society-orchestrator/docs/project/2026-04-23-validation-rollout-rollback-chain-parallel-worktree-ux-over-asc.md"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 17
+  total: 17
+  rationale: "Keep the post-ADR execution/validation notes for both dual-packet concerns synchronized."
