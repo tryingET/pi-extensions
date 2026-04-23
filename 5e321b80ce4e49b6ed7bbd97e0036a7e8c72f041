@@ -1,0 +1,30 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5e321b80ce4e49b6ed7bbd97e0036a7e8c72f041"
+created_at: "2026-04-23T16:34:24Z"
+intent: "Make pi-peer-messaging publishable with package-local docs, validation commands, and release-proofing."
+files:
+  - "packages/pi-peer-messaging/AGENTS.md"
+  - "packages/pi-peer-messaging/README.md"
+  - "packages/pi-peer-messaging/docs/project/intercom-adapter-contract.md"
+  - "packages/pi-peer-messaging/package.json"
+  - "packages/pi-peer-messaging/scripts/docs-list.sh"
+  - "packages/pi-peer-messaging/scripts/quality-gate.sh"
+  - "packages/pi-peer-messaging/scripts/release-check.sh"
+  - "packages/pi-peer-messaging/scripts/release-smoke.sh"
+validation:
+  fast_gate:
+    command: "cd packages/pi-peer-messaging && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-peer-messaging && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Implements AK task #1823 within the pi-peer-messaging package surface only."
+links:
+  task_ids:
+    - 1823
