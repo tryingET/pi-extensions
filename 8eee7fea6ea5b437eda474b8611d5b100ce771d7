@@ -1,0 +1,17 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8eee7fea6ea5b437eda474b8611d5b100ce771d7"
+created_at: "2026-04-23T13:28:51Z"
+intent: "Add the first workflow execution aggregation adapter and tests for truthful execution normalization."
+files:
+  - "packages/pi-society-orchestrator/src/runtime/workflow-execution.ts"
+  - "packages/pi-society-orchestrator/tests/workflow-execution.test.mjs"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pending"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
