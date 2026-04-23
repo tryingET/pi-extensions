@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "964ac9f8ee3e69978df06b329ce2fa0e0b9ecf2f"
+created_at: "2026-04-23T11:59:47Z"
+intent: "Stabilize the little-helpers stash picker and align helper notifications with supported UI levels."
+files:
+  - "packages/pi-little-helpers/extensions/code-block-picker.ts"
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/extensions/stash.ts"
+  - "packages/pi-little-helpers/package-lock.json"
+  - "packages/pi-little-helpers/package.json"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+  - "packages/pi-little-helpers/tsconfig.json"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 8
+  total: 13
+  rationale: "Keep the stash picker fix and its package-local typing/tooling alignment together."
