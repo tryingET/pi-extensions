@@ -49,16 +49,16 @@ The script enumerates every package root under `packages/` and reports whether i
 
 ## Current audit snapshot
 
-Audited on 2026-04-21.
+Audited on 2026-04-23.
 Refreshed from `node ./scripts/tech-stack-review-surfaces.mjs --json`.
 
 Snapshot summary:
 
-- package entries audited: `15`
+- package entries audited: `16`
 - legacy-full: `6`
 - reduced-form: `2`
 - policy-only: `0`
-- no local surface: `7`
+- no local surface: `8`
 
 ### Legacy full surface (`docs/tech-stack.local.md` + `policy/stack-lane.json`)
 
@@ -86,6 +86,7 @@ Snapshot summary:
 - `packages/pi-interaction/pi-interaction-kit`
 - `packages/pi-interaction/pi-runtime-registry`
 - `packages/pi-interaction/pi-trigger-adapter`
+- `packages/pi-peer-messaging`
 - `packages/pi-prompt-template-accelerator`
 
 ## Classification signal for the next root-owned wave
@@ -114,6 +115,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
 | `packages/pi-interaction/pi-interaction` | distinct child-package doc retained after `#636`; keeps the package-specific typecheck/validation note without local policy metadata (`sha256:ce50c7…d6fa`) | `reduced-form` | completed in `#636`; use as the reference path for future child-package reduced-form reductions |
 | `packages/pi-little-helpers` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-little-helpers` |
 | `packages/pi-ontology-workflows` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-ontology-workflows` |
+| `packages/pi-peer-messaging` | new simple-package scaffold already landing without package-local tech-stack overrides or local policy metadata | `none` | keep as a proof point that fresh simple-package scaffolds can land directly in the root-owned `none` steady state |
 | `packages/pi-society-orchestrator` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-society-orchestrator` |
 | `packages/pi-vault-client` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root with adjacent template-verification responsibility | `none` | package-local reduction candidate in `packages/pi-vault-client`; when scaffold defaults change, route adjacent Nunjucks verification through this package |
 
@@ -170,6 +172,7 @@ It makes the current state explicit so template and package follow-up can distin
 Notable refresh outcome for the current alignment wave:
 
 - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` sit in the `none` bucket after the two completed `none` pilots.
+- `packages/pi-peer-messaging` now also sits in the `none` bucket as a fresh simple-package scaffold that landed directly in the root-owned steady state without local tech-stack duplication.
 - `packages/pi-interaction/pi-interaction` now joins `packages/pi-interaction` in the `reduced-form` bucket after `#636`.
 - `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` are the current `legacy-full` package-local surfaces.
 - no package is currently in a `policy-only` intermediate state.
