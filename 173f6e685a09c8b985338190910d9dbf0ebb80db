@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "173f6e685a09c8b985338190910d9dbf0ebb80db"
-created_at: "2026-04-23T12:22:24Z"
+created_at: "2026-04-23T12:30:45Z"
 intent: "Capture ontology bootstrap evidence notes and the generated ontology dist artifacts they describe."
 files:
   - "diary/2026-04-16--ontology-bootstrap-command-and-ux.md"
@@ -23,7 +23,7 @@ validation:
     status: "pass"
 group:
   index: 14
-  total: 15
+  total: 16
   rationale: "Keep the ontology bootstrap/manifests evidence notes with the generated dist artifacts they reference."
 links:
   task_ids:
