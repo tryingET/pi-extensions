@@ -121,6 +121,7 @@ Primary tools and commands exposed by the imported extension include:
 - `evidence_record`
 - `ontology_context` (now resolved through the sanctioned `rocs-cli` adapter path instead of the local `society.db` ontology table)
 - `loop_execute`
+- `workflow_execute` (explicit chain/parallel workflow composition over the ASC-backed subagent executor, with optional bounded worktree isolation for eligible parallel groups)
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
 - `/cognitive`
 - `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
@@ -139,7 +140,7 @@ Primary tools and commands exposed by the imported extension include:
 - The detailed boundary summary now aligns its core field names with `pi-vault-client` telemetry where that is semantically truthful: `total_calls`, `success_count`, `failure_count`, `retained_events`, `average_latency_ms`, `max_latency_ms`, `command_mix`, and `latest_failure`.
 - The session footer now uses prioritized slots: model + `orchestrator→ASC` render when width allows, a compact current-context slot (`ctx 20k`) appears when context usage is known, a compact session-token summary (`↑input ↺cache ↓output`) appears once the session has usage, `DB`/`Vault` health badges remain optional, and narrow widths drop badges first, then the session-token summary, then the context slot, then the seam, before sacrificing routing visibility.
 - Footer health badges are no longer frozen at startup; subsequent renders can refresh Vault health after startup drift so the footer converges back toward `/runtime-status` truth.
-- `cognitive_dispatch` and `loop_execute` now route subagent execution through ASC's public execution contract via `src/runtime/subagent.ts` instead of carrying a second local spawn/runtime implementation.
+- `cognitive_dispatch`, `loop_execute`, and `workflow_execute` now route subagent execution through ASC's public execution contract via `src/runtime/subagent.ts` instead of carrying a second local spawn/runtime implementation.
 - The orchestrator-side adapter still preserves package-local timeout/output policy (`PI_ORCH_SUBAGENT_TIMEOUT_MS`, `PI_ORCH_SUBAGENT_OUTPUT_CHARS`) around the ASC-owned seam so installed-package behavior stays truthful during the cutover.
 - The adapter now also preserves ASC execution truth needed for orchestration decisions: canonical execution status, normalized `failureKind`, assistant stop reasons, protocol parse failures, abort propagation, and truncation metadata are forwarded instead of being collapsed into transport-only success.
 - Package-local seam guardrails now fail closed if source code drifts back to private ASC `extensions/self/*` imports or revives an orchestrator-local execution runtime path.
@@ -196,6 +197,34 @@ Then in Pi:
 
 1. run `/reload`
 2. verify with a real command or tool call from this package
+
+## `workflow_execute` examples
+
+See [examples/workflow-execute.md](examples/workflow-execute.md) for copy/paste-ready chain, parallel, and worktree-isolated examples.
+
+Smallest useful read-only chain:
+
+```js
+workflow_execute({
+  request: {
+    mode: "chain",
+    steps: [
+      {
+        kind: "step",
+        agent: "scout",
+        objective: "Inspect the current repo and identify the main workflow-composition entry points.",
+      },
+      {
+        kind: "step",
+        agent: "reviewer",
+        objective: "Review the discovered workflow-composition surface and summarize the main runtime risks.",
+      },
+    ],
+  },
+})
+```
+
+Operator proof for the first live bounded smoke is recorded in [docs/project/2026-04-23-live-workflow-execute-smoke.md](docs/project/2026-04-23-live-workflow-execute-smoke.md).
 
 ## Package checks
 

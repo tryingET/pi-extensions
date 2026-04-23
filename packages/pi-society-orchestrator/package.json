@@ -94,6 +94,7 @@
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.48",
+    "@tryinget/pi-autoresearch": "file:../pi-autoresearch",
     "pi-autonomous-session-control": "file:../pi-autonomous-session-control",
     "pi-vault-client": "file:../pi-vault-client"
   },

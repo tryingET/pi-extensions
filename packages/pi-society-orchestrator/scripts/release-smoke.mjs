@@ -200,32 +200,83 @@ function linkInstalledRuntimeDependencies(
   isolatedNpmGlobalRoot,
   manifest,
 ) {
-  const bundledDependencies = new Set([
-    ...(Array.isArray(manifest.bundleDependencies) ? manifest.bundleDependencies : []).map(String),
-    ...(Array.isArray(manifest.bundledDependencies) ? manifest.bundledDependencies : []).map(
-      String,
-    ),
-  ]);
-  const runtimeDependencies = new Set([
-    ...Object.keys(manifest.dependencies || {}),
-    ...Object.keys(manifest.optionalDependencies || {}),
-  ]);
+  const liftedRoot = path.join(path.dirname(importNodeModulesPath), ".runtime-dependencies");
+  fs.mkdirSync(liftedRoot, { recursive: true });
+  const visited = new Set();
 
-  for (const dependencyName of runtimeDependencies) {
-    if (bundledDependencies.has(dependencyName)) {
-      continue;
+  function findDependencySource(parentPackageDir, dependencyName) {
+    const pathSegments = dependencyName.split("/");
+    const candidates = [
+      path.join(parentPackageDir, "node_modules", ...pathSegments),
+      path.join(isolatedNpmGlobalRoot, ...pathSegments),
+    ];
+    return candidates.find((candidate) => fs.existsSync(candidate));
+  }
+
+  function linkDependencyTree(parentPackageDir, dependencyName) {
+    if (visited.has(dependencyName)) {
+      return;
     }
+    visited.add(dependencyName);
+
+    const source = findDependencySource(parentPackageDir, dependencyName);
+    assert.ok(source, `Missing installed runtime dependency '${dependencyName}'`);
 
     const pathSegments = dependencyName.split("/");
-    linkPackageFromCandidates(
-      importNodeModulesPath,
-      dependencyName,
-      [
-        path.join(installedPackageDir, "node_modules", ...pathSegments),
-        path.join(isolatedNpmGlobalRoot, ...pathSegments),
-      ],
-      "installed runtime dependency",
-    );
+    const destination = path.join(importNodeModulesPath, ...pathSegments);
+    const liftedPath = path.join(liftedRoot, ...pathSegments);
+
+    if (!fs.existsSync(liftedPath)) {
+      fs.mkdirSync(path.dirname(liftedPath), { recursive: true });
+      fs.cpSync(source, liftedPath, { recursive: true });
+    }
+
+    if (!fs.existsSync(destination)) {
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.symlinkSync(liftedPath, destination, "dir");
+    }
+
+    const manifestPath = path.join(source, "package.json");
+    if (!fs.existsSync(manifestPath)) {
+      return;
+    }
+
+    const dependencyManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const bundledDependencies = new Set([
+      ...(Array.isArray(dependencyManifest.bundleDependencies)
+        ? dependencyManifest.bundleDependencies
+        : []),
+      ...(Array.isArray(dependencyManifest.bundledDependencies)
+        ? dependencyManifest.bundledDependencies
+        : []),
+    ]);
+    const nestedRuntimeDependencies = [
+      ...Object.keys(dependencyManifest.dependencies || {}),
+      ...Object.keys(dependencyManifest.optionalDependencies || {}),
+    ];
+
+    for (const nestedDependencyName of nestedRuntimeDependencies) {
+      if (bundledDependencies.has(nestedDependencyName)) {
+        continue;
+      }
+      linkDependencyTree(source, nestedDependencyName);
+    }
+  }
+
+  const topLevelRuntimeDependencies = [
+    ...Object.keys(manifest.dependencies || {}),
+    ...Object.keys(manifest.optionalDependencies || {}),
+  ];
+  const topLevelBundledDependencies = new Set([
+    ...(Array.isArray(manifest.bundleDependencies) ? manifest.bundleDependencies : []),
+    ...(Array.isArray(manifest.bundledDependencies) ? manifest.bundledDependencies : []),
+  ]);
+
+  for (const dependencyName of topLevelRuntimeDependencies) {
+    if (topLevelBundledDependencies.has(dependencyName)) {
+      continue;
+    }
+    linkDependencyTree(installedPackageDir, dependencyName);
   }
 }
 
@@ -622,12 +673,14 @@ try {
 
   const cognitiveDispatch = harness.tools.get("cognitive_dispatch");
   const loopExecute = harness.tools.get("loop_execute");
+  const workflowExecute = harness.tools.get("workflow_execute");
   const agentsTeam = harness.commands.get("agents-team");
   const runtimeStatus = harness.commands.get("runtime-status");
   const sessionStart = harness.events.get("session_start");
 
   assert.ok(cognitiveDispatch, "cognitive_dispatch not registered");
   assert.ok(loopExecute, "loop_execute not registered");
+  assert.ok(workflowExecute, "workflow_execute not registered");
   assert.ok(agentsTeam, "agents-team command not registered");
   assert.ok(runtimeStatus, "runtime-status command not registered");
   assert.ok(sessionStart, "session_start handler not registered");
@@ -913,6 +966,43 @@ try {
   assert.deepEqual(akCallsAfterDispatch[3]?.args.slice(0, 2), ["evidence", "record"]);
   assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
   assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--result pass/);
+
+  writeFakePi("success");
+  const workflowResult = await workflowExecute.execute(
+    "installed-workflow-proof",
+    {
+      request: {
+        mode: "chain",
+        cwd: tempRoot,
+        steps: [
+          {
+            kind: "step",
+            agent: "scout",
+            objective: "Inspect the installed package repo and identify the workflow entry points.",
+          },
+          {
+            kind: "step",
+            agent: "reviewer",
+            objective:
+              "Review the discovered workflow surface and summarize the main runtime risks.",
+          },
+        ],
+      },
+    },
+    undefined,
+    undefined,
+    { cwd: tempRoot, model: undefined },
+  );
+
+  assert.equal(workflowResult?.details?.ok, true);
+  assert.equal(workflowResult?.details?.mode, "chain");
+  assert.equal(workflowResult?.details?.status, "done");
+  assert.equal(workflowResult?.details?.stepCount, 2);
+  assert.match(getText(workflowResult), /✓ Workflow \(chain\) — done — 2 step\(s\) executed/);
+  assert.match(getText(workflowResult), /## Workflow summary/);
+  assert.match(getText(workflowResult), /## Step 1 — scout — done/);
+  assert.match(getText(workflowResult), /## Step 2 — reviewer — done/);
+  console.log("installed workflow_execute smoke: ok");
 
   fs.writeFileSync(akCallLogPath, "");
   writeFakePi("success");

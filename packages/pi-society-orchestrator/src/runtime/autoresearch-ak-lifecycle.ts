@@ -2,7 +2,7 @@ import * as path from "node:path";
 import type {
   AutoresearchRuntimeStatus,
   InspectAutoresearchFinalizationResult,
-} from "../../../pi-autoresearch/src/runtime.ts";
+} from "@tryinget/pi-autoresearch/src/runtime.ts";
 import { type RunAkCommandResult, runAkCommandAsync } from "./ak.ts";
 import type {
   AutoresearchAkProjectorResult,

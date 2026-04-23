@@ -9,7 +9,7 @@ import {
   inspectAutoresearchFinalization,
   loadAutoresearchLedger,
   projectAutoresearchLedgerEntries,
-} from "../../../pi-autoresearch/src/runtime.ts";
+} from "@tryinget/pi-autoresearch/src/runtime.ts";
 import type { AutoresearchSupervisorLedgerLike } from "../loops/autoresearch-supervisor.ts";
 import { resolveAkPath } from "./ak.ts";
 import { evaluateAutoresearchAkLifecycle } from "./autoresearch-ak-lifecycle.ts";

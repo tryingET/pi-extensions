@@ -1811,6 +1811,65 @@ test("loop_execute reports loop/team mismatches before execution starts", async 
   assert.match(result.content[0].text, /intelligence: scout/);
 });
 
+test("workflow_execute fails closed on session-team disallowed agents before execution starts", async () => {
+  const commands = new Map();
+  const tools = new Map();
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-workflow-team-"));
+
+  try {
+    extension({
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+      registerCommand(name, command) {
+        commands.set(name, command);
+      },
+      on() {},
+    });
+
+    const command = commands.get("agents-team");
+    const workflowTool = tools.get("workflow_execute");
+    assert.ok(command, "expected agents-team command to register");
+    assert.ok(workflowTool, "expected workflow_execute tool to register");
+
+    await command.handler("", {
+      hasUI: true,
+      sessionKey: "workflow-team-session",
+      cwd: tempDir,
+      ui: {
+        async select() {
+          return "quality — reviewer, researcher";
+        },
+        notify() {},
+      },
+    });
+
+    const result = await workflowTool.execute(
+      "workflow-tool-call-id",
+      {
+        request: {
+          mode: "chain",
+          steps: [{ kind: "step", agent: "builder", objective: "Implement a fix" }],
+        },
+      },
+      undefined,
+      undefined,
+      { cwd: tempDir, sessionKey: "workflow-team-session", model: undefined },
+    );
+
+    assert.equal(result.details.ok, false);
+    assert.equal(result.details.errorCode, "workflow_validation_failed");
+    assert.deepEqual(
+      result.details.issues.map((issue) => issue.code),
+      ["team_disallows_agent"],
+    );
+    assert.match(result.content[0].text, /Workflow execution failed:/);
+    assert.match(result.content[0].text, /does not allow agent 'builder'/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("loop_execute fails closed when PI_ORCH_KES_ROOT is invalid", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-tool-"));
   const badRootParent = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-bad-root-"));

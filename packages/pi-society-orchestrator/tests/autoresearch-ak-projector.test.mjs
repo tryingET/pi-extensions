@@ -13,7 +13,7 @@ import {
   createLedgerEventEntry,
   createRunReceipt,
   projectAutoresearchLedger,
-} from "../../pi-autoresearch/src/runtime.ts";
+} from "@tryinget/pi-autoresearch/src/runtime.ts";
 import {
   buildAutoresearchAkMilestoneCheckType,
   deriveAutoresearchAkMilestoneCandidate,

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { AUTORESEARCH_RUNTIME_SNAPSHOT_FILE } from "../../pi-autoresearch/src/runtime.ts";
+import { AUTORESEARCH_RUNTIME_SNAPSHOT_FILE } from "@tryinget/pi-autoresearch/src/runtime.ts";
 import { deriveAutoresearchAkMilestoneCandidate } from "../src/runtime/autoresearch-ak-projector.ts";
 import {
   AutoresearchLiveSupervisionRunner,

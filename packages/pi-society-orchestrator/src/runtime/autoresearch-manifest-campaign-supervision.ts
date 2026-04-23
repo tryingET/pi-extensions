@@ -8,7 +8,7 @@ import {
   type LlamacppCampaignAkBindingV1,
   type PersistLlamacppCampaignProjectionResult,
   persistDerivedLlamacppCampaignProjection,
-} from "../../../pi-autoresearch/src/runtime.ts";
+} from "@tryinget/pi-autoresearch/src/runtime.ts";
 import { type RunAkCommandResult, runAkCommandAsync } from "./ak.ts";
 import {
   type BoundaryResult,
