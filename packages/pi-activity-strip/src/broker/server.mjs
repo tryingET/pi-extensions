@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import net from "node:net";
+/** @typedef {import("../common/contracts.ts").ActivityStripBrokerOptions} ActivityStripBrokerOptions */
 import {
   ACTIVITY_STRIP_BROADCAST_TICK_MS,
   ACTIVITY_STRIP_SOCKET_DIR,
@@ -8,14 +9,18 @@ import {
 } from "../common/constants.mjs";
 import { SessionStore } from "./session-store.mjs";
 
+/** @param {string} filePath */
 function safeUnlink(filePath) {
   try {
     fs.unlinkSync(filePath);
   } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
+    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+      throw error;
+    }
   }
 }
 
+/** @param {string} line */
 function parseLine(line) {
   const trimmed = String(line ?? "").trim();
   if (!trimmed) return null;
@@ -23,11 +28,13 @@ function parseLine(line) {
 }
 
 export class ActivityStripBroker extends EventEmitter {
+  /** @param {ActivityStripBrokerOptions} [options] */
   constructor(options = {}) {
     super();
     this.socketPath = options.socketPath ?? ACTIVITY_STRIP_SOCKET_PATH;
     this.socketDir = options.socketDir ?? ACTIVITY_STRIP_SOCKET_DIR;
     this.store = options.store ?? new SessionStore();
+    this.getRuntimeStatus = options.getRuntimeStatus ?? (() => undefined);
     this.server = net.createServer((socket) => this.handleConnection(socket));
     this.tick = null;
   }
@@ -40,7 +47,7 @@ export class ActivityStripBroker extends EventEmitter {
       this.server.once("error", reject);
       this.server.listen(this.socketPath, () => {
         this.server.off("error", reject);
-        resolve();
+        resolve(undefined);
       });
     });
 
@@ -55,10 +62,12 @@ export class ActivityStripBroker extends EventEmitter {
     this.emit("snapshot", this.store.snapshot());
   }
 
+  /** @param {import("node:net").Socket} socket @param {Record<string, unknown>} message */
   reply(socket, message) {
     socket.write(`${JSON.stringify(message)}\n`);
   }
 
+  /** @param {import("node:net").Socket} socket */
   handleConnection(socket) {
     let buffer = "";
     socket.setEncoding("utf8");
@@ -75,12 +84,16 @@ export class ActivityStripBroker extends EventEmitter {
     });
   }
 
+  /** @param {import("node:net").Socket} socket @param {string} line */
   handleMessage(socket, line) {
     let message;
     try {
       message = parseLine(line);
     } catch (error) {
-      this.reply(socket, { ok: false, error: error.message });
+      this.reply(socket, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return;
     }
 
@@ -88,7 +101,12 @@ export class ActivityStripBroker extends EventEmitter {
 
     switch (message.type) {
       case "ping":
-        this.reply(socket, { ok: true, type: "pong", snapshot: this.store.snapshot() });
+        this.reply(socket, {
+          ok: true,
+          type: "pong",
+          snapshot: this.store.snapshot(),
+          runtimeStatus: this.getRuntimeStatus(),
+        });
         return;
       case "shutdown":
         this.reply(socket, { ok: true, type: "shutdown" });
@@ -116,13 +134,14 @@ export class ActivityStripBroker extends EventEmitter {
     }
 
     await new Promise((resolve) => {
-      this.server.close(() => resolve());
+      this.server.close(() => resolve(undefined));
     });
 
     safeUnlink(this.socketPath);
   }
 }
 
+/** @param {ActivityStripBrokerOptions} [options] */
 export async function createActivityStripBroker(options = {}) {
   const broker = new ActivityStripBroker(options);
   await broker.start();

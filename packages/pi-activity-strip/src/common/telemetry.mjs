@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import os from "node:os";
+/** @typedef {import("./contracts.ts").SessionSnapshot} SessionSnapshot */
+/** @typedef {import("./contracts.ts").ToolCallDescription} ToolCallDescription */
+/** @typedef {import("./contracts.ts").ToolResultSummary} ToolResultSummary */
 import {
   basenameLabel,
   compactWhitespace,
@@ -10,10 +13,16 @@ import {
   truncate,
 } from "./format.mjs";
 
+/** @param {unknown} value */
+function asRecord(value) {
+  return value && typeof value === "object" ? /** @type {Record<string, unknown>} */ (value) : null;
+}
+
 export function createSessionId() {
   return `${os.hostname()}-${process.pid}-${Date.now()}-${randomUUID().slice(0, 6)}`;
 }
 
+/** @param {{ cwd?: string; sessionName?: string }} [options] @returns {SessionSnapshot} */
 export function createInitialSnapshot({ cwd = process.cwd(), sessionName = "" } = {}) {
   const now = Date.now();
   return {
@@ -38,6 +47,7 @@ export function createInitialSnapshot({ cwd = process.cwd(), sessionName = "" } 
   };
 }
 
+/** @param {string} toolName @param {Record<string, unknown>} [args] @returns {ToolCallDescription} */
 export function describeToolCall(toolName, args = {}) {
   switch (toolName) {
     case "bash":
@@ -92,22 +102,25 @@ export function describeToolCall(toolName, args = {}) {
   }
 }
 
+/** @param {string} toolName @param {unknown} result @param {boolean} [isError] @returns {ToolResultSummary} */
 export function summarizeToolResult(toolName, result, isError = false) {
+  const record = asRecord(result);
   if (isError) {
+    const errorValue = record?.errorMessage ?? record?.message ?? result;
     return {
       state: "error",
       phase: `${toolName} failed`,
-      detail:
-        previewText(result?.errorMessage ?? result?.message ?? result, 104) || `${toolName} failed`,
-      errorMessage: previewText(result?.errorMessage ?? result?.message ?? result, 104),
+      detail: previewText(errorValue, 104) || `${toolName} failed`,
+      errorMessage: previewText(errorValue, 104),
     };
   }
 
   if (toolName === "bash") {
+    const outputValue = record?.stdout ?? record?.stderr ?? result;
     return {
       state: "thinking",
       phase: "Processing output",
-      detail: previewText(result?.stdout ?? result?.stderr ?? result, 104) || "Command finished",
+      detail: previewText(outputValue, 104) || "Command finished",
       errorMessage: "",
     };
   }

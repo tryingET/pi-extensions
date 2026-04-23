@@ -75,6 +75,7 @@ Commands:
 
 ```bash
 node ./bin/pi-activity-strip.mjs status
+node ./bin/pi-activity-strip.mjs doctor
 node ./bin/pi-activity-strip.mjs snapshot
 node ./bin/pi-activity-strip.mjs fix-top
 npm run capture:strip
@@ -82,7 +83,9 @@ npm run capture:top
 ```
 
 Observed result:
-- broker reported `running`
+- status reported that the broker was running and the overlay was ready
+- in Pi UI sessions, `/activity-strip status` can now open the same runtime report in an editor-backed surface instead of collapsing status to a one-line notify
+- `doctor` surfaced the current host assumptions (Electron present, display session available, multi-display warnings when applicable)
 - snapshot command returned valid JSON
 - `fix-top` successfully moved the strip to the top edge in Niri when it drifted downward
 - local capture helpers produced direct strip/top-band screenshots for agent inspection

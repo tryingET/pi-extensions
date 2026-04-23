@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 
+/** @typedef {import("./contracts.ts").SessionState} SessionState */
+/** @typedef {import("./contracts.ts").SessionSnapshot} SessionSnapshot */
+
+/** @type {Set<SessionState>} */
 const SESSION_STATES = new Set(["idle", "thinking", "tool", "waiting", "success", "error"]);
 
+/** @param {string} type @param {Record<string, unknown>} [payload] */
 export function makeMessage(type, payload = {}) {
   return {
     id: randomUUID(),
@@ -10,13 +15,18 @@ export function makeMessage(type, payload = {}) {
   };
 }
 
+/** @param {Partial<SessionSnapshot> | Record<string, unknown>} [session] @returns {SessionSnapshot} */
 export function normalizeSessionSnapshot(session = {}) {
   const now = Date.now();
   const updatedAt = Number(session.updatedAt ?? now) || now;
   const startedAt = Number(session.startedAt ?? updatedAt) || updatedAt;
   const agentStartedAt =
     session.agentStartedAt == null ? null : Number(session.agentStartedAt) || null;
-  const state = SESSION_STATES.has(session.state) ? session.state : "idle";
+  const rawState = typeof session.state === "string" ? session.state : "idle";
+  /** @type {SessionState} */
+  const state = SESSION_STATES.has(/** @type {SessionState} */ (rawState))
+    ? /** @type {SessionState} */ (rawState)
+    : "idle";
 
   return {
     sessionId: String(session.sessionId ?? ""),
@@ -40,6 +50,7 @@ export function normalizeSessionSnapshot(session = {}) {
   };
 }
 
+/** @param {SessionSnapshot[]} [sessions] @returns {SessionSnapshot[]} */
 export function sortSessions(sessions = []) {
   const stateWeight = new Map([
     ["tool", 0],

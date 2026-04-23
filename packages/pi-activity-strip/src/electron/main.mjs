@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { app, BrowserWindow, screen } from "electron";
 import { createActivityStripBroker } from "../broker/server.mjs";
+import { detectDisplayServer, detectWindowManager } from "../common/compatibility.mjs";
 import { ACTIVITY_STRIP_HEIGHT, ACTIVITY_STRIP_WIDTH_PADDING } from "../common/constants.mjs";
 import { createStripHtml } from "../ui/strip-html.mjs";
 
@@ -16,6 +17,18 @@ const execFileAsync = promisify(execFile);
 let browserWindow = null;
 let broker = null;
 let latestSnapshot = { generatedAt: Date.now(), sessions: [] };
+const runtimeStatus = {
+  state: "starting",
+  startedAt: Date.now(),
+  readyAt: null,
+  windowVisible: false,
+  displayServer: detectDisplayServer(process.env),
+  windowManager: detectWindowManager(process.env),
+  displayCount: null,
+  alignmentMode: isNiriSession() ? "niri" : "generic",
+  warnings: [],
+  error: null,
+};
 
 function isNiriSession() {
   return Boolean(process.env.NIRI_SOCKET);
@@ -138,6 +151,37 @@ function scheduleTopAlignment() {
   }
 }
 
+function refreshRuntimeStatus() {
+  runtimeStatus.alignmentMode = isNiriSession() ? "niri" : "generic";
+  runtimeStatus.windowVisible = Boolean(
+    browserWindow && !browserWindow.isDestroyed() && browserWindow.isVisible(),
+  );
+
+  if (!app.isReady()) {
+    runtimeStatus.warnings = isNiriSession()
+      ? []
+      : [
+          "Top-edge repair is optimized for Niri. Other window managers fall back to generic Electron bounds and may need manual adjustment.",
+        ];
+    return;
+  }
+
+  const displays = screen.getAllDisplays();
+  runtimeStatus.displayCount = displays.length;
+  const warnings = [];
+  if (displays.length > 1) {
+    warnings.push(
+      `Detected ${displays.length} displays; the strip currently renders on the primary display only.`,
+    );
+  }
+  if (!isNiriSession()) {
+    warnings.push(
+      "Top-edge repair is optimized for Niri. Other window managers fall back to generic Electron bounds and may need manual adjustment.",
+    );
+  }
+  runtimeStatus.warnings = warnings;
+}
+
 function currentDisplay() {
   return screen.getPrimaryDisplay();
 }
@@ -155,6 +199,7 @@ function currentBounds() {
 
 function updateWindowBounds() {
   if (!browserWindow || browserWindow.isDestroyed()) return;
+  refreshRuntimeStatus();
   scheduleTopAlignment();
 }
 
@@ -188,8 +233,12 @@ async function createWindow() {
   browserWindow.setIgnoreMouseEvents(!interactive, { forward: true });
 
   browserWindow.once("ready-to-show", () => {
+    runtimeStatus.state = "ready";
+    runtimeStatus.readyAt = Date.now();
+    runtimeStatus.error = null;
     browserWindow?.showInactive?.();
     browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
+    refreshRuntimeStatus();
     scheduleTopAlignment();
   });
 
@@ -199,11 +248,15 @@ async function createWindow() {
   if (!browserWindow.isVisible()) {
     browserWindow.showInactive?.();
     browserWindow.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
+    refreshRuntimeStatus();
     scheduleTopAlignment();
   }
 
+  browserWindow.on("show", () => refreshRuntimeStatus());
+  browserWindow.on("hide", () => refreshRuntimeStatus());
   browserWindow.on("closed", () => {
     browserWindow = null;
+    refreshRuntimeStatus();
   });
 }
 
@@ -213,7 +266,12 @@ async function main() {
     return;
   }
 
-  broker = await createActivityStripBroker();
+  broker = await createActivityStripBroker({
+    getRuntimeStatus: () => ({
+      ...runtimeStatus,
+      warnings: [...runtimeStatus.warnings],
+    }),
+  });
   broker.on("snapshot", (snapshot) => {
     latestSnapshot = snapshot;
     browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
@@ -226,6 +284,7 @@ async function main() {
   app.setName("pi-activity-strip");
 
   await app.whenReady();
+  refreshRuntimeStatus();
   await createWindow();
 
   screen.on("display-metrics-changed", () => updateWindowBounds());
@@ -247,6 +306,9 @@ async function main() {
 }
 
 main().catch(async (error) => {
+  runtimeStatus.state = "error";
+  runtimeStatus.error = error instanceof Error ? error.message : String(error);
+  refreshRuntimeStatus();
   console.error(error?.stack ?? error?.message ?? String(error));
   try {
     await broker?.stop();

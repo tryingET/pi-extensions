@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { DEFAULT_ELECTRON_CANDIDATES } from "./constants.mjs";
 
+/** @param {string} targetPath */
 async function canExecute(targetPath) {
   try {
     await access(targetPath, constants.X_OK);
@@ -12,6 +13,7 @@ async function canExecute(targetPath) {
   }
 }
 
+/** @param {string} binaryName */
 async function findOnPath(binaryName) {
   for (const entry of String(process.env.PATH ?? "")
     .split(":")
@@ -22,6 +24,7 @@ async function findOnPath(binaryName) {
   return null;
 }
 
+/** @param {string | null} [explicitPath] */
 export async function locateElectron(explicitPath = null) {
   if (explicitPath) {
     if (await canExecute(explicitPath)) return explicitPath;

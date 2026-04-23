@@ -1,3 +1,10 @@
+/** @typedef {import("../common/contracts.ts").SessionSnapshot} SessionSnapshot */
+/** @typedef {import("../common/contracts.ts").SessionTelemetryOptions} SessionTelemetryOptions */
+/** @typedef {import("../common/contracts.ts").SessionStartContextLike} SessionStartContextLike */
+/** @typedef {import("../common/contracts.ts").BeforeAgentStartEventLike} BeforeAgentStartEventLike */
+/** @typedef {import("../common/contracts.ts").TurnStartEventLike} TurnStartEventLike */
+/** @typedef {import("../common/contracts.ts").MessageUpdateEventLike} MessageUpdateEventLike */
+/** @typedef {import("../common/contracts.ts").ToolExecutionEventLike} ToolExecutionEventLike */
 import {
   ACTIVITY_STRIP_HEARTBEAT_MS,
   ACTIVITY_STRIP_SEND_THROTTLE_MS,
@@ -20,14 +27,19 @@ function now() {
   return Date.now();
 }
 
+/** @param {MessageUpdateEventLike} event */
 function extractAssistantDelta(event) {
   if (event?.assistantMessageEvent?.type !== "text_delta") return "";
   return String(event.assistantMessageEvent.delta ?? "");
 }
 
+/** @param {SessionTelemetryOptions} [options] */
 export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = "" } = {}) {
+  /** @type {SessionSnapshot} */
   let snapshot = createInitialSnapshot({ cwd, sessionName });
+  /** @type {NodeJS.Timeout | null} */
   let heartbeatTimer = null;
+  /** @type {NodeJS.Timeout | null} */
   let flushTimer = null;
   let disposed = false;
   let pendingAssistant = "";
@@ -70,6 +82,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
     heartbeatTimer = null;
   }
 
+  /** @param {Partial<SessionSnapshot>} partial */
   function update(partial) {
     snapshot = {
       ...snapshot,
@@ -83,6 +96,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
     getSnapshot() {
       return snapshot;
     },
+    /** @param {SessionStartContextLike} ctx */
     async onSessionStart(ctx) {
       update({
         cwd: ctx?.cwd ?? snapshot.cwd,
@@ -92,6 +106,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
       startHeartbeat();
       await flush();
     },
+    /** @param {BeforeAgentStartEventLike} event */
     onBeforeAgentStart(event) {
       pendingAssistant = "";
       update({
@@ -106,12 +121,14 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
         toolTarget: "",
       });
     },
+    /** @param {TurnStartEventLike} event */
     onTurnStart(event) {
       update({
         turnIndex: Number(event?.turnIndex ?? snapshot.turnIndex + 1) || snapshot.turnIndex + 1,
         state: snapshot.agentActive ? snapshot.state : "thinking",
       });
     },
+    /** @param {MessageUpdateEventLike} event */
     onMessageUpdate(event) {
       const delta = extractAssistantDelta(event);
       if (!delta) return;
@@ -124,6 +141,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
         detail: previewText(pendingAssistant, 104) || snapshot.detail,
       });
     },
+    /** @param {ToolExecutionEventLike} event */
     onToolExecutionStart(event) {
       const toolName = String(event?.toolName ?? "tool");
       const description = describeToolCall(toolName, event?.args ?? {});
@@ -136,6 +154,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
         errorMessage: "",
       });
     },
+    /** @param {ToolExecutionEventLike} event */
     onToolExecutionUpdate(event) {
       if (snapshot.state !== "tool" && snapshot.state !== "waiting") return;
       const partial = previewText(event?.partialResult, 104);
@@ -144,6 +163,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
         detail: partial,
       });
     },
+    /** @param {ToolExecutionEventLike} event */
     onToolExecutionEnd(event) {
       const toolName = String(event?.toolName ?? snapshot.toolName ?? "tool");
       const summary = summarizeToolResult(toolName, event?.result, Boolean(event?.isError));

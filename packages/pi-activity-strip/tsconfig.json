@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "bin/**/*.mjs",
+    "extensions/**/*.js",
+    "src/broker/**/*.mjs",
+    "src/client/**/*.mjs",
+    "src/common/**/*.mjs"
+  ],
+  "exclude": ["src/electron/**/*.mjs", "src/ui/**/*.mjs", "tests/**/*.mjs", "extensions/**/*.ts"]
+}

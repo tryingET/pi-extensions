@@ -53,7 +53,7 @@ Implemented now:
 - primary-display top-row strip
 - one card per active Pi session
 - headless-safe telemetry publishing
-- explicit open/status/snapshot/fix-top/stop commands
+- explicit open/status/doctor/snapshot/fix-top/stop commands
 - local visual capture helpers so the agent can inspect the strip directly
 
 Not implemented yet:
@@ -83,6 +83,7 @@ For **new Pi tabs**:
 ```bash
 npm run strip:open
 npm run strip:status
+npm run strip:doctor
 npm run strip:snapshot
 npm run strip:fix-top
 npm run strip:stop
@@ -92,6 +93,8 @@ or directly:
 
 ```bash
 node ./bin/pi-activity-strip.mjs open
+node ./bin/pi-activity-strip.mjs status
+node ./bin/pi-activity-strip.mjs doctor
 node ./bin/pi-activity-strip.mjs snapshot
 node ./bin/pi-activity-strip.mjs fix-top
 ```
@@ -103,10 +106,15 @@ Inside Pi:
 ```text
 /activity-strip
 /activity-strip status
+/activity-strip doctor
 /activity-strip fix-top
 /activity-strip stop
 /activity-strip-stop
 ```
+
+In Pi with UI support:
+- `/activity-strip status` opens a detailed runtime status report when an editor surface is available
+- `/activity-strip doctor` opens the host-compatibility report
 
 ## Verification commands
 
@@ -123,6 +131,7 @@ npm run release:check:quick
 ```bash
 npm run strip:open
 npm run strip:status
+npm run strip:doctor
 npm run strip:snapshot
 ```
 
@@ -152,6 +161,19 @@ This smoke:
 - runs a real headless Pi session with this extension loaded
 - exercises a real tool call
 - verifies that the broker observed the session while it was active
+
+### Compatibility diagnostics
+
+```bash
+npm run strip:doctor
+node ./bin/pi-activity-strip.mjs doctor --json
+```
+
+Use `doctor` before opening the strip when the host/display assumptions are uncertain. It reports:
+- whether a graphical session is present
+- whether Electron can be resolved
+- whether Niri-specific top-edge repair is available
+- whether the current setup is multi-display even though the strip remains primary-display-only
 
 ## Environment controls
 

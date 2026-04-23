@@ -1,10 +1,14 @@
 import net from "node:net";
+/** @typedef {import("../common/contracts.ts").BrokerClientOptions} BrokerClientOptions */
+/** @typedef {import("../common/contracts.ts").BrokerResponse} BrokerResponse */
+/** @typedef {import("../common/contracts.ts").SessionSnapshot} SessionSnapshot */
 import {
   ACTIVITY_STRIP_CONNECT_TIMEOUT_MS,
   ACTIVITY_STRIP_SOCKET_PATH,
 } from "../common/constants.mjs";
 import { makeMessage } from "../common/protocol.mjs";
 
+/** @param {Record<string, unknown>} message @param {BrokerClientOptions} [options] @returns {Promise<BrokerResponse>} */
 export function sendBrokerMessage(message, options = {}) {
   const expectReply = Boolean(options.expectReply);
   const timeoutMs =
@@ -17,16 +21,26 @@ export function sendBrokerMessage(message, options = {}) {
     let settled = false;
     let buffer = "";
 
-    const finish = (handler, value) => {
+    /** @param {BrokerResponse} value */
+    const finishResolve = (value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
       socket.destroy();
-      handler(value);
+      resolve(value);
+    };
+
+    /** @param {Error} error */
+    const finishReject = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      socket.destroy();
+      reject(error);
     };
 
     const timeoutId = setTimeout(() => {
-      finish(reject, new Error(`Timed out contacting activity strip broker after ${timeoutMs}ms`));
+      finishReject(new Error(`Timed out contacting activity strip broker after ${timeoutMs}ms`));
     }, timeoutMs);
 
     socket.setEncoding("utf8");
@@ -34,7 +48,7 @@ export function sendBrokerMessage(message, options = {}) {
     socket.on("connect", () => {
       socket.write(`${JSON.stringify(message)}\n`, () => {
         if (!expectReply) {
-          finish(resolve, { ok: true });
+          finishResolve({ ok: true });
         }
       });
     });
@@ -47,30 +61,42 @@ export function sendBrokerMessage(message, options = {}) {
       const line = buffer.slice(0, newlineIndex).trim();
       if (!line) return;
       try {
-        finish(resolve, JSON.parse(line));
+        const parsed = JSON.parse(line);
+        finishResolve(
+          parsed && typeof parsed === "object"
+            ? /** @type {BrokerResponse} */ (parsed)
+            : { ok: false, error: "Invalid broker response payload" },
+        );
       } catch (error) {
-        finish(reject, error);
+        finishReject(error instanceof Error ? error : new Error(String(error)));
       }
     });
 
     socket.on("error", (error) => {
-      finish(reject, error);
+      finishReject(error instanceof Error ? error : new Error(String(error)));
     });
   });
 }
 
+/** @param {BrokerClientOptions} [options] */
+export async function getBrokerStatus(options = {}) {
+  return await sendBrokerMessage(makeMessage("ping"), {
+    ...options,
+    expectReply: true,
+  });
+}
+
+/** @param {BrokerClientOptions} [options] */
 export async function isBrokerAlive(options = {}) {
   try {
-    const result = await sendBrokerMessage(makeMessage("ping"), {
-      ...options,
-      expectReply: true,
-    });
+    const result = await getBrokerStatus(options);
     return result?.ok === true;
   } catch {
     return false;
   }
 }
 
+/** @param {BrokerClientOptions} [options] @returns {Promise<BrokerResponse>} */
 export async function requestBrokerShutdown(options = {}) {
   return await sendBrokerMessage(makeMessage("shutdown"), {
     ...options,
@@ -78,10 +104,12 @@ export async function requestBrokerShutdown(options = {}) {
   });
 }
 
+/** @param {SessionSnapshot} session @param {BrokerClientOptions} [options] */
 export async function publishSessionSnapshot(session, options = {}) {
   await sendBrokerMessage(makeMessage("upsert", { session }), options);
 }
 
+/** @param {string} sessionId @param {BrokerClientOptions} [options] */
 export async function removeSession(sessionId, options = {}) {
   await sendBrokerMessage(makeMessage("remove", { sessionId }), options);
 }

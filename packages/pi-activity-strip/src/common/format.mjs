@@ -3,22 +3,26 @@ import path from "node:path";
 // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping requires an ESC control character pattern.
 const ANSI_RE = /\u001b\[[0-9;]*m/g;
 
+/** @param {unknown} value @param {number} [max] */
 export function truncate(value, max = 96) {
   const text = String(value ?? "").trim();
   if (text.length <= max) return text;
   return `${text.slice(0, Math.max(0, max - 1))}…`;
 }
 
+/** @param {unknown} value */
 export function stripAnsi(value) {
   return String(value ?? "").replaceAll(ANSI_RE, "");
 }
 
+/** @param {unknown} value */
 export function compactWhitespace(value) {
   return stripAnsi(String(value ?? ""))
     .replace(/\s+/g, " ")
     .trim();
 }
 
+/** @param {unknown} value */
 export function lastNonEmptyLine(value) {
   const lines = String(value ?? "")
     .split(/\r?\n/g)
@@ -27,12 +31,14 @@ export function lastNonEmptyLine(value) {
   return lines.at(-1) ?? "";
 }
 
+/** @param {unknown} targetPath */
 export function basenameLabel(targetPath) {
   const normalized = String(targetPath ?? "").trim();
   if (!normalized) return "(unknown)";
   return path.basename(normalized) || normalized;
 }
 
+/** @param {unknown} targetPath @param {number} [max] */
 export function previewPath(targetPath, max = 64) {
   const normalized = compactWhitespace(targetPath);
   if (!normalized) return "";
@@ -46,14 +52,17 @@ export function previewPath(targetPath, max = 64) {
   return truncate(`…/${base}`, max);
 }
 
+/** @param {unknown} command @param {number} [max] */
 export function previewCommand(command, max = 72) {
   return truncate(compactWhitespace(command), max);
 }
 
+/** @param {unknown} value @param {number} [max] */
 export function previewText(value, max = 96) {
   return truncate(lastNonEmptyLine(value) || compactWhitespace(value), max);
 }
 
+/** @param {unknown} cwd @param {unknown} explicitSessionName */
 export function formatRepoLabel(cwd, explicitSessionName) {
   const sessionName = compactWhitespace(explicitSessionName);
   if (sessionName) return truncate(sessionName, 36);
