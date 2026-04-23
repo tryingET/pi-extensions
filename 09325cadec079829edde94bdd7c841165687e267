@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "09325cadec079829edde94bdd7c841165687e267"
+created_at: "2026-04-23T12:00:55Z"
+intent: "Tighten pi-context-overlay typing and harden overlay usage rendering."
+files:
+  - "packages/pi-context-overlay/package-lock.json"
+  - "packages/pi-context-overlay/package.json"
+  - "packages/pi-context-overlay/src/context-overlay-component.ts"
+  - "packages/pi-context-overlay/src/snapshot-store.ts"
+  - "packages/pi-context-overlay/tests/context-overlay.test.ts"
+  - "packages/pi-context-overlay/tsconfig.json"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 9
+  total: 13
+  rationale: "Keep the context-overlay type cleanup and package-local TS setup in one bounded fix."
