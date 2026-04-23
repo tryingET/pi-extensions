@@ -80,6 +80,10 @@ Evidence shape:
 - focused classification tests
 - coverage-rule fixtures
 
+Current proof status:
+- landed locally via typed applicability-classification helpers in `packages/pi-autoresearch/src/core/selfHosting.ts`
+- current coverage proves the core `reject`, `variant_candidate`, and `default_promotion_candidate` paths, keeps `variant_candidate` gated behind a declared target profile plus explicit profile-improvement evidence, rejects missing locked suite outcomes and dirty candidate scope, and blocks default promotion when transfer coverage falls short via `packages/pi-autoresearch/tests/self-hosting.test.ts`
+
 ### SH-5 — promotion/rollback record
 
 Required proof:

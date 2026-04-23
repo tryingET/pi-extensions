@@ -9,10 +9,12 @@ import test from "node:test";
 import {
   AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE,
   AUTORESEARCH_SELF_HOSTING_EVALUATOR_LOCK_FILE,
+  type AutoresearchSelfHostingApplicabilitySuiteOutcome,
   type AutoresearchSelfHostingContractV1,
   type AutoresearchSelfHostingEvaluatorLockV1,
   AutoresearchSelfHostingValidationError,
   assertAutoresearchSelfHostingCandidateScope,
+  classifyAutoresearchSelfHostingApplicability,
   executeAutoresearchSelfHostingCandidateSubprocess,
   executeAutoresearchSelfHostingEvaluatorSuite,
   inspectAutoresearchSelfHostingCandidateScope,
@@ -275,18 +277,31 @@ function createRepoBackedContract(root: string): AutoresearchSelfHostingContract
   return contract;
 }
 
-function createPreparedCandidateRepo(root: string): {
+function createPreparedCandidateRepo(
+  root: string,
+  configureContract?: (contract: AutoresearchSelfHostingContractV1) => void,
+): {
   contract: AutoresearchSelfHostingContractV1;
   candidateWorktreePath: string;
 } {
   initSelfHostingRepo(root);
   const contract = createRepoBackedContract(root);
+  configureContract?.(contract);
   writeSelfHostingArtifacts(root, contract);
   const prepareResult = prepareAutoresearchSelfHostingCandidateWorktree({ cwd: root, apply: true });
   return {
     contract,
     candidateWorktreePath: prepareResult.candidate.worktreePath,
   };
+}
+
+function createPassingApplicabilitySuiteOutcomes(): AutoresearchSelfHostingApplicabilitySuiteOutcome[] {
+  return [
+    { suiteId: "dev-smoke", passed: true },
+    { suiteId: "holdout-operator", passed: true },
+    { suiteId: "transfer-package", passed: true },
+    { suiteId: "transfer-operator", passed: true },
+  ];
 }
 
 function createValidEvaluatorLock(): AutoresearchSelfHostingEvaluatorLockV1 {
@@ -863,5 +878,181 @@ test("executeAutoresearchSelfHostingEvaluatorSuite fails closed on locked evalua
         }),
       /Locked evaluator file drift detected/u,
     );
+  });
+});
+
+test("classifyAutoresearchSelfHostingApplicability emits default_promotion_candidate when thresholds and transfer coverage are satisfied", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+
+    const result = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 90,
+      },
+    });
+
+    assert.equal(result.outcome, "default_promotion_candidate");
+    assert.equal(result.primaryMetric.improvementPercent, 10);
+    assert.equal(result.primaryMetric.meetsDefaultPromotionThreshold, true);
+    assert.equal(result.gateStatus.minimumTransferCoverageSatisfied, true);
+    assert.deepEqual(result.defaultPromotionBlockers, []);
+    assert.deepEqual(result.blockingReasons, []);
+  });
+});
+
+test("classifyAutoresearchSelfHostingApplicability emits variant_candidate only when a target profile was declared before the campaign", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root, (contract) => {
+      contract.applicability.variantTargetProfile = {
+        id: "fast_local_self_hosting_analysis",
+        description: "Prefer a faster opt-in local self-hosting analysis profile.",
+      };
+    });
+
+    const result = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 97,
+      },
+      variantTargetProfileImproved: true,
+    });
+
+    assert.equal(result.outcome, "variant_candidate");
+    assert.equal(result.variantTargetProfile?.id, "fast_local_self_hosting_analysis");
+    assert.equal(result.primaryMetric.meetsDefaultPromotionThreshold, false);
+    assert.equal(result.gateStatus.variantTargetProfileDeclared, true);
+    assert.equal(result.gateStatus.variantImprovementObserved, true);
+    assert.match(
+      result.defaultPromotionBlockers[0] ?? "",
+      /below the default-promotion threshold/u,
+    );
+  });
+});
+
+test("classifyAutoresearchSelfHostingApplicability rejects a specialized win when no variant target profile was declared", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+
+    const result = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 97,
+      },
+    });
+
+    assert.equal(result.outcome, "reject");
+    assert.equal(result.gateStatus.variantTargetProfileDeclared, false);
+    assert.match(result.variantBlockers[0] ?? "", /variantTargetProfile to be declared/u);
+    assert.match(
+      result.defaultPromotionBlockers[0] ?? "",
+      /below the default-promotion threshold/u,
+    );
+    assert.ok(
+      result.blockingReasons.some((entry) => /variantTargetProfile to be declared/u.test(entry)),
+    );
+  });
+});
+
+test("classifyAutoresearchSelfHostingApplicability rejects declared variant profiles without explicit profile-improvement evidence", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root, (contract) => {
+      contract.applicability.variantTargetProfile = {
+        id: "fast_local_self_hosting_analysis",
+        description: "Prefer a faster opt-in local self-hosting analysis profile.",
+      };
+    });
+
+    const result = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 97,
+      },
+    });
+
+    assert.equal(result.outcome, "reject");
+    assert.equal(result.gateStatus.variantTargetProfileDeclared, true);
+    assert.equal(result.gateStatus.primaryMetricImproved, true);
+    assert.equal(result.gateStatus.variantImprovementObserved, false);
+    assert.ok(result.variantBlockers.some((entry) => /explicit improvement evidence/u.test(entry)));
+  });
+});
+
+test("classifyAutoresearchSelfHostingApplicability rejects missing locked suite outcomes", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+
+    const result = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes().slice(0, 3),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 90,
+      },
+    });
+
+    assert.equal(result.outcome, "reject");
+    assert.deepEqual(result.suiteSummary.missingSuiteIds, ["transfer-operator"]);
+    assert.ok(
+      result.rejectReasons.some((entry) => /Missing locked evaluator suite outcomes/u.test(entry)),
+    );
+  });
+});
+
+test("classifyAutoresearchSelfHostingApplicability rejects dirty candidate scope even when evaluator outcomes look good", async () => {
+  await withTempDir((root) => {
+    const { candidateWorktreePath } = createPreparedCandidateRepo(root);
+    writeFile(
+      path.join(candidateWorktreePath, "evaluator-snapshot/suites/locked.mjs"),
+      "export const locked = 'mutated';\n",
+    );
+
+    const result = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes: createPassingApplicabilitySuiteOutcomes(),
+      primaryMetric: {
+        baseline: 100,
+        candidate: 90,
+      },
+    });
+
+    assert.equal(result.outcome, "reject");
+    assert.ok(result.rejectReasons.some((entry) => /off-limits paths/u.test(entry)));
+  });
+});
+
+test("classifyAutoresearchSelfHostingApplicability blocks default promotion when transfer coverage falls short", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+    const suiteOutcomes = createPassingApplicabilitySuiteOutcomes().map((entry) =>
+      entry.suiteId === "transfer-operator" ? { ...entry, passed: false } : entry,
+    );
+
+    const result = classifyAutoresearchSelfHostingApplicability({
+      cwd: root,
+      suiteOutcomes,
+      primaryMetric: {
+        baseline: 100,
+        candidate: 90,
+      },
+    });
+
+    assert.equal(result.outcome, "reject");
+    assert.equal(result.gateStatus.minimumTransferCoverageSatisfied, false);
+    assert.deepEqual(result.suiteSummary.passedTransferCoverageKinds, ["package_non_self_hosting"]);
+    assert.ok(
+      result.defaultPromotionBlockers.some((entry) =>
+        /transfer coverage is insufficient/u.test(entry),
+      ),
+    );
+    assert.deepEqual(result.suiteSummary.transferCriticalFailureSuiteIds, ["transfer-operator"]);
   });
 });

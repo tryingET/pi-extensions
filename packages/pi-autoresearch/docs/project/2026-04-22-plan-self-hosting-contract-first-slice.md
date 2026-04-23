@@ -154,6 +154,10 @@ Interpretation rule:
   - tests for all three outcome classes
   - tests for blocked default promotion when transfer coverage is insufficient
   - tests for variant classification requiring declared target profile
+- current execution status:
+  - landed locally via typed applicability-classification helpers in `packages/pi-autoresearch/src/core/selfHosting.ts`
+  - focused proof now lives in `packages/pi-autoresearch/tests/self-hosting.test.ts`
+  - follow-on tasks should reuse the landed applicability classifier and typed blocker reporting rather than reclassifying self-hosting results ad hoc or treating specialized wins as default-promotion evidence
 
 ### SH-5 — promotion/rollback record
 

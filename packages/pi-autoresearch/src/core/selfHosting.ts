@@ -36,6 +36,14 @@ const SUBJECT_CWD_MODES = ["snapshot", "candidate"] as const;
 const METRIC_DIRECTIONS = ["lower", "higher"] as const;
 const PROMOTION_APPROVALS = ["operator_review", "orchestrator_supervision"] as const;
 
+export const AUTORESEARCH_SELF_HOSTING_APPLICABILITY_OUTCOMES = [
+  "reject",
+  "variant_candidate",
+  "default_promotion_candidate",
+] as const;
+
+export type AutoresearchSelfHostingApplicabilityOutcome =
+  (typeof AUTORESEARCH_SELF_HOSTING_APPLICABILITY_OUTCOMES)[number];
 export type AutoresearchSelfHostingControllerMode = (typeof CONTROLLER_MODES)[number];
 export type AutoresearchSelfHostingExecutionModel =
   typeof AUTORESEARCH_SELF_HOSTING_EXECUTION_MODEL;
@@ -772,6 +780,82 @@ export interface ExecuteAutoresearchSelfHostingEvaluatorSuiteResult {
   nextStep: string;
 }
 
+export interface AutoresearchSelfHostingApplicabilitySuiteOutcome {
+  suiteId: string;
+  passed: boolean;
+  regressionPercent?: number;
+}
+
+export interface ClassifyAutoresearchSelfHostingApplicabilityInput {
+  cwd: string;
+  suiteOutcomes: AutoresearchSelfHostingApplicabilitySuiteOutcome[];
+  primaryMetric: {
+    baseline: number;
+    candidate: number;
+  };
+  variantTargetProfileImproved?: boolean;
+}
+
+export interface AutoresearchSelfHostingApplicabilityNonCriticalTransferRegression {
+  suiteId: string;
+  regressionPercent: number;
+  withinBudget: boolean;
+}
+
+export interface AutoresearchSelfHostingApplicabilityClassification {
+  action: "classify_applicability";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerCwd: string;
+  controllerRepoRoot: string;
+  candidateCwd: string;
+  outcome: AutoresearchSelfHostingApplicabilityOutcome;
+  variantTargetProfile: AutoresearchSelfHostingContractV1["applicability"]["variantTargetProfile"];
+  scope: AutoresearchSelfHostingCandidateScopeStatus;
+  primaryMetric: {
+    name: string;
+    direction: AutoresearchSelfHostingMetricDirection;
+    baseline: number;
+    candidate: number;
+    improvementPercent: number;
+    improved: boolean;
+    meetsDefaultPromotionThreshold: boolean;
+  };
+  suiteSummary: {
+    declaredSuiteIds: string[];
+    reportedSuiteIds: string[];
+    passedSuiteIds: string[];
+    failedSuiteIds: string[];
+    failedNonCriticalSuiteIds: string[];
+    missingSuiteIds: string[];
+    unexpectedSuiteIds: string[];
+    criticalFailureSuiteIds: string[];
+    holdoutCriticalFailureSuiteIds: string[];
+    transferCriticalFailureSuiteIds: string[];
+    passedTransferSuiteIds: string[];
+    passedTransferCoverageKinds: AutoresearchSelfHostingEvaluatorCoverageKind[];
+    minimumDefaultPromotionTransferSuites: number;
+    missingDefaultPromotionCoverageKinds: AutoresearchSelfHostingMinimumDefaultPromotionCoverageKind[];
+    nonCriticalTransferRegressions: AutoresearchSelfHostingApplicabilityNonCriticalTransferRegression[];
+  };
+  gateStatus: {
+    variantTargetProfileDeclared: boolean;
+    variantImprovementObserved: boolean;
+    primaryMetricImproved: boolean;
+    primaryMetricMeetsDefaultPromotionThreshold: boolean;
+    minimumTransferCoverageSatisfied: boolean;
+    nonCriticalTransferRegressionWithinBudget: boolean;
+    criticalFailuresWithinBudget: boolean;
+    holdoutCriticalFailuresWithinBudget: boolean;
+    transferCriticalFailuresWithinBudget: boolean;
+  };
+  rejectReasons: string[];
+  variantBlockers: string[];
+  defaultPromotionBlockers: string[];
+  blockingReasons: string[];
+  nextStep: string;
+}
+
 export function prepareAutoresearchSelfHostingCandidateWorktree(
   input: PrepareAutoresearchSelfHostingCandidateWorktreeInput,
 ): PrepareAutoresearchSelfHostingCandidateWorktreeResult {
@@ -1124,6 +1208,368 @@ export function executeAutoresearchSelfHostingEvaluatorSuite(
         ? `Locked evaluator suite ${JSON.stringify(resolvedSuite.suiteId)} completed under snapshot-owned entrypoints; SH-4 may now classify the bounded result.`
         : `Locked evaluator suite ${JSON.stringify(resolvedSuite.suiteId)} failed with exit code ${JSON.stringify(command.exitCode)}; inspect stderr/stdout without widening into candidate-owned dispatch.`,
   };
+}
+
+export function classifyAutoresearchSelfHostingApplicability(
+  input: ClassifyAutoresearchSelfHostingApplicabilityInput,
+): AutoresearchSelfHostingApplicabilityClassification {
+  const artifacts = loadAutoresearchSelfHostingArtifacts(input.cwd);
+  const controllerRepoRoot = resolveGitTopLevel(artifacts.cwd);
+  const candidate = assertAutoresearchSelfHostingCandidateWorktreeRegistered(
+    controllerRepoRoot,
+    artifacts.contract,
+  );
+  const scope = inspectAutoresearchSelfHostingCandidateScope(input.cwd);
+  const suiteOutcomes = normalizeAutoresearchSelfHostingApplicabilitySuiteOutcomes(
+    input.suiteOutcomes,
+  );
+  const suiteOutcomesById = new Map(suiteOutcomes.map((entry) => [entry.suiteId, entry]));
+  const declaredSuites = artifacts.evaluatorLock.suites;
+  const declaredSuiteIds = declaredSuites.map((suite) => suite.id);
+  const reportedSuiteIds = suiteOutcomes.map((entry) => entry.suiteId).sort();
+  const missingSuiteIds = declaredSuiteIds
+    .filter((suiteId) => !suiteOutcomesById.has(suiteId))
+    .sort();
+  const unexpectedSuiteIds = reportedSuiteIds.filter(
+    (suiteId) => !declaredSuites.some((suite) => suite.id === suiteId),
+  );
+
+  const passedSuiteIds: string[] = [];
+  const failedSuiteIds: string[] = [];
+  const failedNonCriticalSuiteIds: string[] = [];
+  const criticalFailureSuiteIds: string[] = [];
+  const holdoutCriticalFailureSuiteIds: string[] = [];
+  const transferCriticalFailureSuiteIds: string[] = [];
+  const passedTransferSuiteIds: string[] = [];
+  const passedTransferCoverageKinds = new Set<AutoresearchSelfHostingEvaluatorCoverageKind>();
+  const nonCriticalTransferRegressions: AutoresearchSelfHostingApplicabilityNonCriticalTransferRegression[] =
+    [];
+
+  for (const suite of declaredSuites) {
+    const outcome = suiteOutcomesById.get(suite.id);
+    if (!outcome) {
+      continue;
+    }
+
+    if (outcome.passed) {
+      passedSuiteIds.push(suite.id);
+    } else {
+      failedSuiteIds.push(suite.id);
+      if (suite.critical) {
+        criticalFailureSuiteIds.push(suite.id);
+        if (suite.class === "holdout") {
+          holdoutCriticalFailureSuiteIds.push(suite.id);
+        }
+        if (suite.class === "transfer") {
+          transferCriticalFailureSuiteIds.push(suite.id);
+        }
+      } else {
+        failedNonCriticalSuiteIds.push(suite.id);
+      }
+    }
+
+    if (suite.class === "transfer" && outcome.passed) {
+      passedTransferSuiteIds.push(suite.id);
+      passedTransferCoverageKinds.add(suite.coverageKind);
+    }
+
+    if (suite.class === "transfer" && !suite.critical) {
+      const regressionPercent = outcome.regressionPercent ?? 0;
+      nonCriticalTransferRegressions.push({
+        suiteId: suite.id,
+        regressionPercent,
+        withinBudget:
+          regressionPercent <=
+          artifacts.contract.applicability.maxNonCriticalTransferRegressionPercent,
+      });
+    }
+  }
+
+  const requiredCoverageKinds =
+    artifacts.contract.applicability.minimumDefaultPromotionTransferScope.requiredCoverageKinds;
+  const missingDefaultPromotionCoverageKinds = requiredCoverageKinds.filter(
+    (coverageKind) => !passedTransferCoverageKinds.has(coverageKind),
+  );
+  const minimumTransferCoverageSatisfied =
+    passedTransferSuiteIds.length >=
+      artifacts.contract.applicability.minimumDefaultPromotionTransferScope.minimumSuites &&
+    missingDefaultPromotionCoverageKinds.length === 0;
+  const nonCriticalTransferRegressionWithinBudget = nonCriticalTransferRegressions.every(
+    (entry) => entry.withinBudget,
+  );
+  const criticalFailuresWithinBudget =
+    criticalFailureSuiteIds.length <= artifacts.contract.applicability.maxCriticalSuiteFailures;
+  const holdoutCriticalFailuresWithinBudget =
+    holdoutCriticalFailureSuiteIds.length <=
+    artifacts.contract.applicability.maxHoldoutCriticalFailures;
+  const transferCriticalFailuresWithinBudget =
+    transferCriticalFailureSuiteIds.length <=
+    artifacts.contract.applicability.maxTransferCriticalFailures;
+
+  const primaryMetric = readObject(input.primaryMetric as unknown, "primaryMetric");
+  const primaryMetricBaseline = readFiniteAutoresearchSelfHostingNumber(
+    primaryMetric.baseline,
+    "primaryMetric.baseline",
+  );
+  const primaryMetricCandidate = readFiniteAutoresearchSelfHostingNumber(
+    primaryMetric.candidate,
+    "primaryMetric.candidate",
+  );
+  const primaryMetricImprovementPercent = computeAutoresearchSelfHostingMetricImprovementPercent(
+    artifacts.contract.applicability.primaryMetric.direction,
+    primaryMetricBaseline,
+    primaryMetricCandidate,
+  );
+  const primaryMetricImproved = primaryMetricImprovementPercent > 0;
+  const primaryMetricMeetsDefaultPromotionThreshold =
+    primaryMetricImprovementPercent >=
+    artifacts.contract.applicability.primaryMetric.minImprovementForDefaultPromotionPercent;
+  const variantTargetProfileDeclared =
+    artifacts.contract.applicability.variantTargetProfile !== null;
+  const variantImprovementObserved = input.variantTargetProfileImproved === true;
+  const meaningfulImprovementObserved = variantImprovementObserved || primaryMetricImproved;
+
+  const rejectReasons = uniqueSortedEntries([
+    ...describeAutoresearchSelfHostingScopeProblems(scope),
+    ...(missingSuiteIds.length > 0
+      ? [
+          `Missing locked evaluator suite outcomes: ${formatAutoresearchSelfHostingEntries(missingSuiteIds)}`,
+        ]
+      : []),
+    ...(unexpectedSuiteIds.length > 0
+      ? [
+          `Unexpected evaluator suite outcomes were provided outside the locked evaluator manifest: ${formatAutoresearchSelfHostingEntries(unexpectedSuiteIds)}`,
+        ]
+      : []),
+    ...(!criticalFailuresWithinBudget
+      ? [
+          `Critical evaluator suites failed beyond the accepted budget: ${formatAutoresearchSelfHostingEntries(criticalFailureSuiteIds)}`,
+        ]
+      : []),
+    ...(!holdoutCriticalFailuresWithinBudget
+      ? [
+          `Critical holdout suites failed beyond the accepted budget: ${formatAutoresearchSelfHostingEntries(holdoutCriticalFailureSuiteIds)}`,
+        ]
+      : []),
+    ...(!transferCriticalFailuresWithinBudget
+      ? [
+          `Critical transfer suites failed beyond the accepted budget: ${formatAutoresearchSelfHostingEntries(transferCriticalFailureSuiteIds)}`,
+        ]
+      : []),
+    ...(failedNonCriticalSuiteIds.length > 0
+      ? [
+          `Non-critical evaluator suites failed, so applicability cannot be classified truthfully: ${formatAutoresearchSelfHostingEntries(failedNonCriticalSuiteIds)}`,
+        ]
+      : []),
+    ...(!meaningfulImprovementObserved
+      ? [
+          variantTargetProfileDeclared
+            ? "Candidate did not improve the declared variant target profile or the primary metric."
+            : "Candidate did not improve the primary metric, and no declared variant target profile exists to justify retaining a specialized win.",
+        ]
+      : []),
+  ]);
+
+  const defaultPromotionBlockers = uniqueSortedEntries([
+    ...(!primaryMetricMeetsDefaultPromotionThreshold
+      ? [
+          `Primary metric improvement ${formatAutoresearchSelfHostingPercent(primaryMetricImprovementPercent)} is below the default-promotion threshold ${formatAutoresearchSelfHostingPercent(artifacts.contract.applicability.primaryMetric.minImprovementForDefaultPromotionPercent)}.`,
+        ]
+      : []),
+    ...(!minimumTransferCoverageSatisfied
+      ? [
+          `Default-promotion transfer coverage is insufficient: requires at least ${artifacts.contract.applicability.minimumDefaultPromotionTransferScope.minimumSuites} passed transfer suites and coverage kinds ${formatAutoresearchSelfHostingEntries(requiredCoverageKinds)}, got ${passedTransferSuiteIds.length} passed transfer suites and coverage kinds ${formatAutoresearchSelfHostingEntries(Array.from(passedTransferCoverageKinds).sort())}${missingDefaultPromotionCoverageKinds.length > 0 ? `; missing ${formatAutoresearchSelfHostingEntries(missingDefaultPromotionCoverageKinds)}` : ""}.`,
+        ]
+      : []),
+    ...(!nonCriticalTransferRegressionWithinBudget
+      ? [
+          `Non-critical transfer regressions exceed ${formatAutoresearchSelfHostingPercent(artifacts.contract.applicability.maxNonCriticalTransferRegressionPercent)}: ${nonCriticalTransferRegressions
+            .filter((entry) => !entry.withinBudget)
+            .map(
+              (entry) =>
+                `${JSON.stringify(entry.suiteId)}=${formatAutoresearchSelfHostingPercent(entry.regressionPercent)}`,
+            )
+            .join(", ")}.`,
+        ]
+      : []),
+  ]);
+
+  const variantBlockers = uniqueSortedEntries([
+    ...(!variantTargetProfileDeclared
+      ? [
+          "Variant classification requires applicability.variantTargetProfile to be declared before the campaign begins.",
+        ]
+      : []),
+    ...(!variantImprovementObserved
+      ? [
+          "Variant classification requires explicit improvement evidence for the declared target profile; sub-threshold primary-metric improvement alone is not enough.",
+        ]
+      : []),
+  ]);
+
+  const defaultPromotionEligible =
+    rejectReasons.length === 0 && defaultPromotionBlockers.length === 0;
+  const variantEligible =
+    rejectReasons.length === 0 && variantBlockers.length === 0 && !defaultPromotionEligible;
+  const outcome: AutoresearchSelfHostingApplicabilityOutcome = defaultPromotionEligible
+    ? "default_promotion_candidate"
+    : variantEligible
+      ? "variant_candidate"
+      : "reject";
+  const blockingReasons =
+    outcome === "default_promotion_candidate"
+      ? []
+      : outcome === "variant_candidate"
+        ? defaultPromotionBlockers
+        : uniqueSortedEntries([...rejectReasons, ...defaultPromotionBlockers, ...variantBlockers]);
+
+  return {
+    action: "classify_applicability",
+    campaignId: artifacts.contract.campaignId,
+    executionModel: artifacts.contract.controller.executionModel,
+    controllerCwd: artifacts.contract.controller.controllerCwd,
+    controllerRepoRoot,
+    candidateCwd: candidate.worktreePath,
+    outcome,
+    variantTargetProfile: artifacts.contract.applicability.variantTargetProfile,
+    scope,
+    primaryMetric: {
+      name: artifacts.contract.applicability.primaryMetric.name,
+      direction: artifacts.contract.applicability.primaryMetric.direction,
+      baseline: primaryMetricBaseline,
+      candidate: primaryMetricCandidate,
+      improvementPercent: primaryMetricImprovementPercent,
+      improved: primaryMetricImproved,
+      meetsDefaultPromotionThreshold: primaryMetricMeetsDefaultPromotionThreshold,
+    },
+    suiteSummary: {
+      declaredSuiteIds: [...declaredSuiteIds],
+      reportedSuiteIds,
+      passedSuiteIds: passedSuiteIds.sort(),
+      failedSuiteIds: failedSuiteIds.sort(),
+      failedNonCriticalSuiteIds: failedNonCriticalSuiteIds.sort(),
+      missingSuiteIds,
+      unexpectedSuiteIds,
+      criticalFailureSuiteIds: criticalFailureSuiteIds.sort(),
+      holdoutCriticalFailureSuiteIds: holdoutCriticalFailureSuiteIds.sort(),
+      transferCriticalFailureSuiteIds: transferCriticalFailureSuiteIds.sort(),
+      passedTransferSuiteIds: passedTransferSuiteIds.sort(),
+      passedTransferCoverageKinds: Array.from(passedTransferCoverageKinds).sort(),
+      minimumDefaultPromotionTransferSuites:
+        artifacts.contract.applicability.minimumDefaultPromotionTransferScope.minimumSuites,
+      missingDefaultPromotionCoverageKinds,
+      nonCriticalTransferRegressions: nonCriticalTransferRegressions.sort((left, right) =>
+        left.suiteId.localeCompare(right.suiteId),
+      ),
+    },
+    gateStatus: {
+      variantTargetProfileDeclared,
+      variantImprovementObserved,
+      primaryMetricImproved,
+      primaryMetricMeetsDefaultPromotionThreshold,
+      minimumTransferCoverageSatisfied,
+      nonCriticalTransferRegressionWithinBudget,
+      criticalFailuresWithinBudget,
+      holdoutCriticalFailuresWithinBudget,
+      transferCriticalFailuresWithinBudget,
+    },
+    rejectReasons,
+    variantBlockers,
+    defaultPromotionBlockers,
+    blockingReasons,
+    nextStep:
+      outcome === "default_promotion_candidate"
+        ? "Applicability gates produced default_promotion_candidate; keep promotion external and let SH-5 materialize the explicit promotion/rollback record before any controller rotation."
+        : outcome === "variant_candidate"
+          ? `Applicability gates produced variant_candidate for ${JSON.stringify(artifacts.contract.applicability.variantTargetProfile?.id)}; keep the win explicit and non-default until a later slice names the variant surface truthfully.`
+          : "Applicability gates rejected the candidate; keep the controller unchanged and inspect blockingReasons before retrying.",
+  };
+}
+
+function normalizeAutoresearchSelfHostingApplicabilitySuiteOutcomes(
+  value: unknown,
+): AutoresearchSelfHostingApplicabilitySuiteOutcome[] {
+  if (!Array.isArray(value)) {
+    throw new AutoresearchSelfHostingValidationError(
+      "suiteOutcomes must be an array of applicability suite outcomes",
+    );
+  }
+  const normalized = value.map((entry, index) => {
+    const raw = readObject(entry, `suiteOutcomes[${index}]`);
+    return {
+      suiteId: readId(raw.suiteId, `suiteOutcomes[${index}].suiteId`),
+      passed: readBoolean(raw.passed, `suiteOutcomes[${index}].passed`),
+      regressionPercent:
+        raw.regressionPercent === undefined
+          ? undefined
+          : readNonNegativeNumber(
+              raw.regressionPercent,
+              `suiteOutcomes[${index}].regressionPercent`,
+            ),
+    } satisfies AutoresearchSelfHostingApplicabilitySuiteOutcome;
+  });
+  ensureUnique(
+    normalized.map((entry) => entry.suiteId),
+    "suiteOutcomes suite ids",
+  );
+  return normalized;
+}
+
+function readFiniteAutoresearchSelfHostingNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new AutoresearchSelfHostingValidationError(`${label} must be a finite number`);
+  }
+  return value;
+}
+
+function computeAutoresearchSelfHostingMetricImprovementPercent(
+  direction: AutoresearchSelfHostingMetricDirection,
+  baseline: number,
+  candidate: number,
+): number {
+  const favorableDelta = direction === "lower" ? baseline - candidate : candidate - baseline;
+  if (baseline === 0) {
+    if (favorableDelta === 0) {
+      return 0;
+    }
+    return favorableDelta > 0 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  }
+  return (favorableDelta / Math.abs(baseline)) * 100;
+}
+
+function describeAutoresearchSelfHostingScopeProblems(
+  scope: AutoresearchSelfHostingCandidateScopeStatus,
+): string[] {
+  const problems: string[] = [];
+  if (scope.offLimitsPaths.length > 0) {
+    problems.push(
+      `Candidate worktree mutated off-limits paths: ${formatAutoresearchSelfHostingEntries(scope.offLimitsPaths)}`,
+    );
+  }
+  if (scope.outOfScopePaths.length > 0) {
+    problems.push(
+      `Candidate worktree mutated out-of-scope paths: ${formatAutoresearchSelfHostingEntries(scope.outOfScopePaths)}`,
+    );
+  }
+  return problems;
+}
+
+function formatAutoresearchSelfHostingPercent(value: number): string {
+  if (!Number.isFinite(value)) {
+    return value > 0 ? "Infinity%" : "-Infinity%";
+  }
+  return `${value.toFixed(2)}%`;
+}
+
+function formatAutoresearchSelfHostingEntries(entries: readonly string[]): string {
+  if (entries.length === 0) {
+    return "(none)";
+  }
+  return entries.map((entry) => JSON.stringify(entry)).join(", ");
+}
+
+function uniqueSortedEntries(entries: readonly string[]): string[] {
+  return [...new Set(entries)].sort((left, right) => left.localeCompare(right));
 }
 
 function verifyAutoresearchSelfHostingEvaluatorSnapshot(

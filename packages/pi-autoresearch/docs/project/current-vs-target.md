@@ -403,8 +403,8 @@ AK decision/runtime anchor:
   - `#1809` — `SH-3 — implement snapshot-owned evaluator entrypoints for self-hosting`
   - `#1810` — `SH-4 — implement self-hosting applicability classification gates`
   - `#1811` — `SH-5 — implement self-hosting promotion and rollback record`
-- current execution state: SH-1 through SH-3 are now landed locally via checked self-hosting artifact validators, controller/candidate isolation helpers, and locked evaluator-suite resolution/execution helpers in `packages/pi-autoresearch/src/core/selfHosting.ts` plus focused proof in `packages/pi-autoresearch/tests/self-hosting.test.ts`; SH-4 and SH-5 remain pending, so the broader self-hosting runtime feature is still not landed
-- current scope posture: self-hosting remains an accepted but **not-yet-landed** Tier 1 contract concern, not current package baseline behavior; what is now landed is the decision/ADR/execution-memory substrate around the concern plus the schema/lock validation unit, the controller/candidate execution-isolation unit, and the snapshot-owned evaluator-entrypoint unit, not the full runtime feature itself
+- current execution state: SH-1 through SH-4 are now landed locally via checked self-hosting artifact validators, controller/candidate isolation helpers, locked evaluator-suite resolution/execution helpers, and typed applicability-classification helpers in `packages/pi-autoresearch/src/core/selfHosting.ts` plus focused proof in `packages/pi-autoresearch/tests/self-hosting.test.ts`; SH-5 remains pending, so the broader self-hosting runtime feature is still not landed
+- current scope posture: self-hosting remains an accepted but **not-yet-landed** Tier 1 contract concern, not current package baseline behavior; what is now landed is the decision/ADR/execution-memory substrate around the concern plus the schema/lock validation unit, the controller/candidate execution-isolation unit, the snapshot-owned evaluator-entrypoint unit, and the applicability-classification unit, not the full runtime feature itself
 
 Interpretation rule:
 
