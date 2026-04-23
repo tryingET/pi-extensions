@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8469d047d56c7dd1a0ced3e20018337b22f1d97a"
+created_at: "2026-04-23T12:41:28Z"
+intent: "Add the first workflow contract and request validation helpers for the orchestrator workflow-composition slice."
+files:
+  - "packages/pi-society-orchestrator/src/runtime/workflow.ts"
+  - "packages/pi-society-orchestrator/tests/workflow-contract.test.mjs"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
+group:
+  index: 18
+  total: 19
+  rationale: "Start WF-1 with the stable workflow request/result contract and fail-closed validation tests."
