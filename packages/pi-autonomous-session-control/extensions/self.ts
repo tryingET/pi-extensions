@@ -37,6 +37,7 @@ import {
   getPromptVaultCompatibilitySnapshot,
 } from "./self/prompt-vault-compat.ts";
 import { resolveQuery } from "./self/query-resolver.ts";
+import { registerRewindRuntime } from "./self/rewind/runtime.ts";
 import {
   evaluateRuntimeInvariants,
   formatRuntimeInvariantReport,
@@ -427,6 +428,9 @@ export default function (pi: ExtensionAPI) {
   // Register the self tool
   registerSelfTool(pi, state, memoryLifecycle);
 
+  // Register rewind runtime
+  registerRewindRuntime(pi);
+
   // Register delegation runtime
   registerDelegationRuntime(pi, subagentState);
 
@@ -453,6 +457,9 @@ export function createExtension(sessionsDir: string) {
 
     // Register the self tool (introspection)
     registerSelfTool(pi, state, memoryLifecycle);
+
+    // Register rewind runtime
+    registerRewindRuntime(pi);
 
     // Register delegation runtime
     registerDelegationRuntime(pi, subagentState);

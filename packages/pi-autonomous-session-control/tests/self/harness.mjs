@@ -42,6 +42,7 @@ export async function loadExtensionWithMocks() {
   const tempDir = await mkdtemp(path.join(TEMP_TEST_ROOT, "case-"));
   const underTestPath = path.join(tempDir, "self.ts");
   const underTestModuleDir = path.join(tempDir, "self");
+  const rewindModuleDir = path.join(underTestModuleDir, "rewind");
   const mockModulePath = path.join(tempDir, "mock-pi-coding-agent.mjs");
 
   process.env.PI_SUBAGENT_SESSIONS_DIR = path.join(tempDir, "sessions");
@@ -73,6 +74,7 @@ export async function loadExtensionWithMocks() {
 
   // Copy self module directory
   await mkdir(underTestModuleDir, { recursive: true });
+  await mkdir(rewindModuleDir, { recursive: true });
   const moduleFiles = [
     "types.ts",
     "perception.ts",
@@ -184,6 +186,12 @@ export function resolveSubagentModelSelection() {
     source: "default",
   };
 }
+`,
+  );
+
+  await writeFile(
+    path.join(rewindModuleDir, "runtime.ts"),
+    `export function registerRewindRuntime() {}
 `,
   );
 

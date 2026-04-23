@@ -22,10 +22,35 @@ All notable changes to this project should be documented here.
 - Persistence safety coverage in `tests/self-memory-persistence.test.mjs`:
   - cross-lifecycle round-trip for crystallization + protection domains
   - malformed payload fail-safe recovery
+- ASC-owned rewind core scaffold under `extensions/self/rewind/`:
+  - temp-index git snapshot capture
+  - tree-SHA deduplicated snapshot creation
+  - single-ref keepalive storage helpers
+  - exact restore + undo core
+  - owned session-ledger schema guards
+  - pure retention-planning helper
+- ASC-owned rewind runtime wiring in `extensions/self/rewind/runtime.ts`:
+  - session bootstrap and reconstruction for ASC-owned rewind metadata
+  - exact rewind-point capture on `turn_start` / `turn_end` / `agent_end`
+  - compaction alias recording on `session_compact`
+  - integration with Pi's built-in `/fork` and `/tree` flows via `session_before_fork`, `session_start` (`reason: "fork"`), `session_before_tree`, and `session_tree`
+  - footer/status publication for rewind point visibility in interactive sessions
+- Optional Replay Fabric recovery projection in `extensions/self/rewind/replay-fabric-projection.ts`:
+  - bounded `restore.started`, `restore.completed`, `restore.failed`, and `restore.undo` milestone emission
+  - repo-local `.git/pi-rewind/manifests/*.json` artifact manifests for replay follow-through
+  - opt-in activation through `ASC_REWIND_REPLAY_FABRIC_URL`
+- Focused rewind tests:
+  - `tests/rewind-git-snapshot.test.mjs`
+  - `tests/rewind-exact-restore.test.mjs`
+  - `tests/rewind-session-ledger.test.mjs`
+  - `tests/rewind-retention.test.mjs`
+  - `tests/rewind-runtime.test.mjs`
+- Rewind integration design note: `docs/project/2026-04-22-rewind-salvage-and-integration-plan.md`
 
 ### Changed
 
 - `self` runtime now awaits memory hydration before query resolution
+- README docs map now links to the rewind salvage/integration plan so the new rewind slice work stays discoverable from the package entrypoint
 - `self` persists scoped domains (`crystallization`, `protection`) after successful domain writes
 - `dispatch_subagent` now routes raw `pi --mode json` output through a package-local assistant-only filter helper before ASC parses the stream, dropping aggregate Pi events that the runtime does not semantically need and treating the helper protocol as the only accepted parent-side seam
 - Subagents now inherit the current session-selected model when available; `PI_SUBAGENT_MODEL` still overrides, and `openai-codex/gpt-5.4` remains the fallback when no live model is available

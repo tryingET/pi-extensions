@@ -406,6 +406,7 @@ Persistence behavior:
 
 - `dispatch_subagent` is wired, bounded, and backed by session/status artifacts plus the read-only dashboard and inspection commands.
 - The package-level `pi-autonomous-session-control/execution` entrypoint now exposes the supported public execution contract for non-tool consumers.
+- ASC now carries an owned rewind runtime slice that captures exact rewind points on turn boundaries, integrates with Pi's built-in `/fork` and `/tree` lifecycle hooks, and can project bounded restore milestones into Replay Fabric when `ASC_REWIND_REPLAY_FABRIC_URL` is configured.
 - Prompt-envelope application, runtime compatibility checks, invariant summaries, failure-memory canary coverage, and Edge Contract Kernel adoption are all live.
 - Scoped self-memory persistence is in place; remaining forward-looking work should live in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
@@ -431,6 +432,7 @@ Then in Pi:
 - [Project resources](docs/project/resources.md)
 - [Project skills](docs/project/skills.md)
 - [ASC public execution contract](docs/project/public-execution-contract.md)
+- [Rewind salvage and integration plan](docs/project/2026-04-22-rewind-salvage-and-integration-plan.md)
 - [Strategic goals](docs/project/strategic_goals.md)
 - [Tactical goals](docs/project/tactical_goals.md)
 - [Contributor guide](docs/dev/CONTRIBUTING.md)
