@@ -234,9 +234,27 @@ workflow_execute({
 
 Operator proof for the first live bounded smoke is recorded in [docs/project/2026-04-23-live-workflow-execute-smoke.md](docs/project/2026-04-23-live-workflow-execute-smoke.md).
 
-## Loop vs workflow vs DSPy / DSPx
+## Subagent vs cognitive dispatch vs loop vs workflow vs DSPy / DSPx
 
 Use these terms distinctly:
+
+| Need | Use | Why |
+|---|---|---|
+| one focused specialist run | `dispatch_subagent` | direct access to the ASC-owned subagent runtime for one bounded child-agent objective |
+| one task, but the thinking pattern is the main uncertainty | `cognitive_dispatch` | orchestrator chooses the cognitive framing, then dispatches one ASC-backed execution |
+| one predefined multi-phase reasoning framework | `loop_execute` | orchestrator-owned phase model such as `kaizen`, `ooda`, or `strategic` |
+| one explicit custom multi-step graph | `workflow_execute` | caller-/operator-authored chain/parallel/worktree graph executed over ASC-backed subagents |
+| program/runtime optimization, replay, compile/eval, empirical evolution | DSPy / DSPx | different concern: inner cognition/program runtime plus the engineering/evidence layer around it |
+
+Additional interpretation:
+
+- **subagent** — the direct execution unit owned by `pi-autonomous-session-control`
+  - use when you want one focused child agent with one bounded objective
+  - this is the strongest current Pi-side execution/runtime surface
+
+- **cognitive dispatch** — single-task orchestration where cognition/tool choice is the key help
+  - still typically one dispatched execution unit underneath
+  - useful when you do not want to author a full graph but do want cognition selection help
 
 - **loop** — a predefined cognitive framework owned by the orchestrator
   - examples: `kaizen`, `ooda`, `strategic`
@@ -255,9 +273,11 @@ Use these terms distinctly:
 - **DSPx** — the engineering / optimization / replay / eval layer around DSPy systems
   - see `softwareco/owned/dspx/README.md` and `softwareco/owned/dspx/docs/project/vision.md`
   - DSPx is a local-first receipts-first runtime for empirical development of DSPy systems
-  - it is not the same concern as a thin Pi workflow wrapper; it sits closer to program evolution, replayable evidence, and optimization/search than to simple command/tool orchestration
+  - it is not the same concern as a thin Pi workflow wrapper; it sits closer to program evolution, replayable evidence, optimization/search, and local promotion/replay semantics than to simple command/tool orchestration
 
 Practical rule:
+- choose **subagent** when you want one specialist worker
+- choose **cognitive_dispatch** when you want one worker plus cognition/tool selection help
 - choose **loop** when you want the orchestrator's predefined thinking pattern
 - choose **workflow** when you want to state the exact multi-step graph yourself
 - choose **DSPy/DSPx** when the real problem is program-shaped cognition, compile/eval, optimization, replay, or empirical evolution rather than just multi-agent step sequencing

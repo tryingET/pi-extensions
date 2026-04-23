@@ -1834,7 +1834,12 @@ test("workflows command shows wrapper usage and examples", async () => {
   assert.equal(editors.length, 1);
   assert.equal(editors[0]?.title, "Workflow wrappers");
   assert.match(editors[0]?.text || "", /Thin command adapters over `workflow_execute`/);
-  assert.match(editors[0]?.text || "", /\/workflow \[objective\]/);
+  assert.match(editors[0]?.text || "", /dispatch_subagent/);
+  assert.match(editors[0]?.text || "", /cognitive_dispatch/);
+  assert.match(editors[0]?.text || "", /loop_execute/);
+  assert.match(editors[0]?.text || "", /workflow_execute/);
+  assert.match(editors[0]?.text || "", /DSPy \/ DSPx/);
+  assert.match(editors[0]?.text || "", /subagents are the execution units underneath/);
   assert.match(editors[0]?.text || "", /reserve worktree mode for eligible mutation cases/);
 });
 

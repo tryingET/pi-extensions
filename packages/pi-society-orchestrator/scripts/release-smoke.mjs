@@ -819,6 +819,11 @@ try {
     workflowGuideEditors[0]?.text || "",
     /Thin command adapters over `workflow_execute`/,
   );
+  assert.match(workflowGuideEditors[0]?.text || "", /dispatch_subagent/);
+  assert.match(workflowGuideEditors[0]?.text || "", /cognitive_dispatch/);
+  assert.match(workflowGuideEditors[0]?.text || "", /loop_execute/);
+  assert.match(workflowGuideEditors[0]?.text || "", /workflow_execute/);
+  assert.match(workflowGuideEditors[0]?.text || "", /DSPy \/ DSPx/);
   console.log("installed workflow wrapper commands smoke: ok");
 
   assert.equal(runtimeStatusEditors.length, 1);
