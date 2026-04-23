@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "f99a1b25ad8f3f8c6f49243858fe60a64ed8e0ae"
-created_at: "2026-04-23T12:30:37Z"
+created_at: "2026-04-23T12:39:16Z"
 intent: "Refresh the pi-extensions root validation control plane, release-contract checks, and operator routing docs."
 files:
   - ".pi/skills/pi-extensions-operator/SKILL.md"
@@ -32,5 +32,5 @@ validation:
     status: "pass"
 group:
   index: 1
-  total: 16
+  total: 17
   rationale: "Align root validation, release-contract checks, and root operator docs in one control-plane change."
