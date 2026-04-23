@@ -1,0 +1,16 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ff9db5b250853a525fccef7067f9adff18f4a480"
+created_at: "2026-04-23T13:39:33Z"
+intent: "Add workflow worktree setup, diff capture, and cleanup helpers for future orchestrator worktree execution support."
+files:
+  - "packages/pi-society-orchestrator/src/runtime/workflow-worktree.ts"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pass"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pending"
