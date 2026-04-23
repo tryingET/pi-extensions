@@ -1,12 +1,12 @@
 ---
-summary: "Proposed package-local ADR for adding chain, parallel, and optional worktree orchestration UX in pi-society-orchestrator above ASC's public execution seam without reviving a second runtime or a contrib-style monolith."
-status: proposed
+summary: "Accepted package-local ADR for adding chain, parallel, and optional worktree orchestration UX in pi-society-orchestrator above ASC's public execution seam without reviving a second runtime or a contrib-style monolith."
+status: accepted
 read_when:
   - "You are deciding whether chain/parallel/worktree workflow UX belongs in pi-society-orchestrator under the current ASC boundary."
   - "You need the ADR-layer decision text distilled from the chain/parallel/worktree RFC."
   - "You are reviewing whether this new workflow packet reopens the accepted control-plane boundary ADR."
 system4d:
-  container: "Package-local ADR draft for workflow-composition UX in pi-society-orchestrator."
+  container: "Package-local ADR for workflow-composition UX in pi-society-orchestrator."
   compass: "Own workflow composition and optional worktree coordination in orchestrator while preserving ASC as execution owner and AK as canonical authority."
   engine: "state problem -> compare options -> choose owner/layer -> define stable core and guardrails -> carry forward acceptance criteria."
   fog: "The biggest risk is reviving an orchestrator-local execution runtime or promoting convenience persistence and UI surfaces into the authority model."
@@ -16,10 +16,14 @@ system4d:
 
 ## Status
 
-Proposed as the package-local ADR text for this workflow packet.
+Accepted as the package-local ADR for this workflow packet.
+
+Canonical decision-runtime closure is recorded in `AK decision 20`:
+
+- `Adopt thin chain/parallel/worktree workflow composition UX in pi-society-orchestrator above ASC`
 
 This document is **not** the canonical decision runtime by itself.
-For architecture-significant legality and closure, attach it to the appropriate AK decision.
+It is the package-local ADR artifact recorded by that AK decision.
 
 ## How to read this ADR with the supporting packet
 
