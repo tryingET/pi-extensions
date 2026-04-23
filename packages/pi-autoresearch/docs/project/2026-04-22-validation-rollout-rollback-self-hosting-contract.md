@@ -58,12 +58,16 @@ Current proof status:
 Required proof:
 - evaluator entrypoints always resolve from the controller-owned snapshot
 - same-named evaluator files inside the candidate worktree do not redefine the judge
-- candidate-owned package-manager commands and wrappers are rejected as evaluator truth
+- candidate-owned package-manager or wrapper dispatch is not used as evaluator truth by the locked-suite helper
 
 Evidence shape:
 - focused evaluator-resolution tests
 - hash-drift negative paths
 - candidate-dispatch negative paths
+
+Current proof status:
+- landed locally via `packages/pi-autoresearch/src/core/selfHosting.ts`
+- current coverage proves locked evaluator suite entrypoints resolve from the controller-owned snapshot, same-named evaluator files inside the candidate worktree do not redefine the judge, candidate-owned package-manager or wrapper dispatch is not used as evaluator truth by the locked-suite helper, and evaluator hash drift fails closed via `packages/pi-autoresearch/tests/self-hosting.test.ts`
 
 ### SH-4 — applicability classification
 

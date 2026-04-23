@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -14,10 +14,12 @@ import {
   AutoresearchSelfHostingValidationError,
   assertAutoresearchSelfHostingCandidateScope,
   executeAutoresearchSelfHostingCandidateSubprocess,
+  executeAutoresearchSelfHostingEvaluatorSuite,
   inspectAutoresearchSelfHostingCandidateScope,
   loadAutoresearchSelfHostingArtifacts,
   prepareAutoresearchSelfHostingCandidateWorktree,
   resolveAutoresearchSelfHostingEvaluatorLockPath,
+  resolveAutoresearchSelfHostingEvaluatorSuite,
   validateAutoresearchSelfHostingArtifactsPair,
   validateAutoresearchSelfHostingContract,
   validateAutoresearchSelfHostingEvaluatorLock,
@@ -32,8 +34,12 @@ async function withTempDir(fn: (cwd: string) => Promise<void> | void): Promise<v
   }
 }
 
-function sha256(value: string): string {
+function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function fileSha256(target: string): string {
+  return sha256(readFileSync(target));
 }
 
 function writeJson(target: string, payload: unknown): void {
@@ -46,6 +52,20 @@ function writeFile(target: string, content: string): void {
   writeFileSync(target, content, "utf8");
 }
 
+function createSnapshotSuiteScript(source: string): string {
+  return [
+    "const args = process.argv.slice(2);",
+    "const candidateIndex = args.indexOf('--candidate');",
+    "const candidate = candidateIndex >= 0 ? args[candidateIndex + 1] : null;",
+    "process.stdout.write(JSON.stringify({",
+    `  source: ${JSON.stringify(source)},`,
+    "  cwd: process.cwd(),",
+    "  candidate,",
+    "}));",
+    "",
+  ].join("\n");
+}
+
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 }
@@ -56,12 +76,54 @@ function initSelfHostingRepo(root: string): void {
   git(root, "config", "user.email", "pi-test@example.com");
   writeFile(path.join(root, "README.md"), "# self-hosting test\n");
   writeFile(
+    path.join(root, "packages/pi-autoresearch/package.json"),
+    `${JSON.stringify(
+      {
+        name: "self-hosting-fixture",
+        private: true,
+        type: "module",
+        scripts: {
+          check: "node packages/pi-autoresearch/tests/package-script-marker.mjs",
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  writeFile(
     path.join(root, "packages/pi-autoresearch/src/runtime.ts"),
     "export const runtime = 'base';\n",
   );
   writeFile(
     path.join(root, "packages/pi-autoresearch/src/core/runtime.ts"),
     "export const nestedRuntime = 'base';\n",
+  );
+  writeFile(
+    path.join(root, "evaluator-snapshot/manifest.json"),
+    `${JSON.stringify(
+      {
+        kind: "fixture_manifest",
+        suites: ["dev-smoke", "holdout-operator", "transfer-package", "transfer-operator"],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  writeFile(
+    path.join(root, "evaluator-snapshot/suites/dev-smoke.mjs"),
+    createSnapshotSuiteScript("snapshot-dev-smoke"),
+  );
+  writeFile(
+    path.join(root, "evaluator-snapshot/suites/holdout-operator.mjs"),
+    createSnapshotSuiteScript("snapshot-holdout-operator"),
+  );
+  writeFile(
+    path.join(root, "evaluator-snapshot/suites/transfer-package.mjs"),
+    createSnapshotSuiteScript("snapshot-transfer-package"),
+  );
+  writeFile(
+    path.join(root, "evaluator-snapshot/suites/transfer-operator.mjs"),
+    createSnapshotSuiteScript("snapshot-transfer-operator"),
   );
   writeFile(
     path.join(root, "evaluator-snapshot/suites/locked.mjs"),
@@ -82,6 +144,16 @@ function initSelfHostingRepo(root: string): void {
     ].join("\n"),
   );
   writeFile(
+    path.join(root, "packages/pi-autoresearch/tests/package-script-marker.mjs"),
+    [
+      "import { writeFileSync } from 'node:fs';",
+      "writeFileSync('package-script-ran.flag', 'candidate package-manager script executed\\n', 'utf8');",
+      "process.stderr.write('candidate package-manager script executed');",
+      "process.exitCode = 99;",
+      "",
+    ].join("\n"),
+  );
+  writeFile(
     path.join(root, "packages/pi-autoresearch/tests/mutate-offlimits.mjs"),
     [
       "import { writeFileSync } from 'node:fs';",
@@ -94,14 +166,100 @@ function initSelfHostingRepo(root: string): void {
   git(root, "commit", "-m", "initial self-hosting fixture");
 }
 
+function createRepoBackedEvaluatorLock(root: string): AutoresearchSelfHostingEvaluatorLockV1 {
+  const manifestPath = path.join(root, "evaluator-snapshot/manifest.json");
+  const devEntrypoint = path.join(root, "evaluator-snapshot/suites/dev-smoke.mjs");
+  const holdoutEntrypoint = path.join(root, "evaluator-snapshot/suites/holdout-operator.mjs");
+  const transferPackageEntrypoint = path.join(
+    root,
+    "evaluator-snapshot/suites/transfer-package.mjs",
+  );
+  const transferOperatorEntrypoint = path.join(
+    root,
+    "evaluator-snapshot/suites/transfer-operator.mjs",
+  );
+
+  return {
+    type: "self_hosting_evaluator_lock",
+    version: 1,
+    campaignId: "self-hosting-wave-001",
+    snapshotRootPath: "evaluator-snapshot",
+    manifestPath: "evaluator-snapshot/manifest.json",
+    manifestHash: fileSha256(manifestPath),
+    executionModel: "controller_subprocess_against_candidate",
+    evaluatorFiles: [
+      { path: "suites/dev-smoke.mjs", sha256: fileSha256(devEntrypoint) },
+      { path: "suites/holdout-operator.mjs", sha256: fileSha256(holdoutEntrypoint) },
+      { path: "suites/transfer-package.mjs", sha256: fileSha256(transferPackageEntrypoint) },
+      { path: "suites/transfer-operator.mjs", sha256: fileSha256(transferOperatorEntrypoint) },
+    ],
+    suites: [
+      {
+        id: "dev-smoke",
+        class: "dev",
+        critical: true,
+        coverageKind: "self_hosting_internal",
+        entrypoint: {
+          kind: "snapshot_node_module",
+          path: "suites/dev-smoke.mjs",
+          sha256: fileSha256(devEntrypoint),
+        },
+        subjectCwdMode: "candidate",
+        argv: ["--candidate", "$CANDIDATE"],
+      },
+      {
+        id: "holdout-operator",
+        class: "holdout",
+        critical: true,
+        coverageKind: "operator_consumer",
+        entrypoint: {
+          kind: "snapshot_node_module",
+          path: "suites/holdout-operator.mjs",
+          sha256: fileSha256(holdoutEntrypoint),
+        },
+        subjectCwdMode: "candidate",
+        argv: ["--candidate", "$CANDIDATE"],
+      },
+      {
+        id: "transfer-package",
+        class: "transfer",
+        critical: true,
+        coverageKind: "package_non_self_hosting",
+        entrypoint: {
+          kind: "snapshot_script",
+          path: "suites/transfer-package.mjs",
+          sha256: fileSha256(transferPackageEntrypoint),
+        },
+        subjectCwdMode: "candidate",
+        argv: ["--candidate", "$CANDIDATE", "--mode", "package"],
+      },
+      {
+        id: "transfer-operator",
+        class: "transfer",
+        critical: true,
+        coverageKind: "operator_consumer",
+        entrypoint: {
+          kind: "snapshot_script",
+          path: "suites/transfer-operator.mjs",
+          sha256: fileSha256(transferOperatorEntrypoint),
+        },
+        subjectCwdMode: "candidate",
+        argv: ["--candidate", "$CANDIDATE", "--mode", "operator"],
+      },
+    ],
+  };
+}
+
 function writeSelfHostingArtifacts(
   root: string,
   contract: AutoresearchSelfHostingContractV1,
 ): void {
+  const evaluatorLock = createRepoBackedEvaluatorLock(root);
+  contract.evaluator.manifestHash = evaluatorLock.manifestHash;
   writeJson(path.join(root, AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE), contract);
   writeJson(
     resolveAutoresearchSelfHostingEvaluatorLockPath(root, contract.evaluator.lockPath),
-    createValidEvaluatorLock(),
+    evaluatorLock,
   );
   git(root, "add", AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE, contract.evaluator.lockPath);
   git(root, "commit", "-m", "add self-hosting artifacts");
@@ -113,6 +271,7 @@ function createRepoBackedContract(root: string): AutoresearchSelfHostingContract
     path.dirname(root),
     `${path.basename(root)}-candidate`,
   );
+  contract.evaluator.manifestHash = fileSha256(path.join(root, "evaluator-snapshot/manifest.json"));
   return contract;
 }
 
@@ -572,6 +731,137 @@ test("executeAutoresearchSelfHostingCandidateSubprocess fails closed when the ch
           command: ["node", "packages/pi-autoresearch/tests/mutate-offlimits.mjs"],
         }),
       /violated scope after execution/u,
+    );
+  });
+});
+
+test("resolveAutoresearchSelfHostingEvaluatorSuite keeps candidate cwd distinct from snapshot-owned entrypoint resolution", async () => {
+  await withTempDir((root) => {
+    const { candidateWorktreePath } = createPreparedCandidateRepo(root);
+
+    const resolved = resolveAutoresearchSelfHostingEvaluatorSuite({
+      cwd: root,
+      suiteId: "dev-smoke",
+    });
+    const controllerEntrypoint = path.join(root, "evaluator-snapshot/suites/dev-smoke.mjs");
+    const candidateEntrypoint = path.join(
+      candidateWorktreePath,
+      "evaluator-snapshot/suites/dev-smoke.mjs",
+    );
+
+    assert.equal(resolved.processCwd, candidateWorktreePath);
+    assert.equal(resolved.entrypointPath, controllerEntrypoint);
+    assert.equal(existsSync(candidateEntrypoint), true);
+    assert.notEqual(candidateEntrypoint, controllerEntrypoint);
+    assert.deepEqual(resolved.command, [
+      process.execPath,
+      controllerEntrypoint,
+      "--candidate",
+      candidateWorktreePath,
+    ]);
+  });
+});
+
+test("resolveAutoresearchSelfHostingEvaluatorSuite ignores a mutated same-named evaluator file inside the candidate worktree", async () => {
+  await withTempDir((root) => {
+    const { candidateWorktreePath } = createPreparedCandidateRepo(root);
+    const controllerEntrypoint = path.join(root, "evaluator-snapshot/suites/dev-smoke.mjs");
+    const candidateEntrypoint = path.join(
+      candidateWorktreePath,
+      "evaluator-snapshot/suites/dev-smoke.mjs",
+    );
+
+    writeFile(candidateEntrypoint, createSnapshotSuiteScript("candidate-dev-smoke"));
+
+    const resolved = resolveAutoresearchSelfHostingEvaluatorSuite({
+      cwd: root,
+      suiteId: "dev-smoke",
+    });
+
+    assert.equal(resolved.entrypointPath, controllerEntrypoint);
+    assert.notEqual(fileSha256(candidateEntrypoint), fileSha256(controllerEntrypoint));
+  });
+});
+
+test("executeAutoresearchSelfHostingEvaluatorSuite runs snapshot-owned evaluator entrypoints without candidate package-manager dispatch", async () => {
+  await withTempDir((root) => {
+    const { candidateWorktreePath } = createPreparedCandidateRepo(root);
+
+    const result = executeAutoresearchSelfHostingEvaluatorSuite({
+      cwd: root,
+      suiteId: "dev-smoke",
+    });
+
+    assert.equal(result.command.exitCode, 0);
+    assert.equal(result.command.command[0], process.execPath);
+    assert.equal(
+      result.command.command[1],
+      path.join(root, "evaluator-snapshot/suites/dev-smoke.mjs"),
+    );
+    assert.equal(result.command.cwd, candidateWorktreePath);
+    assert.equal(result.scope.ok, true);
+    assert.equal(result.postCommandScope.ok, true);
+    assert.equal(result.command.command.includes("npm"), false);
+    assert.equal(result.command.command.includes("pnpm"), false);
+    assert.equal(result.command.command.includes("yarn"), false);
+    assert.equal(existsSync(path.join(candidateWorktreePath, "package-script-ran.flag")), false);
+
+    const payload = JSON.parse(result.command.stdout) as {
+      source: string;
+      cwd: string;
+      candidate: string | null;
+    };
+    assert.equal(payload.source, "snapshot-dev-smoke");
+    assert.equal(payload.cwd, candidateWorktreePath);
+    assert.equal(payload.candidate, candidateWorktreePath);
+  });
+});
+
+test("executeAutoresearchSelfHostingEvaluatorSuite fails closed on unsupported shell-style evaluator placeholders", async () => {
+  await withTempDir((root) => {
+    initSelfHostingRepo(root);
+    const contract = createRepoBackedContract(root);
+    writeSelfHostingArtifacts(root, contract);
+
+    const lockPath = resolveAutoresearchSelfHostingEvaluatorLockPath(
+      root,
+      contract.evaluator.lockPath,
+    );
+    const evaluatorLock = createRepoBackedEvaluatorLock(root);
+    evaluatorLock.suites[0] = {
+      ...evaluatorLock.suites[0],
+      argv: ["$UNKNOWN_PLACEHOLDER"],
+    };
+    writeJson(lockPath, evaluatorLock);
+
+    prepareAutoresearchSelfHostingCandidateWorktree({ cwd: root, apply: true });
+
+    assert.throws(
+      () =>
+        resolveAutoresearchSelfHostingEvaluatorSuite({
+          cwd: root,
+          suiteId: "dev-smoke",
+        }),
+      /unsupported shell-style placeholder/u,
+    );
+  });
+});
+
+test("executeAutoresearchSelfHostingEvaluatorSuite fails closed on locked evaluator hash drift", async () => {
+  await withTempDir((root) => {
+    createPreparedCandidateRepo(root);
+    writeFile(
+      path.join(root, "evaluator-snapshot/suites/dev-smoke.mjs"),
+      createSnapshotSuiteScript("snapshot-dev-smoke-drifted"),
+    );
+
+    assert.throws(
+      () =>
+        executeAutoresearchSelfHostingEvaluatorSuite({
+          cwd: root,
+          suiteId: "dev-smoke",
+        }),
+      /Locked evaluator file drift detected/u,
     );
   });
 });

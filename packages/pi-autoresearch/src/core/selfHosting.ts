@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 export const AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE = "autoresearch.self-hosting.json";
@@ -725,6 +726,52 @@ export interface ExecuteAutoresearchSelfHostingCandidateSubprocessResult {
   nextStep: string;
 }
 
+export interface ResolveAutoresearchSelfHostingEvaluatorSuiteInput {
+  cwd: string;
+  suiteId: string;
+}
+
+export interface ResolvedAutoresearchSelfHostingEvaluatorSuite {
+  action: "resolve_evaluator_suite";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerCwd: string;
+  controllerRepoRoot: string;
+  candidateCwd: string;
+  snapshotRootPath: string;
+  manifestPath: string;
+  suiteId: string;
+  suiteClass: AutoresearchSelfHostingEvaluatorSuiteClass;
+  critical: boolean;
+  coverageKind: AutoresearchSelfHostingEvaluatorCoverageKind;
+  subjectCwdMode: AutoresearchSelfHostingSubjectCwdMode;
+  entrypointKind: AutoresearchSelfHostingEvaluatorEntrypointKind;
+  entrypointPath: string;
+  argv: string[];
+  processCwd: string;
+  command: string[];
+}
+
+export interface ExecuteAutoresearchSelfHostingEvaluatorSuiteInput {
+  cwd: string;
+  suiteId: string;
+  env?: Record<string, string | undefined>;
+  timeoutMs?: number;
+}
+
+export interface ExecuteAutoresearchSelfHostingEvaluatorSuiteResult {
+  action: "run_locked_evaluator_suite";
+  campaignId: string;
+  executionModel: AutoresearchSelfHostingExecutionModel;
+  controllerCwd: string;
+  candidateCwd: string;
+  resolvedSuite: ResolvedAutoresearchSelfHostingEvaluatorSuite;
+  scope: AutoresearchSelfHostingCandidateScopeStatus;
+  postCommandScope: AutoresearchSelfHostingCandidateScopeStatus;
+  command: AutoresearchSelfHostingCommandSummary;
+  nextStep: string;
+}
+
 export function prepareAutoresearchSelfHostingCandidateWorktree(
   input: PrepareAutoresearchSelfHostingCandidateWorktreeInput,
 ): PrepareAutoresearchSelfHostingCandidateWorktreeResult {
@@ -931,6 +978,327 @@ export function executeAutoresearchSelfHostingCandidateSubprocess(
         ? `Candidate subprocess completed under controller_subprocess_against_candidate; continue with snapshot-owned evaluator entrypoint work in SH-3.`
         : `Candidate subprocess failed with exit code ${JSON.stringify(command.exitCode)}; inspect stderr/stdout before retrying so the controller does not silently become the candidate.`,
   };
+}
+
+interface VerifiedAutoresearchSelfHostingEvaluatorFile {
+  relativePath: string;
+  absolutePath: string;
+  sha256: string;
+}
+
+interface VerifiedAutoresearchSelfHostingEvaluatorSnapshot {
+  snapshotRootPath: string;
+  manifestPath: string;
+  evaluatorFiles: Map<string, VerifiedAutoresearchSelfHostingEvaluatorFile>;
+}
+
+export function resolveAutoresearchSelfHostingEvaluatorSuite(
+  input: ResolveAutoresearchSelfHostingEvaluatorSuiteInput,
+): ResolvedAutoresearchSelfHostingEvaluatorSuite {
+  const artifacts = loadAutoresearchSelfHostingArtifacts(input.cwd);
+  const controllerRepoRoot = resolveGitTopLevel(artifacts.cwd);
+  const candidate = assertAutoresearchSelfHostingCandidateWorktreeRegistered(
+    controllerRepoRoot,
+    artifacts.contract,
+  );
+  const snapshot = verifyAutoresearchSelfHostingEvaluatorSnapshot(artifacts);
+  const suite = artifacts.evaluatorLock.suites.find((entry) => entry.id === input.suiteId);
+  if (!suite) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting evaluator suite ${JSON.stringify(input.suiteId)} is not declared in ${JSON.stringify(artifacts.lockPath)}.`,
+    );
+  }
+
+  const entrypoint = snapshot.evaluatorFiles.get(suite.entrypoint.path);
+  if (!entrypoint) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting evaluator suite ${JSON.stringify(suite.id)} entrypoint ${JSON.stringify(suite.entrypoint.path)} is not available in the verified snapshot.`,
+    );
+  }
+
+  const argv = expandAutoresearchSelfHostingEvaluatorArgv(suite.argv, {
+    controllerCwd: artifacts.contract.controller.controllerCwd,
+    candidateCwd: candidate.worktreePath,
+    snapshotRootPath: snapshot.snapshotRootPath,
+    manifestPath: snapshot.manifestPath,
+    suiteId: suite.id,
+  });
+  const processCwd =
+    suite.subjectCwdMode === "candidate" ? candidate.worktreePath : snapshot.snapshotRootPath;
+  const command = buildAutoresearchSelfHostingEvaluatorCommand(
+    suite.entrypoint.kind,
+    entrypoint.absolutePath,
+    argv,
+  );
+
+  return {
+    action: "resolve_evaluator_suite",
+    campaignId: artifacts.contract.campaignId,
+    executionModel: artifacts.contract.controller.executionModel,
+    controllerCwd: artifacts.contract.controller.controllerCwd,
+    controllerRepoRoot,
+    candidateCwd: candidate.worktreePath,
+    snapshotRootPath: snapshot.snapshotRootPath,
+    manifestPath: snapshot.manifestPath,
+    suiteId: suite.id,
+    suiteClass: suite.class,
+    critical: suite.critical,
+    coverageKind: suite.coverageKind,
+    subjectCwdMode: suite.subjectCwdMode,
+    entrypointKind: suite.entrypoint.kind,
+    entrypointPath: entrypoint.absolutePath,
+    argv,
+    processCwd,
+    command,
+  };
+}
+
+export function executeAutoresearchSelfHostingEvaluatorSuite(
+  input: ExecuteAutoresearchSelfHostingEvaluatorSuiteInput,
+): ExecuteAutoresearchSelfHostingEvaluatorSuiteResult {
+  const scope = assertAutoresearchSelfHostingCandidateScope(input.cwd);
+  const resolvedSuite = resolveAutoresearchSelfHostingEvaluatorSuite({
+    cwd: input.cwd,
+    suiteId: input.suiteId,
+  });
+
+  const command = runCommandSummary(
+    resolvedSuite.command[0],
+    resolvedSuite.command.slice(1),
+    resolvedSuite.processCwd,
+    `${resolvedSuite.campaignId}:locked_evaluator_suite:${resolvedSuite.suiteId}`,
+    {
+      timeoutMs: input.timeoutMs,
+      env: {
+        ...input.env,
+        PI_AUTORESEARCH_SELF_HOSTING_CAMPAIGN_ID: resolvedSuite.campaignId,
+        PI_AUTORESEARCH_SELF_HOSTING_EXECUTION_MODEL: resolvedSuite.executionModel,
+        PI_AUTORESEARCH_SELF_HOSTING_CONTROLLER_CWD: resolvedSuite.controllerCwd,
+        PI_AUTORESEARCH_SELF_HOSTING_CANDIDATE_CWD: resolvedSuite.candidateCwd,
+        PI_AUTORESEARCH_SELF_HOSTING_EVALUATOR_SUITE_ID: resolvedSuite.suiteId,
+        PI_AUTORESEARCH_SELF_HOSTING_EVALUATOR_ENTRYPOINT: resolvedSuite.entrypointPath,
+        PI_AUTORESEARCH_SELF_HOSTING_EVALUATOR_SNAPSHOT_ROOT: resolvedSuite.snapshotRootPath,
+        PI_AUTORESEARCH_SELF_HOSTING_EVALUATOR_MANIFEST: resolvedSuite.manifestPath,
+        PI_AUTORESEARCH_SELF_HOSTING_EVALUATOR_SUBJECT_CWD_MODE: resolvedSuite.subjectCwdMode,
+      },
+    },
+  );
+  resolveAutoresearchSelfHostingEvaluatorSuite({
+    cwd: input.cwd,
+    suiteId: input.suiteId,
+  });
+  const postCommandScope = inspectAutoresearchSelfHostingCandidateScope(input.cwd);
+  if (!postCommandScope.ok) {
+    const problems: string[] = [];
+    if (postCommandScope.offLimitsPaths.length > 0) {
+      problems.push(
+        `off-limits mutations after evaluator suite: ${postCommandScope.offLimitsPaths
+          .map((entry) => JSON.stringify(entry))
+          .join(", ")}`,
+      );
+    }
+    if (postCommandScope.outOfScopePaths.length > 0) {
+      problems.push(
+        `out-of-scope mutations after evaluator suite: ${postCommandScope.outOfScopePaths
+          .map((entry) => JSON.stringify(entry))
+          .join(", ")}`,
+      );
+    }
+    throw new AutoresearchSelfHostingIsolationError(
+      `Locked evaluator suite violated candidate scope after execution: ${problems.join("; ")}`,
+    );
+  }
+
+  return {
+    action: "run_locked_evaluator_suite",
+    campaignId: resolvedSuite.campaignId,
+    executionModel: resolvedSuite.executionModel,
+    controllerCwd: resolvedSuite.controllerCwd,
+    candidateCwd: resolvedSuite.candidateCwd,
+    resolvedSuite,
+    scope,
+    postCommandScope,
+    command,
+    nextStep:
+      command.exitCode === 0
+        ? `Locked evaluator suite ${JSON.stringify(resolvedSuite.suiteId)} completed under snapshot-owned entrypoints; SH-4 may now classify the bounded result.`
+        : `Locked evaluator suite ${JSON.stringify(resolvedSuite.suiteId)} failed with exit code ${JSON.stringify(command.exitCode)}; inspect stderr/stdout without widening into candidate-owned dispatch.`,
+  };
+}
+
+function verifyAutoresearchSelfHostingEvaluatorSnapshot(
+  artifacts: LoadedAutoresearchSelfHostingArtifacts,
+): VerifiedAutoresearchSelfHostingEvaluatorSnapshot {
+  const snapshotRootPath = resolveAutoresearchSelfHostingSnapshotRootPath(
+    artifacts.contract.controller.controllerCwd,
+    artifacts.evaluatorLock.snapshotRootPath,
+  );
+  const manifestPath = resolveAutoresearchSelfHostingManifestPath(
+    artifacts.contract.controller.controllerCwd,
+    snapshotRootPath,
+    artifacts.evaluatorLock.manifestPath,
+  );
+  const manifestHash = hashFileSha256(manifestPath);
+  if (manifestHash !== artifacts.evaluatorLock.manifestHash) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Locked evaluator manifest drift detected at ${JSON.stringify(manifestPath)}: expected sha256 ${artifacts.evaluatorLock.manifestHash}, got ${manifestHash}.`,
+    );
+  }
+
+  const evaluatorFiles = new Map<string, VerifiedAutoresearchSelfHostingEvaluatorFile>();
+  for (const entry of artifacts.evaluatorLock.evaluatorFiles) {
+    const absolutePath = resolveAutoresearchSelfHostingSnapshotFilePath(
+      snapshotRootPath,
+      entry.path,
+      `Locked evaluator file ${JSON.stringify(entry.path)}`,
+    );
+    const actualHash = hashFileSha256(absolutePath);
+    if (actualHash !== entry.sha256) {
+      throw new AutoresearchSelfHostingIsolationError(
+        `Locked evaluator file drift detected for ${JSON.stringify(entry.path)} at ${JSON.stringify(absolutePath)}: expected sha256 ${entry.sha256}, got ${actualHash}.`,
+      );
+    }
+    evaluatorFiles.set(entry.path, {
+      relativePath: entry.path,
+      absolutePath,
+      sha256: entry.sha256,
+    });
+  }
+
+  return {
+    snapshotRootPath,
+    manifestPath,
+    evaluatorFiles,
+  };
+}
+
+function resolveAutoresearchSelfHostingSnapshotRootPath(
+  controllerCwd: string,
+  snapshotRootPath: string,
+): string {
+  const resolvedPath = resolveArtifactPath(controllerCwd, snapshotRootPath);
+  if (!existsSync(resolvedPath)) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Locked evaluator snapshot root ${JSON.stringify(resolvedPath)} does not exist.`,
+    );
+  }
+  return realpathSync(resolvedPath);
+}
+
+function resolveAutoresearchSelfHostingManifestPath(
+  controllerCwd: string,
+  snapshotRootPath: string,
+  manifestPath: string,
+): string {
+  const resolvedPath = resolveArtifactPath(controllerCwd, manifestPath);
+  return assertPathWithinRoot(
+    resolvedPath,
+    snapshotRootPath,
+    `Locked evaluator manifest ${JSON.stringify(manifestPath)}`,
+  );
+}
+
+function resolveAutoresearchSelfHostingSnapshotFilePath(
+  snapshotRootPath: string,
+  relativePath: string,
+  label: string,
+): string {
+  return assertPathWithinRoot(
+    path.resolve(snapshotRootPath, relativePath),
+    snapshotRootPath,
+    label,
+  );
+}
+
+function expandAutoresearchSelfHostingEvaluatorArgv(
+  argv: readonly string[],
+  context: {
+    controllerCwd: string;
+    candidateCwd: string;
+    snapshotRootPath: string;
+    manifestPath: string;
+    suiteId: string;
+  },
+): string[] {
+  return argv.map((entry, index) =>
+    expandAutoresearchSelfHostingEvaluatorArg(
+      entry,
+      `${JSON.stringify(context.suiteId)} argv[${index}]`,
+      context,
+    ),
+  );
+}
+
+function expandAutoresearchSelfHostingEvaluatorArg(
+  value: string,
+  label: string,
+  context: {
+    controllerCwd: string;
+    candidateCwd: string;
+    snapshotRootPath: string;
+    manifestPath: string;
+  },
+): string {
+  const replacements = new Map<string, string>([
+    ["$CANDIDATE", context.candidateCwd],
+    ["$SNAPSHOT_ROOT", context.snapshotRootPath],
+    ["$MANIFEST", context.manifestPath],
+    ["$CONTROLLER_CWD", context.controllerCwd],
+  ]);
+  const replacement = replacements.get(value);
+  if (replacement) {
+    return replacement;
+  }
+  if (value.includes("$")) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `Self-hosting evaluator ${label} uses unsupported shell-style placeholder ${JSON.stringify(value)}; evaluator argv must stay explicit and snapshot-owned.`,
+    );
+  }
+  return value;
+}
+
+function buildAutoresearchSelfHostingEvaluatorCommand(
+  entrypointKind: AutoresearchSelfHostingEvaluatorEntrypointKind,
+  entrypointPath: string,
+  argv: readonly string[],
+): string[] {
+  if (entrypointKind === "snapshot_node_module" || isNodeLikeEntrypoint(entrypointPath)) {
+    return [process.execPath, entrypointPath, ...argv];
+  }
+  return [entrypointPath, ...argv];
+}
+
+function assertPathWithinRoot(candidatePath: string, rootPath: string, label: string): string {
+  if (!existsSync(candidatePath)) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `${label} ${JSON.stringify(candidatePath)} does not exist.`,
+    );
+  }
+  const resolvedRoot = realpathSync(rootPath);
+  const resolvedCandidate = realpathSync(candidatePath);
+  if (!isPathWithinRoot(resolvedRoot, resolvedCandidate)) {
+    throw new AutoresearchSelfHostingIsolationError(
+      `${label} ${JSON.stringify(resolvedCandidate)} resolves outside snapshot root ${JSON.stringify(resolvedRoot)}.`,
+    );
+  }
+  return resolvedCandidate;
+}
+
+function isPathWithinRoot(rootPath: string, candidatePath: string): boolean {
+  const relativePath = path.relative(rootPath, candidatePath);
+  return (
+    relativePath.length === 0 || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+}
+
+function hashFileSha256(filePath: string): string {
+  return createHash("sha256").update(readFileSync(filePath)).digest("hex");
+}
+
+function isNodeLikeEntrypoint(entrypointPath: string): boolean {
+  return [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"].includes(
+    path.extname(entrypointPath).toLowerCase(),
+  );
 }
 
 function loadJsonObject(filePath: string): Record<string, unknown> {

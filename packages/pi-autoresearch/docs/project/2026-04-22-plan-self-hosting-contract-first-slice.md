@@ -126,6 +126,10 @@ Interpretation rule:
   - proof that hash drift fails closed
   - proof that same-named evaluator files inside the candidate worktree do not redefine the judge
   - proof that candidate-owned `package.json` scripts cannot redefine evaluator entrypoints
+- current execution status:
+  - landed locally via snapshot-owned evaluator suite resolution/execution helpers in `packages/pi-autoresearch/src/core/selfHosting.ts`
+  - focused proof now lives in `packages/pi-autoresearch/tests/self-hosting.test.ts`
+  - follow-on tasks should reuse the landed locked-suite resolution/execution path rather than widening back into candidate-owned package-manager or wrapper dispatch
 
 ### SH-4 — applicability classification
 
