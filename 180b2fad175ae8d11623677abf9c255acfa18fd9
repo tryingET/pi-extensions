@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "180b2fad175ae8d11623677abf9c255acfa18fd9"
-created_at: "2026-04-23T12:30:46Z"
+created_at: "2026-04-23T12:39:25Z"
 intent: "Refresh ontology authority receipts after strict ref-resolution validation rewrote the generated dist metadata."
 files:
   - "ontology/dist/authority-receipt.json"
@@ -17,5 +17,5 @@ validation:
     status: "pass"
 group:
   index: 16
-  total: 16
+  total: 17
   rationale: "Capture the generated ontology authority receipt rewrite caused by the final validation pass."
