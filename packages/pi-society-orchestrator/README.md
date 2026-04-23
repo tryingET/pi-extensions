@@ -204,6 +204,12 @@ Then in Pi:
 
 See [examples/workflow-execute.md](examples/workflow-execute.md) for copy/paste-ready chain, parallel, and worktree-isolated examples.
 
+Important framing:
+- `workflow_execute` is best understood as **caller-authored / operator-authored orchestration**, not agent-defined orchestration
+- the workflow graph is explicit in the request payload: the caller chooses chain vs parallel, step order, agent roles, and optional worktree use
+- the agent still executes each step objective, but it does **not** silently redefine the workflow topology at this boundary
+- that explicitness is intentional: it keeps the first workflow adapter truthful, reviewable, and fail-closed above ASC instead of turning hidden planner behavior into authority
+
 Smallest useful read-only chain:
 
 ```js
@@ -227,6 +233,34 @@ workflow_execute({
 ```
 
 Operator proof for the first live bounded smoke is recorded in [docs/project/2026-04-23-live-workflow-execute-smoke.md](docs/project/2026-04-23-live-workflow-execute-smoke.md).
+
+## Loop vs workflow vs DSPy / DSPx
+
+Use these terms distinctly:
+
+- **loop** — a predefined cognitive framework owned by the orchestrator
+  - examples: `kaizen`, `ooda`, `strategic`
+  - the phase sequence, default agents, and default cognitive tools are already defined
+  - best when the reasoning pattern matters more than exact custom step topology
+
+- **workflow** — an explicit caller-authored step graph owned by the orchestrator
+  - examples: chain / parallel / optional worktree groups via `workflow_execute`
+  - the caller supplies the topology directly in the request
+  - best when the exact sequence or fan-out shape is already known
+
+- **DSPy** — an inner cognition/program runtime, not the same thing as a Pi workflow wrapper
+  - useful when the concern is LM-program behavior, signatures, compilation, or optimization inside a bounded phase/runtime
+  - in the broader target shape, DSPy may run *inside* selected governed phases, not replace Pi's outer orchestration surface
+
+- **DSPx** — the engineering / optimization / replay / eval layer around DSPy systems
+  - see `softwareco/owned/dspx/README.md` and `softwareco/owned/dspx/docs/project/vision.md`
+  - DSPx is a local-first receipts-first runtime for empirical development of DSPy systems
+  - it is not the same concern as a thin Pi workflow wrapper; it sits closer to program evolution, replayable evidence, and optimization/search than to simple command/tool orchestration
+
+Practical rule:
+- choose **loop** when you want the orchestrator's predefined thinking pattern
+- choose **workflow** when you want to state the exact multi-step graph yourself
+- choose **DSPy/DSPx** when the real problem is program-shaped cognition, compile/eval, optimization, replay, or empirical evolution rather than just multi-agent step sequencing
 
 ## Package checks
 

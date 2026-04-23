@@ -19,6 +19,12 @@ This package's first bounded workflow-composition slice exposes one explicit too
 
 Use it when the task naturally decomposes into a small chain or parallel group of agent steps over the ASC-backed subagent executor.
 
+Interpretation note:
+- treat this as **caller-authored / operator-authored orchestration**
+- the request payload names the topology explicitly
+- the agent executes the requested steps, but does not quietly redefine the graph at this boundary
+- if a future planner, DSPy program, or DSPx workflow proposes a graph, it still becomes a `workflow_execute` run only after that graph is materialized explicitly as the request
+
 ## 1. Read-only chain
 
 Use for dependent inspection/review passes.
@@ -102,6 +108,12 @@ workflow_execute({
   },
 })
 ```
+
+## Relation to loops and DSPx
+
+- `loop_execute` is for predefined phase-driven cognitive frameworks
+- `workflow_execute` is for explicit chain/parallel graphs supplied at the orchestrator boundary
+- DSPy/DSPx concerns are different again: they are about program/runtime evolution, optimization, replay, and empirical evaluation rather than just choosing the next agent step topology
 
 ## Guardrails
 
