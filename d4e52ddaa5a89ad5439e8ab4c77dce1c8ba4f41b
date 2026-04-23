@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "d4e52ddaa5a89ad5439e8ab4c77dce1c8ba4f41b"
-created_at: "2026-04-23T11:50:39Z"
+created_at: "2026-04-23T12:22:16Z"
 intent: "Infer a ROCS workspace root automatically when --resolve-refs is used without an explicit workspace root."
 files:
   - "scripts/rocs.sh"
@@ -13,8 +13,8 @@ validation:
     status: "pass"
   full_gate:
     command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
-    status: "pending"
+    status: "pass"
 group:
   index: 2
-  total: 13
+  total: 15
   rationale: "Keep the ROCS launcher improvement separate from the broader root validation refresh."
