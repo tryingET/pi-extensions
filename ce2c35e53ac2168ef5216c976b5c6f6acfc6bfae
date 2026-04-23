@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "ce2c35e53ac2168ef5216c976b5c6f6acfc6bfae"
-created_at: "2026-04-23T12:22:23Z"
+created_at: "2026-04-23T12:30:44Z"
 intent: "Record the workflow-composition packet closure docs after ADR acceptance for the orchestrator packet."
 files:
   - "packages/pi-society-orchestrator/docs/adr/2026-04-22-chain-parallel-worktree-ux-over-asc.md"
@@ -20,5 +20,5 @@ validation:
     status: "pass"
 group:
   index: 13
-  total: 15
+  total: 16
   rationale: "Keep the accepted orchestrator ADR update and its problem/review/plan/validation closure docs together."
