@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "c243e3c22ae4a55785268c23776e05ec28c9fd08"
-created_at: "2026-04-23T11:54:01Z"
+created_at: "2026-04-23T12:22:17Z"
 intent: "Add the ASC-owned rewind runtime, exact restore core, and replay-fabric projection helpers."
 files:
   - "packages/pi-autonomous-session-control/CHANGELOG.md"
@@ -35,8 +35,8 @@ validation:
     status: "pass"
   full_gate:
     command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
-    status: "pending"
+    status: "pass"
 group:
   index: 4
-  total: 13
+  total: 15
   rationale: "Keep the new ASC rewind subsystem, docs, and focused tests together under the execution owner."
