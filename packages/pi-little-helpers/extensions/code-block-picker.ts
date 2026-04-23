@@ -242,7 +242,7 @@ export default function codeBlockPickerExtension(pi: ExtensionAPI) {
           await copyTextSafely(selectedBlock.code);
           ctx.ui.notify(
             `Copied ${selectedBlock.language} block (${selectedBlock.code.split("\n").length} lines)`,
-            "success",
+            "info",
           );
         } catch (err) {
           ctx.ui.notify(`Failed to copy: ${err}`, "error");

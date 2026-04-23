@@ -394,7 +394,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           const suffix = launchNote ? ` (${launchNote})` : "";
           ctx.ui.notify(
             `Opened sidequest in ${modeLabel}: ${summarizePrompt(prompt)}${suffix}`,
-            "success",
+            "info",
           );
         }
       },

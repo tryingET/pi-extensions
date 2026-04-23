@@ -189,7 +189,7 @@ test("sidequest opens a new Ghostty window when the current Ghostty session lack
     "trace this failure",
   ]);
   assert.equal(harness.notifications.length, 1);
-  assert.equal(harness.notifications[0].type, "success");
+  assert.equal(harness.notifications[0].type, "info");
   assert.match(harness.notifications[0].message, /new Ghostty window/);
   assert.match(harness.notifications[0].message, /does not support \+new-tab/);
 });
@@ -238,7 +238,7 @@ test("sidequest uses the Ghostty sidequest wrapper to open a same-window tab eve
     /PI_SESSION_PRESENCE_TITLE_BASE='Sidequest: missing surface id'/,
   );
   assert.equal(harness.notifications.length, 1);
-  assert.equal(harness.notifications[0].type, "success");
+  assert.equal(harness.notifications[0].type, "info");
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
 });
 
@@ -288,7 +288,7 @@ test("sidequest retries a new Ghostty window when live same-window tab attach fa
   );
   assert.ok(execStub.calls[1].args.includes("--surface-id=0x2b2826e0"));
   assert.equal(harness.notifications.length, 1);
-  assert.equal(harness.notifications[0].type, "success");
+  assert.equal(harness.notifications[0].type, "info");
   assert.match(harness.notifications[0].message, /new Ghostty window/);
   assert.match(harness.notifications[0].message, /same-window tab launch failed/i);
 });
@@ -332,7 +332,7 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
   );
   assert.ok(execStub.calls[1].args.includes("--surface-id=19"));
   assert.equal(harness.notifications.length, 1);
-  assert.equal(harness.notifications[0].type, "success");
+  assert.equal(harness.notifications[0].type, "info");
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
 });
 

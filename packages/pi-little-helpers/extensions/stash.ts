@@ -158,16 +158,10 @@ export default function stashExtension(pi: ExtensionAPI) {
     }
 
     ctx.ui.setEditorText(next);
-    ctx.ui.notify(`Restored: ${popped.preview}`, "success");
+    ctx.ui.notify(`Restored: ${popped.preview}`, "info");
   };
 
-  async function showStashPicker(ctx: ExtensionContext): Promise<void> {
-    if (store.items.length === 0) {
-      ctx.ui.notify("No stashed items", "info");
-      return;
-    }
-
-    // Group items by session
+  const buildPickerItems = (): SelectItem[] => {
     const sessions = new Map<string, { name: string; items: StashItem[] }>();
     for (const item of store.items) {
       const key = item.sessionId;
@@ -180,52 +174,79 @@ export default function stashExtension(pi: ExtensionAPI) {
       sessions.get(key)?.items.push(item);
     }
 
-    // Build select items with group headers
-    const items: SelectItem[] = [];
+    const pickerItems: SelectItem[] = [];
     for (const [_key, session] of sessions) {
       for (const item of session.items) {
-        items.push({
+        pickerItems.push({
           value: item.id,
           label: item.preview,
           description: `${session.name} • ${formatTimestamp(item.timestamp)}`,
         });
       }
     }
+    return pickerItems;
+  };
+
+  async function showStashPicker(ctx: ExtensionContext): Promise<void> {
+    if (store.items.length === 0) {
+      ctx.ui.notify("No stashed items", "info");
+      return;
+    }
 
     const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
       const container = new Container();
+      const listContainer = new Container();
+      let items = buildPickerItems();
+      let selectedIndex = 0;
+      let selectList: SelectList;
+
+      const createSelectList = () => {
+        const nextList = new SelectList(items, Math.min(items.length, 12), {
+          selectedPrefix: (t) => theme.fg("accent", t),
+          selectedText: (t) => theme.fg("accent", t),
+          description: (t) => theme.fg("muted", t),
+          scrollInfo: (t) => theme.fg("dim", t),
+          noMatch: (t) => theme.fg("warning", t),
+        });
+        nextList.setSelectedIndex(Math.min(selectedIndex, Math.max(0, items.length - 1)));
+        nextList.onSelectionChange = (item) => {
+          selectedIndex = Math.max(
+            0,
+            items.findIndex((candidate) => candidate.value === item.value),
+          );
+        };
+        nextList.onSelect = (item) => done(item.value);
+        nextList.onCancel = () => done(null);
+        return nextList;
+      };
+
+      const rebuildSelectList = () => {
+        listContainer.clear();
+        selectList = createSelectList();
+        listContainer.addChild(selectList);
+      };
 
       container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
       container.addChild(
         new Text(theme.fg("accent", theme.bold(`Stash (${store.items.length})`)), 1, 0),
       );
       container.addChild(new Text(theme.fg("dim", "Select to restore to editor"), 1, 0));
-
-      const selectList = new SelectList(items, Math.min(items.length, 12), {
-        selectedPrefix: (t) => theme.fg("accent", t),
-        selectedText: (t) => theme.fg("accent", t),
-        description: (t) => theme.fg("muted", t),
-        scrollInfo: (t) => theme.fg("dim", t),
-        noMatch: (t) => theme.fg("warning", t),
-      });
-
-      selectList.onSelect = (item) => done(item.value);
-      selectList.onCancel = () => done(null);
-      container.addChild(selectList);
-
+      container.addChild(listContainer);
       container.addChild(
         new Text(theme.fg("dim", "↑↓ navigate • enter restore • esc cancel • d delete"), 1, 0),
       );
       container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 
+      rebuildSelectList();
+
       return {
         render: (w) => container.render(w),
         invalidate: () => container.invalidate(),
         handleInput: (data) => {
-          // Handle 'd' for delete
           if (data === "d") {
-            const selected = selectList.getSelected();
+            const selected = selectList.getSelectedItem();
             if (selected) {
+              const currentIndex = items.findIndex((item) => item.value === selected.value);
               store.items = store.items.filter((item) => item.id !== selected.value);
               saveStash(store);
               updateStatus(ctx);
@@ -233,29 +254,12 @@ export default function stashExtension(pi: ExtensionAPI) {
                 done(null);
                 ctx.ui.notify("Stash cleared", "info");
               } else {
-                // Rebuild items and update list
-                items.length = 0;
-                const sessions = new Map<string, { name: string; items: StashItem[] }>();
-                for (const item of store.items) {
-                  const key = item.sessionId;
-                  if (!sessions.has(key)) {
-                    sessions.set(key, {
-                      name: item.sessionName || `Session ${key.slice(0, 8)}`,
-                      items: [],
-                    });
-                  }
-                  sessions.get(key)?.items.push(item);
-                }
-                for (const [_key, session] of sessions) {
-                  for (const item of session.items) {
-                    items.push({
-                      value: item.id,
-                      label: item.preview,
-                      description: `${session.name} • ${formatTimestamp(item.timestamp)}`,
-                    });
-                  }
-                }
-                selectList.setItems(items);
+                items = buildPickerItems();
+                selectedIndex = Math.min(
+                  currentIndex < 0 ? 0 : currentIndex,
+                  Math.max(0, items.length - 1),
+                );
+                rebuildSelectList();
                 tui.requestRender();
               }
             }
@@ -280,7 +284,7 @@ export default function stashExtension(pi: ExtensionAPI) {
           next = `${current}\n${selected.content}`;
         }
         ctx.ui.setEditorText(next);
-        ctx.ui.notify(`Restored: ${selected.preview}`, "success");
+        ctx.ui.notify(`Restored: ${selected.preview}`, "info");
       }
     }
   }
@@ -299,7 +303,7 @@ export default function stashExtension(pi: ExtensionAPI) {
 
       pushToStash(text, ctx);
       ctx.ui.setEditorText("");
-      ctx.ui.notify(`Stashed: ${createPreview(text)}`, "success");
+      ctx.ui.notify(`Stashed: ${createPreview(text)}`, "info");
     },
   });
 

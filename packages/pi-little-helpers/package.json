@@ -74,7 +74,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@mariozechner/pi-coding-agent": "^0.65.0"
+    "@mariozechner/pi-coding-agent": "^0.65.0",
+    "@types/node": "22.14.0",
+    "@typescript/native-preview": "7.0.0-dev.20260417.1",
+    "typescript": "5.9.2"
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"
