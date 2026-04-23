@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "ec654d03e9f6cd5b1623895029ca833191a662ec"
-created_at: "2026-04-23T12:05:24Z"
+created_at: "2026-04-23T12:22:22Z"
 intent: "Add the post-contrib dual-packet RFC/ADR decision packet for orchestrator workflow UX and peer-session messaging."
 files:
   - "docs/decisions/peer-session-messaging-primitive.md"
@@ -23,8 +23,8 @@ validation:
     status: "pass"
   full_gate:
     command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
-    status: "pending"
+    status: "pass"
 group:
   index: 11
-  total: 13
+  total: 15
   rationale: "Keep the root decision packet, review closure, and paired orchestrator ADR/RFC artifacts together for AK handoff."
