@@ -1,0 +1,17 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3a3d8d9c434b5c6f99db6b4dee24050583381a08"
+created_at: "2026-04-23T13:59:49Z"
+intent: "Wire workflow worktree execution into the orchestrator runtime and cover coordination behavior with execution tests."
+files:
+  - "packages/pi-society-orchestrator/src/runtime/workflow-execution.ts"
+  - "packages/pi-society-orchestrator/tests/workflow-execution.test.mjs"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pending"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pass"
