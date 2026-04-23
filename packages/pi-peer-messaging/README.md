@@ -2,18 +2,21 @@
 
 Stable core contract for the accepted same-machine peer-session messaging primitive in `pi-extensions`.
 
-## PM-1 posture
+## Current posture
 
-This first slice is intentionally **contract-first**:
+PM-1 established the stable core contract.
+PM-2 now adds the deterministic same-machine broker/client presence runtime while keeping the package **private/source-first** until PM-5 handles publish/release proofing.
+
+Current posture:
 
 - the package is separate from `pi-society-orchestrator`
 - the package is separate from `pi-autonomous-session-control`
-- the package currently stays **private/source-first** while PM-5 handles publish/release proofing
-- runtime delivery, broker/client behavior, and the `intercom`-compatible adapter are deferred to follow-on tasks
+- same-machine runtime, path, framing, spawn, and presence behavior now live here
+- direct `send` / correlated `ask` semantics and the `intercom`-compatible adapter are still deferred to follow-on tasks
 
 ## What this package owns right now
 
-The scaffold makes the stable core explicit:
+The package now makes both the stable core and PM-2 runtime surface explicit:
 
 - `PeerPresence`
 - `PeerAttachment`
@@ -25,7 +28,10 @@ The scaffold makes the stable core explicit:
 - `PEER_ATTACHMENT_TYPES`
 - `PEER_MESSAGING_BOUNDARY`
 - runtime-shape assertion helpers
-- `createStubPeerMessagingRuntime()` for contract-first development before the real runtime lands
+- presence helpers such as runtime-only fallback alias resolution
+- local path/framing helpers for same-machine IPC
+- `createPeerMessagingRuntime()` for broker spawn/reconnect and local presence registration/listing/status
+- `createStubPeerMessagingRuntime()` for contract-first development where PM-2 runtime behavior is not needed
 
 ## Boundary guardrails
 
@@ -40,16 +46,14 @@ The exported contract keeps these decision-level rules visible:
 - one in-flight `ask` per local session in the first stable contract
 - the first stable adapter remains an `intercom`-compatible concern above this core, not the authority model itself
 
-## Not in PM-1
+## Still not in PM-2
 
 This package does **not** yet implement:
 
-- broker spawn/reconnect
-- same-machine IPC framing or path handling
-- peer registration/listing runtime behavior beyond contract wrappers
-- direct `send` / correlated `ask` runtime semantics
+- public direct `send` / correlated `ask` runtime semantics
 - tool/overlay adapters
 - orchestrator or ASC policy helpers
+- any networked or cross-machine behavior
 
 ## Validation
 

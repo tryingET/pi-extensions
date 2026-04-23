@@ -8,7 +8,6 @@ export type {
   PeerPresence,
   PeerRuntimeStatus,
 } from "./src/contracts.ts";
-
 export {
   assertDeliveryResult,
   assertPeerAttachment,
@@ -21,3 +20,22 @@ export {
   PEER_ATTACHMENT_TYPES,
   PEER_MESSAGING_BOUNDARY,
 } from "./src/contracts.ts";
+export type { PeerMessagingPaths } from "./src/paths.ts";
+export {
+  getDefaultPeerMessagingRuntimeDir,
+  resolvePeerMessagingPaths,
+  sanitizePipeSegment,
+} from "./src/paths.ts";
+export type { PeerPresenceUpdate, PeerRegistration } from "./src/presence.ts";
+export {
+  applyPresenceUpdate,
+  buildPeerPresence,
+  createRuntimeFallbackAddressLabel,
+  DEFAULT_RUNTIME_ALIAS_PREFIX,
+  resolvePeerAddressLabel,
+} from "./src/presence.ts";
+export type {
+  CreatePeerMessagingRuntimeOptions,
+  ManagedPeerMessagingRuntime,
+} from "./src/runtime.ts";
+export { createPeerMessagingRuntime } from "./src/runtime.ts";
