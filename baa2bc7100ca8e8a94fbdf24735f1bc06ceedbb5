@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "baa2bc7100ca8e8a94fbdf24735f1bc06ceedbb5"
+created_at: "2026-04-23T13:59:49Z"
+intent: "Add the local peer-messaging broker/client runtime, package exports, and runtime coverage for deterministic same-machine presence behavior."
+files:
+  - "packages/pi-peer-messaging/AGENTS.md"
+  - "packages/pi-peer-messaging/README.md"
+  - "packages/pi-peer-messaging/index.ts"
+  - "packages/pi-peer-messaging/src/broker-entry.ts"
+  - "packages/pi-peer-messaging/src/broker.ts"
+  - "packages/pi-peer-messaging/src/client.ts"
+  - "packages/pi-peer-messaging/src/runtime.ts"
+  - "packages/pi-peer-messaging/src/spawn.ts"
+  - "packages/pi-peer-messaging/tests/framing.test.ts"
+  - "packages/pi-peer-messaging/tests/paths.test.ts"
+  - "packages/pi-peer-messaging/tests/runtime.test.ts"
+validation:
+  fast_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh pre-commit'"
+    status: "pending"
+  full_gate:
+    command: "bash -lc 'cd /home/tryinget/ai-society/softwareco/owned/pi-extensions && bash ./scripts/quality-gate.sh ci'"
+    status: "pass"
