@@ -1,0 +1,59 @@
+{
+  "command_files": {
+    "validate": "authority-receipt.validate.json"
+  },
+  "commands": {
+    "validate": {
+      "authoritative": false,
+      "authority_mode": "best_effort_workspace_loose",
+      "ci_profile": null,
+      "command": "validate",
+      "layer_sources": [
+        {
+          "kind": "ref",
+          "locator_kind": "repo",
+          "name": "company",
+          "origin": "<repo:softwareco/ontology@main>",
+          "source": "workspace"
+        },
+        {
+          "kind": "ref",
+          "locator_kind": "repo",
+          "name": "core",
+          "origin": "<repo:core/ontology-kernel@main>",
+          "source": "workspace"
+        },
+        {
+          "kind": "path",
+          "locator_kind": "path",
+          "name": "repo",
+          "origin": "ontology/src",
+          "source": "path"
+        }
+      ],
+      "locator_kinds_present": [
+        "path",
+        "repo"
+      ],
+      "loose_workspace_ref_layers_used": 2,
+      "ok": true,
+      "profile": "repo-dev",
+      "ref_layer_count": 2,
+      "ref_layers_present": true,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "resolve_refs_requested": true,
+      "result": {
+        "error_count": 0,
+        "finding_count": 0,
+        "warning_count": 0
+      },
+      "schema_version": 3,
+      "version": "0.1.4",
+      "workspace_ref_mode": "loose"
+    }
+  },
+  "last_command": "validate",
+  "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+  "schema_version": 3,
+  "version": "0.1.4"
+}

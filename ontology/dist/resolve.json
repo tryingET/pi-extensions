@@ -1,0 +1,29 @@
+{
+  "layers": [
+    {
+      "kind": "ref",
+      "name": "company",
+      "origin": "<repo:softwareco/ontology@main>",
+      "source": "workspace",
+      "src_root": "/home/tryinget/ai-society/softwareco/ontology/src"
+    },
+    {
+      "kind": "ref",
+      "name": "core",
+      "origin": "<repo:core/ontology-kernel@main>",
+      "source": "workspace",
+      "src_root": "/home/tryinget/ai-society/core/ontology-kernel/ontology/src"
+    },
+    {
+      "kind": "path",
+      "name": "repo",
+      "origin": "ontology/src",
+      "source": "path",
+      "src_root": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/ontology/src"
+    }
+  ],
+  "profile": "repo-dev",
+  "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+  "schema_version": 2,
+  "version": "0.1.4"
+}

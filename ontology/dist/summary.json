@@ -1,0 +1,91 @@
+{
+  "concept_ids": [
+    "co.software.Incident",
+    "co.software.SLO",
+    "co.software.Service",
+    "core.Actor",
+    "core.Agent",
+    "core.Assumption",
+    "core.AuditEvent",
+    "core.Capability",
+    "core.Consent",
+    "core.ConsentTier",
+    "core.Constraint",
+    "core.DataClass.Internal",
+    "core.DataClass.Public",
+    "core.DataClass.Restricted",
+    "core.DataClass.SecretData",
+    "core.DataClassification",
+    "core.Debt",
+    "core.DecisionRecord",
+    "core.Exception",
+    "core.IntegrationEdge",
+    "core.Invariant",
+    "core.Milestone",
+    "core.Objection",
+    "core.Pipeline",
+    "core.Policy",
+    "core.Program",
+    "core.Proposal",
+    "core.Release",
+    "core.Repo",
+    "core.Risk",
+    "core.Role",
+    "core.Secret",
+    "core.Service",
+    "core.WorkItem",
+    "pi.extensions.BenchmarkHarness",
+    "pi.extensions.BenchmarkMetric",
+    "pi.extensions.CorrectnessCheck",
+    "pi.extensions.ExperimentCampaign",
+    "pi.extensions.ExperimentReceipt",
+    "pi.extensions.ExperimentRun",
+    "pi.extensions.ExperimentSession",
+    "pi.extensions.FinalizationGroup",
+    "pi.extensions.OptimizationHypothesis"
+  ],
+  "counts": {
+    "concepts": 43,
+    "relations": 20
+  },
+  "layers": [
+    {
+      "name": "core",
+      "origin": "<repo:core/ontology-kernel@main>"
+    },
+    {
+      "name": "company",
+      "origin": "<repo:softwareco/ontology@main>"
+    },
+    {
+      "name": "repo",
+      "origin": "ontology/src"
+    }
+  ],
+  "profile": "repo-dev",
+  "relation_ids": [
+    "core.rel.conflicts_with",
+    "core.rel.constrains",
+    "core.rel.depends_on",
+    "core.rel.depends_on_plan",
+    "core.rel.instance_of",
+    "core.rel.is_a",
+    "core.rel.part_of",
+    "core.rel.precedes",
+    "core.rel.produces",
+    "core.rel.similar_to",
+    "core.rel.triggers",
+    "core.rel.uses",
+    "pi.extensions.rel.belongs_to_campaign",
+    "pi.extensions.rel.belongs_to_session",
+    "pi.extensions.rel.emits_receipt",
+    "pi.extensions.rel.groups_run",
+    "pi.extensions.rel.guarded_by_check",
+    "pi.extensions.rel.tests_hypothesis",
+    "pi.extensions.rel.tracks_metric",
+    "pi.extensions.rel.uses_harness"
+  ],
+  "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+  "schema_version": 1,
+  "version": "0.1.4"
+}

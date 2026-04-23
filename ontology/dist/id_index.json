@@ -1,0 +1,635 @@
+{
+  "items": [
+    {
+      "id": "co.software.Incident",
+      "kind": "concept",
+      "labels": [
+        "Incident"
+      ],
+      "layer": "company",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/co.software.Incident.md"
+    },
+    {
+      "id": "co.software.SLO",
+      "kind": "concept",
+      "labels": [
+        "SLO"
+      ],
+      "layer": "company",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/co.software.SLO.md"
+    },
+    {
+      "id": "co.software.Service",
+      "kind": "concept",
+      "labels": [
+        "Service"
+      ],
+      "layer": "company",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/co.software.Service.md"
+    },
+    {
+      "id": "core.Actor",
+      "kind": "concept",
+      "labels": [
+        "Actor"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Actor.md"
+    },
+    {
+      "id": "core.Agent",
+      "kind": "concept",
+      "labels": [
+        "Agent"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Agent.md"
+    },
+    {
+      "id": "core.Assumption",
+      "kind": "concept",
+      "labels": [
+        "Assumption"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Assumption.md"
+    },
+    {
+      "id": "core.AuditEvent",
+      "kind": "concept",
+      "labels": [
+        "AuditEvent"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.AuditEvent.md"
+    },
+    {
+      "id": "core.Capability",
+      "kind": "concept",
+      "labels": [
+        "Capability"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Capability.md"
+    },
+    {
+      "id": "core.Consent",
+      "kind": "concept",
+      "labels": [
+        "Consent"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Consent.md"
+    },
+    {
+      "id": "core.ConsentTier",
+      "kind": "concept",
+      "labels": [
+        "ConsentTier"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ConsentTier.md"
+    },
+    {
+      "id": "core.Constraint",
+      "kind": "concept",
+      "labels": [
+        "Constraint"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Constraint.md"
+    },
+    {
+      "id": "core.DataClass.Internal",
+      "kind": "concept",
+      "labels": [
+        "DataClassInternal"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DataClass.Internal.md"
+    },
+    {
+      "id": "core.DataClass.Public",
+      "kind": "concept",
+      "labels": [
+        "DataClassPublic"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DataClass.Public.md"
+    },
+    {
+      "id": "core.DataClass.Restricted",
+      "kind": "concept",
+      "labels": [
+        "DataClassRestricted"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DataClass.Restricted.md"
+    },
+    {
+      "id": "core.DataClass.SecretData",
+      "kind": "concept",
+      "labels": [
+        "DataClassSecret"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DataClass.SecretData.md"
+    },
+    {
+      "id": "core.DataClassification",
+      "kind": "concept",
+      "labels": [
+        "DataClassification"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DataClassification.md"
+    },
+    {
+      "id": "core.Debt",
+      "kind": "concept",
+      "labels": [
+        "Debt"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Debt.md"
+    },
+    {
+      "id": "core.DecisionRecord",
+      "kind": "concept",
+      "labels": [
+        "DecisionRecord"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DecisionRecord.md"
+    },
+    {
+      "id": "core.Exception",
+      "kind": "concept",
+      "labels": [
+        "Exception"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Exception.md"
+    },
+    {
+      "id": "core.IntegrationEdge",
+      "kind": "concept",
+      "labels": [
+        "IntegrationEdge"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.IntegrationEdge.md"
+    },
+    {
+      "id": "core.Invariant",
+      "kind": "concept",
+      "labels": [
+        "Invariant"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Invariant.md"
+    },
+    {
+      "id": "core.Milestone",
+      "kind": "concept",
+      "labels": [
+        "Milestone"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Milestone.md"
+    },
+    {
+      "id": "core.Objection",
+      "kind": "concept",
+      "labels": [
+        "Objection"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Objection.md"
+    },
+    {
+      "id": "core.Pipeline",
+      "kind": "concept",
+      "labels": [
+        "Pipeline"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Pipeline.md"
+    },
+    {
+      "id": "core.Policy",
+      "kind": "concept",
+      "labels": [
+        "Policy"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Policy.md"
+    },
+    {
+      "id": "core.Program",
+      "kind": "concept",
+      "labels": [
+        "Program"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Program.md"
+    },
+    {
+      "id": "core.Proposal",
+      "kind": "concept",
+      "labels": [
+        "Proposal"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Proposal.md"
+    },
+    {
+      "id": "core.Release",
+      "kind": "concept",
+      "labels": [
+        "Release"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Release.md"
+    },
+    {
+      "id": "core.Repo",
+      "kind": "concept",
+      "labels": [
+        "Repo"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Repo.md"
+    },
+    {
+      "id": "core.Risk",
+      "kind": "concept",
+      "labels": [
+        "Risk"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Risk.md"
+    },
+    {
+      "id": "core.Role",
+      "kind": "concept",
+      "labels": [
+        "Role"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Role.md"
+    },
+    {
+      "id": "core.Secret",
+      "kind": "concept",
+      "labels": [
+        "Secret"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Secret.md"
+    },
+    {
+      "id": "core.Service",
+      "kind": "concept",
+      "labels": [
+        "Service"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Service.md"
+    },
+    {
+      "id": "core.WorkItem",
+      "kind": "concept",
+      "labels": [
+        "WorkItem"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.WorkItem.md"
+    },
+    {
+      "id": "core.rel.conflicts_with",
+      "kind": "relation",
+      "labels": [
+        "conflicts_with"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/conflicts_with.md"
+    },
+    {
+      "id": "core.rel.constrains",
+      "kind": "relation",
+      "labels": [
+        "constrains"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/constrains.md"
+    },
+    {
+      "id": "core.rel.depends_on",
+      "kind": "relation",
+      "labels": [
+        "depends_on"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/depends_on.md"
+    },
+    {
+      "id": "core.rel.depends_on_plan",
+      "kind": "relation",
+      "labels": [
+        "depends_on_plan"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/depends_on_plan.md"
+    },
+    {
+      "id": "core.rel.instance_of",
+      "kind": "relation",
+      "labels": [
+        "instance_of"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/instance_of.md"
+    },
+    {
+      "id": "core.rel.is_a",
+      "kind": "relation",
+      "labels": [
+        "is_a"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/is_a.md"
+    },
+    {
+      "id": "core.rel.part_of",
+      "kind": "relation",
+      "labels": [
+        "part_of"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/part_of.md"
+    },
+    {
+      "id": "core.rel.precedes",
+      "kind": "relation",
+      "labels": [
+        "precedes"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/precedes.md"
+    },
+    {
+      "id": "core.rel.produces",
+      "kind": "relation",
+      "labels": [
+        "produces"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/produces.md"
+    },
+    {
+      "id": "core.rel.similar_to",
+      "kind": "relation",
+      "labels": [
+        "similar_to"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/similar_to.md"
+    },
+    {
+      "id": "core.rel.triggers",
+      "kind": "relation",
+      "labels": [
+        "triggers"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/triggers.md"
+    },
+    {
+      "id": "core.rel.uses",
+      "kind": "relation",
+      "labels": [
+        "uses"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/uses.md"
+    },
+    {
+      "id": "pi.extensions.BenchmarkHarness",
+      "kind": "concept",
+      "labels": [
+        "Benchmark harness"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.BenchmarkHarness.md"
+    },
+    {
+      "id": "pi.extensions.BenchmarkMetric",
+      "kind": "concept",
+      "labels": [
+        "Benchmark metric"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.BenchmarkMetric.md"
+    },
+    {
+      "id": "pi.extensions.CorrectnessCheck",
+      "kind": "concept",
+      "labels": [
+        "Correctness check"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.CorrectnessCheck.md"
+    },
+    {
+      "id": "pi.extensions.ExperimentCampaign",
+      "kind": "concept",
+      "labels": [
+        "Experiment campaign"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.ExperimentCampaign.md"
+    },
+    {
+      "id": "pi.extensions.ExperimentReceipt",
+      "kind": "concept",
+      "labels": [
+        "Experiment receipt"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.ExperimentReceipt.md"
+    },
+    {
+      "id": "pi.extensions.ExperimentRun",
+      "kind": "concept",
+      "labels": [
+        "Experiment run"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.ExperimentRun.md"
+    },
+    {
+      "id": "pi.extensions.ExperimentSession",
+      "kind": "concept",
+      "labels": [
+        "Experiment session"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.ExperimentSession.md"
+    },
+    {
+      "id": "pi.extensions.FinalizationGroup",
+      "kind": "concept",
+      "labels": [
+        "Finalization group"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.FinalizationGroup.md"
+    },
+    {
+      "id": "pi.extensions.OptimizationHypothesis",
+      "kind": "concept",
+      "labels": [
+        "Optimization hypothesis"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/concepts/pi.extensions.OptimizationHypothesis.md"
+    },
+    {
+      "id": "pi.extensions.rel.belongs_to_campaign",
+      "kind": "relation",
+      "labels": [
+        "belongs_to_campaign"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/belongs_to_campaign.md"
+    },
+    {
+      "id": "pi.extensions.rel.belongs_to_session",
+      "kind": "relation",
+      "labels": [
+        "belongs_to_session"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/belongs_to_session.md"
+    },
+    {
+      "id": "pi.extensions.rel.emits_receipt",
+      "kind": "relation",
+      "labels": [
+        "emits_receipt"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/emits_receipt.md"
+    },
+    {
+      "id": "pi.extensions.rel.groups_run",
+      "kind": "relation",
+      "labels": [
+        "groups_run"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/groups_run.md"
+    },
+    {
+      "id": "pi.extensions.rel.guarded_by_check",
+      "kind": "relation",
+      "labels": [
+        "guarded_by_check"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/guarded_by_check.md"
+    },
+    {
+      "id": "pi.extensions.rel.tests_hypothesis",
+      "kind": "relation",
+      "labels": [
+        "tests_hypothesis"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/tests_hypothesis.md"
+    },
+    {
+      "id": "pi.extensions.rel.tracks_metric",
+      "kind": "relation",
+      "labels": [
+        "tracks_metric"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/tracks_metric.md"
+    },
+    {
+      "id": "pi.extensions.rel.uses_harness",
+      "kind": "relation",
+      "labels": [
+        "uses_harness"
+      ],
+      "layer": "repo",
+      "layer_kind": "path",
+      "path_in_layer": "reference/relations/uses_harness.md"
+    }
+  ],
+  "schema_version": 1
+}
