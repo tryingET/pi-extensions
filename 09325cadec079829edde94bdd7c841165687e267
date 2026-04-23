@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "09325cadec079829edde94bdd7c841165687e267"
-created_at: "2026-04-23T12:22:21Z"
+created_at: "2026-04-23T12:30:42Z"
 intent: "Tighten pi-context-overlay typing and harden overlay usage rendering."
 files:
   - "packages/pi-context-overlay/package-lock.json"
@@ -21,5 +21,5 @@ validation:
     status: "pass"
 group:
   index: 9
-  total: 15
+  total: 16
   rationale: "Keep the context-overlay type cleanup and package-local TS setup in one bounded fix."
