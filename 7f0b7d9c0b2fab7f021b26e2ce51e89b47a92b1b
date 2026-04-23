@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "7f0b7d9c0b2fab7f021b26e2ce51e89b47a92b1b"
-created_at: "2026-04-23T12:22:24Z"
+created_at: "2026-04-23T12:30:45Z"
 intent: "Refine the rationale sections in the dual-packet ADRs for peer messaging and orchestrator workflow composition."
 files:
   - "docs/decisions/peer-session-messaging-primitive.md"
@@ -17,5 +17,5 @@ validation:
     status: "pass"
 group:
   index: 15
-  total: 15
+  total: 16
   rationale: "Keep the ADR rationale refinements separate from the initial packet-creation commit."
