@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import os from "node:os";
+import path from "node:path";
 import { AGENT_PROFILES } from "./agent-profiles.ts";
 import { getExecutionStatus } from "./execution-status.ts";
 import {
@@ -16,7 +19,16 @@ import {
   type WorkflowStep,
   type WorkflowStepResult,
   type WorkflowValidationIssue,
+  type WorkflowWorktreeSummary,
 } from "./workflow.ts";
+import {
+  buildWorkflowWorktreeSummary,
+  cleanupWorkflowWorktrees,
+  createWorkflowWorktrees,
+  findWorkflowWorktreeTaskCwdConflict,
+  formatWorkflowWorktreeTaskCwdConflict,
+  type WorkflowWorktreeSetup,
+} from "./workflow-worktree.ts";
 
 const WORKFLOW_STATUS_ORDER: WorkflowStatus[] = ["done", "error", "aborted", "timed_out"];
 
@@ -24,7 +36,8 @@ type WorkflowStatusCounts = Record<WorkflowStatus, number>;
 
 export type WorkflowExecutionErrorCode =
   | "workflow_validation_failed"
-  | "workflow_worktree_not_yet_supported";
+  | "workflow_worktree_cwd_conflict"
+  | "workflow_worktree_setup_failed";
 
 export class WorkflowExecutionError extends Error {
   readonly code: WorkflowExecutionErrorCode;
@@ -91,9 +104,15 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
       }
 
       const request = validatedRequest.value;
+      const executionRunId = randomUUID();
+      const worktreePatchRootDir = path.join(
+        os.tmpdir(),
+        `pi-orch-workflow-worktree-patches-${executionRunId}`,
+      );
       const stepResults: WorkflowStepResult[] = [];
+      const worktreeGroupSummaries = new Map<number, WorkflowWorktreeSummary>();
 
-      for (const node of request.steps) {
+      for (const [nodeIndex, node] of request.steps.entries()) {
         if (node.kind === "step") {
           const stepResult = await executeWorkflowStep({
             step: node,
@@ -110,35 +129,137 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
           continue;
         }
 
-        if (node.worktree) {
-          throw new WorkflowExecutionError(
-            "workflow_worktree_not_yet_supported",
-            "Workflow execution does not support worktree groups yet. Land WF-4 before enabling worktree=true execution.",
-          );
+        const parallelExecution = node.worktree
+          ? await executeWorktreeParallelGroup({
+              group: node,
+              nodeIndex,
+              request,
+              params,
+              executor,
+              executionRunId,
+              worktreePatchRootDir,
+              startIndex: stepResults.length,
+            })
+          : {
+              results: await executeParallelGroup({
+                group: node,
+                startIndex: stepResults.length,
+                request,
+                params,
+                executor,
+              }),
+              worktreeSummary: undefined,
+            };
+
+        stepResults.push(...parallelExecution.results);
+        if (parallelExecution.worktreeSummary) {
+          worktreeGroupSummaries.set(nodeIndex, parallelExecution.worktreeSummary);
         }
 
-        const parallelResults = await executeParallelGroup({
-          group: node,
-          startIndex: stepResults.length,
-          request,
-          params,
-          executor,
-        });
-        stepResults.push(...parallelResults);
-
-        if (request.mode === "chain" && aggregateWorkflowStatus(parallelResults) !== "done") {
+        if (
+          request.mode === "chain" &&
+          aggregateWorkflowStatus(parallelExecution.results) !== "done"
+        ) {
           break;
         }
       }
+
+      const worktreeSummary = mergeWorkflowWorktreeSummaries([...worktreeGroupSummaries.values()]);
 
       return {
         mode: request.mode,
         status: aggregateWorkflowStatus(stepResults),
         steps: stepResults,
-        aggregatedOutput: buildAggregatedOutput(request, stepResults),
+        aggregatedOutput: buildAggregatedOutput(request, stepResults, {
+          worktreeSummary,
+          worktreeGroupSummaries,
+        }),
+        ...(worktreeSummary ? { worktreeSummary } : {}),
       };
     },
   };
+}
+
+async function executeWorktreeParallelGroup(input: {
+  group: WorkflowParallelGroup;
+  nodeIndex: number;
+  request: WorkflowRequest;
+  params: WorkflowExecutionParams;
+  executor: OrchestratorSubagentExecutor;
+  executionRunId: string;
+  worktreePatchRootDir: string;
+  startIndex: number;
+}): Promise<{ results: WorkflowStepResult[]; worktreeSummary: WorkflowWorktreeSummary }> {
+  const {
+    group,
+    nodeIndex,
+    request,
+    params,
+    executor,
+    executionRunId,
+    worktreePatchRootDir,
+    startIndex,
+  } = input;
+  const sharedCwd = request.cwd ?? params.cwd;
+  const conflict = findWorkflowWorktreeTaskCwdConflict(group.tasks, sharedCwd);
+  if (conflict) {
+    throw new WorkflowExecutionError(
+      "workflow_worktree_cwd_conflict",
+      formatWorkflowWorktreeTaskCwdConflict(conflict, sharedCwd),
+    );
+  }
+
+  let worktreeSetup: WorkflowWorktreeSetup;
+  try {
+    worktreeSetup = createWorkflowWorktrees({
+      cwd: sharedCwd,
+      runId: `${executionRunId}-group-${nodeIndex + 1}`,
+      tasks: group.tasks,
+    });
+  } catch (error) {
+    throw new WorkflowExecutionError(
+      "workflow_worktree_setup_failed",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
+  const cwdOverrides = worktreeSetup.worktrees.map((worktree) => worktree.agentCwd);
+  const patchDir = path.join(worktreePatchRootDir, `group-${nodeIndex + 1}`);
+
+  try {
+    let results: WorkflowStepResult[] | undefined;
+    let executionError: unknown;
+
+    try {
+      results = await executeParallelGroup({
+        group,
+        startIndex,
+        request,
+        params,
+        executor,
+        cwdOverrides,
+      });
+    } catch (error) {
+      executionError = error;
+    }
+
+    const worktreeSummary = buildWorkflowWorktreeSummary({
+      setup: worktreeSetup,
+      agents: group.tasks.map((task) => task.agent),
+      patchDir,
+    });
+
+    if (executionError) {
+      throw executionError;
+    }
+
+    return {
+      results: results ?? [],
+      worktreeSummary,
+    };
+  } finally {
+    cleanupWorkflowWorktrees(worktreeSetup);
+  }
 }
 
 async function executeParallelGroup(input: {
@@ -147,10 +268,11 @@ async function executeParallelGroup(input: {
   request: WorkflowRequest;
   params: WorkflowExecutionParams;
   executor: OrchestratorSubagentExecutor;
+  cwdOverrides?: string[];
 }): Promise<WorkflowStepResult[]> {
-  const { group, startIndex, request, params, executor } = input;
+  const { group, startIndex, request, params, executor, cwdOverrides } = input;
 
-  return Promise.all(
+  const settled = await Promise.allSettled(
     group.tasks.map((step, parallelTaskIndex) =>
       executeWorkflowStep({
         step,
@@ -158,9 +280,22 @@ async function executeParallelGroup(input: {
         request,
         params,
         executor,
+        cwdOverride: cwdOverrides?.[parallelTaskIndex],
       }),
     ),
   );
+
+  const rejected = settled.find((result) => result.status === "rejected");
+  if (rejected?.status === "rejected") {
+    throw rejected.reason;
+  }
+
+  return settled
+    .filter(
+      (result): result is PromiseFulfilledResult<WorkflowStepResult> =>
+        result.status === "fulfilled",
+    )
+    .map((result) => result.value);
 }
 
 async function executeWorkflowStep(input: {
@@ -169,8 +304,9 @@ async function executeWorkflowStep(input: {
   request: WorkflowRequest;
   params: WorkflowExecutionParams;
   executor: OrchestratorSubagentExecutor;
+  cwdOverride?: string;
 }): Promise<WorkflowStepResult> {
-  const { step, index, request, params, executor } = input;
+  const { step, index, request, params, executor, cwdOverride } = input;
   const agentProfile = AGENT_PROFILES[step.agent];
   if (!agentProfile) {
     throw new WorkflowExecutionError(
@@ -185,7 +321,7 @@ async function executeWorkflowStep(input: {
     cognitiveToolName: params.cognitiveToolName,
     objective: step.objective,
     model: params.model,
-    cwd: step.cwd ?? request.cwd ?? params.cwd,
+    cwd: cwdOverride ?? step.cwd ?? request.cwd ?? params.cwd,
     contextHeading: params.contextHeading,
     contextBody: params.contextBody,
     extraSections: params.extraSections,
@@ -224,12 +360,16 @@ function aggregateWorkflowStatus(stepResults: WorkflowStepResult[]): WorkflowSta
 function buildAggregatedOutput(
   request: WorkflowRequest,
   stepResults: WorkflowStepResult[],
+  extras: {
+    worktreeSummary?: WorkflowWorktreeSummary;
+    worktreeGroupSummaries: Map<number, WorkflowWorktreeSummary>;
+  },
 ): string {
-  const sections = [buildWorkflowSummarySection(request, stepResults)];
+  const sections = [buildWorkflowSummarySection(request, stepResults, extras.worktreeSummary)];
   let nextStepResultIndex = 0;
   let parallelGroupOrdinal = 0;
 
-  for (const node of request.steps) {
+  for (const [nodeIndex, node] of request.steps.entries()) {
     if (node.kind === "step") {
       const result = stepResults[nextStepResultIndex];
       if (!result) {
@@ -258,6 +398,7 @@ function buildAggregatedOutput(
         groupOrdinal: parallelGroupOrdinal,
         group: node,
         results,
+        worktreeSummary: extras.worktreeGroupSummaries.get(nodeIndex),
       }),
     );
   }
@@ -268,6 +409,7 @@ function buildAggregatedOutput(
 function buildWorkflowSummarySection(
   request: WorkflowRequest,
   stepResults: WorkflowStepResult[],
+  worktreeSummary?: WorkflowWorktreeSummary,
 ): string {
   const totalRequestedSteps = flattenWorkflowSteps(request).length;
   const lines = [
@@ -287,6 +429,13 @@ function buildWorkflowSummarySection(
     lines.push("- halted_early: true");
   }
 
+  if (worktreeSummary) {
+    lines.push(`- worktree_changed_tasks: ${worktreeSummary.changedTasks}`);
+    if (worktreeSummary.patchDir) {
+      lines.push(`- worktree_patch_dir: ${worktreeSummary.patchDir}`);
+    }
+  }
+
   return lines.join("\n");
 }
 
@@ -294,8 +443,9 @@ function renderParallelGroupSection(input: {
   groupOrdinal: number;
   group: WorkflowParallelGroup;
   results: WorkflowStepResult[];
+  worktreeSummary?: WorkflowWorktreeSummary;
 }): string {
-  const { groupOrdinal, group, results } = input;
+  const { groupOrdinal, group, results, worktreeSummary } = input;
   const lines = [
     `## Parallel group ${groupOrdinal} — ${aggregateWorkflowStatus(results)}`,
     `- tasks: ${group.tasks.length}`,
@@ -312,6 +462,13 @@ function renderParallelGroupSection(input: {
   const failureKinds = formatFailureKindCounts(countFailureKinds(results));
   if (failureKinds) {
     lines.push(`- failure_kinds: ${failureKinds}`);
+  }
+
+  if (worktreeSummary) {
+    lines.push(`- worktree_changed_tasks: ${worktreeSummary.changedTasks}`);
+    if (worktreeSummary.patchDir) {
+      lines.push(`- worktree_patch_dir: ${worktreeSummary.patchDir}`);
+    }
   }
 
   const sections = [lines.join("\n")];
@@ -331,6 +488,10 @@ function renderParallelGroupSection(input: {
       }),
     );
   });
+
+  if (worktreeSummary?.diffSummaryText.trim()) {
+    sections.push(worktreeSummary.diffSummaryText.trim());
+  }
 
   return sections.join("\n\n");
 }
@@ -397,4 +558,54 @@ function formatFailureKindCounts(counts: Map<string, number>): string {
 
 function formatDisplayOutput(displayOutput: string): string {
   return displayOutput.trim().length > 0 ? displayOutput : "(no display output)";
+}
+
+function mergeWorkflowWorktreeSummaries(
+  summaries: WorkflowWorktreeSummary[],
+): WorkflowWorktreeSummary | undefined {
+  if (summaries.length === 0) {
+    return undefined;
+  }
+
+  const diffSummaryText = summaries
+    .map((summary) => summary.diffSummaryText.trim())
+    .filter(Boolean)
+    .join("\n\n");
+  const patchDirs = summaries
+    .map((summary) => summary.patchDir)
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+  const patchDir =
+    patchDirs.length === 0
+      ? undefined
+      : patchDirs.length === 1
+        ? patchDirs[0]
+        : findCommonAncestorPath(patchDirs);
+
+  return {
+    changedTasks: summaries.reduce((sum, summary) => sum + summary.changedTasks, 0),
+    ...(patchDir ? { patchDir } : {}),
+    diffSummaryText,
+  };
+}
+
+function findCommonAncestorPath(paths: string[]): string | undefined {
+  let ancestor = path.resolve(paths[0]);
+
+  for (const candidate of paths.slice(1)) {
+    const resolvedCandidate = path.resolve(candidate);
+    while (!isSamePathOrDescendant(resolvedCandidate, ancestor)) {
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) {
+        return undefined;
+      }
+      ancestor = parent;
+    }
+  }
+
+  return ancestor;
+}
+
+function isSamePathOrDescendant(candidate: string, ancestor: string): boolean {
+  const relative = path.relative(ancestor, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }

@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   createWorkflowExecutor,
@@ -26,6 +30,33 @@ function createFakeDispatchResult({
       aborted: status === "aborted",
     },
   };
+}
+
+function git(cwd, args) {
+  const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf-8" });
+  if (result.status !== 0) {
+    throw new Error(result.stderr.trim() || result.stdout.trim() || `git ${args.join(" ")} failed`);
+  }
+  return result.stdout.trim();
+}
+
+function createRepo(prefix) {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  git(repoDir, ["init"]);
+  git(repoDir, ["config", "user.email", "tests@example.com"]);
+  git(repoDir, ["config", "user.name", "Workflow Tests"]);
+  fs.writeFileSync(path.join(repoDir, "tracked.txt"), "initial\n", "utf-8");
+  git(repoDir, ["add", "tracked.txt"]);
+  git(repoDir, ["commit", "-m", "initial commit"]);
+  return repoDir;
+}
+
+function cleanupRepo(repoDir) {
+  try {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  } catch {
+    // Best-effort test cleanup.
+  }
 }
 
 test("workflow executor runs chain steps through the ASC-backed subagent executor and preserves step truth", async () => {
@@ -80,6 +111,7 @@ test("workflow executor runs chain steps through the ASC-backed subagent executo
 
   assert.equal(result.mode, "chain");
   assert.equal(result.status, "error");
+  assert.equal(result.worktreeSummary, undefined);
   assert.deepEqual(calls, [
     {
       objective: "Map the auth flow",
@@ -292,6 +324,245 @@ test("workflow executor renders parallel failure fan-in without hiding raw step 
   assert.match(result.aggregatedOutput, /Failure kind: assistant_protocol_error/);
 });
 
+test("workflow executor runs worktree parallel groups with isolated cwd values and bounded diff summaries", async () => {
+  const repoDir = createRepo("pi-orch-worktree-success-");
+  const calls = [];
+
+  try {
+    const executor = createWorkflowExecutor({
+      executor: {
+        state: {},
+        async execute(params) {
+          const fileName = params.objective.includes("Implement")
+            ? "feature-a.txt"
+            : "feature-b.txt";
+          calls.push({ cwd: params.cwd, objective: params.objective, fileName });
+          fs.writeFileSync(path.join(params.cwd, fileName), `${params.objective}\n`, "utf-8");
+          return createFakeDispatchResult({
+            status: "done",
+            output: `done: ${params.objective}`,
+            exitCode: 0,
+          });
+        },
+      },
+    });
+
+    const result = await executor.execute({
+      activeTeam: "full",
+      model: "mock/model",
+      cwd: repoDir,
+      cognitiveToolContent: "FRAMEWORK: workflow",
+      request: {
+        mode: "parallel",
+        cwd: repoDir,
+        steps: [
+          {
+            kind: "parallel",
+            worktree: true,
+            tasks: [
+              { kind: "step", agent: "builder", objective: "Implement feature A" },
+              { kind: "step", agent: "reviewer", objective: "Review feature B" },
+            ],
+          },
+        ],
+      },
+    });
+
+    assert.equal(result.status, "done");
+    assert.equal(result.worktreeSummary?.changedTasks, 2);
+    assert.ok(result.worktreeSummary?.patchDir, "expected patchDir");
+    assert.ok(fs.existsSync(result.worktreeSummary.patchDir), "patchDir should exist");
+    const patchFiles = fs
+      .readdirSync(result.worktreeSummary.patchDir)
+      .filter((file) => file.endsWith(".patch"));
+    assert.equal(patchFiles.length, 2);
+    const firstPatch = fs.readFileSync(
+      path.join(result.worktreeSummary.patchDir, patchFiles[0]),
+      "utf-8",
+    );
+    assert.match(firstPatch, /(feature-a|feature-b)\.txt/);
+    assert.equal(new Set(calls.map((call) => call.cwd)).size, 2);
+    assert.ok(calls.every((call) => call.cwd !== repoDir));
+    assert.ok(calls.every((call) => fs.existsSync(call.cwd) === false));
+    assert.match(result.aggregatedOutput, /- worktree_changed_tasks: 2/);
+    assert.match(result.aggregatedOutput, /## Parallel group 1 — done/);
+    assert.match(result.aggregatedOutput, /- worktree: true/);
+    assert.match(result.aggregatedOutput, /Worktree changes:/);
+    assert.match(result.worktreeSummary.diffSummaryText, /Full patches:/);
+  } finally {
+    cleanupRepo(repoDir);
+  }
+});
+
+test("workflow executor cleans up worktrees after failing parallel groups and preserves failure truth", async () => {
+  const repoDir = createRepo("pi-orch-worktree-failure-");
+  const calls = [];
+
+  try {
+    const executor = createWorkflowExecutor({
+      executor: {
+        state: {},
+        async execute(params) {
+          const fileName = params.objective.includes("Implement")
+            ? "feature-a.txt"
+            : "review-notes.txt";
+          calls.push({ cwd: params.cwd, objective: params.objective, fileName });
+          fs.writeFileSync(path.join(params.cwd, fileName), `${params.objective}\n`, "utf-8");
+
+          if (params.objective.includes("Review")) {
+            return createFakeDispatchResult({
+              status: "error",
+              output: "review failed",
+              failureKind: "assistant_protocol_error",
+              exitCode: 1,
+            });
+          }
+
+          return createFakeDispatchResult({
+            status: "done",
+            output: `done: ${params.objective}`,
+            exitCode: 0,
+          });
+        },
+      },
+    });
+
+    const result = await executor.execute({
+      activeTeam: "full",
+      model: "mock/model",
+      cwd: repoDir,
+      cognitiveToolContent: "FRAMEWORK: workflow",
+      request: {
+        mode: "parallel",
+        cwd: repoDir,
+        steps: [
+          {
+            kind: "parallel",
+            worktree: true,
+            tasks: [
+              { kind: "step", agent: "builder", objective: "Implement feature A" },
+              { kind: "step", agent: "reviewer", objective: "Review feature A" },
+            ],
+          },
+        ],
+      },
+    });
+
+    assert.equal(result.status, "error");
+    assert.equal(result.worktreeSummary?.changedTasks, 2);
+    assert.ok(calls.every((call) => fs.existsSync(call.cwd) === false));
+    assert.match(result.aggregatedOutput, /## Parallel group 1 — error/);
+    assert.match(result.aggregatedOutput, /Failure kind: assistant_protocol_error/);
+    assert.match(result.worktreeSummary.diffSummaryText, /Task 1 \(builder\)/);
+    assert.match(result.worktreeSummary.diffSummaryText, /Task 2 \(reviewer\)/);
+  } finally {
+    cleanupRepo(repoDir);
+  }
+});
+
+test("workflow executor fails closed on worktree cwd conflicts before execution starts", async () => {
+  const repoDir = createRepo("pi-orch-worktree-conflict-");
+  let calls = 0;
+
+  try {
+    const executor = createWorkflowExecutor({
+      executor: {
+        state: {},
+        async execute() {
+          calls += 1;
+          return createFakeDispatchResult({ status: "done", output: "unexpected" });
+        },
+      },
+    });
+
+    await assert.rejects(
+      executor.execute({
+        activeTeam: "full",
+        model: "mock/model",
+        cwd: repoDir,
+        cognitiveToolContent: "FRAMEWORK: workflow",
+        request: {
+          mode: "parallel",
+          cwd: repoDir,
+          steps: [
+            {
+              kind: "parallel",
+              worktree: true,
+              tasks: [
+                { kind: "step", agent: "builder", objective: "Implement feature A" },
+                {
+                  kind: "step",
+                  agent: "reviewer",
+                  objective: "Review feature A",
+                  cwd: path.join(repoDir, "other"),
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      (error) => {
+        assert.ok(error instanceof WorkflowExecutionError);
+        assert.equal(error.code, "workflow_worktree_cwd_conflict");
+        assert.match(error.message, /worktree isolation uses the shared cwd/i);
+        return true;
+      },
+    );
+
+    assert.equal(calls, 0);
+  } finally {
+    cleanupRepo(repoDir);
+  }
+});
+
+test("workflow executor fails closed on dirty repos before worktree execution starts", async () => {
+  const repoDir = createRepo("pi-orch-worktree-dirty-");
+  let calls = 0;
+
+  try {
+    fs.writeFileSync(path.join(repoDir, "tracked.txt"), "dirty\n", "utf-8");
+    const executor = createWorkflowExecutor({
+      executor: {
+        state: {},
+        async execute() {
+          calls += 1;
+          return createFakeDispatchResult({ status: "done", output: "unexpected" });
+        },
+      },
+    });
+
+    await assert.rejects(
+      executor.execute({
+        activeTeam: "full",
+        model: "mock/model",
+        cwd: repoDir,
+        cognitiveToolContent: "FRAMEWORK: workflow",
+        request: {
+          mode: "parallel",
+          cwd: repoDir,
+          steps: [
+            {
+              kind: "parallel",
+              worktree: true,
+              tasks: [{ kind: "step", agent: "builder", objective: "Implement feature A" }],
+            },
+          ],
+        },
+      }),
+      (error) => {
+        assert.ok(error instanceof WorkflowExecutionError);
+        assert.equal(error.code, "workflow_worktree_setup_failed");
+        assert.match(error.message, /clean git working tree/i);
+        return true;
+      },
+    );
+
+    assert.equal(calls, 0);
+  } finally {
+    cleanupRepo(repoDir);
+  }
+});
+
 test("workflow executor fails closed on team validation before execution starts", async () => {
   let calls = 0;
   const executor = createWorkflowExecutor({
@@ -322,45 +593,6 @@ test("workflow executor fails closed on team validation before execution starts"
         error.issues?.map((issue) => issue.code),
         ["team_disallows_agent"],
       );
-      return true;
-    },
-  );
-
-  assert.equal(calls, 0);
-});
-
-test("workflow executor fails closed on worktree requests until WF-4 lands", async () => {
-  let calls = 0;
-  const executor = createWorkflowExecutor({
-    executor: {
-      state: {},
-      async execute() {
-        calls += 1;
-        return createFakeDispatchResult({ status: "done", output: "unexpected" });
-      },
-    },
-  });
-
-  await assert.rejects(
-    executor.execute({
-      activeTeam: "full",
-      model: "mock/model",
-      cwd: "/repo",
-      cognitiveToolContent: "FRAMEWORK: workflow",
-      request: {
-        mode: "parallel",
-        steps: [
-          {
-            kind: "parallel",
-            worktree: true,
-            tasks: [{ kind: "step", agent: "builder", objective: "Implement feature A" }],
-          },
-        ],
-      },
-    }),
-    (error) => {
-      assert.ok(error instanceof WorkflowExecutionError);
-      assert.equal(error.code, "workflow_worktree_not_yet_supported");
       return true;
     },
   );
