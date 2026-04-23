@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "5012824eaf591b4cfbad271a9c828cf7af4a97d7"
-created_at: "2026-04-23T12:30:43Z"
+created_at: "2026-04-23T12:39:22Z"
 intent: "Align remaining package TS toolchains and release-check metadata across autoresearch, interaction packages, and ontology-workflows."
 files:
   - "packages/pi-autoresearch/package-lock.json"
@@ -30,5 +30,5 @@ validation:
     status: "pass"
 group:
   index: 10
-  total: 16
+  total: 17
   rationale: "Capture the remaining package-local dev toolchain and release-check alignment outside the larger feature waves."
