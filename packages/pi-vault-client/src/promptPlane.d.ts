@@ -58,6 +58,35 @@ export interface PreparedPromptPlaneCandidate {
   };
 }
 
+export interface PromptPlaneTemplateListRequest {
+  filters?: {
+    artifact_kind?: string[];
+    control_mode?: string[];
+    formalization_level?: string[];
+    owner_company?: string[];
+  };
+  limit?: number;
+}
+
+export interface VisiblePromptPlaneTemplate {
+  name: string;
+  description: string;
+  artifact_kind: string;
+  control_mode: string;
+  formalization_level: string;
+  owner_company: string;
+  visibility_companies: string[];
+  version?: number;
+  id?: number;
+}
+
+export interface ListedPromptPlaneTemplatesResult {
+  ok: boolean;
+  status: "ready" | "blocked";
+  templates?: VisiblePromptPlaneTemplate[];
+  blocking_reason?: string;
+}
+
 export interface VaultPromptPlaneRuntime {
   prepareSelection(
     request: PromptSelectionRequest,
@@ -67,6 +96,10 @@ export interface VaultPromptPlaneRuntime {
     envelope: VaultContinuationEnvelopeV1,
     ctx?: PromptPlaneExecutionContext,
   ): Promise<PreparedPromptPlaneCandidate>;
+  listVisibleTemplates(
+    request?: PromptPlaneTemplateListRequest,
+    ctx?: PromptPlaneExecutionContext,
+  ): Promise<ListedPromptPlaneTemplatesResult>;
 }
 
 export interface VaultPromptPlaneTemplate {
@@ -96,6 +129,19 @@ export interface VaultPromptPlaneRuntimeOptions {
       query: string,
       context?: { currentCompany?: string; cwd?: string; requireExplicitCompany?: boolean },
       options?: { includeContent?: boolean },
+    ) =>
+      | { ok: true; value: VaultPromptPlaneTemplate[]; error: null }
+      | { ok: false; value: null; error: string };
+    queryTemplatesDetailed: (
+      filters: {
+        artifact_kind?: string[];
+        control_mode?: string[];
+        formalization_level?: string[];
+        owner_company?: string[];
+      },
+      limit: number,
+      includeContent: boolean,
+      context?: { currentCompany?: string; cwd?: string; requireExplicitCompany?: boolean },
     ) =>
       | { ok: true; value: VaultPromptPlaneTemplate[]; error: null }
       | { ok: false; value: null; error: string };

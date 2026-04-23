@@ -1,18 +1,182 @@
 import { execFileSync } from "node:child_process";
-import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resolveCompanyContext } from "./companyContext.js";
 import { rateTemplate as executeFeedbackRating } from "./vaultFeedback.js";
 import { authorizeTemplateInsert, authorizeTemplateUpdate, insertTemplate as executeTemplateInsert, updateTemplate as executeTemplateUpdate, prepareTemplateUpdate, resolveMutationActorContext, validateTemplateContent, } from "./vaultMutations.js";
 import { checkSchemaCompatibilityDetailed as computeSchemaCompatibilityDetailed, checkSchemaVersion as computeSchemaVersion, } from "./vaultSchema.js";
-import { ARTIFACT_KINDS, COMPANIES, CONTROL_MODES, CONTROLLED_VOCABULARY_DIMENSIONS, DEFAULT_VAULT_QUERY_LIMIT, FORMALIZATION_LEVELS, INTENT_RANKING_CANDIDATE_POOL_LIMIT, MAX_VAULT_QUERY_LIMIT, PROMPT_VAULT_ROOT, VAULT_DIR, } from "./vaultTypes.js";
+import { ARTIFACT_KINDS, COMPANIES, CONTROL_MODES, CONTROLLED_VOCABULARY_DIMENSIONS, DEFAULT_VAULT_QUERY_LIMIT, DOLT_TELEMETRY_LIMIT, FORMALIZATION_LEVELS, INTENT_RANKING_CANDIDATE_POOL_LIMIT, MAX_VAULT_QUERY_LIMIT, PROMPT_VAULT_ROOT, VAULT_DIR, } from "./vaultTypes.js";
 export { authorizeTemplateInsert, authorizeTemplateUpdate, prepareTemplateUpdate, resolveMutationActorContext, validateTemplateContent, };
 const DEFAULT_DOLT_MAX_BUFFER = 64 * 1024 * 1024;
 let cachedContracts = null;
 let cachedContractsKey = null;
+function createDoltTelemetryState() {
+    return {
+        events: [],
+        totalCalls: 0,
+        successCount: 0,
+        failureCount: 0,
+        totalLatencyMs: 0,
+        maxLatencyMs: 0,
+        commandCounts: {},
+        tempSourceCounts: {},
+    };
+}
+const doltTelemetry = createDoltTelemetryState();
+function detectSqlVerb(sql) {
+    const normalized = sql
+        .replace(/^\s*(?:--.*(?:\n|$)|\/\*[\s\S]*?\*\/\s*)*/g, "")
+        .trim()
+        .toLowerCase();
+    const match = normalized.match(/^([a-z_]+)/);
+    return match?.[1] || "unknown";
+}
+function classifyDoltCommand(args) {
+    const primary = String(args[0] || "unknown").trim() || "unknown";
+    if (primary !== "sql") {
+        return {
+            command: primary,
+            argsPreview: args.map(String).join(" ").slice(0, 240),
+        };
+    }
+    const queryIndex = args.indexOf("-q");
+    const sql = queryIndex >= 0 ? String(args[queryIndex + 1] || "") : "";
+    const sqlVerb = detectSqlVerb(sql);
+    const compactSql = sql.replace(/\s+/g, " ").trim().slice(0, 240);
+    return {
+        command: `sql:${sqlVerb}`,
+        argsPreview: compactSql || args.map(String).join(" ").slice(0, 240),
+    };
+}
+function extractExecExitCode(error) {
+    if (typeof error !== "object" || error === null || !("status" in error)) {
+        return undefined;
+    }
+    const status = error.status;
+    if (typeof status === "number")
+        return status;
+    if (status === null)
+        return null;
+    return undefined;
+}
+function recordDoltTelemetryEvent(event) {
+    const normalized = {
+        timestamp: String(event.timestamp || new Date().toISOString()),
+        command: String(event.command || "unknown"),
+        argsPreview: String(event.argsPreview || ""),
+        durationMs: Math.max(0, Number(event.durationMs || 0)),
+        success: Boolean(event.success),
+        tempSource: String(event.tempSource || "unknown"),
+        tempDir: String(event.tempDir || ""),
+        ...(event.exitCode !== undefined ? { exitCode: event.exitCode } : {}),
+        ...(event.error ? { error: String(event.error) } : {}),
+    };
+    doltTelemetry.totalCalls += 1;
+    doltTelemetry.totalLatencyMs += normalized.durationMs;
+    doltTelemetry.maxLatencyMs = Math.max(doltTelemetry.maxLatencyMs, normalized.durationMs);
+    if (normalized.success)
+        doltTelemetry.successCount += 1;
+    else
+        doltTelemetry.failureCount += 1;
+    doltTelemetry.commandCounts[normalized.command] =
+        (doltTelemetry.commandCounts[normalized.command] || 0) + 1;
+    doltTelemetry.tempSourceCounts[normalized.tempSource] =
+        (doltTelemetry.tempSourceCounts[normalized.tempSource] || 0) + 1;
+    doltTelemetry.events.push(normalized);
+    if (doltTelemetry.events.length > DOLT_TELEMETRY_LIMIT) {
+        doltTelemetry.events.splice(0, doltTelemetry.events.length - DOLT_TELEMETRY_LIMIT);
+    }
+}
+function listRecentDoltTelemetry(limit = 20) {
+    const normalizedLimit = Math.max(1, Math.min(Math.floor(Number(limit) || 20), DOLT_TELEMETRY_LIMIT));
+    return doltTelemetry.events.slice(-normalizedLimit);
+}
+function getLatestDoltTelemetryFailure() {
+    for (let index = doltTelemetry.events.length - 1; index >= 0; index -= 1) {
+        const event = doltTelemetry.events[index];
+        if (event && !event.success) {
+            return event;
+        }
+    }
+    return null;
+}
+function getDoltTelemetryStats() {
+    return {
+        totalCalls: doltTelemetry.totalCalls,
+        successCount: doltTelemetry.successCount,
+        failureCount: doltTelemetry.failureCount,
+        retainedEvents: doltTelemetry.events.length,
+        averageLatencyMs: doltTelemetry.totalCalls > 0 ? doltTelemetry.totalLatencyMs / doltTelemetry.totalCalls : 0,
+        maxLatencyMs: doltTelemetry.maxLatencyMs,
+        commandCounts: { ...doltTelemetry.commandCounts },
+        tempSourceCounts: { ...doltTelemetry.tempSourceCounts },
+    };
+}
+function summarizeDoltTelemetry() {
+    const stats = getDoltTelemetryStats();
+    const recent = listRecentDoltTelemetry(15);
+    const commandCounts = Object.entries(stats.commandCounts)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([command, count]) => `${command}=${count}`)
+        .join(", ");
+    const tempSourceCounts = Object.entries(stats.tempSourceCounts)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([source, count]) => `${source}=${count}`)
+        .join(", ");
+    const latestFailure = getLatestDoltTelemetryFailure();
+    const lines = [
+        "# Vault Dolt Telemetry",
+        "",
+        `- total_calls: ${stats.totalCalls}`,
+        `- success_count: ${stats.successCount}`,
+        `- failure_count: ${stats.failureCount}`,
+        `- retained_events: ${stats.retainedEvents}`,
+        `- average_latency_ms: ${stats.averageLatencyMs.toFixed(1)}`,
+        `- max_latency_ms: ${stats.maxLatencyMs.toFixed(1)}`,
+        `- command_mix: ${commandCounts || "none"}`,
+        `- temp_source_mix: ${tempSourceCounts || "none"}`,
+        `- latest_failure: ${latestFailure ? [latestFailure.timestamp, latestFailure.command, latestFailure.exitCode !== undefined ? `exit=${latestFailure.exitCode}` : undefined, latestFailure.error ? String(latestFailure.error).replace(/\s+/g, " ").trim().slice(0, 160) : undefined].filter(Boolean).join(" | ") : "none recorded"}`,
+        "",
+        "## Recent events",
+    ];
+    if (recent.length === 0) {
+        lines.push("_No Dolt telemetry recorded yet._");
+    }
+    else {
+        for (const event of recent) {
+            const parts = [
+                event.timestamp,
+                event.success ? "ok" : "error",
+                event.command,
+                `${event.durationMs.toFixed(1)}ms`,
+                `temp=${event.tempSource}`,
+            ];
+            if (event.exitCode !== undefined)
+                parts.push(`exit=${event.exitCode}`);
+            if (event.error)
+                parts.push(`error=${event.error}`);
+            if (event.argsPreview)
+                parts.push(`args=${event.argsPreview}`);
+            lines.push(`- ${parts.join(" | ")}`);
+        }
+    }
+    return lines.join("\n");
+}
 function formatVaultError(error) {
     return error instanceof Error ? error.message : String(error);
+}
+function shouldEmitVaultDiagnosticLogs() {
+    const value = process.env.PI_VAULT_LOG_ERRORS?.trim().toLowerCase();
+    return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+function emitVaultDiagnostic(label, error) {
+    if (!shouldEmitVaultDiagnosticLogs())
+        return;
+    console.warn(`${label}: ${formatVaultError(error)}`);
+}
+function getActiveVaultDir() {
+    return process.env.VAULT_DIR?.trim() || VAULT_DIR;
 }
 function normalizeTempDirPath(tempDir) {
     return path.resolve(String(tempDir || "").trim());
@@ -38,12 +202,12 @@ function buildDoltTempDirCandidates() {
             : null,
         {
             source: "vault:.dolt/tmp",
-            path: normalizeTempDirPath(path.join(VAULT_DIR, ".dolt", "tmp")),
+            path: normalizeTempDirPath(path.join(getActiveVaultDir(), ".dolt", "tmp")),
             create: false,
         },
         {
             source: "vault:.tmp",
-            path: normalizeTempDirPath(path.join(VAULT_DIR, ".tmp")),
+            path: normalizeTempDirPath(path.join(getActiveVaultDir(), ".tmp")),
             create: true,
         },
         {
@@ -122,7 +286,7 @@ function formatDoltExecutionEnvironmentError(attempts, probeMode) {
         return `${attempt.source} (${attempt.path}) -> ${status}`;
     })
         .join("; ");
-    return `Failed to resolve writable temp dir for dolt (probeMode=${probeMode}, VAULT_DIR=${VAULT_DIR}). Tried: ${details}`;
+    return `Failed to resolve writable temp dir for dolt (probeMode=${probeMode}, VAULT_DIR=${getActiveVaultDir()}). Tried: ${details}`;
 }
 function resolveDoltExecutionEnvironment(options = {}) {
     const probeMode = options.probeMode ?? "prepare";
@@ -149,9 +313,52 @@ function resolveDoltExecutionEnvironment(options = {}) {
     }
     throw new Error(formatDoltExecutionEnvironmentError(attempts, probeMode));
 }
+function readHostDoltGlobalConfig() {
+    const hostHome = process.env.HOME?.trim() || os.homedir();
+    const configPath = path.join(hostHome, ".dolt", "config_global.json");
+    if (!existsSync(configPath)) {
+        return {};
+    }
+    try {
+        const parsed = JSON.parse(readFileSync(configPath, "utf-8"));
+        return Object.fromEntries(Object.entries(parsed).filter((entry) => typeof entry[1] === "string"));
+    }
+    catch {
+        return {};
+    }
+}
+function ensureDoltProcessHome(tempDir) {
+    const processHome = path.join(normalizeTempDirPath(tempDir), "pi-vault-dolt-home");
+    const processDoltDir = path.join(processHome, ".dolt");
+    mkdirSync(processDoltDir, { recursive: true });
+    const configPath = path.join(processDoltDir, "config_global.json");
+    const nextConfig = {
+        ...readHostDoltGlobalConfig(),
+        "metrics.disabled": "true",
+    };
+    const nextConfigJson = `${JSON.stringify(nextConfig)}\n`;
+    const currentConfigJson = existsSync(configPath) ? readFileSync(configPath, "utf-8") : null;
+    if (currentConfigJson !== nextConfigJson) {
+        writeFileSync(configPath, nextConfigJson, "utf-8");
+    }
+    const hostHome = process.env.HOME?.trim() || os.homedir();
+    for (const passthroughFile of ["disable_version_check.txt", "version_check.txt"]) {
+        const sourcePath = path.join(hostHome, ".dolt", passthroughFile);
+        if (!existsSync(sourcePath))
+            continue;
+        const destinationPath = path.join(processDoltDir, passthroughFile);
+        const sourceContent = readFileSync(sourcePath);
+        const destinationContent = existsSync(destinationPath) ? readFileSync(destinationPath) : null;
+        if (!destinationContent || !destinationContent.equals(sourceContent)) {
+            writeFileSync(destinationPath, sourceContent);
+        }
+    }
+    return processHome;
+}
 function buildDoltProcessEnv(tempDir) {
     return {
         ...process.env,
+        HOME: ensureDoltProcessHome(tempDir),
         TMPDIR: tempDir,
         TMP: tempDir,
         TEMP: tempDir,
@@ -159,15 +366,37 @@ function buildDoltProcessEnv(tempDir) {
 }
 function runDolt(args, maxBuffer = DEFAULT_DOLT_MAX_BUFFER) {
     const doltExecutionEnvironment = resolveDoltExecutionEnvironment({ probeMode: "prepare" });
+    const startedAt = Date.now();
+    const commandShape = classifyDoltCommand(args);
     try {
-        return execFileSync("dolt", args, {
-            cwd: VAULT_DIR,
+        const result = execFileSync("dolt", args, {
+            cwd: getActiveVaultDir(),
             encoding: "utf-8",
             maxBuffer,
             env: buildDoltProcessEnv(doltExecutionEnvironment.tempDir),
+            stdio: ["pipe", "pipe", "pipe"],
         });
+        recordDoltTelemetryEvent({
+            command: commandShape.command,
+            argsPreview: commandShape.argsPreview,
+            durationMs: Date.now() - startedAt,
+            success: true,
+            tempSource: doltExecutionEnvironment.source,
+            tempDir: doltExecutionEnvironment.tempDir,
+        });
+        return result;
     }
     catch (error) {
+        recordDoltTelemetryEvent({
+            command: commandShape.command,
+            argsPreview: commandShape.argsPreview,
+            durationMs: Date.now() - startedAt,
+            success: false,
+            tempSource: doltExecutionEnvironment.source,
+            tempDir: doltExecutionEnvironment.tempDir,
+            exitCode: extractExecExitCode(error),
+            error: formatVaultError(error),
+        });
         throw new Error(`${formatVaultError(error)}\nDolt temp dir: ${doltExecutionEnvironment.tempDir} (${doltExecutionEnvironment.source})`, {
             cause: error instanceof Error ? error : undefined,
         });
@@ -180,7 +409,7 @@ function queryVaultJsonDetailed(sql) {
     }
     catch (error) {
         const message = formatVaultError(error);
-        console.error("Vault query error:", error);
+        emitVaultDiagnostic("Vault query error", error);
         return { ok: false, value: null, error: message };
     }
 }
@@ -194,7 +423,7 @@ function execVault(sql) {
         return true;
     }
     catch (e) {
-        console.error("Vault exec error:", e);
+        emitVaultDiagnostic("Vault exec error", e);
         return false;
     }
 }
@@ -223,7 +452,7 @@ function execVaultWithRowCount(sql) {
         return Number.isFinite(rowCount) ? rowCount : null;
     }
     catch (e) {
-        console.error("Vault exec error:", e);
+        emitVaultDiagnostic("Vault exec error", e);
         return null;
     }
 }
@@ -248,7 +477,7 @@ function execVaultInsertWithId(sql) {
         };
     }
     catch (e) {
-        console.error("Vault exec error:", e);
+        emitVaultDiagnostic("Vault exec error", e);
         return null;
     }
 }
@@ -915,6 +1144,10 @@ export function createVaultRuntime() {
         rateTemplate,
         logExecution,
         getDoltExecutionEnvironment,
+        listRecentDoltTelemetry,
+        getLatestDoltTelemetryFailure,
+        summarizeDoltTelemetry,
+        getDoltTelemetryStats,
         checkSchemaCompatibilityDetailed,
         checkSchemaVersion,
     };

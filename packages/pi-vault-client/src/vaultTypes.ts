@@ -13,6 +13,7 @@ export const LIVE_VAULT_TRIGGER_ID = "vault-template-live-picker";
 export const LIVE_VAULT_TRIGGER_DEBOUNCE_MS = 150;
 export const LIVE_VAULT_MIN_QUERY = 0;
 export const LIVE_TRIGGER_TELEMETRY_LIMIT = 100;
+export const DOLT_TELEMETRY_LIMIT = 200;
 export const SCHEMA_VERSION = 9;
 
 export const COMPANIES = [
@@ -483,6 +484,29 @@ export interface DoltExecutionEnvironment {
   attempts: DoltExecutionEnvironmentAttempt[];
 }
 
+export interface DoltTelemetryEvent {
+  timestamp: string;
+  command: string;
+  argsPreview: string;
+  durationMs: number;
+  success: boolean;
+  tempSource: string;
+  tempDir: string;
+  exitCode?: number | null;
+  error?: string;
+}
+
+export interface DoltTelemetryStats {
+  totalCalls: number;
+  successCount: number;
+  failureCount: number;
+  retainedEvents: number;
+  averageLatencyMs: number;
+  maxLatencyMs: number;
+  commandCounts: Record<string, number>;
+  tempSourceCounts: Record<string, number>;
+}
+
 export interface VaultRuntime {
   queryVaultJson: (sql: string) => DoltJsonResult | null;
   queryVaultJsonDetailed: (sql: string) => VaultResult<DoltJsonResult>;
@@ -587,6 +611,10 @@ export interface VaultRuntime {
   getDoltExecutionEnvironment: (options?: {
     probeMode?: "inspect" | "prepare";
   }) => DoltExecutionEnvironment;
+  listRecentDoltTelemetry: (limit?: number) => DoltTelemetryEvent[];
+  getLatestDoltTelemetryFailure: () => DoltTelemetryEvent | null;
+  summarizeDoltTelemetry: () => string;
+  getDoltTelemetryStats: () => DoltTelemetryStats;
   checkSchemaCompatibilityDetailed: () => SchemaCompatibilityReport;
   checkSchemaVersion: () => boolean;
 }

@@ -1,6 +1,7 @@
 import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import { splitQueryAndContext } from "./triggerAdapter.js";
 import { createVaultRuntime } from "./vaultDb.js";
+import { MAX_VAULT_QUERY_LIMIT } from "./vaultTypes.js";
 
 const PROMPT_PLANE_CONTEXT_ERROR =
   "Explicit company context is required for visibility-sensitive prompt-plane preparation. Set PI_COMPANY or run from a company-scoped cwd.";
@@ -12,6 +13,19 @@ function toTemplateSnapshot(template) {
   return {
     id: template.id,
     name: template.name,
+    version: template.version,
+    artifact_kind: template.artifact_kind,
+    control_mode: template.control_mode,
+    formalization_level: template.formalization_level,
+    owner_company: template.owner_company,
+    visibility_companies: [...template.visibility_companies],
+  };
+}
+function toVisibleTemplate(template) {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
     version: template.version,
     artifact_kind: template.artifact_kind,
     control_mode: template.control_mode,
@@ -32,6 +46,13 @@ function ambiguous(reason) {
     ok: false,
     status: "ambiguous",
     selection_mode: "picker-fallback",
+    blocking_reason: reason,
+  };
+}
+function listBlocked(reason) {
+  return {
+    ok: false,
+    status: "blocked",
     blocking_reason: reason,
   };
 }
@@ -330,6 +351,28 @@ export function createVaultPromptPlaneRuntime(options = {}) {
         context: continuationContext,
         args: continuationArgs,
       });
+    },
+    async listVisibleTemplates(request = {}, ctx = {}) {
+      const companyContext = resolvePromptPlaneCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        return listBlocked(companyContext.error);
+      }
+      const limit = Number.isFinite(request.limit)
+        ? Math.max(1, Math.min(MAX_VAULT_QUERY_LIMIT, Math.floor(request.limit)))
+        : MAX_VAULT_QUERY_LIMIT;
+      const result = runtime.queryTemplatesDetailed(request.filters || {}, limit, false, {
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      });
+      if (!result.ok) {
+        return listBlocked(result.error);
+      }
+      return {
+        ok: true,
+        status: "ready",
+        templates: result.value.map((template) => toVisibleTemplate(template)),
+      };
     },
   };
 }

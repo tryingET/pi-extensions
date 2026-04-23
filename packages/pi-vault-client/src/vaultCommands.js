@@ -679,6 +679,14 @@ export function registerVaultCommands(pi, runtime, receipts) {
             await ctx.ui.editor("Vault Live Trigger Telemetry", runtime.summarizeLiveTriggerTelemetry());
         },
     });
+    pi.registerCommand("vault-dolt-telemetry", {
+        description: "Show recent Prompt Vault Dolt execution telemetry",
+        handler: async (_args, ctx) => {
+            if (!ctx.hasUI)
+                return;
+            await ctx.ui.editor("Vault Dolt Telemetry", runtime.summarizeDoltTelemetry());
+        },
+    });
     if (receipts) {
         pi.registerCommand("vault-last-receipt", {
             description: "Show the latest local vault execution receipt visible to the current company",

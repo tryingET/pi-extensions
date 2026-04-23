@@ -139,6 +139,56 @@ test("vault runtime honors explicit PI_VAULT_TMPDIR when it is writable", async 
   });
 });
 
+test("vault runtime synthesizes a metrics-disabled Dolt home under the chosen temp dir", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const hostHome = mkdtempSync(path.join(os.tmpdir(), "pi-vault-host-home-"));
+    const originalHome = process.env.HOME;
+
+    mkdirSync(path.join(hostHome, ".dolt"), { recursive: true });
+    writeFileSync(
+      path.join(hostHome, ".dolt", "config_global.json"),
+      `${JSON.stringify({ "user.name": "Temp User", "user.email": "temp@example.com" })}\n`,
+      "utf8",
+    );
+    writeFileSync(path.join(hostHome, ".dolt", "disable_version_check.txt"), "1.83.4", "utf8");
+
+    try {
+      process.env.HOME = hostHome;
+      const { createVaultRuntime } = await importModule("src/vaultDb.js");
+      const runtime = createVaultRuntime();
+      const environment = runtime.getDoltExecutionEnvironment();
+
+      assert.equal(runtime.checkSchemaVersion(), true);
+
+      const processHome = path.join(environment.tempDir, "pi-vault-dolt-home");
+      const processConfigPath = path.join(processHome, ".dolt", "config_global.json");
+      const processConfig = JSON.parse(readFileSync(processConfigPath, "utf8"));
+      assert.equal(processConfig["metrics.disabled"], "true");
+      assert.equal(processConfig["user.name"], "Temp User");
+      assert.equal(processConfig["user.email"], "temp@example.com");
+      assert.equal(
+        readFileSync(path.join(processHome, ".dolt", "disable_version_check.txt"), "utf8"),
+        "1.83.4",
+      );
+
+      const metricsState = run("dolt", ["config", "--global", "--get", "metrics.disabled"], {
+        env: {
+          ...process.env,
+          HOME: processHome,
+          TMPDIR: environment.tempDir,
+          TMP: environment.tempDir,
+          TEMP: environment.tempDir,
+        },
+      });
+      assert.equal(metricsState.stdout.trim(), "true");
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      rmSync(hostHome, { recursive: true, force: true });
+    }
+  });
+});
+
 test("vault runtime falls back from an invalid PI_VAULT_TMPDIR to repo-local temp", async () => {
   await withTempVaultRuntime(async ({ importModule, repoDir }) => {
     process.env.PI_VAULT_TMPDIR = path.join(repoDir, ".dolt", "config.json", "blocked-child");
@@ -154,6 +204,73 @@ test("vault runtime falls back from an invalid PI_VAULT_TMPDIR to repo-local tem
     assert.match(String(environment.attempts[0]?.error), /ENOTDIR|not a directory/i);
     assert.equal(environment.attempts.at(-1)?.ok, true);
     assert.equal(runtime.checkSchemaVersion(), true);
+  });
+});
+
+test("vault runtime records useful Dolt execution telemetry", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+
+    assert.equal(runtime.checkSchemaVersion(), true);
+
+    const stats = runtime.getDoltTelemetryStats();
+    assert.ok(stats.totalCalls >= 1);
+    assert.ok(stats.successCount >= 1);
+    assert.ok(stats.retainedEvents >= 1);
+    assert.ok(Object.keys(stats.commandCounts).some((key) => key.startsWith("sql:")));
+    assert.ok(Object.keys(stats.tempSourceCounts).length >= 1);
+
+    const recent = runtime.listRecentDoltTelemetry(5);
+    assert.ok(recent.length >= 1);
+    assert.ok(recent.some((event) => event.command.startsWith("sql:")));
+    assert.ok(recent.every((event) => typeof event.durationMs === "number"));
+    assert.equal(runtime.getLatestDoltTelemetryFailure(), null);
+
+    const noisyFailure = runtime.queryVaultJsonDetailed("SELECT * FROM definitely_missing_table");
+    assert.equal(noisyFailure.ok, false);
+    const latestFailure = runtime.getLatestDoltTelemetryFailure();
+    assert.ok(latestFailure);
+    assert.match(String(latestFailure?.command), /sql:select/);
+    assert.match(String(latestFailure?.error), /definitely_missing_table|table not found/i);
+
+    const summary = runtime.summarizeDoltTelemetry();
+    assert.match(summary, /# Vault Dolt Telemetry/);
+    assert.match(summary, /total_calls:/);
+    assert.match(summary, /command_mix:/);
+    assert.match(summary, /temp_source_mix:/);
+    assert.match(summary, /latest_failure:/);
+    assert.doesNotMatch(summary, /latest_failure: none recorded/);
+  });
+});
+
+test("vault runtime keeps recoverable dolt query failures quiet unless diagnostic logging is enabled", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const runtime = createVaultRuntime();
+    const originalPiVaultLogErrors = process.env.PI_VAULT_LOG_ERRORS;
+    const originalWarn = console.warn;
+    const warnings = [];
+
+    try {
+      delete process.env.PI_VAULT_LOG_ERRORS;
+      console.warn = (...args) => warnings.push(args.map(String).join(" "));
+
+      const quietResult = runtime.queryVaultJsonDetailed("SELECT * FROM definitely_missing_table");
+      assert.equal(quietResult.ok, false);
+      assert.equal(warnings.length, 0);
+
+      process.env.PI_VAULT_LOG_ERRORS = "1";
+      const noisyResult = runtime.queryVaultJsonDetailed("SELECT * FROM definitely_missing_table");
+      assert.equal(noisyResult.ok, false);
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /Vault query error:/);
+      assert.match(warnings[0], /definitely_missing_table|table not found/i);
+    } finally {
+      console.warn = originalWarn;
+      if (originalPiVaultLogErrors === undefined) delete process.env.PI_VAULT_LOG_ERRORS;
+      else process.env.PI_VAULT_LOG_ERRORS = originalPiVaultLogErrors;
+    }
   });
 });
 

@@ -1,7 +1,12 @@
 import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import { splitQueryAndContext } from "./triggerAdapter.js";
 import { createVaultRuntime } from "./vaultDb.js";
-import type { Template, VaultRuntime } from "./vaultTypes.js";
+import {
+  MAX_VAULT_QUERY_LIMIT,
+  type Template,
+  type VaultQueryFilters,
+  type VaultRuntime,
+} from "./vaultTypes.js";
 
 const PROMPT_PLANE_CONTEXT_ERROR =
   "Explicit company context is required for visibility-sensitive prompt-plane preparation. Set PI_COMPANY or run from a company-scoped cwd.";
@@ -67,6 +72,33 @@ export interface PreparedPromptPlaneCandidate {
   };
 }
 
+export interface PromptPlaneTemplateListRequest {
+  filters?: Pick<
+    VaultQueryFilters,
+    "artifact_kind" | "control_mode" | "formalization_level" | "owner_company"
+  >;
+  limit?: number;
+}
+
+export interface VisiblePromptPlaneTemplate {
+  name: string;
+  description: string;
+  artifact_kind: string;
+  control_mode: string;
+  formalization_level: string;
+  owner_company: string;
+  visibility_companies: string[];
+  version?: number;
+  id?: number;
+}
+
+export interface ListedPromptPlaneTemplatesResult {
+  ok: boolean;
+  status: "ready" | "blocked";
+  templates?: VisiblePromptPlaneTemplate[];
+  blocking_reason?: string;
+}
+
 export interface VaultPromptPlaneRuntime {
   prepareSelection(
     request: PromptSelectionRequest,
@@ -76,12 +108,17 @@ export interface VaultPromptPlaneRuntime {
     envelope: VaultContinuationEnvelopeV1,
     ctx?: PromptPlaneExecutionContext,
   ): Promise<PreparedPromptPlaneCandidate>;
+  listVisibleTemplates(
+    request?: PromptPlaneTemplateListRequest,
+    ctx?: PromptPlaneExecutionContext,
+  ): Promise<ListedPromptPlaneTemplatesResult>;
 }
 
 interface PromptPlaneRuntimeDeps {
   resolveCurrentCompanyContext: VaultRuntime["resolveCurrentCompanyContext"];
   getTemplateDetailed: VaultRuntime["getTemplateDetailed"];
   searchTemplatesDetailed: VaultRuntime["searchTemplatesDetailed"];
+  queryTemplatesDetailed: VaultRuntime["queryTemplatesDetailed"];
 }
 
 export interface VaultPromptPlaneRuntimeOptions {
@@ -105,6 +142,20 @@ function toTemplateSnapshot(template: Template) {
   };
 }
 
+function toVisibleTemplate(template: Template): VisiblePromptPlaneTemplate {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    version: template.version,
+    artifact_kind: template.artifact_kind,
+    control_mode: template.control_mode,
+    formalization_level: template.formalization_level,
+    owner_company: template.owner_company,
+    visibility_companies: [...template.visibility_companies],
+  };
+}
+
 function blocked(reason: string): PreparedPromptPlaneCandidate {
   return {
     ok: false,
@@ -118,6 +169,14 @@ function ambiguous(reason: string): PreparedPromptPlaneCandidate {
     ok: false,
     status: "ambiguous",
     selection_mode: "picker-fallback",
+    blocking_reason: reason,
+  };
+}
+
+function listBlocked(reason: string): ListedPromptPlaneTemplatesResult {
+  return {
+    ok: false,
+    status: "blocked",
     blocking_reason: reason,
   };
 }
@@ -487,6 +546,31 @@ export function createVaultPromptPlaneRuntime(
         context: continuationContext,
         args: continuationArgs,
       });
+    },
+
+    async listVisibleTemplates(request = {}, ctx = {}) {
+      const companyContext = resolvePromptPlaneCompanyContext(runtime, ctx);
+      if (!companyContext.ok) {
+        return listBlocked(companyContext.error);
+      }
+
+      const limit = Number.isFinite(request.limit)
+        ? Math.max(1, Math.min(MAX_VAULT_QUERY_LIMIT, Math.floor(request.limit as number)))
+        : MAX_VAULT_QUERY_LIMIT;
+      const result = runtime.queryTemplatesDetailed(request.filters || {}, limit, false, {
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      });
+      if (!result.ok) {
+        return listBlocked(result.error);
+      }
+
+      return {
+        ok: true,
+        status: "ready",
+        templates: result.value.map((template) => toVisibleTemplate(template)),
+      };
     },
   };
 }

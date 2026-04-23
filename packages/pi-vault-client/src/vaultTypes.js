@@ -10,6 +10,7 @@ export const LIVE_VAULT_TRIGGER_ID = "vault-template-live-picker";
 export const LIVE_VAULT_TRIGGER_DEBOUNCE_MS = 150;
 export const LIVE_VAULT_MIN_QUERY = 0;
 export const LIVE_TRIGGER_TELEMETRY_LIMIT = 100;
+export const DOLT_TELEMETRY_LIMIT = 200;
 export const SCHEMA_VERSION = 9;
 export const COMPANIES = [
     "core",

@@ -443,8 +443,25 @@ test("vault check command reports detailed schema diagnostics plus company conte
   assert.match(COMMANDS_SOURCE, /next-10-expert-suggestions:/);
 });
 
-test("vault live telemetry command is exposed", () => {
+test("vault live and dolt telemetry surfaces are exposed", () => {
   assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-live-telemetry"/);
+  assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-dolt-telemetry"/);
+  assert.match(TOOLS_SOURCE, /name: "vault_dolt_telemetry"/);
+  assert.match(TOOLS_SOURCE, /runtime\.summarizeDoltTelemetry\(\)/);
+  assert.match(DB_SOURCE, /# Vault Dolt Telemetry/);
+  assert.match(DB_SOURCE, /command_mix:/);
+  assert.match(DB_SOURCE, /temp_source_mix:/);
+  assert.match(DB_SOURCE, /latest_failure:/);
+});
+
+test("recoverable vault boundary failures stay quiet by default and expose opt-in diagnostics", () => {
+  assert.match(DB_SOURCE, /function\s+shouldEmitVaultDiagnosticLogs\(/);
+  assert.match(DB_SOURCE, /PI_VAULT_LOG_ERRORS/);
+  assert.match(DB_SOURCE, /function\s+emitVaultDiagnostic\(/);
+  assert.doesNotMatch(DB_SOURCE, /console\.error\(/);
+  assert.match(DB_SOURCE, /emitVaultDiagnostic\("Vault query error", error\)/);
+  assert.match(DB_SOURCE, /emitVaultDiagnostic\("Vault exec error", e\)/);
+  assert.match(DB_SOURCE, /stdio:\s*\["pipe", "pipe", "pipe"\]/);
 });
 
 test("vault stats uses the caller company through the centralized active + visible predicate", () => {

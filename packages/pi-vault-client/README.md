@@ -119,6 +119,7 @@ Kept commands:
 - `/vault-stats`
 - `/vault-check`
 - `/vault-live-telemetry`
+- `/vault-dolt-telemetry`
 - `/vault-fzf-spike`
 - `/vault-last-receipt` — latest local trusted receipt visible to the current company
 - `/vault-receipt <execution_id>` — exact local trusted receipt if visible to the current company
@@ -236,9 +237,18 @@ Vault Dolt subprocesses resolve a writable temp directory in this order:
 Notes:
 
 - execution probes actual writability by creating and removing a temp directory before Dolt runs, so inode exhaustion and bad paths fail fast
+- Vault Dolt child processes now also synthesize a temp-scoped `HOME/.dolt/config_global.json` overlay with `metrics.disabled=true` so `dolt send-metrics` does not leak UUID temp files into `/tmp`
+- that synthetic Dolt home preserves existing host-global string config such as `user.name` and `user.email`, plus local version-check marker files when present
 - diagnostic surfaces (`/vault-check`, `vault_schema_diagnostics()`) inspect the same candidate order without creating repo-local fallback directories
 - if an explicit `PI_VAULT_TMPDIR` is invalid, Vault falls back to the next viable candidate instead of failing closed immediately
 - `/vault-check` and `vault_schema_diagnostics()` now report the resolved Dolt temp status/source/path plus probe attempts
+- Vault also keeps session-local Dolt execution telemetry for repo-owned observability instead of relying on upstream Dolt telemetry
+  - interactive: `/vault-dolt-telemetry`
+  - headless/tool: `vault_dolt_telemetry({ limit: 15 })`
+  - current summary fields align with the orchestrator boundary telemetry contract where applicable: `total_calls`, `success_count`, `failure_count`, `retained_events`, `average_latency_ms`, `max_latency_ms`, `command_mix`, and `latest_failure`
+  - vault keeps the additional Dolt-specific `temp_source_mix` field
+- recoverable query/exec failures stay quiet by default so fail-closed tests and diagnostic callers do not flood stderr
+  - set `PI_VAULT_LOG_ERRORS=1` when you explicitly want raw Vault boundary diagnostics emitted to stderr
 - if a Vault error mentions `Dolt temp dir: ...`, inspect both bytes and inodes on host temp storage
   - `df -h /tmp`
   - `df -i /tmp`

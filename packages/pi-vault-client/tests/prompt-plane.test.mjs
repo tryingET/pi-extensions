@@ -29,9 +29,8 @@ function ok(value) {
 }
 
 function createRuntime(options = {}) {
-  const templates = new Map(
-    (options.templates || [template()]).map((entry) => [String(entry.name), entry]),
-  );
+  const templateEntries = options.templates || [template()];
+  const templates = new Map(templateEntries.map((entry) => [String(entry.name), entry]));
   const search = options.search || {};
   return {
     resolveCurrentCompanyContext(cwd) {
@@ -53,6 +52,43 @@ function createRuntime(options = {}) {
         options.onSearchTemplatesDetailed(query, context);
       }
       return ok(search[String(query)] || []);
+    },
+    queryTemplatesDetailed(filters = {}, limit = 50, _includeContent = false, context) {
+      if (typeof options.onQueryTemplatesDetailed === "function") {
+        options.onQueryTemplatesDetailed(filters, limit, context);
+      }
+      const values = templateEntries.filter((entry) => {
+        if (
+          Array.isArray(filters.artifact_kind) &&
+          filters.artifact_kind.length > 0 &&
+          !filters.artifact_kind.includes(entry.artifact_kind)
+        ) {
+          return false;
+        }
+        if (
+          Array.isArray(filters.control_mode) &&
+          filters.control_mode.length > 0 &&
+          !filters.control_mode.includes(entry.control_mode)
+        ) {
+          return false;
+        }
+        if (
+          Array.isArray(filters.formalization_level) &&
+          filters.formalization_level.length > 0 &&
+          !filters.formalization_level.includes(entry.formalization_level)
+        ) {
+          return false;
+        }
+        if (
+          Array.isArray(filters.owner_company) &&
+          filters.owner_company.length > 0 &&
+          !filters.owner_company.includes(entry.owner_company)
+        ) {
+          return false;
+        }
+        return true;
+      });
+      return ok(values.slice(0, limit));
     },
   };
 }
@@ -297,4 +333,62 @@ test("continuation preparation rejects prose-only or malformed continuation inpu
   assert.equal(result.ok, false);
   assert.equal(result.status, "blocked");
   assert.match(result.blocking_reason || "", /Invalid vault continuation envelope/);
+});
+
+test("prompt-plane seam can list visible templates through the owning runtime", async () => {
+  const runtime = createVaultPromptPlaneRuntime({
+    runtime: createRuntime({
+      templates: [
+        template({
+          name: "inversion",
+          artifact_kind: "cognitive",
+          description: "Find hidden bugs",
+        }),
+        template({ name: "audit", artifact_kind: "cognitive", description: "Review quality" }),
+        template({
+          name: "builder-playbook",
+          artifact_kind: "procedure",
+          description: "Build things",
+        }),
+      ],
+      onQueryTemplatesDetailed(filters, limit, context) {
+        assert.deepEqual(filters, { artifact_kind: ["cognitive"] });
+        assert.equal(limit, 5);
+        assert.equal(context?.currentCompany, "software");
+        assert.equal(context?.requireExplicitCompany, true);
+      },
+    }),
+  });
+
+  const result = await runtime.listVisibleTemplates(
+    { filters: { artifact_kind: ["cognitive"] }, limit: 5 },
+    { currentCompany: "software", cwd: "/tmp/software/project" },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "ready");
+  assert.deepEqual(
+    result.templates?.map((entry) => ({ name: entry.name, description: entry.description })),
+    [
+      { name: "inversion", description: "Find hidden bugs" },
+      { name: "audit", description: "Review quality" },
+    ],
+  );
+});
+
+test("prompt-plane list seam fails closed without explicit company context", async () => {
+  const runtime = createVaultPromptPlaneRuntime({
+    runtime: createRuntime({
+      companyContext: { company: "software", source: "contract-default" },
+    }),
+  });
+
+  const result = await runtime.listVisibleTemplates(
+    { filters: { artifact_kind: ["cognitive"] } },
+    { cwd: "/tmp/outside-workspace" },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.match(result.blocking_reason || "", /Explicit company context is required/);
 });

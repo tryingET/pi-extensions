@@ -175,6 +175,42 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
             return new Text(details?.ok ? "schema ok" : "schema mismatch", 0, 0);
         },
     });
+    pi.registerTool({
+        name: "vault_dolt_telemetry",
+        label: "Vault Dolt Telemetry",
+        description: `Inspect local Prompt Vault Dolt execution telemetry.
+
+Use when investigating Prompt Vault performance, temp-dir routing, or repeated Dolt failures.
+Reports session-local call counts, latency summary, command mix, temp-source usage, and recent Dolt events.`,
+        promptSnippet: "Inspect local Prompt Vault Dolt execution telemetry.",
+        promptGuidelines: [
+            "Use vault_dolt_telemetry when investigating Prompt Vault performance, temp-dir routing, or repeated Dolt failures.",
+        ],
+        parameters: Type.Object({
+            limit: Type.Optional(Type.Number({ description: "Max recent events to include (default: 15)" })),
+        }),
+        async execute(_toolCallId, params) {
+            const requestedLimit = Math.floor(Number(params.limit));
+            const recentEvents = runtime.listRecentDoltTelemetry(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 15);
+            const stats = runtime.getDoltTelemetryStats();
+            const latestFailure = runtime.getLatestDoltTelemetryFailure();
+            return {
+                content: [{ type: "text", text: runtime.summarizeDoltTelemetry() }],
+                details: {
+                    ...stats,
+                    latestFailure,
+                    recentEvents,
+                },
+            };
+        },
+        renderCall(_args, theme) {
+            return new Text(theme.fg("toolTitle", theme.bold("vault_dolt_telemetry")), 0, 0);
+        },
+        renderResult(result) {
+            const details = (result.details || {});
+            return new Text(`${details.totalCalls ?? 0} calls, ${details.failureCount ?? 0} failures`, 0, 0);
+        },
+    });
 }
 export function registerVaultTools(pi, runtime, receipts) {
     pi.registerTool({
