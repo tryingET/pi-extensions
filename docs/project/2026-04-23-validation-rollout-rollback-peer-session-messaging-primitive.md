@@ -176,9 +176,23 @@ npm run check
 
 ## AK execution alignment
 
-This note is intended to satisfy the post-ADR validation/rollout/rollback artifact requirement for `decision:19`.
-No dedicated task family is linked yet.
+This note satisfies the post-ADR validation/rollout/rollback artifact requirement for `decision:19`.
+A bounded AK task family is now materialized:
+
+- `#1818` umbrella
+- `#1819` PM-1
+- `#1820` PM-2
+- `#1821` PM-3
+- `#1822` PM-4
+- `#1823` PM-5
+
+Current linkage truth:
+
+- umbrella task `#1818` is linked to `decision:19` as `post_adr_execution`
+- the decision remains `unblocked`
+- the package task family exists as the bounded execution queue for the slice
+- the current AK CLI/runtime does not expose a supported reevaluation path for attaching additional new `post_adr_execution` links after a decision has already returned to `unblocked`
 
 Interpretation rule:
-- the decision may be unblocked for bounded execution once this note and the implementation plan are attached
-- later task materialization should preserve the proof obligations recorded here rather than weakening them into generic messaging work
+- execute the slice through this task family rather than weakening it into generic messaging work
+- preserve the proof obligations recorded here even where current AK link-state support is narrower than the full task family

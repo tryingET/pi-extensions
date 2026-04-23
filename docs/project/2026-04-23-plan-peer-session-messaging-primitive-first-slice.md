@@ -196,12 +196,36 @@ Interpretation rule:
 
 ## AK task materialization status
 
-No dedicated AK task family is attached yet.
+The bounded AK task family for this first slice is now materialized.
+
+Current task family:
+
+- `#1818` — `[UMBRELLA] Implement first bounded peer-session messaging primitive slice`
+- `#1819` — `PM-1 — scaffold separate peer-session messaging package and stable core contract`
+- `#1820` — `PM-2 — implement same-machine broker/client runtime and peer presence`
+- `#1821` — `PM-3 — implement fail-closed addressing and direct send/ask semantics`
+- `#1822` — `PM-4 — add an intercom-compatible adapter over the stable core`
+- `#1823` — `PM-5 — add package docs, validation, and release-proofing`
+
+Dependency shape now encoded in AK:
+
+- umbrella `#1818` depends on `#1819-#1823`
+- `#1820` depends on `#1819`
+- `#1821` depends on `#1820`
+- `#1822` depends on `#1821`
+- `#1823` depends on `#1822`
+
+Decision/runtime posture currently encoded in AK:
+
+- umbrella task `#1818` is linked to `decision:19` as `post_adr_execution`
+- tasks `#1819-#1823` are materialized as the bounded repo-scoped execution family
+- current AK CLI/runtime does not provide a supported reevaluation path for attaching additional new `post_adr_execution` links after a decision is already back in `unblocked`
+- therefore the package task family is materialized truthfully, while the umbrella link is the currently recorded decision-runtime anchor
 
 Interpretation rule:
-- this plan is sufficient to unblock the decision for bounded execution
-- later task materialization should follow this plan rather than rediscovering the architecture from scratch
-- if a task family is later created, keep it package-bounded and consumer-neutral
+- use the AK task family as the executable leaf queue rather than re-deriving work from this document alone
+- preserve the current package-bounded scopes and forbidden paths
+- if AK later gains a supported reopen/reevaluation path for this case, attach `#1819-#1823` to `decision:19` rather than creating duplicate execution tasks
 
 ## Expected follow-on after this plan lands
 
