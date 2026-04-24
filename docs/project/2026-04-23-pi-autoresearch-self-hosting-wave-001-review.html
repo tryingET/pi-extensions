@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pi-autoresearch wave 001 — interactive diff review</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #081018;
+        --bg-elev: rgba(13, 25, 38, 0.92);
+        --bg-soft: rgba(20, 34, 48, 0.78);
+        --panel: rgba(12, 20, 31, 0.92);
+        --line: rgba(126, 165, 196, 0.18);
+        --line-strong: rgba(126, 165, 196, 0.34);
+        --text: #e7ece8;
+        --text-dim: #9eb1bd;
+        --cyan: #78f2ff;
+        --amber: #ffd16f;
+        --rose: #ff8db1;
+        --green: #8ef7ab;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+        --radius: 24px;
+        --radius-sm: 14px;
+        --font-display: "Avenir Next Condensed", "DIN Condensed", "Franklin Gothic Medium Cond", "Arial Narrow", sans-serif;
+        --font-body: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+        --font-mono: "IBM Plex Mono", "SFMono-Regular", "Menlo", "Monaco", monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(circle at top right, rgba(120, 242, 255, 0.12), transparent 28%),
+          radial-gradient(circle at left center, rgba(255, 209, 111, 0.08), transparent 22%),
+          linear-gradient(180deg, #09111a 0%, #05080d 100%);
+        color: var(--text);
+        font-family: var(--font-body);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        background-size: 40px 40px;
+        mask-image: radial-gradient(circle at center, black, transparent 88%);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .app {
+        width: min(1580px, calc(100vw - 32px));
+        margin: 16px auto;
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .rail,
+      .panel-shell {
+        background: var(--bg-elev);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .rail {
+        padding: 24px;
+        position: sticky;
+        top: 16px;
+        align-self: start;
+        overflow: hidden;
+      }
+
+      .rail::after,
+      .panel-shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+      }
+
+      .rail::after {
+        background: linear-gradient(145deg, rgba(120, 242, 255, 0.12), transparent 34%, rgba(255, 209, 111, 0.08));
+        opacity: 0.75;
+      }
+
+      .rail > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        color: var(--cyan);
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font: 700 0.73rem/1 var(--font-display);
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: var(--green);
+        box-shadow: 0 0 16px rgba(142, 247, 171, 0.75);
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-family: var(--font-display);
+        letter-spacing: 0.02em;
+      }
+
+      .headline {
+        margin-top: 20px;
+        font-size: clamp(2.5rem, 4.8vw, 4.2rem);
+        line-height: 0.94;
+        text-transform: uppercase;
+      }
+
+      .lede {
+        margin-top: 18px;
+        color: var(--text-dim);
+        font-size: 1.03rem;
+        line-height: 1.65;
+      }
+
+      .rail-grid {
+        display: grid;
+        gap: 14px;
+        margin-top: 24px;
+      }
+
+      .metric-card {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(7, 16, 24, 0.72);
+        border: 1px solid var(--line);
+      }
+
+      .metric-card .label {
+        color: var(--text-dim);
+        font: 700 0.76rem/1 var(--font-display);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .metric-card .value {
+        margin-top: 10px;
+        font: 700 1.2rem/1.15 var(--font-display);
+        color: var(--text);
+      }
+
+      .metric-card .subtle {
+        margin-top: 8px;
+        color: var(--text-dim);
+        font-size: 0.92rem;
+        line-height: 1.45;
+      }
+
+      .status-stack {
+        margin-top: 20px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .status-pill {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(7, 16, 24, 0.82);
+        border: 1px solid var(--line);
+      }
+
+      .status-pill strong {
+        font: 700 0.92rem/1.1 var(--font-display);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .status-pill span {
+        color: var(--text-dim);
+        font-size: 0.95rem;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+
+      .dot.green {
+        background: var(--green);
+        box-shadow: 0 0 18px rgba(142, 247, 171, 0.65);
+      }
+
+      .dot.amber {
+        background: var(--amber);
+        box-shadow: 0 0 18px rgba(255, 209, 111, 0.55);
+      }
+
+      .dot.cyan {
+        background: var(--cyan);
+        box-shadow: 0 0 18px rgba(120, 242, 255, 0.55);
+      }
+
+      .panel-shell {
+        position: relative;
+        padding: 22px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+
+      .tablist {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .tab {
+        border: 1px solid var(--line);
+        background: rgba(9, 17, 26, 0.74);
+        color: var(--text-dim);
+        padding: 11px 16px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: 160ms ease;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font: 700 0.75rem/1 var(--font-display);
+      }
+
+      .tab:hover,
+      .tab:focus-visible,
+      .chip:hover,
+      .chip:focus-visible,
+      .file-card:hover,
+      .file-card:focus-visible,
+      .phase-step:hover,
+      .phase-step:focus-visible {
+        border-color: var(--line-strong);
+        color: var(--text);
+        outline: none;
+        transform: translateY(-1px);
+      }
+
+      .tab.active,
+      .chip.active,
+      .file-card.active,
+      .phase-step.active {
+        color: #051017;
+        background: linear-gradient(135deg, var(--cyan), #c1fff8);
+        border-color: transparent;
+        box-shadow: 0 14px 34px rgba(120, 242, 255, 0.18);
+      }
+
+      .panel {
+        display: none;
+      }
+
+      .panel.active {
+        display: block;
+      }
+
+      .hero-grid,
+      .overview-grid,
+      .flow-grid,
+      .file-layout,
+      .raw-grid {
+        display: grid;
+        gap: 18px;
+      }
+
+      .hero-grid {
+        grid-template-columns: 1.3fr 0.9fr;
+      }
+
+      .glass-card,
+      .detail-card,
+      .flow-card,
+      .raw-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 20px;
+      }
+
+      .glass-card h2,
+      .detail-card h2,
+      .flow-card h2,
+      .raw-card h2 {
+        font-size: 1.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .glass-card p,
+      .detail-card p,
+      .flow-card p,
+      .raw-card p,
+      .overview-grid li,
+      .detail-card li,
+      .flow-card li {
+        color: var(--text-dim);
+        line-height: 1.65;
+      }
+
+      .stats-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .stat-block {
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--line);
+      }
+
+      .stat-block .kicker {
+        font: 700 0.7rem/1 var(--font-display);
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: var(--text-dim);
+      }
+
+      .stat-block .number {
+        margin-top: 9px;
+        font: 700 1.6rem/1 var(--font-display);
+      }
+
+      .overview-grid {
+        margin-top: 18px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .list-clean {
+        list-style: none;
+        padding: 0;
+        margin: 14px 0 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .list-clean li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .list-clean li::before {
+        content: "▹";
+        color: var(--cyan);
+        font-family: var(--font-display);
+        margin-top: 2px;
+      }
+
+      .file-layout {
+        grid-template-columns: 360px minmax(0, 1fr);
+        align-items: start;
+      }
+
+      .file-sidebar {
+        display: grid;
+        gap: 14px;
+      }
+
+      .search-box {
+        width: 100%;
+        padding: 13px 14px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(5, 10, 16, 0.82);
+        color: var(--text);
+      }
+
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chip {
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(10, 18, 28, 0.75);
+        color: var(--text-dim);
+        cursor: pointer;
+        font: 700 0.72rem/1 var(--font-display);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .file-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .file-card {
+        width: 100%;
+        text-align: left;
+        border-radius: 18px;
+        padding: 14px 15px;
+        border: 1px solid var(--line);
+        background: rgba(7, 16, 24, 0.7);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .file-card .path {
+        font: 700 0.88rem/1.45 var(--font-mono);
+      }
+
+      .file-card .meta {
+        margin-top: 8px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        color: var(--text-dim);
+        font-size: 0.84rem;
+      }
+
+      .delta {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .delta strong {
+        color: var(--text);
+      }
+
+      .detail-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .detail-path {
+        font: 700 1rem/1.5 var(--font-mono);
+        color: var(--cyan);
+      }
+
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .badge {
+        padding: 7px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.04);
+        font: 700 0.72rem/1 var(--font-display);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--text-dim);
+      }
+
+      .detail-columns {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: 1.2fr 0.95fr;
+        gap: 18px;
+      }
+
+      .code-window {
+        margin-top: 16px;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: #061019;
+      }
+
+      .code-window header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.03);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .code-window header strong {
+        font: 700 0.78rem/1 var(--font-display);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      pre {
+        margin: 0;
+        padding: 16px;
+        overflow: auto;
+        font: 0.82rem/1.6 var(--font-mono);
+        color: #d8f2ff;
+        white-space: pre-wrap;
+      }
+
+      .phase-rail {
+        display: grid;
+        gap: 10px;
+      }
+
+      .phase-step {
+        text-align: left;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(7, 16, 24, 0.72);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .phase-step span {
+        display: block;
+        color: var(--text-dim);
+        font-size: 0.86rem;
+        line-height: 1.5;
+        margin-top: 6px;
+      }
+
+      .raw-grid {
+        margin-top: 18px;
+      }
+
+      .raw-card details {
+        border-top: 1px solid var(--line);
+        padding: 16px 0;
+      }
+
+      .raw-card details:first-of-type {
+        border-top: 0;
+        padding-top: 4px;
+      }
+
+      .raw-card summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        font: 700 0.92rem/1.4 var(--font-display);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .raw-card summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .legend {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        color: var(--text-dim);
+        font-size: 0.9rem;
+        margin-top: 12px;
+      }
+
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .legend em {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+
+      .legend .add { background: var(--green); }
+      .legend .doc { background: var(--amber); }
+      .legend .test { background: var(--rose); }
+      .legend .core { background: var(--cyan); }
+
+      .pill-inline {
+        display: inline-flex;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--line);
+        font: 700 0.72rem/1 var(--font-display);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      @media (max-width: 1180px) {
+        .app,
+        .hero-grid,
+        .overview-grid,
+        .file-layout,
+        .detail-columns,
+        .flow-grid,
+        .stats-strip {
+          grid-template-columns: 1fr;
+        }
+
+        .rail {
+          position: static;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="rail">
+        <div class="eyebrow">Self-hosting review dossier</div>
+        <h1 class="headline">Watched seam, real campaign, external gate</h1>
+        <p class="lede">
+          This page explains the real diff between the pinned controller baseline
+          <strong>35d8340</strong> and the candidate review commit <strong>4bd0d0d</strong> for
+          <code>self-hosting-wave-001-public-seam-hardening</code>.
+        </p>
+
+        <div class="rail-grid">
+          <div class="metric-card">
+            <div class="label">Primary result</div>
+            <div class="value">default_promotion_candidate</div>
+            <div class="subtle">
+              The wave passed all locked suites and improved operator round trips per wave from
+              <strong>2</strong> to <strong>1</strong>.
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="label">Candidate branch</div>
+            <div class="value">autoresearch/self-hosting-wave-001-public-seam-hardening</div>
+            <div class="subtle">
+              Candidate commit: <code>4bd0d0d9284fec5956e8b9f5448c41b76976c482</code>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="label">Promotion state</div>
+            <div class="value">planned, not approved</div>
+            <div class="subtle">
+              The record is intentionally still external-gate only. No controller rotation happened.
+            </div>
+          </div>
+        </div>
+
+        <div class="status-stack">
+          <div class="status-pill">
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span class="dot green"></span>
+              <div>
+                <strong>Wave run</strong>
+                <span>Actual repo-root campaign executed successfully</span>
+              </div>
+            </div>
+          </div>
+          <div class="status-pill">
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span class="dot cyan"></span>
+              <div>
+                <strong>What changed</strong>
+                <span>Public self-hosting tool, watch mode, docs, tests</span>
+              </div>
+            </div>
+          </div>
+          <div class="status-pill">
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span class="dot amber"></span>
+              <div>
+                <strong>What did not change</strong>
+                <span>No self-promotion, no AK mutation, no hidden daemon</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="panel-shell">
+        <div class="topbar">
+          <div>
+            <div class="eyebrow">Interactive explainer</div>
+            <p class="lede" style="margin-top:10px; max-width: 72ch;">
+              Use the tabs to switch between the narrative overview, per-file explorer, execution flow,
+              and raw patch excerpts. The page is optimized for answering: <em>what actually changed, why it matters, and what safety fences remain in place?</em>
+            </p>
+          </div>
+          <div class="tablist" role="tablist" aria-label="Review views">
+            <button class="tab active" data-panel="overview">Overview</button>
+            <button class="tab" data-panel="files">Files</button>
+            <button class="tab" data-panel="flow">Flow</button>
+            <button class="tab" data-panel="raw">Raw patch</button>
+          </div>
+        </div>
+
+        <section class="panel active" id="panel-overview">
+          <div class="hero-grid">
+            <article class="glass-card">
+              <h2>What this diff actually accomplishes</h2>
+              <p>
+                The candidate does not chase generic “self-improvement.” It tightens the
+                <strong>public supervised self-hosting seam</strong> so the first real repo-root campaign
+                can be run, observed, and review-frozen without smuggling in a hidden daemon or a second control plane.
+              </p>
+              <div class="stats-strip">
+                <div class="stat-block">
+                  <div class="kicker">Files changed</div>
+                  <div class="number">7</div>
+                </div>
+                <div class="stat-block">
+                  <div class="kicker">Additions</div>
+                  <div class="number">1,170</div>
+                </div>
+                <div class="stat-block">
+                  <div class="kicker">Deletions</div>
+                  <div class="number">4</div>
+                </div>
+                <div class="stat-block">
+                  <div class="kicker">Locked suites</div>
+                  <div class="number">4 / 4</div>
+                </div>
+              </div>
+            </article>
+            <article class="glass-card">
+              <h2>Why it is promotion-worthy but not self-approved</h2>
+              <ul class="list-clean">
+                <li>The campaign passed all locked evaluator suites.</li>
+                <li>The operator loop got shorter: <strong>2 → 1</strong> round trips per wave.</li>
+                <li>The promotion record now points at a real candidate commit.</li>
+                <li>Approval is still missing by design: <span class="pill-inline">operator_review</span>.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="overview-grid">
+            <article class="glass-card">
+              <h2>Biggest new capability</h2>
+              <ul class="list-clean">
+                <li>New public tool surface: <code>autoresearch_self_hosting_run</code>.</li>
+                <li>New high-level watch path: <code>action=start_and_watch</code>.</li>
+                <li>In-call progress phases are now visible instead of opaque.</li>
+              </ul>
+            </article>
+            <article class="glass-card">
+              <h2>Safety fences still intact</h2>
+              <ul class="list-clean">
+                <li>No package-local self-promotion.</li>
+                <li>No direct AK mutation.</li>
+                <li>No hidden background daemon or auto-watcher.</li>
+                <li>No automatic controller rotation.</li>
+              </ul>
+            </article>
+            <article class="glass-card">
+              <h2>How the candidate was formed</h2>
+              <ul class="list-clean">
+                <li>Controller-owned mutator copied the bounded package diff into a dedicated candidate worktree.</li>
+                <li>Candidate branch was frozen as commit <code>4bd0d0d</code>.</li>
+                <li>Promotion record was updated to <strong>planned</strong> with that exact candidate ref.</li>
+              </ul>
+            </article>
+          </div>
+
+          <article class="glass-card" style="margin-top:18px;">
+            <h2>Review map</h2>
+            <div class="legend">
+              <span><em class="core"></em> Runtime / API surface</span>
+              <span><em class="doc"></em> Docs / operator truth</span>
+              <span><em class="test"></em> Verification</span>
+              <span><em class="add"></em> New additive seam</span>
+            </div>
+            <ul class="list-clean">
+              <li><strong>extensions/pi-autoresearch.ts</strong> is the heart of the change: it defines the schema, registers the tool, wires <code>start_and_watch</code>, and emits progress phases.</li>
+              <li><strong>src/core/runtime.ts</strong> exposes the self-hosting seam in the package help/status surface so operators can discover it honestly.</li>
+              <li><strong>README.md</strong> and <strong>current-vs-target.md</strong> now tell the same story as the code.</li>
+              <li><strong>tests/self-hosting-extension.test.ts</strong> proves the public extension seam, including the watched path.</li>
+            </ul>
+          </article>
+        </section>
+
+        <section class="panel" id="panel-files">
+          <div class="file-layout">
+            <div class="file-sidebar">
+              <input class="search-box" id="file-search" type="search" placeholder="Filter files, themes, or intent…" />
+              <div class="chip-row" id="chip-row"></div>
+              <div class="file-list" id="file-list"></div>
+            </div>
+            <article class="detail-card" id="file-detail"></article>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-flow">
+          <div class="flow-grid" style="grid-template-columns: 320px minmax(0, 1fr);">
+            <div class="phase-rail" id="phase-rail"></div>
+            <article class="flow-card" id="phase-detail"></article>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-raw">
+          <article class="raw-card">
+            <h2>Raw patch excerpts</h2>
+            <p>
+              The extension file is large, so this panel shows the meaningful slices rather than every generated line.
+              Use it when you want to verify that the summary and the code line up.
+            </p>
+            <div class="raw-grid" id="raw-grid"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const campaign = {
+        id: 'self-hosting-wave-001-public-seam-hardening',
+        baseline: '35d8340a157170dd8400caca5fa75e9d4d7b778d',
+        candidate: '4bd0d0d9284fec5956e8b9f5448c41b76976c482',
+        branch: 'autoresearch/self-hosting-wave-001-public-seam-hardening',
+        outcome: 'default_promotion_candidate',
+        metric: 'operator_round_trips_per_wave',
+        baselineMetric: 2,
+        candidateMetric: 1,
+        promotionState: 'planned',
+        missingApproval: 'operator_review',
+        mutator: 'scripts/autoresearch-self-hosting-wave-001-apply-current-package-diff.mjs',
+      };
+
+      const files = [
+        {
+          path: 'packages/pi-autoresearch/extensions/pi-autoresearch.ts',
+          category: 'public-seam',
+          adds: 712,
+          dels: 1,
+          summary: 'Introduces the public self-hosting tool, the new start_and_watch action, and the progress-update orchestration that makes the wave observable in-call.',
+          why: 'This is where the operator experience changes from “there is a self-hosting core” to “there is an actual public tool I can run and watch.”',
+          risk: 'Most of the added surface lives here, so this file is the primary review target for behavioral correctness and boundary honesty.',
+          validation: 'Covered by new extension tests plus the successful real wave.',
+          keyChanges: [
+            'Imports the self-hosting core into the extension layer.',
+            'Defines a dedicated schema for status / prepare_candidate / run / start_and_watch / rollback.',
+            'Registers the new tool as a first-class public surface.',
+            'Lets start_and_watch reuse the bounded run path while emitting structured onUpdate phases.',
+            'Formats wave summaries and shell guidance so operators can discover the new path honestly.',
+          ],
+          snippets: [
+            {
+              label: 'New schema and action surface',
+              code: `const selfHostingActionSchema = Type.Union([
+  Type.Literal("status"),
+  Type.Literal("prepare_candidate"),
+  Type.Literal("run"),
+  Type.Literal("start_and_watch"),
+  Type.Literal("rollback"),
+]);`
+            },
+            {
+              label: 'New public tool registration',
+              code: `pi.registerTool({
+  name: AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
+  label: "Autoresearch Self-Hosting Run",
+  ...
+});`
+            },
+            {
+              label: 'Watch mode piggybacks on the bounded run path',
+              code: `if (action === "run" || action === "start_and_watch") {
+  const watchMode = action === "start_and_watch";
+  emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "loading_artifacts", ...);
+  ...
+  emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "wave_complete", ...);
+}`
+            },
+            {
+              label: 'Progress updates remain in-call only',
+              code: `function emitAutoresearchSelfHostingUpdate(onUpdate, enabled, phase, details) {
+  if (!enabled || typeof onUpdate !== "function") return;
+  onUpdate({ content: [{ type: "text", text: String(details.message ?? phase) }], details: { tool: AUTORESEARCH_SELF_HOSTING_TOOL_NAME, phase, ...details } });
+}`
+            }
+          ],
+          rawPatch: `@@
++import { existsSync } from "node:fs";
++import {
++  AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
++  classifyAutoresearchSelfHostingApplicability,
++  executeAutoresearchSelfHostingCandidateSubprocess,
++  executeAutoresearchSelfHostingEvaluatorSuite,
++  inspectAutoresearchSelfHostingCandidateScope,
++  loadAutoresearchSelfHostingArtifacts,
++  loadAutoresearchSelfHostingPromotionRecord,
++  prepareAutoresearchSelfHostingCandidateWorktree,
++  prepareAutoresearchSelfHostingPromotionRecord,
++  recordAutoresearchSelfHostingRollback,
++  resolveAutoresearchSelfHostingPromotionRecordPath,
++} from "../src/core/selfHosting.ts";
+@@
++Type.Literal("start_and_watch"),
+@@
++pi.registerTool({
++  name: AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
++  label: "Autoresearch Self-Hosting Run",
++  ...
++});
+@@
++if (action === "run" || action === "start_and_watch") {
++  const watchMode = action === "start_and_watch";
++  emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "loading_artifacts", ...);
++  ...
++}`
+        },
+        {
+          path: 'packages/pi-autoresearch/tests/self-hosting-extension.test.ts',
+          category: 'verification',
+          adds: 433,
+          dels: 0,
+          summary: 'Adds a new focused extension-level test file that proves the public self-hosting seam rather than only the lower-level core helpers.',
+          why: 'The diff becomes trustworthy only if the extension surface—not just the internal self-hosting core—is validated.',
+          risk: 'Low runtime risk, high confidence value.',
+          validation: 'This file itself is the new proof surface.',
+          keyChanges: [
+            'Creates a temporary self-hosting repo fixture for the extension layer.',
+            'Verifies status before candidate preparation.',
+            'Verifies a bounded run can write an approved promotion record in fixture conditions.',
+            'Verifies start_and_watch emits progress phases such as loading_artifacts, prepare_candidate_complete, classification_complete, and wave_complete.',
+          ],
+          snippets: [
+            {
+              label: 'New watched-path test intent',
+              code: `test("autoresearch_self_hosting_run start_and_watch streams bounded wave progress updates", async () => {
+  ...
+  assert.ok(updates.some((update) => update.details.phase === "classification_complete"));
+  assert.equal(updates.at(-1)?.details.phase, "wave_complete");
+});`
+            }
+          ],
+          rawPatch: `+test("autoresearch_self_hosting_run reports status before the candidate worktree is prepared", ...)
++test("autoresearch_self_hosting_run executes one bounded wave and can write an approved promotion record", ...)
++test("autoresearch_self_hosting_run start_and_watch streams bounded wave progress updates", ...)`
+        },
+        {
+          path: 'packages/pi-autoresearch/src/core/runtime.ts',
+          category: 'runtime-surface',
+          adds: 6,
+          dels: 2,
+          summary: 'Exposes the self-hosting seam in the package help/status model so the runtime tells the truth about what operators can now do.',
+          why: 'Without this file, the extension would exist but the package help text would under-explain the new capability.',
+          risk: 'Low. This is mostly truth-surface alignment.',
+          validation: 'Runtime tests now assert the tool is present and the help text mentions the new seam.',
+          keyChanges: [
+            'Imports AUTORESEARCH_SELF_HOSTING_TOOL_NAME.',
+            'Adds the tool to the reported toolNames tuple.',
+            'Updates help text to describe the public supervised self-hosting seam and action=start_and_watch.',
+          ],
+          snippets: [
+            {
+              label: 'Tool becomes part of the runtime surface contract',
+              code: `toolNames: [
+  AUTORESEARCH_STATUS_TOOL_NAME,
+  AUTORESEARCH_RUN_TOOL_NAME,
+  AUTORESEARCH_CONTROL_TOOL_NAME,
+  AUTORESEARCH_FINALIZE_TOOL_NAME,
+  AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+  AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
+]`
+            }
+          ],
+          rawPatch: `+import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "./selfHosting.ts";
+@@
++typeof AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
+@@
++use ${AUTORESEARCH_SELF_HOSTING_TOOL_NAME} for the public supervised self-hosting seam ... action=start_and_watch ...`
+        },
+        {
+          path: 'packages/pi-autoresearch/README.md',
+          category: 'docs',
+          adds: 8,
+          dels: 0,
+          summary: 'Updates operator-facing package documentation so the new self-hosting seam is visible at the top-level package read path.',
+          why: 'The actual run should be discoverable by a human without reconstructing extension code from scratch.',
+          risk: 'None, but important for truthful onboarding.',
+          validation: 'Holdout operator guidance suite checks these strings explicitly.',
+          keyChanges: [
+            'Adds the public tool to the “Current public surface” section.',
+            'Explains start_and_watch plainly.',
+            'Names non-goals such as hidden daemonized autonomy and automatic controller rotation.',
+          ],
+          snippets: [
+            {
+              label: 'README surface description',
+              code: `- autoresearch_self_hosting_run
+  - is the bounded public supervised self-hosting seam for packages/pi-autoresearch itself
+  - can inspect controller/candidate/evaluator state, ... use action=start_and_watch for in-call progress updates ...`
+            }
+          ],
+          rawPatch: `+ - \`autoresearch_self_hosting_run\`
++   - is the bounded public supervised self-hosting seam for \`packages/pi-autoresearch\` itself
++   - can ... use \`action=start_and_watch\` for in-call progress updates ...`
+        },
+        {
+          path: 'packages/pi-autoresearch/docs/project/current-vs-target.md',
+          category: 'docs',
+          adds: 4,
+          dels: 0,
+          summary: 'Updates the fresh-context status anchor so the landed baseline now includes the public self-hosting tool and its watch mode.',
+          why: 'This file is the canonical fresh-context truth for “what is landed now?”',
+          risk: 'None, but stale status docs would undermine the campaign claim.',
+          validation: 'Transfer status-doc surface suite checks these statements.',
+          keyChanges: [
+            'Adds autoresearch_self_hosting_run to landed post-target self-hosting surfaces.',
+            'Calls out start_and_watch explicitly.',
+            'States that the watch path is still bounded and not a hidden daemon.',
+          ],
+          snippets: [
+            {
+              label: 'Status truth update',
+              code: `- autoresearch_self_hosting_run
+  - bounded public status / prepare-candidate / run / start_and_watch / rollback surface ...
+  - start_and_watch streams in-call progress for one bounded wave without creating a hidden background daemon ...`
+            }
+          ],
+          rawPatch: `+ - \`autoresearch_self_hosting_run\`
++   - bounded public status / prepare-candidate / run / start_and_watch / rollback surface ...
++   - start_and_watch streams in-call progress for one bounded wave without creating a hidden background daemon ...`
+        },
+        {
+          path: 'packages/pi-autoresearch/tests/runtime.test.ts',
+          category: 'verification',
+          adds: 6,
+          dels: 1,
+          summary: 'Extends the existing runtime tests so the runtime surface contract includes the new self-hosting tool and help text.',
+          why: 'This prevents the runtime surface from drifting out of sync with the extension layer again.',
+          risk: 'Low.',
+          validation: 'These assertions already passed during package validation.',
+          keyChanges: [
+            'Imports AUTORESEARCH_SELF_HOSTING_TOOL_NAME.',
+            'Asserts the tool is part of the reported toolNames tuple.',
+            'Asserts help text mentions autoresearch_self_hosting_run and supervised self-hosting seam.',
+            'Asserts the extension registers the public self-hosting tool.',
+          ],
+          snippets: [
+            {
+              label: 'Runtime contract checks',
+              code: `assert.match(buildAutoresearchHelpText(status), /autoresearch_self_hosting_run/);
+assert.match(buildAutoresearchHelpText(status), /supervised self-hosting seam/);
+assert.equal(typeof tools.get(AUTORESEARCH_SELF_HOSTING_TOOL_NAME)?.execute, "function");`
+            }
+          ],
+          rawPatch: `+import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "../src/core/selfHosting.ts";
++assert.match(buildAutoresearchHelpText(status), /autoresearch_self_hosting_run/);
++assert.equal(typeof tools.get(AUTORESEARCH_SELF_HOSTING_TOOL_NAME)?.execute, "function");`
+        },
+        {
+          path: 'packages/pi-autoresearch/src/core/selfHosting.ts',
+          category: 'additive-core',
+          adds: 1,
+          dels: 0,
+          summary: 'Adds the single exported constant that lets the runtime and extension agree on the public tool name.',
+          why: 'Tiny diff, but it formalizes the seam as a shared contract instead of a magic string buried in the extension.',
+          risk: 'Minimal.',
+          validation: 'Indirectly validated everywhere the new constant is imported.',
+          keyChanges: ['Exports AUTORESEARCH_SELF_HOSTING_TOOL_NAME = "autoresearch_self_hosting_run".'],
+          snippets: [
+            {
+              label: 'One-line contract hardening',
+              code: `export const AUTORESEARCH_SELF_HOSTING_TOOL_NAME = "autoresearch_self_hosting_run";`
+            }
+          ],
+          rawPatch: `+export const AUTORESEARCH_SELF_HOSTING_TOOL_NAME = "autoresearch_self_hosting_run";`
+        }
+      ];
+
+      const phases = [
+        {
+          id: 'loading_artifacts',
+          title: 'Load controller-owned campaign truth',
+          explanation: 'The watched run begins by loading the contract, evaluator lock, and promotion record from the repo root. This is what keeps the run attached to explicit campaign truth instead of chat memory.',
+          operatorValue: 'You can tell immediately which campaign you are in and which controller baseline it is pinned to.'
+        },
+        {
+          id: 'prepare_candidate_complete',
+          title: 'Materialize / reuse the candidate worktree',
+          explanation: 'The candidate is a separate git worktree rooted outside the controller cwd. That separation is the first hard boundary between “current controller” and “candidate under evaluation.”',
+          operatorValue: 'The tool reports the exact candidate worktree path so review and later promotion can target a real branch, not a conceptual candidate.'
+        },
+        {
+          id: 'candidate_subprocess_complete',
+          title: 'Run the controller-owned mutator',
+          explanation: 'For this first real wave, the mutator copies the bounded package diff into the candidate worktree. It is intentionally simple and explicit so the candidate content is reviewable.',
+          operatorValue: 'This is the point where the candidate diverges from the pinned baseline in a controlled, inspectable way.'
+        },
+        {
+          id: 'locked_suite_complete',
+          title: 'Execute the snapshot-owned evaluator suites',
+          explanation: 'Each suite runs from the evaluator snapshot, not from candidate-owned package-manager dispatch. The first real evaluator bundle focuses on source and truth-surface integrity rather than pretending candidate runtime dependency hydration is solved.',
+          operatorValue: 'A pass here means the new public seam, docs, and status surfaces still line up after mutation.'
+        },
+        {
+          id: 'classification_complete',
+          title: 'Classify the candidate explicitly',
+          explanation: 'The watched path produces the same typed applicability outcome as the plain run path. For this wave, the outcome is default_promotion_candidate because all critical suites passed and the declared metric improved by 50%.',
+          operatorValue: 'You get a clear verdict instead of vague “looks good.”'
+        },
+        {
+          id: 'wave_complete',
+          title: 'Stop at the external gate',
+          explanation: 'The run ends by telling you what remains outside the package. Even after success, promotion stays external and the controller is not rotated automatically.',
+          operatorValue: 'The tool helps you move faster without stealing the approval boundary.'
+        }
+      ];
+
+      const chips = [
+        { id: 'all', label: 'All' },
+        { id: 'public-seam', label: 'Public seam' },
+        { id: 'runtime-surface', label: 'Runtime' },
+        { id: 'docs', label: 'Docs' },
+        { id: 'verification', label: 'Tests' },
+        { id: 'additive-core', label: 'Core constant' }
+      ];
+
+      const tabs = document.querySelectorAll('.tab');
+      const panels = document.querySelectorAll('.panel');
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          tabs.forEach((btn) => btn.classList.remove('active'));
+          panels.forEach((panel) => panel.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
+        });
+      });
+
+      const chipRow = document.getElementById('chip-row');
+      const fileList = document.getElementById('file-list');
+      const fileDetail = document.getElementById('file-detail');
+      const fileSearch = document.getElementById('file-search');
+      const rawGrid = document.getElementById('raw-grid');
+      const phaseRail = document.getElementById('phase-rail');
+      const phaseDetail = document.getElementById('phase-detail');
+
+      let activeCategory = 'all';
+      let selectedFile = files[0].path;
+      let selectedPhase = phases[0].id;
+
+      function renderChips() {
+        chipRow.innerHTML = '';
+        chips.forEach((chip) => {
+          const button = document.createElement('button');
+          button.className = `chip ${activeCategory === chip.id ? 'active' : ''}`;
+          button.textContent = chip.label;
+          button.addEventListener('click', () => {
+            activeCategory = chip.id;
+            renderChips();
+            renderFileList();
+          });
+          chipRow.appendChild(button);
+        });
+      }
+
+      function filteredFiles() {
+        const query = fileSearch.value.trim().toLowerCase();
+        return files.filter((file) => {
+          const matchesCategory = activeCategory === 'all' || file.category === activeCategory;
+          const haystack = `${file.path} ${file.summary} ${file.why} ${file.keyChanges.join(' ')}`.toLowerCase();
+          const matchesQuery = query.length === 0 || haystack.includes(query);
+          return matchesCategory && matchesQuery;
+        });
+      }
+
+      function renderFileList() {
+        const visible = filteredFiles();
+        if (!visible.some((file) => file.path === selectedFile) && visible.length > 0) {
+          selectedFile = visible[0].path;
+        }
+        fileList.innerHTML = '';
+        visible.forEach((file) => {
+          const button = document.createElement('button');
+          button.className = `file-card ${selectedFile === file.path ? 'active' : ''}`;
+          button.innerHTML = `
+            <div class="path">${file.path}</div>
+            <div class="meta">
+              <span class="delta"><strong>+${file.adds}</strong> add</span>
+              <span class="delta"><strong>-${file.dels}</strong> del</span>
+              <span>${chips.find((chip) => chip.id === file.category)?.label ?? file.category}</span>
+            </div>
+          `;
+          button.addEventListener('click', () => {
+            selectedFile = file.path;
+            renderFileList();
+            renderFileDetail();
+          });
+          fileList.appendChild(button);
+        });
+
+        if (visible.length === 0) {
+          fileList.innerHTML = '<div class="glass-card"><p>No files match the current filter.</p></div>';
+        }
+        renderFileDetail();
+      }
+
+      function renderFileDetail() {
+        const file = files.find((entry) => entry.path === selectedFile) ?? files[0];
+        fileDetail.innerHTML = `
+          <div class="detail-header">
+            <div>
+              <div class="detail-path">${file.path}</div>
+              <div class="badge-row">
+                <span class="badge">+${file.adds} lines</span>
+                <span class="badge">-${file.dels} lines</span>
+                <span class="badge">${chips.find((chip) => chip.id === file.category)?.label ?? file.category}</span>
+              </div>
+            </div>
+            <div class="pill-inline">Candidate commit 4bd0d0d</div>
+          </div>
+          <div class="detail-columns">
+            <div>
+              <h2>What changed</h2>
+              <p>${file.summary}</p>
+              <h2 style="margin-top:18px;">Why it matters</h2>
+              <p>${file.why}</p>
+              <h2 style="margin-top:18px;">Review notes</h2>
+              <ul class="list-clean">${file.keyChanges.map((item) => `<li>${item}</li>`).join('')}</ul>
+            </div>
+            <div>
+              <h2>Risk & proof</h2>
+              <p><strong>Risk:</strong> ${file.risk}</p>
+              <p><strong>Validation:</strong> ${file.validation}</p>
+              ${file.snippets.map((snippet) => `
+                <div class="code-window">
+                  <header><strong>${snippet.label}</strong><span class="pill-inline">excerpt</span></header>
+                  <pre>${escapeHtml(snippet.code)}</pre>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderPhases() {
+        phaseRail.innerHTML = '';
+        phases.forEach((phase, index) => {
+          const button = document.createElement('button');
+          button.className = `phase-step ${selectedPhase === phase.id ? 'active' : ''}`;
+          button.innerHTML = `<strong>${String(index + 1).padStart(2, '0')} — ${phase.title}</strong><span>${phase.id}</span>`;
+          button.addEventListener('click', () => {
+            selectedPhase = phase.id;
+            renderPhases();
+            renderPhaseDetail();
+          });
+          phaseRail.appendChild(button);
+        });
+        renderPhaseDetail();
+      }
+
+      function renderPhaseDetail() {
+        const phase = phases.find((entry) => entry.id === selectedPhase) ?? phases[0];
+        phaseDetail.innerHTML = `
+          <h2>${phase.title}</h2>
+          <div class="badge-row" style="margin-bottom:16px;"><span class="badge">${phase.id}</span></div>
+          <p>${phase.explanation}</p>
+          <h2 style="margin-top:18px;">Why the operator should care</h2>
+          <p>${phase.operatorValue}</p>
+          <div class="code-window">
+            <header><strong>Observed sequence</strong><span class="pill-inline">start_and_watch</span></header>
+            <pre>${escapeHtml(phases.map((entry) => `• ${entry.id}`).join('\n'))}</pre>
+          </div>
+        `;
+      }
+
+      function renderRaw() {
+        rawGrid.innerHTML = files.map((file) => `
+          <details>
+            <summary>
+              <span>${file.path}</span>
+              <span>+${file.adds} / -${file.dels}</span>
+            </summary>
+            <pre>${escapeHtml(file.rawPatch)}</pre>
+          </details>
+        `).join('');
+      }
+
+      function escapeHtml(value) {
+        return value
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      fileSearch.addEventListener('input', renderFileList);
+      renderChips();
+      renderFileList();
+      renderPhases();
+      renderRaw();
+    </script>
+  </body>
+</html>

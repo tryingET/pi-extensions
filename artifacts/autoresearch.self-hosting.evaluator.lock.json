@@ -1,0 +1,105 @@
+{
+  "type": "self_hosting_evaluator_lock",
+  "version": 1,
+  "campaignId": "self-hosting-wave-001-public-seam-hardening",
+  "snapshotRootPath": "evaluator-snapshot",
+  "manifestPath": "evaluator-snapshot/manifest.json",
+  "manifestHash": "c4269ad48c53330d8b895c37c89f63ef9a923db33bcafd94ec8fd6a2ee706883",
+  "executionModel": "controller_subprocess_against_candidate",
+  "evaluatorFiles": [
+    {
+      "path": "lib/source-assert.mjs",
+      "sha256": "2c518a82e2abee1d1f0f8da07dafc8c9d3e8a3cf71bd399553267937ca4b3fb2"
+    },
+    {
+      "path": "suites/dev-self-hosting-tool-surface.mjs",
+      "sha256": "fe9003ea5fa23f17d76f57ab27ade47172e3b0892365544caabbd1f63020863a"
+    },
+    {
+      "path": "suites/holdout-operator-guidance-surface.mjs",
+      "sha256": "ce6e3330b52617f101eb9cbaf82bf3ccb621dbcd21814c6b8a45cab9c91e2e80"
+    },
+    {
+      "path": "suites/transfer-runtime-surface.mjs",
+      "sha256": "be00d1fbc4788efc5aae05b33733ad09734ac99902ac57741ee396118476571b"
+    },
+    {
+      "path": "suites/transfer-status-doc-surface.mjs",
+      "sha256": "73d8daddcbce88a74f6e6a1d93856f4c78ef0ba9ae2f4917cb700d347075ec52"
+    }
+  ],
+  "suites": [
+    {
+      "id": "dev-self-hosting-tool-surface",
+      "class": "dev",
+      "critical": true,
+      "coverageKind": "self_hosting_internal",
+      "entrypoint": {
+        "kind": "snapshot_node_module",
+        "path": "suites/dev-self-hosting-tool-surface.mjs",
+        "sha256": "fe9003ea5fa23f17d76f57ab27ade47172e3b0892365544caabbd1f63020863a"
+      },
+      "subjectCwdMode": "candidate",
+      "argv": [
+        "--candidate",
+        "$CANDIDATE",
+        "--controller-cwd",
+        "$CONTROLLER_CWD"
+      ]
+    },
+    {
+      "id": "holdout-operator-guidance-surface",
+      "class": "holdout",
+      "critical": true,
+      "coverageKind": "operator_consumer",
+      "entrypoint": {
+        "kind": "snapshot_node_module",
+        "path": "suites/holdout-operator-guidance-surface.mjs",
+        "sha256": "ce6e3330b52617f101eb9cbaf82bf3ccb621dbcd21814c6b8a45cab9c91e2e80"
+      },
+      "subjectCwdMode": "candidate",
+      "argv": [
+        "--candidate",
+        "$CANDIDATE",
+        "--controller-cwd",
+        "$CONTROLLER_CWD"
+      ]
+    },
+    {
+      "id": "transfer-runtime-surface",
+      "class": "transfer",
+      "critical": true,
+      "coverageKind": "package_non_self_hosting",
+      "entrypoint": {
+        "kind": "snapshot_node_module",
+        "path": "suites/transfer-runtime-surface.mjs",
+        "sha256": "be00d1fbc4788efc5aae05b33733ad09734ac99902ac57741ee396118476571b"
+      },
+      "subjectCwdMode": "candidate",
+      "argv": [
+        "--candidate",
+        "$CANDIDATE",
+        "--controller-cwd",
+        "$CONTROLLER_CWD"
+      ]
+    },
+    {
+      "id": "transfer-status-doc-surface",
+      "class": "transfer",
+      "critical": true,
+      "coverageKind": "operator_consumer",
+      "entrypoint": {
+        "kind": "snapshot_node_module",
+        "path": "suites/transfer-status-doc-surface.mjs",
+        "sha256": "73d8daddcbce88a74f6e6a1d93856f4c78ef0ba9ae2f4917cb700d347075ec52"
+      },
+      "subjectCwdMode": "candidate",
+      "argv": [
+        "--candidate",
+        "$CANDIDATE",
+        "--controller-cwd",
+        "$CONTROLLER_CWD"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "type": "self_hosting_contract",
+  "version": 1,
+  "campaignId": "self-hosting-wave-001-public-seam-hardening",
+  "controller": {
+    "mode": "pinned_commit",
+    "ref": "35d8340a157170dd8400caca5fa75e9d4d7b778d",
+    "controllerCwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+    "executionModel": "controller_subprocess_against_candidate"
+  },
+  "candidate": {
+    "worktreePath": "/home/tryinget/ai-society/softwareco/owned/pi-extensions-autoresearch-candidate",
+    "baseRef": "35d8340a157170dd8400caca5fa75e9d4d7b778d",
+    "branchName": "autoresearch/self-hosting-wave-001-public-seam-hardening",
+    "allowedPaths": [
+      "packages/pi-autoresearch/extensions/**",
+      "packages/pi-autoresearch/src/**",
+      "packages/pi-autoresearch/tests/**",
+      "packages/pi-autoresearch/README.md",
+      "packages/pi-autoresearch/docs/project/current-vs-target.md"
+    ],
+    "offLimits": [
+      "autoresearch.self-hosting.json",
+      "artifacts/autoresearch.self-hosting.evaluator.lock.json",
+      "autoresearch.self-hosting.promotion.json",
+      "evaluator-snapshot/**"
+    ],
+    "onFailureDisposition": "preserve_for_review"
+  },
+  "evaluator": {
+    "lockPath": "artifacts/autoresearch.self-hosting.evaluator.lock.json",
+    "manifestPath": "evaluator-snapshot/manifest.json",
+    "manifestHash": "c4269ad48c53330d8b895c37c89f63ef9a923db33bcafd94ec8fd6a2ee706883",
+    "snapshotRootPath": "evaluator-snapshot",
+    "criticalSuites": [
+      "dev-self-hosting-tool-surface",
+      "holdout-operator-guidance-surface",
+      "transfer-runtime-surface",
+      "transfer-status-doc-surface"
+    ],
+    "devSuites": [
+      "dev-self-hosting-tool-surface"
+    ],
+    "holdoutSuites": [
+      "holdout-operator-guidance-surface"
+    ],
+    "transferSuites": [
+      "transfer-runtime-surface",
+      "transfer-status-doc-surface"
+    ],
+    "candidateMayEditEvaluator": false
+  },
+  "applicability": {
+    "primaryMetric": {
+      "name": "operator_round_trips_per_wave",
+      "direction": "lower",
+      "minImprovementForDefaultPromotionPercent": 25
+    },
+    "variantTargetProfile": null,
+    "maxCriticalSuiteFailures": 0,
+    "maxHoldoutCriticalFailures": 0,
+    "maxTransferCriticalFailures": 0,
+    "maxNonCriticalTransferRegressionPercent": 0,
+    "minimumDefaultPromotionTransferScope": {
+      "minimumSuites": 2,
+      "requiredCoverageKinds": [
+        "package_non_self_hosting",
+        "operator_consumer"
+      ]
+    }
+  },
+  "promotion": {
+    "packageMaySelfPromote": false,
+    "requiredApprovals": [
+      "operator_review"
+    ],
+    "promotionRecordPath": "autoresearch.self-hosting.promotion.json",
+    "rollbackControllerRef": "35d8340a157170dd8400caca5fa75e9d4d7b778d"
+  }
+}

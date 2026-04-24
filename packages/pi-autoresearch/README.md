@@ -54,6 +54,10 @@ The current boundary is now more specific: the package is the runtime owner for 
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
   - appends machine/event entries to `autoresearch.events.jsonl`
+- `autoresearch_self_hosting_run`
+  - is the bounded public supervised self-hosting seam for `packages/pi-autoresearch` itself
+  - can inspect controller/candidate/evaluator state, plan or apply the candidate worktree, run one bounded controller/candidate/evaluator wave, use `action=start_and_watch` for in-call progress updates while that bounded wave runs, and optionally plan/apply explicit promotion or rollback records
+  - stays below hidden daemonized autonomy, direct AK mutation, package-local self-promotion, and automatic controller rotation
 - `autoresearch_llamacpp_campaign_control`
   - is the dedicated public consumer/control seam for one manifest-driven llama.cpp campaign
   - returns current public control status for one exact checked manifest from one canonical derived snapshot
@@ -79,6 +83,10 @@ The current boundary is now more specific: the package is the runtime owner for 
   - structured `METRIC name=value` parsing
   - bounded benchmark/check execution helpers
   - runtime status/help rendering that now integrates receipt summaries with machine/ledger projection plus the current llama.cpp campaign projection state
+- `src/core/selfHosting.ts`
+  - validated controller-owned self-hosting contract, evaluator lock, and promotion/rollback record helpers
+  - candidate worktree preparation, scope fencing, snapshot-owned evaluator-suite execution, typed applicability classification, and explicit promotion/rollback planning helpers
+  - the core package implementation behind the public `autoresearch_self_hosting_run` seam
 - `src/core/llamacppCampaign.ts`
   - typed llama.cpp benchmark campaign manifest model
   - explicit `phasee/41-43` stage matrix expansion

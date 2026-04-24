@@ -1,0 +1,50 @@
+{
+  "kind": "pi_autoresearch_self_hosting_manifest",
+  "version": 1,
+  "campaignId": "self-hosting-wave-001-public-seam-hardening",
+  "objective": "Harden the public supervised self-hosting seam for packages/pi-autoresearch without widening into hidden daemonization, package-local self-promotion, or direct AK mutation.",
+  "controller": {
+    "cwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+    "scope": [
+      "packages/pi-autoresearch/extensions/**",
+      "packages/pi-autoresearch/src/**",
+      "packages/pi-autoresearch/tests/**",
+      "packages/pi-autoresearch/README.md",
+      "packages/pi-autoresearch/docs/project/current-vs-target.md"
+    ],
+    "notes": [
+      "The first actual evaluator bundle is source-inspection-only by design.",
+      "Candidate worktrees do not automatically inherit ignored package-local node_modules trees, so runtime execution must not be faked through hidden dependency hydration or candidate-owned package-manager judge selection."
+    ]
+  },
+  "suites": [
+    {
+      "id": "dev-self-hosting-tool-surface",
+      "class": "dev",
+      "critical": true,
+      "coverageKind": "self_hosting_internal",
+      "intent": "Ensure the candidate extension still exposes the public self-hosting seam and the new start_and_watch action."
+    },
+    {
+      "id": "holdout-operator-guidance-surface",
+      "class": "holdout",
+      "critical": true,
+      "coverageKind": "operator_consumer",
+      "intent": "Ensure README-level operator guidance still advertises the bounded self-hosting seam honestly."
+    },
+    {
+      "id": "transfer-runtime-surface",
+      "class": "transfer",
+      "critical": true,
+      "coverageKind": "package_non_self_hosting",
+      "intent": "Ensure runtime help/status surfaces continue to advertise the self-hosting seam and its guardrails."
+    },
+    {
+      "id": "transfer-status-doc-surface",
+      "class": "transfer",
+      "critical": true,
+      "coverageKind": "operator_consumer",
+      "intent": "Ensure package-local current-vs-target truth still records start_and_watch and bounded non-goals."
+    }
+  ]
+}

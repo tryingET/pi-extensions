@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
@@ -43,6 +44,19 @@ import {
   requestAutoresearchSetupDecision,
   setAutoresearchRuntimeControl,
 } from "../src/core/runtime.ts";
+import {
+  AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
+  classifyAutoresearchSelfHostingApplicability,
+  executeAutoresearchSelfHostingCandidateSubprocess,
+  executeAutoresearchSelfHostingEvaluatorSuite,
+  inspectAutoresearchSelfHostingCandidateScope,
+  loadAutoresearchSelfHostingArtifacts,
+  loadAutoresearchSelfHostingPromotionRecord,
+  prepareAutoresearchSelfHostingCandidateWorktree,
+  prepareAutoresearchSelfHostingPromotionRecord,
+  recordAutoresearchSelfHostingRollback,
+  resolveAutoresearchSelfHostingPromotionRecordPath,
+} from "../src/core/selfHosting.ts";
 
 const stringArraySchema = Type.Array(Type.String());
 const nullableStringSchema = Type.Union([
@@ -287,6 +301,125 @@ const runSchema = Type.Object({
   decisionIdeasBacklog: Type.Optional(stringArraySchema),
   decisionAsiNotes: Type.Optional(stringArraySchema),
   decisionDeadEndMemory: Type.Optional(stringArraySchema),
+});
+
+const nonEmptyStringArraySchema = Type.Array(Type.String(), { minItems: 1 });
+const selfHostingApprovalSchema = Type.Union(
+  [Type.Literal("operator_review"), Type.Literal("orchestrator_supervision")],
+  {
+    description: "Explicit external approvals accepted by the supervised self-hosting contract.",
+  },
+);
+const selfHostingPromotionStatusSchema = Type.Union(
+  [
+    Type.Literal("planned"),
+    Type.Literal("approved"),
+    Type.Literal("rotated"),
+    Type.Literal("superseded"),
+  ],
+  {
+    description:
+      "Optional promotion-record status for action=run or action=start_and_watch when a default-promotion candidate should also plan/apply the external promotion record.",
+  },
+);
+const selfHostingActionSchema = Type.Union(
+  [
+    Type.Literal("status"),
+    Type.Literal("prepare_candidate"),
+    Type.Literal("run"),
+    Type.Literal("start_and_watch"),
+    Type.Literal("rollback"),
+  ],
+  {
+    description:
+      "Inspect the supervised self-hosting contract, plan/apply the candidate worktree, run one bounded controller/candidate/evaluator wave, stream progress while that bounded wave runs, or record an explicit rollback after external controller rotation.",
+  },
+);
+const selfHostingSuiteRegressionSchema = Type.Object({
+  suiteId: Type.String({ description: "Exact locked evaluator suite id." }),
+  regressionPercent: Type.Number({
+    description:
+      "Optional non-critical transfer regression percent to feed into applicability classification for this exact suite.",
+    minimum: 0,
+  }),
+});
+const selfHostingSchema = Type.Object({
+  action: Type.Optional(selfHostingActionSchema),
+  cwd: Type.Optional(
+    Type.String({ description: "Optional cwd override for the supervised self-hosting campaign." }),
+  ),
+  apply: Type.Optional(
+    Type.Boolean({
+      description:
+        "For action=prepare_candidate or action=rollback. When true, apply the bounded worktree/rollback write instead of only planning it.",
+    }),
+  ),
+  candidateCommand: Type.Optional(nonEmptyStringArraySchema),
+  candidateTimeoutMs: Type.Optional(
+    Type.Number({
+      description:
+        "Optional timeout in milliseconds for action=run or action=start_and_watch candidate subprocess execution.",
+      minimum: 1,
+    }),
+  ),
+  suiteIds: Type.Optional(
+    Type.Array(Type.String({ description: "Exact locked evaluator suite id." }), { minItems: 1 }),
+  ),
+  suiteTimeoutMs: Type.Optional(
+    Type.Number({
+      description: "Optional timeout in milliseconds for each locked evaluator suite execution.",
+      minimum: 1,
+    }),
+  ),
+  primaryMetricBaseline: Type.Optional(
+    Type.Number({
+      description:
+        "Required for action=run or action=start_and_watch. Baseline metric value used by applicability classification.",
+    }),
+  ),
+  primaryMetricCandidate: Type.Optional(
+    Type.Number({
+      description:
+        "Required for action=run or action=start_and_watch. Candidate metric value used by applicability classification.",
+    }),
+  ),
+  variantTargetProfileImproved: Type.Optional(
+    Type.Boolean({
+      description:
+        "Optional explicit evidence that the declared variant target profile improved during this wave.",
+    }),
+  ),
+  suiteRegressionPercents: Type.Optional(Type.Array(selfHostingSuiteRegressionSchema)),
+  approvedBy: Type.Optional(Type.Array(selfHostingApprovalSchema)),
+  approvedAt: Type.Optional(
+    Type.Number({
+      description: "Optional approval timestamp for promotion planning/apply.",
+      minimum: 0,
+    }),
+  ),
+  evidenceRefs: Type.Optional(stringArraySchema),
+  promotedCandidateRef: Type.Optional(
+    Type.String({
+      description:
+        "Optional promoted candidate ref override for action=run or action=start_and_watch when promotion planning/apply should not default to the candidate HEAD.",
+    }),
+  ),
+  promotionStatus: Type.Optional(selfHostingPromotionStatusSchema),
+  promotionApply: Type.Optional(
+    Type.Boolean({
+      description:
+        "Only for action=run or action=start_and_watch. When true, write the promotion record after a default-promotion classification instead of only planning it.",
+    }),
+  ),
+  rollbackReason: Type.Optional(
+    Type.String({
+      description:
+        "Required for action=rollback. Short explicit reason for the external rollback record.",
+    }),
+  ),
+  rolledBackAt: Type.Optional(
+    Type.Number({ description: "Optional rollback timestamp for action=rollback.", minimum: 0 }),
+  ),
 });
 
 export interface PiAutoresearchExtensionOptions {
@@ -548,6 +681,328 @@ export function registerPiAutoresearchExtension(
   });
 
   pi.registerTool({
+    name: AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
+    label: "Autoresearch Self-Hosting Run",
+    description:
+      "Inspect or run the bounded supervised self-hosting controller/candidate/evaluator flow, optionally stream progress while one bounded wave runs, and optionally plan/apply explicit promotion or rollback records.",
+    promptSnippet:
+      "Use the bounded supervised self-hosting surface to inspect artifacts, prepare the candidate worktree, run one controller/candidate/evaluator wave, stream progress with start_and_watch, or record explicit rollback after external controller rotation.",
+    promptGuidelines: [
+      "Use this tool for the bounded supervised self-hosting contract in packages/pi-autoresearch, not for hidden daemonized autonomy.",
+      "Keep promotion external: this tool may plan/apply the explicit promotion record but still must not self-promote the package or mutate AK directly.",
+      "Use action=run to materialize/reuse the candidate worktree, optionally execute one candidate subprocess, run locked evaluator suites, and classify applicability in one bounded call.",
+      "Use action=start_and_watch when you want the same bounded wave plus live in-call progress updates without starting a background daemon or session.",
+      "Use action=rollback only after an external controller rotation has already been recorded and later evidence requires explicit rollback truth.",
+    ],
+    parameters: selfHostingSchema,
+    async execute(_toolCallId, params, _signal, onUpdate, ctx) {
+      const request = params as {
+        action?: "status" | "prepare_candidate" | "run" | "start_and_watch" | "rollback";
+        cwd?: string;
+        apply?: boolean;
+        candidateCommand?: string[];
+        candidateTimeoutMs?: number;
+        suiteIds?: string[];
+        suiteTimeoutMs?: number;
+        primaryMetricBaseline?: number;
+        primaryMetricCandidate?: number;
+        variantTargetProfileImproved?: boolean;
+        suiteRegressionPercents?: Array<{ suiteId: string; regressionPercent: number }>;
+        approvedBy?: Array<"operator_review" | "orchestrator_supervision">;
+        approvedAt?: number;
+        evidenceRefs?: string[];
+        promotedCandidateRef?: string;
+        promotionStatus?: "planned" | "approved" | "rotated" | "superseded";
+        promotionApply?: boolean;
+        rollbackReason?: string;
+        rolledBackAt?: number;
+      };
+      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
+      const action = request.action ?? "status";
+
+      if (action === "prepare_candidate") {
+        const result = prepareAutoresearchSelfHostingCandidateWorktree({
+          cwd,
+          apply: request.apply,
+        });
+        return {
+          content: [{ type: "text", text: formatAutoresearchSelfHostingPrepareText(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "rollback") {
+        if (!request.rollbackReason) {
+          throw new Error(
+            "rollbackReason is required when action=rollback for autoresearch_self_hosting_run",
+          );
+        }
+
+        const result = recordAutoresearchSelfHostingRollback({
+          cwd,
+          rollbackReason: request.rollbackReason,
+          rolledBackAt: request.rolledBackAt,
+          evidenceRefs: request.evidenceRefs,
+          apply: request.apply,
+        });
+        return {
+          content: [{ type: "text", text: formatAutoresearchSelfHostingRollbackText(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "run" || action === "start_and_watch") {
+        if (
+          request.primaryMetricBaseline === undefined ||
+          request.primaryMetricCandidate === undefined
+        ) {
+          throw new Error(
+            `primaryMetricBaseline and primaryMetricCandidate are required when action=${action} for autoresearch_self_hosting_run`,
+          );
+        }
+
+        const watchMode = action === "start_and_watch";
+        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "loading_artifacts", {
+          action,
+          cwd,
+          message: `Loading supervised self-hosting artifacts from ${cwd}.`,
+        });
+        const artifacts = loadAutoresearchSelfHostingArtifacts(cwd);
+
+        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "prepare_candidate", {
+          action,
+          cwd,
+          message: `Preparing candidate worktree ${artifacts.contract.candidate.worktreePath}.`,
+        });
+        const prepareCandidate = prepareAutoresearchSelfHostingCandidateWorktree({
+          cwd,
+          apply: true,
+        });
+        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "prepare_candidate_complete", {
+          action,
+          cwd,
+          registered: prepareCandidate.candidate.registered,
+          candidateWorktree: prepareCandidate.candidate.worktreePath,
+          message: `Candidate worktree ${prepareCandidate.candidate.worktreePath} is ${prepareCandidate.candidate.registered ? "ready" : "missing"}.`,
+        });
+
+        const candidateCommand = normalizeAutoresearchSelfHostingCommand(request.candidateCommand);
+        if (candidateCommand) {
+          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "candidate_subprocess_start", {
+            action,
+            cwd,
+            command: candidateCommand,
+            message: `Running candidate subprocess ${formatAutoresearchSelfHostingCommandInvocation(candidateCommand)}.`,
+          });
+        }
+        const candidateRun = candidateCommand
+          ? executeAutoresearchSelfHostingCandidateSubprocess({
+              cwd,
+              command: candidateCommand,
+              timeoutMs: request.candidateTimeoutMs,
+            })
+          : null;
+        if (candidateRun) {
+          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "candidate_subprocess_complete", {
+            action,
+            cwd,
+            command: candidateRun.command.command,
+            exitCode: candidateRun.command.exitCode,
+            timedOut: candidateRun.command.timedOut,
+            signal: candidateRun.command.signal,
+            message: `Candidate subprocess completed with ${formatAutoresearchSelfHostingCommandResult(candidateRun.command)}.`,
+          });
+        }
+        const commandFailed =
+          candidateRun !== null &&
+          (candidateRun.command.exitCode !== 0 ||
+            candidateRun.command.timedOut ||
+            candidateRun.command.signal !== null);
+        if (commandFailed) {
+          const details = {
+            action,
+            cwd,
+            prepareCandidate,
+            candidateRun,
+            suiteResults: [],
+            classification: null,
+            promotion: null,
+            promotionError: null,
+            nextStep: candidateRun?.nextStep ?? prepareCandidate.nextStep,
+          };
+          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "wave_complete", {
+            action,
+            cwd,
+            nextStep: details.nextStep,
+            message: details.nextStep,
+          });
+          return {
+            content: [{ type: "text", text: formatAutoresearchSelfHostingWaveText(details) }],
+            details,
+          };
+        }
+
+        const suiteIds =
+          request.suiteIds ?? artifacts.evaluatorLock.suites.map((suite) => suite.id);
+        const regressionPercents = normalizeAutoresearchSelfHostingRegressionPercents(
+          request.suiteRegressionPercents,
+        );
+        const unexpectedRegressionSuiteIds = [...regressionPercents.keys()]
+          .filter((suiteId) => !suiteIds.includes(suiteId))
+          .sort();
+        if (unexpectedRegressionSuiteIds.length > 0) {
+          throw new Error(
+            `suiteRegressionPercents included suite ids outside the executed set: ${unexpectedRegressionSuiteIds.join(", ")}`,
+          );
+        }
+
+        const suiteResults = suiteIds.map((suiteId) => {
+          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "locked_suite_start", {
+            action,
+            cwd,
+            suiteId,
+            message: `Running locked evaluator suite ${suiteId}.`,
+          });
+          const result = executeAutoresearchSelfHostingEvaluatorSuite({
+            cwd,
+            suiteId,
+            timeoutMs: request.suiteTimeoutMs,
+          });
+          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "locked_suite_complete", {
+            action,
+            cwd,
+            suiteId,
+            exitCode: result.command.exitCode,
+            timedOut: result.command.timedOut,
+            signal: result.command.signal,
+            message: `Locked evaluator suite ${suiteId} completed with ${formatAutoresearchSelfHostingCommandResult(result.command)}.`,
+          });
+          return result;
+        });
+
+        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "classify_applicability", {
+          action,
+          cwd,
+          message: "Classifying supervised self-hosting applicability.",
+        });
+        const classification = classifyAutoresearchSelfHostingApplicability({
+          cwd,
+          suiteOutcomes: suiteResults.map((result) => ({
+            suiteId: result.resolvedSuite.suiteId,
+            passed: result.command.exitCode === 0,
+            regressionPercent: regressionPercents.get(result.resolvedSuite.suiteId),
+          })),
+          primaryMetric: {
+            baseline: request.primaryMetricBaseline,
+            candidate: request.primaryMetricCandidate,
+          },
+          variantTargetProfileImproved: request.variantTargetProfileImproved,
+        });
+        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "classification_complete", {
+          action,
+          cwd,
+          outcome: classification.outcome,
+          blockingReasons: classification.blockingReasons,
+          message: `Applicability classification produced ${classification.outcome}.`,
+        });
+
+        const promotionRequested =
+          request.promotionApply === true ||
+          request.approvedBy !== undefined ||
+          request.approvedAt !== undefined ||
+          request.evidenceRefs !== undefined ||
+          request.promotedCandidateRef !== undefined ||
+          request.promotionStatus !== undefined;
+        let promotion: ReturnType<typeof prepareAutoresearchSelfHostingPromotionRecord> | null =
+          null;
+        let promotionError: string | null = null;
+        if (promotionRequested) {
+          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "promotion_record_start", {
+            action,
+            cwd,
+            message: "Preparing explicit self-hosting promotion record.",
+          });
+          try {
+            promotion = prepareAutoresearchSelfHostingPromotionRecord({
+              cwd,
+              classification,
+              approvedBy: request.approvedBy,
+              approvedAt: request.approvedAt,
+              evidenceRefs: request.evidenceRefs,
+              promotedCandidateRef: request.promotedCandidateRef,
+              status: request.promotionStatus,
+              apply: request.promotionApply,
+            });
+            emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "promotion_record_complete", {
+              action,
+              cwd,
+              status: promotion.record.status,
+              path: promotion.promotionRecordPath,
+              message: `Promotion record is now ${promotion.record.status}.`,
+            });
+          } catch (error) {
+            promotionError = error instanceof Error ? error.message : String(error);
+            emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "promotion_record_failed", {
+              action,
+              cwd,
+              error: promotionError,
+              message: `Promotion record failed: ${promotionError}`,
+            });
+          }
+        }
+
+        const details = {
+          action,
+          cwd,
+          prepareCandidate,
+          candidateRun,
+          suiteResults,
+          classification,
+          promotion,
+          promotionError,
+          nextStep: promotion?.nextStep ?? promotionError ?? classification.nextStep,
+        };
+        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "wave_complete", {
+          action,
+          cwd,
+          nextStep: details.nextStep,
+          message: details.nextStep,
+        });
+        return {
+          content: [{ type: "text", text: formatAutoresearchSelfHostingWaveText(details) }],
+          details,
+        };
+      }
+
+      const artifacts = loadAutoresearchSelfHostingArtifacts(cwd);
+      const prepareCandidate = prepareAutoresearchSelfHostingCandidateWorktree({ cwd });
+      const scope = prepareCandidate.candidate.registered
+        ? inspectAutoresearchSelfHostingCandidateScope(cwd)
+        : null;
+      const promotionRecordPath = resolveAutoresearchSelfHostingPromotionRecordPath(
+        cwd,
+        artifacts.contract.promotion.promotionRecordPath,
+      );
+      const promotionRecord = existsSync(promotionRecordPath)
+        ? loadAutoresearchSelfHostingPromotionRecord(cwd)
+        : null;
+      const details = {
+        action,
+        cwd,
+        artifacts,
+        prepareCandidate,
+        scope,
+        promotionRecordPath,
+        promotionRecord,
+      };
+      return {
+        content: [{ type: "text", text: formatAutoresearchSelfHostingStatusText(details) }],
+        details,
+      };
+    },
+  });
+
+  pi.registerTool({
     name: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
     label: "Autoresearch llama.cpp Campaign Control",
     description:
@@ -732,6 +1187,262 @@ export default function piAutoresearchExtension(pi: ExtensionAPI): void {
   registerPiAutoresearchExtension(pi);
 }
 
+type AutoresearchSelfHostingStatusDetails = {
+  cwd: string;
+  artifacts: ReturnType<typeof loadAutoresearchSelfHostingArtifacts>;
+  prepareCandidate: ReturnType<typeof prepareAutoresearchSelfHostingCandidateWorktree>;
+  scope: ReturnType<typeof inspectAutoresearchSelfHostingCandidateScope> | null;
+  promotionRecordPath: string;
+  promotionRecord: ReturnType<typeof loadAutoresearchSelfHostingPromotionRecord> | null;
+};
+
+type AutoresearchSelfHostingWaveDetails = {
+  action: "run" | "start_and_watch";
+  cwd: string;
+  prepareCandidate: ReturnType<typeof prepareAutoresearchSelfHostingCandidateWorktree>;
+  candidateRun: ReturnType<typeof executeAutoresearchSelfHostingCandidateSubprocess> | null;
+  suiteResults: Array<ReturnType<typeof executeAutoresearchSelfHostingEvaluatorSuite>>;
+  classification: ReturnType<typeof classifyAutoresearchSelfHostingApplicability> | null;
+  promotion: ReturnType<typeof prepareAutoresearchSelfHostingPromotionRecord> | null;
+  promotionError: string | null;
+  nextStep: string;
+};
+
+function formatAutoresearchSelfHostingStatusText(
+  details: AutoresearchSelfHostingStatusDetails,
+): string {
+  const candidate = details.prepareCandidate.candidate;
+  const scopeLabel = !details.scope
+    ? "candidate worktree not prepared"
+    : details.scope.ok
+      ? "clean"
+      : "dirty";
+  const nextStep = !candidate.registered
+    ? details.prepareCandidate.nextStep
+    : details.scope && !details.scope.ok
+      ? "Clean the candidate worktree scope before running a bounded self-hosting wave."
+      : details.promotionRecord?.status === "rotated"
+        ? "Run post-promotion verification or use autoresearch_self_hosting_run with action=rollback if external evidence requires rollback truth."
+        : `Use ${AUTORESEARCH_SELF_HOSTING_TOOL_NAME} with action=run to execute one bounded supervised self-hosting wave.`;
+
+  const lines = [
+    "Autoresearch self-hosting — status",
+    `Campaign: ${details.artifacts.contract.campaignId}`,
+    `Controller ref: ${details.artifacts.contract.controller.ref}`,
+    `Controller cwd: ${details.artifacts.contract.controller.controllerCwd}`,
+    `Contract path: ${details.artifacts.contractPath}`,
+    `Evaluator lock path: ${details.artifacts.lockPath}`,
+    `Promotion record path: ${details.promotionRecordPath}`,
+    `Candidate worktree: ${candidate.worktreePath}`,
+    `Candidate registered: ${candidate.registered ? "yes" : "no"}`,
+    `Candidate branch: expected ${candidate.branchName}; current ${candidate.branch ?? "(missing)"}`,
+    `Candidate head: ${candidate.head ?? "(missing)"}`,
+    `Scope: ${scopeLabel}`,
+    `Locked suites: ${details.artifacts.evaluatorLock.suites.map((suite) => suite.id).join(", ")}`,
+    `Promotion record: ${details.promotionRecord?.status ?? "missing"}`,
+  ];
+
+  if (details.scope && details.scope.changedPaths.length > 0) {
+    lines.push(`Changed paths: ${details.scope.changedPaths.join(", ")}`);
+  }
+  if (details.scope && details.scope.offLimitsPaths.length > 0) {
+    lines.push(`Off-limits paths: ${details.scope.offLimitsPaths.join(", ")}`);
+  }
+  if (details.scope && details.scope.outOfScopePaths.length > 0) {
+    lines.push(`Out-of-scope paths: ${details.scope.outOfScopePaths.join(", ")}`);
+  }
+  lines.push(`Next step: ${nextStep}`);
+
+  return lines.join("\n");
+}
+
+function formatAutoresearchSelfHostingPrepareText(
+  result: ReturnType<typeof prepareAutoresearchSelfHostingCandidateWorktree>,
+): string {
+  const command = result.commands[0] ?? null;
+  const lines = [
+    "Autoresearch self-hosting — prepare candidate",
+    `Mode: ${result.mode}`,
+    `Campaign: ${result.campaignId}`,
+    `Controller cwd: ${result.controllerCwd}`,
+    `Controller branch: ${result.controllerBranchBefore ?? "(detached)"} -> ${result.controllerBranchAfter ?? "(detached)"}`,
+    `Candidate worktree: ${result.candidate.worktreePath}`,
+    `Candidate registered: ${result.candidate.registered ? "yes" : "no"}`,
+    `Candidate branch: expected ${result.candidate.branchName}; current ${result.candidate.branch ?? "(missing)"}`,
+    `Candidate head: ${result.candidate.head ?? "(missing)"}`,
+  ];
+
+  if (command) {
+    lines.push(`Command: ${formatAutoresearchSelfHostingCommandInvocation(command.command)}`);
+    lines.push(`Command result: ${formatAutoresearchSelfHostingCommandResult(command)}`);
+  }
+  lines.push(`Next step: ${result.nextStep}`);
+
+  return lines.join("\n");
+}
+
+function formatAutoresearchSelfHostingRollbackText(
+  result: ReturnType<typeof recordAutoresearchSelfHostingRollback>,
+): string {
+  return [
+    "Autoresearch self-hosting — rollback",
+    `Mode: ${result.mode}`,
+    `Campaign: ${result.campaignId}`,
+    `Promotion record path: ${result.promotionRecordPath}`,
+    `Previous promotion status: ${result.previousRecord.status}`,
+    `Current promotion status: ${result.record.status}`,
+    `Rollback reason: ${result.record.rollbackReason ?? "(missing)"}`,
+    `Next step: ${result.nextStep}`,
+  ].join("\n");
+}
+
+function formatAutoresearchSelfHostingWaveText(
+  details: AutoresearchSelfHostingWaveDetails,
+): string {
+  const lines = [
+    `Autoresearch self-hosting — ${details.action}`,
+    `Controller cwd: ${details.cwd}`,
+    `Candidate worktree: ${details.prepareCandidate.candidate.worktreePath}`,
+    `Candidate prepare: ${details.prepareCandidate.candidate.registered ? "ready" : "missing"}`,
+  ];
+
+  if (details.candidateRun) {
+    lines.push(
+      `Candidate subprocess: ${formatAutoresearchSelfHostingCommandInvocation(details.candidateRun.command.command)}`,
+    );
+    lines.push(
+      `Candidate subprocess result: ${formatAutoresearchSelfHostingCommandResult(details.candidateRun.command)}`,
+    );
+  } else {
+    lines.push("Candidate subprocess: skipped; using the current candidate worktree state.");
+  }
+
+  if (details.suiteResults.length > 0) {
+    lines.push("Locked evaluator suites:");
+    for (const result of details.suiteResults) {
+      lines.push(
+        `- ${result.resolvedSuite.suiteId}: ${result.command.exitCode === 0 ? "pass" : "fail"} (${result.resolvedSuite.suiteClass}, ${result.resolvedSuite.critical ? "critical" : "non-critical"}, ${formatAutoresearchSelfHostingCommandResult(result.command)})`,
+      );
+    }
+  } else {
+    lines.push("Locked evaluator suites: not run.");
+  }
+
+  if (details.classification) {
+    lines.push(`Classification: ${details.classification.outcome}`);
+    lines.push(
+      `Primary metric: ${details.classification.primaryMetric.name} ${details.classification.primaryMetric.baseline} -> ${details.classification.primaryMetric.candidate} (${formatAutoresearchSelfHostingPercent(details.classification.primaryMetric.improvementPercent)})`,
+    );
+    if (details.classification.blockingReasons.length > 0) {
+      lines.push(`Blocking reasons: ${details.classification.blockingReasons.join(" | ")}`);
+    }
+  } else {
+    lines.push(
+      "Classification: skipped because the candidate subprocess did not complete successfully.",
+    );
+  }
+
+  if (details.promotion) {
+    lines.push(
+      `Promotion record: ${details.promotion.record.status} (${details.promotion.promotionRecordPath})`,
+    );
+  } else if (details.promotionError) {
+    lines.push(`Promotion record: failed — ${details.promotionError}`);
+  } else {
+    lines.push("Promotion record: not requested.");
+  }
+
+  lines.push(`Next step: ${details.nextStep}`);
+  return lines.join("\n");
+}
+
+function normalizeAutoresearchSelfHostingCommand(
+  command: string[] | undefined,
+): [string, ...string[]] | null {
+  if (!command || command.length === 0) {
+    return null;
+  }
+  const normalized = command.map((entry, index) => {
+    if (typeof entry !== "string" || entry.trim().length === 0) {
+      throw new Error(`candidateCommand[${index}] must be a non-empty string`);
+    }
+    return entry;
+  });
+  return normalized as [string, ...string[]];
+}
+
+function emitAutoresearchSelfHostingUpdate(
+  onUpdate: unknown,
+  enabled: boolean,
+  phase: string,
+  details: Record<string, unknown>,
+): void {
+  if (!enabled || typeof onUpdate !== "function") {
+    return;
+  }
+
+  (
+    onUpdate as (update: {
+      content: Array<{ type: "text"; text: string }>;
+      details: Record<string, unknown>;
+    }) => void
+  )({
+    content: [{ type: "text", text: String(details.message ?? phase) }],
+    details: {
+      tool: AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
+      phase,
+      ...details,
+    },
+  });
+}
+
+function normalizeAutoresearchSelfHostingRegressionPercents(
+  entries: Array<{ suiteId: string; regressionPercent: number }> | undefined,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const entry of entries ?? []) {
+    const suiteId = entry.suiteId.trim();
+    if (suiteId.length === 0) {
+      throw new Error("suiteRegressionPercents entries require a non-empty suiteId");
+    }
+    if (map.has(suiteId)) {
+      throw new Error(
+        `suiteRegressionPercents includes duplicate suite id ${JSON.stringify(suiteId)}`,
+      );
+    }
+    map.set(suiteId, entry.regressionPercent);
+  }
+  return map;
+}
+
+function formatAutoresearchSelfHostingCommandInvocation(command: readonly string[]): string {
+  return command.map((entry) => JSON.stringify(entry)).join(" ");
+}
+
+function formatAutoresearchSelfHostingCommandResult(command: {
+  exitCode: number | null;
+  timedOut: boolean;
+  signal: string | null;
+}): string {
+  if (command.timedOut) {
+    return "timed out";
+  }
+  if (command.signal) {
+    return `signal ${command.signal}`;
+  }
+  if (command.exitCode === null) {
+    return "exit unknown";
+  }
+  return `exit ${command.exitCode}`;
+}
+
+function formatAutoresearchSelfHostingPercent(value: number): string {
+  if (Number.isFinite(value)) {
+    return `${value.toFixed(2)}%`;
+  }
+  return value > 0 ? "+∞%" : value < 0 ? "-∞%" : "0.00%";
+}
+
 function resolveDecisionRuntime(
   ctx: ExtensionContext,
   signal: AbortSignal | undefined,
@@ -804,7 +1515,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, autoresearch_llamacpp_campaign_control for public manifest campaign status/next-step control, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
+      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, autoresearch_self_hosting_run for one bounded supervised self-hosting wave or action=start_and_watch for in-call progress updates, autoresearch_llamacpp_campaign_control for public manifest campaign status/next-step control, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
       "info",
     );
   }

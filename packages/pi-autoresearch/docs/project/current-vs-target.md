@@ -102,6 +102,10 @@ AK/decision anchors:
 
 Landed bounded surfaces:
 
+- `autoresearch_self_hosting_run`
+  - bounded public status / prepare-candidate / run / start_and_watch / rollback surface for the supervised self-hosting contract
+  - `start_and_watch` streams in-call progress for one bounded wave without creating a hidden background daemon or package-local watcher
+  - optional promotion-record planning/apply only after default-promotion classification; still no package-local self-promotion
 - validated self-hosting contract + evaluator lock
 - controller/candidate isolation
 - snapshot-owned evaluator entrypoints

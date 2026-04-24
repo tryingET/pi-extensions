@@ -1,0 +1,18 @@
+{
+  "type": "self_hosting_promotion_record",
+  "version": 1,
+  "campaignId": "self-hosting-wave-001-public-seam-hardening",
+  "approvedBy": [],
+  "approvedAt": null,
+  "previousControllerRef": "35d8340a157170dd8400caca5fa75e9d4d7b778d",
+  "promotedCandidateRef": "4bd0d0d9284fec5956e8b9f5448c41b76976c482",
+  "evaluatorManifestHash": "c4269ad48c53330d8b895c37c89f63ef9a923db33bcafd94ec8fd6a2ee706883",
+  "evidenceRefs": [
+    "docs:project:2026-04-23-pi-autoresearch-self-hosting-wave-001",
+    "candidate:autoresearch/self-hosting-wave-001-public-seam-hardening@4bd0d0d9284fec5956e8b9f5448c41b76976c482"
+  ],
+  "status": "planned",
+  "rollbackControllerRef": "35d8340a157170dd8400caca5fa75e9d4d7b778d",
+  "rollbackReason": null,
+  "rolledBackAt": null
+}

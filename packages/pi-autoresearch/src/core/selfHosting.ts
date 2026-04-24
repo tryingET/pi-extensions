@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+export const AUTORESEARCH_SELF_HOSTING_TOOL_NAME = "autoresearch_self_hosting_run";
 export const AUTORESEARCH_SELF_HOSTING_CONTRACT_FILE = "autoresearch.self-hosting.json";
 export const AUTORESEARCH_SELF_HOSTING_EVALUATOR_LOCK_FILE =
   "autoresearch.self-hosting.evaluator.lock.json";

@@ -44,6 +44,7 @@ import {
   parseReceiptLine,
   serializeReceipt,
 } from "../src/core/runtime.ts";
+import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "../src/core/selfHosting.ts";
 
 type RegisteredCommand = {
   description?: string;
@@ -348,6 +349,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     AUTORESEARCH_RUN_TOOL_NAME,
     AUTORESEARCH_CONTROL_TOOL_NAME,
     AUTORESEARCH_FINALIZE_TOOL_NAME,
+    AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
     AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
     AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   ]);
@@ -380,6 +382,8 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     buildAutoresearchHelpText(status),
     /dedicated public manifest campaign-control seam/,
   );
+  assert.match(buildAutoresearchHelpText(status), /autoresearch_self_hosting_run/);
+  assert.match(buildAutoresearchHelpText(status), /supervised self-hosting seam/);
   assert.match(buildAutoresearchHelpText(status), /autoresearch_llamacpp_campaign_control/);
   assert.match(buildAutoresearchHelpText(status), /lower-level technical manifest work/);
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
@@ -479,7 +483,7 @@ test("buildAutoresearchRuntimeStatus marks the llama.cpp campaign projection sta
     assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: stale/);
   }));
 
-test("extension registers /autoresearch plus the bounded runtime status, control, finalize, run, technical llama.cpp campaign, and public campaign-control tools", () => {
+test("extension registers /autoresearch plus the bounded runtime status, control, finalize, run, public self-hosting, technical llama.cpp campaign, and public campaign-control tools", () => {
   const { commands, tools } = registerHarness();
 
   assert.equal(typeof commands.get(AUTORESEARCH_COMMAND_NAME)?.handler, "function");
@@ -487,6 +491,7 @@ test("extension registers /autoresearch plus the bounded runtime status, control
   assert.equal(typeof tools.get(AUTORESEARCH_CONTROL_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_FINALIZE_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_SELF_HOSTING_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME)?.execute, "function");
   assert.equal(
     typeof tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME)?.execute,
