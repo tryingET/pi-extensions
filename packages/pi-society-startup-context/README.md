@@ -65,7 +65,7 @@ The implementation enforces this by only using no-shell read commands:
 - `ak machine schema task-ready -F json`
 - `ak repo show <repo> --machine`
 - `ak direction export --repo <repo> --machine`
-- `ak direction check --repo <repo> -F json` (machine mode is not currently exposed by this AK surface)
+- `ak direction check --repo <repo> --machine`
 - `ak task ready --repo <repo> --machine`
 - `ak task list --repo <repo> --machine`
 - `ak decision list --machine --limit 10`

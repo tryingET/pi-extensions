@@ -70,7 +70,7 @@ The automatic path may run only bounded read commands:
 | AK schema discovery | `ak machine schema task-ready -F json` | prove machine surface availability |
 | AK repo posture | `ak repo show <repo> --machine` | repo registration/company/layer metadata |
 | Direction export | `ak direction export --repo <repo> --machine` | active/next direction nodes |
-| Direction check | `ak direction check --repo <repo> -F json` | drift/stale warnings; `--machine` is not exposed for this surface today |
+| Direction check | `ak direction check --repo <repo> --machine` | drift/stale warnings in the standardized AK machine envelope |
 | Ready tasks | `ak task ready --repo <repo> --machine` | ready queue count and sample |
 | Task list | `ak task list --repo <repo> --machine` | status-count posture |
 | Decisions | `ak decision list --machine --limit 10` | relevant active decision warnings |

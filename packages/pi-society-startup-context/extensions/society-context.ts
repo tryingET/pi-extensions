@@ -43,6 +43,7 @@ type MachineRead<T = unknown> =
   | {
       ok: false;
       warning: string;
+      value?: T;
       stdout?: string;
       stderr?: string;
     };
@@ -206,6 +207,7 @@ function parseJsonMachine(stdout: string, surfaceLabel: string): MachineRead<Jso
       return {
         ok: false,
         warning: `${surfaceLabel}: ${machineErrorSummary(record) || "ok=false"}`,
+        value: record,
       };
     }
     return { ok: true, value: record };
@@ -266,6 +268,11 @@ async function runJsonCommand(
 ): Promise<MachineRead<JsonRecord>> {
   const result = await runCommand(command, args, options);
   if (!result.ok) {
+    const parsed = parseJsonMachine(result.stdout, label);
+    if (parsed.ok || parsed.value) {
+      return parsed;
+    }
+
     const reason = result.timedOut ? "timed out" : result.error;
     return {
       ok: false,
@@ -430,17 +437,21 @@ function summarizeDirection(
     warnings.push(exportRead.warning);
   }
 
-  if (checkRead.ok) {
-    const payload = asRecord(checkRead.value.payload) || checkRead.value;
-    summary.checkOk = payload.ok === true;
+  const checkRecord = checkRead.value;
+  if (checkRecord) {
+    const payload = asRecord(checkRecord.payload) || checkRecord;
+    summary.checkOk = checkRead.ok && payload.ok === true;
     summary.importedNodeCount = asNumber(payload.imported_node_count) ?? undefined;
     summary.parsedNodeCount = asNumber(payload.parsed_node_count) ?? undefined;
     summary.issues = asArray(payload.issues)
       .slice(0, 5)
       .map((issue) => (typeof issue === "string" ? issue : JSON.stringify(issue).slice(0, 180)));
+    if (!checkRead.ok) {
+      warnings.push(checkRead.warning);
+    }
   } else {
     summary.checkOk = false;
-    warnings.push(checkRead.warning);
+    warnings.push(!checkRead.ok ? checkRead.warning : "ak direction check: no payload");
   }
 
   return { summary, warnings };
@@ -713,7 +724,7 @@ async function buildStartupContextPacket(cwd: string): Promise<StartupContextPac
     ),
     runJsonCommand(
       akExecutable,
-      ["direction", "check", "--repo", repoRoot, "-F", "json"],
+      ["direction", "check", "--repo", repoRoot, "--machine"],
       "ak direction check",
       { cwd: repoRoot, env: akEnv, timeoutMs: commandTimeoutMs },
     ),
