@@ -129,6 +129,7 @@ function createPiHarness(sessionManager, hasUI = true) {
   const handlers = new Map();
   const notifications = [];
   const selections = [];
+  const selectionPrompts = [];
   const statuses = [];
 
   const pi = {
@@ -164,7 +165,10 @@ function createPiHarness(sessionManager, hasUI = true) {
           return text;
         },
       },
-      select: async () => selections.shift(),
+      select: async (title, options) => {
+        selectionPrompts.push({ title, options: [...options] });
+        return selections.shift();
+      },
       confirm: async () => false,
       input: async () => undefined,
       onTerminalInput: () => () => {},
@@ -194,6 +198,7 @@ function createPiHarness(sessionManager, hasUI = true) {
     notifications,
     pi,
     selections,
+    selectionPrompts,
     statuses,
     enqueueSelection(choice) {
       selections.push(choice);
@@ -486,7 +491,7 @@ test("rewind runtime hooks built-in /tree and records summary aliases after rest
       { type: "session_start", reason: "startup" },
       harness.ctx,
     );
-    harness.enqueueSelection("Restore files to that point");
+    harness.enqueueSelection("Rewind files to that point");
 
     const beforeTreeResult = await harness.handlers.get("session_before_tree")(
       {
@@ -531,6 +536,62 @@ test("rewind runtime hooks built-in /tree and records summary aliases after rest
   }
 });
 
+test("rewind runtime fails loudly when tree rewind is requested without an exact point", async () => {
+  const gitHarness = await createRewindGitHarness();
+
+  try {
+    await gitHarness.writeRepoFile("tracked.txt", "current tree\n");
+
+    const sessionManager = new SessionManagerStub({
+      sessionFile: `${gitHarness.repoRoot}/tree-missing-rewind-session.jsonl`,
+      id: "session-tree-missing-rewind",
+      cwd: gitHarness.repoRoot,
+    });
+    const harness = createPiHarness(sessionManager);
+    registerRewindRuntime(harness.pi);
+
+    const userEntry = sessionManager.appendMessage("user", "Tree target without snapshot");
+
+    await harness.handlers.get("session_start")(
+      { type: "session_start", reason: "startup" },
+      harness.ctx,
+    );
+    harness.enqueueSelection("Rewind files to that point");
+
+    const beforeTreeResult = await harness.handlers.get("session_before_tree")(
+      {
+        type: "session_before_tree",
+        preparation: {
+          targetId: userEntry.id,
+          oldLeafId: null,
+          commonAncestorId: null,
+          entriesToSummarize: [],
+          userWantsSummary: false,
+        },
+        signal: new AbortController().signal,
+      },
+      harness.ctx,
+    );
+
+    assert.deepEqual(beforeTreeResult, { cancel: true });
+    assert.deepEqual(harness.selectionPrompts.at(-1), {
+      title: "Restore Options",
+      options: ["Keep current files", "Rewind files to that point", "Cancel navigation"],
+    });
+    assert.ok(
+      harness.notifications.some(
+        (item) =>
+          item.level === "error" &&
+          item.message.includes("no exact rewind point") &&
+          item.message.includes("Choose Keep current files"),
+      ),
+      "expected actionable missing rewind point notification",
+    );
+  } finally {
+    await gitHarness.cleanup();
+  }
+});
+
 test("rewind runtime projects bounded recovery milestones into Replay Fabric when configured", async () => {
   const gitHarness = await createRewindGitHarness();
   const replayFabric = await startRecordingReplayFabricServer();
@@ -560,7 +621,7 @@ test("rewind runtime projects bounded recovery milestones into Replay Fabric whe
         { type: "session_start", reason: "startup" },
         harness.ctx,
       );
-      harness.enqueueSelection("Restore files to that point");
+      harness.enqueueSelection("Rewind files to that point");
 
       await harness.handlers.get("session_before_tree")(
         {

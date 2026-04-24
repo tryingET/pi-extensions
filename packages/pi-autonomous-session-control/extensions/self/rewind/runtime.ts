@@ -39,6 +39,10 @@ import type { BindingTuple, GitRunner, SnapshotRef } from "./types.ts";
 
 const REWIND_STATUS_KEY = "asc-rewind";
 const REWIND_LEDGER_VERSION = 1;
+const TREE_KEEP_CURRENT_FILES = "Keep current files";
+const TREE_REWIND_TO_POINT = "Rewind files to that point";
+const TREE_UNDO_LAST_REWIND = "Undo last file rewind";
+const TREE_CANCEL_NAVIGATION = "Cancel navigation";
 
 type SessionLikeMessageEntry = Extract<SessionEntry, { type: "message" }> & {
   message: {
@@ -736,22 +740,19 @@ async function handleSessionBeforeTree(
       state.undoCommitSha && (await commitExists(state.git, state.undoCommitSha)),
     );
 
-    const options = ["Keep current files"];
-    if (targetCommitSha) {
-      options.push("Restore files to that point");
-    }
+    const options = [TREE_KEEP_CURRENT_FILES, TREE_REWIND_TO_POINT];
     if (hasUndo) {
-      options.push("Undo last file rewind");
+      options.push(TREE_UNDO_LAST_REWIND);
     }
-    options.push("Cancel navigation");
+    options.push(TREE_CANCEL_NAVIGATION);
 
     const choice = await ctx.ui.select("Restore Options", options);
-    if (!choice || choice === "Cancel navigation") {
+    if (!choice || choice === TREE_CANCEL_NAVIGATION) {
       notify(ctx, "ASC rewind: navigation cancelled", "info");
       return { cancel: true };
     }
 
-    if (choice === "Undo last file rewind") {
+    if (choice === TREE_UNDO_LAST_REWIND) {
       if (!state.undoCommitSha) {
         return { cancel: true };
       }
@@ -802,14 +803,18 @@ async function handleSessionBeforeTree(
       }
     }
 
-    if (choice === "Keep current files") {
+    if (choice === TREE_KEEP_CURRENT_FILES) {
       const currentCommitSha = await ensureCurrentCommitSha(state);
       state.pendingTreeState = { currentCommitSha };
       return;
     }
 
     if (!targetCommitSha) {
-      notify(ctx, "ASC rewind: no exact rewind point available for that tree node", "error");
+      notify(
+        ctx,
+        "ASC rewind: no exact rewind point for the selected tree node. Choose Keep current files, or continue the session for one turn so ASC can capture a rewind snapshot before trying again.",
+        "error",
+      );
       return { cancel: true };
     }
 
