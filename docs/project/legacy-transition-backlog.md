@@ -32,7 +32,7 @@ These appear to be the active remaining candidates under `~/programming/pi-exten
 | `issue-tracker` | unknown/no package manifest detected | not yet transitioned |
 | `pi-evalset-lab` | `pi-evalset-lab` | not yet transitioned |
 | `pi-little-helpers` | `@tryinget/pi-little-helpers` | not yet transitioned |
-| `pi-user-prompt-compaction` | `pi-user-prompt-compaction` | not yet transitioned |
+| `pi-user-prompt-compaction` | `pi-user-prompt-compaction` | canonical successor started at `packages/pi-session-compaction`; legacy repo not deprecated yet |
 | `secure-package-update` | `@tryinget/secure-package-update` | not yet transitioned |
 | `system4d-intake-workflow` | `system4d-intake-workflow` | not yet transitioned |
 | `vault-client` | `@tryinget/vault-client` | not yet transitioned |

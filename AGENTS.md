@@ -27,6 +27,7 @@ Do not duplicate:
 - Put package-specific validation and workflow details in each package's docs, scripts, and manifests.
 - Keep package-local AGENTS files minimal and package-scoped.
 - Treat package folders as monorepo members, not independent repos, unless explicitly documented otherwise.
+- When creating a new package under `packages/`, start from `../pi-extensions-template` (usually `scaffold_mode=simple-package`) and keep `.copier-answers.yml` tracked. If the package is a private support library or deliberately non-live package that must not expose `package.json#pi.extensions` / `package.json#pi.prompts`, record that exception in the package-local `AGENTS.md` and README rather than silently hand-scaffolding.
 - For AK task/work-item operations in this monorepo, use plain installed `ak`.
   - Run it from the repo root or a package directory; repo identity still belongs to the monorepo root.
   - Do not invent package-local AK wrappers or treat a package folder as its own repo identity.
