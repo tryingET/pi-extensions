@@ -169,4 +169,225 @@ describe("live prompt-template execution extension entrypoint", () => {
     await emit("agent_end", { type: "agent_end" }, { ...ctx, model: target });
     assert.deepEqual(calls.slice(2), [{ type: "setModel", model: "openai-codex/gpt-5.4" }]);
   });
+
+  it("handles thinking frontmatter and restores thinking on agent_end", async () => {
+    const home = await tempHome();
+    await writePrompt(
+      home,
+      "think",
+      "---\ndescription: Thinking prompt\nmodel: zai/glm-5.1\nthinking: high\n---\nThink $ARGUMENTS",
+    );
+    const current = createModel({ provider: "openai-codex", id: "gpt-5.4" });
+    const target = createModel({ provider: "zai", id: "glm-5.1" });
+    const calls = [];
+    const { pi, handlers, emit } = createPi([], {
+      getThinkingLevel() {
+        calls.push({ type: "getThinkingLevel" });
+        return "low";
+      },
+      async setModel(model) {
+        calls.push({ type: "setModel", model: `${model.provider}/${model.id}` });
+        return true;
+      },
+      setThinkingLevel(thinking) {
+        calls.push({ type: "setThinkingLevel", thinking });
+      },
+      sendUserMessage(content) {
+        calls.push({ type: "sendUserMessage", content });
+      },
+    });
+
+    promptTemplateExecutionExtension(pi);
+    const ctx = {
+      cwd: "/repo",
+      model: current,
+      modelRegistry: createRegistry([current, target]),
+      ui: {},
+    };
+    await emit("session_start", { type: "session_start" }, ctx);
+
+    await handlers.get("think")("hard", ctx);
+    assert.deepEqual(calls, [
+      { type: "getThinkingLevel" },
+      { type: "setModel", model: "zai/glm-5.1" },
+      { type: "setThinkingLevel", thinking: "high" },
+      { type: "sendUserMessage", content: "Think hard" },
+    ]);
+
+    await emit("agent_end", { type: "agent_end" }, { ...ctx, model: target });
+    assert.deepEqual(calls.slice(4), [
+      { type: "setThinkingLevel", thinking: "low" },
+      { type: "setModel", model: "openai-codex/gpt-5.4" },
+    ]);
+  });
+
+  it("honors restore false by leaving model and thinking active after agent_end", async () => {
+    const home = await tempHome();
+    await writePrompt(
+      home,
+      "stay",
+      "---\ndescription: Sticky prompt\nmodel: zai/glm-5.1\nthinking: high\nrestore: false\n---\nStay $ARGUMENTS",
+    );
+    const current = createModel({ provider: "openai-codex", id: "gpt-5.4" });
+    const target = createModel({ provider: "zai", id: "glm-5.1" });
+    const calls = [];
+    const { pi, handlers, emit } = createPi([], {
+      getThinkingLevel() {
+        calls.push({ type: "getThinkingLevel" });
+        return "low";
+      },
+      async setModel(model) {
+        calls.push({ type: "setModel", model: `${model.provider}/${model.id}` });
+        return true;
+      },
+      setThinkingLevel(thinking) {
+        calls.push({ type: "setThinkingLevel", thinking });
+      },
+      sendUserMessage(content) {
+        calls.push({ type: "sendUserMessage", content });
+      },
+    });
+
+    promptTemplateExecutionExtension(pi);
+    const ctx = {
+      cwd: "/repo",
+      model: current,
+      modelRegistry: createRegistry([current, target]),
+      ui: {},
+    };
+    await emit("session_start", { type: "session_start" }, ctx);
+
+    await handlers.get("stay")("active", ctx);
+    await emit("agent_end", { type: "agent_end" }, { ...ctx, model: target });
+
+    assert.deepEqual(calls, [
+      { type: "getThinkingLevel" },
+      { type: "setModel", model: "zai/glm-5.1" },
+      { type: "setThinkingLevel", thinking: "high" },
+      { type: "sendUserMessage", content: "Stay active" },
+    ]);
+  });
+
+  it("queues skill frontmatter before sending the rendered prompt", async () => {
+    const home = await tempHome();
+    await writePrompt(
+      home,
+      "review",
+      "---\ndescription: Review prompt\nmodel: zai/glm-5.1\nskill: reviewer\n---\nReview $ARGUMENTS",
+    );
+    const skillPath = path.join(home, "reviewer-skill.md");
+    await writeFile(skillPath, "---\nname: reviewer\n---\nReview guidance", "utf8");
+    const current = createModel({ provider: "zai", id: "glm-5.1" });
+    const calls = [];
+    const { pi, handlers, emit } = createPi(
+      [
+        {
+          name: "reviewer",
+          source: "skill",
+          sourceInfo: { path: skillPath },
+        },
+      ],
+      {
+        queueSkillMessage(message) {
+          calls.push({ type: "queueSkillMessage", message });
+          return message;
+        },
+        sendUserMessage(content) {
+          calls.push({ type: "sendUserMessage", content });
+        },
+      },
+    );
+
+    promptTemplateExecutionExtension(pi);
+    const ctx = {
+      cwd: "/repo",
+      model: current,
+      modelRegistry: createRegistry([current]),
+      ui: {},
+    };
+    await emit("session_start", { type: "session_start" }, ctx);
+
+    await handlers.get("review")("changes", ctx);
+    assert.deepEqual(
+      calls.map((call) => call.type),
+      ["queueSkillMessage", "sendUserMessage"],
+    );
+    assert.equal(calls[0].message.customType, "skill-loaded");
+    assert.equal(calls[0].message.details.skillName, "reviewer");
+    assert.equal(calls[1].content, "Review changes");
+  });
+
+  it("fails safely when no model candidate has usable auth", async () => {
+    const home = await tempHome();
+    await writePrompt(home, "commit", commandPrompt("Commit $ARGUMENTS"));
+    const current = createModel({ provider: "openai-codex", id: "gpt-5.4" });
+    const target = createModel({ provider: "zai", id: "glm-5.1" });
+    const calls = [];
+    const { pi, handlers, emit } = createPi([], {
+      async setModel(model) {
+        calls.push({ type: "setModel", model: `${model.provider}/${model.id}` });
+        return true;
+      },
+      sendUserMessage(content) {
+        calls.push({ type: "sendUserMessage", content });
+      },
+    });
+
+    promptTemplateExecutionExtension(pi);
+    const ctx = {
+      cwd: "/repo",
+      model: current,
+      modelRegistry: createRegistry([current, target], []),
+      ui: { notify: (message, level) => calls.push({ type: "notify", message, level }) },
+    };
+    await emit("session_start", { type: "session_start" }, ctx);
+
+    const result = await handlers.get("commit")("blocked", ctx);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "no_available_model");
+    assert.equal(
+      calls.some((call) => call.type === "setModel"),
+      false,
+    );
+    assert.equal(
+      calls.some((call) => call.type === "sendUserMessage"),
+      false,
+    );
+    assert.ok(
+      calls.some(
+        (call) =>
+          call.type === "notify" &&
+          call.message === "No available model from: zai/glm-5.1" &&
+          call.level === "error",
+      ),
+    );
+  });
+
+  it("does not register loop, chain, or subagent prompt templates", async () => {
+    const home = await tempHome();
+    await writePrompt(
+      home,
+      "looping",
+      "---\ndescription: Loop\nmodel: zai/glm-5.1\nloop: true\n---\nLoop",
+    );
+    await writePrompt(
+      home,
+      "chained",
+      "---\ndescription: Chain\nmodel: zai/glm-5.1\nchain: next\n---\nChain",
+    );
+    await writePrompt(
+      home,
+      "delegated",
+      "---\ndescription: Delegate\nmodel: zai/glm-5.1\nsubagent: reviewer\n---\nDelegate",
+    );
+    const { pi, commands, emit } = createPi([]);
+
+    promptTemplateExecutionExtension(pi);
+    await emit("session_start", { type: "session_start" }, { cwd: "/repo", ui: {} });
+
+    assert.deepEqual(
+      commands.filter((command) => command.source === "extension").map((command) => command.name),
+      [],
+    );
+  });
 });

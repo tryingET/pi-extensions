@@ -51,6 +51,7 @@ export function createPiPromptTemplateHostAdapter(pi, ctx = {}) {
     },
     queueSkillMessage(message) {
       queuedSkillMessages.push(message);
+      if (typeof pi?.queueSkillMessage === "function") return pi.queueSkillMessage(message);
       return message;
     },
     get queuedSkillMessages() {
