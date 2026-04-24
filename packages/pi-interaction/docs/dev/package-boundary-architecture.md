@@ -59,6 +59,9 @@ without buying meaningful isolation.
 - `@tryinget/pi-editor-registry`
   - editor ownership / mount primitives
   - depends on trigger/runtime surfaces as needed
+- `@tryinget/pi-model-selection`
+  - prompt-template-model-compatible model fallback and auth-resolution primitives
+  - depends only on Pi host-shaped registry objects, not on prompt-template execution or compaction presets
 - `@tryinget/pi-interaction`
   - umbrella runtime / extension package
   - depends on the shared libraries above

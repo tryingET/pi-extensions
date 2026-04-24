@@ -1,0 +1,75 @@
+{
+  "name": "pi-session-compaction",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dedicated Pi package for custom session compaction summaries.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-session-compaction"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-session-compaction",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "compaction",
+    "session-summary"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "bash ../../scripts/package-quality-gate.sh fix .",
+    "lint": "bash ../../scripts/package-quality-gate.sh lint .",
+    "typecheck": "bash ../../scripts/package-quality-gate.sh typecheck .",
+    "test": "bash ../../scripts/package-quality-gate.sh test .",
+    "quality:pre-commit": "bash ../../scripts/package-quality-gate.sh pre-commit .",
+    "quality:pre-push": "bash ../../scripts/package-quality-gate.sh pre-push .",
+    "quality:ci": "bash ../../scripts/package-quality-gate.sh ci .",
+    "check": "npm run quality:ci"
+  },
+  "files": [
+    "extensions",
+    "docs",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./branch-summary": "./extensions/session-compaction/branch-summary.js",
+    "./files-touched": "./extensions/session-compaction/files-touched.js",
+    "./handler": "./extensions/session-compaction/handler.js",
+    "./model-resolver": "./extensions/session-compaction/model-resolver.js",
+    "./registration": "./extensions/session-compaction/registration.js",
+    "./user-prompts": "./extensions/session-compaction/user-prompts.js"
+  },
+  "dependencies": {
+    "@tryinget/pi-model-selection": "file:../pi-interaction/pi-model-selection"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-ai": {
+      "optional": true
+    },
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4"
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-session-compaction",
+    "releaseComponent": "pi-session-compaction",
+    "releaseConfigMode": "none"
+  }
+}

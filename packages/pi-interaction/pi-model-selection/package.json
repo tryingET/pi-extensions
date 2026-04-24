@@ -1,0 +1,58 @@
+{
+  "name": "@tryinget/pi-model-selection",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared Pi model selection and auth resolution primitives.",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-interaction/pi-model-selection"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-interaction/pi-model-selection",
+  "keywords": [
+    "pi-package",
+    "model-selection",
+    "prompt-template"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "bash ../../../scripts/package-quality-gate.sh fix . --mode simple-package",
+    "lint": "bash ../../../scripts/package-quality-gate.sh lint . --mode simple-package",
+    "typecheck": "bash ../../../scripts/package-quality-gate.sh typecheck . --mode simple-package",
+    "test": "bash ../../../scripts/package-quality-gate.sh test . --mode simple-package",
+    "quality:pre-commit": "bash ../../../scripts/package-quality-gate.sh pre-commit . --mode simple-package",
+    "quality:pre-push": "bash ../../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
+    "quality:ci": "bash ../../../scripts/package-quality-gate.sh ci . --mode simple-package",
+    "check": "npm run quality:ci"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src"
+  ],
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-interaction/pi-model-selection",
+    "releaseComponent": "pi-model-selection",
+    "releaseConfigMode": "none"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4"
+  }
+}

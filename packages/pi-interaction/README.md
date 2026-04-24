@@ -16,6 +16,7 @@ This directory is a logical package group (single git root, no nested repos):
 - `pi-editor-registry/`
 - `pi-interaction-kit/`
 - `pi-trigger-adapter/`
+- `pi-model-selection/`
 - `pi-interaction/` (umbrella + extension entrypoint)
 
 ## Working contract
@@ -57,6 +58,7 @@ See [Package-boundary architecture](docs/dev/package-boundary-architecture.md).
 - Re-homed trigger broker + picker registration into `pi-trigger-adapter`.
 - Re-homed fuzzy ranking/selection primitives into `pi-interaction-kit`.
 - Re-homed editor mounting primitives into `pi-editor-registry`.
+- Added `pi-model-selection` as a private shared resolver package for prompt-template-model-compatible model fallback/auth semantics.
 - Updated umbrella extension entrypoint to compose split package surfaces.
 - Added umbrella runtime helpers:
   - `createInteractionRuntime`

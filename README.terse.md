@@ -50,7 +50,9 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-little-helpers` | yes | add small operator helpers | general-purpose utility package |
 | `pi-autonomous-session-control` | yes | provide autonomy/subagent control surfaces | strongest in subagent-heavy workflows |
 | `pi-autoresearch` | with extra setup | own the bounded experiment-loop runtime and manifest-campaign control seam | strongest when local campaign receipts and AK/Prompt Vault adjacencies are in play |
-| `pi-prompt-template-accelerator` | yes | speed up prompt-template command workflows | most useful if you use prompt templates locally |
+| `pi-prompt-template-accelerator` | yes | speed up prompt-template command workflows | picker/prefill UX only |
+| `pi-prompt-template-execution` | yes | own prompt-template execution semantics | live successor for external `pi-prompt-template-model`; owns `/commit` extension execution semantics through a minimal guarded entrypoint, with no prompt bundle and no loop/chain/subagent runtime |
+| `pi-session-compaction` | not yet live | own custom compaction summaries | in-progress package; handler, fail-closed registration guard, and branch augmentation helpers are tested, but live hook remains disabled |
 | `pi-interaction/pi-interaction` | yes | shared interaction features | host-facing interaction layer |
 | `pi-interaction/pi-editor-registry` | yes | provide editor integration seams | lower-level building block |
 | `pi-interaction/pi-interaction-kit` | yes | provide reusable interaction helpers | lower-level building block |

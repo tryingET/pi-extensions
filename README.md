@@ -31,6 +31,8 @@ scripts/         # CI/utility scripts
   - `packages/pi-activity-strip`
   - `packages/pi-little-helpers`
   - `packages/pi-prompt-template-accelerator`
+  - `packages/pi-prompt-template-execution` (live successor for prompt-template model/thinking/args semantics; minimal extension entrypoint, no prompt bundle)
+  - `packages/pi-session-compaction` (in progress; tested non-live compaction handler, registration guard, and branch augmentation helpers; not live compaction owner yet)
   - `packages/pi-interaction/*`
 - Extra-stack / boundary-heavy starting points:
   - `packages/pi-autoresearch`
@@ -47,7 +49,9 @@ Start at the monorepo root only when you need package selection, root validation
 When cues overlap, route by owner before diving deeper:
 
 - `packages/pi-society-orchestrator` — coordination/control-plane questions that compose lower-plane owners, such as loops, routing selection, runtime-status wording, evidence intent, or exact supervision flows
-- `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, prompt-envelope application, session artifacts, and runtime/operator visibility tied to execution ownership
+- `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, prompt-envelope application, session artifacts, rewind aliasing, and runtime/operator visibility tied to execution ownership
+- `packages/pi-prompt-template-execution` — prompt-template execution semantics such as `model`, `thinking`, `restore`, `skill`, conditionals, args, Pi host adapter behavior, dry-run diagnostics, compatibility canaries, and `/commit` live execution ownership after replacing `npm:pi-prompt-template-model`
+- `packages/pi-session-compaction` — custom `session_before_compact` summary ownership, summarizer model resolution, user-prompt/command preservation, and files-touched manifests (in progress; do not enable alongside another compaction override)
 - `packages/pi-autoresearch` — bounded experiment-loop runtime ownership, manifest-campaign planning/control, and local campaign receipt/machine surfaces
 - `packages/pi-vault-client` — Prompt Vault query/retrieve/mutate/rate flows, schema compatibility, and prompt-plane governance
 - `packages/pi-ontology-workflows` — ontology inspection/change workflows and ROCS-facing operator surfaces

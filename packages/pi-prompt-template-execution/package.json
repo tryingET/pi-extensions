@@ -1,0 +1,88 @@
+{
+  "name": "@tryinget/pi-prompt-template-execution",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Live prompt-template execution successor for model/thinking/args semantics.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-prompt-template-execution"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-prompt-template-execution",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "prompt-template",
+    "model-selection"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "bash ../../scripts/package-quality-gate.sh fix .",
+    "lint": "bash ../../scripts/package-quality-gate.sh lint .",
+    "typecheck": "bash ../../scripts/package-quality-gate.sh typecheck .",
+    "test": "bash ../../scripts/package-quality-gate.sh test .",
+    "quality:pre-commit": "bash ../../scripts/package-quality-gate.sh pre-commit .",
+    "quality:pre-push": "bash ../../scripts/package-quality-gate.sh pre-push .",
+    "quality:ci": "bash ../../scripts/package-quality-gate.sh ci .",
+    "check": "npm run quality:ci"
+  },
+  "files": [
+    "extensions/prompt-template-execution.js",
+    "src",
+    "docs",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE",
+    "policy/security-policy.json",
+    "policy/stack-lane.json"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/prompt-template-execution.js"
+    ]
+  },
+  "exports": {
+    "./args": "./src/args.js",
+    "./command-runner": "./src/command-runner.js",
+    "./compat-canary": "./src/compat-canary.js",
+    "./diagnostic-report": "./src/diagnostic-report.js",
+    "./execution-plan": "./src/execution-plan.js",
+    "./host-adapter": "./src/host-adapter.js",
+    "./loader": "./src/loader.js",
+    "./model-conditionals": "./src/model-conditionals.js",
+    "./safety-report": "./src/safety-report.js",
+    "./skills": "./src/skills.js",
+    "./registration": "./src/registration.js"
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-prompt-template-execution",
+    "releaseComponent": "pi-prompt-template-execution",
+    "releaseConfigMode": "none"
+  },
+  "dependencies": {
+    "@tryinget/pi-model-selection": "file:../pi-interaction/pi-model-selection"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-ai": {
+      "optional": true
+    },
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: 0189e0d
+_src_path: ../pi-extensions-template
+command_name: pi-prompt-template-execution
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-prompt-template-execution
+release_config_mode: none
+repo_name: pi-prompt-template-execution
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-prompt-template-execution
