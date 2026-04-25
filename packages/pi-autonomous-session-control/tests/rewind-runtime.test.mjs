@@ -127,6 +127,7 @@ class SessionManagerStub {
 }
 
 function createPiHarness(sessionManager, hasUI = true) {
+  const commands = new Map();
   const handlers = new Map();
   const notifications = [];
   const selections = [];
@@ -136,6 +137,9 @@ function createPiHarness(sessionManager, hasUI = true) {
   const pi = {
     on(eventName, handler) {
       handlers.set(eventName, handler);
+    },
+    registerCommand(name, definition) {
+      commands.set(name, definition);
     },
     appendEntry(customType, data) {
       sessionManager.appendCustomEntry(customType, data);
@@ -194,6 +198,7 @@ function createPiHarness(sessionManager, hasUI = true) {
   };
 
   return {
+    commands,
     ctx,
     handlers,
     notifications,
@@ -270,6 +275,31 @@ async function startRecordingReplayFabricServer() {
     url: `http://127.0.0.1:${address.port}`,
   };
 }
+
+test("rewind runtime registers a diagnostic status command", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "asc-rewind-status-"));
+
+  try {
+    const sessionManager = new SessionManagerStub({
+      sessionFile: `${workspace}/status-session.jsonl`,
+      id: "session-status",
+      cwd: workspace,
+    });
+    const harness = createPiHarness(sessionManager);
+    registerRewindRuntime(harness.pi);
+
+    assert.equal(harness.commands.has("asc-rewind-status"), true);
+    await harness.commands.get("asc-rewind-status").handler("", harness.ctx);
+    assert.ok(
+      harness.notifications.some(
+        (item) => item.level === "warning" && item.message.includes("ASC rewind: unavailable"),
+      ),
+      "expected diagnostic command to report unavailable rewind state before session init",
+    );
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
 
 test("rewind runtime records exact user and assistant rewind points during a prompt", async () => {
   const gitHarness = await createRewindGitHarness();

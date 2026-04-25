@@ -923,6 +923,28 @@ function handleSessionTree(
 export function registerRewindRuntime(pi: ExtensionAPI): void {
   const state = createRewindRuntimeState();
 
+  pi.registerCommand("asc-rewind-status", {
+    description: "Show ASC rewind runtime status for /tree and /fork restore diagnostics",
+    handler: async (_args, ctx) => {
+      const uniqueSnapshots = new Set(state.entryToCommit.values()).size;
+      const lines = [
+        `ASC rewind: ${state.isGitRepo && state.git ? "available" : "unavailable"}`,
+        `cwd: ${ctx.cwd}`,
+        `git initialized: ${state.isGitRepo && state.git ? "yes" : "no"}`,
+        `rewind points: ${state.entryToCommit.size}`,
+        `snapshots: ${uniqueSnapshots}`,
+        `current snapshot: ${state.currentCommitSha ?? "none"}`,
+        `undo snapshot: ${state.undoCommitSha ?? "none"}`,
+        `pending tree state: ${state.pendingTreeState ? "yes" : "no"}`,
+        `hint: /tree must select a non-active node before Pi emits session_before_tree`,
+      ];
+
+      if (ctx.hasUI) {
+        ctx.ui.notify(lines.join("\n"), state.isGitRepo && state.git ? "info" : "warning");
+      }
+    },
+  });
+
   pi.on("session_start", async (event: SessionStartEvent, ctx) => {
     await initializeSession(ctx, state);
 
