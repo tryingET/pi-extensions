@@ -10,7 +10,7 @@ read_when:
 
 `packages/pi-session-compaction/` is the intended single owner for custom Pi `session_before_compact` summaries in this monorepo.
 
-This package is template-baseline-aligned with `../pi-extensions-template`, but it intentionally does **not** expose or install a live Pi compaction extension entrypoint yet. Do not add `package.json#pi.extensions`, slash commands, prompts, or a `session_before_compact` hook until handler-level tests pass and no other compaction override is enabled.
+This package is template-baseline-aligned with `../pi-extensions-template` and now exposes a live Pi compaction extension entrypoint behind the existing fail-closed registration guard. Do not add slash commands or prompts, and do not enable any second custom `session_before_compact` owner.
 
 ## Boundaries
 
@@ -21,13 +21,13 @@ This package is template-baseline-aligned with `../pi-extensions-template`, but 
 
 ## Current implementation status
 
-The package has model-resolution, files-touched, user-prompt preservation, non-live `session_before_compact` handler tests, a non-live fail-closed registration guard, and non-live branch-tree augmentation helpers. Do not install this package as the live compaction owner until a deliberate hook registration plan confirms no other compaction override is enabled.
+The package has model-resolution, files-touched, user-prompt preservation, `session_before_compact` handler tests, a fail-closed registration guard, live extension entrypoint, and non-live branch-tree augmentation helpers. The live entrypoint registers input tracking plus one `session_before_compact` handler only after the cutover preflight proves no other compaction override is installed.
 
 ## Template / scaffold policy
 
 - Keep `.copier-answers.yml` tracked.
 - Do not manually edit `.copier-answers.yml`.
-- For template refreshes, generate/update from `../pi-extensions-template`, then re-apply this package's deliberate non-live compaction exception.
+- For template refreshes, generate/update from `../pi-extensions-template`, then re-apply this package's deliberate live compaction-entrypoint exception.
 - After template reconciliation, run `npm run check`.
 
 ## Validation

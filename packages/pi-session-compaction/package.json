@@ -40,6 +40,11 @@
     "AGENTS.md",
     "LICENSE"
   ],
+  "pi": {
+    "extensions": [
+      "./extensions/session-compaction.js"
+    ]
+  },
   "exports": {
     "./branch-summary": "./extensions/session-compaction/branch-summary.js",
     "./files-touched": "./extensions/session-compaction/files-touched.js",

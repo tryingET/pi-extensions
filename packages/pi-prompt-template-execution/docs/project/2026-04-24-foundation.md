@@ -75,7 +75,7 @@ The package was scaffolded from `../pi-extensions-template` in `simple-package` 
 
 Phase 3 closed as a non-live candidate proof. The package had fixture canaries, `/commit` parity coverage, no-double-registration guards, a safety report, and a plan-only Phase 4 cutover document.
 
-Phase 4 is now closed as a controlled live cutover. The package is installed as the live prompt-template execution owner, `npm:pi-prompt-template-model` has been removed, `/commit` model/argument/restore behavior was verified safely, and `pi-session-compaction` remains non-live.
+Phase 4 is now closed as a controlled live cutover. The package is installed as the live prompt-template execution owner, `npm:pi-prompt-template-model` has been removed, `/commit` model/argument/restore behavior was verified safely, and `pi-session-compaction` remains a separate compaction-summary owner rather than a prompt-template execution dependency.
 
 ## Non-goals
 

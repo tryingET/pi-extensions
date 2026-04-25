@@ -139,7 +139,7 @@ pi-session-compaction
 
 - Keep `npm:pi-prompt-template-model` installed.
 - Do not install a successor package that registers overlapping prompt commands.
-- Keep `pi-session-compaction` non-live until `session_before_compact` handler tests pass.
+- Keep `pi-session-compaction` non-live until `session_before_compact` handler tests pass and a no-double-compaction preflight confirms no existing custom compaction owner.
 
 ### Phase 1 — shared resolver extraction
 
@@ -324,7 +324,7 @@ ASC owns:
 
 ## Compaction-specific implications
 
-`pi-session-compaction` should continue with the current plan:
+`pi-session-compaction` followed this plan:
 
 1. port files-touched collection/tests from dot314
 2. port user prompt/command preservation
@@ -383,11 +383,11 @@ Follow-up status: `pi-session-compaction` also now has package-local files-touch
 
 Second follow-up status: `pi-session-compaction` now has package-local user prompt / command preservation helpers ported from legacy `pi-user-prompt-compaction`, including `/compact <customInstructions>` preservation. This still does not enable the live compaction hook.
 
-Third follow-up status: `pi-session-compaction` now has a tested non-live `session_before_compact` handler module that assembles summaries from the shared model resolver, files-touched manifests, and user-prompt preservation helpers. It still does not register a live hook or install as the compaction owner.
+Third follow-up status: `pi-session-compaction` now has a tested `session_before_compact` handler module that assembles summaries from the shared model resolver, files-touched manifests, and user-prompt preservation helpers. It was initially non-live until the guarded cutover.
 
-Fourth follow-up status: `pi-session-compaction` now has a non-live fail-closed registration guard for future hook activation. It requires explicit enablement, handler-test confirmation, no-double-compaction preflight confirmation, explicit zero existing compaction handlers, and duplicate package-registration protection.
+Fourth follow-up status: `pi-session-compaction` now has a fail-closed registration guard for hook activation. It requires explicit enablement, handler-test confirmation, no-double-compaction preflight confirmation, explicit zero existing compaction handlers, and duplicate package-registration protection.
 
-Fifth follow-up status: `pi-session-compaction` now has non-live branch-tree summary augmentation helpers for optional `session_before_tree` instructions with files-touched grounding. This still does not register any live hook.
+Fifth follow-up status: `pi-session-compaction` now has non-live branch-tree summary augmentation helpers for optional `session_before_tree` instructions with files-touched grounding. This still does not register any `session_before_tree` hook.
 
 Sixth follow-up status: `packages/pi-prompt-template-execution` now exists as a private non-live successor foundation created from `../pi-extensions-template`. It has pure loader, argument substitution, model conditional rendering, and execution-plan tests for `model`/`thinking`/`restore` semantics, while explicitly skipping chain/loop/subagent ownership.
 
@@ -419,4 +419,6 @@ Nineteenth follow-up status: Phase 4 cutover is complete. The live entrypoint `p
 
 Phase 3 closeout status: Phase 3 is closed as a non-live candidate proof after the prompt-template execution, session-compaction, and shared model-selection checks passed.
 
-Phase 4 closeout status: Phase 4 is closed as a controlled live cutover. `packages/pi-prompt-template-execution` is now the live prompt-template execution owner, `npm:pi-prompt-template-model` has been removed, `/commit` behavior was verified safely, and `pi-session-compaction` remains non-live.
+Phase 4 closeout status: Phase 4 is closed as a controlled live cutover. `packages/pi-prompt-template-execution` is now the live prompt-template execution owner, `npm:pi-prompt-template-model` has been removed, and `/commit` behavior was verified safely.
+
+Compaction cutover status: `packages/pi-session-compaction` later became the guarded live local `session_before_compact` owner after package checks passed and installed-package inventory showed no existing compaction override. It remains separate from prompt-template execution and still must not be enabled alongside another custom compaction owner.

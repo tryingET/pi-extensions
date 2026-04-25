@@ -100,7 +100,7 @@ Additional proof:
 - `pi-prompt-template-accelerator` remains picker/prefill UX only.
 - `pi-society-orchestrator` remains loop/chain/workflow owner.
 - ASC remains subagent/runtime execution owner.
-- `pi-session-compaction` remains compaction-summary owner and is still not live-enabled.
+- `pi-session-compaction` remains the separate compaction-summary owner. It was non-live during prompt-template cutover and later moved to its own guarded live cutover without coupling to prompt-template execution.
 
 ## Rollback plan
 

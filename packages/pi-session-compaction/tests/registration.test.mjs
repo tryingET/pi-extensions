@@ -10,6 +10,7 @@ import {
   SESSION_BEFORE_COMPACT_EVENT,
 } from "../extensions/session-compaction/registration.js";
 import { createTrackedCommandStore } from "../extensions/session-compaction/user-prompts.js";
+import sessionCompactionExtension from "../extensions/session-compaction.js";
 
 function createPiRecorder() {
   const handlers = [];
@@ -190,5 +191,35 @@ describe("session compaction registration guard", () => {
       handlers.map((handler) => handler.event),
       ["input", SESSION_BEFORE_COMPACT_EVENT],
     );
+  });
+
+  it("live entrypoint registers input tracking, compaction, and startup visibility", async () => {
+    const { pi, handlers } = createPiRecorder();
+    const result = sessionCompactionExtension(pi);
+
+    assert.equal(result.inputTracking.ok, true);
+    assert.equal(result.compaction.ok, true);
+    assert.deepEqual(
+      handlers.map((handler) => handler.event),
+      ["input", SESSION_BEFORE_COMPACT_EVENT, "session_start"],
+    );
+
+    const notices = [];
+    await handlers[2].handler(
+      {},
+      {
+        ui: {
+          notify(message, level) {
+            notices.push({ message, level });
+          },
+        },
+      },
+    );
+    assert.deepEqual(notices, [
+      {
+        message: "pi-session-compaction: input tracking enabled; session_before_compact enabled",
+        level: "info",
+      },
+    ]);
   });
 });

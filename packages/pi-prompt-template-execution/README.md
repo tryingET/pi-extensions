@@ -14,7 +14,7 @@ Current live posture:
 - replaces the external `npm:pi-prompt-template-model` execution owner for `/commit`
 - treats Pi core prompt-template commands as metadata/template expansion entries, not as extension execution owners
 - blocks duplicate extension command owners through the guarded registration path
-- keeps `pi-session-compaction` separate and non-live as a compaction owner
+- keeps `pi-session-compaction` separate as the compaction-summary owner
 
 ## Implemented surfaces
 

@@ -9,15 +9,15 @@ read_when:
 
 ## Decision
 
-Start `packages/pi-session-compaction` as the dedicated future owner of custom Pi compaction summaries, but land the model-resolution foundation before wiring a live `session_before_compact` handler.
+Start `packages/pi-session-compaction` as the dedicated owner of custom Pi compaction summaries. The model-resolution, handler, and registration foundations landed before the package was exposed as a live `session_before_compact` owner.
 
-The package is intentionally private and not live-enabled yet. This prevents accidental double-loading with existing custom compaction handlers while the handler-level tests are still missing.
+The package remains private, but it is now live-enabled through a guarded local extension entrypoint after handler-level tests passed and the cutover preflight found no installed compaction override packages. This prevents accidental double-loading by preserving the no-double-compaction invariant at install/reload time.
 
 ## Findings
 
 - The live `/commit` prompt uses `model: zai/glm-5.1` frontmatter from `~/.pi/agent/prompts/commit.md`.
-- That model-frontmatter behavior is owned by the installed `npm:pi-prompt-template-model` extension, visible via `pi list`, not by Pi core prompt-template loading.
-- `pi-prompt-template-model/model-selection.ts` provides the relevant semantics: exact `modelId` or `provider/modelId`, comma fallback, current-model preservation when it matches any listed candidate, auth-aware selection, and provider priority `openai-codex -> anthropic -> github-copilot -> openrouter` for ambiguous bare IDs.
+- At discovery time, that model-frontmatter behavior was owned by the installed `npm:pi-prompt-template-model` extension, visible via `pi list`, not by Pi core prompt-template loading. It is now owned by `packages/pi-prompt-template-execution` after the prompt-template cutover.
+- `pi-prompt-template-model/model-selection.ts` provided the compatibility semantics that were preserved: exact `modelId` or `provider/modelId`, comma fallback, current-model preservation when it matches any listed candidate, auth-aware selection, and provider priority `openai-codex -> anthropic -> github-copilot -> openrouter` for ambiguous bare IDs.
 - `packages/pi-prompt-template-accelerator` has a useful runtime-registry bridge for observed `model_select` lifecycle state, but it does **not** currently expose this reusable LLM model resolver.
 - Dot314 `grounded-compaction` has the right compaction-oriented preset model, but assumes newer host auth via `modelRegistry.getApiKeyAndHeaders(model)`.
 - Local Pi host compatibility still needs legacy `modelRegistry.getApiKey(model)` support and preservation of model-level `headers`.
@@ -51,18 +51,19 @@ Follow-up user-prompt preservation foundation:
 
 ## Explicit non-goals for this slice
 
-- no active `session_before_compact` handler
 - no ASC rewrite
-- no live package install/reload
 - no multiple compaction overrides
 - no broad root release/publication setup
+- no slash-command or prompt-bundle registration
 
-## Follow-up handler slice
+## Follow-up handler and live-entrypoint slice
 
-`session_before_compact` is now wired as a non-live, package-local handler module behind tests using the current model resolver, files-touched manifests, and user-prompt preservation helpers. The package still does not register a live hook.
+`session_before_compact` is now wired as a live package-local handler module behind tests using the current model resolver, files-touched manifests, and user-prompt preservation helpers.
 
-A non-live fail-closed registration guard now exists in `extensions/session-compaction/registration.js`. It keeps future activation disabled by default and requires handler-test confirmation, no-double-compaction preflight confirmation, explicit zero existing handler count, and duplicate package-registration protection before registering `session_before_compact`.
+A fail-closed registration guard exists in `extensions/session-compaction/registration.js`. It remains default-disabled for tests and future embedders, and the live entrypoint passes explicit handler-test confirmation, no-double-compaction preflight confirmation, zero existing-handler proof, and duplicate package-registration protection before registering `session_before_compact`.
 
-Non-live branch-tree summary augmentation helpers now exist in `extensions/session-compaction/branch-summary.js`. They prepare optional `session_before_tree` custom instructions with prompt-contract loading, files-touched grounding, focus text preservation, and undefined-on-failure behavior, but still do not register any live hook.
+The live entrypoint is `extensions/session-compaction.js` and is exposed through `package.json#pi.extensions`. It enables input tracking plus the guarded compaction handler without adding slash commands, prompts, or a second prompt-template execution surface.
 
-Keep the package non-live until a deliberate hook registration plan confirms no other compaction override is enabled. Do not start live replacement of `npm:pi-prompt-template-model` until a prompt-template successor has no-double-registration tests and a tested install path.
+Branch-tree summary augmentation helpers remain non-live in `extensions/session-compaction/branch-summary.js`. They prepare optional `session_before_tree` custom instructions with prompt-contract loading, files-touched grounding, focus text preservation, and undefined-on-failure behavior, but still do not register any live hook.
+
+Keep the package as the only custom compaction owner after install/reload. Do not reinstall or enable another compaction override without first removing or disabling this one.
