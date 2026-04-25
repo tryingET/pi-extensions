@@ -148,6 +148,7 @@ test("session presence can override the base title and reapply it after startup"
       now: () => "2026-04-12T02:32:00.000Z",
       titleBase: "Sidequest: trace this failure",
       titleRefreshDelaysMs: [0, 0],
+      titleHeartbeatMs: 0,
     });
 
     const { handlers } = registerExtension(extension);
@@ -174,6 +175,48 @@ test("session presence can override the base title and reapply it after startup"
       "Sidequest: trace this failure · 6e7c38f0",
       "Sidequest: trace this failure · 6e7c38f0",
     ]);
+
+    if (typeof sessionShutdown === "function") {
+      await sessionShutdown({}, harness.ctx);
+    }
+  } finally {
+    rmSync(presenceDir, { recursive: true, force: true });
+  }
+});
+
+test("session presence heartbeat keeps the session hash title after host title resets", async () => {
+  const presenceDir = createTempDir();
+
+  try {
+    const extension = createSessionPresenceExtension({
+      presenceDir,
+      processId: 727272,
+      now: () => "2026-04-12T02:33:00.000Z",
+      titleRefreshDelaysMs: [],
+      titleHeartbeatMs: 1,
+    });
+
+    const { handlers } = registerExtension(extension);
+    const sessionStart = handlers.get("session_start");
+    const sessionShutdown = handlers.get("session_shutdown");
+    assert.equal(typeof sessionStart, "function");
+
+    const harness = createContext({
+      cwd: "/home/tryinget/ai-society/holdingco/infra/template-propagator",
+      sessionId: "bebad8f0-d324-4ed9-aeda-d0fbeb787a35",
+      sessionFile:
+        "/home/tryinget/.pi/agent/sessions/--home-tryinget-ai-society-holdingco-infra-template-propagator--/2026-04-24T19-34-19-868Z_bebad8f0-d324-4ed9-aeda-d0fbeb787a35.jsonl",
+      sessionName: undefined,
+    });
+
+    await sessionStart({}, harness.ctx);
+    harness.ctx.ui.setTitle("π - template-propagator");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    assert.ok(
+      harness.titles.filter((title) => title === "π - template-propagator · bebad8f0").length >= 2,
+    );
+    assert.equal(harness.titles.at(-1), "π - template-propagator · bebad8f0");
 
     if (typeof sessionShutdown === "function") {
       await sessionShutdown({}, harness.ctx);
