@@ -521,6 +521,7 @@
         <a href="#before">Before compaction</a>
         <a href="#config">Config</a>
         <a href="#interactive">Interactive knobs</a>
+        <a href="#focus-menu">Focus menu</a>
         <a href="#verify">Verify</a>
         <a href="#rollback">Rollback</a>
         <a href="#future">Future</a>
@@ -690,8 +691,38 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
         </div>
       </section>
 
+      <section id="focus-menu">
+        <div class="section-title"><span class="num">06</span><h2>Four custom compaction focus choices</h2></div>
+        <div class="cards">
+          <div class="card third">
+            <h3>1 · Continue safely</h3>
+            <p>Best when the work is mid-stream and you want the next session to pick the smallest truthful next action without widening scope.</p>
+            <div class="copy-row"><code>/compact Continue safely: preserve exact current objective, constraints, dirty files, validation already run, and the smallest next action after reload. Include ambient-context reminder: AGENTS.md should be reloaded by Pi and /society-context refresh can refresh startup context.</code><button type="button" class="button primary copy">Copy</button></div>
+          </div>
+          <div class="card third">
+            <h3>2 · Verify live behavior</h3>
+            <p>Best right after enabling a hook. Primes the summary toward smoke testing, observed proof, and rollback criteria.</p>
+            <div class="copy-row"><code>/compact Verify live behavior: focus the next session on /reload, one real compaction smoke, sentinel proof in the generated summary, no-double-compaction inventory, and clear rollback if the hook misbehaves.</code><button type="button" class="button primary copy">Copy</button></div>
+          </div>
+          <div class="card third">
+            <h3>3 · Clean handoff</h3>
+            <p>Best when there are unrelated dirty files or multiple package lanes. Primes the summary toward boundaries and ownership.</p>
+            <div class="copy-row"><code>/compact Clean handoff: separate completed compaction work from unrelated dirty files, preserve exact commits and validation, name what must not be touched, and suggest the next owner decision after compaction.</code><button type="button" class="button primary copy">Copy</button></div>
+          </div>
+          <div class="card third">
+            <h3>4 · Release readiness</h3>
+            <p>Best when the feature is implemented and you want the next session to prepare push/release without publishing accidentally.</p>
+            <div class="copy-row"><code>/compact Release readiness: summarize what is committed, installed, validated, and still local; list release/push prerequisites; explicitly say do not push or publish without operator approval.</code><button type="button" class="button primary copy">Copy</button></div>
+          </div>
+          <div class="card wide">
+            <h3>How to use these</h3>
+            <p>Pick one before compaction and paste it as the <code>/compact</code> argument. That text becomes a user compaction note and is also preserved in the final essential-prompts section, so the next session is primed toward the chosen continuation posture.</p>
+          </div>
+        </div>
+      </section>
+
       <section id="verify">
-        <div class="section-title"><span class="num">06</span><h2>How do I verify the live hook?</h2></div>
+        <div class="section-title"><span class="num">07</span><h2>How do I verify the live hook?</h2></div>
         <div class="cards">
           <div class="card checklist">
             <h3>Smoke checklist</h3>
@@ -710,7 +741,7 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
       </section>
 
       <section id="rollback">
-        <div class="section-title"><span class="num">07</span><h2>How do I roll it back?</h2></div>
+        <div class="section-title"><span class="num">08</span><h2>How do I roll it back?</h2></div>
         <div class="cards">
           <div class="card wide">
             <p>Remove the local live package, then reload Pi. Do not enable another compaction owner while this one remains active.</p>
@@ -721,7 +752,7 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
       </section>
 
       <section id="future">
-        <div class="section-title"><span class="num">08</span><h2>What remains future or non-live?</h2></div>
+        <div class="section-title"><span class="num">09</span><h2>What remains future or non-live?</h2></div>
         <div class="cards">
           <div class="card third"><h3>Tree summaries</h3><p><code>session_before_tree</code> augmentation helpers exist but are not live.</p></div>
           <div class="card third"><h3>Status command</h3><p>A future <code>/session-compaction-status</code> command would make runtime proof easier.</p></div>

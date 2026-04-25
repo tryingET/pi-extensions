@@ -374,6 +374,46 @@ Malformed preset directives fall back to the current session model with a warnin
 
 ---
 
+## Four suggested custom compaction focus choices
+
+Use one of these immediately before compaction when you want the summary to prime the next session toward a specific continuation posture.
+
+### 1. Continue safely
+
+Best when work is mid-stream and the next session should pick the smallest truthful next action without widening scope.
+
+```text
+/compact Continue safely: preserve exact current objective, constraints, dirty files, validation already run, and the smallest next action after reload. Include ambient-context reminder: AGENTS.md should be reloaded by Pi and /society-context refresh can refresh startup context.
+```
+
+### 2. Verify live behavior
+
+Best right after enabling a hook. This primes the summary toward smoke testing, observed proof, and rollback criteria.
+
+```text
+/compact Verify live behavior: focus the next session on /reload, one real compaction smoke, sentinel proof in the generated summary, no-double-compaction inventory, and clear rollback if the hook misbehaves.
+```
+
+### 3. Clean handoff
+
+Best when there are unrelated dirty files or multiple package lanes. This primes the summary toward boundaries and ownership.
+
+```text
+/compact Clean handoff: separate completed compaction work from unrelated dirty files, preserve exact commits and validation, name what must not be touched, and suggest the next owner decision after compaction.
+```
+
+### 4. Release readiness
+
+Best when the feature is implemented and you want the next session to prepare push/release without publishing accidentally.
+
+```text
+/compact Release readiness: summarize what is committed, installed, validated, and still local; list release/push prerequisites; explicitly say do not push or publish without operator approval.
+```
+
+Why this works: `/compact <customInstructions>` becomes a user compaction note and is preserved in the final essential-prompts block, so the generated summary carries the selected post-compaction intent forward.
+
+---
+
 # Five more questions worth answering
 
 ## 6. What model does compaction use?
