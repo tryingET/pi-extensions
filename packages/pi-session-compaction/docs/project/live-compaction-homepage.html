@@ -341,6 +341,54 @@
         padding: 14px;
       }
 
+      .compare-grid {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 16px;
+        align-items: stretch;
+      }
+
+      .compare-card {
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius-xl);
+        background: linear-gradient(145deg, rgba(36, 32, 21, 0.94), rgba(16, 15, 12, 0.9));
+        padding: 20px;
+      }
+
+      .compare-card h3 {
+        margin-top: 0;
+        color: var(--gold);
+        font-family: var(--mono);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.9rem;
+      }
+
+      .compare-card ul {
+        padding-left: 1.1rem;
+        color: var(--ink-soft);
+      }
+
+      .versus {
+        display: grid;
+        place-items: center;
+        color: var(--amber);
+        font-family: var(--serif);
+        font-size: clamp(1.8rem, 4vw, 3rem);
+        opacity: 0.9;
+      }
+
+      .reuse-map {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .reuse-map .card {
+        grid-column: auto;
+      }
+
       .step b {
         display: block;
         color: var(--gold);
@@ -377,6 +425,155 @@
         to { opacity: 1; transform: translateY(0); }
       }
 
+      .lever-board {
+        display: grid;
+        grid-template-columns: minmax(320px, 0.92fr) minmax(420px, 1.08fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      .lever-controls {
+        display: grid;
+        gap: 14px;
+      }
+
+      .lever {
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius-lg);
+        background: rgba(9, 8, 6, 0.28);
+        padding: 14px;
+      }
+
+      .lever label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--gold);
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+
+      .lever output {
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .lever input[type="range"] {
+        width: 100%;
+        margin: 12px 0 8px;
+        accent-color: var(--gold);
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius-lg);
+        background: rgba(9, 8, 6, 0.28);
+        padding: 14px;
+      }
+
+      .toggle-row label {
+        color: var(--gold);
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+
+      .toggle-row input[type="checkbox"] {
+        width: 42px;
+        height: 22px;
+      }
+
+      .context-viz {
+        display: grid;
+        gap: 14px;
+      }
+
+      .bar-wrap {
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius-lg);
+        background: rgba(0, 0, 0, 0.28);
+        padding: 14px;
+      }
+
+      .bar-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--ink-soft);
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        margin-bottom: 8px;
+      }
+
+      .stacked-bar {
+        display: flex;
+        min-height: 42px;
+        overflow: hidden;
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .bar-segment {
+        display: grid;
+        place-items: center;
+        min-width: 2px;
+        color: #15120c;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+
+      .bar-segment.summary { background: var(--amber); }
+      .bar-segment.kept { background: var(--green); }
+      .bar-segment.free { background: rgba(247, 240, 223, 0.14); color: var(--ink-soft); }
+      .bar-segment.reserve { background: var(--blue); }
+      .bar-segment.over { background: var(--red); color: #160b09; }
+
+      .lever-readout {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .readout-item {
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius-sm);
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .readout-item b {
+        display: block;
+        color: var(--gold);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+
+      .readout-item span {
+        display: block;
+        margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .callout {
+        border-left: 4px solid var(--amber);
+        padding: 10px 12px;
+        background: rgba(216, 135, 47, 0.11);
+        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      }
+
       .checklist label {
         display: grid;
         grid-template-columns: 24px 1fr;
@@ -385,7 +582,7 @@
         color: var(--ink-soft);
       }
 
-      input[type="checkbox"] {
+      .checklist input[type="checkbox"] {
         accent-color: var(--gold);
         width: 18px;
         height: 18px;
@@ -474,12 +671,21 @@
       @media (max-width: 860px) {
         .hero-grid,
         .switchboard,
+        .lever-board,
+        .compare-grid,
+        .reuse-map,
         .flow {
           grid-template-columns: 1fr;
+        }
+        .versus {
+          min-height: 24px;
         }
         .card,
         .card.third {
           grid-column: span 12;
+        }
+        .lever-readout {
+          grid-template-columns: 1fr;
         }
         .status-card { transform: none; }
       }
@@ -505,7 +711,7 @@
           <ul class="status-list">
             <li><span>Package</span><b>pi-session-compaction</b></li>
             <li><span>Hook</span><b>session_before_compact</b></li>
-            <li><span>Slash commands</span><b>none</b></li>
+            <li><span>Slash commands</span><b>/compact-focus</b></li>
             <li><span>Prompt bundles</span><b>none</b></li>
             <li><span>Compaction owners</span><b>exactly one</b></li>
             <li><span>Needs active process reload</span><b>/reload</b></li>
@@ -518,8 +724,10 @@
       <div class="shell nav-inner">
         <a href="#prompt">Prompt</a>
         <a href="#included">Included</a>
+        <a href="#compare-modes">Compare modes</a>
         <a href="#before">Before compaction</a>
         <a href="#config">Config</a>
+        <a href="#settings-levers">Settings levers</a>
         <a href="#interactive">Interactive knobs</a>
         <a href="#focus-menu">Focus menu</a>
         <a href="#verify">Verify</a>
@@ -596,8 +804,51 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
         </div>
       </section>
 
+      <section id="compare-modes">
+        <div class="section-title"><span class="num">03</span><h2>Two summaries, different jobs.</h2></div>
+        <div class="compare-grid">
+          <article class="compare-card">
+            <h3>Session compaction</h3>
+            <p><strong>Trigger:</strong> <code>/compact</code>, <code>/compact-focus</code>, or auto/overflow compaction.</p>
+            <p><strong>Event:</strong> <code>session_before_compact</code>. This is the live hook owned by this package.</p>
+            <p><strong>Job:</strong> continue the same active branch by replacing older context with a checkpoint summary while keeping a recent verbatim tail.</p>
+            <ul>
+              <li>Optimized for immediate continuation.</li>
+              <li>Needs current objective, dirty state, blockers, exact next action.</li>
+              <li><code>keepRecentTokens</code> controls how much recent tail remains plaintext.</li>
+            </ul>
+          </article>
+          <div class="versus" aria-hidden="true">↔</div>
+          <article class="compare-card">
+            <h3>Tree / branch summary</h3>
+            <p><strong>Trigger:</strong> <code>/tree</code> navigation when leaving or summarizing a branch.</p>
+            <p><strong>Event:</strong> <code>session_before_tree</code>. Helper code exists here, but it is not live today.</p>
+            <p><strong>Job:</strong> preserve what happened on a branch so it can be understood, resumed, ignored, or mined later.</p>
+            <ul>
+              <li>Optimized for branch archaeology and navigation.</li>
+              <li>Needs branch purpose, divergence point, what changed, what was learned.</li>
+              <li>Does not need to force a same-branch “next action.”</li>
+            </ul>
+          </article>
+        </div>
+        <div class="reuse-map">
+          <div class="card">
+            <h3>Reuse these primitives</h3>
+            <p>Model resolution, files-touched recovery, slash-command preservation, prompt-contract loading, and safe failure behavior can stay shared.</p>
+          </div>
+          <div class="card">
+            <h3>Keep packages separate</h3>
+            <p>Recommended split: <code>pi-session-compaction</code> owns only <code>session_before_compact</code>; a future branch-summary package owns only <code>session_before_tree</code>. Same toolkit, different trust boundary.</p>
+          </div>
+          <div class="card">
+            <h3>Current boundary</h3>
+            <p>Only session compaction is live. Tree-summary augmentation helper code still lives here today, but should move behind a separate package before any live cutover.</p>
+          </div>
+        </div>
+      </section>
+
       <section id="before">
-        <div class="section-title"><span class="num">03</span><h2>What gets added without compaction?</h2></div>
+        <div class="section-title"><span class="num">04</span><h2>What gets added without compaction?</h2></div>
         <div class="cards">
           <div class="card third">
             <h3>Input tracking</h3>
@@ -618,7 +869,7 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
       </section>
 
       <section id="config">
-        <div class="section-title"><span class="num">04</span><h2>What is configurable?</h2></div>
+        <div class="section-title"><span class="num">05</span><h2>What is configurable?</h2></div>
         <div class="switchboard">
           <div class="switches" role="tablist" aria-label="Configuration topics">
             <button type="button" class="button is-active" data-panel="panel-config">config.json</button>
@@ -663,8 +914,112 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
         </div>
       </section>
 
+      <section id="settings-levers">
+        <div class="section-title"><span class="num">06</span><h2>Settings levers: what do those numbers mean?</h2></div>
+        <div class="lever-board">
+          <div class="card">
+            <h3>Your current Pi settings</h3>
+            <pre>{
+  "compaction": {
+    "enabled": false,
+    "reserveTokens": 172000,
+    "keepRecentTokens": 100000
+  }
+}</pre>
+            <p>
+              These are <strong>Pi core compaction settings</strong>. The custom extension uses the compaction event Pi prepares.
+              Manual <code>/compact</code> can still run even when <code>enabled</code> is false.
+            </p>
+            <div class="callout">
+              <strong>Important:</strong> setting <code>keepRecentTokens</code> to <code>0</code> does not mean “we keep everything.”
+              It means “keep almost no recent messages verbatim; summarize almost everything.” The full JSONL still exists on disk,
+              but the active continuation context would depend heavily on the summary.
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Drag the handles</h3>
+            <div class="lever-controls" aria-label="Compaction setting simulator">
+              <div class="toggle-row">
+                <label for="lever-enabled">Auto-compaction enabled</label>
+                <input id="lever-enabled" type="checkbox" />
+              </div>
+              <div class="lever">
+                <label for="lever-window"><span>Model context window</span><output id="out-window">400k</output></label>
+                <input id="lever-window" type="range" min="64000" max="1000000" step="1000" value="400000" />
+                <p class="mini">Not in your settings file; included so the reserve threshold has something to compare against.</p>
+              </div>
+              <div class="lever">
+                <label for="lever-current"><span>Current context tokens</span><output id="out-current">260k</output></label>
+                <input id="lever-current" type="range" min="0" max="1000000" step="1000" value="260000" />
+                <p class="mini">Roughly how full the current session is before compaction.</p>
+              </div>
+              <div class="lever">
+                <label for="lever-reserve"><span>reserveTokens</span><output id="out-reserve">172k</output></label>
+                <input id="lever-reserve" type="range" min="0" max="300000" step="1000" value="172000" />
+                <p class="mini">Space Pi keeps free before auto-triggering; the custom summarizer also receives this as <code>maxTokens</code>.</p>
+              </div>
+              <div class="lever">
+                <label for="lever-keep"><span>keepRecentTokens</span><output id="out-keep">100k</output></label>
+                <input id="lever-keep" type="range" min="0" max="300000" step="1000" value="100000" />
+                <p class="mini">How much recent context Pi tries to keep verbatim after compacting. Lower means more is summarized, not more is kept.</p>
+              </div>
+              <div class="lever">
+                <label for="lever-summary"><span>Estimated summary size</span><output id="out-summary">4k</output></label>
+                <input id="lever-summary" type="range" min="500" max="30000" step="500" value="4000" />
+                <p class="mini">A teaching estimate only; actual summary length depends on the model output.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card wide context-viz">
+            <h3>What the levers imply</h3>
+            <div class="lever-readout">
+              <div class="readout-item"><b>Auto trigger line</b><span id="read-threshold">228k</span></div>
+              <div class="readout-item"><b>Would auto-trigger?</b><span id="read-trigger">No — disabled</span></div>
+              <div class="readout-item"><b>Summarized on compact</b><span id="read-summarized">160k</span></div>
+              <div class="readout-item"><b>Kept verbatim</b><span id="read-kept">100k</span></div>
+            </div>
+
+            <div class="bar-wrap">
+              <div class="bar-label"><span>Before compaction: current context vs response reserve</span><span id="label-before">260k / 400k</span></div>
+              <div class="stacked-bar" aria-label="Before compaction bar">
+                <div id="bar-used" class="bar-segment summary">current</div>
+                <div id="bar-free" class="bar-segment free">free</div>
+                <div id="bar-over" class="bar-segment over">over</div>
+                <div id="bar-reserve" class="bar-segment reserve">reserve</div>
+              </div>
+            </div>
+
+            <div class="bar-wrap">
+              <div class="bar-label"><span>After compaction: summary + recent verbatim tail</span><span id="label-after">~104k active continuation context</span></div>
+              <div class="stacked-bar" aria-label="After compaction bar">
+                <div id="bar-summary" class="bar-segment summary">summary</div>
+                <div id="bar-kept" class="bar-segment kept">kept verbatim</div>
+                <div id="bar-after-free" class="bar-segment free">available</div>
+              </div>
+            </div>
+
+            <div class="cards">
+              <div class="card third">
+                <h3>enabled</h3>
+                <p><code>false</code> means Pi will not normally compact just because the context is near full. You can still run <code>/compact</code> manually.</p>
+              </div>
+              <div class="card third">
+                <h3>reserveTokens</h3>
+                <p>Raises or lowers the auto-trigger line: <code>contextWindow - reserveTokens</code>. Bigger reserve means earlier auto-compaction if auto is enabled.</p>
+              </div>
+              <div class="card third">
+                <h3>keepRecentTokens</h3>
+                <p>The green tail kept as original messages. <code>0</code> maximizes summarization and minimizes verbatim continuity.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="interactive">
-        <div class="section-title"><span class="num">05</span><h2>Which knobs can I change right before compaction?</h2></div>
+        <div class="section-title"><span class="num">07</span><h2>Which knobs can I change right before compaction?</h2></div>
         <div class="cards">
           <div class="card wide">
             <table class="matrix">
@@ -692,7 +1047,7 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
       </section>
 
       <section id="focus-menu">
-        <div class="section-title"><span class="num">06</span><h2>Four custom compaction focus choices</h2></div>
+        <div class="section-title"><span class="num">08</span><h2>Four custom compaction focus choices</h2></div>
         <div class="cards">
           <div class="card third">
             <h3>1 · Continue safely</h3>
@@ -722,7 +1077,7 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
       </section>
 
       <section id="verify">
-        <div class="section-title"><span class="num">07</span><h2>How do I verify the live hook?</h2></div>
+        <div class="section-title"><span class="num">09</span><h2>How do I verify the live hook?</h2></div>
         <div class="cards">
           <div class="card checklist">
             <h3>Smoke checklist</h3>
@@ -741,7 +1096,7 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
       </section>
 
       <section id="rollback">
-        <div class="section-title"><span class="num">08</span><h2>How do I roll it back?</h2></div>
+        <div class="section-title"><span class="num">10</span><h2>How do I roll it back?</h2></div>
         <div class="cards">
           <div class="card wide">
             <p>Remove the local live package, then reload Pi. Do not enable another compaction owner while this one remains active.</p>
@@ -752,9 +1107,9 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
       </section>
 
       <section id="future">
-        <div class="section-title"><span class="num">09</span><h2>What remains future or non-live?</h2></div>
+        <div class="section-title"><span class="num">11</span><h2>What remains future or non-live?</h2></div>
         <div class="cards">
-          <div class="card third"><h3>Tree summaries</h3><p><code>session_before_tree</code> augmentation helpers exist but are not live.</p></div>
+          <div class="card third"><h3>Tree summaries</h3><p><code>session_before_tree</code> augmentation helpers exist but are not live. Keep their prompt contract separate from active compaction.</p></div>
           <div class="card third"><h3>Status command</h3><p>A future <code>/session-compaction-status</code> command would make runtime proof easier.</p></div>
           <div class="card third"><h3>Config UI</h3><p>No interactive form edits <code>config.json</code> yet; changes are file-based.</p></div>
           <div class="card wide"><h3>Privacy boundary</h3><p>The package summarizes the branch entries Pi passes into compaction; it does not recursively scan the filesystem. Files-touched data comes from visible session/tool history. If secrets enter the session, continuity summaries may preserve them.</p></div>
@@ -807,6 +1162,83 @@ Summarize this compaction history span into a continuation-friendly checkpoint.
           }
         });
       });
+
+      const leverIds = ["enabled", "window", "current", "reserve", "keep", "summary"];
+      const lever = Object.fromEntries(
+        leverIds.map((name) => [name, document.getElementById(`lever-${name}`)]),
+      );
+
+      function tokens(value) {
+        const number = Number(value) || 0;
+        if (number >= 1000000) return `${(number / 1000000).toFixed(2).replace(/\.00$/, "")}M`;
+        if (number >= 1000) return `${Math.round(number / 1000)}k`;
+        return `${number}`;
+      }
+
+      function setText(id, text) {
+        const node = document.getElementById(id);
+        if (node) node.textContent = text;
+      }
+
+      function setSegment(id, amount, total, label) {
+        const node = document.getElementById(id);
+        if (!node) return;
+        const safeTotal = Math.max(1, total);
+        const pct = Math.max(0, (amount / safeTotal) * 100);
+        node.style.flexBasis = `${pct}%`;
+        node.style.display = pct <= 0 ? "none" : "grid";
+        node.textContent = pct >= 8 ? label : "";
+      }
+
+      function updateLevers() {
+        if (!lever.window) return;
+        const enabled = lever.enabled.checked;
+        const windowTokens = Number(lever.window.value);
+        const currentTokens = Number(lever.current.value);
+        const reserveTokens = Math.min(Number(lever.reserve.value), windowTokens);
+        const keepRecentTokens = Number(lever.keep.value);
+        const summaryTokens = Number(lever.summary.value);
+        const triggerLine = Math.max(0, windowTokens - reserveTokens);
+        const nonReserveUsed = Math.min(currentTokens, triggerLine);
+        const nonReserveFree = Math.max(0, triggerLine - nonReserveUsed);
+        const overIntoReserve = Math.min(Math.max(0, currentTokens - triggerLine), reserveTokens);
+        const reserveRemaining = Math.max(0, reserveTokens - overIntoReserve);
+        const overflow = Math.max(0, currentTokens - windowTokens);
+        const beforeDisplayTotal = Math.max(windowTokens, currentTokens);
+        const summarized = Math.max(0, currentTokens - keepRecentTokens);
+        const kept = Math.min(currentTokens, keepRecentTokens);
+        const afterActive = Math.min(windowTokens, summaryTokens + kept);
+        const afterFree = Math.max(0, windowTokens - afterActive);
+        const wouldTrigger = enabled && currentTokens > triggerLine;
+
+        setText("out-window", tokens(windowTokens));
+        setText("out-current", tokens(currentTokens));
+        setText("out-reserve", tokens(reserveTokens));
+        setText("out-keep", tokens(keepRecentTokens));
+        setText("out-summary", tokens(summaryTokens));
+        setText("read-threshold", `${tokens(triggerLine)} = ${tokens(windowTokens)} − ${tokens(reserveTokens)}`);
+        setText(
+          "read-trigger",
+          enabled ? (wouldTrigger ? "Yes — current context passed the line" : "No — below the line") : "No — auto is disabled",
+        );
+        setText("read-summarized", `${tokens(summarized)} older tokens become summary input`);
+        setText("read-kept", `${tokens(kept)} recent tokens stay verbatim`);
+        setText("label-before", `${tokens(Math.min(currentTokens, windowTokens))} / ${tokens(windowTokens)}${overflow ? ` (+${tokens(overflow)} overflow)` : ""}`);
+        setText("label-after", `~${tokens(afterActive)} active continuation context`);
+
+        setSegment("bar-used", nonReserveUsed, beforeDisplayTotal, "current");
+        setSegment("bar-free", nonReserveFree, beforeDisplayTotal, "free");
+        setSegment("bar-over", overIntoReserve + overflow, beforeDisplayTotal, "past trigger");
+        setSegment("bar-reserve", reserveRemaining, beforeDisplayTotal, "reserve");
+        setSegment("bar-summary", summaryTokens, windowTokens, "summary");
+        setSegment("bar-kept", kept, windowTokens, "kept verbatim");
+        setSegment("bar-after-free", afterFree, windowTokens, "available");
+      }
+
+      Object.values(lever).forEach((node) => {
+        if (node) node.addEventListener("input", updateLevers);
+      });
+      updateLevers();
     </script>
   </body>
 </html>
