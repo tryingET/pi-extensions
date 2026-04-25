@@ -14,11 +14,16 @@ import sessionCompactionExtension from "../extensions/session-compaction.js";
 
 function createPiRecorder() {
   const handlers = [];
+  const commands = new Map();
   return {
+    commands,
     handlers,
     pi: {
       on(event, handler) {
         handlers.push({ event, handler });
+      },
+      registerCommand(name, definition) {
+        commands.set(name, definition);
       },
     },
   };
@@ -193,8 +198,8 @@ describe("session compaction registration guard", () => {
     );
   });
 
-  it("live entrypoint registers input tracking, compaction, and startup visibility", async () => {
-    const { pi, handlers } = createPiRecorder();
+  it("live entrypoint registers input tracking, compaction, focus command, and startup visibility", async () => {
+    const { pi, handlers, commands } = createPiRecorder();
     const result = sessionCompactionExtension(pi);
 
     assert.equal(result.inputTracking.ok, true);
@@ -203,6 +208,7 @@ describe("session compaction registration guard", () => {
       handlers.map((handler) => handler.event),
       ["input", SESSION_BEFORE_COMPACT_EVENT, "session_start"],
     );
+    assert.equal(commands.has("compact-focus"), true);
 
     const notices = [];
     await handlers[2].handler(
@@ -220,6 +226,46 @@ describe("session compaction registration guard", () => {
         message: "pi-session-compaction: input tracking enabled; session_before_compact enabled",
         level: "info",
       },
+    ]);
+  });
+
+  it("live focus command opens a menu and starts compaction with selected instructions", async () => {
+    const { pi, commands } = createPiRecorder();
+    sessionCompactionExtension(pi);
+
+    const compactCalls = [];
+    const notices = [];
+    await commands.get("compact-focus").handler("", {
+      hasUI: true,
+      sessionManager: {
+        getEntries() {
+          return [{ type: "message" }, { type: "message" }];
+        },
+      },
+      ui: {
+        async select(title, options) {
+          assert.equal(title, "Choose compaction focus");
+          assert.deepEqual(options, [
+            "Continue safely",
+            "Verify live behavior",
+            "Clean handoff",
+            "Release readiness",
+          ]);
+          return "Verify live behavior";
+        },
+        notify(message, level) {
+          notices.push({ message, level });
+        },
+      },
+      compact(options) {
+        compactCalls.push(options);
+      },
+    });
+
+    assert.equal(compactCalls.length, 1);
+    assert.match(compactCalls[0].customInstructions, /^Verify live behavior:/);
+    assert.deepEqual(notices, [
+      { message: "Compaction started: Verify live behavior", level: "info" },
     ]);
   });
 });

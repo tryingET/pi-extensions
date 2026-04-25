@@ -9,7 +9,8 @@ This package is now the local live owner for custom `session_before_compact` sum
 - exposes `package.json#pi.extensions` through `extensions/session-compaction.js`
 - registers input tracking for preserving slash-command prompts
 - registers exactly one `session_before_compact` handler through the fail-closed registration guard
-- does not expose slash commands, prompt bundles, or `package.json#pi.prompts`
+- exposes `/compact-focus`, a guided operator menu that calls the same compaction path with selected custom instructions
+- does not expose prompt bundles or `package.json#pi.prompts`
 - falls back to stock compaction when the custom summarizer cannot be resolved, except explicit malformed/preset-directed paths that intentionally cancel rather than silently producing the wrong preset summary
 
 After local install, reload Pi with `/reload` before expecting the current session process to use the new hook.
@@ -38,7 +39,7 @@ This package currently implements the compaction-facing foundations and a tested
 - user prompt / command preservation ported from legacy `pi-user-prompt-compaction`, including expanded skill-block recovery, timestamp-matched slash command recovery, previous-summary prompt-section recovery, and `/compact <customInstructions>` preservation
 - `extensions/session-compaction/handler.js` assembly for `session_before_compact`, including compact-instruction parsing, config loading, stock-boundary span derivation, summary prompt assembly, final files-touched manifest append, essential-prompt append/deduplication, safe stock fallback, and abort cancellation
 - `extensions/session-compaction/registration.js` guard for hook activation, including default-disabled registration, explicit handler-test confirmation, explicit no-double-compaction preflight, existing-handler zero-count proof, duplicate package-registration blocking, and optional input tracking for slash-command preservation without slash-command registration
-- live `extensions/session-compaction.js` entrypoint, which enables input tracking and guarded `session_before_compact` registration without adding slash commands or prompt bundles
+- live `extensions/session-compaction.js` entrypoint, which enables input tracking, guarded `session_before_compact` registration, and `/compact-focus` without adding prompt bundles
 - non-live `extensions/session-compaction/branch-summary.js` helpers for optional `session_before_tree` augmentation, including prompt-contract loading, files-touched instructions, focus text preservation, and safe undefined-on-failure behavior
 - clear failure messages for missing models, ambiguous matches, unsupported reasoning, and incompatible registries
 
@@ -46,7 +47,7 @@ The live hook should remain the only custom compaction override. If another comp
 
 ## Template baseline
 
-This package was reconciled through `../pi-extensions-template` in `simple-package` mode, then intentionally adapted for the current compaction foundation. It keeps template lineage and baseline files such as `.copier-answers.yml`, `biome.jsonc`, `policy/stack-lane.json`, and `docs/tech-stack.local.md`. It exposes `package.json#pi.extensions` for the live hook, but still deliberately omits `package.json#pi.prompts` and slash-command registration.
+This package was reconciled through `../pi-extensions-template` in `simple-package` mode, then intentionally adapted for the current compaction foundation. It keeps template lineage and baseline files such as `.copier-answers.yml`, `biome.jsonc`, `policy/stack-lane.json`, and `docs/tech-stack.local.md`. It exposes `package.json#pi.extensions` for the live hook and `/compact-focus`, but still deliberately omits `package.json#pi.prompts`.
 
 ## Target summary shape
 

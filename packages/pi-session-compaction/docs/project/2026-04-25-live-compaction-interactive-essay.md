@@ -191,7 +191,7 @@ When Pi emits `session_before_compact`, the package can include:
 - No loop/chain/workflow runtime.
 - No Prompt Vault retrieval by this package.
 - No package prompt bundle.
-- No slash-command registration by this package.
+- No broad slash-command surface; the only package command is `/compact-focus`, which triggers the same guided compaction path.
 - No second compaction owner; this package should be the only custom `session_before_compact` owner.
 - No hidden persistent database writes from the compaction package itself.
 
@@ -377,6 +377,8 @@ Malformed preset directives fall back to the current session model with a warnin
 ## Four suggested custom compaction focus choices
 
 Use one of these immediately before compaction when you want the summary to prime the next session toward a specific continuation posture.
+
+The built-in `/compact` command is owned by Pi core and currently accepts free-text instructions directly. This package adds the companion `/compact-focus` command for the dropdown workflow: it opens a selector, then calls the same compaction path with the selected instructions.
 
 ### 1. Continue safely
 

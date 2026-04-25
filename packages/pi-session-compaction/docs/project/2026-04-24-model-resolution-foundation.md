@@ -54,7 +54,7 @@ Follow-up user-prompt preservation foundation:
 - no ASC rewrite
 - no multiple compaction overrides
 - no broad root release/publication setup
-- no slash-command or prompt-bundle registration
+- no broad slash-command or prompt-bundle registration; `/compact-focus` is a narrow operator command over the same compaction path
 
 ## Follow-up handler and live-entrypoint slice
 
@@ -62,7 +62,7 @@ Follow-up user-prompt preservation foundation:
 
 A fail-closed registration guard exists in `extensions/session-compaction/registration.js`. It remains default-disabled for tests and future embedders, and the live entrypoint passes explicit handler-test confirmation, no-double-compaction preflight confirmation, zero existing-handler proof, and duplicate package-registration protection before registering `session_before_compact`.
 
-The live entrypoint is `extensions/session-compaction.js` and is exposed through `package.json#pi.extensions`. It enables input tracking plus the guarded compaction handler without adding slash commands, prompts, or a second prompt-template execution surface.
+The live entrypoint is `extensions/session-compaction.js` and is exposed through `package.json#pi.extensions`. It enables input tracking, the guarded compaction handler, and the narrow `/compact-focus` operator menu without adding prompts or a second prompt-template execution surface.
 
 Branch-tree summary augmentation helpers remain non-live in `extensions/session-compaction/branch-summary.js`. They prepare optional `session_before_tree` custom instructions with prompt-contract loading, files-touched grounding, focus text preservation, and undefined-on-failure behavior, but still do not register any live hook.
 
