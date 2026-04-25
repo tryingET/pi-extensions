@@ -6,8 +6,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 const SESSION_PRESENCE_SCHEMA_VERSION = 1;
 const DEFAULT_TITLE_PREFIX = "π - ";
 const DEFAULT_TITLE_MODE = "session-short-id";
-const DEFAULT_TITLE_REFRESH_DELAYS_MS = [250, 1000, 3000];
-const DEFAULT_TITLE_HEARTBEAT_MS = 5000;
+const DEFAULT_TITLE_REFRESH_DELAYS_MS = [0, 250, 1000, 3000, 8000];
 
 export type SessionPresenceTitleMode = "session-short-id" | "off";
 
@@ -19,7 +18,6 @@ export interface SessionPresenceOptions {
   titleMode?: SessionPresenceTitleMode;
   titleBase?: string;
   titleRefreshDelaysMs?: number[];
-  titleHeartbeatMs?: number;
 }
 
 export interface SessionPresenceState {
@@ -80,14 +78,7 @@ function resolveTitleRefreshDelaysMs(options: SessionPresenceOptions): number[] 
   return configured.filter((value) => Number.isFinite(value) && value >= 0);
 }
 
-function resolveTitleHeartbeatMs(options: SessionPresenceOptions): number | undefined {
-  const raw = options.titleHeartbeatMs ?? process.env.PI_SESSION_PRESENCE_TITLE_HEARTBEAT_MS;
-  if (raw === undefined) return DEFAULT_TITLE_HEARTBEAT_MS;
-  const value = Number(raw);
-  return Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function unrefTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval>): void {
+function unrefTimer(timer: ReturnType<typeof setTimeout>): void {
   timer.unref?.();
 }
 
@@ -232,7 +223,6 @@ function formatStatusMessage(state: SessionPresenceState, filePath: string): str
 export function createSessionPresenceExtension(options: SessionPresenceOptions = {}) {
   return function sessionPresenceExtension(pi: ExtensionAPI) {
     const titleRefreshTimeouts: ReturnType<typeof setTimeout>[] = [];
-    let titleHeartbeat: ReturnType<typeof setInterval> | undefined;
 
     const clearTitleRefreshes = () => {
       while (titleRefreshTimeouts.length > 0) {
@@ -241,12 +231,6 @@ export function createSessionPresenceExtension(options: SessionPresenceOptions =
           clearTimeout(timeout);
         }
       }
-    };
-
-    const clearTitleHeartbeat = () => {
-      if (!titleHeartbeat) return;
-      clearInterval(titleHeartbeat);
-      titleHeartbeat = undefined;
     };
 
     const applyTitle = (ctx: ExtensionContext, state: SessionPresenceState) => {
@@ -265,27 +249,14 @@ export function createSessionPresenceExtension(options: SessionPresenceOptions =
       }
     };
 
-    const startTitleHeartbeat = (ctx: ExtensionContext, state: SessionPresenceState) => {
-      clearTitleHeartbeat();
-      if (!ctx.hasUI || !state.windowTitle) return;
-
-      const heartbeatMs = resolveTitleHeartbeatMs(options);
-      if (!heartbeatMs) return;
-
-      titleHeartbeat = setInterval(() => applyTitle(ctx, state), heartbeatMs);
-      unrefTimer(titleHeartbeat);
-    };
-
     const sync = (_event: unknown, ctx: ExtensionContext) => {
       const published = publishPresence(ctx, options);
       scheduleTitleRefreshes(ctx, published.state);
-      startTitleHeartbeat(ctx, published.state);
     };
 
     pi.on("session_start", sync);
     pi.on("session_shutdown", async () => {
       clearTitleRefreshes();
-      clearTitleHeartbeat();
       clearPresence(options);
     });
 

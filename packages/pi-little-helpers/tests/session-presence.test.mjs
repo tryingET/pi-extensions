@@ -148,7 +148,6 @@ test("session presence can override the base title and reapply it after startup"
       now: () => "2026-04-12T02:32:00.000Z",
       titleBase: "Sidequest: trace this failure",
       titleRefreshDelaysMs: [0, 0],
-      titleHeartbeatMs: 0,
     });
 
     const { handlers } = registerExtension(extension);
@@ -184,7 +183,7 @@ test("session presence can override the base title and reapply it after startup"
   }
 });
 
-test("session presence heartbeat keeps the session hash title after host title resets", async () => {
+test("session presence delayed refresh restores the session hash title after host title reset", async () => {
   const presenceDir = createTempDir();
 
   try {
@@ -192,8 +191,7 @@ test("session presence heartbeat keeps the session hash title after host title r
       presenceDir,
       processId: 727272,
       now: () => "2026-04-12T02:33:00.000Z",
-      titleRefreshDelaysMs: [],
-      titleHeartbeatMs: 1,
+      titleRefreshDelaysMs: [1],
     });
 
     const { handlers } = registerExtension(extension);
@@ -213,10 +211,11 @@ test("session presence heartbeat keeps the session hash title after host title r
     harness.ctx.ui.setTitle("π - template-propagator");
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    assert.ok(
-      harness.titles.filter((title) => title === "π - template-propagator · bebad8f0").length >= 2,
-    );
-    assert.equal(harness.titles.at(-1), "π - template-propagator · bebad8f0");
+    assert.deepEqual(harness.titles, [
+      "π - template-propagator · bebad8f0",
+      "π - template-propagator",
+      "π - template-propagator · bebad8f0",
+    ]);
 
     if (typeof sessionShutdown === "function") {
       await sessionShutdown({}, harness.ctx);
