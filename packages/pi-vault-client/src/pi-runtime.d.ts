@@ -31,7 +31,7 @@ declare module "@mariozechner/pi-tui" {
   }
 }
 
-declare module "@sinclair/typebox" {
+declare module "typebox" {
   export const Type: {
     [key: string]: (...args: any[]) => any;
   };

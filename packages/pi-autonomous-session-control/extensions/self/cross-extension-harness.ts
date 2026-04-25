@@ -90,11 +90,7 @@ function hasDolt(): boolean {
 }
 
 function getMissingVaultClientDependencies(vaultClientEntryPath: string): string[] {
-  const requiredModules = [
-    "@sinclair/typebox",
-    "@mariozechner/pi-coding-agent",
-    "@mariozechner/pi-tui",
-  ];
+  const requiredModules = ["typebox", "@mariozechner/pi-coding-agent", "@mariozechner/pi-tui"];
 
   try {
     const requireFromVaultClient = createRequire(vaultClientEntryPath);

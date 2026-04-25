@@ -1,6 +1,6 @@
 /** Subagent dispatcher for the `dispatch_subagent` tool. */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { shapeToolResult } from "./edge-contract-kernel.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import {
@@ -47,7 +47,8 @@ export type {
   SubagentState,
 };
 
-type CompatToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0] & {
+type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
+  parameters?: unknown;
   promptSnippet?: string;
   promptGuidelines?: string[];
 };
@@ -159,7 +160,7 @@ Child extension bootstrap (optional):
     },
   };
 
-  pi.registerTool(tool);
+  pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
 }
 
 export function registerSubagentTool(

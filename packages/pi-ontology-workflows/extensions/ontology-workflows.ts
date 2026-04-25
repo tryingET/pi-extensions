@@ -1,6 +1,6 @@
 import { StringEnum } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { createFilesystemPort } from "../src/adapters/filesystem.ts";
 import { formatChangeResult, formatInspectResult } from "../src/adapters/format.ts";
 import { registerOntologyInteractionRuntime } from "../src/adapters/interaction.ts";
@@ -25,6 +25,12 @@ import {
   type OntologyProposalAssessment,
   type OntologyProposalCandidate,
 } from "../src/core/proposal.ts";
+
+type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
+
+function asPiToolParameters(schema: unknown): PiToolParameters {
+  return schema as PiToolParameters;
+}
 
 const files = createFilesystemPort();
 const rocs = createRocsCliPort();
@@ -357,7 +363,7 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       "Use ontology_inspect before changing domain semantics, concepts, relations, system4d, or bridge mappings.",
       "Prefer kind=status to understand current health, kind=search to find matching ids, and kind=pack for exact concept/relation context.",
     ],
-    parameters: inspectSchema,
+    parameters: asPiToolParameters(inspectSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await inspectOntology(
         params as OntologyInspectRequest,
@@ -385,7 +391,7 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       "Treat this as plan-only governance support: it should assess duplicates, scope, and target ids, not apply changes.",
       "Review high-duplicate or insufficient-evidence results before writing ontology candidate artifacts or change plans.",
     ],
-    parameters: proposalSchema,
+    parameters: asPiToolParameters(proposalSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await proposalRuntime.assess(params as OntologyProposalCandidate, {
         cwd: ctx.cwd,
@@ -410,7 +416,7 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       "Use artifactKind=manifest when the repo-local ontology manifest or profiles need explicit control.",
       "Keep scope explicit when auto routing would be risky; company/core apply calls can write outside the current repo.",
     ],
-    parameters: changeSchema,
+    parameters: asPiToolParameters(changeSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as OntologyChangeRequest;
       const planned = await planOntologyChange(request, { cwd: ctx.cwd }, runtimeDeps);

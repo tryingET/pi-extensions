@@ -45,6 +45,10 @@
       "release-type": "node",
       "component": "pi-ontology-workflows"
     },
+    "packages/pi-peer-messaging": {
+      "release-type": "node",
+      "component": "pi-peer-messaging"
+    },
     "packages/pi-prompt-template-accelerator": {
       "release-type": "node",
       "component": "pi-prompt-template-accelerator"
@@ -52,6 +56,10 @@
     "packages/pi-society-orchestrator": {
       "release-type": "node",
       "component": "pi-society-orchestrator"
+    },
+    "packages/pi-society-startup-context": {
+      "release-type": "node",
+      "component": "pi-society-startup-context"
     },
     "packages/pi-vault-client": {
       "release-type": "node",

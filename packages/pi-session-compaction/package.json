@@ -58,7 +58,8 @@
   },
   "peerDependencies": {
     "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*"
+    "@mariozechner/pi-coding-agent": "*",
+    "typebox": "*"
   },
   "peerDependenciesMeta": {
     "@mariozechner/pi-ai": {
@@ -69,7 +70,8 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.4"
+    "@biomejs/biome": "2.4.4",
+    "typebox": "^1.0.0"
   },
   "x-pi-template": {
     "scaffoldMode": "simple-package",

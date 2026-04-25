@@ -67,13 +67,15 @@
     "@mariozechner/pi-coding-agent": "^0.65.0",
     "@types/node": "22.14.0",
     "tsx": "^4.20.5",
+    "typebox": "^1.0.0",
     "typescript": "5.9.2"
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"
   },
   "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-ai": "*"
+    "typebox": "*"
   }
 }

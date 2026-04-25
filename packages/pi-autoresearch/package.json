@@ -71,10 +71,10 @@
     "@biomejs/biome": "2.4.4",
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "^0.65.0",
-    "@sinclair/typebox": "^0.34.41",
     "@types/node": "^25.3.3",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "tsx": "^4.20.5",
+    "typebox": "^1.0.0",
     "typescript": "^5.9.3"
   },
   "overrides": {
@@ -83,6 +83,6 @@
   "peerDependencies": {
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
-    "@sinclair/typebox": "^0.34.41"
+    "typebox": "*"
   }
 }

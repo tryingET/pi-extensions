@@ -76,10 +76,12 @@
     "@types/node": "^22.0.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "tsx": "^4.20.5",
+    "typebox": "^1.0.0",
     "typescript": "^5.9.2"
   },
   "peerDependencies": {
     "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*"
+    "@mariozechner/pi-coding-agent": "*",
+    "typebox": "*"
   }
 }

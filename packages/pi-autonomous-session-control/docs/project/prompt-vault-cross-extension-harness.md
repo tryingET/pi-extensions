@@ -64,7 +64,7 @@ The live cross-extension test (`tests/prompt-vault-cross-extension-live.test.mjs
 4. **Runtime dependencies** resolvable from vault-client context:
    - `@mariozechner/pi-coding-agent`
    - `@mariozechner/pi-tui`
-   - `@sinclair/typebox`
+   - `typebox`
 
 ### Why the test skips
 

@@ -199,7 +199,7 @@ This package expects Pi host runtime APIs and declares them as `peerDependencies
 
 - `@mariozechner/pi-coding-agent`
 - `@mariozechner/pi-ai`
-- `@sinclair/typebox`
+- `typebox`
 
 Runtime YAML handling uses:
 

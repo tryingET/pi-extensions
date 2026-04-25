@@ -71,11 +71,13 @@
     "@tryinget/pi-model-selection": "file:../pi-interaction/pi-model-selection"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.14"
+    "@biomejs/biome": "2.3.14",
+    "typebox": "^1.0.0"
   },
   "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-ai": "*"
+    "typebox": "*"
   },
   "peerDependenciesMeta": {
     "@mariozechner/pi-ai": {

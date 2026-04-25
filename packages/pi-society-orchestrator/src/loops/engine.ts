@@ -18,7 +18,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { isKesMaterializationError, KES_MATERIALIZATION_FAILURE_KIND } from "../kes/index.ts";
 import { AGENT_PROFILES } from "../runtime/agent-profiles.ts";
 import type { AgentResolution } from "../runtime/agent-routing.ts";
@@ -35,6 +35,14 @@ import type { ExecutionStatus } from "../runtime/execution-status.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../runtime/subagent.ts";
 import type { TeamScopedContext } from "../runtime/team-state.ts";
 import { LoopKesWriter } from "./kes.ts";
+
+type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
+  parameters?: unknown;
+};
+
+function registerCompatTool(pi: ExtensionAPI, tool: CompatToolDefinition): void {
+  pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
+}
 
 const DEFAULT_SOCIETY_DB =
   process.env.SOCIETY_DB ||
@@ -558,7 +566,7 @@ export function registerLoopTools(
     sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "loops"),
   });
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "loop_execute",
     label: "Execute Loop",
     description: `Execute a structured iteration loop with cognitive tools.

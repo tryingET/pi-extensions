@@ -60,16 +60,19 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
-    "@sinclair/typebox": "0.34.48",
     "@tryinget/pi-interaction-kit": "file:../pi-interaction-kit"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
     "@types/node": "22.14.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
+    "typebox": "^1.0.0",
     "typescript": "5.9.2"
   },
   "overrides": {
     "fast-xml-parser": "5.4.2"
+  },
+  "peerDependencies": {
+    "typebox": "*"
   }
 }

@@ -29,7 +29,7 @@ import type {
   ToolResultEvent,
   TurnStartEvent,
 } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { createSelfMemoryLifecycle, type SelfMemoryLifecycle } from "./self/memory-lifecycle.ts";
 import { incrementTurn, trackCommand, trackError, trackFileOp } from "./self/perception.ts";
 import {
@@ -58,7 +58,8 @@ import {
 } from "./self/subagent-model-selection.ts";
 import type { SelfState } from "./self/types.ts";
 
-type CompatToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0] & {
+type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
+  parameters?: unknown;
   promptSnippet?: string;
   promptGuidelines?: string[];
 };
@@ -293,7 +294,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
     },
   };
 
-  pi.registerTool(tool);
+  pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
 }
 
 // ============================================================================

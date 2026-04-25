@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import {
   type AutoresearchDecisionRuntime,
   createAutoresearchDecisionRuntime,
@@ -57,6 +57,12 @@ import {
   recordAutoresearchSelfHostingRollback,
   resolveAutoresearchSelfHostingPromotionRecordPath,
 } from "../src/core/selfHosting.ts";
+
+type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
+
+function asPiToolParameters(schema: unknown): PiToolParameters {
+  return schema as PiToolParameters;
+}
 
 const stringArraySchema = Type.Array(Type.String());
 const nullableStringSchema = Type.Union([
@@ -447,7 +453,7 @@ export function registerPiAutoresearchExtension(
       "Inspect the current pi-autoresearch bounded runtime, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
       "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, and optionally request a governed setup/finalize packet.",
-    parameters: statusSchema,
+    parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "setup" | "finalize";
@@ -549,7 +555,7 @@ export function registerPiAutoresearchExtension(
       "Inspect or set the explicit pi-autoresearch operator control overlay for continue/rebaseline/finalize/stop.",
     promptSnippet:
       "Inspect or set the explicit pi-autoresearch operator control overlay and report the truthful next bounded step.",
-    parameters: controlSchema,
+    parameters: asPiToolParameters(controlSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "set";
@@ -591,7 +597,7 @@ export function registerPiAutoresearchExtension(
       "Inspect, plan, approve, and materialize the bounded pi-autoresearch finalization workflow.",
     promptSnippet:
       "Inspect or advance the bounded pi-autoresearch finalization workflow through status, plan, approve, or materialize.",
-    parameters: finalizeSchema,
+    parameters: asPiToolParameters(finalizeSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "plan" | "approve" | "materialize";
@@ -622,7 +628,7 @@ export function registerPiAutoresearchExtension(
       "Execute one bounded local pi-autoresearch run, append receipts plus machine/ledger events, and optionally request a governed post-run next-hypothesis decision.",
     promptSnippet:
       "Execute one bounded local pi-autoresearch run, parse metrics, run checks, update the XState machine/event ledger, append receipts, and optionally request a governed next-hypothesis decision.",
-    parameters: runSchema,
+    parameters: asPiToolParameters(runSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         cwd?: string;
@@ -694,7 +700,7 @@ export function registerPiAutoresearchExtension(
       "Use action=start_and_watch when you want the same bounded wave plus live in-call progress updates without starting a background daemon or session.",
       "Use action=rollback only after an external controller rotation has already been recorded and later evidence requires explicit rollback truth.",
     ],
-    parameters: selfHostingSchema,
+    parameters: asPiToolParameters(selfHostingSchema),
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
       const request = params as {
         action?: "status" | "prepare_candidate" | "run" | "start_and_watch" | "rollback";
@@ -1015,7 +1021,7 @@ export function registerPiAutoresearchExtension(
       "Use action=advance with apply=true only when the caller clearly wants exactly one next step executed.",
       "Keep this surface below whole-campaign execution, fork automation, and direct AK mutation.",
     ],
-    parameters: campaignControlSchema,
+    parameters: asPiToolParameters(campaignControlSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "advance";
@@ -1089,7 +1095,7 @@ export function registerPiAutoresearchExtension(
       "Use action=build_ak_binding only when the user already has an exact AK task id and wants a compact AK-ready snapshot rather than an AK mutation.",
       "Use action=advance_campaign to derive or execute exactly one truthful next stage step; it is still a technical helper action rather than the public autoresearch_llamacpp_campaign_control surface or a whole-campaign runner.",
     ],
-    parameters: campaignSchema,
+    parameters: asPiToolParameters(campaignSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as {
         action?:

@@ -71,6 +71,7 @@
     "@mariozechner/pi-coding-agent": "^0.65.0",
     "@types/node": "^22.0.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
+    "typebox": "^1.0.0",
     "typescript": "^5.9.2"
   },
   "overrides": {
@@ -79,7 +80,8 @@
   "peerDependencies": {
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*"
+    "@mariozechner/pi-tui": "*",
+    "typebox": "*"
   },
   "peerDependenciesMeta": {
     "@mariozechner/pi-ai": {
@@ -93,7 +95,6 @@
     }
   },
   "dependencies": {
-    "@sinclair/typebox": "^0.34.48",
     "@tryinget/pi-autoresearch": "file:../pi-autoresearch",
     "pi-autonomous-session-control": "file:../pi-autonomous-session-control",
     "pi-vault-client": "file:../pi-vault-client"

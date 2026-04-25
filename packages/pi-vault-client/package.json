@@ -75,7 +75,6 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
-    "@sinclair/typebox": "0.34.48",
     "@tryinget/pi-interaction-kit": "file:../pi-interaction/pi-interaction-kit",
     "@tryinget/pi-runtime-registry": "file:../pi-interaction/pi-runtime-registry",
     "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
@@ -86,6 +85,7 @@
     "@types/node": "^22.0.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "markdown-it": "^14.1.1",
+    "typebox": "^1.0.0",
     "typescript": "^5.9.2"
   },
   "overrides": {
@@ -94,6 +94,7 @@
   "peerDependencies": {
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*"
+    "@mariozechner/pi-tui": "*",
+    "typebox": "*"
   }
 }

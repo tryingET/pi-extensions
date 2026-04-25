@@ -11,7 +11,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { resolveCompanyContext } from "./companyContext.js";
 const PROMPT_EVAL_CONTEXT_ERROR = "Explicit company context is required for prompt_eval variants. Set PI_COMPANY or invoke the tool from a company-scoped cwd.";
 function formatEvaluatorError(error) {

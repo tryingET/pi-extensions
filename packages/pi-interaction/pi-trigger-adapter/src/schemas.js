@@ -1,5 +1,5 @@
-import { Type } from "@sinclair/typebox";
-import { TypeCompiler } from "@sinclair/typebox/compiler";
+import { Type } from "typebox";
+import { Compile } from "typebox/compile";
 
 const pickerConfigBoundarySchema = Type.Object(
   {
@@ -35,8 +35,8 @@ const sanitizedCandidateSchema = Type.Object(
 
 const sanitizedCandidateArraySchema = Type.Array(sanitizedCandidateSchema);
 
-const pickerConfigBoundaryChecker = TypeCompiler.Compile(pickerConfigBoundarySchema);
-const sanitizedCandidateChecker = TypeCompiler.Compile(sanitizedCandidateArraySchema);
+const pickerConfigBoundaryChecker = Compile(pickerConfigBoundarySchema);
+const sanitizedCandidateChecker = Compile(sanitizedCandidateArraySchema);
 
 const allowedConfigKeys = new Set([
   "id",
@@ -68,14 +68,14 @@ const allowedConfigKeys = new Set([
 ]);
 
 /**
- * @param {import("@sinclair/typebox/compiler").TypeCheck<any>} checker
+ * @param {{ Errors(value: unknown): Iterable<{ path?: string, message?: string }> }} checker
  * @param {unknown} value
  * @returns {string}
  */
 function firstError(checker, value) {
   for (const error of checker.Errors(value)) {
     const path = error.path || "(root)";
-    return `${path}: ${error.message}`;
+    return `${path}: ${error.message || "validation failed"}`;
   }
   return "(unknown validation error)";
 }

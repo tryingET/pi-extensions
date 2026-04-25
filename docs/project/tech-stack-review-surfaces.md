@@ -49,13 +49,13 @@ The script enumerates every package root under `packages/` and reports whether i
 
 ## Current audit snapshot
 
-Audited on 2026-04-23.
+Audited on 2026-04-25.
 Refreshed from `node ./scripts/tech-stack-review-surfaces.mjs --json`.
 
 Snapshot summary:
 
-- package entries audited: `16`
-- legacy-full: `6`
+- package entries audited: `20`
+- legacy-full: `10`
 - reduced-form: `2`
 - policy-only: `0`
 - no local surface: `8`
@@ -64,9 +64,13 @@ Snapshot summary:
 
 - `packages/pi-autoresearch`
 - `packages/pi-context-overlay`
+- `packages/pi-interaction/pi-model-selection`
 - `packages/pi-little-helpers`
 - `packages/pi-ontology-workflows`
+- `packages/pi-prompt-template-execution`
+- `packages/pi-session-compaction`
 - `packages/pi-society-orchestrator`
+- `packages/pi-society-startup-context`
 - `packages/pi-vault-client`
 
 ### Reduced-form package-local surface (`docs/tech-stack.local.md` only)
@@ -93,12 +97,16 @@ Snapshot summary:
 
 The `#601` audit confirmed that the original `legacy-full` bucket was not uniform, and the first routed follow-up wave has now proved that classification in practice:
 
-- the remaining six `legacy-full` package-local `docs/tech-stack.local.md` files are still byte-identical boilerplate copies of the same simple-package note (`sha256:04a5fb…0241f`):
+- the current ten `legacy-full` package-local surfaces still carry both `docs/tech-stack.local.md` and `policy/stack-lane.json`:
   - `packages/pi-autoresearch`
   - `packages/pi-context-overlay`
+  - `packages/pi-interaction/pi-model-selection`
   - `packages/pi-little-helpers`
   - `packages/pi-ontology-workflows`
+  - `packages/pi-prompt-template-execution`
+  - `packages/pi-session-compaction`
   - `packages/pi-society-orchestrator`
+  - `packages/pi-society-startup-context`
   - `packages/pi-vault-client`
 - `#634` proved the simple-package `none` path in `packages/pi-activity-strip`, and `#635` proved the matching monorepo-package `none` path in `packages/pi-autonomous-session-control`, so neither package still appears in the `legacy-full` bucket.
 - `#636` has now landed the only distinct child-package `reduced-form` case: `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` remains as the local override note while `policy/stack-lane.json` is gone.

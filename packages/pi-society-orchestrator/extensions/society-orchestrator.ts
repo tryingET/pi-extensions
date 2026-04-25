@@ -44,7 +44,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { registerLoopCommands, registerLoopTools } from "../src/loops/engine.ts";
 import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
 import {
@@ -101,6 +101,14 @@ import {
   createWorkflowExecutor,
   WorkflowExecutionError,
 } from "../src/runtime/workflow-execution.ts";
+
+type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
+  parameters?: unknown;
+};
+
+function registerCompatTool(pi: ExtensionAPI, tool: CompatToolDefinition): void {
+  pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
+}
 
 // ============================================================================
 // CONFIGURATION
@@ -732,7 +740,7 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   // TOOL: society_query
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "society_query",
     label: "Society Query",
     description: "Execute a bounded read-only diagnostic SQL query against society.db.",
@@ -811,7 +819,7 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   // TOOL: orchestrator_boundary_telemetry
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "orchestrator_boundary_telemetry",
     label: "Orchestrator Boundary Telemetry",
     description: `Inspect session-local lower-plane execution telemetry for the orchestrator.
@@ -860,7 +868,7 @@ Reports call counts, latency summary, command mix, and recent boundary events ca
   // TOOL: cognitive_dispatch
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "cognitive_dispatch",
     label: "Cognitive Dispatch",
     description: `Dispatch an agent with cognitive tool injection. The system:
@@ -1067,7 +1075,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   // TOOL: evidence_record
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "evidence_record",
     label: "Record Evidence",
     description: "Record evidence in the society.db evidence ledger.",
@@ -1119,7 +1127,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   // TOOL: ontology_context
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "ontology_context",
     label: "Ontology Context",
     description: "Get relevant ontology concepts for a company or concern.",
@@ -1159,7 +1167,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   // TOOL: autoresearch_live_supervision
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "autoresearch_live_supervision",
     label: "Autoresearch Live Supervision",
     description:
@@ -1371,7 +1379,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   // TOOL: autoresearch_manifest_campaign_supervision
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "autoresearch_manifest_campaign_supervision",
     label: "Autoresearch Manifest Campaign Supervision",
     description:
@@ -1672,7 +1680,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   // TOOL: workflow_execute
   // ===========================================================================
 
-  pi.registerTool({
+  registerCompatTool(pi, {
     name: "workflow_execute",
     label: "Execute Workflow",
     description: `Execute a bounded chain or parallel workflow composition over the ASC-backed subagent executor.
