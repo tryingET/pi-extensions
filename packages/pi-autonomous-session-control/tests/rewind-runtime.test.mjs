@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
@@ -533,6 +534,60 @@ test("rewind runtime hooks built-in /tree and records summary aliases after rest
     assert.equal(await commitExists(gitHarness.git, latestOp.data.snapshots[0]), true);
   } finally {
     await gitHarness.cleanup();
+  }
+});
+
+test("rewind runtime shows tree rewind prompt and fails loudly when git is unavailable", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "asc-rewind-non-git-"));
+
+  try {
+    const sessionManager = new SessionManagerStub({
+      sessionFile: `${workspace}/non-git-session.jsonl`,
+      id: "session-non-git",
+      cwd: workspace,
+    });
+    const harness = createPiHarness(sessionManager);
+    registerRewindRuntime(harness.pi);
+
+    const userEntry = sessionManager.appendMessage("user", "Tree target outside git");
+
+    await harness.handlers.get("session_start")(
+      { type: "session_start", reason: "startup" },
+      harness.ctx,
+    );
+    harness.enqueueSelection("Rewind files to that point");
+
+    const beforeTreeResult = await harness.handlers.get("session_before_tree")(
+      {
+        type: "session_before_tree",
+        preparation: {
+          targetId: userEntry.id,
+          oldLeafId: null,
+          commonAncestorId: null,
+          entriesToSummarize: [],
+          userWantsSummary: false,
+        },
+        signal: new AbortController().signal,
+      },
+      harness.ctx,
+    );
+
+    assert.deepEqual(beforeTreeResult, { cancel: true });
+    assert.deepEqual(harness.selectionPrompts.at(-1), {
+      title: "Restore Options",
+      options: ["Keep current files", "Rewind files to that point", "Cancel navigation"],
+    });
+    assert.ok(
+      harness.notifications.some(
+        (item) =>
+          item.level === "error" &&
+          item.message.includes("file rewind is unavailable") &&
+          item.message.includes("git worktree"),
+      ),
+      "expected actionable git-unavailable notification",
+    );
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
   }
 });
 

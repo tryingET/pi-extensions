@@ -726,12 +726,29 @@ async function handleSessionBeforeTree(
   pi: ExtensionAPI,
   state: RewindRuntimeState,
 ) {
-  if (!state.isGitRepo || !state.git) {
+  if (!ctx.hasUI) {
     return;
   }
 
   try {
-    if (!ctx.hasUI) {
+    if (!state.isGitRepo || !state.git) {
+      const choice = await ctx.ui.select("Restore Options", [
+        TREE_KEEP_CURRENT_FILES,
+        TREE_REWIND_TO_POINT,
+        TREE_CANCEL_NAVIGATION,
+      ]);
+      if (!choice || choice === TREE_CANCEL_NAVIGATION) {
+        notify(ctx, "ASC rewind: navigation cancelled", "info");
+        return { cancel: true };
+      }
+      if (choice === TREE_REWIND_TO_POINT) {
+        notify(
+          ctx,
+          "ASC rewind: file rewind is unavailable because this session is not in an initialized git worktree. Choose Keep current files to navigate conversation only, or restart Pi from a git worktree after installing/reloading ASC.",
+          "error",
+        );
+        return { cancel: true };
+      }
       return;
     }
 
