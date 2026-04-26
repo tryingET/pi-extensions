@@ -26,9 +26,11 @@ When the `pi-designmd-foundry` extension is installed, prefer its tools over ad-
 2. `designmd_export`
 3. `designmd_agent_prompt`
 4. `designmd_openpencil_prompt`
-5. `designmd_import_penpot`
-6. `designmd_palette_from_text`
-7. `designmd_readiness`
+5. `designmd_openpencil_info`
+6. `designmd_openpencil_lint`
+7. `designmd_import_penpot`
+8. `designmd_palette_from_text`
+9. `designmd_readiness`
 
 Use shell commands only when the extension is unavailable.
 
@@ -66,7 +68,7 @@ npm run build
 Do not claim a live integration just because an adapter exists.
 
 - Penpot: file-based DTCG/Penpot token import is the stable baseline unless a real project export/plugin/webhook path is verified.
-- OpenPencil: prompt handoff is stable; CLI lint requires installed `open-pencil` and a real `.fig`/`.pen` fixture.
+- OpenPencil: prompt handoff plus info/lint are stable when DesignMD readiness reports the project-local `openpencil` dev dependency; export still requires separate fixture verification before wrapping.
 - Pigmnts: text-output palette parsing is stable; image extraction requires installed `pigmnts` and a real image fixture.
 - Oat: theme/preview export is stable and CDN remains explicit opt-in.
 - Agent prompt export: stable for handoff, but quality should be evaluated in a real implementation task before adding more automation.

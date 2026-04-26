@@ -32,6 +32,10 @@ interface PromptParams extends BaseParams {
   objective?: string;
 }
 
+interface OpenPencilFileParams extends BaseParams {
+  filePath: string;
+}
+
 interface ImportPenpotParams extends BaseParams {
   tokenPath: string;
   name?: string;
@@ -197,6 +201,48 @@ export default function (pi: ExtensionAPI) {
       if (request.objective) args.push("--objective", request.objective);
       args.push(resolveInputPath(request.cwd, request.designPath || "DESIGN.md"));
       return toolResult(runDesignmd(request, args));
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_openpencil_info",
+    label: "DesignMD OpenPencil info",
+    description:
+      "Inspect a .fig or .pen file through DesignMD Foundry's OpenPencil info adapter. Read-only; does not export or write files.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        filePath: Type.String({
+          description: ".fig or .pen path relative to cwd, or absolute.",
+        }),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as OpenPencilFileParams;
+      return toolResult(
+        runDesignmd(request, ["openpencil-info", resolveInputPath(request.cwd, request.filePath)]),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_openpencil_lint",
+    label: "DesignMD OpenPencil lint",
+    description:
+      "Lint a .fig or .pen file through DesignMD Foundry's OpenPencil lint adapter. Read-only; export remains intentionally unwrapped.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        filePath: Type.String({
+          description: ".fig or .pen path relative to cwd, or absolute.",
+        }),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as OpenPencilFileParams;
+      return toolResult(
+        runDesignmd(request, ["openpencil-lint", resolveInputPath(request.cwd, request.filePath)]),
+      );
     },
   });
 

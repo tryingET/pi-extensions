@@ -27,6 +27,8 @@ No harnessed LLM provider is bundled here. Pi remains the agent harness; Foundry
 - `designmd_export` — export `css`, `oat`, `tailwind`, `dtcg`, `tokens`, `agent-prompt`, or `json`.
 - `designmd_agent_prompt` — convenience wrapper for `agent-prompt` export.
 - `designmd_openpencil_prompt` — build an OpenPencil handoff prompt.
+- `designmd_openpencil_info` — inspect a `.fig` / `.pen` file through the verified OpenPencil info adapter.
+- `designmd_openpencil_lint` — lint a `.fig` / `.pen` file through the verified OpenPencil lint adapter.
 - `designmd_import_penpot` — convert DTCG/Penpot token JSON into DESIGN.md text.
 - `designmd_palette_from_text` — parse or apply Pigmnts-style hex palette text.
 - `designmd_readiness` — run DesignMD Foundry's integration readiness probe.
