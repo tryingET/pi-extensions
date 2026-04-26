@@ -1,0 +1,10 @@
+{
+  "lane": "ts",
+  "tech_stack_core": {
+    "tool": "tech-stack-core",
+    "lane": "pi-ts",
+    "repository": "https://github.com/lightningralf/tech-stack-core",
+    "ref": "4bd813dbb9ebbd9cb279c7293cd941fd1154d59e",
+    "command": "uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo"
+  }
+}
