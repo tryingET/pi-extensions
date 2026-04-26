@@ -23,6 +23,7 @@ The extension exposes operations that are readiness-verified in DesignMD Foundry
 - `designmd_openpencil_prompt`
 - `designmd_openpencil_info`
 - `designmd_openpencil_lint`
+- `designmd_openpencil_export` for verified formats only: `svg`, `png`, `jpg`, `webp`, `fig`
 - `designmd_import_penpot`
 - `designmd_palette_from_text`
 - `designmd_readiness`
@@ -32,7 +33,7 @@ The extension exposes operations that are readiness-verified in DesignMD Foundry
 - No direct save of canonical `DESIGN.md`.
 - No provider-backed LLM generation.
 - No direct Penpot webhook/plugin synchronization.
-- No OpenPencil export wrapper until export behavior is fixture-verified.
+- No OpenPencil JSX export wrapper until JSX behavior is fixture-verified.
 - No claim that `open-pencil`/`openpencil` or `pigmnts` live CLIs exist unless DesignMD readiness reports them.
 
 ## Runtime path resolution

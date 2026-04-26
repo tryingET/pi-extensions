@@ -9,6 +9,7 @@ type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"
 type ToolResult = Awaited<ReturnType<Parameters<ExtensionAPI["registerTool"]>[0]["execute"]>>;
 
 type DesignmdFormat = "css" | "oat" | "tailwind" | "dtcg" | "tokens" | "agent-prompt" | "json";
+type OpenPencilExportFormat = "svg" | "png" | "jpg" | "webp" | "fig";
 
 interface BaseParams {
   cwd?: string;
@@ -36,6 +37,12 @@ interface OpenPencilFileParams extends BaseParams {
   filePath: string;
 }
 
+interface OpenPencilExportParams extends BaseParams {
+  filePath: string;
+  format: OpenPencilExportFormat;
+  outputPath: string;
+}
+
 interface ImportPenpotParams extends BaseParams {
   tokenPath: string;
   name?: string;
@@ -52,6 +59,7 @@ interface ReadinessParams extends BaseParams {}
 
 const FORMAT_VALUES = ["css", "oat", "tailwind", "dtcg", "tokens", "agent-prompt", "json"] as const;
 const MODE_VALUES = ["iterate", "remix", "expand", "audit"] as const;
+const OPENPENCIL_EXPORT_FORMAT_VALUES = ["svg", "png", "jpg", "webp", "fig"] as const;
 
 const baseFields = {
   cwd: Type.Optional(
@@ -242,6 +250,44 @@ export default function (pi: ExtensionAPI) {
       const request = params as OpenPencilFileParams;
       return toolResult(
         runDesignmd(request, ["openpencil-lint", resolveInputPath(request.cwd, request.filePath)]),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_openpencil_export",
+    label: "DesignMD OpenPencil export",
+    description:
+      "Export a .fig or .pen file through DesignMD Foundry's restricted OpenPencil export adapter. Allowed formats: svg, png, jpg, webp, fig. JSX is intentionally not exposed.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        filePath: Type.String({
+          description: ".fig or .pen path relative to cwd, or absolute.",
+        }),
+        format: Type.Union(
+          OPENPENCIL_EXPORT_FORMAT_VALUES.map((value) => Type.Literal(value)),
+          {
+            description: "Verified OpenPencil export format. JSX is intentionally excluded.",
+          },
+        ),
+        outputPath: Type.String({
+          description:
+            "Output artifact path relative to cwd, or absolute. The tool writes this requested file.",
+        }),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as OpenPencilExportParams;
+      return toolResult(
+        runDesignmd(request, [
+          "openpencil-export",
+          resolveInputPath(request.cwd, request.filePath),
+          "--format",
+          request.format,
+          "--output",
+          resolveInputPath(request.cwd, request.outputPath),
+        ]),
       );
     },
   });
