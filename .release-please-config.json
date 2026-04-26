@@ -53,6 +53,10 @@
       "release-type": "node",
       "component": "pi-prompt-template-accelerator"
     },
+    "packages/pi-provenance": {
+      "release-type": "node",
+      "component": "pi-provenance"
+    },
     "packages/pi-society-orchestrator": {
       "release-type": "node",
       "component": "pi-society-orchestrator"

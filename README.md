@@ -30,6 +30,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-context-overlay`
   - `packages/pi-activity-strip`
   - `packages/pi-little-helpers`
+  - `packages/pi-provenance`
   - `packages/pi-prompt-template-accelerator`
   - `packages/pi-prompt-template-execution` (live successor for prompt-template model/thinking/args semantics; minimal extension entrypoint, no prompt bundle)
   - `packages/pi-session-compaction` (live local compaction owner after guarded cutover; tested handler, registration guard, and non-live branch augmentation helpers)
@@ -50,6 +51,7 @@ When cues overlap, route by owner before diving deeper:
 
 - `packages/pi-society-orchestrator` — coordination/control-plane questions that compose lower-plane owners, such as loops, routing selection, runtime-status wording, evidence intent, or exact supervision flows
 - `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, prompt-envelope application, session artifacts, rewind aliasing, and runtime/operator visibility tied to execution ownership
+- `packages/pi-provenance` — source-owned Pi session/assistant-message provenance extraction for downstream evidence writers, including provider/model/API refs without raw prompt or provider-payload capture
 - `packages/pi-prompt-template-execution` — prompt-template execution semantics such as `model`, `thinking`, `restore`, `skill`, conditionals, args, Pi host adapter behavior, dry-run diagnostics, compatibility canaries, and `/commit` live execution ownership after replacing `npm:pi-prompt-template-model`
 - `packages/pi-session-compaction` — custom `session_before_compact` summary ownership, summarizer model resolution, user-prompt/command preservation, and files-touched manifests (live local owner; do not enable alongside another compaction override)
 - `packages/pi-autoresearch` — bounded experiment-loop runtime ownership, manifest-campaign planning/control, and local campaign receipt/machine surfaces

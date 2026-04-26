@@ -48,6 +48,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-context-overlay` | yes | inspect current session context | good outsider entry point |
 | `pi-activity-strip` | yes | show live session/activity strip UI | local desktop/window-manager assumptions may apply |
 | `pi-little-helpers` | yes | add small operator helpers | general-purpose utility package |
+| `pi-provenance` | yes | extract minimal Pi session/assistant-message provenance | source-owned provider/model/API refs for downstream evidence writers |
 | `pi-autonomous-session-control` | yes | provide autonomy/subagent control surfaces | strongest in subagent-heavy workflows |
 | `pi-autoresearch` | with extra setup | own the bounded experiment-loop runtime and manifest-campaign control seam | strongest when local campaign receipts and AK/Prompt Vault adjacencies are in play |
 | `pi-prompt-template-accelerator` | yes | speed up prompt-template command workflows | picker/prefill UX only |

@@ -11,6 +11,7 @@
   "packages/pi-ontology-workflows": "0.1.0",
   "packages/pi-peer-messaging": "0.1.0",
   "packages/pi-prompt-template-accelerator": "0.1.0",
+  "packages/pi-provenance": "0.1.0",
   "packages/pi-society-orchestrator": "0.1.0",
   "packages/pi-society-startup-context": "0.1.0",
   "packages/pi-vault-client": "0.1.0"
