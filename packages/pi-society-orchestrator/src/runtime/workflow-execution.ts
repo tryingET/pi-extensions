@@ -4,6 +4,14 @@ import path from "node:path";
 import { AGENT_PROFILES } from "./agent-profiles.ts";
 import { getExecutionStatus } from "./execution-status.ts";
 import {
+  buildReviewLaneProvenanceEnv,
+  createReviewLaneProvenanceRequest,
+  formatReviewLaneProvenanceLine,
+  mergeUniqueStrings,
+  type ReviewLaneProvenanceConfig,
+  readReviewLaneProvenanceResult,
+} from "./review-lane-provenance.ts";
+import {
   createOrchestratorSubagentExecutor,
   type OrchestratorSubagentExecutor,
   type OrchestratorSubagentExecutorOptions,
@@ -67,6 +75,7 @@ export interface WorkflowExecutionParams {
   extraSections?: string[];
   extensions?: string[];
   env?: Record<string, string>;
+  provenance?: ReviewLaneProvenanceConfig;
   promptName?: string;
   promptContent?: string;
   promptTags?: string[];
@@ -122,6 +131,7 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
             request,
             params,
             executor,
+            executionRunId,
           });
           stepResults.push(stepResult);
 
@@ -149,6 +159,7 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
                 request,
                 params,
                 executor,
+                executionRunId,
               }),
               worktreeSummary: undefined,
             };
@@ -239,6 +250,7 @@ async function executeWorktreeParallelGroup(input: {
         request,
         params,
         executor,
+        executionRunId,
         cwdOverrides,
       });
     } catch (error) {
@@ -270,9 +282,10 @@ async function executeParallelGroup(input: {
   request: WorkflowRequest;
   params: WorkflowExecutionParams;
   executor: OrchestratorSubagentExecutor;
+  executionRunId: string;
   cwdOverrides?: string[];
 }): Promise<WorkflowStepResult[]> {
-  const { group, startIndex, request, params, executor, cwdOverrides } = input;
+  const { group, startIndex, request, params, executor, executionRunId, cwdOverrides } = input;
 
   const settled = await Promise.allSettled(
     group.tasks.map((step, parallelTaskIndex) =>
@@ -282,6 +295,7 @@ async function executeParallelGroup(input: {
         request,
         params,
         executor,
+        executionRunId,
         cwdOverride: cwdOverrides?.[parallelTaskIndex],
       }),
     ),
@@ -306,9 +320,10 @@ async function executeWorkflowStep(input: {
   request: WorkflowRequest;
   params: WorkflowExecutionParams;
   executor: OrchestratorSubagentExecutor;
+  executionRunId: string;
   cwdOverride?: string;
 }): Promise<WorkflowStepResult> {
-  const { step, index, request, params, executor, cwdOverride } = input;
+  const { step, index, request, params, executor, executionRunId, cwdOverride } = input;
   const agentProfile = AGENT_PROFILES[step.agent];
   if (!agentProfile) {
     throw new WorkflowExecutionError(
@@ -316,6 +331,21 @@ async function executeWorkflowStep(input: {
       `Unknown workflow agent profile: ${step.agent}`,
     );
   }
+
+  const provenanceRequest = createReviewLaneProvenanceRequest({
+    config: params.provenance,
+    runId: executionRunId,
+    stepIndex: index,
+    agent: step.agent,
+  });
+  const provenanceEnv = buildReviewLaneProvenanceEnv(provenanceRequest);
+  const mergedEnv =
+    params.env || provenanceEnv
+      ? {
+          ...(params.env ?? {}),
+          ...(provenanceEnv ?? {}),
+        }
+      : undefined;
 
   const result = await executor.execute({
     agentProfile,
@@ -327,8 +357,11 @@ async function executeWorkflowStep(input: {
     contextHeading: params.contextHeading,
     contextBody: params.contextBody,
     extraSections: params.extraSections,
-    extensions: params.extensions,
-    env: params.env,
+    extensions: mergeUniqueStrings(
+      params.extensions,
+      provenanceRequest?.extensionPath ? [provenanceRequest.extensionPath] : undefined,
+    ),
+    env: mergedEnv,
     promptName: params.promptName,
     promptContent: params.promptContent,
     promptTags: params.promptTags,
@@ -337,14 +370,20 @@ async function executeWorkflowStep(input: {
   });
 
   const executionLike = toExecutionLike(result);
+  const stepStatus = getExecutionStatus(executionLike);
+  const provenance = readReviewLaneProvenanceResult({
+    request: provenanceRequest,
+    stepStatus,
+  });
 
   return {
     index,
     agent: step.agent,
-    status: getExecutionStatus(executionLike),
+    status: stepStatus,
     displayOutput: executionLike.output,
     failureKind: result.details.failureKind,
     elapsedMs: result.details.elapsed,
+    ...(provenance ? { provenance } : {}),
   };
 }
 
@@ -515,6 +554,11 @@ function renderStepSection(input: {
 
   if (typeof result.elapsedMs === "number") {
     lines.push(`Elapsed: ${result.elapsedMs} ms`);
+  }
+
+  const provenanceLine = formatReviewLaneProvenanceLine(result.provenance);
+  if (provenanceLine) {
+    lines.push(provenanceLine);
   }
 
   lines.push("Output:", formatDisplayOutput(result.displayOutput));

@@ -127,11 +127,14 @@ Then pass them to ASC's `runtime.execute(...)` request.
 
 ### 3. Orchestrator provenance sidecar reader
 
-After a review-lane subagent returns, orchestrator should check whether the expected sidecar exists.
+Status: implemented for internal `WorkflowExecutionParams.provenance.mode = "review_lane"`.
 
-- if present: parse and attach/copy minimal block
+After a review-lane subagent returns, orchestrator checks whether the expected sidecar exists.
+
+- if present: parse and attach the minimal block to `WorkflowStepResult.provenance`
 - if absent and lane succeeded: report `provenance_missing` as a warning, not execution failure for the first slice
 - if absent and lane failed/aborted/timed out: preserve execution status truth and mark provenance as unavailable
+- generic `workflow_execute` requests remain uncluttered because the public tool schema does not expose provenance fields yet
 
 ## Public workflow request posture
 
@@ -246,10 +249,10 @@ And neither lane observes the other's PI_PROVENANCE_REVIEW_LANE_ID or output pat
 
 1. ASC: add request-scoped env overlay with concurrency tests. ✅
 2. Orchestrator subagent adapter: pass `extensions` and `env` to ASC. ✅
-3. Orchestrator review-lane helper: generate lane id + safe sidecar path.
-4. Orchestrator result shaping: include `provenancePath` and parsed provenance in lane details when present.
+3. Orchestrator review-lane helper: generate lane id + safe sidecar path. ✅
+4. Orchestrator result shaping: include the sidecar path and parsed provenance in lane details when present. ✅
 5. Review-lineage integration: only after surfaced source evidence exists, decide whether the existing `ak decision review-lineage` projection should read these sidecars.
 
 ## Current recommendation
 
-Proceed next with the orchestrator review-lane helper and sidecar reader. The ASC env-overlay seam now exists, so later child-lane implementation does not need unsafe ambient `process.env` mutation.
+Proceed next with the review-lineage integration decision: decide whether and where governed review-lane callers should enable internal `WorkflowExecutionParams.provenance.mode = "review_lane"`, and only then consider AK-side projection from the source-owned sidecars.

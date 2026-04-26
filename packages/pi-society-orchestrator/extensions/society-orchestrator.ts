@@ -1780,6 +1780,7 @@ and failureKind truth, and produces a structured aggregated output with workflow
               agent: step.agent,
               status: step.status,
               failureKind: step.failureKind || null,
+              provenance: step.provenance || null,
             })),
             worktreeSummary: result.worktreeSummary || null,
           },

@@ -31,6 +31,15 @@ export interface WorkflowParallelGroup {
   worktree?: boolean;
 }
 
+export interface WorkflowStepProvenanceResult {
+  status: "captured" | "missing" | "unavailable" | "invalid";
+  laneId: string;
+  path: string;
+  provenance?: unknown;
+  warning?: string;
+  error?: string;
+}
+
 export interface WorkflowStepResult {
   index: number;
   agent: WorkflowAgentName;
@@ -38,6 +47,7 @@ export interface WorkflowStepResult {
   displayOutput: string;
   failureKind?: string;
   elapsedMs?: number;
+  provenance?: WorkflowStepProvenanceResult;
 }
 
 export interface WorkflowWorktreeSummary {
