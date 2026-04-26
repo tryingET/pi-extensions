@@ -255,4 +255,8 @@ And neither lane observes the other's PI_PROVENANCE_REVIEW_LANE_ID or output pat
 
 ## Current recommendation
 
-Proceed next with the review-lineage integration decision: decide whether and where governed review-lane callers should enable internal `WorkflowExecutionParams.provenance.mode = "review_lane"`, and only then consider AK-side projection from the source-owned sidecars.
+The narrow governed review-lane caller boundary is now implemented as `src/runtime/governed-review-lane.ts`.
+
+Use `executeGovernedReviewLaneWorkflow(...)` or `buildGovernedReviewLaneWorkflowParams(...)` only from callers that already know they are executing governed review-lineage work. This keeps generic `workflow_execute` provenance-off while letting review-lane callers request Pi-owned sidecars through the internal workflow executor.
+
+Proceed next with AK-side review-lineage projection only after a real governed review-lane caller has produced source-owned sidecars in live use.
