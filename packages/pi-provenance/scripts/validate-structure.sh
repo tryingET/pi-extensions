@@ -26,14 +26,11 @@ required_files=(
   "docs/adr/.gitkeep"
   "policy/stack-lane.json"
   "policy/security-policy.json"
-  ".pi/prompts/commit.md"
   "scripts/docs-list.sh"
   "scripts/release-check.sh"
   "scripts/validate-structure.sh"
   "scripts/validate-structure.mjs"
   "scripts/quality-gate.sh"
-  "prompts/implementation-planning.md"
-  "prompts/security-review.md"
 )
 
 required_dirs=(
@@ -50,9 +47,6 @@ required_dirs=(
   "scripts"
   "src"
   "tests"
-  ".pi"
-  ".pi/prompts"
-  "prompts"
 )
 
 required_executables=(

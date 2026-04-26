@@ -45,13 +45,15 @@ function validatePackageJson() {
   }
 
   const prompts = p.pi?.prompts;
-  if (!Array.isArray(prompts) || prompts.length < 1) {
-    fail("package.json missing pi.prompts array");
-  } else {
-    for (const entry of prompts) {
-      const normalized = entry.replace(/\/$/, "").replace(/^\.\//, "");
-      if (!fs.existsSync(normalized)) {
-        fail(`pi.prompts entry does not exist: ${entry}`);
+  if (prompts !== undefined) {
+    if (!Array.isArray(prompts)) {
+      fail("package.json pi.prompts must be an array when present");
+    } else {
+      for (const entry of prompts) {
+        const normalized = entry.replace(/\/$/, "").replace(/^\.\//, "");
+        if (!fs.existsSync(normalized)) {
+          fail(`pi.prompts entry does not exist: ${entry}`);
+        }
       }
     }
   }
@@ -132,9 +134,6 @@ function validatePackageJson() {
   if (!Array.isArray(p.files) || p.files.length < 1) {
     fail("package.json must define a non-empty files array");
   } else {
-    if (!p.files.includes("prompts")) {
-      fail("package.json files must include 'prompts'");
-    }
     if (!p.files.includes("examples")) {
       fail("package.json files must include 'examples'");
     }

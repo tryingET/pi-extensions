@@ -33,7 +33,7 @@ Pi session/runtime assistant-message provenance
 - it is likely to be consumed by review runners, orchestrator surfaces, or ASC-backed flows
 - it should stay reusable beyond one operator helper command
 
-A diagnostic `/provenance` command is useful, but the package's primary value is the importable extraction seam.
+A diagnostic slash command would be useful for manual smoke tests, but it is intentionally not part of the package's default surface. The primary value is the importable extraction seam plus gated background capture for explicit review-lane contexts.
 
 ## Why this is not pi-society-orchestrator
 
@@ -47,15 +47,15 @@ Keeping extraction here prevents society-specific coordination code from becomin
 
 ## Current scope
 
-The first slice provides:
+The current slice provides:
 
 - `src/provenance-core.js`
   - find the latest assistant-message session entry
   - build a minimal source-owned provenance block
   - extract that block from Pi's read-only `ctx.sessionManager`
 - `extensions/provenance.ts`
-  - `/provenance`
-  - `/provenance --json`
+  - no user-facing slash command
+  - gated `agent_end` background capture only when `PI_PROVENANCE_REVIEW_LANE_ID` and `PI_PROVENANCE_OUTPUT_FILE` are set
 - tests that prove the block omits raw message content and preserves provider/model/API/session refs
 
 ## Non-goals
@@ -67,6 +67,8 @@ This package does not own:
 - AK run/governed-run schema
 - Prompt Vault procedure identity
 - whole review-lane orchestration
+- user-facing slash-command diagnostics by default
+- scaffold prompt templates
 - generic all-session surveillance
 - historical inference from opaque `session://...` aliases
 

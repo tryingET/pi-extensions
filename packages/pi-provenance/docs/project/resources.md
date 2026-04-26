@@ -12,11 +12,12 @@ system4d:
 # Resources
 
 - [Extension entrypoint](../../extensions/provenance.ts)
-- [Prompt templates](../../prompts)
+- [Provenance core helper](../../src/provenance-core.js)
+- [Package charter](2026-04-26-pi-provenance-package-charter.md)
 - [Organization operating model](../org/operating_model.md)
 - [Security policy](../../policy/security-policy.json)
 - [Validation script](../../scripts/validate-structure.sh)
-- [Trusted publishing runbook](../dev/trusted_publishing.md)
+- [Trusted publishing runbook](trusted-publishing.md)
 - [Biome config](../../biome.jsonc)
 - [VS Code workspace settings](../../.vscode/settings.json)
 - Tech-stack lane reference (pi extension TypeScript):

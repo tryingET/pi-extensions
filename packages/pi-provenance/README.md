@@ -32,12 +32,14 @@ Pi session JSONL assistant message
 
 It does **not** own AK decision closure, `ak packet` links, AK run/schema authority, whole review workflow orchestration, or generic all-session surveillance.
 
-## Current extension command
+## Runtime surfaces
 
-- `/provenance` — show a compact summary for the latest persisted assistant message in the current Pi session.
-- `/provenance --json` — write the minimal provenance block as JSON to stdout.
+This package is background/library-first. It does not register a user-facing slash command and does not expose scaffold prompt templates.
 
-The command is intentionally diagnostic. Durable evidence writers should import the core helper and copy the returned block into their own explicit artifact.
+Current surfaces:
+
+1. an importable helper for callers that already have `ctx.sessionManager`
+2. a gated background `agent_end` handler for explicit review-lane capture
 
 ## Programmatic helper
 
@@ -76,6 +78,28 @@ Returned shape:
 ```
 
 The helper does not include raw message content, prompts, provider request payloads, auth headers, tool output, or full session chronology.
+
+## Background review-lane capture
+
+The extension listens for `agent_end`, but it is inert unless both explicit environment markers are present:
+
+```bash
+export PI_PROVENANCE_REVIEW_LANE_ID="review-lane-id"
+export PI_PROVENANCE_OUTPUT_FILE="/absolute/path/to/provenance.json"
+```
+
+When both are set, the extension resolves the latest persisted assistant-message entry from `ctx.sessionManager` and atomically writes the minimal provenance block with this context:
+
+```json
+{
+  "capture_context": {
+    "kind": "review_lane",
+    "review_lane_id": "review-lane-id"
+  }
+}
+```
+
+This makes review-runner wiring possible without making provenance capture visible in everyday Pi sessions.
 
 ## Review-lane provenance rule
 
@@ -140,8 +164,8 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Then in Pi:
 
 1. run `/reload`
-2. verify `/provenance` after at least one assistant response exists in the session
-3. verify `/provenance --json` if a caller needs the exact block shape
+2. run a marked review-lane smoke with `PI_PROVENANCE_REVIEW_LANE_ID` and `PI_PROVENANCE_OUTPUT_FILE`
+3. verify the output file contains only the minimal session/message/provider/model/API provenance block
 
 ## Release metadata
 

@@ -23,6 +23,7 @@ system4d:
 - This package owns Pi runtime/session provenance extraction helpers, not downstream governance authority.
 - Keep output minimal: exact session/message refs plus assistant-message provider, model, API, response id, stop reason, timestamp, and usage.
 - Do not capture raw prompts, provider payloads, auth headers, tool output, or full session chronology by default.
+- Keep this package background/library-first: no default user-facing slash command and no package prompt bundle unless a later explicit design adds one.
 - Treat `message_end` as pre-persistence for exact JSONL entry ids; resolve durable entry ids from `ctx.sessionManager.getEntries()` after persistence.
 - Consumers such as review runners, ASC, or orchestrator may copy this package's output into evidence, but they remain consumers rather than the source owner for Pi runtime facts.
 

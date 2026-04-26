@@ -1,49 +1,43 @@
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import {
-  extractLatestAssistantMessageProvenance,
-  formatAssistantMessageProvenanceSummary,
-} from "../src/provenance-core.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { extractLatestAssistantMessageProvenance } from "../src/provenance-core.js";
 
-function writeLine(ctx: ExtensionContext, message: string): void {
-  if (ctx.hasUI) {
-    ctx.ui.notify(message, "info");
-    return;
-  }
-  console.log(message);
+interface BackgroundCaptureConfig {
+  laneId: string;
+  outputFile: string;
 }
 
-function parseArgs(args: string): { json: boolean } {
-  const tokens = args
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
+function readBackgroundCaptureConfig(): BackgroundCaptureConfig | undefined {
+  const laneId = process.env.PI_PROVENANCE_REVIEW_LANE_ID?.trim();
+  const outputFile = process.env.PI_PROVENANCE_OUTPUT_FILE?.trim();
 
-  return {
-    json: tokens.includes("--json") || tokens.includes("-j"),
-  };
+  if (!laneId || !outputFile) return undefined;
+  return { laneId, outputFile };
+}
+
+function writeJsonAtomic(filePath: string, payload: unknown): void {
+  const dirPath = path.dirname(filePath);
+  fs.mkdirSync(dirPath, { recursive: true });
+  const tmpPath = path.join(dirPath, `.${path.basename(filePath)}.tmp-${process.pid}`);
+  fs.writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.renameSync(tmpPath, filePath);
 }
 
 export default function provenanceExtension(pi: ExtensionAPI) {
-  pi.registerCommand("provenance", {
-    description: "Show minimal provenance for the latest persisted assistant message",
-    handler: async (args, ctx) => {
-      const options = parseArgs(args);
-      const provenance = extractLatestAssistantMessageProvenance(ctx.sessionManager);
+  pi.on("agent_end", async (_event, ctx) => {
+    const config = readBackgroundCaptureConfig();
+    if (!config) return;
 
-      if (!provenance) {
-        writeLine(ctx, "provenance: no persisted assistant message found in this session");
-        return;
-      }
+    const provenance = extractLatestAssistantMessageProvenance(ctx.sessionManager);
+    if (!provenance) return;
 
-      if (options.json) {
-        console.log(JSON.stringify(provenance, null, 2));
-        if (ctx.hasUI) {
-          ctx.ui.notify("provenance JSON written to stdout", "info");
-        }
-        return;
-      }
-
-      writeLine(ctx, `provenance: ${formatAssistantMessageProvenanceSummary(provenance)}`);
-    },
+    writeJsonAtomic(config.outputFile, {
+      ...provenance,
+      capture_context: {
+        kind: "review_lane",
+        review_lane_id: config.laneId,
+      },
+    });
   });
 }

@@ -47,7 +47,6 @@
   "files": [
     "extensions/provenance.ts",
     "src/provenance-core.js",
-    "prompts",
     "examples",
     "policy/security-policy.json",
     "policy/stack-lane.json"
@@ -55,9 +54,6 @@
   "pi": {
     "extensions": [
       "./extensions/provenance.ts"
-    ],
-    "prompts": [
-      "./prompts"
     ]
   },
   "x-pi-template": {
