@@ -26,6 +26,7 @@ No harnessed LLM provider is bundled here. Pi remains the agent harness; Foundry
 - `designmd_lint` — lint a `DESIGN.md` file.
 - `designmd_export` — export `css`, `oat`, `tailwind`, `dtcg`, `tokens`, `agent-prompt`, or `json`.
 - `designmd_agent_prompt` — convenience wrapper for `agent-prompt` export.
+- `designmd_oat_visual_snapshot` — generate token-preserving Oat visual snapshot HTML for manual review.
 - `designmd_openpencil_prompt` — build an OpenPencil handoff prompt.
 - `designmd_openpencil_info` — inspect a `.fig` / `.pen` file through the verified OpenPencil info adapter.
 - `designmd_openpencil_lint` — lint a `.fig` / `.pen` file through the verified OpenPencil lint adapter.

@@ -33,6 +33,15 @@ interface PromptParams extends BaseParams {
   objective?: string;
 }
 
+interface OatVisualSnapshotParams extends BaseParams {
+  designPath?: string;
+  referenceTitle?: string;
+  referenceUrl?: string;
+  observations?: string[];
+  cdn?: boolean;
+  stylesheet?: string;
+}
+
 interface OpenPencilFileParams extends BaseParams {
   filePath: string;
 }
@@ -180,6 +189,56 @@ export default function (pi: ExtensionAPI) {
       const args = ["export", "--format", "agent-prompt"];
       if (request.mode) args.push("--mode", request.mode);
       if (request.objective) args.push("--objective", request.objective);
+      args.push(resolveInputPath(request.cwd, request.designPath || "DESIGN.md"));
+      return toolResult(runDesignmd(request, args));
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_oat_visual_snapshot",
+    label: "DesignMD Oat visual snapshot",
+    description:
+      "Generate a deterministic Oat visual snapshot HTML file from DESIGN.md. Returns HTML only; no canonical files are written.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        designPath: Type.Optional(
+          Type.String({
+            description: "DESIGN.md path relative to cwd, or absolute. Defaults to DESIGN.md.",
+          }),
+        ),
+        referenceTitle: Type.Optional(
+          Type.String({ description: "Optional title for the visual reference context." }),
+        ),
+        referenceUrl: Type.Optional(
+          Type.String({ description: "Optional URL for the visual reference context." }),
+        ),
+        observations: Type.Optional(
+          Type.Array(
+            Type.String({
+              description:
+                "Reference cue or review observation to include in the snapshot handoff.",
+            }),
+          ),
+        ),
+        cdn: Type.Optional(
+          Type.Boolean({ description: "Opt into loading the external Oat CDN stylesheet." }),
+        ),
+        stylesheet: Type.Optional(
+          Type.String({
+            description: "Optional local stylesheet path or URL to include explicitly.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as OatVisualSnapshotParams;
+      const args = ["oat-visual-snapshot"];
+      if (request.cdn) args.push("--cdn");
+      if (request.stylesheet) args.push("--stylesheet", request.stylesheet);
+      if (request.referenceTitle) args.push("--reference-title", request.referenceTitle);
+      if (request.referenceUrl) args.push("--reference-url", request.referenceUrl);
+      if (request.observations?.length) args.push("--observations", request.observations.join(";"));
       args.push(resolveInputPath(request.cwd, request.designPath || "DESIGN.md"));
       return toolResult(runDesignmd(request, args));
     },

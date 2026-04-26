@@ -20,6 +20,7 @@ The extension exposes operations that are readiness-verified in DesignMD Foundry
 - `designmd_lint`
 - `designmd_export`
 - `designmd_agent_prompt`
+- `designmd_oat_visual_snapshot`
 - `designmd_openpencil_prompt`
 - `designmd_openpencil_info`
 - `designmd_openpencil_lint`
@@ -48,4 +49,4 @@ The CLI entrypoint uses `dist/cli.js` when present, otherwise source mode throug
 
 ## Safety posture
 
-Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; artifact text is returned to the agent/operator for review.
+Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export.
