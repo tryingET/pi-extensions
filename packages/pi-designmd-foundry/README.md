@@ -31,6 +31,8 @@ No harnessed LLM provider is bundled here. Pi remains the agent harness; Foundry
 - `designmd_palette_from_text` — parse or apply Pigmnts-style hex palette text.
 - `designmd_readiness` — run DesignMD Foundry's integration readiness probe.
 
+Prompt/export modes are deliberately constrained to the Foundry CLI contract: `iterate`, `remix`, `expand`, or `audit`.
+
 ## Skill
 
 Use the skill when doing UI/design work:

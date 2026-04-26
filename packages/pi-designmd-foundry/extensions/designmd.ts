@@ -64,6 +64,15 @@ const baseFields = {
   ),
 };
 
+const modeField = Type.Optional(
+  Type.Union(
+    MODE_VALUES.map((value) => Type.Literal(value)),
+    {
+      description: "Design operation mode. Allowed values: iterate, remix, expand, audit.",
+    },
+  ),
+);
+
 function asPiToolParameters(schema: unknown): PiToolParameters {
   return schema as PiToolParameters;
 }
@@ -120,7 +129,7 @@ export default function (pi: ExtensionAPI) {
           }),
         ),
         format: Type.Union(FORMAT_VALUES.map((value) => Type.Literal(value))),
-        mode: Type.Optional(Type.Union(MODE_VALUES.map((value) => Type.Literal(value)))),
+        mode: modeField,
         objective: Type.Optional(
           Type.String({ description: "Optional objective for agent-prompt export." }),
         ),
@@ -148,7 +157,7 @@ export default function (pi: ExtensionAPI) {
             description: "DESIGN.md path relative to cwd, or absolute. Defaults to DESIGN.md.",
           }),
         ),
-        mode: Type.Optional(Type.Union(MODE_VALUES.map((value) => Type.Literal(value)))),
+        mode: modeField,
         objective: Type.Optional(
           Type.String({ description: "Implementation or audit objective for the prompt." }),
         ),
@@ -177,7 +186,7 @@ export default function (pi: ExtensionAPI) {
             description: "DESIGN.md path relative to cwd, or absolute. Defaults to DESIGN.md.",
           }),
         ),
-        mode: Type.Optional(Type.Union(MODE_VALUES.map((value) => Type.Literal(value)))),
+        mode: modeField,
         objective: Type.Optional(Type.String({ description: "OpenPencil handoff objective." })),
       }),
     ),
