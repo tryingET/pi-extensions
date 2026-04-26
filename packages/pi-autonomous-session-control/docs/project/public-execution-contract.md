@@ -56,6 +56,7 @@ This keeps the tool path and the non-tool consumer path on the same core executi
 The public execution seam now also carries explicit transport-safety expectations:
 
 - optional `AbortSignal` propagation from consumer to subagent spawn path
+- request-scoped child environment overlays via `DispatchSubagentRequest.env`, applied only to that subagent execution without mutating ambient `process.env`
 - bounded assistant output capture with truncation signaling
 - helper `transport_ready` handshake before ASC arms the execution timeout, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget
 - assistant-only filtered subagent protocol between ASC and the child helper, so aggregate Pi JSON events are dropped before the runtime parser and raw Pi JSON is no longer accepted on the parent seam as a compatibility fallback
@@ -108,6 +109,10 @@ const result = await runtime.execute(
   {
     profile: "reviewer",
     objective: "Review the staged changes for risk and missing tests.",
+    env: {
+      PI_PROVENANCE_REVIEW_LANE_ID: "review-lane-1",
+      PI_PROVENANCE_OUTPUT_FILE: "/tmp/review-lane-1.provenance.json",
+    },
   },
   { cwd: process.cwd() },
   undefined,
@@ -125,6 +130,7 @@ Useful properties:
 - `result.details.status` uses the canonical execution taxonomy (`done`, `aborted`, `timed_out`, `error`)
 - `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
+- request `env` values are intentionally not echoed into `result.details`; consumers that need provenance should read their own sidecar/output artifact
 - `getDispatchSubagentDisplayOutput(result)` is the exported compatibility helper for consumers that want the same normalized body shaping without reimplementing fallback logic
 
 ## Prompt-related surfaces outside this seam

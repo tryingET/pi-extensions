@@ -67,6 +67,10 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
         objective: "Review the integration seam",
         systemPrompt: "Base prompt",
         timeout: 60,
+        env: {
+          PI_PROVENANCE_REVIEW_LANE_ID: "lane-1",
+          PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-1.json",
+        },
         prompt_name: "nexus",
         prompt_content: "Use the smallest stable public seam.",
         prompt_tags: ["phase:execution", "scope:public-contract"],
@@ -80,6 +84,10 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
     assert.deepEqual(capturedCtx, { cwd: process.cwd() });
     assert.equal(capturedState, runtime.state);
     assert.equal(capturedDef.timeout, 60000);
+    assert.deepEqual(capturedDef.env, {
+      PI_PROVENANCE_REVIEW_LANE_ID: "lane-1",
+      PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-1.json",
+    });
     assert.equal(
       capturedDef.systemPrompt,
       [

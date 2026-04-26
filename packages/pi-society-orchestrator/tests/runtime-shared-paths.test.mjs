@@ -422,6 +422,9 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
   const controller = new AbortController();
 
   try {
+    const provenanceExtensionPath = path.join(tempDir, "pi-provenance.ts");
+    fs.writeFileSync(provenanceExtensionPath, "export default function () {}\n");
+
     const executor = createOrchestratorSubagentExecutor({
       sessionsDir: tempDir,
       spawner: async (def, model, ctx, state, signal) => {
@@ -445,6 +448,11 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
       contextHeading: "OBJECTIVE",
       contextBody: "Review the evidence trail",
       extraSections: ["## LOOP\nphase=orient"],
+      extensions: [provenanceExtensionPath],
+      env: {
+        PI_PROVENANCE_REVIEW_LANE_ID: "orch-lane-1",
+        PI_PROVENANCE_OUTPUT_FILE: "/tmp/orch-lane-1.json",
+      },
       signal: controller.signal,
     });
 
@@ -458,6 +466,11 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
     assert.equal(calls[0].signal, controller.signal);
     assert.equal(calls[0].def.name, "reviewer-audit");
     assert.equal(calls[0].def.tools, AGENT_PROFILES.reviewer.tools);
+    assert.deepEqual(calls[0].def.extensionSources, [provenanceExtensionPath]);
+    assert.deepEqual(calls[0].def.env, {
+      PI_PROVENANCE_REVIEW_LANE_ID: "orch-lane-1",
+      PI_PROVENANCE_OUTPUT_FILE: "/tmp/orch-lane-1.json",
+    });
     assert.match(calls[0].def.systemPrompt || "", /You are a code reviewer agent/);
     assert.match(calls[0].def.systemPrompt || "", /FRAMEWORK: audit deeply/);
     assert.match(calls[0].def.systemPrompt || "", /## OBJECTIVE\n\nReview the evidence trail/);

@@ -130,6 +130,7 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
   child.pid = 575757;
 
   let capturedArgs;
+  let capturedEnv;
 
   try {
     const resultPromise = spawnSubagentWithSpawn(
@@ -139,12 +140,17 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
         tools: "read,bash",
         sessionFile: join(state.sessionsDir, "extension-args.json"),
         extensionSources: ["/tmp/pi-multi-pass.ts", "/tmp/vault.ts"],
+        env: {
+          PI_PROVENANCE_REVIEW_LANE_ID: "lane-spawn",
+          PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-spawn.json",
+        },
       },
       "test/model",
       { cwd: process.cwd() },
       state,
-      (_command, args) => {
+      (_command, args, options) => {
         capturedArgs = args;
+        capturedEnv = options.env;
         return child;
       },
     );
@@ -158,6 +164,8 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
     assert.deepEqual(capturedArgs.filter((arg) => arg === "--extension").length, 2);
     assert.ok(capturedArgs.includes("/tmp/pi-multi-pass.ts"));
     assert.ok(capturedArgs.includes("/tmp/vault.ts"));
+    assert.equal(capturedEnv.PI_PROVENANCE_REVIEW_LANE_ID, "lane-spawn");
+    assert.equal(capturedEnv.PI_PROVENANCE_OUTPUT_FILE, "/tmp/lane-spawn.json");
   } finally {
     await rm(state.sessionsDir, { recursive: true, force: true });
   }

@@ -58,6 +58,7 @@ export interface DispatchSubagentRequest {
   name?: string;
   timeout?: number;
   extensions?: string[];
+  env?: Record<string, string>;
   prompt_name?: string;
   prompt_content?: string;
   prompt_tags?: string[];
@@ -272,6 +273,7 @@ export async function executeDispatchSubagentRequest(options: {
     name,
     timeout,
     extensions,
+    env,
     prompt_name,
     prompt_content,
     prompt_tags,
@@ -397,6 +399,7 @@ export async function executeDispatchSubagentRequest(options: {
       parentSessionKey,
       parentRepoRoot,
       extensionSources: extensionSelection.extensions,
+      env,
     };
 
     options.onUpdate?.({

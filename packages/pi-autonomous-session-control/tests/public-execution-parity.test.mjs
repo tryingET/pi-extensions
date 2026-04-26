@@ -172,6 +172,10 @@ test("public runtime parity: prompt envelope, updates, and result shaping match 
       objective: "Review the shared execution boundary",
       systemPrompt: "Base prompt",
       timeout: 60,
+      env: {
+        PI_PROVENANCE_REVIEW_LANE_ID: "lane-parity",
+        PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-parity.json",
+      },
       prompt_name: "nexus",
       prompt_content: "Prefer the smallest stable execution seam.",
       prompt_tags: ["phase:execution", "scope:parity"],
@@ -189,6 +193,10 @@ test("public runtime parity: prompt envelope, updates, and result shaping match 
       normalizeCapturedDef(harness.runtimeDefs[0]),
     );
     assert.equal(harness.runtimeDefs[0].timeout, 60000);
+    assert.deepEqual(harness.runtimeDefs[0].env, {
+      PI_PROVENANCE_REVIEW_LANE_ID: "lane-parity",
+      PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-parity.json",
+    });
     assert.match(runtimeResult.text, /^✓ \[custom\] done in 1s/);
   } finally {
     await harness.cleanup();

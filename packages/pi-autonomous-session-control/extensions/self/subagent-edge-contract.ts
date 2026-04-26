@@ -5,6 +5,7 @@ import {
   normalizeNumber,
   normalizeString,
   normalizeStringArray,
+  normalizeStringRecord,
 } from "./edge-contract-kernel.ts";
 import type { SubagentState } from "./subagent-session.ts";
 
@@ -16,6 +17,7 @@ export interface NormalizedDispatchParams {
   name?: string;
   timeout?: number;
   extensions?: string[];
+  env?: Record<string, string>;
   prompt_name?: string;
   prompt_content?: string;
   prompt_tags?: string[];
@@ -36,6 +38,7 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
     name: normalizeString(normalized.name),
     timeout: normalizeNumber(normalized.timeout, { min: 0 }),
     extensions: normalizeStringArray(normalized.extensions),
+    env: normalizeStringRecord(normalized.env),
     prompt_name: normalizeString(normalized.prompt_name),
     prompt_content: normalizeString(normalized.prompt_content, {
       allowEmpty: true,

@@ -12,6 +12,7 @@ export interface SubagentDef {
   systemPrompt?: string;
   sessionFile: string | null;
   timeout?: number; // milliseconds, 0 = no timeout
+  env?: Record<string, string>;
   executionSlotReserved?: boolean;
   parentSessionKey?: string;
   parentRepoRoot?: string;
@@ -681,7 +682,7 @@ export function spawnSubagentWithSpawn(
     try {
       proc = spawnImpl(process.execPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env },
+        env: { ...process.env, ...(def.env ?? {}) },
         cwd: ctx.cwd || process.cwd(),
       });
       writeSessionStatus(state.sessionsDir, def.name, {

@@ -34,6 +34,8 @@ export interface OrchestratorSubagentExecutionParams {
   extraSections?: string[];
   sessionName?: string;
   timeoutSeconds?: number;
+  extensions?: string[];
+  env?: Record<string, string>;
   promptName?: string;
   promptContent?: string;
   promptTags?: string[];
@@ -122,6 +124,8 @@ export function createOrchestratorSubagentExecutor(
           }),
           name: params.sessionName ?? defaultSessionName(params),
           timeout: resolveTimeoutSeconds(params.timeoutSeconds),
+          extensions: params.extensions,
+          env: params.env,
           prompt_name: params.promptName,
           prompt_content: params.promptContent,
           prompt_tags: params.promptTags,

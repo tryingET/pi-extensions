@@ -62,6 +62,19 @@ export function normalizeStringArray(value: unknown): string[] | undefined {
     .filter((entry): entry is string => typeof entry === "string");
 }
 
+export function normalizeStringRecord(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, entry]) => [normalizeString(key), normalizeString(entry, { allowEmpty: true })])
+    .filter(
+      (entry): entry is [string, string] =>
+        typeof entry[0] === "string" && typeof entry[1] === "string",
+    );
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 export function normalizeNumber(
   value: unknown,
   options: { min?: number; max?: number; integer?: boolean } = {},

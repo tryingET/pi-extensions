@@ -65,6 +65,8 @@ export interface WorkflowExecutionParams {
   contextHeading?: string;
   contextBody?: string;
   extraSections?: string[];
+  extensions?: string[];
+  env?: Record<string, string>;
   promptName?: string;
   promptContent?: string;
   promptTags?: string[];
@@ -325,6 +327,8 @@ async function executeWorkflowStep(input: {
     contextHeading: params.contextHeading,
     contextBody: params.contextBody,
     extraSections: params.extraSections,
+    extensions: params.extensions,
+    env: params.env,
     promptName: params.promptName,
     promptContent: params.promptContent,
     promptTags: params.promptTags,

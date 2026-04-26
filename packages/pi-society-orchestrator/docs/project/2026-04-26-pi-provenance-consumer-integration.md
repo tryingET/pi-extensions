@@ -85,6 +85,8 @@ For each orchestrator-launched governed review lane that opts into provenance:
 
 ### 1. ASC-owned request-scoped environment overlay
 
+Status: implemented in the first follow-up slice.
+
 Add a small field to the ASC public execution contract:
 
 ```ts
@@ -111,6 +113,8 @@ Rules:
 - tests must cover concurrent distinct env overlays
 
 ### 2. Orchestrator adapter passthrough
+
+Status: implemented in the first follow-up slice for the low-level orchestrator subagent adapter and workflow executor params.
 
 Add optional fields to `OrchestratorSubagentExecutionParams`:
 
@@ -240,12 +244,12 @@ And neither lane observes the other's PI_PROVENANCE_REVIEW_LANE_ID or output pat
 
 ## Implementation order
 
-1. ASC: add request-scoped env overlay with concurrency tests.
-2. Orchestrator subagent adapter: pass `extensions` and `env` to ASC.
+1. ASC: add request-scoped env overlay with concurrency tests. ✅
+2. Orchestrator subagent adapter: pass `extensions` and `env` to ASC. ✅
 3. Orchestrator review-lane helper: generate lane id + safe sidecar path.
 4. Orchestrator result shaping: include `provenancePath` and parsed provenance in lane details when present.
 5. Review-lineage integration: only after surfaced source evidence exists, decide whether the existing `ak decision review-lineage` projection should read these sidecars.
 
 ## Current recommendation
 
-Proceed with implementation only after accepting the small ASC env-overlay seam. Without request-scoped env, any child-lane implementation would be tempted to mutate `process.env`, which is unsafe for concurrent lanes and violates the source-owner boundary this package exists to preserve.
+Proceed next with the orchestrator review-lane helper and sidecar reader. The ASC env-overlay seam now exists, so later child-lane implementation does not need unsafe ambient `process.env` mutation.
