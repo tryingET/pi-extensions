@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -585,6 +585,10 @@ function normalizeSidequestRole(value: unknown): SidequestRole {
   return value === "reviewer" ? "reviewer" : "scout";
 }
 
+function createQuestId(prefix: "sidequest" | "parallelquest"): string {
+  return `${prefix}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+}
+
 function normalizeReportBack(request: SidequestSpawnRequest): SidequestReportBack {
   if (
     request.reportBack === "intercom" ||
@@ -599,10 +603,12 @@ function normalizeReportBack(request: SidequestSpawnRequest): SidequestReportBac
 function buildReportBackInstructions({
   reportBack,
   parentPeerTarget,
+  questId,
   peerLabel = "sidequest",
 }: {
   reportBack: SidequestReportBack;
   parentPeerTarget?: string;
+  questId: string;
   peerLabel?: string;
 }): string {
   const target = parentPeerTarget?.trim();
@@ -610,9 +616,18 @@ function buildReportBackInstructions({
     return [
       "Use intercom for report-back if the tool is available.",
       `Report to the exact parent target: ${target}`,
-      `First action: send a concise started/ack message identifying yourself as the spawned ${peerLabel}.`,
-      `Final action before stopping: send your concise DoD report to the same exact target. Do not consider the quest complete until this final intercom report is sent or you have explicitly reported that intercom is unavailable.`,
-      `Use the literal target in tool calls, for example: \`intercom({ action: "send", to: "${target}", message: "..." })\`.`,
+      `Quest id: ${questId}`,
+      "",
+      "## Intercom Message Budget",
+      "Send at most two intercom messages unless the controller explicitly asks a clarifying question or assigns new work:",
+      "",
+      `1. \`QUEST_ACK quest_id=${questId}: ...\` — send once as your first action, identifying yourself as the spawned ${peerLabel}.`,
+      `2. \`QUEST_FINAL quest_id=${questId}: ...\` — send once as your final DoD report.`,
+      "",
+      "Do not send both a final report and a separate final DoD report. `QUEST_FINAL` is the final DoD report.",
+      "After sending `QUEST_FINAL`, stop. Do not reply to controller acknowledgements such as received, accepted, or no further action needed unless the controller explicitly asks a new question or assigns new work.",
+      `Use the literal target in tool calls, for example: \`intercom({ action: "send", to: "${target}", message: "QUEST_ACK quest_id=${questId}: ..." })\`.`,
+      `For the final message, use: \`intercom({ action: "send", to: "${target}", message: "QUEST_FINAL quest_id=${questId}: ..." })\`.`,
       "Intercom is communication only; it is not durable evidence or completion authority.",
     ].join("\n");
   }
@@ -638,12 +653,14 @@ function buildSidequestSpawnPrompt({
   cwd,
   request,
   reportBack,
+  questId,
 }: {
   role: SidequestRole;
   objective: string;
   cwd: string;
   request: SidequestSpawnRequest;
   reportBack: SidequestReportBack;
+  questId: string;
 }): string {
   const context = request.context ?? {};
   const contextLines = [
@@ -661,6 +678,10 @@ function buildSidequestSpawnPrompt({
     "",
     "## Role",
     role,
+    "",
+    "## Quest Protocol",
+    `Quest id: ${questId}`,
+    "Message budget: at most QUEST_ACK and QUEST_FINAL unless the controller explicitly asks a clarifying question or assigns new work.",
     "",
     "## Objective",
     objective,
@@ -700,7 +721,11 @@ function buildSidequestSpawnPrompt({
     "Do not spawn more quest agents unless explicitly instructed.",
     "",
     "## Report-Back Instructions",
-    buildReportBackInstructions({ reportBack, parentPeerTarget: request.parentPeerTarget }),
+    buildReportBackInstructions({
+      reportBack,
+      parentPeerTarget: request.parentPeerTarget,
+      questId,
+    }),
     "",
     "## Definition of Done",
     "Return a concise report with:",
@@ -1000,16 +1025,22 @@ function buildParallelquestSpawnPrompt({
   request,
   worktree,
   reportBack,
+  questId,
 }: {
   objective: string;
   request: ParallelquestSpawnRequest;
   worktree: WorktreePrepareSuccess;
   reportBack: ParallelquestReportBack;
+  questId: string;
 }): string {
   return [
     "# Visible Parallelquest Agent Prompt",
     "",
     "You are a visible parallelquest agent launched in a forked Pi session. If you are reading this prompt, you are the spawned parallelquest peer, not the controller session. Identify as the parallelquest peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
+    "",
+    "## Quest Protocol",
+    `Quest id: ${questId}`,
+    "Message budget: at most QUEST_ACK and QUEST_FINAL unless the controller explicitly asks a clarifying question or assigns new work.",
     "",
     "## Objective",
     objective,
@@ -1049,6 +1080,7 @@ function buildParallelquestSpawnPrompt({
     buildReportBackInstructions({
       reportBack,
       parentPeerTarget: request.parentPeerTarget,
+      questId,
       peerLabel: "parallelquest",
     }),
     "",
@@ -1207,7 +1239,15 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           return missingParentPeerTargetResult("sidequest_spawn");
         }
 
-        const prompt = buildSidequestSpawnPrompt({ role, objective, cwd, request, reportBack });
+        const questId = createQuestId("sidequest");
+        const prompt = buildSidequestSpawnPrompt({
+          role,
+          objective,
+          cwd,
+          request,
+          reportBack,
+          questId,
+        });
         const launch = await launchSidequestFork({
           pi,
           ctx,
@@ -1230,6 +1270,8 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             enforcement: "prompt_contract",
             promptSummary: launch.promptSummary,
             reportBack,
+            questId,
+            expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
             launchNote: launch.launchNote,
             error: "launch_failed",
           });
@@ -1246,6 +1288,8 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           enforcement: "prompt_contract",
           promptSummary: launch.promptSummary,
           reportBack,
+          questId,
+          expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
           nextStep:
             "Watch the visible sidequest tab/window; if intercom was requested, wait for or inspect the peer report.",
           ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
@@ -1330,11 +1374,13 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           });
         }
 
+        const questId = createQuestId("parallelquest");
         const prompt = buildParallelquestSpawnPrompt({
           objective,
           request,
           worktree,
           reportBack,
+          questId,
         });
         const launch = await launchSidequestFork({
           pi,
@@ -1364,6 +1410,8 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
               titleBase: launch.titleBase,
               promptSummary: launch.promptSummary,
               reportBack,
+              questId,
+              expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
               launchNote: launch.launchNote,
               error: "launch_failed",
             },
@@ -1387,6 +1435,8 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           titleBase: launch.titleBase,
           promptSummary: launch.promptSummary,
           reportBack,
+          questId,
+          expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
           nextStep: "Inspect the reported branch/worktree before cherry-pick or merge.",
           ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
         };

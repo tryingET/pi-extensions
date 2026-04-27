@@ -545,11 +545,14 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
   assert.match(piArgs.at(-1), /spawned sidequest peer/);
   assert.match(piArgs.at(-1), /Role\nreviewer/);
   assert.match(piArgs.at(-1), /Report to the exact parent target: controller-session-123/);
-  assert.match(piArgs.at(-1), /First action: send a concise started\/ack message/);
-  assert.match(piArgs.at(-1), /Final action before stopping: send your concise DoD report/);
+  assert.match(piArgs.at(-1), /Message budget: at most QUEST_ACK and QUEST_FINAL/);
+  assert.match(piArgs.at(-1), /QUEST_ACK quest_id=sidequest-[^:]+: \.\.\./);
+  assert.match(piArgs.at(-1), /QUEST_FINAL quest_id=sidequest-[^:]+: \.\.\./);
+  assert.match(piArgs.at(-1), /Do not send both a final report and a separate final DoD report/);
+  assert.match(piArgs.at(-1), /After sending `QUEST_FINAL`, stop/);
   assert.match(
     piArgs.at(-1),
-    /intercom\(\{ action: "send", to: "controller-session-123", message: "\.\.\." \}\)/,
+    /intercom\(\{ action: "send", to: "controller-session-123", message: "QUEST_ACK quest_id=sidequest-[^:]+: \.\.\." \}\)/,
   );
 
   assert.equal(result.details.ok, true);
@@ -562,6 +565,8 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
   assert.equal(result.details.enforcement, "prompt_contract");
   assert.equal(result.details.promptSummary, "Review the retry plan for sidequest fallback");
   assert.equal(result.details.reportBack, "intercom");
+  assert.match(result.details.questId, /^sidequest-/);
+  assert.deepEqual(result.details.expectedMessages, ["QUEST_ACK", "QUEST_FINAL"]);
   assert.match(result.details.nextStep, /Watch the visible sidequest tab\/window/);
 });
 
@@ -938,11 +943,14 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.match(prompt, /- run focused test only/);
     assert.match(prompt, /Report diff summary/);
     assert.match(prompt, /Report to the exact parent target: controller-session-123/);
-    assert.match(prompt, /First action: send a concise started\/ack message/);
-    assert.match(prompt, /Final action before stopping: send your concise DoD report/);
+    assert.match(prompt, /Message budget: at most QUEST_ACK and QUEST_FINAL/);
+    assert.match(prompt, /QUEST_ACK quest_id=parallelquest-[^:]+: \.\.\./);
+    assert.match(prompt, /QUEST_FINAL quest_id=parallelquest-[^:]+: \.\.\./);
+    assert.match(prompt, /Do not send both a final report and a separate final DoD report/);
+    assert.match(prompt, /After sending `QUEST_FINAL`, stop/);
     assert.match(
       prompt,
-      /intercom\(\{ action: "send", to: "controller-session-123", message: "\.\.\." \}\)/,
+      /intercom\(\{ action: "send", to: "controller-session-123", message: "QUEST_ACK quest_id=parallelquest-[^:]+: \.\.\." \}\)/,
     );
     assert.doesNotMatch(prompt, /Manual report-back is requested/);
     assert.doesNotMatch(prompt, /visible report in this sidequest session/);
@@ -955,6 +963,8 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.equal(result.details.branchName, "parallelquest/runner-guard");
     assert.equal(result.details.baseRef, "HEAD");
     assert.equal(result.details.reportBack, "intercom");
+    assert.match(result.details.questId, /^parallelquest-/);
+    assert.deepEqual(result.details.expectedMessages, ["QUEST_ACK", "QUEST_FINAL"]);
     assert.equal(result.details.parentDirty, true);
     assert.match(result.details.parentDirtyWarning, /uncommitted changes/);
     assert.equal(result.details.reusedExisting, false);
