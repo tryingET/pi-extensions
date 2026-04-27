@@ -34,7 +34,7 @@ The `sidequest` extension also registers LLM-callable visible quest-agent tools:
 
 | Tool | Purpose | Mutation boundary |
 |---|---|---|
-| `sidequest_spawn` | Launch a visible sidequest peer in the controller's current/requested workspace for scouting or review. | Read-only by prompt contract only; editable shared-cwd work remains manual `/sidequest`. |
+| `sidequest_spawn` | Launch a visible sidequest peer in the controller's current/requested workspace for scouting or review. Defaults to intercom report-back, using `intercom({ action: "list" })` when no exact parent target is supplied. | Read-only by prompt contract only; editable shared-cwd work remains manual `/sidequest`. |
 | `parallelquest_spawn` | Create an isolated git worktree and launch a visible parallelquest peer for bounded candidate mutation. Defaults to intercom report-back, using `intercom({ action: "list" })` when no exact parent target is supplied. | Mutations stay inside the worktree; no merge, push, PR, AK mutation, or promotion authority. |
 
 Both tools require a saved parent Pi session file and reuse the same Ghostty tab/window fallback mechanics as manual `/sidequest`. They return launch/worktree facts only; visible quest agents are parallel cognition, not parallel authority. Intercom report-back is communication, not durable evidence or promotion authority.

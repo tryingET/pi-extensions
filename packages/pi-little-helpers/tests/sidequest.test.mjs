@@ -570,7 +570,6 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
         currentFindings: ["first retry hangs", "second retry exits"],
       },
       dod: ["Compare both artifact directories", "Recommend one next controller action"],
-      reportBack: "manual",
     },
     undefined,
     undefined,
@@ -607,7 +606,8 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
   assert.match(prompt, /`workflow_execute` for a small explicit plan/);
   assert.match(prompt, /`intercom` for reporting back/);
   assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
-  assert.match(prompt, /Manual report-back is requested/);
+  assert.match(prompt, /intercom\({ action: "list" }\)/);
+  assert.doesNotMatch(prompt, /Manual report-back is requested/);
   assert.match(prompt, /1\. Answer or recommendation/);
   assert.match(prompt, /2\. Evidence inspected — exact files, artifacts, commands/);
   assert.match(prompt, /3\. Most likely root cause or key finding/);
@@ -624,6 +624,7 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
 
   assert.equal(result.details.launchMode, "tab");
   assert.equal(result.details.enforcement, "prompt_contract");
+  assert.equal(result.details.reportBack, "intercom");
 });
 
 function createParallelquestExecStub({ repoRoot = "/repo", dirty = "" } = {}) {

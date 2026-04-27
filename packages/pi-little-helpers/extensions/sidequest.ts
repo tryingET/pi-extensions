@@ -150,7 +150,7 @@ function asPiToolParameters(schema: unknown): PiToolParameters {
 const reportBackParameter = Type.Optional(
   Type.Union([Type.Literal("intercom"), Type.Literal("manual"), Type.Literal("none")], {
     description:
-      "Report-back mode. sidequest_spawn defaults to manual unless parentPeerTarget is supplied; parallelquest_spawn defaults to intercom.",
+      "Report-back mode. Controller-spawned quest tools default to intercom unless explicitly set to manual or none.",
   }),
 );
 
@@ -593,7 +593,7 @@ function normalizeReportBack(request: SidequestSpawnRequest): SidequestReportBac
   ) {
     return request.reportBack;
   }
-  return request.parentPeerTarget?.trim() ? "intercom" : "manual";
+  return "intercom";
 }
 
 function buildReportBackInstructions({
