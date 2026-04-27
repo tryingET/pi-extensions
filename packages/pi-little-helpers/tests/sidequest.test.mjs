@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import test from "node:test";
 
 import {
@@ -367,12 +369,13 @@ test("sidequest refuses to launch when the current Pi session has not been saved
   assert.match(harness.notifications[0].message, /needs a saved Pi session/i);
 });
 
-test("sidequest_spawn registers as an LLM-callable tool while manual sidequest stays registered", () => {
+test("quest tools register as LLM-callable tools while manual sidequest stays registered", () => {
   const extension = createSidequestExtension();
   const { commands, tools } = registerExtension(extension);
 
   assert.ok(commands.has("sidequest"));
   assert.ok(tools.has("sidequest_spawn"));
+  assert.ok(tools.has("parallelquest_spawn"));
 });
 
 test("sidequest_spawn refuses to launch when the current Pi session has not been saved", async () => {
@@ -621,4 +624,256 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
 
   assert.equal(result.details.launchMode, "tab");
   assert.equal(result.details.enforcement, "prompt_contract");
+});
+
+function createParallelquestExecStub({ repoRoot = "/repo", dirty = "" } = {}) {
+  const calls = [];
+
+  return {
+    calls,
+    exec: async (command, args, options = {}) => {
+      calls.push({ command, args, options });
+
+      if (command === "git") {
+        const gitArgs = args.slice(2);
+        if (gitArgs.join(" ") === "rev-parse --show-toplevel") {
+          return { code: 0, stdout: `${repoRoot}\n` };
+        }
+        if (gitArgs.join(" ") === "status --porcelain") {
+          return { code: 0, stdout: dirty };
+        }
+        if (gitArgs[0] === "worktree" && gitArgs[1] === "add") {
+          return { code: 0, stdout: "Preparing worktree" };
+        }
+      }
+
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
+      }
+      if (command === "/usr/bin/ghostty" && args[0] === "+new-tab") {
+        return { code: 0, stdout: "" };
+      }
+
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  };
+}
+
+function withTempDir(fn) {
+  const dir = mkdtempSync(`${tmpdir()}/pi-parallelquest-test-`);
+  return Promise.resolve()
+    .then(() => fn(dir))
+    .finally(() => rmSync(dir, { recursive: true, force: true }));
+}
+
+test("parallelquest_spawn rejects a blank objective and requires a saved session", async () => {
+  const execStub = createParallelquestExecStub();
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const parallelquestSpawn = tools.get("parallelquest_spawn");
+
+  const blankResult = await parallelquestSpawn.execute(
+    "tool-call-1",
+    { objective: "  " },
+    undefined,
+    undefined,
+    createContext().ctx,
+  );
+  assert.equal(blankResult.isError, true);
+  assert.equal(blankResult.details.error, "blank_objective");
+
+  const missingSessionResult = await parallelquestSpawn.execute(
+    "tool-call-2",
+    { objective: "try a bounded fix" },
+    undefined,
+    undefined,
+    createContext({ sessionFile: undefined }).ctx,
+  );
+  assert.equal(missingSessionResult.isError, true);
+  assert.equal(missingSessionResult.details.error, "missing_session_file");
+  assert.equal(execStub.calls.length, 0);
+});
+
+test("parallelquest_spawn fails closed when requireCleanParent sees dirty parent state", async () => {
+  await withTempDir(async (stateHome) => {
+    const execStub = createParallelquestExecStub({ dirty: " M src/file.ts\n" });
+    const extension = createSidequestExtension({
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension);
+    const result = await tools
+      .get("parallelquest_spawn")
+      .execute(
+        "tool-call-1",
+        { objective: "try a bounded fix", requireCleanParent: true },
+        undefined,
+        undefined,
+        createContext({ cwd: "/repo" }).ctx,
+      );
+
+    assert.equal(result.isError, true);
+    assert.equal(result.details.error, "worktree_prepare_failed");
+    assert.equal(result.details.parentDirty, true);
+    assert.match(result.details.reason, /requireCleanParent/);
+    assert.equal(
+      execStub.calls.some((call) => call.args.includes("worktree")),
+      false,
+    );
+  });
+});
+
+test("parallelquest_spawn rejects worktree paths inside the parent checkout", async () => {
+  const execStub = createParallelquestExecStub();
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools.get("parallelquest_spawn").execute(
+    "tool-call-1",
+    {
+      objective: "try a bounded fix",
+      cwd: "/repo",
+      workspaceRoot: "/repo/tmp-quests",
+    },
+    undefined,
+    undefined,
+    createContext({ cwd: "/repo" }).ctx,
+  );
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "worktree_prepare_failed");
+  assert.match(result.details.reason, /must not be inside the parent checkout/);
+});
+
+test("parallelquest_spawn creates an isolated worktree, launches via shared Ghostty path, and prompts boundaries", async () => {
+  await withTempDir(async (stateHome) => {
+    const execStub = createParallelquestExecStub({ dirty: " M pending-parent-change.ts\n" });
+    const extension = createSidequestExtension({
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        GHOSTTY_SURFACE_ID: "21",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension, { thinkingLevel: "high" });
+    const result = await tools.get("parallelquest_spawn").execute(
+      "tool-call-1",
+      {
+        objective: "Try bounded runner guard",
+        cwd: "/repo",
+        branchName: "parallelquest/Runner Guard!",
+        workspaceName: "../Runner Guard Workspace",
+        filesInScope: ["src/runner.ts", "tests/runner.test.mjs"],
+        offLimits: [".env", "parent checkout"],
+        constraints: ["run focused test only"],
+        dod: ["Report diff summary"],
+        reportBack: "intercom",
+      },
+      undefined,
+      undefined,
+      createContext({ cwd: "/repo" }).ctx,
+    );
+
+    const worktreeCall = execStub.calls.find(
+      (call) => call.command === "git" && call.args.includes("worktree"),
+    );
+    assert.ok(worktreeCall);
+    assert.deepEqual(worktreeCall.args.slice(2, 5), [
+      "worktree",
+      "add",
+      result.details.worktreePath,
+    ]);
+    assert.deepEqual(worktreeCall.args.slice(5), ["-b", "parallelquest/runner-guard", "HEAD"]);
+    assert.ok(result.details.worktreePath.startsWith(`${stateHome}/pi-quests/worktrees/`));
+    assert.ok(result.details.worktreePath.endsWith("/runner-guard-workspace"));
+
+    const launchCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+    );
+    assert.ok(launchCall);
+    assert.ok(launchCall.args.includes("--surface-id=21"));
+    assert.ok(launchCall.args.includes(`--working-directory=${result.details.worktreePath}`));
+    assert.match(
+      extractShellCommand(launchCall.args),
+      /PI_SESSION_PRESENCE_TITLE_BASE='Parallelquest: Try bounded runner guard'/,
+    );
+
+    const piArgs = extractPiArgs(launchCall.args);
+    assert.deepEqual(piArgs.slice(0, 7), [
+      "pi",
+      "--fork",
+      "/sessions/main.jsonl",
+      "--model",
+      "openai/gpt-4o",
+      "--thinking",
+      "high",
+    ]);
+    const prompt = piArgs.at(-1);
+    assert.match(prompt, /Visible Parallelquest Agent Prompt/);
+    assert.match(prompt, /not the controller session/i);
+    assert.match(prompt, /Parent\/controller cwd: \/repo/);
+    assert.match(prompt, new RegExp(`Your worktree cwd: ${result.details.worktreePath}`));
+    assert.match(prompt, /Branch: parallelquest\/runner-guard/);
+    assert.match(prompt, /Base: HEAD/);
+    assert.match(prompt, /Dirty-parent warning:/);
+    assert.match(prompt, /All mutations must stay inside your worktree/);
+    assert.match(prompt, /Do not merge, push, open PRs, mutate AK/);
+    assert.match(prompt, /- src\/runner\.ts/);
+    assert.match(prompt, /- tests\/runner\.test\.mjs/);
+    assert.match(prompt, /- \.env/);
+    assert.match(prompt, /- parent checkout/);
+    assert.match(prompt, /- run focused test only/);
+    assert.match(prompt, /Report diff summary/);
+    assert.match(prompt, /intercom\({ action: "list" }\)/);
+    assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.tool, "parallelquest_spawn");
+    assert.equal(result.details.launchMode, "tab");
+    assert.equal(result.details.parentCwd, "/repo");
+    assert.equal(result.details.branchName, "parallelquest/runner-guard");
+    assert.equal(result.details.baseRef, "HEAD");
+    assert.equal(result.details.parentDirty, true);
+    assert.match(result.details.parentDirtyWarning, /uncommitted changes/);
+    assert.equal(result.details.reusedExisting, false);
+    assert.equal(result.details.titleBase, "Parallelquest: Try bounded runner guard");
+    assert.match(result.details.nextStep, /Inspect the reported branch\/worktree/);
+  });
 });

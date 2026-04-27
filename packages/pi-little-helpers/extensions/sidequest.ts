@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, readlinkSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 
@@ -17,6 +18,7 @@ type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"
 type LaunchMode = "tab" | "window";
 type SidequestRole = "scout" | "reviewer";
 type SidequestReportBack = "intercom" | "manual" | "none";
+type ParallelquestReportBack = SidequestReportBack;
 
 type ModelLike = {
   provider: string;
@@ -75,6 +77,49 @@ type SidequestSpawnRequest = {
   dod?: string[];
 };
 
+type ParallelquestSpawnRequest = {
+  objective?: string;
+  cwd?: string;
+  baseRef?: string;
+  branchName?: string;
+  workspaceRoot?: string;
+  workspaceName?: string;
+  filesInScope?: string[];
+  offLimits?: string[];
+  constraints?: string[];
+  dod?: string[];
+  reportBack?: ParallelquestReportBack;
+  parentPeerTarget?: string;
+  requireCleanParent?: boolean;
+  reuseExisting?: boolean;
+};
+
+type WorktreePrepareSuccess = {
+  ok: true;
+  parentCwd: string;
+  repoRoot: string;
+  worktreePath: string;
+  branchName: string;
+  baseRef: string;
+  parentDirty: boolean;
+  parentDirtyWarning?: string;
+  reusedExisting: boolean;
+};
+
+type WorktreePrepareFailure = {
+  ok: false;
+  error: string;
+  parentCwd: string;
+  repoRoot?: string;
+  worktreePath?: string;
+  branchName?: string;
+  baseRef?: string;
+  parentDirty?: boolean;
+  parentDirtyWarning?: string;
+};
+
+type WorktreePrepareResult = WorktreePrepareSuccess | WorktreePrepareFailure;
+
 type SidequestLaunchSuccess = {
   ok: true;
   launchMode: LaunchMode;
@@ -102,6 +147,13 @@ function asPiToolParameters(schema: unknown): PiToolParameters {
   return schema as PiToolParameters;
 }
 
+const reportBackParameter = Type.Optional(
+  Type.Union([Type.Literal("intercom"), Type.Literal("manual"), Type.Literal("none")], {
+    description:
+      "Report-back mode. Defaults to intercom when parentPeerTarget is supplied, otherwise manual.",
+  }),
+);
+
 const sidequestSpawnParameters = asPiToolParameters(
   Type.Object({
     role: Type.Optional(
@@ -113,12 +165,7 @@ const sidequestSpawnParameters = asPiToolParameters(
     cwd: Type.Optional(
       Type.String({ description: "Workspace cwd for the visible sidequest. Defaults to ctx.cwd." }),
     ),
-    reportBack: Type.Optional(
-      Type.Union([Type.Literal("intercom"), Type.Literal("manual"), Type.Literal("none")], {
-        description:
-          "Report-back mode. Defaults to intercom when parentPeerTarget is supplied, otherwise manual.",
-      }),
-    ),
+    reportBack: reportBackParameter,
     parentPeerTarget: Type.Optional(
       Type.String({ description: "Exact parent peer target/session id for intercom report-back." }),
     ),
@@ -141,6 +188,35 @@ const sidequestSpawnParameters = asPiToolParameters(
   }),
 );
 
+const parallelquestSpawnParameters = asPiToolParameters(
+  Type.Object({
+    objective: Type.String({ description: "Required non-empty candidate mutation objective." }),
+    cwd: Type.Optional(Type.String({ description: "Parent/controller cwd. Defaults to ctx.cwd." })),
+    baseRef: Type.Optional(Type.String({ description: "Git base ref. Defaults to HEAD." })),
+    branchName: Type.Optional(
+      Type.String({ description: "Candidate branch name. Defaults to parallelquest/<slug>." }),
+    ),
+    workspaceRoot: Type.Optional(
+      Type.String({ description: "Root directory for generated parallelquest worktrees." }),
+    ),
+    workspaceName: Type.Optional(Type.String({ description: "Worktree directory name." })),
+    filesInScope: Type.Optional(Type.Array(Type.String())),
+    offLimits: Type.Optional(Type.Array(Type.String())),
+    constraints: Type.Optional(Type.Array(Type.String())),
+    dod: Type.Optional(Type.Array(Type.String())),
+    reportBack: reportBackParameter,
+    parentPeerTarget: Type.Optional(
+      Type.String({ description: "Exact parent peer target/session id for intercom report-back." }),
+    ),
+    requireCleanParent: Type.Optional(
+      Type.Boolean({ description: "Fail closed if the parent checkout has uncommitted changes." }),
+    ),
+    reuseExisting: Type.Optional(
+      Type.Boolean({ description: "Reuse an existing verified worktree at the requested path." }),
+    ),
+  }),
+);
+
 function getPrompt(args?: string): string | undefined {
   const prompt = args?.trim();
   return prompt ? prompt : undefined;
@@ -152,8 +228,8 @@ function summarizePrompt(prompt: string): string {
   return `${singleLine.slice(0, TITLE_MAX_LEN - 1)}…`;
 }
 
-function buildTitle(prompt: string): string {
-  return `Sidequest: ${summarizePrompt(prompt)}`;
+function buildTitle(prompt: string, prefix = "Sidequest"): string {
+  return `${prefix}: ${summarizePrompt(prompt)}`;
 }
 
 function buildModelArgs(model: ModelLike | undefined, thinkingLevel: string): string[] {
@@ -398,6 +474,7 @@ async function launchSidequestFork({
   titlePrompt,
   cwd,
   sessionFile,
+  titlePrefix = "Sidequest",
 }: {
   pi: ExtensionAPI;
   ctx: { model?: unknown };
@@ -406,6 +483,7 @@ async function launchSidequestFork({
   titlePrompt: string;
   cwd: string;
   sessionFile: string;
+  titlePrefix?: string;
 }): Promise<SidequestLaunchOutcome> {
   const env = options.env ?? process.env;
   const pathExists = options.pathExists ?? existsSync;
@@ -417,7 +495,7 @@ async function launchSidequestFork({
   const piBin = env.PI_SIDEQUEST_PI_BIN?.trim() || DEFAULT_PI_BIN;
   const thinkingLevel = pi.getThinkingLevel();
   const modelArgs = buildModelArgs(ctx.model as ModelLike | undefined, thinkingLevel);
-  const title = buildTitle(titlePrompt);
+  const title = buildTitle(titlePrompt, titlePrefix);
   const supportsNewTab =
     process.platform === "linux" ? await supportsGhosttyNewTab(execRunner, ghosttyBin) : false;
   const surfaceId = getGhosttySurfaceId(env);
@@ -642,6 +720,352 @@ function buildSidequestSpawnPrompt({
   ].join("\n");
 }
 
+function slugify(value: string, fallback: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .replace(/-{2,}/g, "-");
+  return slug || fallback;
+}
+
+function sanitizeBranchName(value: string | undefined, objective: string): string {
+  const raw = value?.trim() || `parallelquest/${slugify(objective, "candidate")}`;
+  const segments = raw
+    .split(/[\\/]+/)
+    .map((segment) => slugify(segment, ""))
+    .filter((segment) => segment && segment !== "." && segment !== "..");
+  const candidate = segments.join("/");
+  return candidate || `parallelquest/${slugify(objective, "candidate")}`;
+}
+
+function sanitizeWorkspaceName(value: string | undefined, branchName: string): string {
+  return slugify(value?.trim() || branchName.replace(/[\\/]+/g, "-"), "candidate");
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const normalizedParent = resolve(parent);
+  const normalizedChild = resolve(child);
+  const rel = relative(normalizedParent, normalizedChild);
+  return Boolean(rel) && !rel.startsWith("..") && !rel.includes(`..${sep}`) && !isAbsolute(rel);
+}
+
+function defaultWorkspaceRoot(repoRoot: string, env: NodeJS.ProcessEnv): string {
+  const stateHome = env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
+  const repoSlug = slugify(basename(repoRoot), "repo");
+  const repoHash = createHash("sha1").update(resolve(repoRoot)).digest("hex").slice(0, 8);
+  return join(stateHome, "pi-quests", "worktrees", `${repoSlug}-${repoHash}`);
+}
+
+async function runGit(execRunner: ExecRunner, cwd: string, args: string[]): Promise<LaunchResult> {
+  return runGhosttyLaunch(execRunner, "git", ["-C", cwd, ...args], cwd);
+}
+
+async function prepareParallelquestWorktree({
+  execRunner,
+  pathExists,
+  env,
+  request,
+  parentCwd,
+  objective,
+}: {
+  execRunner: ExecRunner;
+  pathExists: (path: string) => boolean;
+  env: NodeJS.ProcessEnv;
+  request: ParallelquestSpawnRequest;
+  parentCwd: string;
+  objective: string;
+}): Promise<WorktreePrepareResult> {
+  const baseRef = request.baseRef?.trim() || "HEAD";
+  const repoResult = await runGit(execRunner, parentCwd, ["rev-parse", "--show-toplevel"]);
+  if (!repoResult.ok) {
+    return {
+      ok: false,
+      error: `failed to locate git repo: ${summarizeLaunchFailure(repoResult)}`,
+      parentCwd,
+      baseRef,
+    };
+  }
+
+  const repoRoot = resolve(repoResult.stdout.split(/\r?\n/)[0]?.trim() || parentCwd);
+  const branchName = sanitizeBranchName(request.branchName, objective);
+  const workspaceName = sanitizeWorkspaceName(request.workspaceName, branchName);
+  const workspaceRoot = resolve(
+    request.workspaceRoot?.trim()
+      ? isAbsolute(request.workspaceRoot.trim())
+        ? request.workspaceRoot.trim()
+        : resolve(parentCwd, request.workspaceRoot.trim())
+      : defaultWorkspaceRoot(repoRoot, env),
+  );
+  const worktreePath = resolve(workspaceRoot, workspaceName);
+
+  if (isPathInside(repoRoot, worktreePath) || worktreePath === repoRoot) {
+    return {
+      ok: false,
+      error: "parallelquest worktree path must not be inside the parent checkout",
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+    };
+  }
+
+  const gitDir = join(repoRoot, ".git");
+  if (isPathInside(gitDir, worktreePath) || worktreePath === gitDir) {
+    return {
+      ok: false,
+      error: "parallelquest worktree path must not be inside .git",
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+    };
+  }
+
+  if (!isPathInside(workspaceRoot, worktreePath) && worktreePath !== workspaceRoot) {
+    return {
+      ok: false,
+      error: "parallelquest worktree path escaped workspaceRoot",
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+    };
+  }
+
+  const dirtyResult = await runGit(execRunner, repoRoot, ["status", "--porcelain"]);
+  if (!dirtyResult.ok) {
+    return {
+      ok: false,
+      error: `failed to inspect parent dirty state: ${summarizeLaunchFailure(dirtyResult)}`,
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+    };
+  }
+
+  const parentDirty = Boolean(dirtyResult.stdout.trim());
+  const parentDirtyWarning = parentDirty
+    ? "Parent checkout has uncommitted changes; this worktree is based on the selected base ref and does not include them."
+    : undefined;
+  if (parentDirty && request.requireCleanParent) {
+    return {
+      ok: false,
+      error: "parent checkout has uncommitted changes and requireCleanParent is true",
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+      parentDirty,
+      parentDirtyWarning,
+    };
+  }
+
+  if (pathExists(worktreePath)) {
+    if (!request.reuseExisting) {
+      return {
+        ok: false,
+        error:
+          "parallelquest worktree path already exists; pass reuseExisting only for a verified intended worktree",
+        parentCwd,
+        repoRoot,
+        worktreePath,
+        branchName,
+        baseRef,
+        parentDirty,
+        parentDirtyWarning,
+      };
+    }
+
+    const insideResult = await runGit(execRunner, worktreePath, [
+      "rev-parse",
+      "--is-inside-work-tree",
+    ]);
+    const topResult = await runGit(execRunner, worktreePath, ["rev-parse", "--show-toplevel"]);
+    const branchResult = await runGit(execRunner, worktreePath, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ]);
+    if (
+      !insideResult.ok ||
+      insideResult.stdout.trim() !== "true" ||
+      !topResult.ok ||
+      resolve(topResult.stdout.trim()) !== worktreePath ||
+      !branchResult.ok ||
+      branchResult.stdout.trim() !== branchName
+    ) {
+      return {
+        ok: false,
+        error: "existing parallelquest path is not the requested verified git worktree",
+        parentCwd,
+        repoRoot,
+        worktreePath,
+        branchName,
+        baseRef,
+        parentDirty,
+        parentDirtyWarning,
+      };
+    }
+
+    return {
+      ok: true,
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+      parentDirty,
+      parentDirtyWarning,
+      reusedExisting: true,
+    };
+  }
+
+  try {
+    mkdirSync(workspaceRoot, { recursive: true });
+  } catch (error) {
+    return {
+      ok: false,
+      error: `failed to create workspaceRoot: ${error instanceof Error ? error.message : String(error)}`,
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+      parentDirty,
+      parentDirtyWarning,
+    };
+  }
+
+  const addResult = await runGit(execRunner, repoRoot, [
+    "worktree",
+    "add",
+    worktreePath,
+    "-b",
+    branchName,
+    baseRef,
+  ]);
+  if (!addResult.ok) {
+    return {
+      ok: false,
+      error: `failed to create git worktree: ${summarizeLaunchFailure(addResult)}`,
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+      parentDirty,
+      parentDirtyWarning,
+    };
+  }
+
+  return {
+    ok: true,
+    parentCwd,
+    repoRoot,
+    worktreePath,
+    branchName,
+    baseRef,
+    parentDirty,
+    parentDirtyWarning,
+    reusedExisting: false,
+  };
+}
+
+function normalizeParallelquestReportBack(
+  request: ParallelquestSpawnRequest,
+): ParallelquestReportBack {
+  if (
+    request.reportBack === "intercom" ||
+    request.reportBack === "manual" ||
+    request.reportBack === "none"
+  ) {
+    return request.reportBack;
+  }
+  return request.parentPeerTarget?.trim() ? "intercom" : "manual";
+}
+
+function buildParallelquestSpawnPrompt({
+  objective,
+  request,
+  worktree,
+  reportBack,
+}: {
+  objective: string;
+  request: ParallelquestSpawnRequest;
+  worktree: WorktreePrepareSuccess;
+  reportBack: ParallelquestReportBack;
+}): string {
+  return [
+    "# Visible Parallelquest Agent Prompt",
+    "",
+    "You are a visible parallelquest agent launched in a forked Pi session. You are not the controller session. You are parallel cognition, not parallel authority.",
+    "",
+    "## Objective",
+    objective,
+    "",
+    "## Workspace Boundary",
+    "You are working in an isolated git worktree.",
+    "",
+    `- Parent/controller cwd: ${worktree.parentCwd}`,
+    `- Your worktree cwd: ${worktree.worktreePath}`,
+    `- Branch: ${worktree.branchName}`,
+    `- Base: ${worktree.baseRef}`,
+    worktree.parentDirtyWarning ? `- Dirty-parent warning: ${worktree.parentDirtyWarning}` : "",
+    "",
+    "All mutations must stay inside your worktree. Do not modify the parent checkout.",
+    "",
+    "## Mutation Policy",
+    "You may inspect, edit, and validate only inside your isolated worktree. Do not merge, push, open PRs, mutate AK, mutate controller runtime state, or claim promotion. If a required action is outside the worktree boundary, report the exact proposed controller action instead of applying it.",
+    "",
+    "## Files in Scope",
+    markdownList(request.filesInScope),
+    "",
+    "## Off-Limits",
+    markdownList(request.offLimits),
+    "",
+    "## Constraints",
+    markdownList(request.constraints),
+    "",
+    "## Allowed Tools",
+    "- `read`, `edit`, `write`, and bounded `bash` only within the worktree boundary and stated scope.",
+    "- `dispatch_subagent` for one focused helper if it reduces risk.",
+    "- `workflow_execute` for a small explicit plan if useful.",
+    "- `intercom` for reporting back if available and requested below.",
+    "",
+    "Do not spawn more quest agents unless explicitly instructed.",
+    "",
+    "## Report-Back Instructions",
+    buildReportBackInstructions({ reportBack, parentPeerTarget: request.parentPeerTarget }),
+    "",
+    "## Definition of Done",
+    "Return a concise report with:",
+    "",
+    "1. Branch name",
+    "2. Worktree path",
+    "3. Files changed",
+    "4. Commands run and results",
+    "5. Metric/check result if applicable",
+    "6. Patch summary",
+    "7. Risks and rollback notes",
+    "8. Recommended controller action: ignore, inspect, cherry-pick, or merge after review",
+    ...(normalizeStringArray(request.dod).length
+      ? ["", "## Additional Request-Specific DoD", markdownList(request.dod)]
+      : []),
+    "",
+    "## Anti-Goals",
+    "- Do not mutate the parent checkout.",
+    "- Do not merge, push, open PRs, mutate AK, or claim completion/promotion authority.",
+    "- Do not treat intercom or visible launch as durable evidence.",
+  ].join("\n");
+}
+
 function errorToolResult(message: string, details: Record<string, unknown>) {
   return {
     content: [{ type: "text" as const, text: message }],
@@ -799,6 +1223,142 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
         return successToolResult(
           `Launched sidequest_spawn in ${launch.launchMode}: ${launch.promptSummary}`,
+          details,
+        );
+      },
+    });
+
+    pi.registerTool({
+      name: "parallelquest_spawn",
+      label: "Parallelquest Spawn",
+      description:
+        "Launch a visible parallelquest Pi session in an isolated git worktree for bounded candidate mutation.",
+      promptSnippet:
+        "Use to create an isolated git worktree and launch a visible parallelquest peer for bounded candidate mutation. It does not merge, push, open PRs, mutate AK, or claim promotion.",
+      parameters: parallelquestSpawnParameters,
+      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+        const request = params as ParallelquestSpawnRequest;
+        const objective = request.objective?.trim() ?? "";
+        const reportBack = normalizeParallelquestReportBack(request);
+        const parentCwd = request.cwd?.trim() || ctx.cwd || process.cwd();
+        const env = options.env ?? process.env;
+        const pathExists = options.pathExists ?? existsSync;
+        const execRunner: ExecRunner =
+          options.exec ??
+          ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
+
+        if (!objective) {
+          return errorToolResult("parallelquest_spawn requires a non-empty objective.", {
+            ok: false,
+            tool: "parallelquest_spawn",
+            reportBack,
+            error: "blank_objective",
+          });
+        }
+
+        const sessionFile = ctx.sessionManager.getSessionFile();
+        if (!sessionFile) {
+          return errorToolResult(
+            "parallelquest_spawn needs a saved Pi session. Current session looks ephemeral/no-session.",
+            {
+              ok: false,
+              tool: "parallelquest_spawn",
+              reportBack,
+              parentCwd,
+              error: "missing_session_file",
+            },
+          );
+        }
+
+        const worktree = await prepareParallelquestWorktree({
+          execRunner,
+          pathExists,
+          env,
+          request,
+          parentCwd,
+          objective,
+        });
+
+        if (!worktree.ok) {
+          return errorToolResult(`parallelquest_spawn failed: ${worktree.error}`, {
+            ok: false,
+            tool: "parallelquest_spawn",
+            reportBack,
+            parentCwd: worktree.parentCwd,
+            repoRoot: worktree.repoRoot,
+            worktreePath: worktree.worktreePath,
+            branchName: worktree.branchName,
+            baseRef: worktree.baseRef,
+            parentDirty: worktree.parentDirty,
+            parentDirtyWarning: worktree.parentDirtyWarning,
+            error: "worktree_prepare_failed",
+            reason: worktree.error,
+          });
+        }
+
+        const prompt = buildParallelquestSpawnPrompt({
+          objective,
+          request,
+          worktree,
+          reportBack,
+        });
+        const launch = await launchSidequestFork({
+          pi,
+          ctx,
+          options,
+          prompt,
+          titlePrompt: objective,
+          titlePrefix: "Parallelquest",
+          cwd: worktree.worktreePath,
+          sessionFile,
+        });
+
+        if (!launch.ok) {
+          return errorToolResult(
+            `parallelquest_spawn failed to launch Ghostty: ${launch.failure}`,
+            {
+              ok: false,
+              tool: "parallelquest_spawn",
+              launchMode: launch.launchMode,
+              parentCwd: worktree.parentCwd,
+              worktreePath: worktree.worktreePath,
+              branchName: worktree.branchName,
+              baseRef: worktree.baseRef,
+              parentDirty: worktree.parentDirty,
+              parentDirtyWarning: worktree.parentDirtyWarning,
+              sessionFile: launch.sessionFile,
+              titleBase: launch.titleBase,
+              promptSummary: launch.promptSummary,
+              reportBack,
+              launchNote: launch.launchNote,
+              error: "launch_failed",
+            },
+          );
+        }
+
+        const details = {
+          ok: true,
+          tool: "parallelquest_spawn",
+          launchMode: launch.launchMode,
+          parentCwd: worktree.parentCwd,
+          worktreePath: worktree.worktreePath,
+          branchName: worktree.branchName,
+          baseRef: worktree.baseRef,
+          parentDirty: worktree.parentDirty,
+          ...(worktree.parentDirtyWarning
+            ? { parentDirtyWarning: worktree.parentDirtyWarning }
+            : {}),
+          reusedExisting: worktree.reusedExisting,
+          sessionFile: launch.sessionFile,
+          titleBase: launch.titleBase,
+          promptSummary: launch.promptSummary,
+          reportBack,
+          nextStep: "Inspect the reported branch/worktree before cherry-pick or merge.",
+          ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
+        };
+
+        return successToolResult(
+          `Launched parallelquest_spawn in ${launch.launchMode}: ${launch.promptSummary}`,
           details,
         );
       },

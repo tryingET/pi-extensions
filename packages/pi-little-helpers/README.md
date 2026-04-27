@@ -28,6 +28,17 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `sidequest` | Fork the current Pi session into the current Ghostty window as a new tab when the current Ghostty session itself supports tab attach; otherwise a new Ghostty window |
 | `stash` | Persist and restore stashed editor content across sessions |
 
+## Quest tools
+
+The `sidequest` extension also registers LLM-callable visible quest-agent tools:
+
+| Tool | Purpose | Mutation boundary |
+|---|---|---|
+| `sidequest_spawn` | Launch a visible sidequest peer in the controller's current/requested workspace for scouting or review. | Read-only by prompt contract only; editable shared-cwd work remains manual `/sidequest`. |
+| `parallelquest_spawn` | Create an isolated git worktree and launch a visible parallelquest peer for bounded candidate mutation. | Mutations stay inside the worktree; no merge, push, PR, AK mutation, or promotion authority. |
+
+Both tools require a saved parent Pi session file and reuse the same Ghostty tab/window fallback mechanics as manual `/sidequest`. They return launch/worktree facts only; visible quest agents are parallel cognition, not parallel authority.
+
 Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
 
 ## Steve-specific session presence / hot restore coupling
@@ -92,9 +103,9 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Then in Pi:
 
 1. run `/reload`
-2. verify `/codeblocks`, `/sidequest "test prompt"`, `/session-presence`, the `stash` shortcuts/commands, and any `write`/`edit` flow that produces an `.html` file in a real session
-3. for `/sidequest`, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
-4. if `/sidequest` does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
+2. verify `/codeblocks`, `/sidequest "test prompt"`, `/session-presence`, the `stash` shortcuts/commands, `sidequest_spawn`, `parallelquest_spawn`, and any `write`/`edit` flow that produces an `.html` file in a real session
+3. for `/sidequest` and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
+4. if `/sidequest` or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
 
 ## Docs discovery
 
