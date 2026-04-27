@@ -599,9 +599,11 @@ function normalizeReportBack(request: SidequestSpawnRequest): SidequestReportBac
 function buildReportBackInstructions({
   reportBack,
   parentPeerTarget,
+  peerLabel = "sidequest",
 }: {
   reportBack: SidequestReportBack;
   parentPeerTarget?: string;
+  peerLabel?: string;
 }): string {
   const target = parentPeerTarget?.trim();
   if (reportBack === "intercom" && target) {
@@ -622,10 +624,10 @@ function buildReportBackInstructions({
   }
 
   if (reportBack === "none") {
-    return "No automatic report-back is requested. Do not claim that a report was delivered; leave findings visible in this sidequest session unless the controller gives further instructions.";
+    return `No automatic report-back is requested. Do not claim that a report was delivered; leave findings visible in this ${peerLabel} session unless the controller gives further instructions.`;
   }
 
-  return "Manual report-back is requested. Do not over-promise delivery; leave a concise visible report in this sidequest session for the controller/operator to inspect.";
+  return `Manual report-back is requested. Do not over-promise delivery; leave a concise visible report in this ${peerLabel} session for the controller/operator to inspect.`;
 }
 
 function buildSidequestSpawnPrompt({
@@ -1042,7 +1044,11 @@ function buildParallelquestSpawnPrompt({
     "Do not spawn more quest agents unless explicitly instructed.",
     "",
     "## Report-Back Instructions",
-    buildReportBackInstructions({ reportBack, parentPeerTarget: request.parentPeerTarget }),
+    buildReportBackInstructions({
+      reportBack,
+      parentPeerTarget: request.parentPeerTarget,
+      peerLabel: "parallelquest",
+    }),
     "",
     "## Definition of Done",
     "Return a concise report with:",
