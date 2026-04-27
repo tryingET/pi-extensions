@@ -618,7 +618,7 @@ function buildReportBackInstructions({
   if (reportBack === "intercom") {
     return [
       "Use intercom for report-back if the tool is available.",
-      'No exact parent target was supplied. First run `intercom({ action: "list" })` and choose the exact controller session id before reporting.',
+      "No exact parent target was supplied. This should not happen for controller-spawned quest tools; report-back may be ambiguous without the controller's exact session id.",
       "Intercom is communication only; it is not durable evidence or completion authority.",
     ].join("\n");
   }
@@ -1087,6 +1087,24 @@ function successToolResult(message: string, details: Record<string, unknown>) {
   };
 }
 
+function hasExactParentPeerTarget(value: string | undefined): boolean {
+  return Boolean(value?.trim());
+}
+
+function missingParentPeerTargetResult(tool: "sidequest_spawn" | "parallelquest_spawn") {
+  return errorToolResult(
+    `${tool} defaults to intercom report-back and requires parentPeerTarget so the quest can report to the exact controller session. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
+    {
+      ok: false,
+      tool,
+      reportBack: "intercom",
+      error: "missing_parent_peer_target",
+      nextStep:
+        'Call intercom({ action: "status" }) in the controller session and retry with parentPeerTarget set to the exact Session ID.',
+    },
+  );
+}
+
 export function createSidequestExtension(options: SidequestOptions = {}) {
   return function sidequestExtension(pi: ExtensionAPI) {
     pi.registerCommand("sidequest", {
@@ -1183,6 +1201,10 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           );
         }
 
+        if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
+          return missingParentPeerTargetResult("sidequest_spawn");
+        }
+
         const prompt = buildSidequestSpawnPrompt({ role, objective, cwd, request, reportBack });
         const launch = await launchSidequestFork({
           pi,
@@ -1274,6 +1296,10 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
               error: "missing_session_file",
             },
           );
+        }
+
+        if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
+          return missingParentPeerTargetResult("parallelquest_spawn");
         }
 
         const worktree = await prepareParallelquestWorktree({

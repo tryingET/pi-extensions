@@ -445,6 +445,38 @@ test("sidequest_spawn rejects a blank objective before probing Ghostty", async (
   assert.equal(result.details.error, "blank_objective");
 });
 
+test("sidequest_spawn requires exact parentPeerTarget for default intercom report-back", async () => {
+  const execStub = createExecStub(() => {
+    throw new Error("Ghostty should not be called without an exact parent target");
+  });
+
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("sidequest_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "inspect without orphaning" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  assert.equal(execStub.calls.length, 0);
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "missing_parent_peer_target");
+  assert.match(result.details.nextStep, /intercom\(\{ action: "status" \}\)/);
+});
+
 test("sidequest_spawn uses the same Ghostty window fallback launch path and returns structured details", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
@@ -558,6 +590,7 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
     "tool-call-1",
     {
       objective: "Inspect why benchmark artifacts disagree",
+      parentPeerTarget: "controller-session-123",
       context: {
         campaignGoal: "Improve benchmark accuracy",
         primaryMetric: "overall_accuracy",
@@ -606,7 +639,7 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
   assert.match(prompt, /`workflow_execute` for a small explicit plan/);
   assert.match(prompt, /`intercom` for reporting back/);
   assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
-  assert.match(prompt, /intercom\({ action: "list" }\)/);
+  assert.match(prompt, /Report to the exact parent target: controller-session-123/);
   assert.doesNotMatch(prompt, /Manual report-back is requested/);
   assert.match(prompt, /1\. Answer or recommendation/);
   assert.match(prompt, /2\. Evidence inspected — exact files, artifacts, commands/);
@@ -706,6 +739,36 @@ test("parallelquest_spawn rejects a blank objective and requires a saved session
   assert.equal(execStub.calls.length, 0);
 });
 
+test("parallelquest_spawn requires exact parentPeerTarget for default intercom report-back", async () => {
+  const execStub = createParallelquestExecStub();
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("parallelquest_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "try without orphaning" },
+      undefined,
+      undefined,
+      createContext({ cwd: "/repo" }).ctx,
+    );
+
+  assert.equal(execStub.calls.length, 0);
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "missing_parent_peer_target");
+});
+
 test("parallelquest_spawn fails closed when requireCleanParent sees dirty parent state", async () => {
   await withTempDir(async (stateHome) => {
     const execStub = createParallelquestExecStub({ dirty: " M src/file.ts\n" });
@@ -723,15 +786,17 @@ test("parallelquest_spawn fails closed when requireCleanParent sees dirty parent
       },
     });
     const { tools } = registerExtension(extension);
-    const result = await tools
-      .get("parallelquest_spawn")
-      .execute(
-        "tool-call-1",
-        { objective: "try a bounded fix", requireCleanParent: true },
-        undefined,
-        undefined,
-        createContext({ cwd: "/repo" }).ctx,
-      );
+    const result = await tools.get("parallelquest_spawn").execute(
+      "tool-call-1",
+      {
+        objective: "try a bounded fix",
+        parentPeerTarget: "controller-session-123",
+        requireCleanParent: true,
+      },
+      undefined,
+      undefined,
+      createContext({ cwd: "/repo" }).ctx,
+    );
 
     assert.equal(result.isError, true);
     assert.equal(result.details.error, "worktree_prepare_failed");
@@ -764,6 +829,7 @@ test("parallelquest_spawn rejects worktree paths inside the parent checkout", as
     {
       objective: "try a bounded fix",
       cwd: "/repo",
+      parentPeerTarget: "controller-session-123",
       workspaceRoot: "/repo/tmp-quests",
     },
     undefined,
@@ -799,6 +865,7 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
       {
         objective: "Try bounded runner guard",
         cwd: "/repo",
+        parentPeerTarget: "controller-session-123",
         branchName: "parallelquest/Runner Guard!",
         workspaceName: "../Runner Guard Workspace",
         filesInScope: ["src/runner.ts", "tests/runner.test.mjs"],
@@ -861,7 +928,7 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.match(prompt, /- parent checkout/);
     assert.match(prompt, /- run focused test only/);
     assert.match(prompt, /Report diff summary/);
-    assert.match(prompt, /intercom\({ action: "list" }\)/);
+    assert.match(prompt, /Report to the exact parent target: controller-session-123/);
     assert.doesNotMatch(prompt, /Manual report-back is requested/);
     assert.doesNotMatch(prompt, /visible report in this sidequest session/);
     assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
