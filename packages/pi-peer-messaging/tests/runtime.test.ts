@@ -95,6 +95,36 @@ test("createPeerMessagingRuntime auto-spawns the broker and exposes self presenc
   }
 });
 
+test("runtime can reuse a stable requested session id across reconnects", async () => {
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-runtime-"));
+
+  try {
+    const runtime = await createPeerMessagingRuntime({
+      id: "session-stable-controller",
+      cwd: "/repo/planner",
+      model: "openai/gpt-4.1",
+      runtimeDir,
+      idleShutdownMs: 250,
+    });
+
+    const firstStatus = await runtime.status();
+    assert.equal(firstStatus.selfId, "session-stable-controller");
+
+    const firstPeers = await runtime.listPeers();
+    assert.equal(firstPeers[0]?.id, "session-stable-controller");
+
+    await runtime.disconnect();
+
+    const reconnectedStatus = await runtime.status();
+    assert.equal(reconnectedStatus.selfId, "session-stable-controller");
+
+    await disconnectAll([runtime]);
+    await waitForBrokerShutdown(runtimeDir);
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
 test("unnamed sessions keep a runtime-only fallback alias until presence is updated", async () => {
   const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-fallback-"));
 

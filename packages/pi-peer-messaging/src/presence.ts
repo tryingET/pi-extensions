@@ -3,6 +3,7 @@ import type { PeerPresence } from "./contracts.ts";
 export const DEFAULT_RUNTIME_ALIAS_PREFIX = "peer-session";
 
 export interface PeerRegistration {
+  id?: string;
   name?: string;
   cwd: string;
   model: string;

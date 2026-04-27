@@ -45,6 +45,17 @@ function assertString(value: unknown, label: string): string {
   return value;
 }
 
+function resolveRequestedSessionId(registration: PeerRegistration): string {
+  const requested = registration.id?.trim();
+  if (!requested) {
+    return `session-${randomUUID()}`;
+  }
+
+  const normalized = requested.startsWith("session-") ? requested : `session-${requested}`;
+  const sanitized = normalized.replace(/[^a-zA-Z0-9-]/g, "-");
+  return sanitized === "session-" ? `session-${randomUUID()}` : sanitized;
+}
+
 function assertOptionalString(value: unknown, label: string): string | undefined {
   if (value === undefined) {
     return undefined;
@@ -65,6 +76,7 @@ function assertPeerRegistration(value: unknown): PeerRegistration {
   const record = assertRecord(value, "PeerRegistration");
 
   return {
+    id: assertOptionalString(record.id, "PeerRegistration.id"),
     name: assertOptionalString(record.name, "PeerRegistration.name"),
     cwd: assertString(record.cwd, "PeerRegistration.cwd"),
     model: assertString(record.model, "PeerRegistration.model"),
@@ -251,8 +263,15 @@ export class PeerMessagingBroker {
           throw new Error("Received duplicate register message.");
         }
 
-        const sessionId = `session-${randomUUID()}`;
         const registration = assertPeerRegistration(record.session);
+        const sessionId = resolveRequestedSessionId(registration);
+        const existingSession = this.sessions.get(sessionId);
+        if (existingSession) {
+          existingSession.socket.destroy(
+            new Error(`Peer session ${sessionId} re-registered; replacing stale connection.`),
+          );
+          this.sessions.delete(sessionId);
+        }
         const presence = buildPeerPresence(sessionId, registration);
 
         this.sessions.set(sessionId, { socket, presence });

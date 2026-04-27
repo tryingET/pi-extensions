@@ -73,6 +73,7 @@ class PeerMessagingRuntimeManager {
     this.packageRoot = options.packageRoot;
     this.idleShutdownMs = options.idleShutdownMs;
     this.registration = {
+      id: options.id,
       name: options.name,
       cwd: options.cwd,
       model: options.model,

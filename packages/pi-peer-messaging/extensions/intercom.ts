@@ -140,6 +140,15 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function resolveStablePeerSessionId(ctx: IntercomExtensionContext | undefined): string | undefined {
+  const candidate = ctx?.sessionManager.getSessionId()?.trim();
+  if (!candidate) {
+    return undefined;
+  }
+  const normalized = candidate.startsWith("session-") ? candidate : `session-${candidate}`;
+  return normalized.replace(/[^a-zA-Z0-9-]/g, "-");
+}
+
 function resolveSessionName(ctx: IntercomExtensionContext | undefined): string | undefined {
   const candidate = ctx?.sessionManager.getSessionName()?.trim();
   return candidate && candidate.length > 0 ? candidate : undefined;
@@ -200,6 +209,7 @@ export function registerPeerMessagingIntercomExtension(
     }
 
     const nextRuntime = await runtimeFactory({
+      id: resolveStablePeerSessionId(ctx),
       name: resolveSessionName(ctx),
       cwd: resolveSessionCwd(ctx),
       model: resolveModelId(ctx),
