@@ -804,7 +804,6 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
         offLimits: [".env", "parent checkout"],
         constraints: ["run focused test only"],
         dod: ["Report diff summary"],
-        reportBack: "manual",
       },
       undefined,
       undefined,
@@ -861,8 +860,8 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.match(prompt, /- parent checkout/);
     assert.match(prompt, /- run focused test only/);
     assert.match(prompt, /Report diff summary/);
-    assert.match(prompt, /Manual report-back is requested/);
-    assert.match(prompt, /parallelquest session/);
+    assert.match(prompt, /intercom\({ action: "list" }\)/);
+    assert.doesNotMatch(prompt, /Manual report-back is requested/);
     assert.doesNotMatch(prompt, /visible report in this sidequest session/);
     assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
 
@@ -872,6 +871,7 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.equal(result.details.parentCwd, "/repo");
     assert.equal(result.details.branchName, "parallelquest/runner-guard");
     assert.equal(result.details.baseRef, "HEAD");
+    assert.equal(result.details.reportBack, "intercom");
     assert.equal(result.details.parentDirty, true);
     assert.match(result.details.parentDirtyWarning, /uncommitted changes/);
     assert.equal(result.details.reusedExisting, false);
