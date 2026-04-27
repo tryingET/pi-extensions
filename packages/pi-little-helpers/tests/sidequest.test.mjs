@@ -568,6 +568,9 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
   assert.match(result.details.questId, /^sidequest-/);
   assert.deepEqual(result.details.expectedMessages, ["QUEST_ACK", "QUEST_FINAL"]);
   assert.match(result.details.nextStep, /Watch the visible sidequest tab\/window/);
+  assert.match(result.content[0]?.text ?? "", /Quest id: sidequest-/);
+  assert.match(result.content[0]?.text ?? "", /Expected intercom messages: QUEST_ACK, QUEST_FINAL/);
+  assert.match(result.content[0]?.text ?? "", /quest_watch/);
 });
 
 test("sidequest_spawn generated prompt includes read-only policy, context, boundaries, tools, and DoD", async () => {
@@ -970,5 +973,11 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.equal(result.details.reusedExisting, false);
     assert.equal(result.details.titleBase, "Parallelquest: Try bounded runner guard");
     assert.match(result.details.nextStep, /Inspect the reported branch\/worktree/);
+    assert.match(result.content[0]?.text ?? "", /Quest id: parallelquest-/);
+    assert.match(
+      result.content[0]?.text ?? "",
+      /Expected intercom messages: QUEST_ACK, QUEST_FINAL/,
+    );
+    assert.match(result.content[0]?.text ?? "", /quest_watch/);
   });
 });

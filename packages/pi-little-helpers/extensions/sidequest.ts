@@ -1296,7 +1296,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         };
 
         return successToolResult(
-          `Launched sidequest_spawn in ${launch.launchMode}: ${launch.promptSummary}`,
+          `Launched sidequest_spawn in ${launch.launchMode}: ${launch.promptSummary}\nQuest id: ${questId}\nExpected intercom messages: QUEST_ACK, QUEST_FINAL\nNext supervision step: intercom({ action: "quest_watch", questId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
           details,
         );
       },
@@ -1442,7 +1442,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         };
 
         return successToolResult(
-          `Launched parallelquest_spawn in ${launch.launchMode}: ${launch.promptSummary}`,
+          `Launched parallelquest_spawn in ${launch.launchMode}: ${launch.promptSummary}\nQuest id: ${questId}\nExpected intercom messages: QUEST_ACK, QUEST_FINAL\nNext supervision step: intercom({ action: "quest_watch", questId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
           details,
         );
       },
