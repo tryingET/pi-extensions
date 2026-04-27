@@ -647,6 +647,35 @@ function buildReportBackInstructions({
   return `Manual report-back is requested. Do not over-promise delivery; leave a concise visible report in this ${peerLabel} session for the controller/operator to inspect.`;
 }
 
+function buildBootProtocolInstructions({
+  reportBack,
+  parentPeerTarget,
+  questId,
+  peerLabel,
+}: {
+  reportBack: SidequestReportBack;
+  parentPeerTarget?: string;
+  questId: string;
+  peerLabel: string;
+}): string {
+  const target = parentPeerTarget?.trim();
+  if (reportBack !== "intercom") {
+    return `No intercom boot ACK is required because reportBack is ${reportBack}. Follow the report-back mode below.`;
+  }
+
+  if (!target) {
+    return "Intercom boot ACK requires an exact parentPeerTarget. This prompt should not have been launched without one.";
+  }
+
+  return [
+    "Before reading task context, inspecting files, or doing any other work, send the ACK below.",
+    "Only allowed pre-ACK tool: `intercom`.",
+    `Literal ACK call: \`intercom({ action: "send", to: "${target}", message: "QUEST_ACK quest_id=${questId}: spawned ${peerLabel} started" })\``,
+    "If the ACK send fails or intercom is unavailable, visibly report `ACK_FAILED` in this session and stop; do not continue task work silently.",
+    "After ACK succeeds, continue with the objective and send exactly one `QUEST_FINAL` as the final DoD report. After `QUEST_FINAL`, stop unless the controller explicitly asks a new question or assigns new work.",
+  ].join("\n");
+}
+
 function buildSidequestSpawnPrompt({
   role,
   objective,
@@ -675,6 +704,14 @@ function buildSidequestSpawnPrompt({
     "# Visible Sidequest Agent Prompt",
     "",
     "You are a visible sidequest agent launched in a forked Pi session. If you are reading this prompt, you are the spawned sidequest peer, not the controller session. Identify as the sidequest peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
+    "",
+    "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
+    buildBootProtocolInstructions({
+      reportBack,
+      parentPeerTarget: request.parentPeerTarget,
+      questId,
+      peerLabel: "sidequest",
+    }),
     "",
     "## Role",
     role,
@@ -1037,6 +1074,14 @@ function buildParallelquestSpawnPrompt({
     "# Visible Parallelquest Agent Prompt",
     "",
     "You are a visible parallelquest agent launched in a forked Pi session. If you are reading this prompt, you are the spawned parallelquest peer, not the controller session. Identify as the parallelquest peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
+    "",
+    "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
+    buildBootProtocolInstructions({
+      reportBack,
+      parentPeerTarget: request.parentPeerTarget,
+      questId,
+      peerLabel: "parallelquest",
+    }),
     "",
     "## Quest Protocol",
     `Quest id: ${questId}`,

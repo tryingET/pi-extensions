@@ -543,6 +543,13 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
   assert.equal(piArgs[6], "high");
   assert.match(piArgs.at(-1), /Visible Sidequest Agent Prompt/);
   assert.match(piArgs.at(-1), /spawned sidequest peer/);
+  assert.match(piArgs.at(-1), /## BOOT PROTOCOL \/ FIRST ACTION REQUIRED/);
+  assert.match(piArgs.at(-1), /Only allowed pre-ACK tool: `intercom`/);
+  assert.match(piArgs.at(-1), /ACK_FAILED/);
+  assert.ok(
+    piArgs.at(-1).indexOf("## BOOT PROTOCOL / FIRST ACTION REQUIRED") <
+      piArgs.at(-1).indexOf("## Objective"),
+  );
   assert.match(piArgs.at(-1), /Role\nreviewer/);
   assert.match(piArgs.at(-1), /Report to the exact parent target: controller-session-123/);
   assert.match(piArgs.at(-1), /Message budget: at most QUEST_ACK and QUEST_FINAL/);
@@ -629,6 +636,13 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
   assert.match(prompt, /visible sidequest agent launched in a forked Pi session/i);
   assert.match(prompt, /spawned sidequest peer/i);
   assert.match(prompt, /not the controller session/i);
+  assert.match(prompt, /## BOOT PROTOCOL \/ FIRST ACTION REQUIRED/);
+  assert.match(prompt, /Only allowed pre-ACK tool: `intercom`/);
+  assert.match(prompt, /QUEST_ACK quest_id=sidequest-[^:]+: spawned sidequest started/);
+  assert.match(prompt, /ACK_FAILED/);
+  assert.ok(
+    prompt.indexOf("## BOOT PROTOCOL / FIRST ACTION REQUIRED") < prompt.indexOf("## Objective"),
+  );
   assert.match(prompt, /Role\nscout/);
   assert.match(prompt, /Inspect why benchmark artifacts disagree/);
   assert.match(prompt, /Campaign goal: Improve benchmark accuracy/);
@@ -932,6 +946,13 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.match(prompt, /Visible Parallelquest Agent Prompt/);
     assert.match(prompt, /spawned parallelquest peer/i);
     assert.match(prompt, /not the controller session/i);
+    assert.match(prompt, /## BOOT PROTOCOL \/ FIRST ACTION REQUIRED/);
+    assert.match(prompt, /Only allowed pre-ACK tool: `intercom`/);
+    assert.match(prompt, /QUEST_ACK quest_id=parallelquest-[^:]+: spawned parallelquest started/);
+    assert.match(prompt, /ACK_FAILED/);
+    assert.ok(
+      prompt.indexOf("## BOOT PROTOCOL / FIRST ACTION REQUIRED") < prompt.indexOf("## Objective"),
+    );
     assert.match(prompt, /Parent\/controller cwd: \/repo/);
     assert.match(prompt, new RegExp(`Your worktree cwd: ${result.details.worktreePath}`));
     assert.match(prompt, /Branch: parallelquest\/runner-guard/);
