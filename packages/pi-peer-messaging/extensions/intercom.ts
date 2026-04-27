@@ -78,7 +78,8 @@ const INTERCOM_TOOL_PARAMETERS = {
   properties: {
     action: {
       type: "string",
-      description: "Action: 'list', 'send', 'ask', 'reply', 'pending', or 'status'",
+      description:
+        "Action: 'list', 'send', 'ask', 'reply', 'pending', 'quest_status', 'quest_watch', or 'status'",
     },
     to: {
       type: "string",
@@ -118,7 +119,15 @@ const INTERCOM_TOOL_PARAMETERS = {
     },
     timeoutMs: {
       type: "number",
-      description: "Optional ask timeout override in milliseconds",
+      description: "Optional ask or quest_watch timeout override in milliseconds",
+    },
+    questId: {
+      type: "string",
+      description: "Quest id for quest_status or quest_watch protocol supervision.",
+    },
+    waitFor: {
+      type: "string",
+      description: "For quest_watch: 'ack', 'final', or 'both'. Defaults to 'final'.",
     },
   },
 } satisfies Record<string, unknown>;

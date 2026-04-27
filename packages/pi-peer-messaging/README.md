@@ -59,6 +59,8 @@ The first public adapter is the package-local `intercom` tool surface exposed by
 It is useful on purpose, but it is still only an adapter.
 It does **not** redefine the authority model.
 
+For controller-spawned quest agents, the adapter can classify and watch the bounded `QUEST_ACK` / `QUEST_FINAL` message protocol by `questId`. This is supervision of communication state only; it does not make peer messages durable evidence, merge authority, or completion truth by itself.
+
 Supported actions:
 
 - `intercom({ action: "list" })`
@@ -66,6 +68,8 @@ Supported actions:
 - `intercom({ action: "ask", ... })`
 - `intercom({ action: "reply", ... })`
 - `intercom({ action: "pending" })`
+- `intercom({ action: "quest_status", questId: "..." })`
+- `intercom({ action: "quest_watch", questId: "...", waitFor: "final", timeoutMs: 30000 })`
 - `intercom({ action: "status" })`
 
 ## Install

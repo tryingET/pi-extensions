@@ -19,6 +19,8 @@ export interface IntercomToolRequest {
   attachments?: PeerAttachment[];
   replyTo?: string;
   timeoutMs?: number;
+  questId?: string;
+  waitFor?: "ack" | "final" | "both";
 }
 
 export interface IntercomIncomingMessage {
@@ -43,6 +45,29 @@ interface PendingInboundMessage {
   from: PeerPresence;
   message: PeerMessage;
   receivedAt: number;
+}
+
+type QuestProtocolKind = "QUEST_ACK" | "QUEST_FINAL";
+
+type QuestProtocolState = "no_messages" | "ack_received" | "final_received" | "protocol_violation";
+
+interface QuestProtocolMessage {
+  kind: QuestProtocolKind | "UNKNOWN";
+  from: PeerPresence;
+  message: PeerMessage;
+  receivedAt: number;
+  preview: string;
+}
+
+interface QuestProtocolSnapshot {
+  questId: string;
+  state: QuestProtocolState;
+  ackCount: number;
+  finalCount: number;
+  duplicateAckCount: number;
+  duplicateFinalCount: number;
+  violationCount: number;
+  messages: QuestProtocolMessage[];
 }
 
 function shortSessionId(sessionId: string): string {
@@ -159,6 +184,24 @@ function isAmbiguousTargetReason(reason: string | undefined): boolean {
   return typeof reason === "string" && reason.includes("Multiple peers matched");
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function truncatePreview(value: string, maxLength: number = PENDING_PREVIEW_LENGTH): string {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= maxLength) return singleLine;
+  return `${singleLine.slice(0, maxLength - 1)}…`;
+}
+
+function parseQuestProtocolKind(text: string, questId: string): QuestProtocolKind | undefined {
+  const escapedQuestId = escapeRegExp(questId);
+  const match = text.match(
+    new RegExp(`\\b(QUEST_ACK|QUEST_FINAL)\\s+quest_id=${escapedQuestId}\\s*:`),
+  );
+  return match?.[1] === "QUEST_ACK" || match?.[1] === "QUEST_FINAL" ? match[1] : undefined;
+}
+
 function textResult(
   text: string,
   options: { isError?: boolean; details?: Record<string, unknown> } = {},
@@ -257,6 +300,7 @@ export class IntercomCompatibleAdapter {
   private readonly now: () => number;
   private readonly onIncomingMessage?: (entry: IntercomIncomingMessage) => void;
   private readonly replyTracker = new ReplyTracker();
+  private readonly questWaiters = new Set<() => void>();
 
   constructor(options: IntercomAdapterOptions = {}) {
     this.now = options.now ?? (() => Date.now());
@@ -270,6 +314,7 @@ export class IntercomCompatibleAdapter {
   handleIncomingMessage(from: PeerPresence, message: PeerMessage): void {
     const receivedAt = this.now();
     this.replyTracker.recordIncomingMessage(from, message, receivedAt);
+    this.notifyQuestWaiters();
 
     const entry = {
       from,
@@ -298,10 +343,147 @@ export class IntercomCompatibleAdapter {
         return this.reply(runtime, request);
       case "pending":
         return this.pending();
+      case "quest_status":
+        return this.questStatus(request);
+      case "quest_watch":
+        return this.questWatch(request);
       case "status":
         return this.status(runtime);
       default:
         return textResult(`Unknown action: ${request.action}`, { isError: true });
+    }
+  }
+
+  private notifyQuestWaiters(): void {
+    const waiters = [...this.questWaiters];
+    this.questWaiters.clear();
+    for (const waiter of waiters) {
+      waiter();
+    }
+  }
+
+  private buildQuestSnapshot(questId: string): QuestProtocolSnapshot {
+    const messages = this.replyTracker
+      .listPending()
+      .filter((entry) => entry.message.content.text.includes(`quest_id=${questId}`))
+      .map((entry) => {
+        const kind = parseQuestProtocolKind(entry.message.content.text, questId) ?? "UNKNOWN";
+        return {
+          kind,
+          from: entry.from,
+          message: entry.message,
+          receivedAt: entry.receivedAt,
+          preview: truncatePreview(entry.message.content.text),
+        } satisfies QuestProtocolMessage;
+      });
+
+    const ackCount = messages.filter((message) => message.kind === "QUEST_ACK").length;
+    const finalCount = messages.filter((message) => message.kind === "QUEST_FINAL").length;
+    const violationCount = messages.filter((message) => message.kind === "UNKNOWN").length;
+    const state: QuestProtocolState = violationCount
+      ? "protocol_violation"
+      : finalCount > 0
+        ? "final_received"
+        : ackCount > 0
+          ? "ack_received"
+          : "no_messages";
+
+    return {
+      questId,
+      state,
+      ackCount,
+      finalCount,
+      duplicateAckCount: Math.max(0, ackCount - 1),
+      duplicateFinalCount: Math.max(0, finalCount - 1),
+      violationCount,
+      messages,
+    } satisfies QuestProtocolSnapshot;
+  }
+
+  private formatQuestSnapshot(snapshot: QuestProtocolSnapshot): string {
+    const rows = snapshot.messages.length
+      ? snapshot.messages
+          .map(
+            (message) =>
+              `- ${message.kind} from ${formatPeerTarget(message.from)} id=${message.message.id}: ${message.preview}`,
+          )
+          .join("\n")
+      : "- none";
+
+    return [
+      `Quest ${snapshot.questId}: ${snapshot.state}`,
+      `ACK=${snapshot.ackCount} FINAL=${snapshot.finalCount} duplicateACK=${snapshot.duplicateAckCount} duplicateFINAL=${snapshot.duplicateFinalCount} violations=${snapshot.violationCount}`,
+      "Messages:",
+      rows,
+    ].join("\n");
+  }
+
+  private questStatus(request: IntercomToolRequest): IntercomToolResponse {
+    const questId = request.questId?.trim();
+    if (!questId) {
+      return textResult("Missing 'questId' parameter", { isError: true });
+    }
+
+    const snapshot = this.buildQuestSnapshot(questId);
+    return textResult(this.formatQuestSnapshot(snapshot), {
+      details: { ...snapshot },
+    });
+  }
+
+  private questWatchConditionMet(
+    snapshot: QuestProtocolSnapshot,
+    waitFor: "ack" | "final" | "both",
+  ): boolean {
+    if (snapshot.state === "protocol_violation") return true;
+    if (waitFor === "ack") return snapshot.ackCount > 0;
+    if (waitFor === "final") return snapshot.finalCount > 0;
+    return snapshot.ackCount > 0 && snapshot.finalCount > 0;
+  }
+
+  private async questWatch(request: IntercomToolRequest): Promise<IntercomToolResponse> {
+    const questId = request.questId?.trim();
+    if (!questId) {
+      return textResult("Missing 'questId' parameter", { isError: true });
+    }
+
+    const waitFor = request.waitFor ?? "final";
+    const timeoutMs = request.timeoutMs ?? 30_000;
+    const deadline = this.now() + timeoutMs;
+
+    while (true) {
+      const snapshot = this.buildQuestSnapshot(questId);
+      if (this.questWatchConditionMet(snapshot, waitFor)) {
+        return textResult(this.formatQuestSnapshot(snapshot), {
+          details: { ...snapshot, timedOut: false, waitFor },
+        });
+      }
+
+      const remainingMs = deadline - this.now();
+      if (remainingMs <= 0) {
+        return textResult(
+          `Timed out waiting for ${waitFor} on ${questId}.\n${this.formatQuestSnapshot(snapshot)}`,
+          {
+            isError: true,
+            details: { ...snapshot, timedOut: true, waitFor },
+          },
+        );
+      }
+
+      await new Promise<void>((resolve) => {
+        let waiter: (() => void) | undefined;
+        const timer = setTimeout(
+          () => {
+            if (waiter) this.questWaiters.delete(waiter);
+            resolve();
+          },
+          Math.min(remainingMs, 250),
+        );
+        waiter = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        this.questWaiters.add(waiter);
+      });
     }
   }
 

@@ -216,3 +216,93 @@ test("adapter lists current and other sessions without redefining the core", asy
   assert.match(result.content[0]?.text ?? "", /worker/);
   assert.match(result.content[0]?.text ?? "", /id: worker-session-aaaaaaaa/);
 });
+
+test("adapter classifies quest protocol messages by quest id", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("QUEST_ACK quest_id=quest-123: started", { id: "ack-1" }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("QUEST_FINAL quest_id=quest-123: done", { id: "final-1" }),
+  );
+
+  const result = await adapter.execute(runtime, { action: "quest_status", questId: "quest-123" });
+
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0]?.text ?? "", /Quest quest-123: final_received/);
+  assert.equal(result.details?.state, "final_received");
+  assert.equal(result.details?.ackCount, 1);
+  assert.equal(result.details?.finalCount, 1);
+  assert.equal(result.details?.duplicateFinalCount, 0);
+});
+
+test("adapter reports quest protocol duplicates and violations", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("QUEST_ACK quest_id=quest-dup: started", { id: "ack-1" }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("QUEST_ACK quest_id=quest-dup: duplicate", { id: "ack-2" }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("QUEST_NOTE quest_id=quest-dup: extra chatter", { id: "note-1" }),
+  );
+
+  const result = await adapter.execute(runtime, { action: "quest_status", questId: "quest-dup" });
+
+  assert.equal(result.details?.state, "protocol_violation");
+  assert.equal(result.details?.ackCount, 2);
+  assert.equal(result.details?.duplicateAckCount, 1);
+  assert.equal(result.details?.violationCount, 1);
+});
+
+test("adapter quest_watch waits for final and times out when absent", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter();
+
+  const watch = adapter.execute(runtime, {
+    action: "quest_watch",
+    questId: "quest-watch",
+    waitFor: "final",
+    timeoutMs: 1_000,
+  });
+
+  setTimeout(() => {
+    adapter.handleIncomingMessage(
+      WORKER_A,
+      createMessage("QUEST_ACK quest_id=quest-watch: started", { id: "ack-1" }),
+    );
+  }, 10);
+  setTimeout(() => {
+    adapter.handleIncomingMessage(
+      WORKER_A,
+      createMessage("QUEST_FINAL quest_id=quest-watch: done", { id: "final-1" }),
+    );
+  }, 20);
+
+  const result = await watch;
+
+  assert.equal(result.isError, undefined);
+  assert.equal(result.details?.state, "final_received");
+  assert.equal(result.details?.timedOut, false);
+
+  const timeout = await adapter.execute(runtime, {
+    action: "quest_watch",
+    questId: "missing-quest",
+    waitFor: "ack",
+    timeoutMs: 1,
+  });
+
+  assert.equal(timeout.isError, true);
+  assert.equal(timeout.details?.state, "no_messages");
+  assert.equal(timeout.details?.timedOut, true);
+});
