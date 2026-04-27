@@ -610,7 +610,9 @@ function buildReportBackInstructions({
     return [
       "Use intercom for report-back if the tool is available.",
       `Report to the exact parent target: ${target}`,
-      'Use a concise message with `intercom({ action: "send", to: "<target>", message: "..." })`.',
+      `First action: send a concise started/ack message identifying yourself as the spawned ${peerLabel}.`,
+      `Final action before stopping: send your concise DoD report to the same exact target. Do not consider the quest complete until this final intercom report is sent or you have explicitly reported that intercom is unavailable.`,
+      `Use the literal target in tool calls, for example: \`intercom({ action: "send", to: "${target}", message: "..." })\`.`,
       "Intercom is communication only; it is not durable evidence or completion authority.",
     ].join("\n");
   }
@@ -655,7 +657,7 @@ function buildSidequestSpawnPrompt({
   return [
     "# Visible Sidequest Agent Prompt",
     "",
-    "You are a visible sidequest agent launched in a forked Pi session. You are not the controller session. You are parallel cognition, not parallel authority.",
+    "You are a visible sidequest agent launched in a forked Pi session. If you are reading this prompt, you are the spawned sidequest peer, not the controller session. Identify as the sidequest peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
     "",
     "## Role",
     role,
@@ -1007,7 +1009,7 @@ function buildParallelquestSpawnPrompt({
   return [
     "# Visible Parallelquest Agent Prompt",
     "",
-    "You are a visible parallelquest agent launched in a forked Pi session. You are not the controller session. You are parallel cognition, not parallel authority.",
+    "You are a visible parallelquest agent launched in a forked Pi session. If you are reading this prompt, you are the spawned parallelquest peer, not the controller session. Identify as the parallelquest peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
     "",
     "## Objective",
     objective,

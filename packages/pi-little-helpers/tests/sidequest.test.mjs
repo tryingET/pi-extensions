@@ -542,8 +542,15 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
   ]);
   assert.equal(piArgs[6], "high");
   assert.match(piArgs.at(-1), /Visible Sidequest Agent Prompt/);
+  assert.match(piArgs.at(-1), /spawned sidequest peer/);
   assert.match(piArgs.at(-1), /Role\nreviewer/);
   assert.match(piArgs.at(-1), /Report to the exact parent target: controller-session-123/);
+  assert.match(piArgs.at(-1), /First action: send a concise started\/ack message/);
+  assert.match(piArgs.at(-1), /Final action before stopping: send your concise DoD report/);
+  assert.match(
+    piArgs.at(-1),
+    /intercom\(\{ action: "send", to: "controller-session-123", message: "\.\.\." \}\)/,
+  );
 
   assert.equal(result.details.ok, true);
   assert.equal(result.details.tool, "sidequest_spawn");
@@ -612,6 +619,7 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
   const prompt = extractPiArgs(execStub.calls[1].args).at(-1);
 
   assert.match(prompt, /visible sidequest agent launched in a forked Pi session/i);
+  assert.match(prompt, /spawned sidequest peer/i);
   assert.match(prompt, /not the controller session/i);
   assert.match(prompt, /Role\nscout/);
   assert.match(prompt, /Inspect why benchmark artifacts disagree/);
@@ -914,6 +922,7 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     ]);
     const prompt = piArgs.at(-1);
     assert.match(prompt, /Visible Parallelquest Agent Prompt/);
+    assert.match(prompt, /spawned parallelquest peer/i);
     assert.match(prompt, /not the controller session/i);
     assert.match(prompt, /Parent\/controller cwd: \/repo/);
     assert.match(prompt, new RegExp(`Your worktree cwd: ${result.details.worktreePath}`));
@@ -929,6 +938,12 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.match(prompt, /- run focused test only/);
     assert.match(prompt, /Report diff summary/);
     assert.match(prompt, /Report to the exact parent target: controller-session-123/);
+    assert.match(prompt, /First action: send a concise started\/ack message/);
+    assert.match(prompt, /Final action before stopping: send your concise DoD report/);
+    assert.match(
+      prompt,
+      /intercom\(\{ action: "send", to: "controller-session-123", message: "\.\.\." \}\)/,
+    );
     assert.doesNotMatch(prompt, /Manual report-back is requested/);
     assert.doesNotMatch(prompt, /visible report in this sidequest session/);
     assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
