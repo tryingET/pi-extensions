@@ -1,0 +1,29 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "4a72704339390479cbd8f753473c69ce3864fb9e"
+created_at: "2026-04-28T01:47:23Z"
+intent: "Freeze visible peer beta contract with canonical tool surfaces and autoresearch baseline receipts"
+files:
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+  - "packages/pi-little-helpers/README.md"
+  - "packages/pi-little-helpers/autoresearch.jsonl"
+  - "packages/pi-little-helpers/autoresearch.events.jsonl"
+  - "packages/pi-little-helpers/autoresearch.runtime.json"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 2
+  total: 7
+  rationale: "AK #1893 freeze visible peer beta contract in pi-little-helpers"
+links:
+  task_ids:
+    - 1893
+    - 1896
