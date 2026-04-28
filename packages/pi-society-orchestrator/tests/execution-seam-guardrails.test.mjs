@@ -8,10 +8,16 @@ const allowedAscConsumer = {
   file: "src/runtime/subagent.ts",
   specifier: "pi-autonomous-session-control/execution",
 };
-const allowedVaultConsumer = {
-  file: "src/runtime/cognitive-tools.ts",
-  specifier: "pi-vault-client/prompt-plane",
-};
+const allowedVaultConsumers = [
+  {
+    file: "src/loops/engine.ts",
+    specifier: "pi-vault-client/dispatch-runtime",
+  },
+  {
+    file: "src/runtime/cognitive-tools.ts",
+    specifier: "pi-vault-client/prompt-plane",
+  },
+];
 const sourceRoots = ["src", "extensions"];
 
 function listSourceFiles() {
@@ -76,7 +82,7 @@ test("orchestrator source consumes ASC only through the public execution seam", 
   assert.deepEqual(ascImports, [allowedAscConsumer]);
 });
 
-test("orchestrator source consumes pi-vault-client only through the public prompt-plane seam", () => {
+test("orchestrator source consumes pi-vault-client only through public package seams", () => {
   const vaultImports = [];
 
   for (const file of listSourceFiles()) {
@@ -88,7 +94,7 @@ test("orchestrator source consumes pi-vault-client only through the public promp
     }
   }
 
-  assert.deepEqual(vaultImports, [allowedVaultConsumer]);
+  assert.deepEqual(vaultImports, allowedVaultConsumers);
 });
 
 test("subagent adapter does not revive orchestrator-local runtime internals", () => {
@@ -120,9 +126,7 @@ test("subagent adapter does not revive orchestrator-local runtime internals", ()
   }
 });
 
-test("prompt-plane adapter does not drift back to private pi-vault-client imports", () => {
-  const adapterSource = fs.readFileSync(path.join(packageRoot, allowedVaultConsumer.file), "utf8");
-
+test("vault adapters do not drift back to private pi-vault-client imports", () => {
   const forbiddenTokens = [
     "pi-vault-client/src/",
     "../pi-vault-client/src/",
@@ -131,11 +135,14 @@ test("prompt-plane adapter does not drift back to private pi-vault-client import
     "../../pi-vault-client/",
   ];
 
-  for (const token of forbiddenTokens) {
-    assert.equal(
-      adapterSource.includes(token),
-      false,
-      `expected ${allowedVaultConsumer.file} to stay free of ${token}`,
-    );
+  for (const consumer of allowedVaultConsumers) {
+    const adapterSource = fs.readFileSync(path.join(packageRoot, consumer.file), "utf8");
+    for (const token of forbiddenTokens) {
+      assert.equal(
+        adapterSource.includes(token),
+        false,
+        `expected ${consumer.file} to stay free of ${token}`,
+      );
+    }
   }
 });

@@ -16,6 +16,7 @@ import {
   isTextOk,
   registerLoopBinding,
 } from "../src/dispatchPosture.ts";
+import { createVaultDispatchRuntime } from "../src/dispatchRuntime.ts";
 
 // ---------------------------------------------------------------------------
 // classifyDispatchPosture
@@ -303,5 +304,92 @@ describe("known loop template bindings completeness", () => {
         `${name} must use a valid execution surface`,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createVaultDispatchRuntime
+// ---------------------------------------------------------------------------
+
+describe("createVaultDispatchRuntime", () => {
+  function createFakeRuntime(rows) {
+    return {
+      resolveCurrentCompanyContext() {
+        return { company: "software", source: "explicit:test" };
+      },
+      escapeSql(value) {
+        return String(value).replaceAll("'", "''");
+      },
+      buildVisibilityPredicate(company) {
+        assert.equal(company, "software");
+        return "visibility_companies contains software";
+      },
+      queryVaultJsonDetailed(sql) {
+        assert.match(sql, /status = 'active'/);
+        assert.doesNotMatch(sql, /export_to_pi = true/);
+        return { ok: true, value: { rows }, error: null };
+      },
+      parseTemplateRows(result) {
+        return result.rows.map((row) => ({
+          name: row.name,
+          description: row.description || "",
+          content: row.content || "",
+          artifact_kind: row.artifact_kind,
+          control_mode: row.control_mode,
+          formalization_level: row.formalization_level,
+          owner_company: row.owner_company,
+          visibility_companies: row.visibility_companies,
+          controlled_vocabulary: null,
+          status: row.status,
+          export_to_pi: row.export_to_pi,
+          version: row.version,
+          id: row.id,
+        }));
+      },
+    };
+  }
+
+  it("checks active visible templates without requiring export_to_pi=true", async () => {
+    const runtime = createVaultDispatchRuntime({
+      runtime: createFakeRuntime([
+        {
+          id: 1,
+          name: "ooda",
+          description: "OODA",
+          content: "",
+          artifact_kind: "procedure",
+          control_mode: "loop",
+          formalization_level: "workflow",
+          owner_company: "core",
+          visibility_companies: ["core", "software"],
+          status: "active",
+          export_to_pi: false,
+          version: 1,
+        },
+      ]),
+    });
+
+    const result = await runtime.checkTemplates(["ooda"], { currentCompany: "software" });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "ready");
+    assert.deepEqual(result.missing, []);
+    assert.equal(result.results[0].posture, "orchestrator_loop_required");
+    assert.deepEqual(result.results[0].binding.execution_args, { loop: "ooda" });
+  });
+
+  it("fails closed without explicit company context", async () => {
+    const runtime = createVaultDispatchRuntime({
+      runtime: {
+        ...createFakeRuntime([]),
+        resolveCurrentCompanyContext() {
+          return { company: "core", source: "contract-default" };
+        },
+      },
+    });
+
+    const result = await runtime.checkTemplates(["ooda"], {});
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "blocked");
+    assert.match(result.blocking_reason, /Explicit company context is required/);
   });
 });

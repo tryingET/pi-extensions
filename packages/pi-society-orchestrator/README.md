@@ -121,6 +121,7 @@ Primary tools and commands exposed by the imported extension include:
 - `evidence_record`
 - `ontology_context` (now resolved through the sanctioned `rocs-cli` adapter path instead of the local `society.db` ontology table)
 - `loop_execute`
+- `vault_execute_template` (Prompt Vault dispatch bridge that executes known loop-bound templates through `loop_execute` and fails closed for workflow-grade/loop templates without an execution binding)
 - `workflow_execute` (explicit chain/parallel workflow composition over the ASC-backed subagent executor, with optional bounded worktree isolation for eligible parallel groups)
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
 - `ts_quality_release_workflow` (Pi Society wrapper around the `ts-quality` local release-prep leaves and GitHub Release-triggered npm Trusted Publishing path)
@@ -151,6 +152,7 @@ Primary tools and commands exposed by the imported extension include:
 - Package-local seam guardrails now fail closed if source code drifts back to private ASC `extensions/self/*` imports or revives an orchestrator-local execution runtime path.
 - `/evidence` now reads through the sanctioned `ak evidence search` path instead of raw sqlite evidence queries.
 - Exact cognitive-tool prompt preparation for `cognitive_dispatch` and loop execution now consumes the supported `pi-vault-client/prompt-plane` seam instead of reading raw prompt bodies with package-local `dolt sql`; the remaining local Prompt Vault path is the bounded metadata listing used by `/cognitive` and runtime-health summaries.
+- Prompt Vault execution dispatch now has an orchestrator bridge: `vault_execute_template` uses `pi-vault-client/dispatch-runtime`, maps `transcendent-iteration` to `loop_execute(loop="transcendent")` and `ooda` to `loop_execute(loop="ooda")`, and fails closed for unknown loop/workflow-grade templates that lack an executable binding.
 - Installed-package `release:check` now proves guarded-bootstrap, timeout, truncation, team-mismatch, and successful package-owned KES loop emission through a deterministic headless harness against an isolated installed dependency set rooted in the target tarball, including the current bundled `pi-autonomous-session-control` publish bridge and the local `pi-vault-client` prompt-plane dependency path.
 - `release:check` now also enforces the bundled-bridge lifecycle trigger: once `pi-autonomous-session-control` is visible on the npm registry, the orchestrator package must cut over to a normal dependency instead of silently continuing to ship the bundle.
 - Invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and structured `loop_execute` failure output instead of leaking raw filesystem exceptions.

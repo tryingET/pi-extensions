@@ -16,7 +16,12 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type {
+  AgentToolResult,
+  AgentToolUpdateCallback,
+  ExtensionAPI,
+  ExtensionContext,
+} from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
 import { isKesMaterializationError, KES_MATERIALIZATION_FAILURE_KIND } from "../kes/index.ts";
@@ -752,6 +757,41 @@ function normalizePositiveSeconds(value: unknown): number | undefined {
   return value;
 }
 
+type LoopToolContext = ExtensionContext & TeamScopedContext;
+
+type LoopToolUpdateCallback = AgentToolUpdateCallback<unknown>;
+
+interface VaultDispatchPostureBinding {
+  execution_surface?: string;
+  execution_args?: Record<string, unknown>;
+}
+
+interface VaultDispatchPostureResult {
+  posture: string;
+  template_name: string;
+  binding?: VaultDispatchPostureBinding | null;
+  reason?: string;
+}
+
+interface VaultDispatchRuntimeResult {
+  ok: boolean;
+  status: "ready" | "blocked";
+  results?: VaultDispatchPostureResult[];
+  missing?: string[];
+  current_company?: string;
+  current_company_source?: string;
+  blocking_reason?: string;
+}
+
+interface VaultDispatchRuntimeModule {
+  createVaultDispatchRuntime: () => {
+    checkTemplates: (
+      templateNames: string[],
+      ctx?: { cwd?: string; currentCompany?: string },
+    ) => Promise<VaultDispatchRuntimeResult>;
+  };
+}
+
 // ============================================================================
 // TOOL REGISTRATION
 // ============================================================================
@@ -766,6 +806,233 @@ export function registerLoopTools(
   const subagentExecutor = createOrchestratorSubagentExecutor({
     sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "loops"),
   });
+
+  const executeLoopToolRequest = async (
+    params: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    onUpdate: LoopToolUpdateCallback | undefined,
+    ctx: LoopToolContext,
+  ): Promise<AgentToolResult<unknown>> => {
+    const { loop, objective, continue_after_failure, loop_timeout_seconds, phase_timeout_seconds } =
+      params as {
+        loop: string;
+        objective: string;
+        continue_after_failure?: boolean;
+        loop_timeout_seconds?: number;
+        phase_timeout_seconds?: number;
+      };
+
+    if (loop === "mito") {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "The `mito` loop name was retired because it collided with Prof. Binner's MITO. Use `strategic` instead.",
+          },
+        ],
+        details: { ok: false, renamed_to: "strategic" },
+      };
+    }
+
+    const plugin = plugins[loop];
+    if (!plugin) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Unknown loop: ${loop}. Available: ${Object.keys(plugins).join(", ")}`,
+          },
+        ],
+        details: { ok: false },
+      };
+    }
+
+    if (onUpdate) {
+      onUpdate({
+        content: [{ type: "text", text: `Starting ${loop.toUpperCase()} loop...` }],
+        details: { loop, objective, status: "starting" },
+      });
+    }
+
+    const resolvedAgents = new Map<string, string>();
+    if (resolveAgent) {
+      const incompatiblePhases = plugin.phases.flatMap((phase) => {
+        const requestedAgent = plugin.agents[phase] || "scout";
+        const resolution = resolveAgent(requestedAgent, ctx);
+        if (!resolution.ok) {
+          return [
+            {
+              phase,
+              agent: requestedAgent,
+              error: resolution.error,
+            },
+          ];
+        }
+
+        resolvedAgents.set(requestedAgent, resolution.agent);
+        return [];
+      });
+
+      if (incompatiblePhases.length > 0) {
+        const mismatchReport = incompatiblePhases
+          .map((entry) => `- ${entry.phase}: ${entry.agent} — ${entry.error}`)
+          .join("\n");
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Loop '${loop}' is incompatible with the active team:\n${mismatchReport}`,
+            },
+          ],
+          details: { ok: false, error: "loop-agent-team-mismatch", incompatiblePhases },
+        };
+      }
+    }
+
+    const executor = new LoopExecutor(plugin, ctx.cwd, vaultDir);
+    const loopTimeoutMs =
+      (normalizePositiveSeconds(loop_timeout_seconds) ?? DEFAULT_LOOP_TIMEOUT_MS / 1000) * 1000;
+    const effectiveSignal = createLinkedTimeoutSignal(signal, loopTimeoutMs);
+
+    // Create dispatch function using shared agent profiles + vault-loaded cognitive tools.
+    const dispatch = async (p: {
+      agent: string;
+      cognitiveTool: string;
+      context: string;
+      timeoutSeconds?: number;
+      onUpdate?: (update: unknown) => void;
+    }) => {
+      let effectiveAgent = resolvedAgents.get(p.agent) || p.agent;
+      if (resolveAgent && !resolvedAgents.has(p.agent)) {
+        const resolution = resolveAgent(p.agent, ctx);
+        if (!resolution.ok) {
+          return {
+            output: `Agent/team resolution failed for '${p.agent}': ${resolution.error}`,
+            exitCode: 1,
+            elapsed: 0,
+          };
+        }
+        effectiveAgent = resolution.agent;
+        resolvedAgents.set(p.agent, effectiveAgent);
+      }
+
+      const agentProfile = AGENT_PROFILES[effectiveAgent] || AGENT_PROFILES.scout;
+      const toolResult = await getCognitiveToolByName(
+        p.cognitiveTool,
+        {
+          cwd: ctx.cwd,
+        },
+        effectiveSignal.signal,
+      );
+      if (isBoundaryFailure(toolResult)) {
+        return {
+          output: `Failed to load cognitive tool '${p.cognitiveTool}': ${toolResult.error}`,
+          exitCode: 1,
+          elapsed: 0,
+        };
+      }
+
+      if (!toolResult.value) {
+        return {
+          output: `Cognitive tool not found: ${p.cognitiveTool}`,
+          exitCode: 1,
+          elapsed: 0,
+        };
+      }
+
+      const model = ctx.model
+        ? `${ctx.model.provider}/${ctx.model.id}`
+        : "openrouter/google/gemini-2.5-flash-preview";
+      const runtimeResult = await subagentExecutor.execute({
+        agentProfile,
+        cognitiveToolName: toolResult.value.name,
+        cognitiveToolContent: toolResult.value.content,
+        objective: p.context,
+        model,
+        cwd: ctx.cwd,
+        extraSections: [
+          `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
+        ],
+        sessionName: `${agentProfile.name}-${toolResult.value.name}`,
+        timeoutSeconds: p.timeoutSeconds,
+        onUpdate: p.onUpdate as Parameters<typeof subagentExecutor.execute>[0]["onUpdate"],
+        signal: effectiveSignal.signal,
+      });
+
+      return toExecutionLike(runtimeResult);
+    };
+
+    try {
+      const result = await executor.execute(objective, dispatch, effectiveSignal.signal, {
+        continueAfterFailure: continue_after_failure,
+        phaseTimeoutSeconds: normalizePositiveSeconds(phase_timeout_seconds),
+        onUpdate: (update) =>
+          onUpdate?.({
+            content: [
+              {
+                type: "text",
+                text:
+                  update.event === "phase_start"
+                    ? `Starting ${loop}.${update.phase} (${update.phaseIndex}/${update.phaseCount}) with ${update.agent}/${update.primaryTool}`
+                    : update.event === "phase_complete"
+                      ? `Finished ${loop}.${update.phase}: ${update.status}`
+                      : `Progress ${loop}.${update.phase}`,
+              },
+            ],
+            details: { loop, objective, status: update.event, update },
+          }),
+      });
+      const compactResult = compactLoopResult(result);
+      const loopTimedOut = effectiveSignal.timedOut();
+
+      const summary = `# ${loop.toUpperCase()} Loop Complete
+
+**Objective:** ${objective}
+**Status:** ${result.success ? "✓ Success" : "✗ Completed with failures"}
+**Elapsed:** ${Math.round(result.elapsed / 1000)}s
+${loopTimedOut ? "**Loop timeout:** yes\n" : ""}
+## Phases
+${compactResult.phases.map((p) => `- ${p.phase}: ${p.status === "done" ? "✓" : "✗"} ${p.status}${p.failureKind ? ` (${p.failureKind})` : ""} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
+
+## Artifacts
+${compactResult.artifactPaths.map((artifactPath) => `- ${artifactPath}`).join("\n") || "None"}
+
+## Package-owned KES roots
+- Raw capture: \`diary/\`
+- Candidate-only learning staging: \`docs/learnings/\` (when emitted)
+`;
+
+      return {
+        content: [{ type: "text", text: summary }],
+        details: { ok: result.success, result: compactResult, loopTimedOut },
+      };
+    } catch (err) {
+      if (isKesMaterializationError(err)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Loop execution failed before package-owned KES artifacts could be materialized because the configured KES root is invalid or not writable. Check PI_ORCH_KES_ROOT or package write permissions.",
+            },
+          ],
+          details: {
+            ok: false,
+            error: "loop-kes-root-invalid",
+            failureKind: KES_MATERIALIZATION_FAILURE_KIND,
+            operation: err.operation,
+            kesRootSource: process.env.PI_ORCH_KES_ROOT ? "env" : "package-default",
+          },
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: `Loop execution failed: ${err}` }],
+        details: { ok: false, loopTimedOut: effectiveSignal.timedOut() },
+      };
+    } finally {
+      effectiveSignal.cleanup();
+    }
+  };
 
   registerCompatTool(pi, {
     name: "loop_execute",
@@ -815,230 +1082,7 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
       ),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const {
-        loop,
-        objective,
-        continue_after_failure,
-        loop_timeout_seconds,
-        phase_timeout_seconds,
-      } = params as {
-        loop: string;
-        objective: string;
-        continue_after_failure?: boolean;
-        loop_timeout_seconds?: number;
-        phase_timeout_seconds?: number;
-      };
-
-      if (loop === "mito") {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "The `mito` loop name was retired because it collided with Prof. Binner's MITO. Use `strategic` instead.",
-            },
-          ],
-          details: { ok: false, renamed_to: "strategic" },
-        };
-      }
-
-      const plugin = plugins[loop];
-      if (!plugin) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Unknown loop: ${loop}. Available: ${Object.keys(plugins).join(", ")}`,
-            },
-          ],
-          details: { ok: false },
-        };
-      }
-
-      if (onUpdate) {
-        onUpdate({
-          content: [{ type: "text", text: `Starting ${loop.toUpperCase()} loop...` }],
-          details: { loop, objective, status: "starting" },
-        });
-      }
-
-      const resolvedAgents = new Map<string, string>();
-      if (resolveAgent) {
-        const incompatiblePhases = plugin.phases.flatMap((phase) => {
-          const requestedAgent = plugin.agents[phase] || "scout";
-          const resolution = resolveAgent(requestedAgent, ctx);
-          if (!resolution.ok) {
-            return [
-              {
-                phase,
-                agent: requestedAgent,
-                error: resolution.error,
-              },
-            ];
-          }
-
-          resolvedAgents.set(requestedAgent, resolution.agent);
-          return [];
-        });
-
-        if (incompatiblePhases.length > 0) {
-          const mismatchReport = incompatiblePhases
-            .map((entry) => `- ${entry.phase}: ${entry.agent} — ${entry.error}`)
-            .join("\n");
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Loop '${loop}' is incompatible with the active team:\n${mismatchReport}`,
-              },
-            ],
-            details: { ok: false, error: "loop-agent-team-mismatch", incompatiblePhases },
-          };
-        }
-      }
-
-      const executor = new LoopExecutor(plugin, ctx.cwd, vaultDir);
-      const loopTimeoutMs =
-        (normalizePositiveSeconds(loop_timeout_seconds) ?? DEFAULT_LOOP_TIMEOUT_MS / 1000) * 1000;
-      const effectiveSignal = createLinkedTimeoutSignal(signal, loopTimeoutMs);
-
-      // Create dispatch function using shared agent profiles + vault-loaded cognitive tools.
-      const dispatch = async (p: {
-        agent: string;
-        cognitiveTool: string;
-        context: string;
-        timeoutSeconds?: number;
-        onUpdate?: (update: unknown) => void;
-      }) => {
-        let effectiveAgent = resolvedAgents.get(p.agent) || p.agent;
-        if (resolveAgent && !resolvedAgents.has(p.agent)) {
-          const resolution = resolveAgent(p.agent, ctx);
-          if (!resolution.ok) {
-            return {
-              output: `Agent/team resolution failed for '${p.agent}': ${resolution.error}`,
-              exitCode: 1,
-              elapsed: 0,
-            };
-          }
-          effectiveAgent = resolution.agent;
-          resolvedAgents.set(p.agent, effectiveAgent);
-        }
-
-        const agentProfile = AGENT_PROFILES[effectiveAgent] || AGENT_PROFILES.scout;
-        const toolResult = await getCognitiveToolByName(
-          p.cognitiveTool,
-          {
-            cwd: ctx.cwd,
-          },
-          effectiveSignal.signal,
-        );
-        if (isBoundaryFailure(toolResult)) {
-          return {
-            output: `Failed to load cognitive tool '${p.cognitiveTool}': ${toolResult.error}`,
-            exitCode: 1,
-            elapsed: 0,
-          };
-        }
-
-        if (!toolResult.value) {
-          return {
-            output: `Cognitive tool not found: ${p.cognitiveTool}`,
-            exitCode: 1,
-            elapsed: 0,
-          };
-        }
-
-        const model = ctx.model
-          ? `${ctx.model.provider}/${ctx.model.id}`
-          : "openrouter/google/gemini-2.5-flash-preview";
-        const runtimeResult = await subagentExecutor.execute({
-          agentProfile,
-          cognitiveToolName: toolResult.value.name,
-          cognitiveToolContent: toolResult.value.content,
-          objective: p.context,
-          model,
-          cwd: ctx.cwd,
-          extraSections: [
-            `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
-          ],
-          sessionName: `${agentProfile.name}-${toolResult.value.name}`,
-          timeoutSeconds: p.timeoutSeconds,
-          onUpdate: p.onUpdate as Parameters<typeof subagentExecutor.execute>[0]["onUpdate"],
-          signal: effectiveSignal.signal,
-        });
-
-        return toExecutionLike(runtimeResult);
-      };
-
-      try {
-        const result = await executor.execute(objective, dispatch, effectiveSignal.signal, {
-          continueAfterFailure: continue_after_failure,
-          phaseTimeoutSeconds: normalizePositiveSeconds(phase_timeout_seconds),
-          onUpdate: (update) =>
-            onUpdate?.({
-              content: [
-                {
-                  type: "text",
-                  text:
-                    update.event === "phase_start"
-                      ? `Starting ${loop}.${update.phase} (${update.phaseIndex}/${update.phaseCount}) with ${update.agent}/${update.primaryTool}`
-                      : update.event === "phase_complete"
-                        ? `Finished ${loop}.${update.phase}: ${update.status}`
-                        : `Progress ${loop}.${update.phase}`,
-                },
-              ],
-              details: { loop, objective, status: update.event, update },
-            }),
-        });
-        const compactResult = compactLoopResult(result);
-        const loopTimedOut = effectiveSignal.timedOut();
-
-        const summary = `# ${loop.toUpperCase()} Loop Complete
-
-**Objective:** ${objective}
-**Status:** ${result.success ? "✓ Success" : "✗ Completed with failures"}
-**Elapsed:** ${Math.round(result.elapsed / 1000)}s
-${loopTimedOut ? "**Loop timeout:** yes\n" : ""}
-## Phases
-${compactResult.phases.map((p) => `- ${p.phase}: ${p.status === "done" ? "✓" : "✗"} ${p.status}${p.failureKind ? ` (${p.failureKind})` : ""} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
-
-## Artifacts
-${compactResult.artifactPaths.map((artifactPath) => `- ${artifactPath}`).join("\n") || "None"}
-
-## Package-owned KES roots
-- Raw capture: \`diary/\`
-- Candidate-only learning staging: \`docs/learnings/\` (when emitted)
-`;
-
-        return {
-          content: [{ type: "text", text: summary }],
-          details: { ok: result.success, result: compactResult, loopTimedOut },
-        };
-      } catch (err) {
-        if (isKesMaterializationError(err)) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Loop execution failed before package-owned KES artifacts could be materialized because the configured KES root is invalid or not writable. Check PI_ORCH_KES_ROOT or package write permissions.",
-              },
-            ],
-            details: {
-              ok: false,
-              error: "loop-kes-root-invalid",
-              failureKind: KES_MATERIALIZATION_FAILURE_KIND,
-              operation: err.operation,
-              kesRootSource: process.env.PI_ORCH_KES_ROOT ? "env" : "package-default",
-            },
-          };
-        }
-
-        return {
-          content: [{ type: "text", text: `Loop execution failed: ${err}` }],
-          details: { ok: false, loopTimedOut: effectiveSignal.timedOut() },
-        };
-      } finally {
-        effectiveSignal.cleanup();
-      }
+      return executeLoopToolRequest(params as Record<string, unknown>, signal, onUpdate, ctx);
     },
     renderCall(args, theme) {
       const a = args as { loop?: string; objective?: string };
@@ -1065,6 +1109,163 @@ ${compactResult.artifactPaths.map((artifactPath) => `- ${artifactPath}`).join("\
         0,
         0,
       );
+    },
+  });
+
+  registerCompatTool(pi, {
+    name: "vault_execute_template",
+    label: "Execute Vault Template",
+    description: `Execute a Prompt Vault template through the orchestrator dispatch gate.
+
+This bridge uses pi-vault-client dispatch posture metadata and refuses to treat loop/workflow templates as inert text.
+Known loop bindings execute through loop_execute semantics:
+- transcendent-iteration -> loop_execute({ loop: "transcendent", objective })
+- ooda -> loop_execute({ loop: "ooda", objective })
+
+Unknown loop templates and workflow-grade templates without an execution binding fail closed with an explicit reason.`,
+    promptSnippet: "Execute a Prompt Vault template through its required orchestrator binding.",
+    promptGuidelines: [
+      "Use vault_execute_template when the operator asks to run/apply/execute a Prompt Vault template by name.",
+      "Do not use raw vault_retrieve content as execution when this tool reports an orchestrator gate.",
+    ],
+    parameters: Type.Object({
+      template_name: Type.String({ description: "Exact Prompt Vault template name to execute" }),
+      objective: Type.String({
+        description: "Objective to pass to the orchestrator execution binding",
+      }),
+      continue_after_failure: Type.Optional(
+        Type.Boolean({
+          description:
+            "Explicitly continue after a failed phase. Transcendent defaults to fail-fast unless this is true.",
+        }),
+      ),
+      loop_timeout_seconds: Type.Optional(
+        Type.Number({ description: "Optional positive loop-level timeout in seconds." }),
+      ),
+      phase_timeout_seconds: Type.Optional(
+        Type.Number({
+          description: "Optional positive timeout in seconds for each dispatched phase.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const templateName = String((params as Record<string, unknown>).template_name || "").trim();
+      const objective = String((params as Record<string, unknown>).objective || "").trim();
+      if (!templateName || !objective) {
+        return {
+          content: [{ type: "text", text: "template_name and objective are required." }],
+          details: { ok: false, error: "missing-required-params" },
+        };
+      }
+
+      let dispatchModule: VaultDispatchRuntimeModule;
+      try {
+        dispatchModule = (await import(
+          "pi-vault-client/dispatch-runtime"
+        )) as VaultDispatchRuntimeModule;
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Vault dispatch runtime is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          details: { ok: false, error: "vault-dispatch-runtime-unavailable" },
+        };
+      }
+
+      const dispatchRuntime = dispatchModule.createVaultDispatchRuntime();
+      const dispatchCheck = await dispatchRuntime.checkTemplates([templateName], { cwd: ctx.cwd });
+      if (!dispatchCheck.ok || dispatchCheck.status !== "ready") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Vault dispatch check failed for ${templateName}: ${dispatchCheck.blocking_reason || "unknown error"}`,
+            },
+          ],
+          details: { ok: false, error: "vault-dispatch-check-failed", dispatchCheck },
+        };
+      }
+
+      if (dispatchCheck.missing?.includes(templateName) || !dispatchCheck.results?.length) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No active visible Prompt Vault template found: ${templateName}`,
+            },
+          ],
+          details: { ok: false, error: "template-not-found", dispatchCheck },
+        };
+      }
+
+      const posture = dispatchCheck.results[0];
+      if (
+        posture.posture === "orchestrator_loop_required" &&
+        posture.binding?.execution_surface === "loop_execute"
+      ) {
+        const loop = posture.binding.execution_args?.loop;
+        if (typeof loop !== "string" || !loop.trim()) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Vault template ${templateName} requires loop_execute but its binding lacks a string loop argument.`,
+              },
+            ],
+            details: { ok: false, error: "invalid-loop-binding", dispatchCheck },
+          };
+        }
+
+        return executeLoopToolRequest(
+          {
+            loop,
+            objective,
+            continue_after_failure: (params as Record<string, unknown>).continue_after_failure,
+            loop_timeout_seconds: (params as Record<string, unknown>).loop_timeout_seconds,
+            phase_timeout_seconds: (params as Record<string, unknown>).phase_timeout_seconds,
+          },
+          signal,
+          onUpdate,
+          ctx,
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              posture.posture === "missing_execution_binding_fail_closed"
+                ? `Vault template ${templateName} has control_mode=loop but no execution binding. Failing closed.`
+                : posture.posture === "orchestrator_workflow_gate_required"
+                  ? `Vault template ${templateName} is workflow-grade but has no executable orchestrator binding in this bridge. Failing closed.`
+                  : `Vault template ${templateName} does not require an orchestrator execution binding. Use retrieval/preparation surfaces instead of vault_execute_template.`,
+          },
+        ],
+        details: {
+          ok: false,
+          error: "vault-template-not-executable-through-bridge",
+          dispatchCheck,
+        },
+      };
+    },
+    renderCall(args, theme) {
+      const a = args as { template_name?: string; objective?: string };
+      return new Text(
+        theme.fg("toolTitle", theme.bold("vault_execute_template ")) +
+          theme.fg("accent", a.template_name || "?") +
+          theme.fg("dim", " — ") +
+          theme.fg("muted", (a.objective || "").slice(0, 40)),
+        0,
+        0,
+      );
+    },
+    renderResult(result) {
+      const details = result.details as { ok?: boolean; error?: string } | undefined;
+      return new Text(details?.ok ? "executed" : details?.error || "blocked", 0, 0);
     },
   });
 }

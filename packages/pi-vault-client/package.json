@@ -8,6 +8,14 @@
     "./prompt-plane": {
       "types": "./src/promptPlane.d.ts",
       "default": "./src/promptPlane.js"
+    },
+    "./dispatch-posture": {
+      "types": "./src/dispatchPosture.d.ts",
+      "default": "./src/dispatchPosture.js"
+    },
+    "./dispatch-runtime": {
+      "types": "./src/dispatchRuntime.d.ts",
+      "default": "./src/dispatchRuntime.js"
     }
   },
   "license": "SEE LICENSE IN LICENSE",

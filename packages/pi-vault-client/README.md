@@ -106,6 +106,19 @@ Current V3 seam scope:
 - keep V4 continuation-graph persistence explicitly out of scope for this slice
 
 Use this seam when a downstream package needs deterministic prompt-plane preparation without slash-command or live-trigger wiring.
+
+`pi-vault-client` also exposes a public dispatch-runtime seam for downstream orchestrators:
+
+```ts
+import { createVaultDispatchRuntime } from "pi-vault-client/dispatch-runtime";
+```
+
+Current dispatch-runtime scope:
+- exact active visible template metadata lookup without requiring `export_to_pi=true`
+- dispatch posture classification through the package-owned binding registry
+- known loop bindings for `transcendent-iteration` and `ooda`
+- fail-closed posture for loop/workflow templates without execution binding
+
 Do **not** treat private `src/*` files as the supported integration API.
 
 ## Command surface
@@ -176,6 +189,12 @@ Tool-query defaults:
   - if every receipt sink fails after execution logging succeeds, Vault now surfaces that as an explicit degraded send-time state instead of silently pretending receipt persistence succeeded
   - `vault_executions` prefers local trusted receipts when present so later archive/export drift does not erase recent provenance from this package's own execution paths
   - `vault_replay({ execution_id })` and `/vault-replay <execution_id>` now expose the local replay core directly with deterministic `match` / `drift` / `unavailable` reporting keyed to the exact execution id
+- `vault_dispatch_check({ template_names })` classifies exact active visible templates into dispatch postures before execution:
+  - `text_ok`
+  - `orchestrator_loop_required`
+  - `orchestrator_workflow_gate_required`
+  - `missing_execution_binding_fail_closed`
+  - known loop bindings: `transcendent-iteration -> loop_execute(loop="transcendent")`, `ooda -> loop_execute(loop="ooda")`
 
 ### Receipt and replay operator workflow
 

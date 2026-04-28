@@ -1872,11 +1872,11 @@ test("validateLoopAgentsForTeam surfaces incompatible loop phases before executi
 });
 
 test("loop_execute reports loop/team mismatches before execution starts", async () => {
-  let registeredTool;
+  const registeredTools = new Map();
   registerLoopTools(
     {
       registerTool(tool) {
-        registeredTool = tool;
+        registeredTools.set(tool.name, tool);
       },
     },
     BUILT_IN_PLUGINS,
@@ -1887,8 +1887,9 @@ test("loop_execute reports loop/team mismatches before execution starts", async 
     },
   );
 
-  assert.ok(registeredTool, "expected loop_execute to register");
-  const result = await registeredTool.execute(
+  const loopExecuteTool = registeredTools.get("loop_execute");
+  assert.ok(loopExecuteTool, "expected loop_execute to register");
+  const result = await loopExecuteTool.execute(
     "tool-call-id",
     { loop: "strategic", objective: "Plan the migration" },
     undefined,
@@ -1901,6 +1902,108 @@ test("loop_execute reports loop/team mismatches before execution starts", async 
   assert.match(result.content[0].text, /Loop 'strategic' is incompatible with the active team:/);
   assert.match(result.content[0].text, /mission: researcher/);
   assert.match(result.content[0].text, /intelligence: scout/);
+});
+
+test("vault_execute_template dispatches known vault loop bindings into loop execution gate", async () => {
+  const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-vault-dispatch-"));
+  const previousVaultDir = process.env.VAULT_DIR;
+  const previousPiCompany = process.env.PI_COMPANY;
+
+  try {
+    execFileSync("dolt", ["init", "-b", "main"], { cwd: tempVaultDir, stdio: "ignore" });
+    execFileSync(
+      "dolt",
+      [
+        "sql",
+        "-q",
+        [
+          "CREATE TABLE prompt_templates (",
+          "id INT PRIMARY KEY,",
+          "name VARCHAR(64) NOT NULL,",
+          "description TEXT,",
+          "content TEXT,",
+          "artifact_kind VARCHAR(32) NOT NULL,",
+          "control_mode VARCHAR(32) NOT NULL,",
+          "formalization_level VARCHAR(32) NOT NULL,",
+          "owner_company VARCHAR(32) NOT NULL,",
+          "visibility_companies JSON NOT NULL,",
+          "controlled_vocabulary JSON,",
+          "status VARCHAR(16) NOT NULL,",
+          "export_to_pi BOOLEAN NOT NULL,",
+          "version INT NOT NULL,",
+          "UNIQUE KEY prompt_templates_name (name)",
+          ");",
+          "INSERT INTO prompt_templates VALUES",
+          "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',false,4),",
+          "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',false,1);",
+        ].join(" "),
+      ],
+      { cwd: tempVaultDir, stdio: "ignore" },
+    );
+    process.env.VAULT_DIR = tempVaultDir;
+    process.env.PI_COMPANY = "software";
+
+    const registeredTools = new Map();
+    registerLoopTools(
+      {
+        registerTool(tool) {
+          registeredTools.set(tool.name, tool);
+        },
+      },
+      BUILT_IN_PLUGINS,
+      tempVaultDir,
+      (agent) => ({
+        ok: false,
+        agent,
+        team: "implement",
+        allowedAgents: ["builder"],
+        error: `test resolver blocked ${agent}`,
+      }),
+    );
+
+    const vaultExecuteTool = registeredTools.get("vault_execute_template");
+    assert.ok(vaultExecuteTool, "expected vault_execute_template to register");
+    const result = await vaultExecuteTool.execute(
+      "tool-call-id",
+      { template_name: "transcendent-iteration", objective: "Improve the runtime gate" },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined },
+    );
+
+    assert.equal(result.details.ok, false);
+    assert.equal(result.details.error, "loop-agent-team-mismatch");
+    assert.match(
+      result.content[0].text,
+      /Loop 'transcendent' is incompatible with the active team:/,
+    );
+
+    const workflowResult = await vaultExecuteTool.execute(
+      "tool-call-id-2",
+      { template_name: "workflow-procedure", objective: "Try to execute workflow" },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined },
+    );
+    assert.equal(workflowResult.details.ok, false);
+    assert.equal(workflowResult.details.error, "vault-template-not-executable-through-bridge");
+    assert.match(
+      workflowResult.content[0].text,
+      /workflow-grade but has no executable orchestrator binding/,
+    );
+  } finally {
+    if (previousVaultDir === undefined) {
+      delete process.env.VAULT_DIR;
+    } else {
+      process.env.VAULT_DIR = previousVaultDir;
+    }
+    if (previousPiCompany === undefined) {
+      delete process.env.PI_COMPANY;
+    } else {
+      process.env.PI_COMPANY = previousPiCompany;
+    }
+    fs.rmSync(tempVaultDir, { recursive: true, force: true });
+  }
 });
 
 test("workflow_execute fails closed on session-team disallowed agents before execution starts", async () => {
@@ -1972,19 +2075,20 @@ test("loop_execute fails closed when PI_ORCH_KES_ROOT is invalid", async () => {
   try {
     process.env.PI_ORCH_KES_ROOT = badRoot;
 
-    let registeredTool;
+    const registeredTools = new Map();
     registerLoopTools(
       {
         registerTool(tool) {
-          registeredTool = tool;
+          registeredTools.set(tool.name, tool);
         },
       },
       BUILT_IN_PLUGINS,
       "/tmp/nonexistent-vault",
     );
 
-    assert.ok(registeredTool, "expected loop_execute to register");
-    const result = await registeredTool.execute(
+    const loopExecuteTool = registeredTools.get("loop_execute");
+    assert.ok(loopExecuteTool, "expected loop_execute to register");
+    const result = await loopExecuteTool.execute(
       "tool-call-id",
       { loop: "kaizen", objective: "Verify invalid KES root handling" },
       undefined,
