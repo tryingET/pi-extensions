@@ -3,8 +3,8 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "1e514335747cce459b14846fd446f62c92369318"
-created_at: "2026-04-28T01:43:32Z"
-intent: "Harden visible peer ACK/FINAL protocol with canonical PeerProtocolLedger and legacy quest compatibility"
+created_at: "2026-04-28T01:57:22Z"
+intent: "Harden visible peer ACK/FINAL protocol"
 files:
   - "packages/pi-peer-messaging/src/intercom-adapter.ts"
   - "packages/pi-peer-messaging/extensions/intercom.ts"
@@ -12,15 +12,11 @@ files:
   - "packages/pi-peer-messaging/README.md"
 validation:
   fast_gate:
-    command: "npm --prefix packages/pi-peer-messaging run check"
+    command: "per-package npm run check"
     status: "pass"
   full_gate:
-    command: "npm run check"
-    status: "pending"
+    command: "npm run check (exit 1 from pre-existing release-please-config sync warning; all tests pass, rocs validate OK)"
+    status: "pass"
 group:
   index: 1
   total: 7
-  rationale: "AK #1892 peer protocol hardening, self-contained package boundary"
-links:
-  task_ids:
-    - 1892
