@@ -1,0 +1,18 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9e56384a6140cbbfae5fa8bf312796b50149b6df"
+created_at: "2026-04-28T01:58:48Z"
+intent: "Implement dispatch posture classifier for Prompt Vault templates so control_mode=loop and formalization_level=workflow templates cannot be silently executed as text."
+files:
+  - "packages/pi-vault-client/src/dispatchPosture.ts"
+  - "packages/pi-vault-client/src/vaultTools.ts"
+  - "packages/pi-vault-client/tests/dispatch-posture.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run check --workspace packages/pi-vault-client"
+    status: "pass"
+  full_gate:
+    command: "npm run check --workspace packages/pi-vault-client"
+    status: "pass"
