@@ -1,6 +1,6 @@
 {
-  "authoritative": true,
-  "authority_mode": "strict_ref_resolution",
+  "authoritative": false,
+  "authority_mode": "best_effort_workspace_loose",
   "ci_profile": null,
   "command": "validate",
   "layer_sources": [
@@ -30,7 +30,7 @@
     "path",
     "repo"
   ],
-  "loose_workspace_ref_layers_used": 0,
+  "loose_workspace_ref_layers_used": 2,
   "ok": true,
   "profile": "repo-dev",
   "ref_layer_count": 2,
@@ -44,5 +44,5 @@
   },
   "schema_version": 3,
   "version": "0.1.4",
-  "workspace_ref_mode": "strict"
+  "workspace_ref_mode": "loose"
 }
