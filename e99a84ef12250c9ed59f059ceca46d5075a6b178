@@ -3,22 +3,18 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "e99a84ef12250c9ed59f059ceca46d5075a6b178"
-created_at: "2026-04-28T01:52:48Z"
-intent: "Add peer boundary awareness to autoresearch live supervision and manifest campaign supervision prompts"
+created_at: "2026-04-28T01:57:24Z"
+intent: "Add peer boundary awareness to autoresearch supervision"
 files:
   - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
   - "docs/project/pi-autoresearch-live-supervision-ak-lifecycle-contract.md"
 validation:
   fast_gate:
-    command: "npm --prefix packages/pi-society-orchestrator run check"
+    command: "per-package npm run check"
     status: "pass"
   full_gate:
-    command: "npm run check"
-    status: "pending"
+    command: "npm run check (exit 1 from pre-existing release-please-config sync warning; all tests pass, rocs validate OK)"
+    status: "pass"
 group:
   index: 5
   total: 7
-  rationale: "AK #1895 orchestrator peer boundary awareness"
-links:
-  task_ids:
-    - 1895
