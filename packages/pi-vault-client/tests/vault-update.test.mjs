@@ -134,6 +134,7 @@ async function withVaultModules(run) {
         "src/vaultDb.ts",
         "src/doltDiagnostics.ts",
         "src/vaultTools.ts",
+        "src/dispatchPosture.ts",
         "src/vaultReceipts.ts",
         "src/vaultReplay.ts",
         "src/vaultRoute.ts",

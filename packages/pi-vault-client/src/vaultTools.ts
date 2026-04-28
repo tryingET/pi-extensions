@@ -1,5 +1,11 @@
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
+import {
+  checkProjectionFreshness,
+  classifyDispatchPosture,
+  formatDispatchPosture,
+  isOrchestratorGateRequired,
+} from "./dispatchPosture.js";
 import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";
 import { receiptVisibleToCompany } from "./vaultReceipts.js";
 import { formatVaultReplayReport, replayVaultExecutionById } from "./vaultReplay.js";
@@ -152,10 +158,11 @@ function formatSchemaDiagnosticsReport(
   runtime: VaultRuntime,
   currentCompany: string,
   currentCompanySource: string,
+  projectionResults?: { template_name: string; status: string; message: string }[],
 ): string {
   const report = runtime.checkSchemaCompatibilityDetailed();
   const doltEnvironment = resolveDoltExecutionEnvironmentSnapshot(runtime);
-  return [
+  const lines = [
     "# Vault Schema Diagnostics",
     "",
     `- schema_required: ${report.expectedVersion}`,
@@ -170,7 +177,16 @@ function formatSchemaDiagnosticsReport(
     `- dolt_temp_source: ${doltEnvironment.source}`,
     `- dolt_temp_dir: ${doltEnvironment.tempDir}`,
     `- dolt_temp_attempts: ${doltEnvironment.attempts}`,
-  ].join("\n");
+  ];
+
+  if (projectionResults && projectionResults.length > 0) {
+    lines.push("", "## Projection Freshness");
+    for (const pr of projectionResults) {
+      lines.push(`- ${pr.template_name}: ${pr.status} — ${pr.message}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 export function registerVaultDiagnosticsTool(pi: PiExtension, runtime: VaultRuntime): void {
@@ -188,10 +204,35 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       const executionContext = resolveToolExecutionContext(runtime, ctx);
+
+      // Projection freshness check for active export_to_pi templates
+      let projectionResults: { template_name: string; status: string; message: string }[] = [];
+      try {
+        const allActive = runtime.listTemplates(
+          {},
+          { currentCompany: executionContext.currentCompany, requireExplicitCompany: true },
+          { includeContent: true },
+        );
+        const activeExported = allActive.filter(
+          (t) => t.export_to_pi && t.status === "active" && t.content,
+        );
+        projectionResults = activeExported.map((t) => {
+          const result = checkProjectionFreshness(t);
+          return {
+            template_name: result.template_name,
+            status: result.status,
+            message: result.message,
+          };
+        });
+      } catch {
+        // Projection freshness is best-effort; don't block diagnostics
+      }
+
       const output = formatSchemaDiagnosticsReport(
         runtime,
         executionContext.currentCompany,
         executionContext.companySource,
+        projectionResults.length > 0 ? projectionResults : undefined,
       );
       const report = runtime.checkSchemaCompatibilityDetailed();
       const doltEnvironment = resolveDoltExecutionEnvironmentSnapshot(runtime);
@@ -210,6 +251,7 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
           doltTempSource: doltEnvironment.source,
           doltTempDir: doltEnvironment.tempDir,
           doltTempAttempts: doltEnvironment.attempts,
+          projection_freshness: projectionResults.length > 0 ? projectionResults : undefined,
         },
       };
     },
@@ -412,12 +454,31 @@ Examples:
         };
       }
 
+      // Classify dispatch posture for each template
+      const dispatchPostures = templates.map((t) => classifyDispatchPosture(t));
+      const gatedTemplates = dispatchPostures.filter((dp) =>
+        isOrchestratorGateRequired(dp.posture),
+      );
+
       let output = `# Vault Query Results (${templates.length})\n\n`;
       output += templates
         .map((template) =>
           runtime.formatTemplateDetails(template, includeContent, { includeGovernance }),
         )
         .join("\n\n---\n\n");
+
+      if (gatedTemplates.length > 0) {
+        output += "\n\n---\n\n## Dispatch Posture Summary\n\n";
+        output += gatedTemplates
+          .map(
+            (dp) =>
+              `- **${dp.template_name}**: ${dp.posture}${dp.binding ? ` → ${dp.binding.execution_surface}(${JSON.stringify(dp.binding.execution_args)})` : ""}`,
+          )
+          .join("\n");
+        output +=
+          "\n\n> Templates marked with orchestrator gates require explicit execution binding. Text-only assistant interpretation is not lawful for run/apply/execute actions.";
+      }
+
       return {
         content: [{ type: "text", text: output }],
         details: {
@@ -425,6 +486,12 @@ Examples:
           filters,
           includeContent,
           includeGovernance,
+          dispatch_postures: dispatchPostures.map((dp) => ({
+            template_name: dp.template_name,
+            posture: dp.posture,
+            execution_surface: dp.binding?.execution_surface ?? null,
+          })),
+          gated_count: gatedTemplates.length,
           currentCompany: executionContext.currentCompany,
           currentCompanySource: executionContext.companySource,
         },
@@ -518,6 +585,12 @@ Example: vault_retrieve({ names: ["inversion", "nexus"], include_content: true }
           },
         };
 
+      // Classify dispatch posture for each retrieved template
+      const dispatchPostures = templates.map((t) => classifyDispatchPosture(t));
+      const gatedTemplates = dispatchPostures.filter((dp) =>
+        isOrchestratorGateRequired(dp.posture),
+      );
+
       const found = templates.map((t) => t.name);
       const output = [
         `# Retrieved Templates (${templates.length})`,
@@ -529,13 +602,25 @@ Example: vault_retrieve({ names: ["inversion", "nexus"], include_content: true }
           .join("\n\n---\n\n")
           .split("\n"),
       ].join("\n");
+
+      const gatedNote =
+        gatedTemplates.length > 0
+          ? `\n\n---\n\n## Dispatch Posture Warnings\n\n${gatedTemplates.map((dp) => `- **${dp.template_name}**: ${dp.posture}${dp.binding ? ` → ${dp.binding.execution_surface}(${JSON.stringify(dp.binding.execution_args)})` : ""}`).join("\n")}\n\n> Templates marked above require orchestrator execution binding. Text-only interpretation is not lawful for run/apply/execute.`
+          : "";
+
       return {
-        content: [{ type: "text", text: output }],
+        content: [{ type: "text", text: output + gatedNote }],
         details: {
           ok: true,
           found,
           missing: names.filter((n) => !found.includes(n)),
           includeContent,
+          dispatch_postures: dispatchPostures.map((dp) => ({
+            template_name: dp.template_name,
+            posture: dp.posture,
+            execution_surface: dp.binding?.execution_surface ?? null,
+          })),
+          gated_count: gatedTemplates.length,
           currentCompany: executionContext.currentCompany,
           currentCompanySource: executionContext.companySource,
         },
@@ -1109,6 +1194,126 @@ Example: vault_rate({ execution_id: 42, rating: 4, success: true, notes: "Found 
     renderResult(result) {
       const details = result.details as { ok?: boolean } | undefined;
       return new Text(details?.ok ? "Recorded" : "Failed", 0, 0);
+    },
+  });
+
+  // ---------------------------------------------------------------------------
+  // vault_dispatch_check — Explicit dispatch posture check
+  // ---------------------------------------------------------------------------
+  pi.registerTool({
+    name: "vault_dispatch_check",
+    label: "Vault Dispatch Check",
+    description: `Check the dispatch posture for one or more Prompt Vault templates.
+
+Use before executing/applying/running a template to verify whether orchestrator dispatch is required.
+Returns the required dispatch posture and any known execution binding.
+
+Dispatch postures:
+- text_ok: text-only assistant interpretation is lawful
+- orchestrator_loop_required: must dispatch through loop_execute with a known binding
+- orchestrator_workflow_gate_required: must go through an orchestrator dispatch/gating path
+- missing_execution_binding_fail_closed: control_mode=loop but no known binding; must fail closed
+
+Example: vault_dispatch_check({ template_names: ["transcendent-iteration", "ooda"] })`,
+    promptSnippet: "Check dispatch posture for Prompt Vault templates before execution.",
+    promptGuidelines: [
+      "Use vault_dispatch_check before run/apply/execute/continue/improve actions on vault templates.",
+      "When posture is not text_ok, use the returned binding to dispatch through the orchestrator.",
+    ],
+    parameters: Type.Object({
+      template_names: Type.Array(Type.String(), {
+        description: "Template names to check dispatch posture for",
+      }),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const executionContextResult = resolveStrictToolReadExecutionContext(runtime, ctx);
+      if (!executionContextResult.ok) {
+        return {
+          content: [{ type: "text", text: executionContextResult.error }],
+          details: { ok: false, error: executionContextResult.error },
+        };
+      }
+      const executionContext = executionContextResult.value;
+      const names = normalizeStringArray(params.template_names);
+      if (names.length === 0) {
+        return {
+          content: [{ type: "text", text: "No template names provided." }],
+          details: { ok: false },
+        };
+      }
+
+      const templatesResult = runtime.retrieveByNamesDetailed(
+        names,
+        false, // content not needed for posture check
+        executionContext,
+      );
+      if (!templatesResult.ok) {
+        return {
+          content: [
+            { type: "text", text: `Vault dispatch check failed: ${templatesResult.error}` },
+          ],
+          details: { ok: false, error: templatesResult.error },
+        };
+      }
+      const templates = templatesResult.value;
+      const found = new Set(templates.map((t) => t.name));
+      const missing = names.filter((n) => !found.has(n));
+
+      if (templates.length === 0 && missing.length > 0) {
+        return {
+          content: [{ type: "text", text: `No visible templates found: ${missing.join(", ")}` }],
+          details: { ok: false, missing, currentCompany: executionContext.currentCompany },
+        };
+      }
+
+      const results = templates.map((t) => classifyDispatchPosture(t));
+      let output = "# Dispatch Posture Report\n\n";
+      output += results.map((r) => formatDispatchPosture(r)).join("\n\n---\n\n");
+
+      if (missing.length > 0) {
+        output += `\n\n---\n\n## Missing templates\n\n${missing.map((n) => `- ${n}`).join("\n")}`;
+      }
+
+      const gatedCount = results.filter((r) => isOrchestratorGateRequired(r.posture)).length;
+      if (gatedCount > 0) {
+        output +=
+          "\n\n---\n\n> **Action required**: templates above with orchestrator gates must be dispatched through the orchestrator. Do not execute them as plain text prompts.";
+      }
+
+      return {
+        content: [{ type: "text", text: output }],
+        details: {
+          ok: true,
+          results: results.map((r) => ({
+            template_name: r.template_name,
+            posture: r.posture,
+            control_mode: r.control_mode,
+            formalization_level: r.formalization_level,
+            execution_surface: r.binding?.execution_surface ?? null,
+            execution_args: r.binding?.execution_args ?? null,
+            reason: r.reason,
+          })),
+          missing,
+          gated_count: gatedCount,
+          currentCompany: executionContext.currentCompany,
+          currentCompanySource: executionContext.companySource,
+        },
+      };
+    },
+    renderCall(args, theme) {
+      const names = (args.template_names as string[]) || [];
+      return new Text(
+        theme.fg("toolTitle", theme.bold("vault_dispatch_check ")) +
+          theme.fg("accent", names.slice(0, 3).join(", ") + (names.length > 3 ? "..." : "")),
+        0,
+        0,
+      );
+    },
+    renderResult(result) {
+      const details = result.details as { gated_count?: number; results?: unknown[] } | undefined;
+      const total = details?.results?.length ?? 0;
+      const gated = details?.gated_count ?? 0;
+      return new Text(`${total} checked, ${gated} gated`, 0, 0);
     },
   });
 }
