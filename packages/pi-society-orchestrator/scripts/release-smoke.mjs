@@ -143,6 +143,19 @@ linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-ai", [
     "pi-ai",
   ),
 ]);
+linkHostPeerPackage(importNodeModulesPath, "typebox", [
+  path.join(hostNpmGlobalRoot, "typebox"),
+  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-coding-agent", "node_modules", "typebox"),
+  path.join(process.cwd(), "node_modules", "typebox"),
+  path.join(
+    process.cwd(),
+    "node_modules",
+    "@mariozechner",
+    "pi-coding-agent",
+    "node_modules",
+    "typebox",
+  ),
+]);
 
 const extensionPath = path.join(importablePackageDir, extensionEntry.replace(/^\.\//, ""));
 assert.ok(fs.existsSync(extensionPath), `Importable extension entry missing: ${extensionPath}`);
@@ -646,6 +659,7 @@ const previousEnv = {
   PI_COMPANY: process.env.PI_COMPANY,
   PI_ORCH_SUBAGENT_OUTPUT_CHARS: process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS,
   PI_ORCH_SUBAGENT_TIMEOUT_MS: process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS,
+  PI_ORCH_LOOP_TIMEOUT_MS: process.env.PI_ORCH_LOOP_TIMEOUT_MS,
   PI_ORCH_DEFAULT_AGENT_TEAM: process.env.PI_ORCH_DEFAULT_AGENT_TEAM,
   PI_ORCH_KES_ROOT: process.env.PI_ORCH_KES_ROOT,
   SOCIETY_DB: process.env.SOCIETY_DB,
@@ -660,6 +674,7 @@ try {
   process.env.AGENT_KERNEL = fakeAkPath;
   process.env.PI_COMPANY = "software";
   process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "250";
+  process.env.PI_ORCH_LOOP_TIMEOUT_MS = "5000";
   process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "256";
   delete process.env.PI_ORCH_DEFAULT_AGENT_TEAM;
 
@@ -1073,10 +1088,19 @@ try {
 
   assert.equal(kesLoopResult?.details?.ok, true);
   const kesResult = kesLoopResult?.details?.result;
-  assert.ok(kesResult, "Expected successful loop result details from installed KES smoke");
-  assert.equal(kesResult.artifacts.filter((artifact) => artifact.type === "kes_diary").length, 6);
+  assert.ok(kesResult, "Expected successful compact loop result details from installed KES smoke");
+  assert.equal(kesResult.phases.length, 4);
   assert.equal(
-    kesResult.artifacts.filter((artifact) => artifact.type === "kes_learning_candidate").length,
+    kesResult.phases.every((phase) => typeof phase.output === "undefined"),
+    true,
+  );
+  assert.equal(
+    kesResult.artifactPaths.filter((artifactPath) => artifactPath.startsWith("diary/")).length,
+    6,
+  );
+  assert.equal(
+    kesResult.artifactPaths.filter((artifactPath) => artifactPath.startsWith("docs/learnings/"))
+      .length,
     1,
   );
 
@@ -1117,6 +1141,55 @@ try {
     assert.match(akCallsAfterKesLoop[index]?.args.join(" ") || "", /--result pass/);
   }
   console.log("installed KES loop smoke: ok");
+
+  fs.writeFileSync(akCallLogPath, "");
+  writeFakePi("timeout");
+  const loopUpdates = [];
+  const transcendentTimeoutResult = await loopExecute.execute(
+    "installed-transcendent-timeout",
+    {
+      loop: "transcendent",
+      objective: "Installed transcendent fail-fast smoke",
+    },
+    undefined,
+    (update) => loopUpdates.push(update),
+    { cwd: tempRoot, model: undefined },
+  );
+  assert.equal(transcendentTimeoutResult?.details?.ok, false);
+  const transcendentResult = transcendentTimeoutResult?.details?.result;
+  assert.ok(
+    transcendentResult,
+    "Expected compact transcendent loop result even after phase timeout",
+  );
+  assert.equal(transcendentResult.phases.length, 1);
+  assert.equal(transcendentResult.phases[0]?.phase, "diagnose");
+  assert.equal(transcendentResult.phases[0]?.status, "timed_out");
+  assert.equal(
+    transcendentResult.phases.every((phase) => typeof phase.output === "undefined"),
+    true,
+  );
+  assert.match(getText(transcendentTimeoutResult), /diagnose: ✗ timed_out/);
+  assert.doesNotMatch(getText(transcendentTimeoutResult), /first-100x:/);
+  assert.ok(
+    loopUpdates.some((update) => getText(update).includes("Starting transcendent.diagnose")),
+    "Expected loop_execute to stream phase start updates",
+  );
+  assert.ok(
+    loopUpdates.some((update) => getText(update).includes("Finished transcendent.diagnose")),
+    "Expected loop_execute to stream phase completion updates",
+  );
+  const transcendentAkCalls = readAkCallRecords(akCallLogPath);
+  assert.equal(
+    transcendentAkCalls.length,
+    1,
+    "Expected fail-fast transcendent to record one phase",
+  );
+  assert.match(
+    transcendentAkCalls[0]?.args.join(" ") || "",
+    /--check-type loop:transcendent:diagnose/,
+  );
+  assert.match(transcendentAkCalls[0]?.args.join(" ") || "", /--result fail/);
+  console.log("installed transcendent fail-fast loop smoke: ok");
 
   fs.writeFileSync(akCallLogPath, "");
   writeFakePi("marker");
@@ -1202,6 +1275,12 @@ try {
     delete process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS;
   } else {
     process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = previousEnv.PI_ORCH_SUBAGENT_OUTPUT_CHARS;
+  }
+
+  if (previousEnv.PI_ORCH_LOOP_TIMEOUT_MS === undefined) {
+    delete process.env.PI_ORCH_LOOP_TIMEOUT_MS;
+  } else {
+    process.env.PI_ORCH_LOOP_TIMEOUT_MS = previousEnv.PI_ORCH_LOOP_TIMEOUT_MS;
   }
 
   if (previousEnv.PI_COMPANY === undefined) {

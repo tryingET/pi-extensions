@@ -123,6 +123,7 @@ Primary tools and commands exposed by the imported extension include:
 - `loop_execute`
 - `workflow_execute` (explicit chain/parallel workflow composition over the ASC-backed subagent executor, with optional bounded worktree isolation for eligible parallel groups)
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
+- `ts_quality_release_workflow` (Pi Society wrapper around the `ts-quality` local release-prep leaves and GitHub Release-triggered npm Trusted Publishing path)
 - `/cognitive`
 - `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
 - `/runtime-status` (editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, live DB/vault status, a lower-plane telemetry summary, and the latest failing boundary-event preview)
@@ -143,6 +144,8 @@ Primary tools and commands exposed by the imported extension include:
 - The session footer now uses prioritized slots: model + `orchestrator→ASC` render when width allows, a compact current-context slot (`ctx 20k`) appears when context usage is known, a compact session-token summary (`↑input ↺cache ↓output`) appears once the session has usage, `DB`/`Vault` health badges remain optional, and narrow widths drop badges first, then the session-token summary, then the context slot, then the seam, before sacrificing routing visibility.
 - Footer health badges are no longer frozen at startup; subsequent renders can refresh Vault health after startup drift so the footer converges back toward `/runtime-status` truth.
 - `cognitive_dispatch`, `loop_execute`, and `workflow_execute` now route subagent execution through ASC's public execution contract via `src/runtime/subagent.ts` instead of carrying a second local spawn/runtime implementation.
+- `loop_execute` now exposes bounded loop execution controls: loop-level timeout, optional per-phase timeout forwarding, phase start/progress/complete update streaming, and compact result details containing phase statuses, failure kinds, and artifact paths rather than full phase outputs.
+- The `transcendent` loop is aligned to Transcendent Iteration v3 (`Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Closure Gate`) and defaults to fail-fast after failed or timed-out phases; callers must set `continue_after_failure: true` to opt into resilient continuation.
 - The orchestrator-side adapter still preserves package-local timeout/output policy (`PI_ORCH_SUBAGENT_TIMEOUT_MS`, `PI_ORCH_SUBAGENT_OUTPUT_CHARS`) around the ASC-owned seam so installed-package behavior stays truthful during the cutover.
 - The adapter now also preserves ASC execution truth needed for orchestration decisions: canonical execution status, normalized `failureKind`, assistant stop reasons, protocol parse failures, abort propagation, and truncation metadata are forwarded instead of being collapsed into transport-only success.
 - Package-local seam guardrails now fail closed if source code drifts back to private ASC `extensions/self/*` imports or revives an orchestrator-local execution runtime path.
@@ -154,6 +157,9 @@ Primary tools and commands exposed by the imported extension include:
 - That bridge is now explicitly temporary: keep it only until ASC has registry-backed release evidence and orchestrator can cut over to a normal dependency without bundle lifting; see [bundled ASC bridge lifecycle](docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md). The package release-check now consults that trigger directly so the bundle cannot linger by inertia after ASC publication.
 - The first time-boxed [execution seam review](docs/project/2026-03-31-execution-seam-review.md) now records that this package remains the only real external runtime consumer and that installed-package smoke is verification evidence rather than a second consumer.
 - Remaining uncertainty is narrow: `society_query` remains a bounded raw sqlite diagnostic exception until a truthful canonical read boundary exists, the `/cognitive` catalog/health listing still uses a bounded local metadata query until `pi-vault-client` exposes a supported public catalog seam, and full interactive `/reload` parity is still outside the routine release-check harness even though guarded-bootstrap live-host proof now exists in [2026-04-01 guarded bootstrap verification](docs/project/2026-04-01-guarded-bootstrap-verification.md).
+- `ts-quality` release coordination now has a bounded orchestrator-side workflow surface:
+  - tool: `ts_quality_release_workflow`
+  - current truth: use action `plan` first; `prepare` wraps repo-local release file preparation; `commit_tag`, `push`, `create_github_release`, and `verify_public` keep the release chain explicit; `push` and `create_github_release` require `externalMutationApproved=true`; local `npm publish` stays forbidden because GitHub Release triggers npm Trusted Publishing/OIDC.
 - Manifest-driven `pi-autoresearch` campaigns now also have a bounded orchestrator-side observation/evidence surface:
   - contract: [pi-autoresearch manifest campaign supervision contract](docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md)
   - status: [pi-autoresearch manifest campaign supervision status](docs/project/pi-autoresearch-manifest-campaign-supervision-status.md)
@@ -295,7 +301,7 @@ npm run release:check
 
 `npm run check` exercises package-local typechecking and regression tests in addition to lint/structure/package validation.
 
-`npm run release:check` now also proves the installed-package KES path: a successful kaizen loop must emit package-owned `diary/` plus candidate-only `docs/learnings/` artifacts under the true installed package root rather than the operator cwd, while the import harness stays copy-isolated for deterministic TypeScript loading.
+`npm run release:check` now also proves the installed-package KES path and compact loop contract: a successful kaizen loop must emit package-owned `diary/` plus candidate-only `docs/learnings/` artifacts under the true installed package root without returning full phase outputs, while the installed transcendent smoke proves fail-fast behavior after a timed-out first phase and streamed phase lifecycle updates.
 
 ## AK task/work-item operations
 
@@ -345,6 +351,7 @@ Additional runtime knobs:
 - `PI_ORCH_MAX_SESSION_KEYS` — max retained session-key entries before oldest-key eviction
 - `PI_ORCH_PROCESS_CAPTURE_BYTES` — bounded stdout/stderr capture limit for supervised child processes
 - `PI_ORCH_SUBAGENT_TIMEOUT_MS` — default timeout forwarded through the ASC public execution request when orchestrator dispatch does not set an explicit timeout
+- `PI_ORCH_LOOP_TIMEOUT_MS` — default loop-level timeout for `loop_execute` in milliseconds when callers do not pass `loop_timeout_seconds` (defaults to 30 minutes)
 - `PI_ORCH_SUBAGENT_OUTPUT_CHARS` — bounded subagent output preserved on the orchestrator side after ASC runtime execution completes
 - `PI_ORCH_ONTOLOGY_REPO` — ontology repo passed to `rocs build` (defaults to `~/ai-society/softwareco/ontology`)
 - `PI_ORCH_ROCS_PROJECT` — local `rocs-cli` project used when invoking `uv --project ... run rocs`

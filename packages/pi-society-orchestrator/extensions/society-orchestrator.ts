@@ -35,6 +35,7 @@
  *   ontology_context               — Get relevant ontology
  *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions
  *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
+ *   ts_quality_release_workflow    — Coordinate ts-quality local release prep through GitHub Release trusted publishing
  *   loop_execute                   — Execute structured loops
  *   workflow_execute               — Execute chain/parallel workflow compositions
  */
@@ -96,6 +97,10 @@ import {
 } from "../src/runtime/status-semantics.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore, type TeamScopedContext } from "../src/runtime/team-state.ts";
+import {
+  formatTsQualityReleaseWorkflowResult,
+  TsQualityReleaseWorkflowRunner,
+} from "../src/runtime/ts-quality-release-workflow.ts";
 import { WORKFLOW_AGENT_NAMES } from "../src/runtime/workflow.ts";
 import {
   createWorkflowExecutor,
@@ -156,6 +161,7 @@ function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal, cwd?: string)
 export interface SocietyOrchestratorExtensionOptions {
   autoresearchLiveRunner?: AutoresearchLiveSupervisionRunner;
   manifestCampaignSupervisor?: AutoresearchManifestCampaignSupervisor;
+  tsQualityReleaseWorkflowRunner?: TsQualityReleaseWorkflowRunner;
 }
 
 type AutoresearchLiveSupervisionAction = "status" | "observe" | "start" | "stop";
@@ -735,6 +741,8 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
       akPath: AGENT_KERNEL,
       societyDb: SOCIETY_DB,
     });
+  const tsQualityReleaseWorkflowRunner =
+    options.tsQualityReleaseWorkflowRunner || new TsQualityReleaseWorkflowRunner();
 
   // ===========================================================================
   // TOOL: society_query
@@ -1160,6 +1168,109 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         content: [{ type: "text", text: formatOntologyConcepts(results.value) }],
         details: { ok: true, count: results.value.length, error: "" },
       };
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: ts_quality_release_workflow
+  // ===========================================================================
+
+  registerCompatTool(pi, {
+    name: "ts_quality_release_workflow",
+    label: "ts-quality Release Workflow",
+    description:
+      "Coordinate the ts-quality local release-prep workflow that culminates in GitHub Release-triggered npm Trusted Publishing/OIDC.",
+    promptSnippet:
+      "Coordinate ts-quality release planning, preparation, tagging, GitHub Release creation, and public verification without local npm publish.",
+    promptGuidelines: [
+      "Use ts_quality_release_workflow when releasing ts-quality through the Pi Society orchestrator boundary.",
+      "Use action=plan first; use apply=true only for local file/git mutations the operator requested.",
+      "Use externalMutationApproved=true for push or create_github_release only when the operator explicitly approves public external mutations.",
+      "Do not run local npm publish; GitHub Release publication triggers npm Trusted Publishing/OIDC.",
+    ],
+    parameters: Type.Object({
+      action: Type.Optional(
+        Type.Union([
+          Type.Literal("plan"),
+          Type.Literal("prepare"),
+          Type.Literal("commit_tag"),
+          Type.Literal("push"),
+          Type.Literal("create_github_release"),
+          Type.Literal("verify_public"),
+        ]),
+      ),
+      cwd: Type.Optional(
+        Type.String({
+          description: "ts-quality repo root. Defaults to the canonical owned repo path.",
+        }),
+      ),
+      version: Type.String({
+        description: "Release version without leading v, for example 0.1.1.",
+      }),
+      apply: Type.Optional(
+        Type.Boolean({
+          description: "Apply local mutations for prepare/commit_tag/push/create_github_release.",
+        }),
+      ),
+      externalMutationApproved: Type.Optional(
+        Type.Boolean({
+          description:
+            "Required for public external mutations such as git push or GitHub Release creation.",
+        }),
+      ),
+      timeoutMs: Type.Optional(
+        Type.Number({ description: "Optional per-command timeout in milliseconds." }),
+      ),
+    }),
+    async execute(_toolCallId, params, signal) {
+      const result = await tsQualityReleaseWorkflowRunner.run(
+        params as {
+          action?:
+            | "plan"
+            | "prepare"
+            | "commit_tag"
+            | "push"
+            | "create_github_release"
+            | "verify_public";
+          cwd?: string;
+          version: string;
+          apply?: boolean;
+          externalMutationApproved?: boolean;
+          timeoutMs?: number;
+        },
+        signal,
+      );
+      return {
+        content: [{ type: "text", text: formatTsQualityReleaseWorkflowResult(result) }],
+        details: result,
+      };
+    },
+    renderCall(args, theme) {
+      const typed = args as { action?: string; version?: string; apply?: boolean };
+      return new Text(
+        theme.fg("toolTitle", theme.bold("ts_quality_release_workflow ")) +
+          theme.fg(
+            "muted",
+            `${typed.action || "plan"} ${typed.version || ""}${typed.apply ? " apply" : ""}`,
+          ),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, _theme) {
+      const details = (result.details || {}) as {
+        ok?: boolean;
+        action?: string;
+        nextStep?: string;
+      };
+      return new Text(
+        `${details.ok ? "ok" : "failed"} ${details.action || "release"}: ${details.nextStep || "inspect result"}`.slice(
+          0,
+          500,
+        ),
+        0,
+        0,
+      );
     },
   });
 

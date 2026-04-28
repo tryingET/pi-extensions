@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { KesMaterializationError } from "../src/kes/index.ts";
-import { KAIZEN_PLUGIN, LoopExecutor, STRATEGIC_PLUGIN } from "../src/loops/engine.ts";
+import {
+  KAIZEN_PLUGIN,
+  LoopExecutor,
+  STRATEGIC_PLUGIN,
+  TRANSCENDENT_PLUGIN,
+} from "../src/loops/engine.ts";
 
 function createExecutor(plugin, operatorCwd, packageRoot) {
   return new LoopExecutor(plugin, operatorCwd, "/tmp/unused-vault", {
@@ -141,6 +146,112 @@ test("LoopExecutor fails closed with a typed error when the configured KES root 
   } finally {
     fs.rmSync(operatorCwd, { recursive: true, force: true });
     fs.rmSync(packageRootParent, { recursive: true, force: true });
+  }
+});
+
+test("Transcendent v3 targets debt before dissolve and uses closure-gate as final DoD phase", () => {
+  assert.deepEqual(TRANSCENDENT_PLUGIN.phases, [
+    "diagnose",
+    "first-100x",
+    "second-100x",
+    "debt-targeting",
+    "dissolve",
+    "rebuild",
+    "closure-gate",
+  ]);
+  assert.equal(TRANSCENDENT_PLUGIN.continueOnFailure, false);
+  assert.equal(TRANSCENDENT_PLUGIN.phases.includes("name-debt"), false);
+  assert.equal(
+    TRANSCENDENT_PLUGIN.cognitiveTools["closure-gate"]?.[0],
+    "knowledge-crystallization",
+  );
+});
+
+test("Transcendent v3 fail-fast stops unresolved blocking debt before dissolve/rebuild", async () => {
+  const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-operator-"));
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-package-"));
+  let phaseIndex = 0;
+
+  try {
+    const executor = createExecutor(TRANSCENDENT_PLUGIN, operatorCwd, packageRoot);
+    const result = await executor.execute(
+      "Remove loop debt",
+      async ({ cognitiveTool, context }) => {
+        const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
+        assert.equal(cognitiveTool, TRANSCENDENT_PLUGIN.cognitiveTools[phase][0]);
+        if (phase === "debt-targeting") {
+          assert.match(context, /Blocking in-scope debt must become dissolve\/rebuild input/);
+          return {
+            output:
+              "Blocking debt remains: runtime cannot safely dissolve/rebuild without explicit scope.",
+            exitCode: 1,
+            elapsed: 9,
+            failureKind: "blocking_debt_remaining",
+          };
+        }
+        return {
+          output: `Phase ${phase} completed and preserved debt-routing evidence.`,
+          exitCode: 0,
+          elapsed: 7,
+        };
+      },
+    );
+
+    assert.equal(result.success, false);
+    assert.deepEqual(
+      result.phases.map((phase) => phase.phase),
+      ["diagnose", "first-100x", "second-100x", "debt-targeting"],
+    );
+    assert.equal(result.phases.at(-1)?.status, "error");
+    assert.equal(result.phases.at(-1)?.failureKind, "blocking_debt_remaining");
+    assert.equal(phaseIndex, 4);
+  } finally {
+    fs.rmSync(operatorCwd, { recursive: true, force: true });
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("Transcendent v3 closure-gate records incomplete debt instead of pretending success", async () => {
+  const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-operator-"));
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-package-"));
+  let phaseIndex = 0;
+
+  try {
+    const executor = createExecutor(TRANSCENDENT_PLUGIN, operatorCwd, packageRoot);
+    const result = await executor.execute("Close only when debt is gone", async ({ context }) => {
+      const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
+      if (phase === "closure-gate") {
+        assert.match(context, /Close only if no blocking in-scope debt remains/);
+        return {
+          output:
+            "Decision: stop_incomplete. Next loop ceiling: closure gate still has blocking in-scope debt.",
+          exitCode: 1,
+          elapsed: 11,
+          failureKind: "closure_gate_blocking_debt",
+        };
+      }
+      return {
+        output: `Phase ${phase} completed with evidence for the closure gate.`,
+        exitCode: 0,
+        elapsed: 6,
+      };
+    });
+
+    assert.equal(result.success, false);
+    assert.deepEqual(
+      result.phases.map((phase) => phase.phase),
+      TRANSCENDENT_PLUGIN.phases,
+    );
+    assert.equal(result.phases.at(-1)?.phase, "closure-gate");
+    assert.equal(result.phases.at(-1)?.status, "error");
+    assert.equal(result.phases.at(-1)?.failureKind, "closure_gate_blocking_debt");
+    assert.equal(
+      result.artifacts.filter((artifact) => artifact.type === "kes_learning_candidate").length,
+      0,
+    );
+  } finally {
+    fs.rmSync(operatorCwd, { recursive: true, force: true });
+    fs.rmSync(packageRoot, { recursive: true, force: true });
   }
 });
 

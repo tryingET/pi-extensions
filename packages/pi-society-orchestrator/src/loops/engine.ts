@@ -48,6 +48,10 @@ const DEFAULT_SOCIETY_DB =
   process.env.SOCIETY_DB ||
   process.env.AK_DB ||
   path.join(os.homedir(), "ai-society", "society.db");
+const DEFAULT_LOOP_TIMEOUT_MS = parsePositiveMilliseconds(
+  process.env.PI_ORCH_LOOP_TIMEOUT_MS,
+  30 * 60 * 1000,
+);
 
 // ============================================================================
 // TYPES
@@ -59,6 +63,7 @@ export interface LoopPlugin {
   description: string;
   cognitiveTools: Record<string, string[]>;
   agents: Record<string, string>;
+  continueOnFailure?: boolean;
   onEnter?(phase: string, context: LoopContext): Promise<void>;
   onExit?(phase: string, context: LoopContext): Promise<Artifact[]>;
   validate?(from: string, to: string, context: LoopContext): boolean;
@@ -98,6 +103,58 @@ export interface LoopResult {
   artifacts: Artifact[];
   success: boolean;
   elapsed: number;
+}
+
+export interface CompactPhaseResult {
+  phase: string;
+  status: ExecutionStatus;
+  exitCode: number;
+  elapsed: number;
+  failureKind?: string;
+  artifactPaths: string[];
+}
+
+export interface CompactLoopResult {
+  plugin: string;
+  objective: string;
+  phases: CompactPhaseResult[];
+  artifactPaths: string[];
+  success: boolean;
+  elapsed: number;
+}
+
+export type LoopExecutionUpdate =
+  | {
+      event: "phase_start";
+      plugin: string;
+      sessionId: string;
+      phase: string;
+      phaseIndex: number;
+      phaseCount: number;
+      agent: string;
+      primaryTool: string;
+    }
+  | {
+      event: "phase_update";
+      plugin: string;
+      sessionId: string;
+      phase: string;
+      update: unknown;
+    }
+  | {
+      event: "phase_complete";
+      plugin: string;
+      sessionId: string;
+      phase: string;
+      status: ExecutionStatus;
+      elapsed: number;
+      failureKind?: string;
+    };
+
+export interface LoopExecutionOptions {
+  continueAfterFailure?: boolean;
+  phaseTimeoutSeconds?: number;
+  onUpdate?: (update: LoopExecutionUpdate) => void;
 }
 
 // ============================================================================
@@ -181,21 +238,35 @@ export const ADKAR_PLUGIN: LoopPlugin = {
 
 export const TRANSCENDENT_PLUGIN: LoopPlugin = {
   name: "transcendent",
-  phases: ["diagnose", "first-100x", "second-100x", "rebuild", "debt"],
-  description: "Transcendent Iteration — Diagnose → 100x → 100x → Rebuild → Name Debt",
+  phases: [
+    "diagnose",
+    "first-100x",
+    "second-100x",
+    "debt-targeting",
+    "dissolve",
+    "rebuild",
+    "closure-gate",
+  ],
+  description:
+    "Transcendent Iteration v3 — Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Closure Gate",
+  continueOnFailure: false,
   cognitiveTools: {
-    diagnose: ["inversion", "first-principles"],
-    "first-100x": ["nexus", "controlled"],
-    "second-100x": ["audit", "telescopic"],
-    rebuild: ["first-principles", "atomic-completion"],
-    debt: ["knowledge-crystallization"],
+    diagnose: ["first-principles", "constraint-inventory", "inversion"],
+    "first-100x": ["nexus", "simplification", "telescopic"],
+    "second-100x": ["audit", "inversion", "telescopic"],
+    "debt-targeting": ["audit", "constraint-inventory", "inversion"],
+    dissolve: ["first-principles", "scaffold"],
+    rebuild: ["first-principles", "scaffold", "recursion-engine"],
+    "closure-gate": ["knowledge-crystallization", "audit", "elevate"],
   },
   agents: {
     diagnose: "scout",
     "first-100x": "builder",
     "second-100x": "reviewer",
+    "debt-targeting": "reviewer",
+    dissolve: "researcher",
     rebuild: "builder",
-    debt: "researcher",
+    "closure-gate": "researcher",
   },
 };
 
@@ -339,7 +410,13 @@ export class LoopExecutor {
 
   async execute(
     objective: string,
-    dispatchFn: (params: { agent: string; cognitiveTool: string; context: string }) => Promise<{
+    dispatchFn: (params: {
+      agent: string;
+      cognitiveTool: string;
+      context: string;
+      timeoutSeconds?: number;
+      onUpdate?: (update: unknown) => void;
+    }) => Promise<{
       output: string;
       exitCode: number;
       elapsed: number;
@@ -348,6 +425,7 @@ export class LoopExecutor {
       failureKind?: string;
     }>,
     signal?: AbortSignal,
+    options: LoopExecutionOptions = {},
   ): Promise<LoopResult> {
     const startTime = Date.now();
     const sessionId = `${this.plugin.name}-${Date.now()}`;
@@ -426,12 +504,32 @@ export class LoopExecutor {
       // Build context for this phase
       const phaseContext = this.buildPhaseContext(phase, objective, context);
 
+      options.onUpdate?.({
+        event: "phase_start",
+        plugin: this.plugin.name,
+        sessionId,
+        phase,
+        phaseIndex: i + 1,
+        phaseCount: this.plugin.phases.length,
+        agent,
+        primaryTool,
+      });
+
       // Dispatch agent with cognitive tool
       const _phaseStart = Date.now();
       const result = await dispatchFn({
         agent,
         cognitiveTool: primaryTool,
         context: phaseContext,
+        timeoutSeconds: options.phaseTimeoutSeconds,
+        onUpdate: (update) =>
+          options.onUpdate?.({
+            event: "phase_update",
+            plugin: this.plugin.name,
+            sessionId,
+            phase,
+            update,
+          }),
       });
 
       const executionOutcome = await finalizeExecutionEffects({
@@ -491,6 +589,16 @@ export class LoopExecutor {
       context.history.push(phaseResult);
       context.artifacts.push(...phaseResult.artifacts);
 
+      options.onUpdate?.({
+        event: "phase_complete",
+        plugin: this.plugin.name,
+        sessionId,
+        phase,
+        status: executionOutcome.status,
+        elapsed: result.elapsed,
+        failureKind: result.failureKind,
+      });
+
       if (executionOutcome.status === "aborted") {
         success = false;
         break;
@@ -498,7 +606,12 @@ export class LoopExecutor {
 
       if (!executionOutcome.success) {
         success = false;
-        // Continue to next phase even on failure (resilient loop)
+        const continueAfterFailure =
+          options.continueAfterFailure ?? this.plugin.continueOnFailure ?? true;
+        if (!continueAfterFailure) {
+          break;
+        }
+        // Continue to next phase when the loop policy explicitly allows resilient execution.
       }
     }
 
@@ -544,11 +657,99 @@ ${objective}
 
 ${previousResults ? `## Previous Phases\n${previousResults}` : ""}
 
+## Phase Protocol
+${this.buildPhaseProtocol(phase)}
+
 ## Your Task
 Execute the **${phase}** phase of the ${this.plugin.name.toUpperCase()} loop.
 Focus on what this phase requires. Use the cognitive tools available to you.
 `;
   }
+
+  private buildPhaseProtocol(phase: string): string {
+    if (this.plugin.name !== "transcendent") {
+      return "Use the loop's standard phase semantics and produce bounded, evidence-bearing output.";
+    }
+
+    const protocols: Record<string, string> = {
+      diagnose:
+        "Find the current ceiling. Name the limiting assumption, avoided ugliness, 100x precondition, and likely hidden debt.",
+      "first-100x":
+        "Attack the diagnosed ceiling directly. Prefer deletion over addition and identify the new ceiling revealed by the change.",
+      "second-100x":
+        "Attack the newly revealed ceiling and run the compound check: did the first 100x make this easier, harder, or unchanged? Surface visible debt.",
+      "debt-targeting":
+        "Classify remaining debt as blocking, accepted/deferred, or new opportunity. Blocking in-scope debt must become dissolve/rebuild input, not a terminal note.",
+      dissolve:
+        "Dissolve the assumptions, inherited constraints, scaffolding, or structures causing the targeted blocking debt.",
+      rebuild:
+        "Rebuild from first principles without reintroducing targeted debt. Show evidence that the targeted debt is gone rather than merely renamed.",
+      "closure-gate":
+        "Apply the Definition of Done. Close only if no blocking in-scope debt remains; otherwise emit the next-loop ceiling or stop incomplete when continuation is not authorized.",
+    };
+
+    return protocols[phase] || "Use the transcendent loop semantics for this phase.";
+  }
+}
+
+function compactLoopResult(result: LoopResult): CompactLoopResult {
+  return {
+    plugin: result.plugin,
+    objective: result.objective,
+    success: result.success,
+    elapsed: result.elapsed,
+    phases: result.phases.map((phase) => ({
+      phase: phase.phase,
+      status: phase.status,
+      exitCode: phase.exitCode,
+      elapsed: phase.elapsed,
+      failureKind: phase.failureKind,
+      artifactPaths: phase.artifacts.map((artifact) => artifact.content),
+    })),
+    artifactPaths: result.artifacts.map((artifact) => artifact.content),
+  };
+}
+
+function createLinkedTimeoutSignal(
+  parentSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal; cleanup: () => void; timedOut: () => boolean } {
+  const controller = new AbortController();
+  let loopTimedOut = false;
+
+  const abortFromParent = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) {
+    abortFromParent();
+  } else {
+    parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+  }
+
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          loopTimedOut = true;
+          controller.abort(new Error(`loop timed out after ${timeoutMs}ms`));
+        }, timeoutMs)
+      : undefined;
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      if (timer) clearTimeout(timer);
+      parentSignal?.removeEventListener("abort", abortFromParent);
+    },
+    timedOut: () => loopTimedOut,
+  };
+}
+
+function parsePositiveMilliseconds(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizePositiveSeconds(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
+  return value;
 }
 
 // ============================================================================
@@ -576,7 +777,7 @@ Available loops:
 - strategic: Mission → Intelligence → Tooling → Operations (strategic execution; renamed from the old 'mito' label to avoid collision with Prof. Binner's MITO)
 - kaizen: Plan → Do → Check → Act (continuous improvement)
 - adkar: Awareness → Desire → Knowledge → Ability → Reinforcement (change management)
-- transcendent: Diagnose → 100x → 100x → Rebuild → Name Debt (100x improvement)
+- transcendent: Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Closure Gate (debt-resolving 100x improvement)
 
 Each phase injects the appropriate cognitive tool and dispatches an agent.
 Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \`docs/learnings/\` when applicable) plus the evidence ledger.`,
@@ -598,9 +799,35 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
         { description: "Loop type to execute" },
       ),
       objective: Type.String({ description: "The objective to accomplish through the loop" }),
+      continue_after_failure: Type.Optional(
+        Type.Boolean({
+          description:
+            "Explicitly continue after a failed phase. Transcendent defaults to fail-fast unless this is true.",
+        }),
+      ),
+      loop_timeout_seconds: Type.Optional(
+        Type.Number({ description: "Optional positive loop-level timeout in seconds." }),
+      ),
+      phase_timeout_seconds: Type.Optional(
+        Type.Number({
+          description: "Optional positive timeout in seconds for each dispatched phase.",
+        }),
+      ),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const { loop, objective } = params as { loop: string; objective: string };
+      const {
+        loop,
+        objective,
+        continue_after_failure,
+        loop_timeout_seconds,
+        phase_timeout_seconds,
+      } = params as {
+        loop: string;
+        objective: string;
+        continue_after_failure?: boolean;
+        loop_timeout_seconds?: number;
+        phase_timeout_seconds?: number;
+      };
 
       if (loop === "mito") {
         return {
@@ -670,9 +897,18 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
       }
 
       const executor = new LoopExecutor(plugin, ctx.cwd, vaultDir);
+      const loopTimeoutMs =
+        (normalizePositiveSeconds(loop_timeout_seconds) ?? DEFAULT_LOOP_TIMEOUT_MS / 1000) * 1000;
+      const effectiveSignal = createLinkedTimeoutSignal(signal, loopTimeoutMs);
 
       // Create dispatch function using shared agent profiles + vault-loaded cognitive tools.
-      const dispatch = async (p: { agent: string; cognitiveTool: string; context: string }) => {
+      const dispatch = async (p: {
+        agent: string;
+        cognitiveTool: string;
+        context: string;
+        timeoutSeconds?: number;
+        onUpdate?: (update: unknown) => void;
+      }) => {
         let effectiveAgent = resolvedAgents.get(p.agent) || p.agent;
         if (resolveAgent && !resolvedAgents.has(p.agent)) {
           const resolution = resolveAgent(p.agent, ctx);
@@ -693,7 +929,7 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
           {
             cwd: ctx.cwd,
           },
-          signal,
+          effectiveSignal.signal,
         );
         if (isBoundaryFailure(toolResult)) {
           return {
@@ -725,26 +961,48 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
             `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
           ],
           sessionName: `${agentProfile.name}-${toolResult.value.name}`,
-          signal,
+          timeoutSeconds: p.timeoutSeconds,
+          onUpdate: p.onUpdate as Parameters<typeof subagentExecutor.execute>[0]["onUpdate"],
+          signal: effectiveSignal.signal,
         });
 
         return toExecutionLike(runtimeResult);
       };
 
       try {
-        const result = await executor.execute(objective, dispatch, signal);
+        const result = await executor.execute(objective, dispatch, effectiveSignal.signal, {
+          continueAfterFailure: continue_after_failure,
+          phaseTimeoutSeconds: normalizePositiveSeconds(phase_timeout_seconds),
+          onUpdate: (update) =>
+            onUpdate?.({
+              content: [
+                {
+                  type: "text",
+                  text:
+                    update.event === "phase_start"
+                      ? `Starting ${loop}.${update.phase} (${update.phaseIndex}/${update.phaseCount}) with ${update.agent}/${update.primaryTool}`
+                      : update.event === "phase_complete"
+                        ? `Finished ${loop}.${update.phase}: ${update.status}`
+                        : `Progress ${loop}.${update.phase}`,
+                },
+              ],
+              details: { loop, objective, status: update.event, update },
+            }),
+        });
+        const compactResult = compactLoopResult(result);
+        const loopTimedOut = effectiveSignal.timedOut();
 
         const summary = `# ${loop.toUpperCase()} Loop Complete
 
 **Objective:** ${objective}
 **Status:** ${result.success ? "✓ Success" : "✗ Completed with failures"}
 **Elapsed:** ${Math.round(result.elapsed / 1000)}s
-
+${loopTimedOut ? "**Loop timeout:** yes\n" : ""}
 ## Phases
-${result.phases.map((p) => `- ${p.phase}: ${p.status === "done" ? "✓" : "✗"} ${p.status} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
+${compactResult.phases.map((p) => `- ${p.phase}: ${p.status === "done" ? "✓" : "✗"} ${p.status}${p.failureKind ? ` (${p.failureKind})` : ""} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
 
 ## Artifacts
-${result.artifacts.map((a) => `- ${a.type}: ${a.content}`).join("\n") || "None"}
+${compactResult.artifactPaths.map((artifactPath) => `- ${artifactPath}`).join("\n") || "None"}
 
 ## Package-owned KES roots
 - Raw capture: \`diary/\`
@@ -753,7 +1011,7 @@ ${result.artifacts.map((a) => `- ${a.type}: ${a.content}`).join("\n") || "None"}
 
         return {
           content: [{ type: "text", text: summary }],
-          details: { ok: result.success, result },
+          details: { ok: result.success, result: compactResult, loopTimedOut },
         };
       } catch (err) {
         if (isKesMaterializationError(err)) {
@@ -776,8 +1034,10 @@ ${result.artifacts.map((a) => `- ${a.type}: ${a.content}`).join("\n") || "None"}
 
         return {
           content: [{ type: "text", text: `Loop execution failed: ${err}` }],
-          details: { ok: false },
+          details: { ok: false, loopTimedOut: effectiveSignal.timedOut() },
         };
+      } finally {
+        effectiveSignal.cleanup();
       }
     },
     renderCall(args, theme) {
@@ -792,7 +1052,7 @@ ${result.artifacts.map((a) => `- ${a.type}: ${a.content}`).join("\n") || "None"}
       );
     },
     renderResult(result, _options, theme) {
-      const details = result.details as { ok?: boolean; result?: LoopResult } | undefined;
+      const details = result.details as { ok?: boolean; result?: CompactLoopResult } | undefined;
       if (!details?.result) {
         const text = result.content[0];
         return new Text(text?.type === "text" ? text.text : "", 0, 0);
