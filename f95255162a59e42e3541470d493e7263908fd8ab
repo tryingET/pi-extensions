@@ -1,0 +1,18 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f95255162a59e42e3541470d493e7263908fd8ab"
+created_at: "2026-04-28T02:18:59Z"
+intent: "Add orchestrator bridge that executes known Prompt Vault loop templates through loop_execute and fails closed for unbound workflow/loop templates."
+files:
+  - "packages/pi-vault-client/src/dispatchRuntime.ts"
+  - "packages/pi-society-orchestrator/src/loops/engine.ts"
+  - "packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run check in packages/pi-vault-client and packages/pi-society-orchestrator"
+    status: "pass"
+  full_gate:
+    command: "npm run check in packages/pi-vault-client and packages/pi-society-orchestrator"
+    status: "pass"
