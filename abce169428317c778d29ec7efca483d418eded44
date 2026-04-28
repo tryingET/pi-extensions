@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "abce169428317c778d29ec7efca483d418eded44"
+created_at: "2026-04-28T02:23:57Z"
+intent: "Persist autoresearch stop-control snapshot after operator stopped the blocked baseline campaign"
+files:
+  - "packages/pi-little-helpers/autoresearch.runtime.json"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Post-smoke runtime artifact update"
+links:
+  task_ids:
+    - 1896
