@@ -1,0 +1,17 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3b288a96d2f365bc16f28f54a6b587edffc73f86"
+created_at: "2026-04-28T02:09:49Z"
+intent: "Fix vault_dispatch_check so active visible non-exported loop templates such as ooda are included in dispatch posture checks."
+files:
+  - "packages/pi-vault-client/src/vaultTools.ts"
+  - "packages/pi-vault-client/src/vaultTools.js"
+validation:
+  fast_gate:
+    command: "npm run check --workspace packages/pi-vault-client"
+    status: "pass"
+  full_gate:
+    command: "PI_COMPANY=software pi --no-extensions -e packages/pi-vault-client -p vault_dispatch_check smoke for transcendent-iteration and ooda; npm run check --workspace packages/pi-vault-client"
+    status: "pass"
