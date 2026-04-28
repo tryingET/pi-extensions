@@ -374,19 +374,32 @@ test("quest tools register as LLM-callable tools while manual sidequest stays re
   const { commands, tools } = registerExtension(extension);
 
   assert.ok(commands.has("sidequest"));
+  assert.ok(commands.has("forkpeer"));
+  assert.ok(commands.has("scoutpeer"));
+  assert.ok(commands.has("candidatepeer"));
+  assert.ok(tools.has("fork_peer_spawn"));
   assert.ok(tools.has("sidequest_spawn"));
+  assert.ok(tools.has("scout_peer_spawn"));
+  assert.ok(tools.has("candidate_peer_spawn"));
   assert.ok(tools.has("parallelquest_spawn"));
 });
 
-test("sidequest_spawn refuses to launch when the current Pi session has not been saved", async () => {
-  const execStub = createExecStub(() => {
-    throw new Error("Ghostty should not be called without a saved session file");
+test("sidequest_spawn remains a forked-context peer alias", async () => {
+  const execStub = createExecStub(({ args }) => {
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n" };
+    }
+    if (args[0]?.startsWith("--working-directory=")) {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
   });
 
   const extension = createSidequestExtension({
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
     },
     exec: execStub.exec,
     pathExists(path) {
@@ -394,25 +407,72 @@ test("sidequest_spawn refuses to launch when the current Pi session has not been
     },
   });
   const { tools } = registerExtension(extension);
-  const sidequestSpawn = tools.get("sidequest_spawn");
+  const result = await tools
+    .get("sidequest_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "inherit this context" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  const piArgs = extractPiArgs(execStub.calls[1].args);
+  assert.deepEqual(piArgs.slice(0, 3), ["pi", "--fork", "/sessions/main.jsonl"]);
+  assert.equal(piArgs.at(-1), "inherit this context");
+  assert.equal(result.details.sessionMode, "fork");
+  assert.equal(result.details.canonicalTool, "fork_peer_spawn");
+});
+
+test("scout_peer_spawn launches a clean session even when the controller session has not been saved", async () => {
+  const execStub = createExecStub(({ args }) => {
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n" };
+    }
+    if (args[0]?.startsWith("--working-directory=")) {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const sidequestSpawn = tools.get("scout_peer_spawn");
   const harness = createContext({ sessionFile: undefined });
 
   const result = await sidequestSpawn.execute(
     "tool-call-1",
-    { objective: "inspect missing session handling" },
+    {
+      objective: "inspect clean launch handling",
+      parentPeerTarget: "controller-session-123",
+    },
     undefined,
     undefined,
     harness.ctx,
   );
 
-  assert.equal(execStub.calls.length, 0);
-  assert.equal(result.isError, true);
-  assert.equal(result.details.ok, false);
-  assert.equal(result.details.error, "missing_session_file");
+  assert.equal(execStub.calls.length, 2);
+  const piArgs = extractPiArgs(execStub.calls[1].args);
+  assert.deepEqual(piArgs.slice(0, 4), ["pi", "--model", "openai/gpt-4o", "--thinking"]);
+  assert.equal(piArgs[4], "medium");
+  assert.equal(piArgs.includes("--fork"), false);
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.sessionMode, "clean");
+  assert.equal(result.details.sourceSessionFile, undefined);
   assert.equal(result.details.enforcement, "prompt_contract");
 });
 
-test("sidequest_spawn rejects a blank objective before probing Ghostty", async () => {
+test("scout_peer_spawn rejects a blank objective before probing Ghostty", async () => {
   const execStub = createExecStub(() => {
     throw new Error("Ghostty should not be called for a blank objective");
   });
@@ -428,7 +488,7 @@ test("sidequest_spawn rejects a blank objective before probing Ghostty", async (
     },
   });
   const { tools } = registerExtension(extension);
-  const sidequestSpawn = tools.get("sidequest_spawn");
+  const sidequestSpawn = tools.get("scout_peer_spawn");
   const harness = createContext();
 
   const result = await sidequestSpawn.execute(
@@ -445,7 +505,7 @@ test("sidequest_spawn rejects a blank objective before probing Ghostty", async (
   assert.equal(result.details.error, "blank_objective");
 });
 
-test("sidequest_spawn requires exact parentPeerTarget for default intercom report-back", async () => {
+test("scout_peer_spawn requires exact parentPeerTarget for default intercom report-back", async () => {
   const execStub = createExecStub(() => {
     throw new Error("Ghostty should not be called without an exact parent target");
   });
@@ -462,7 +522,7 @@ test("sidequest_spawn requires exact parentPeerTarget for default intercom repor
   });
   const { tools } = registerExtension(extension);
   const result = await tools
-    .get("sidequest_spawn")
+    .get("scout_peer_spawn")
     .execute(
       "tool-call-1",
       { objective: "inspect without orphaning" },
@@ -477,7 +537,7 @@ test("sidequest_spawn requires exact parentPeerTarget for default intercom repor
   assert.match(result.details.nextStep, /intercom\(\{ action: "status" \}\)/);
 });
 
-test("sidequest_spawn uses the same Ghostty window fallback launch path and returns structured details", async () => {
+test("scout_peer_spawn uses the same Ghostty window fallback launch path and returns structured details", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n" };
@@ -501,7 +561,7 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
     },
   });
   const { tools } = registerExtension(extension, { thinkingLevel: "high" });
-  const sidequestSpawn = tools.get("sidequest_spawn");
+  const sidequestSpawn = tools.get("scout_peer_spawn");
   const harness = createContext({ cwd: "/controller" });
 
   const result = await sidequestSpawn.execute(
@@ -529,20 +589,14 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
   const launchArgs = execStub.calls[1].args;
   assert.match(
     extractShellCommand(launchArgs),
-    /PI_SESSION_PRESENCE_TITLE_BASE='Sidequest: Review the retry plan for sidequest fallback'/,
+    /PI_SESSION_PRESENCE_TITLE_BASE='Scoutpeer: Review the retry plan for sidequest fallback'/,
   );
   const piArgs = extractPiArgs(launchArgs);
-  assert.deepEqual(piArgs.slice(0, 6), [
-    "pi",
-    "--fork",
-    "/sessions/main.jsonl",
-    "--model",
-    "openai/gpt-4o",
-    "--thinking",
-  ]);
-  assert.equal(piArgs[6], "high");
-  assert.match(piArgs.at(-1), /Visible Sidequest Agent Prompt/);
-  assert.match(piArgs.at(-1), /spawned sidequest peer/);
+  assert.deepEqual(piArgs.slice(0, 4), ["pi", "--model", "openai/gpt-4o", "--thinking"]);
+  assert.equal(piArgs[4], "high");
+  assert.equal(piArgs.includes("--fork"), false);
+  assert.match(piArgs.at(-1), /Visible Scout Peer Prompt/);
+  assert.match(piArgs.at(-1), /spawned scout peer/);
   assert.match(piArgs.at(-1), /## BOOT PROTOCOL \/ FIRST ACTION REQUIRED/);
   assert.match(piArgs.at(-1), /Only allowed pre-ACK tool: `intercom`/);
   assert.match(piArgs.at(-1), /ACK_FAILED/);
@@ -552,35 +606,37 @@ test("sidequest_spawn uses the same Ghostty window fallback launch path and retu
   );
   assert.match(piArgs.at(-1), /Role\nreviewer/);
   assert.match(piArgs.at(-1), /Report to the exact parent target: controller-session-123/);
-  assert.match(piArgs.at(-1), /Message budget: at most QUEST_ACK and QUEST_FINAL/);
-  assert.match(piArgs.at(-1), /QUEST_ACK quest_id=sidequest-[^:]+: \.\.\./);
-  assert.match(piArgs.at(-1), /QUEST_FINAL quest_id=sidequest-[^:]+: \.\.\./);
+  assert.match(piArgs.at(-1), /Message budget: at most PEER_ACK and PEER_FINAL/);
+  assert.match(piArgs.at(-1), /PEER_ACK peer_run_id=scoutpeer-[^:]+: \.\.\./);
+  assert.match(piArgs.at(-1), /PEER_FINAL peer_run_id=scoutpeer-[^:]+: \.\.\./);
   assert.match(piArgs.at(-1), /Do not send both a final report and a separate final DoD report/);
-  assert.match(piArgs.at(-1), /After sending `QUEST_FINAL`, stop/);
+  assert.match(piArgs.at(-1), /After sending `PEER_FINAL`, stop/);
   assert.match(
     piArgs.at(-1),
-    /intercom\(\{ action: "send", to: "controller-session-123", message: "QUEST_ACK quest_id=sidequest-[^:]+: \.\.\." \}\)/,
+    /intercom\(\{ action: "send", to: "controller-session-123", message: "PEER_ACK peer_run_id=scoutpeer-[^:]+: \.\.\." \}\)/,
   );
 
   assert.equal(result.details.ok, true);
-  assert.equal(result.details.tool, "sidequest_spawn");
+  assert.equal(result.details.tool, "scout_peer_spawn");
   assert.equal(result.details.launchMode, "window");
   assert.equal(result.details.cwd, "/requested-cwd");
-  assert.equal(result.details.sessionFile, "/sessions/main.jsonl");
-  assert.equal(result.details.titleBase, "Sidequest: Review the retry plan for sidequest fallback");
+  assert.equal(result.details.sessionMode, "clean");
+  assert.equal(result.details.sourceSessionFile, undefined);
+  assert.equal(result.details.titleBase, "Scoutpeer: Review the retry plan for sidequest fallback");
   assert.equal(result.details.role, "reviewer");
   assert.equal(result.details.enforcement, "prompt_contract");
   assert.equal(result.details.promptSummary, "Review the retry plan for sidequest fallback");
   assert.equal(result.details.reportBack, "intercom");
-  assert.match(result.details.questId, /^sidequest-/);
-  assert.deepEqual(result.details.expectedMessages, ["QUEST_ACK", "QUEST_FINAL"]);
-  assert.match(result.details.nextStep, /Watch the visible sidequest tab\/window/);
-  assert.match(result.content[0]?.text ?? "", /Quest id: sidequest-/);
-  assert.match(result.content[0]?.text ?? "", /Expected intercom messages: QUEST_ACK, QUEST_FINAL/);
-  assert.match(result.content[0]?.text ?? "", /quest_watch/);
+  assert.match(result.details.peerRunId, /^scoutpeer-/);
+  assert.equal(result.details.questId, result.details.peerRunId);
+  assert.deepEqual(result.details.expectedMessages, ["PEER_ACK", "PEER_FINAL"]);
+  assert.match(result.details.nextStep, /Watch the visible scout peer tab\/window/);
+  assert.match(result.content[0]?.text ?? "", /Peer run id: scoutpeer-/);
+  assert.match(result.content[0]?.text ?? "", /Expected intercom messages: PEER_ACK, PEER_FINAL/);
+  assert.match(result.content[0]?.text ?? "", /peer_watch/);
 });
 
-test("sidequest_spawn generated prompt includes read-only policy, context, boundaries, tools, and DoD", async () => {
+test("scout_peer_spawn generated prompt includes read-only policy, context, boundaries, tools, and DoD", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
@@ -605,7 +661,7 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
     },
   });
   const { tools } = registerExtension(extension);
-  const sidequestSpawn = tools.get("sidequest_spawn");
+  const sidequestSpawn = tools.get("scout_peer_spawn");
   const harness = createContext({ cwd: "/repo" });
 
   const result = await sidequestSpawn.execute(
@@ -633,12 +689,12 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
 
   const prompt = extractPiArgs(execStub.calls[1].args).at(-1);
 
-  assert.match(prompt, /visible sidequest agent launched in a forked Pi session/i);
-  assert.match(prompt, /spawned sidequest peer/i);
+  assert.match(prompt, /visible scout peer launched in a clean Pi session/i);
+  assert.match(prompt, /spawned scout peer/i);
   assert.match(prompt, /not the controller session/i);
   assert.match(prompt, /## BOOT PROTOCOL \/ FIRST ACTION REQUIRED/);
   assert.match(prompt, /Only allowed pre-ACK tool: `intercom`/);
-  assert.match(prompt, /QUEST_ACK quest_id=sidequest-[^:]+: spawned sidequest started/);
+  assert.match(prompt, /PEER_ACK peer_run_id=scoutpeer-[^:]+: spawned scout peer started/);
   assert.match(prompt, /ACK_FAILED/);
   assert.ok(
     prompt.indexOf("## BOOT PROTOCOL / FIRST ACTION REQUIRED") < prompt.indexOf("## Objective"),
@@ -661,7 +717,7 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
   assert.match(prompt, /- second retry exits/);
   assert.match(
     prompt,
-    /You are in the controller’s working tree\. This sidequest is read-only for controller-spawned use\. Do not edit files, run destructive commands, commit, revert, install dependencies, restart services, or change running model services\./,
+    /You are in the controller’s working tree\. This scout peer is read-only for controller-spawned use\. Do not edit files, run destructive commands, commit, revert, install dependencies, restart services, or change running model services\./,
   );
   assert.match(prompt, /Enforcement level: prompt_contract/);
   assert.match(prompt, /`read` and bounded `bash`/);
@@ -682,7 +738,7 @@ test("sidequest_spawn generated prompt includes read-only policy, context, bound
   assert.match(prompt, /- Recommend one next controller action/);
   assert.match(
     prompt,
-    /Do not implement candidate changes here; isolated mutation belongs later in `parallelquest_spawn`/,
+    /Do not implement candidate changes here; isolated mutation belongs later in `candidate_peer_spawn`/,
   );
 
   assert.equal(result.details.launchMode, "tab");
@@ -730,7 +786,7 @@ function withTempDir(fn) {
     .finally(() => rmSync(dir, { recursive: true, force: true }));
 }
 
-test("parallelquest_spawn rejects a blank objective and requires a saved session", async () => {
+test("parallelquest_spawn rejects a blank objective before git or Ghostty", async () => {
   const execStub = createParallelquestExecStub();
   const extension = createSidequestExtension({
     env: {
@@ -757,15 +813,6 @@ test("parallelquest_spawn rejects a blank objective and requires a saved session
   assert.equal(blankResult.isError, true);
   assert.equal(blankResult.details.error, "blank_objective");
 
-  const missingSessionResult = await parallelquestSpawn.execute(
-    "tool-call-2",
-    { objective: "try a bounded fix" },
-    undefined,
-    undefined,
-    createContext({ sessionFile: undefined }).ctx,
-  );
-  assert.equal(missingSessionResult.isError, true);
-  assert.equal(missingSessionResult.details.error, "missing_session_file");
   assert.equal(execStub.calls.length, 0);
 });
 
@@ -929,26 +976,22 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.ok(launchCall.args.includes(`--working-directory=${result.details.worktreePath}`));
     assert.match(
       extractShellCommand(launchCall.args),
-      /PI_SESSION_PRESENCE_TITLE_BASE='Parallelquest: Try bounded runner guard'/,
+      /PI_SESSION_PRESENCE_TITLE_BASE='Candidatepeer: Try bounded runner guard'/,
     );
 
     const piArgs = extractPiArgs(launchCall.args);
-    assert.deepEqual(piArgs.slice(0, 7), [
-      "pi",
-      "--fork",
-      "/sessions/main.jsonl",
-      "--model",
-      "openai/gpt-4o",
-      "--thinking",
-      "high",
-    ]);
+    assert.deepEqual(piArgs.slice(0, 5), ["pi", "--model", "openai/gpt-4o", "--thinking", "high"]);
+    assert.equal(piArgs.includes("--fork"), false);
     const prompt = piArgs.at(-1);
-    assert.match(prompt, /Visible Parallelquest Agent Prompt/);
-    assert.match(prompt, /spawned parallelquest peer/i);
+    assert.match(prompt, /Visible Candidate Peer Prompt/);
+    assert.match(prompt, /spawned candidate peer/i);
     assert.match(prompt, /not the controller session/i);
     assert.match(prompt, /## BOOT PROTOCOL \/ FIRST ACTION REQUIRED/);
     assert.match(prompt, /Only allowed pre-ACK tool: `intercom`/);
-    assert.match(prompt, /QUEST_ACK quest_id=parallelquest-[^:]+: spawned parallelquest started/);
+    assert.match(
+      prompt,
+      /PEER_ACK peer_run_id=candidatepeer-[^:]+: spawned candidate peer started/,
+    );
     assert.match(prompt, /ACK_FAILED/);
     assert.ok(
       prompt.indexOf("## BOOT PROTOCOL / FIRST ACTION REQUIRED") < prompt.indexOf("## Objective"),
@@ -967,14 +1010,14 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.match(prompt, /- run focused test only/);
     assert.match(prompt, /Report diff summary/);
     assert.match(prompt, /Report to the exact parent target: controller-session-123/);
-    assert.match(prompt, /Message budget: at most QUEST_ACK and QUEST_FINAL/);
-    assert.match(prompt, /QUEST_ACK quest_id=parallelquest-[^:]+: \.\.\./);
-    assert.match(prompt, /QUEST_FINAL quest_id=parallelquest-[^:]+: \.\.\./);
+    assert.match(prompt, /Message budget: at most PEER_ACK and PEER_FINAL/);
+    assert.match(prompt, /PEER_ACK peer_run_id=candidatepeer-[^:]+: \.\.\./);
+    assert.match(prompt, /PEER_FINAL peer_run_id=candidatepeer-[^:]+: \.\.\./);
     assert.match(prompt, /Do not send both a final report and a separate final DoD report/);
-    assert.match(prompt, /After sending `QUEST_FINAL`, stop/);
+    assert.match(prompt, /After sending `PEER_FINAL`, stop/);
     assert.match(
       prompt,
-      /intercom\(\{ action: "send", to: "controller-session-123", message: "QUEST_ACK quest_id=parallelquest-[^:]+: \.\.\." \}\)/,
+      /intercom\(\{ action: "send", to: "controller-session-123", message: "PEER_ACK peer_run_id=candidatepeer-[^:]+: \.\.\." \}\)/,
     );
     assert.doesNotMatch(prompt, /Manual report-back is requested/);
     assert.doesNotMatch(prompt, /visible report in this sidequest session/);
@@ -987,18 +1030,18 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.equal(result.details.branchName, "parallelquest/runner-guard");
     assert.equal(result.details.baseRef, "HEAD");
     assert.equal(result.details.reportBack, "intercom");
-    assert.match(result.details.questId, /^parallelquest-/);
-    assert.deepEqual(result.details.expectedMessages, ["QUEST_ACK", "QUEST_FINAL"]);
+    assert.match(result.details.peerRunId, /^candidatepeer-/);
+    assert.equal(result.details.questId, result.details.peerRunId);
+    assert.deepEqual(result.details.expectedMessages, ["PEER_ACK", "PEER_FINAL"]);
     assert.equal(result.details.parentDirty, true);
     assert.match(result.details.parentDirtyWarning, /uncommitted changes/);
     assert.equal(result.details.reusedExisting, false);
-    assert.equal(result.details.titleBase, "Parallelquest: Try bounded runner guard");
+    assert.equal(result.details.sessionMode, "clean");
+    assert.equal(result.details.sourceSessionFile, undefined);
+    assert.equal(result.details.titleBase, "Candidatepeer: Try bounded runner guard");
     assert.match(result.details.nextStep, /Inspect the reported branch\/worktree/);
-    assert.match(result.content[0]?.text ?? "", /Quest id: parallelquest-/);
-    assert.match(
-      result.content[0]?.text ?? "",
-      /Expected intercom messages: QUEST_ACK, QUEST_FINAL/,
-    );
-    assert.match(result.content[0]?.text ?? "", /quest_watch/);
+    assert.match(result.content[0]?.text ?? "", /Peer run id: candidatepeer-/);
+    assert.match(result.content[0]?.text ?? "", /Expected intercom messages: PEER_ACK, PEER_FINAL/);
+    assert.match(result.content[0]?.text ?? "", /peer_watch/);
   });
 });

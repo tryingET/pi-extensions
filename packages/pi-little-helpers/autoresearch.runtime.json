@@ -1,0 +1,52 @@
+{
+  "type": "runtime_snapshot",
+  "version": 1,
+  "phase": "bounded_runtime_kernel",
+  "cwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-little-helpers",
+  "updatedAt": 1777339249132,
+  "segmentKey": "3c8bd4a36fd129a1ce5ed810",
+  "runtimeKey": "5bb22bd478b27253ef6e5a6a",
+  "projectionSource": "ledger",
+  "machine": {
+    "state": "blocked",
+    "resumeState": "awaiting_decision",
+    "blockedReason": "Prompt Vault next_hypothesis blocked: Prompt Vault decision execution returned no text output.",
+    "completionReason": null
+  },
+  "segment": {
+    "name": "peer-tool-validation-latency",
+    "metricName": "check_seconds",
+    "metricUnit": "seconds",
+    "direction": "lower",
+    "benchmarkCommand": "bash -lc 'start=$(node -e \"console.log(Date.now())\"); env -u PI_SESSION_PRESENCE_TITLE_BASE npm run check; status=$?; end=$(node -e \"console.log(Date.now())\"); node -e \"const s=Number(process.argv[1]); const e=Number(process.argv[2]); console.log(\\\"METRIC check_seconds=\\\"+((e-s)/1000).toFixed(3))\" \"$start\" \"$end\"; exit \"$status\"'",
+    "checksCommand": "env -u PI_SESSION_PRESENCE_TITLE_BASE npm run check",
+    "runCount": 1,
+    "successfulRunCount": 1,
+    "baselineMetric": 2.277,
+    "bestMetric": 2.277,
+    "lastRunStatus": "baseline",
+    "lastRunMetric": 2.277
+  },
+  "decision": {
+    "availability": "available_last_used_blocked",
+    "lastPostRunDecision": {
+      "kind": "next_hypothesis",
+      "templateName": "pi-autoresearch-next-hypothesis",
+      "status": "blocked",
+      "mappedDecision": "block",
+      "blockingReason": "Prompt Vault decision execution returned no text output.",
+      "failureStage": "executor",
+      "stateRead": null,
+      "nextHypothesis": null,
+      "targetFiles": [],
+      "expectedPrimaryEffect": null,
+      "timestamp": 1777339237230
+    }
+  },
+  "control": {
+    "kind": "awaiting_operator",
+    "allowedActions": ["stop"],
+    "reason": "Prompt Vault next_hypothesis blocked: Prompt Vault decision execution returned no text output.",
+    "selectedAt": null
+  }
+}

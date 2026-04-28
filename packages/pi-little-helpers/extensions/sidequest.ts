@@ -14,11 +14,18 @@ const LOCAL_GHOSTTY_WRAPPER = join(homedir(), ".local", "bin", "ghostty-sideques
 const LOCAL_GHOSTTY_BIN = join(homedir(), ".local", "opt", "ghostty-sidequest", "bin", "ghostty");
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
+type PiCommandContext = Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1];
+type PiToolContext = Parameters<Parameters<ExtensionAPI["registerTool"]>[0]["execute"]>[4];
 
 type LaunchMode = "tab" | "window";
+type QuestSessionMode = "fork" | "clean";
 type SidequestRole = "scout" | "reviewer";
 type SidequestReportBack = "intercom" | "manual" | "none";
 type ParallelquestReportBack = SidequestReportBack;
+type ForkPeerSpawnRequest = {
+  objective?: string;
+  cwd?: string;
+};
 
 type ModelLike = {
   provider: string;
@@ -123,8 +130,9 @@ type WorktreePrepareResult = WorktreePrepareSuccess | WorktreePrepareFailure;
 type SidequestLaunchSuccess = {
   ok: true;
   launchMode: LaunchMode;
+  sessionMode: QuestSessionMode;
   cwd: string;
-  sessionFile: string;
+  sourceSessionFile?: string;
   titleBase: string;
   promptSummary: string;
   launchNote?: string;
@@ -133,11 +141,12 @@ type SidequestLaunchSuccess = {
 type SidequestLaunchFailure = {
   ok: false;
   failure: string;
+  launchMode: LaunchMode;
+  sessionMode: QuestSessionMode;
   cwd: string;
-  sessionFile: string;
+  sourceSessionFile?: string;
   titleBase: string;
   promptSummary: string;
-  launchMode: LaunchMode;
   launchNote?: string;
 };
 
@@ -154,16 +163,31 @@ const reportBackParameter = Type.Optional(
   }),
 );
 
-const sidequestSpawnParameters = asPiToolParameters(
+const forkPeerSpawnParameters = asPiToolParameters(
+  Type.Object({
+    objective: Type.String({
+      description: "Required non-empty prompt for the forked-context peer.",
+    }),
+    cwd: Type.Optional(
+      Type.String({
+        description: "Workspace cwd for the visible forked peer. Defaults to ctx.cwd.",
+      }),
+    ),
+  }),
+);
+
+const scoutPeerSpawnParameters = asPiToolParameters(
   Type.Object({
     role: Type.Optional(
       Type.Union([Type.Literal("scout"), Type.Literal("reviewer")], {
-        description: "Visible sidequest role. Defaults to scout.",
+        description: "Visible scout peer role. Defaults to scout.",
       }),
     ),
     objective: Type.String({ description: "Required non-empty scouting/review objective." }),
     cwd: Type.Optional(
-      Type.String({ description: "Workspace cwd for the visible sidequest. Defaults to ctx.cwd." }),
+      Type.String({
+        description: "Workspace cwd for the visible scout peer. Defaults to ctx.cwd.",
+      }),
     ),
     reportBack: reportBackParameter,
     parentPeerTarget: Type.Optional(
@@ -466,14 +490,14 @@ function summarizeLaunchFailure(result: LaunchResult): string {
   return `${singleLine.slice(0, 179)}…`;
 }
 
-async function launchSidequestFork({
+async function launchPiQuestSession({
   pi,
   ctx,
   options,
   prompt,
   titlePrompt,
   cwd,
-  sessionFile,
+  sourceSessionFile,
   titlePrefix = "Sidequest",
 }: {
   pi: ExtensionAPI;
@@ -482,7 +506,7 @@ async function launchSidequestFork({
   prompt: string;
   titlePrompt: string;
   cwd: string;
-  sessionFile: string;
+  sourceSessionFile?: string;
   titlePrefix?: string;
 }): Promise<SidequestLaunchOutcome> {
   const env = options.env ?? process.env;
@@ -504,7 +528,10 @@ async function launchSidequestFork({
     env,
   });
 
-  const piArgs = [piBin, "--fork", sessionFile, ...modelArgs, prompt];
+  const sessionMode: QuestSessionMode = sourceSessionFile ? "fork" : "clean";
+  const piArgs = sourceSessionFile
+    ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
+    : [piBin, ...modelArgs, prompt];
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
   let launchResult = await runGhosttyLaunch(
     execRunner,
@@ -545,11 +572,12 @@ async function launchSidequestFork({
     return {
       ok: false,
       failure: summarizeLaunchFailure(launchResult),
+      launchMode,
+      sessionMode,
       cwd,
-      sessionFile,
+      sourceSessionFile,
       titleBase: title,
       promptSummary,
-      launchMode,
       launchNote,
     };
   }
@@ -557,8 +585,9 @@ async function launchSidequestFork({
   return {
     ok: true,
     launchMode,
+    sessionMode,
     cwd,
-    sessionFile,
+    sourceSessionFile,
     titleBase: title,
     promptSummary,
     launchNote,
@@ -585,7 +614,9 @@ function normalizeSidequestRole(value: unknown): SidequestRole {
   return value === "reviewer" ? "reviewer" : "scout";
 }
 
-function createQuestId(prefix: "sidequest" | "parallelquest"): string {
+function createQuestId(
+  prefix: "sidequest" | "parallelquest" | "scoutpeer" | "candidatepeer",
+): string {
   return `${prefix}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
 }
 
@@ -616,18 +647,18 @@ function buildReportBackInstructions({
     return [
       "Use intercom for report-back if the tool is available.",
       `Report to the exact parent target: ${target}`,
-      `Quest id: ${questId}`,
+      `Peer run id: ${questId}`,
       "",
       "## Intercom Message Budget",
       "Send at most two intercom messages unless the controller explicitly asks a clarifying question or assigns new work:",
       "",
-      `1. \`QUEST_ACK quest_id=${questId}: ...\` — send once as your first action, identifying yourself as the spawned ${peerLabel}.`,
-      `2. \`QUEST_FINAL quest_id=${questId}: ...\` — send once as your final DoD report.`,
+      `1. \`PEER_ACK peer_run_id=${questId}: ...\` — send once as your first action, identifying yourself as the spawned ${peerLabel}.`,
+      `2. \`PEER_FINAL peer_run_id=${questId}: ...\` — send once as your final DoD report.`,
       "",
-      "Do not send both a final report and a separate final DoD report. `QUEST_FINAL` is the final DoD report.",
-      "After sending `QUEST_FINAL`, stop. Do not reply to controller acknowledgements such as received, accepted, or no further action needed unless the controller explicitly asks a new question or assigns new work.",
-      `Use the literal target in tool calls, for example: \`intercom({ action: "send", to: "${target}", message: "QUEST_ACK quest_id=${questId}: ..." })\`.`,
-      `For the final message, use: \`intercom({ action: "send", to: "${target}", message: "QUEST_FINAL quest_id=${questId}: ..." })\`.`,
+      "Do not send both a final report and a separate final DoD report. `PEER_FINAL` is the final DoD report.",
+      "After sending `PEER_FINAL`, stop. Do not reply to controller acknowledgements such as received, accepted, or no further action needed unless the controller explicitly asks a new question or assigns new work.",
+      `Use the literal target in tool calls, for example: \`intercom({ action: "send", to: "${target}", message: "PEER_ACK peer_run_id=${questId}: ..." })\`.`,
+      `For the final message, use: \`intercom({ action: "send", to: "${target}", message: "PEER_FINAL peer_run_id=${questId}: ..." })\`.`,
       "Intercom is communication only; it is not durable evidence or completion authority.",
     ].join("\n");
   }
@@ -670,9 +701,9 @@ function buildBootProtocolInstructions({
   return [
     "Before reading task context, inspecting files, or doing any other work, send the ACK below.",
     "Only allowed pre-ACK tool: `intercom`.",
-    `Literal ACK call: \`intercom({ action: "send", to: "${target}", message: "QUEST_ACK quest_id=${questId}: spawned ${peerLabel} started" })\``,
+    `Literal ACK call: \`intercom({ action: "send", to: "${target}", message: "PEER_ACK peer_run_id=${questId}: spawned ${peerLabel} started" })\``,
     "If the ACK send fails or intercom is unavailable, visibly report `ACK_FAILED` in this session and stop; do not continue task work silently.",
-    "After ACK succeeds, continue with the objective and send exactly one `QUEST_FINAL` as the final DoD report. After `QUEST_FINAL`, stop unless the controller explicitly asks a new question or assigns new work.",
+    "After ACK succeeds, continue with the objective and send exactly one `PEER_FINAL` as the final DoD report. After `PEER_FINAL`, stop unless the controller explicitly asks a new question or assigns new work.",
   ].join("\n");
 }
 
@@ -701,24 +732,24 @@ function buildSidequestSpawnPrompt({
   const customDod = normalizeStringArray(request.dod);
 
   return [
-    "# Visible Sidequest Agent Prompt",
+    "# Visible Scout Peer Prompt",
     "",
-    "You are a visible sidequest agent launched in a forked Pi session. If you are reading this prompt, you are the spawned sidequest peer, not the controller session. Identify as the sidequest peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
+    "You are a visible scout peer launched in a clean Pi session. If you are reading this prompt, you are the spawned scout peer, not the controller session. Identify as the scout peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
     "",
     "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
     buildBootProtocolInstructions({
       reportBack,
       parentPeerTarget: request.parentPeerTarget,
       questId,
-      peerLabel: "sidequest",
+      peerLabel: "scout peer",
     }),
     "",
     "## Role",
     role,
     "",
     "## Quest Protocol",
-    `Quest id: ${questId}`,
-    "Message budget: at most QUEST_ACK and QUEST_FINAL unless the controller explicitly asks a clarifying question or assigns new work.",
+    `Peer run id: ${questId}`,
+    "Message budget: at most PEER_ACK and PEER_FINAL unless the controller explicitly asks a clarifying question or assigns new work. Legacy QUEST_ACK / QUEST_FINAL remains controller-compatible but is not preferred.",
     "",
     "## Objective",
     objective,
@@ -745,7 +776,7 @@ function buildSidequestSpawnPrompt({
     markdownList(context.currentFindings),
     "",
     "## Mutation Policy",
-    "You are in the controller’s working tree. This sidequest is read-only for controller-spawned use. Do not edit files, run destructive commands, commit, revert, install dependencies, restart services, or change running model services. If a mutation seems necessary, report the exact proposed mutation back to the controller instead of applying it.",
+    "You are in the controller’s working tree. This scout peer is read-only for controller-spawned use. Do not edit files, run destructive commands, commit, revert, install dependencies, restart services, or change running model services. If a mutation seems necessary, report the exact proposed mutation back to the controller instead of applying it.",
     "",
     "Enforcement level: prompt_contract. This is not a hard sandbox yet.",
     "",
@@ -762,6 +793,7 @@ function buildSidequestSpawnPrompt({
       reportBack,
       parentPeerTarget: request.parentPeerTarget,
       questId,
+      peerLabel: "scout peer",
     }),
     "",
     "## Definition of Done",
@@ -780,8 +812,8 @@ function buildSidequestSpawnPrompt({
     "",
     "## Anti-Goals",
     "- Do not claim completion for the controller.",
-    "- Do not mutate shared-cwd files; editable shared-cwd work belongs to manual `/sidequest`, not `sidequest_spawn`.",
-    "- Do not implement candidate changes here; isolated mutation belongs later in `parallelquest_spawn`.",
+    "- Do not mutate shared-cwd files; editable shared-cwd work belongs to manual `/sidequest` or `/forkpeer`, not `scout_peer_spawn`.",
+    "- Do not implement candidate changes here; isolated mutation belongs later in `candidate_peer_spawn`.",
     "- Do not mutate AK, orchestration state, intercom state, or autoresearch runtime authority.",
   ].join("\n");
 }
@@ -1071,21 +1103,21 @@ function buildParallelquestSpawnPrompt({
   questId: string;
 }): string {
   return [
-    "# Visible Parallelquest Agent Prompt",
+    "# Visible Candidate Peer Prompt",
     "",
-    "You are a visible parallelquest agent launched in a forked Pi session. If you are reading this prompt, you are the spawned parallelquest peer, not the controller session. Identify as the parallelquest peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
+    "You are a visible candidate peer launched in a clean Pi session. If you are reading this prompt, you are the spawned candidate peer, not the controller session. Identify as the candidate peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
     "",
     "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
     buildBootProtocolInstructions({
       reportBack,
       parentPeerTarget: request.parentPeerTarget,
       questId,
-      peerLabel: "parallelquest",
+      peerLabel: "candidate peer",
     }),
     "",
     "## Quest Protocol",
-    `Quest id: ${questId}`,
-    "Message budget: at most QUEST_ACK and QUEST_FINAL unless the controller explicitly asks a clarifying question or assigns new work.",
+    `Peer run id: ${questId}`,
+    "Message budget: at most PEER_ACK and PEER_FINAL unless the controller explicitly asks a clarifying question or assigns new work. Legacy QUEST_ACK / QUEST_FINAL remains controller-compatible but is not preferred.",
     "",
     "## Objective",
     objective,
@@ -1126,7 +1158,7 @@ function buildParallelquestSpawnPrompt({
       reportBack,
       parentPeerTarget: request.parentPeerTarget,
       questId,
-      peerLabel: "parallelquest",
+      peerLabel: "candidate peer",
     }),
     "",
     "## Definition of Done",
@@ -1170,9 +1202,9 @@ function hasExactParentPeerTarget(value: string | undefined): boolean {
   return Boolean(value?.trim());
 }
 
-function missingParentPeerTargetResult(tool: "sidequest_spawn" | "parallelquest_spawn") {
+function missingParentPeerTargetResult(tool: string) {
   return errorToolResult(
-    `${tool} defaults to intercom report-back and requires parentPeerTarget so the quest can report to the exact controller session. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
+    `${tool} defaults to intercom report-back and requires parentPeerTarget so the peer can report to the exact controller session. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
     {
       ok: false,
       tool,
@@ -1186,311 +1218,544 @@ function missingParentPeerTargetResult(tool: "sidequest_spawn" | "parallelquest_
 
 export function createSidequestExtension(options: SidequestOptions = {}) {
   return function sidequestExtension(pi: ExtensionAPI) {
-    pi.registerCommand("sidequest", {
-      description:
-        "Fork the current Pi session into the current Ghostty window when tab attach is available, otherwise open a new Ghostty window",
-      handler: async (args, ctx) => {
-        const prompt = getPrompt(args);
-        if (!prompt) {
-          if (ctx.hasUI) {
-            ctx.ui.notify('Usage: /sidequest "what you want to explore"', "warning");
-          }
-          return;
-        }
-
-        const sessionFile = ctx.sessionManager.getSessionFile();
-        if (!sessionFile) {
-          if (ctx.hasUI) {
-            ctx.ui.notify(
-              "sidequest needs a saved Pi session. Current session looks ephemeral/no-session.",
-              "error",
-            );
-          }
-          return;
-        }
-
-        const launch = await launchSidequestFork({
-          pi,
-          ctx,
-          options,
-          prompt,
-          titlePrompt: prompt,
-          cwd: ctx.cwd,
-          sessionFile,
-        });
-
-        if (!launch.ok) {
-          if (ctx.hasUI) {
-            ctx.ui.notify(`sidequest failed to launch Ghostty: ${launch.failure}`, "error");
-          }
-          return;
-        }
-
+    async function runForkPeerCommand(
+      args: string | undefined,
+      ctx: PiCommandContext,
+      commandName: string,
+      titlePrefix: string,
+    ) {
+      const prompt = getPrompt(args);
+      if (!prompt) {
         if (ctx.hasUI) {
-          const modeLabel =
-            launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
-          const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+          ctx.ui.notify(`Usage: /${commandName} "what you want to explore"`, "warning");
+        }
+        return;
+      }
+
+      const sessionFile = ctx.sessionManager.getSessionFile();
+      if (!sessionFile) {
+        if (ctx.hasUI) {
           ctx.ui.notify(
-            `Opened sidequest in ${modeLabel}: ${summarizePrompt(prompt)}${suffix}`,
-            "info",
+            `${commandName} needs a saved Pi session. Current session looks ephemeral/no-session.`,
+            "error",
           );
         }
-      },
-    });
+        return;
+      }
 
-    pi.registerTool({
-      name: "sidequest_spawn",
-      label: "Sidequest Spawn",
-      description:
-        "Launch a visible read-only sidequest Pi session for same-workspace scouting or review.",
-      promptSnippet:
-        "Use to launch a visible sidequest peer for read-only scouting/review in the same workspace. It returns launch facts only; editable shared-cwd work remains manual /sidequest.",
-      parameters: sidequestSpawnParameters,
-      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-        const request = params as SidequestSpawnRequest;
-        const objective = request.objective?.trim() ?? "";
-        const role = normalizeSidequestRole(request.role);
-        const reportBack = normalizeReportBack(request);
-        const cwd = request.cwd?.trim() || ctx.cwd || process.cwd();
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt,
+        titlePrompt: prompt,
+        titlePrefix,
+        cwd: ctx.cwd,
+        sourceSessionFile: sessionFile,
+      });
 
-        if (!objective) {
-          return errorToolResult("sidequest_spawn requires a non-empty objective.", {
-            ok: false,
-            tool: "sidequest_spawn",
-            role,
-            reportBack,
-            enforcement: "prompt_contract",
-            error: "blank_objective",
-          });
+      if (!launch.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(`${commandName} failed to launch Ghostty: ${launch.failure}`, "error");
         }
+        return;
+      }
 
-        const sessionFile = ctx.sessionManager.getSessionFile();
-        if (!sessionFile) {
-          return errorToolResult(
-            "sidequest_spawn needs a saved Pi session. Current session looks ephemeral/no-session.",
-            {
-              ok: false,
-              tool: "sidequest_spawn",
-              role,
-              reportBack,
-              cwd,
-              enforcement: "prompt_contract",
-              error: "missing_session_file",
-            },
-          );
-        }
+      if (ctx.hasUI) {
+        const modeLabel =
+          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+        ctx.ui.notify(
+          `Opened ${commandName} in ${modeLabel}: ${summarizePrompt(prompt)}${suffix}`,
+          "info",
+        );
+      }
+    }
 
-        if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
-          return missingParentPeerTargetResult("sidequest_spawn");
-        }
+    async function runScoutPeerCommand(args: string | undefined, ctx: PiCommandContext) {
+      const objective = getPrompt(args);
+      if (!objective) {
+        if (ctx.hasUI) ctx.ui.notify('Usage: /scoutpeer "what you want inspected"', "warning");
+        return;
+      }
 
-        const questId = createQuestId("sidequest");
-        const prompt = buildSidequestSpawnPrompt({
-          role,
-          objective,
-          cwd,
-          request,
-          reportBack,
-          questId,
+      const request: SidequestSpawnRequest = {
+        objective,
+        role: "scout",
+        reportBack: "manual",
+      };
+      const questId = createQuestId("scoutpeer");
+      const cwd = ctx.cwd || process.cwd();
+      const prompt = buildSidequestSpawnPrompt({
+        role: "scout",
+        objective,
+        cwd,
+        request,
+        reportBack: "manual",
+        questId,
+      });
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt,
+        titlePrompt: objective,
+        titlePrefix: "Scoutpeer",
+        cwd,
+      });
+
+      if (!launch.ok) {
+        if (ctx.hasUI)
+          ctx.ui.notify(`scoutpeer failed to launch Ghostty: ${launch.failure}`, "error");
+        return;
+      }
+
+      if (ctx.hasUI) {
+        const modeLabel =
+          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+        ctx.ui.notify(
+          `Opened scoutpeer in ${modeLabel}: ${summarizePrompt(objective)}${suffix}`,
+          "info",
+        );
+      }
+    }
+
+    async function runCandidatePeerCommand(args: string | undefined, ctx: PiCommandContext) {
+      const objective = getPrompt(args);
+      if (!objective) {
+        if (ctx.hasUI)
+          ctx.ui.notify('Usage: /candidatepeer "what candidate change to try"', "warning");
+        return;
+      }
+
+      const parentCwd = ctx.cwd || process.cwd();
+      const request: ParallelquestSpawnRequest = { objective, reportBack: "manual" };
+      const env = options.env ?? process.env;
+      const pathExists = options.pathExists ?? existsSync;
+      const execRunner: ExecRunner =
+        options.exec ??
+        ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
+      const worktree = await prepareParallelquestWorktree({
+        execRunner,
+        pathExists,
+        env,
+        request,
+        parentCwd,
+        objective,
+      });
+
+      if (!worktree.ok) {
+        if (ctx.hasUI) ctx.ui.notify(`candidatepeer failed: ${worktree.error}`, "error");
+        return;
+      }
+
+      const questId = createQuestId("candidatepeer");
+      const prompt = buildParallelquestSpawnPrompt({
+        objective,
+        request,
+        worktree,
+        reportBack: "manual",
+        questId,
+      });
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt,
+        titlePrompt: objective,
+        titlePrefix: "Candidatepeer",
+        cwd: worktree.worktreePath,
+      });
+
+      if (!launch.ok) {
+        if (ctx.hasUI)
+          ctx.ui.notify(`candidatepeer failed to launch Ghostty: ${launch.failure}`, "error");
+        return;
+      }
+
+      if (ctx.hasUI) {
+        const modeLabel =
+          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+        ctx.ui.notify(
+          `Opened candidatepeer in ${modeLabel}: ${summarizePrompt(objective)}${suffix}`,
+          "info",
+        );
+      }
+    }
+
+    async function executeForkPeerSpawn(toolName: string, params: unknown, ctx: PiToolContext) {
+      const request = params as ForkPeerSpawnRequest;
+      const objective = request.objective?.trim() ?? "";
+      const cwd = request.cwd?.trim() || ctx.cwd || process.cwd();
+
+      if (!objective) {
+        return errorToolResult(`${toolName} requires a non-empty objective.`, {
+          ok: false,
+          tool: toolName,
+          sessionMode: "fork",
+          error: "blank_objective",
         });
-        const launch = await launchSidequestFork({
-          pi,
-          ctx,
-          options,
-          prompt,
-          titlePrompt: objective,
-          cwd,
-          sessionFile,
-        });
+      }
 
-        if (!launch.ok) {
-          return errorToolResult(`sidequest_spawn failed to launch Ghostty: ${launch.failure}`, {
+      const sessionFile = ctx.sessionManager.getSessionFile();
+      if (!sessionFile) {
+        return errorToolResult(
+          `${toolName} needs a saved Pi session because fork peers inherit the current conversation context.`,
+          {
             ok: false,
-            tool: "sidequest_spawn",
-            launchMode: launch.launchMode,
-            cwd: launch.cwd,
-            sessionFile: launch.sessionFile,
-            titleBase: launch.titleBase,
-            role,
-            enforcement: "prompt_contract",
-            promptSummary: launch.promptSummary,
-            reportBack,
-            questId,
-            expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
-            launchNote: launch.launchNote,
-            error: "launch_failed",
-          });
-        }
+            tool: toolName,
+            sessionMode: "fork",
+            cwd,
+            error: "missing_session_file",
+          },
+        );
+      }
 
-        const details = {
-          ok: true,
-          tool: "sidequest_spawn",
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt: objective,
+        titlePrompt: objective,
+        titlePrefix: "Forkpeer",
+        cwd,
+        sourceSessionFile: sessionFile,
+      });
+
+      if (!launch.ok) {
+        return errorToolResult(`${toolName} failed to launch Ghostty: ${launch.failure}`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "fork_peer_spawn",
           launchMode: launch.launchMode,
+          sessionMode: launch.sessionMode,
           cwd: launch.cwd,
-          sessionFile: launch.sessionFile,
+          sourceSessionFile: launch.sourceSessionFile,
+          titleBase: launch.titleBase,
+          promptSummary: launch.promptSummary,
+          launchNote: launch.launchNote,
+          error: "launch_failed",
+        });
+      }
+
+      return successToolResult(
+        `Launched ${toolName} in ${launch.launchMode}: ${launch.promptSummary}\nSession mode: forked current context`,
+        {
+          ok: true,
+          tool: toolName,
+          canonicalTool: "fork_peer_spawn",
+          launchMode: launch.launchMode,
+          sessionMode: launch.sessionMode,
+          cwd: launch.cwd,
+          sourceSessionFile: launch.sourceSessionFile,
+          titleBase: launch.titleBase,
+          promptSummary: launch.promptSummary,
+          nextStep:
+            "Watch the visible fork peer tab/window; it inherits the current Pi conversation context.",
+          ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
+        },
+      );
+    }
+
+    async function executeScoutPeerSpawn(toolName: string, params: unknown, ctx: PiToolContext) {
+      const request = params as SidequestSpawnRequest;
+      const objective = request.objective?.trim() ?? "";
+      const role = normalizeSidequestRole(request.role);
+      const reportBack = normalizeReportBack(request);
+      const cwd = request.cwd?.trim() || ctx.cwd || process.cwd();
+
+      if (!objective) {
+        return errorToolResult(`${toolName} requires a non-empty objective.`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "scout_peer_spawn",
+          role,
+          reportBack,
+          enforcement: "prompt_contract",
+          error: "blank_objective",
+        });
+      }
+
+      if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
+        return missingParentPeerTargetResult(toolName);
+      }
+
+      const questId = createQuestId("scoutpeer");
+      const prompt = buildSidequestSpawnPrompt({
+        role,
+        objective,
+        cwd,
+        request,
+        reportBack,
+        questId,
+      });
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt,
+        titlePrompt: objective,
+        titlePrefix: "Scoutpeer",
+        cwd,
+      });
+
+      if (!launch.ok) {
+        return errorToolResult(`${toolName} failed to launch Ghostty: ${launch.failure}`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "scout_peer_spawn",
+          launchMode: launch.launchMode,
+          sessionMode: launch.sessionMode,
+          cwd: launch.cwd,
+          sourceSessionFile: launch.sourceSessionFile,
           titleBase: launch.titleBase,
           role,
           enforcement: "prompt_contract",
           promptSummary: launch.promptSummary,
           reportBack,
+          peerRunId: questId,
           questId,
-          expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
-          nextStep:
-            "Watch the visible sidequest tab/window; if intercom was requested, wait for or inspect the peer report.",
-          ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
-        };
-
-        return successToolResult(
-          `Launched sidequest_spawn in ${launch.launchMode}: ${launch.promptSummary}\nQuest id: ${questId}\nExpected intercom messages: QUEST_ACK, QUEST_FINAL\nNext supervision step: intercom({ action: "quest_watch", questId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
-          details,
-        );
-      },
-    });
-
-    pi.registerTool({
-      name: "parallelquest_spawn",
-      label: "Parallelquest Spawn",
-      description:
-        "Launch a visible parallelquest Pi session in an isolated git worktree for bounded candidate mutation.",
-      promptSnippet:
-        "Use to create an isolated git worktree and launch a visible parallelquest peer for bounded candidate mutation. It does not merge, push, open PRs, mutate AK, or claim promotion.",
-      parameters: parallelquestSpawnParameters,
-      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-        const request = params as ParallelquestSpawnRequest;
-        const objective = request.objective?.trim() ?? "";
-        const reportBack = normalizeParallelquestReportBack(request);
-        const parentCwd = request.cwd?.trim() || ctx.cwd || process.cwd();
-        const env = options.env ?? process.env;
-        const pathExists = options.pathExists ?? existsSync;
-        const execRunner: ExecRunner =
-          options.exec ??
-          ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
-
-        if (!objective) {
-          return errorToolResult("parallelquest_spawn requires a non-empty objective.", {
-            ok: false,
-            tool: "parallelquest_spawn",
-            reportBack,
-            error: "blank_objective",
-          });
-        }
-
-        const sessionFile = ctx.sessionManager.getSessionFile();
-        if (!sessionFile) {
-          return errorToolResult(
-            "parallelquest_spawn needs a saved Pi session. Current session looks ephemeral/no-session.",
-            {
-              ok: false,
-              tool: "parallelquest_spawn",
-              reportBack,
-              parentCwd,
-              error: "missing_session_file",
-            },
-          );
-        }
-
-        if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
-          return missingParentPeerTargetResult("parallelquest_spawn");
-        }
-
-        const worktree = await prepareParallelquestWorktree({
-          execRunner,
-          pathExists,
-          env,
-          request,
-          parentCwd,
-          objective,
+          expectedMessages: ["PEER_ACK", "PEER_FINAL"],
+          launchNote: launch.launchNote,
+          error: "launch_failed",
         });
+      }
 
-        if (!worktree.ok) {
-          return errorToolResult(`parallelquest_spawn failed: ${worktree.error}`, {
-            ok: false,
-            tool: "parallelquest_spawn",
-            reportBack,
-            parentCwd: worktree.parentCwd,
-            repoRoot: worktree.repoRoot,
-            worktreePath: worktree.worktreePath,
-            branchName: worktree.branchName,
-            baseRef: worktree.baseRef,
-            parentDirty: worktree.parentDirty,
-            parentDirtyWarning: worktree.parentDirtyWarning,
-            error: "worktree_prepare_failed",
-            reason: worktree.error,
-          });
-        }
+      const details = {
+        ok: true,
+        tool: toolName,
+        canonicalTool: "scout_peer_spawn",
+        launchMode: launch.launchMode,
+        sessionMode: launch.sessionMode,
+        cwd: launch.cwd,
+        sourceSessionFile: launch.sourceSessionFile,
+        titleBase: launch.titleBase,
+        role,
+        enforcement: "prompt_contract",
+        promptSummary: launch.promptSummary,
+        reportBack,
+        peerRunId: questId,
+        questId,
+        expectedMessages: ["PEER_ACK", "PEER_FINAL"],
+        nextStep:
+          "Watch the visible scout peer tab/window; if intercom was requested, wait for or inspect the peer report.",
+        ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
+      };
 
-        const questId = createQuestId("parallelquest");
-        const prompt = buildParallelquestSpawnPrompt({
-          objective,
-          request,
-          worktree,
+      return successToolResult(
+        `Launched ${toolName} in ${launch.launchMode}: ${launch.promptSummary}\nPeer run id: ${questId}\nExpected intercom messages: PEER_ACK, PEER_FINAL\nNext supervision step: intercom({ action: "peer_watch", peerRunId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
+        details,
+      );
+    }
+
+    async function executeCandidatePeerSpawn(
+      toolName: string,
+      params: unknown,
+      ctx: PiToolContext,
+    ) {
+      const request = params as ParallelquestSpawnRequest;
+      const objective = request.objective?.trim() ?? "";
+      const reportBack = normalizeParallelquestReportBack(request);
+      const parentCwd = request.cwd?.trim() || ctx.cwd || process.cwd();
+      const env = options.env ?? process.env;
+      const pathExists = options.pathExists ?? existsSync;
+      const execRunner: ExecRunner =
+        options.exec ??
+        ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
+
+      if (!objective) {
+        return errorToolResult(`${toolName} requires a non-empty objective.`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "candidate_peer_spawn",
           reportBack,
-          questId,
+          error: "blank_objective",
         });
-        const launch = await launchSidequestFork({
-          pi,
-          ctx,
-          options,
-          prompt,
-          titlePrompt: objective,
-          titlePrefix: "Parallelquest",
-          cwd: worktree.worktreePath,
-          sessionFile,
+      }
+
+      if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
+        return missingParentPeerTargetResult(toolName);
+      }
+
+      const worktree = await prepareParallelquestWorktree({
+        execRunner,
+        pathExists,
+        env,
+        request,
+        parentCwd,
+        objective,
+      });
+
+      if (!worktree.ok) {
+        return errorToolResult(`${toolName} failed: ${worktree.error}`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "candidate_peer_spawn",
+          reportBack,
+          parentCwd: worktree.parentCwd,
+          repoRoot: worktree.repoRoot,
+          worktreePath: worktree.worktreePath,
+          branchName: worktree.branchName,
+          baseRef: worktree.baseRef,
+          parentDirty: worktree.parentDirty,
+          parentDirtyWarning: worktree.parentDirtyWarning,
+          error: "worktree_prepare_failed",
+          reason: worktree.error,
         });
+      }
 
-        if (!launch.ok) {
-          return errorToolResult(
-            `parallelquest_spawn failed to launch Ghostty: ${launch.failure}`,
-            {
-              ok: false,
-              tool: "parallelquest_spawn",
-              launchMode: launch.launchMode,
-              parentCwd: worktree.parentCwd,
-              worktreePath: worktree.worktreePath,
-              branchName: worktree.branchName,
-              baseRef: worktree.baseRef,
-              parentDirty: worktree.parentDirty,
-              parentDirtyWarning: worktree.parentDirtyWarning,
-              sessionFile: launch.sessionFile,
-              titleBase: launch.titleBase,
-              promptSummary: launch.promptSummary,
-              reportBack,
-              questId,
-              expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
-              launchNote: launch.launchNote,
-              error: "launch_failed",
-            },
-          );
-        }
+      const questId = createQuestId("candidatepeer");
+      const prompt = buildParallelquestSpawnPrompt({
+        objective,
+        request,
+        worktree,
+        reportBack,
+        questId,
+      });
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt,
+        titlePrompt: objective,
+        titlePrefix: "Candidatepeer",
+        cwd: worktree.worktreePath,
+      });
 
-        const details = {
-          ok: true,
-          tool: "parallelquest_spawn",
+      if (!launch.ok) {
+        return errorToolResult(`${toolName} failed to launch Ghostty: ${launch.failure}`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "candidate_peer_spawn",
           launchMode: launch.launchMode,
           parentCwd: worktree.parentCwd,
           worktreePath: worktree.worktreePath,
           branchName: worktree.branchName,
           baseRef: worktree.baseRef,
           parentDirty: worktree.parentDirty,
-          ...(worktree.parentDirtyWarning
-            ? { parentDirtyWarning: worktree.parentDirtyWarning }
-            : {}),
-          reusedExisting: worktree.reusedExisting,
-          sessionFile: launch.sessionFile,
+          parentDirtyWarning: worktree.parentDirtyWarning,
+          sessionMode: launch.sessionMode,
+          sourceSessionFile: launch.sourceSessionFile,
           titleBase: launch.titleBase,
           promptSummary: launch.promptSummary,
           reportBack,
+          peerRunId: questId,
           questId,
-          expectedMessages: ["QUEST_ACK", "QUEST_FINAL"],
-          nextStep: "Inspect the reported branch/worktree before cherry-pick or merge.",
-          ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
-        };
+          expectedMessages: ["PEER_ACK", "PEER_FINAL"],
+          launchNote: launch.launchNote,
+          error: "launch_failed",
+        });
+      }
 
-        return successToolResult(
-          `Launched parallelquest_spawn in ${launch.launchMode}: ${launch.promptSummary}\nQuest id: ${questId}\nExpected intercom messages: QUEST_ACK, QUEST_FINAL\nNext supervision step: intercom({ action: "quest_watch", questId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
-          details,
-        );
-      },
+      const details = {
+        ok: true,
+        tool: toolName,
+        canonicalTool: "candidate_peer_spawn",
+        launchMode: launch.launchMode,
+        parentCwd: worktree.parentCwd,
+        worktreePath: worktree.worktreePath,
+        branchName: worktree.branchName,
+        baseRef: worktree.baseRef,
+        parentDirty: worktree.parentDirty,
+        ...(worktree.parentDirtyWarning ? { parentDirtyWarning: worktree.parentDirtyWarning } : {}),
+        reusedExisting: worktree.reusedExisting,
+        sessionMode: launch.sessionMode,
+        sourceSessionFile: launch.sourceSessionFile,
+        titleBase: launch.titleBase,
+        promptSummary: launch.promptSummary,
+        reportBack,
+        peerRunId: questId,
+        questId,
+        expectedMessages: ["PEER_ACK", "PEER_FINAL"],
+        nextStep: "Inspect the reported branch/worktree before cherry-pick or merge.",
+        ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
+      };
+
+      return successToolResult(
+        `Launched ${toolName} in ${launch.launchMode}: ${launch.promptSummary}\nPeer run id: ${questId}\nExpected intercom messages: PEER_ACK, PEER_FINAL\nNext supervision step: intercom({ action: "peer_watch", peerRunId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
+        details,
+      );
+    }
+
+    pi.registerCommand("sidequest", {
+      description:
+        "Legacy alias for /forkpeer: fork the current Pi session into a visible Ghostty peer",
+      handler: (args, ctx) => runForkPeerCommand(args, ctx, "sidequest", "Sidequest"),
+    });
+
+    pi.registerCommand("forkpeer", {
+      description: "Fork the current Pi session/context into a visible Ghostty peer",
+      handler: (args, ctx) => runForkPeerCommand(args, ctx, "forkpeer", "Forkpeer"),
+    });
+
+    pi.registerCommand("scoutpeer", {
+      description: "Launch a clean visible read-only scout/review peer in the current workspace",
+      handler: runScoutPeerCommand,
+    });
+
+    pi.registerCommand("candidatepeer", {
+      description: "Launch a clean visible candidate peer in an isolated git worktree",
+      handler: runCandidatePeerCommand,
+    });
+
+    pi.registerTool({
+      name: "fork_peer_spawn",
+      label: "Fork Peer Spawn",
+      description: "Launch a visible forked-context peer Pi session.",
+      promptSnippet:
+        "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /forkpeer and legacy /sidequest.",
+      parameters: forkPeerSpawnParameters,
+      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+        executeForkPeerSpawn("fork_peer_spawn", params, ctx),
+    });
+
+    pi.registerTool({
+      name: "sidequest_spawn",
+      label: "Sidequest Spawn",
+      description:
+        "Legacy alias for fork_peer_spawn: launch a visible forked-context peer Pi session.",
+      promptSnippet:
+        "Compatibility alias for fork_peer_spawn. Use when you intentionally want the spawned peer to inherit the current Pi conversation context.",
+      parameters: forkPeerSpawnParameters,
+      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+        executeForkPeerSpawn("sidequest_spawn", params, ctx),
+    });
+
+    pi.registerTool({
+      name: "scout_peer_spawn",
+      label: "Scout Peer Spawn",
+      description: "Launch a clean visible read-only scout/review peer Pi session.",
+      promptSnippet:
+        "Use to launch a clean visible scout/review peer in the same workspace. It does not inherit the controller conversation and returns launch facts only.",
+      parameters: scoutPeerSpawnParameters,
+      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+        executeScoutPeerSpawn("scout_peer_spawn", params, ctx),
+    });
+
+    pi.registerTool({
+      name: "candidate_peer_spawn",
+      label: "Candidate Peer Spawn",
+      description:
+        "Launch a clean visible candidate peer Pi session in an isolated git worktree for bounded mutation.",
+      promptSnippet:
+        "Use to create an isolated git worktree and launch a clean visible candidate peer for bounded mutation. It does not merge, push, open PRs, mutate AK, or claim promotion.",
+      parameters: parallelquestSpawnParameters,
+      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+        executeCandidatePeerSpawn("candidate_peer_spawn", params, ctx),
+    });
+
+    pi.registerTool({
+      name: "parallelquest_spawn",
+      label: "Parallelquest Spawn",
+      description:
+        "Compatibility alias for candidate_peer_spawn: launch a clean visible candidate peer in an isolated git worktree.",
+      promptSnippet:
+        "Compatibility alias for candidate_peer_spawn. Use candidate_peer_spawn for the canonical alpha API.",
+      parameters: parallelquestSpawnParameters,
+      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+        executeCandidatePeerSpawn("parallelquest_spawn", params, ctx),
     });
   };
 }
