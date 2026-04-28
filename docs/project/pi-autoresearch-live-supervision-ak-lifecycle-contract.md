@@ -86,6 +86,8 @@ It is about adding the first orchestrator-owned **live supervision layer** above
 | Durable setup / next-hypothesis / finalize procedures | Prompt Vault | These remain governed decision procedures, not supervision timers |
 | Generic long-lived execution/session lifecycle patterns | ASC | Workstream D must not recreate a second generic session runtime under a new name |
 | In-memory active supervision sessions while the orchestrator extension is loaded | `pi-society-orchestrator` extension runtime | Useful live control-plane state only; not durable campaign truth |
+| Optional visible peer launch | `packages/pi-little-helpers` | `pi-autoresearch` may recommend exact peer calls; orchestrator supervision must not auto-spawn or choreograph peers |
+| Peer/intercom report-back | `packages/pi-peer-messaging` plus the controller that verifies findings | Communication only; raw `PEER_ACK`/`PEER_FINAL` or legacy `QUEST_*` delivery is not AK evidence or completion truth |
 
 Interpretation rule:
 
@@ -550,6 +552,10 @@ Those remain owned by the package runtime and explicit package surfaces.
 Task completion in v1 is about package-local verified completion only.
 It does not imply pushes, PRs, merges, or review completion.
 
+## 11. Peer-assisted lane fence
+
+`pi-autoresearch` may recommend exact visible peer calls such as `scout_peer_spawn(...)`, `candidate_peer_spawn(...)`, or `fork_peer_spawn(...)`, but orchestrator live supervision must not launch those peers automatically, supervise them as a hidden review choreographer, or treat their intercom messages as durable truth. `PEER_ACK` / `PEER_FINAL` and legacy `QUEST_ACK` / `QUEST_FINAL` messages are communication snapshots only. If a peer report should affect AK evidence, the controller must verify the finding and then record a bounded summary through the appropriate evidence surface.
+
 ---
 
 ## Verification contract for tasks 1544–1546
@@ -603,6 +609,8 @@ Workstream D must not silently grow into any of the following:
 - automatic task failure for every blocked condition
 - git mutation, branch cleanup, remote push, PR creation, or merge automation
 - a generic campaign-supervision framework for unrelated domains
+- automatic visible peer spawning or peer-review choreography
+- treating peer/intercom messages as AK evidence without controller verification
 - a second durable control plane parallel to AK + package artifacts + Prompt Vault
 
 ---
