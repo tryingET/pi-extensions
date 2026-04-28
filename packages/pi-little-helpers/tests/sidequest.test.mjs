@@ -381,7 +381,7 @@ test("quest tools register as LLM-callable tools while manual sidequest stays re
   assert.ok(tools.has("sidequest_spawn"));
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
-  assert.ok(tools.has("parallelquest_spawn"));
+  assert.equal(tools.has("parallelquest_spawn"), false);
 });
 
 test("sidequest_spawn remains a forked-context peer alias", async () => {
@@ -746,7 +746,7 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
   assert.equal(result.details.reportBack, "intercom");
 });
 
-function createParallelquestExecStub({ repoRoot = "/repo", dirty = "" } = {}) {
+function createCandidatePeerExecStub({ repoRoot = "/repo", dirty = "" } = {}) {
   const calls = [];
 
   return {
@@ -780,14 +780,14 @@ function createParallelquestExecStub({ repoRoot = "/repo", dirty = "" } = {}) {
 }
 
 function withTempDir(fn) {
-  const dir = mkdtempSync(`${tmpdir()}/pi-parallelquest-test-`);
+  const dir = mkdtempSync(`${tmpdir()}/pi-candidatepeer-test-`);
   return Promise.resolve()
     .then(() => fn(dir))
     .finally(() => rmSync(dir, { recursive: true, force: true }));
 }
 
-test("parallelquest_spawn rejects a blank objective before git or Ghostty", async () => {
-  const execStub = createParallelquestExecStub();
+test("candidate_peer_spawn rejects a blank objective before git or Ghostty", async () => {
+  const execStub = createCandidatePeerExecStub();
   const extension = createSidequestExtension({
     env: {
       TERM_PROGRAM: "ghostty",
@@ -801,9 +801,9 @@ test("parallelquest_spawn rejects a blank objective before git or Ghostty", asyn
     },
   });
   const { tools } = registerExtension(extension);
-  const parallelquestSpawn = tools.get("parallelquest_spawn");
+  const candidatePeerSpawn = tools.get("candidate_peer_spawn");
 
-  const blankResult = await parallelquestSpawn.execute(
+  const blankResult = await candidatePeerSpawn.execute(
     "tool-call-1",
     { objective: "  " },
     undefined,
@@ -816,8 +816,8 @@ test("parallelquest_spawn rejects a blank objective before git or Ghostty", asyn
   assert.equal(execStub.calls.length, 0);
 });
 
-test("parallelquest_spawn requires exact parentPeerTarget for default intercom report-back", async () => {
-  const execStub = createParallelquestExecStub();
+test("candidate_peer_spawn requires exact parentPeerTarget for default intercom report-back", async () => {
+  const execStub = createCandidatePeerExecStub();
   const extension = createSidequestExtension({
     env: {
       TERM_PROGRAM: "ghostty",
@@ -832,7 +832,7 @@ test("parallelquest_spawn requires exact parentPeerTarget for default intercom r
   });
   const { tools } = registerExtension(extension);
   const result = await tools
-    .get("parallelquest_spawn")
+    .get("candidate_peer_spawn")
     .execute(
       "tool-call-1",
       { objective: "try without orphaning" },
@@ -846,9 +846,9 @@ test("parallelquest_spawn requires exact parentPeerTarget for default intercom r
   assert.equal(result.details.error, "missing_parent_peer_target");
 });
 
-test("parallelquest_spawn fails closed when requireCleanParent sees dirty parent state", async () => {
+test("candidate_peer_spawn fails closed when requireCleanParent sees dirty parent state", async () => {
   await withTempDir(async (stateHome) => {
-    const execStub = createParallelquestExecStub({ dirty: " M src/file.ts\n" });
+    const execStub = createCandidatePeerExecStub({ dirty: " M src/file.ts\n" });
     const extension = createSidequestExtension({
       env: {
         TERM_PROGRAM: "ghostty",
@@ -863,7 +863,7 @@ test("parallelquest_spawn fails closed when requireCleanParent sees dirty parent
       },
     });
     const { tools } = registerExtension(extension);
-    const result = await tools.get("parallelquest_spawn").execute(
+    const result = await tools.get("candidate_peer_spawn").execute(
       "tool-call-1",
       {
         objective: "try a bounded fix",
@@ -886,8 +886,8 @@ test("parallelquest_spawn fails closed when requireCleanParent sees dirty parent
   });
 });
 
-test("parallelquest_spawn rejects worktree paths inside the parent checkout", async () => {
-  const execStub = createParallelquestExecStub();
+test("candidate_peer_spawn rejects worktree paths inside the parent checkout", async () => {
+  const execStub = createCandidatePeerExecStub();
   const extension = createSidequestExtension({
     env: {
       TERM_PROGRAM: "ghostty",
@@ -901,7 +901,7 @@ test("parallelquest_spawn rejects worktree paths inside the parent checkout", as
     },
   });
   const { tools } = registerExtension(extension);
-  const result = await tools.get("parallelquest_spawn").execute(
+  const result = await tools.get("candidate_peer_spawn").execute(
     "tool-call-1",
     {
       objective: "try a bounded fix",
@@ -919,9 +919,9 @@ test("parallelquest_spawn rejects worktree paths inside the parent checkout", as
   assert.match(result.details.reason, /must not be inside the parent checkout/);
 });
 
-test("parallelquest_spawn creates an isolated worktree, launches via shared Ghostty path, and prompts boundaries", async () => {
+test("candidate_peer_spawn creates an isolated worktree, launches via shared Ghostty path, and prompts boundaries", async () => {
   await withTempDir(async (stateHome) => {
-    const execStub = createParallelquestExecStub({ dirty: " M pending-parent-change.ts\n" });
+    const execStub = createCandidatePeerExecStub({ dirty: " M pending-parent-change.ts\n" });
     const extension = createSidequestExtension({
       env: {
         TERM_PROGRAM: "ghostty",
@@ -937,13 +937,13 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
       },
     });
     const { tools } = registerExtension(extension, { thinkingLevel: "high" });
-    const result = await tools.get("parallelquest_spawn").execute(
+    const result = await tools.get("candidate_peer_spawn").execute(
       "tool-call-1",
       {
         objective: "Try bounded runner guard",
         cwd: "/repo",
         parentPeerTarget: "controller-session-123",
-        branchName: "parallelquest/Runner Guard!",
+        branchName: "candidatepeer/Runner Guard!",
         workspaceName: "../Runner Guard Workspace",
         filesInScope: ["src/runner.ts", "tests/runner.test.mjs"],
         offLimits: [".env", "parent checkout"],
@@ -964,7 +964,7 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
       "add",
       result.details.worktreePath,
     ]);
-    assert.deepEqual(worktreeCall.args.slice(5), ["-b", "parallelquest/runner-guard", "HEAD"]);
+    assert.deepEqual(worktreeCall.args.slice(5), ["-b", "candidatepeer/runner-guard", "HEAD"]);
     assert.ok(result.details.worktreePath.startsWith(`${stateHome}/pi-quests/worktrees/`));
     assert.ok(result.details.worktreePath.endsWith("/runner-guard-workspace"));
 
@@ -998,7 +998,7 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     );
     assert.match(prompt, /Parent\/controller cwd: \/repo/);
     assert.match(prompt, new RegExp(`Your worktree cwd: ${result.details.worktreePath}`));
-    assert.match(prompt, /Branch: parallelquest\/runner-guard/);
+    assert.match(prompt, /Branch: candidatepeer\/runner-guard/);
     assert.match(prompt, /Base: HEAD/);
     assert.match(prompt, /Dirty-parent warning:/);
     assert.match(prompt, /All mutations must stay inside your worktree/);
@@ -1024,10 +1024,10 @@ test("parallelquest_spawn creates an isolated worktree, launches via shared Ghos
     assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
 
     assert.equal(result.details.ok, true);
-    assert.equal(result.details.tool, "parallelquest_spawn");
+    assert.equal(result.details.tool, "candidate_peer_spawn");
     assert.equal(result.details.launchMode, "tab");
     assert.equal(result.details.parentCwd, "/repo");
-    assert.equal(result.details.branchName, "parallelquest/runner-guard");
+    assert.equal(result.details.branchName, "candidatepeer/runner-guard");
     assert.equal(result.details.baseRef, "HEAD");
     assert.equal(result.details.reportBack, "intercom");
     assert.match(result.details.peerRunId, /^candidatepeer-/);

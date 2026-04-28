@@ -21,7 +21,7 @@ type LaunchMode = "tab" | "window";
 type QuestSessionMode = "fork" | "clean";
 type SidequestRole = "scout" | "reviewer";
 type SidequestReportBack = "intercom" | "manual" | "none";
-type ParallelquestReportBack = SidequestReportBack;
+type CandidatePeerReportBack = SidequestReportBack;
 type ForkPeerSpawnRequest = {
   objective?: string;
   cwd?: string;
@@ -84,7 +84,7 @@ type SidequestSpawnRequest = {
   dod?: string[];
 };
 
-type ParallelquestSpawnRequest = {
+type CandidatePeerSpawnRequest = {
   objective?: string;
   cwd?: string;
   baseRef?: string;
@@ -95,7 +95,7 @@ type ParallelquestSpawnRequest = {
   offLimits?: string[];
   constraints?: string[];
   dod?: string[];
-  reportBack?: ParallelquestReportBack;
+  reportBack?: CandidatePeerReportBack;
   parentPeerTarget?: string;
   requireCleanParent?: boolean;
   reuseExisting?: boolean;
@@ -212,16 +212,16 @@ const scoutPeerSpawnParameters = asPiToolParameters(
   }),
 );
 
-const parallelquestSpawnParameters = asPiToolParameters(
+const candidatePeerSpawnParameters = asPiToolParameters(
   Type.Object({
     objective: Type.String({ description: "Required non-empty candidate mutation objective." }),
     cwd: Type.Optional(Type.String({ description: "Parent/controller cwd. Defaults to ctx.cwd." })),
     baseRef: Type.Optional(Type.String({ description: "Git base ref. Defaults to HEAD." })),
     branchName: Type.Optional(
-      Type.String({ description: "Candidate branch name. Defaults to parallelquest/<slug>." }),
+      Type.String({ description: "Candidate branch name. Defaults to candidatepeer/<slug>." }),
     ),
     workspaceRoot: Type.Optional(
-      Type.String({ description: "Root directory for generated parallelquest worktrees." }),
+      Type.String({ description: "Root directory for generated candidate peer worktrees." }),
     ),
     workspaceName: Type.Optional(Type.String({ description: "Worktree directory name." })),
     filesInScope: Type.Optional(Type.Array(Type.String())),
@@ -614,9 +614,7 @@ function normalizeSidequestRole(value: unknown): SidequestRole {
   return value === "reviewer" ? "reviewer" : "scout";
 }
 
-function createQuestId(
-  prefix: "sidequest" | "parallelquest" | "scoutpeer" | "candidatepeer",
-): string {
+function createQuestId(prefix: "sidequest" | "scoutpeer" | "candidatepeer"): string {
   return `${prefix}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
 }
 
@@ -828,13 +826,13 @@ function slugify(value: string, fallback: string): string {
 }
 
 function sanitizeBranchName(value: string | undefined, objective: string): string {
-  const raw = value?.trim() || `parallelquest/${slugify(objective, "candidate")}`;
+  const raw = value?.trim() || `candidatepeer/${slugify(objective, "candidate")}`;
   const segments = raw
     .split(/[\\/]+/)
     .map((segment) => slugify(segment, ""))
     .filter((segment) => segment && segment !== "." && segment !== "..");
   const candidate = segments.join("/");
-  return candidate || `parallelquest/${slugify(objective, "candidate")}`;
+  return candidate || `candidatepeer/${slugify(objective, "candidate")}`;
 }
 
 function sanitizeWorkspaceName(value: string | undefined, branchName: string): string {
@@ -859,7 +857,7 @@ async function runGit(execRunner: ExecRunner, cwd: string, args: string[]): Prom
   return runGhosttyLaunch(execRunner, "git", ["-C", cwd, ...args], cwd);
 }
 
-async function prepareParallelquestWorktree({
+async function prepareCandidatePeerWorktree({
   execRunner,
   pathExists,
   env,
@@ -870,7 +868,7 @@ async function prepareParallelquestWorktree({
   execRunner: ExecRunner;
   pathExists: (path: string) => boolean;
   env: NodeJS.ProcessEnv;
-  request: ParallelquestSpawnRequest;
+  request: CandidatePeerSpawnRequest;
   parentCwd: string;
   objective: string;
 }): Promise<WorktreePrepareResult> {
@@ -900,7 +898,7 @@ async function prepareParallelquestWorktree({
   if (isPathInside(repoRoot, worktreePath) || worktreePath === repoRoot) {
     return {
       ok: false,
-      error: "parallelquest worktree path must not be inside the parent checkout",
+      error: "candidate peer worktree path must not be inside the parent checkout",
       parentCwd,
       repoRoot,
       worktreePath,
@@ -913,7 +911,7 @@ async function prepareParallelquestWorktree({
   if (isPathInside(gitDir, worktreePath) || worktreePath === gitDir) {
     return {
       ok: false,
-      error: "parallelquest worktree path must not be inside .git",
+      error: "candidate peer worktree path must not be inside .git",
       parentCwd,
       repoRoot,
       worktreePath,
@@ -925,7 +923,7 @@ async function prepareParallelquestWorktree({
   if (!isPathInside(workspaceRoot, worktreePath) && worktreePath !== workspaceRoot) {
     return {
       ok: false,
-      error: "parallelquest worktree path escaped workspaceRoot",
+      error: "candidate peer worktree path escaped workspaceRoot",
       parentCwd,
       repoRoot,
       worktreePath,
@@ -970,7 +968,7 @@ async function prepareParallelquestWorktree({
       return {
         ok: false,
         error:
-          "parallelquest worktree path already exists; pass reuseExisting only for a verified intended worktree",
+          "candidate peer worktree path already exists; pass reuseExisting only for a verified intended worktree",
         parentCwd,
         repoRoot,
         worktreePath,
@@ -1001,7 +999,7 @@ async function prepareParallelquestWorktree({
     ) {
       return {
         ok: false,
-        error: "existing parallelquest path is not the requested verified git worktree",
+        error: "existing candidate peer path is not the requested verified git worktree",
         parentCwd,
         repoRoot,
         worktreePath,
@@ -1076,9 +1074,9 @@ async function prepareParallelquestWorktree({
   };
 }
 
-function normalizeParallelquestReportBack(
-  request: ParallelquestSpawnRequest,
-): ParallelquestReportBack {
+function normalizeCandidatePeerReportBack(
+  request: CandidatePeerSpawnRequest,
+): CandidatePeerReportBack {
   if (
     request.reportBack === "intercom" ||
     request.reportBack === "manual" ||
@@ -1089,7 +1087,7 @@ function normalizeParallelquestReportBack(
   return "intercom";
 }
 
-function buildParallelquestSpawnPrompt({
+function buildCandidatePeerSpawnPrompt({
   objective,
   request,
   worktree,
@@ -1097,9 +1095,9 @@ function buildParallelquestSpawnPrompt({
   questId,
 }: {
   objective: string;
-  request: ParallelquestSpawnRequest;
+  request: CandidatePeerSpawnRequest;
   worktree: WorktreePrepareSuccess;
-  reportBack: ParallelquestReportBack;
+  reportBack: CandidatePeerReportBack;
   questId: string;
 }): string {
   return [
@@ -1330,13 +1328,13 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       const parentCwd = ctx.cwd || process.cwd();
-      const request: ParallelquestSpawnRequest = { objective, reportBack: "manual" };
+      const request: CandidatePeerSpawnRequest = { objective, reportBack: "manual" };
       const env = options.env ?? process.env;
       const pathExists = options.pathExists ?? existsSync;
       const execRunner: ExecRunner =
         options.exec ??
         ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
-      const worktree = await prepareParallelquestWorktree({
+      const worktree = await prepareCandidatePeerWorktree({
         execRunner,
         pathExists,
         env,
@@ -1351,7 +1349,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       const questId = createQuestId("candidatepeer");
-      const prompt = buildParallelquestSpawnPrompt({
+      const prompt = buildCandidatePeerSpawnPrompt({
         objective,
         request,
         worktree,
@@ -1555,9 +1553,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       params: unknown,
       ctx: PiToolContext,
     ) {
-      const request = params as ParallelquestSpawnRequest;
+      const request = params as CandidatePeerSpawnRequest;
       const objective = request.objective?.trim() ?? "";
-      const reportBack = normalizeParallelquestReportBack(request);
+      const reportBack = normalizeCandidatePeerReportBack(request);
       const parentCwd = request.cwd?.trim() || ctx.cwd || process.cwd();
       const env = options.env ?? process.env;
       const pathExists = options.pathExists ?? existsSync;
@@ -1579,7 +1577,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         return missingParentPeerTargetResult(toolName);
       }
 
-      const worktree = await prepareParallelquestWorktree({
+      const worktree = await prepareCandidatePeerWorktree({
         execRunner,
         pathExists,
         env,
@@ -1607,7 +1605,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       const questId = createQuestId("candidatepeer");
-      const prompt = buildParallelquestSpawnPrompt({
+      const prompt = buildCandidatePeerSpawnPrompt({
         objective,
         request,
         worktree,
@@ -1741,21 +1739,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         "Launch a clean visible candidate peer Pi session in an isolated git worktree for bounded mutation.",
       promptSnippet:
         "Use to create an isolated git worktree and launch a clean visible candidate peer for bounded mutation. It does not merge, push, open PRs, mutate AK, or claim promotion.",
-      parameters: parallelquestSpawnParameters,
+      parameters: candidatePeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeCandidatePeerSpawn("candidate_peer_spawn", params, ctx),
-    });
-
-    pi.registerTool({
-      name: "parallelquest_spawn",
-      label: "Parallelquest Spawn",
-      description:
-        "Compatibility alias for candidate_peer_spawn: launch a clean visible candidate peer in an isolated git worktree.",
-      promptSnippet:
-        "Compatibility alias for candidate_peer_spawn. Use candidate_peer_spawn for the canonical alpha API.",
-      parameters: parallelquestSpawnParameters,
-      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeCandidatePeerSpawn("parallelquest_spawn", params, ctx),
     });
   };
 }
