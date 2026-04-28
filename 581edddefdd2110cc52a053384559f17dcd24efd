@@ -1,0 +1,30 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "581edddefdd2110cc52a053384559f17dcd24efd"
+created_at: "2026-04-28T01:55:05Z"
+intent: "Add ts-quality release workflow tool registration and loop engine improvements to orchestrator"
+files:
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/scripts/release-smoke.mjs"
+  - "packages/pi-society-orchestrator/src/loops/engine.ts"
+  - "packages/pi-society-orchestrator/src/runtime/ts-quality-release-workflow.ts"
+  - "packages/pi-society-orchestrator/tests/loop-kes.test.mjs"
+  - "packages/pi-society-orchestrator/tests/ts-quality-release-workflow.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 6
+  total: 7
+  rationale: "Pre-existing orchestrator changes: ts-quality release workflow + loop engine"
+links:
+  diary:
+    - "packages/pi-society-orchestrator/diary/2026-04-28--session-transcendent-transcendent-loop-start-for-apply-transc.md"
+    - "packages/pi-society-orchestrator/diary/2026-04-28--complete-transcendent-transcendent-loop-completion-for-apply-t.md"
