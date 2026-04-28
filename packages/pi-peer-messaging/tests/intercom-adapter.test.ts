@@ -240,6 +240,58 @@ test("adapter classifies quest protocol messages by quest id", async () => {
   assert.equal(result.details?.duplicateFinalCount, 0);
 });
 
+test("adapter classifies canonical peer protocol messages by peer run id", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("PEER_ACK peer_run_id=peer-123: started", { id: "peer-ack-1" }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("PEER_FINAL peer_run_id=peer-123: done", { id: "peer-final-1" }),
+  );
+
+  const result = await adapter.execute(runtime, { action: "peer_status", peerRunId: "peer-123" });
+
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0]?.text ?? "", /Peer run peer-123: final_received/);
+  assert.equal(result.details?.peerRunId, "peer-123");
+  assert.equal(result.details?.questId, "peer-123");
+  assert.equal(result.details?.state, "final_received");
+  assert.equal(result.details?.ackCount, 1);
+  assert.equal(result.details?.finalCount, 1);
+});
+
+test("adapter keeps peer protocol state after the inbound reply is resolved", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+  const ack = createMessage("PEER_ACK peer_run_id=peer-ledger: started", { id: "peer-ledger-ack" });
+
+  adapter.handleIncomingMessage(WORKER_A, ack);
+
+  const reply = await adapter.execute(runtime, {
+    action: "reply",
+    replyTo: ack.id,
+    message: "Ack seen.",
+  });
+  assert.equal(reply.isError, undefined);
+
+  const pendingAfterReply = await adapter.execute(runtime, { action: "pending" });
+  assert.match(pendingAfterReply.content[0]?.text ?? "", /No unresolved inbound messages/);
+
+  const status = await adapter.execute(runtime, {
+    action: "peer_status",
+    peerRunId: "peer-ledger",
+  });
+
+  assert.equal(status.isError, undefined);
+  assert.equal(status.details?.state, "ack_received");
+  assert.equal(status.details?.ackCount, 1);
+  assert.match(status.content[0]?.text ?? "", /PEER_ACK/);
+});
+
 test("adapter reports quest protocol duplicates and violations", async () => {
   const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
   const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
@@ -263,6 +315,49 @@ test("adapter reports quest protocol duplicates and violations", async () => {
   assert.equal(result.details?.ackCount, 2);
   assert.equal(result.details?.duplicateAckCount, 1);
   assert.equal(result.details?.violationCount, 1);
+});
+
+test("adapter peer_watch waits for final while legacy quest_watch remains compatible", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter();
+
+  const peerWatch = adapter.execute(runtime, {
+    action: "peer_watch",
+    peerRunId: "peer-watch",
+    waitFor: "final",
+    timeoutMs: 1_000,
+  });
+
+  setTimeout(() => {
+    adapter.handleIncomingMessage(
+      WORKER_A,
+      createMessage("PEER_ACK peer_run_id=peer-watch: started", { id: "peer-ack-1" }),
+    );
+  }, 10);
+  setTimeout(() => {
+    adapter.handleIncomingMessage(
+      WORKER_A,
+      createMessage("PEER_FINAL peer_run_id=peer-watch: done", { id: "peer-final-1" }),
+    );
+  }, 20);
+
+  const peerResult = await peerWatch;
+
+  assert.equal(peerResult.isError, undefined);
+  assert.equal(peerResult.details?.state, "final_received");
+  assert.equal(peerResult.details?.timedOut, false);
+  assert.match(peerResult.content[0]?.text ?? "", /Peer run peer-watch: final_received/);
+
+  const legacyTimeout = await adapter.execute(runtime, {
+    action: "quest_watch",
+    questId: "missing-quest",
+    waitFor: "ack",
+    timeoutMs: 1,
+  });
+
+  assert.equal(legacyTimeout.isError, true);
+  assert.equal(legacyTimeout.details?.state, "no_messages");
+  assert.equal(legacyTimeout.details?.timedOut, true);
 });
 
 test("adapter quest_watch waits for final and times out when absent", async () => {

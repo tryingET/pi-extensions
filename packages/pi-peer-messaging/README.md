@@ -59,7 +59,7 @@ The first public adapter is the package-local `intercom` tool surface exposed by
 It is useful on purpose, but it is still only an adapter.
 It does **not** redefine the authority model.
 
-For controller-spawned quest agents, the adapter can classify and watch the bounded `QUEST_ACK` / `QUEST_FINAL` message protocol by `questId`. This is supervision of communication state only; it does not make peer messages durable evidence, merge authority, or completion truth by itself.
+For controller-spawned visible peer agents, the adapter can classify and watch the bounded `PEER_ACK` / `PEER_FINAL` message protocol by canonical `peerRunId` without depending on unresolved pending replies. The legacy `QUEST_ACK` / `QUEST_FINAL` protocol by `questId` remains supported as a compatibility alias. This is supervision of communication state only; it does not make peer messages durable evidence, merge authority, or completion truth by itself.
 
 Supported actions:
 
@@ -68,8 +68,10 @@ Supported actions:
 - `intercom({ action: "ask", ... })`
 - `intercom({ action: "reply", ... })`
 - `intercom({ action: "pending" })`
-- `intercom({ action: "quest_status", questId: "..." })`
-- `intercom({ action: "quest_watch", questId: "...", waitFor: "final", timeoutMs: 30000 })`
+- `intercom({ action: "peer_status", peerRunId: "..." })`
+- `intercom({ action: "peer_watch", peerRunId: "...", waitFor: "final", timeoutMs: 30000 })`
+- `intercom({ action: "quest_status", questId: "..." })` — compatibility alias for legacy quest protocol messages
+- `intercom({ action: "quest_watch", questId: "...", waitFor: "final", timeoutMs: 30000 })` — compatibility alias for legacy quest protocol messages
 - `intercom({ action: "status" })`
 
 ## Install
@@ -137,6 +139,24 @@ intercom({
   message: "Need a decision.",
 });
 ```
+
+## Peer report-back protocol
+
+Canonical visible-peer report-back messages use `peerRunId`:
+
+```text
+PEER_ACK peer_run_id=<id>: started
+PEER_FINAL peer_run_id=<id>: final report
+```
+
+Legacy quest messages remain accepted for compatibility:
+
+```text
+QUEST_ACK quest_id=<id>: started
+QUEST_FINAL quest_id=<id>: final report
+```
+
+`peer_status` / `peer_watch` and `quest_status` / `quest_watch` read a small in-memory protocol ledger maintained by the adapter when inbound messages arrive. Replying to or clearing pending messages does not erase the ACK/FINAL snapshot. The ledger is runtime memory only and remains communication state, not AK evidence or workflow authority.
 
 ## Runtime dependencies
 

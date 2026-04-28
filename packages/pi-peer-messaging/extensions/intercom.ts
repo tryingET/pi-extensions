@@ -79,7 +79,7 @@ const INTERCOM_TOOL_PARAMETERS = {
     action: {
       type: "string",
       description:
-        "Action: 'list', 'send', 'ask', 'reply', 'pending', 'quest_status', 'quest_watch', or 'status'",
+        "Action: 'list', 'send', 'ask', 'reply', 'pending', 'peer_status', 'peer_watch', 'quest_status', 'quest_watch', or 'status'",
     },
     to: {
       type: "string",
@@ -119,15 +119,19 @@ const INTERCOM_TOOL_PARAMETERS = {
     },
     timeoutMs: {
       type: "number",
-      description: "Optional ask or quest_watch timeout override in milliseconds",
+      description: "Optional ask, peer_watch, or quest_watch timeout override in milliseconds",
+    },
+    peerRunId: {
+      type: "string",
+      description: "Canonical peer run id for peer_status or peer_watch protocol supervision.",
     },
     questId: {
       type: "string",
-      description: "Quest id for quest_status or quest_watch protocol supervision.",
+      description: "Legacy quest id for quest_status or quest_watch protocol supervision.",
     },
     waitFor: {
       type: "string",
-      description: "For quest_watch: 'ack', 'final', or 'both'. Defaults to 'final'.",
+      description: "For peer_watch or quest_watch: 'ack', 'final', or 'both'. Defaults to 'final'.",
     },
   },
 } satisfies Record<string, unknown>;
@@ -261,7 +265,7 @@ export function registerPeerMessagingIntercomExtension(
     description:
       "Thin intercom-compatible adapter over the peer-messaging stable core for local session coordination.",
     promptSnippet:
-      "Use to coordinate with other local pi sessions through the peer-messaging stable core: list peers, send updates, ask and wait for replies, or reply to pending messages.",
+      "Use to coordinate with other local pi sessions through the peer-messaging stable core: list peers, send updates, ask and wait for replies, reply to pending messages, or watch the PEER_ACK/PEER_FINAL report-back protocol without treating messages as authority.",
     parameters: INTERCOM_TOOL_PARAMETERS,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       try {

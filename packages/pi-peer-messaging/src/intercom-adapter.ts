@@ -19,6 +19,7 @@ export interface IntercomToolRequest {
   attachments?: PeerAttachment[];
   replyTo?: string;
   timeoutMs?: number;
+  peerRunId?: string;
   questId?: string;
   waitFor?: "ack" | "final" | "both";
 }
@@ -47,27 +48,44 @@ interface PendingInboundMessage {
   receivedAt: number;
 }
 
-type QuestProtocolKind = "QUEST_ACK" | "QUEST_FINAL";
+type PeerProtocolKind = "PEER_ACK" | "PEER_FINAL" | "QUEST_ACK" | "QUEST_FINAL";
 
-type QuestProtocolState = "no_messages" | "ack_received" | "final_received" | "protocol_violation";
+type PeerProtocolPhase = "ack" | "final" | "unknown";
 
-interface QuestProtocolMessage {
-  kind: QuestProtocolKind | "UNKNOWN";
+type PeerProtocolVocabulary = "peer" | "quest" | "unknown";
+
+type PeerProtocolState = "no_messages" | "ack_received" | "final_received" | "protocol_violation";
+
+interface ParsedPeerProtocolMessage {
+  runId: string;
+  kind: PeerProtocolKind | "UNKNOWN";
+  phase: PeerProtocolPhase;
+  vocabulary: PeerProtocolVocabulary;
+  token: "peer_run_id" | "quest_id" | null;
+}
+
+interface PeerProtocolMessage {
+  kind: PeerProtocolKind | "UNKNOWN";
+  phase: PeerProtocolPhase;
+  vocabulary: PeerProtocolVocabulary;
+  token: "peer_run_id" | "quest_id" | null;
+  peerRunId: string;
   from: PeerPresence;
   message: PeerMessage;
   receivedAt: number;
   preview: string;
 }
 
-interface QuestProtocolSnapshot {
+interface PeerProtocolSnapshot {
+  peerRunId: string;
   questId: string;
-  state: QuestProtocolState;
+  state: PeerProtocolState;
   ackCount: number;
   finalCount: number;
   duplicateAckCount: number;
   duplicateFinalCount: number;
   violationCount: number;
-  messages: QuestProtocolMessage[];
+  messages: PeerProtocolMessage[];
 }
 
 function shortSessionId(sessionId: string): string {
@@ -184,22 +202,61 @@ function isAmbiguousTargetReason(reason: string | undefined): boolean {
   return typeof reason === "string" && reason.includes("Multiple peers matched");
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function truncatePreview(value: string, maxLength: number = PENDING_PREVIEW_LENGTH): string {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= maxLength) return singleLine;
   return `${singleLine.slice(0, maxLength - 1)}…`;
 }
 
-function parseQuestProtocolKind(text: string, questId: string): QuestProtocolKind | undefined {
-  const escapedQuestId = escapeRegExp(questId);
-  const match = text.match(
-    new RegExp(`\\b(QUEST_ACK|QUEST_FINAL)\\s+quest_id=${escapedQuestId}\\s*:`),
-  );
-  return match?.[1] === "QUEST_ACK" || match?.[1] === "QUEST_FINAL" ? match[1] : undefined;
+function phaseForProtocolKind(kind: PeerProtocolKind | "UNKNOWN"): PeerProtocolPhase {
+  if (kind === "PEER_ACK" || kind === "QUEST_ACK") {
+    return "ack";
+  }
+
+  if (kind === "PEER_FINAL" || kind === "QUEST_FINAL") {
+    return "final";
+  }
+
+  return "unknown";
+}
+
+function parsePeerProtocolMessage(text: string): ParsedPeerProtocolMessage | undefined {
+  const canonical = text.match(/\b(PEER_ACK|PEER_FINAL)\s+peer_run_id=([^\s:]+)\s*:/);
+  if (canonical?.[1] && canonical[2]) {
+    const kind = canonical[1] as "PEER_ACK" | "PEER_FINAL";
+    return {
+      runId: canonical[2],
+      kind,
+      phase: phaseForProtocolKind(kind),
+      vocabulary: "peer",
+      token: "peer_run_id",
+    };
+  }
+
+  const legacy = text.match(/\b(QUEST_ACK|QUEST_FINAL)\s+quest_id=([^\s:]+)\s*:/);
+  if (legacy?.[1] && legacy[2]) {
+    const kind = legacy[1] as "QUEST_ACK" | "QUEST_FINAL";
+    return {
+      runId: legacy[2],
+      kind,
+      phase: phaseForProtocolKind(kind),
+      vocabulary: "quest",
+      token: "quest_id",
+    };
+  }
+
+  const unknown = text.match(/\b([A-Z][A-Z_]+)\s+(peer_run_id|quest_id)=([^\s:]+)\s*:/);
+  if (unknown?.[2] && unknown[3]) {
+    return {
+      runId: unknown[3],
+      kind: "UNKNOWN",
+      phase: "unknown",
+      vocabulary: unknown[2] === "peer_run_id" ? "peer" : "quest",
+      token: unknown[2] as "peer_run_id" | "quest_id",
+    };
+  }
+
+  return undefined;
 }
 
 function textResult(
@@ -211,6 +268,64 @@ function textResult(
     isError: options.isError,
     details: options.details,
   } satisfies IntercomToolResponse;
+}
+
+class PeerProtocolLedger {
+  private readonly messagesByRunId = new Map<string, PeerProtocolMessage[]>();
+
+  recordIncomingMessage(from: PeerPresence, message: PeerMessage, receivedAt: number): void {
+    const parsed = parsePeerProtocolMessage(message.content.text);
+    if (!parsed) {
+      return;
+    }
+
+    const entry = {
+      kind: parsed.kind,
+      phase: parsed.phase,
+      vocabulary: parsed.vocabulary,
+      token: parsed.token,
+      peerRunId: parsed.runId,
+      from,
+      message,
+      receivedAt,
+      preview: truncatePreview(message.content.text),
+    } satisfies PeerProtocolMessage;
+
+    const existing = this.messagesByRunId.get(parsed.runId) ?? [];
+    existing.push(entry);
+    existing.sort((left, right) => left.receivedAt - right.receivedAt);
+    this.messagesByRunId.set(parsed.runId, existing);
+  }
+
+  snapshot(peerRunId: string): PeerProtocolSnapshot {
+    const messages = [...(this.messagesByRunId.get(peerRunId) ?? [])];
+    const ackCount = messages.filter((message) => message.phase === "ack").length;
+    const finalCount = messages.filter((message) => message.phase === "final").length;
+    const violationCount = messages.filter((message) => message.phase === "unknown").length;
+    const state: PeerProtocolState = violationCount
+      ? "protocol_violation"
+      : finalCount > 0
+        ? "final_received"
+        : ackCount > 0
+          ? "ack_received"
+          : "no_messages";
+
+    return {
+      peerRunId,
+      questId: peerRunId,
+      state,
+      ackCount,
+      finalCount,
+      duplicateAckCount: Math.max(0, ackCount - 1),
+      duplicateFinalCount: Math.max(0, finalCount - 1),
+      violationCount,
+      messages,
+    } satisfies PeerProtocolSnapshot;
+  }
+
+  clear(): void {
+    this.messagesByRunId.clear();
+  }
 }
 
 class ReplyTracker {
@@ -300,7 +415,8 @@ export class IntercomCompatibleAdapter {
   private readonly now: () => number;
   private readonly onIncomingMessage?: (entry: IntercomIncomingMessage) => void;
   private readonly replyTracker = new ReplyTracker();
-  private readonly questWaiters = new Set<() => void>();
+  private readonly peerProtocolLedger = new PeerProtocolLedger();
+  private readonly peerProtocolWaiters = new Set<() => void>();
 
   constructor(options: IntercomAdapterOptions = {}) {
     this.now = options.now ?? (() => Date.now());
@@ -309,12 +425,14 @@ export class IntercomCompatibleAdapter {
 
   clear(): void {
     this.replyTracker.clear();
+    this.peerProtocolLedger.clear();
   }
 
   handleIncomingMessage(from: PeerPresence, message: PeerMessage): void {
     const receivedAt = this.now();
     this.replyTracker.recordIncomingMessage(from, message, receivedAt);
-    this.notifyQuestWaiters();
+    this.peerProtocolLedger.recordIncomingMessage(from, message, receivedAt);
+    this.notifyPeerProtocolWaiters();
 
     const entry = {
       from,
@@ -343,10 +461,14 @@ export class IntercomCompatibleAdapter {
         return this.reply(runtime, request);
       case "pending":
         return this.pending();
+      case "peer_status":
+        return this.peerProtocolStatus(request, "peer");
+      case "peer_watch":
+        return this.peerProtocolWatch(request, "peer");
       case "quest_status":
-        return this.questStatus(request);
+        return this.peerProtocolStatus(request, "quest");
       case "quest_watch":
-        return this.questWatch(request);
+        return this.peerProtocolWatch(request, "quest");
       case "status":
         return this.status(runtime);
       default:
@@ -354,53 +476,36 @@ export class IntercomCompatibleAdapter {
     }
   }
 
-  private notifyQuestWaiters(): void {
-    const waiters = [...this.questWaiters];
-    this.questWaiters.clear();
+  private notifyPeerProtocolWaiters(): void {
+    const waiters = [...this.peerProtocolWaiters];
+    this.peerProtocolWaiters.clear();
     for (const waiter of waiters) {
       waiter();
     }
   }
 
-  private buildQuestSnapshot(questId: string): QuestProtocolSnapshot {
-    const messages = this.replyTracker
-      .listPending()
-      .filter((entry) => entry.message.content.text.includes(`quest_id=${questId}`))
-      .map((entry) => {
-        const kind = parseQuestProtocolKind(entry.message.content.text, questId) ?? "UNKNOWN";
-        return {
-          kind,
-          from: entry.from,
-          message: entry.message,
-          receivedAt: entry.receivedAt,
-          preview: truncatePreview(entry.message.content.text),
-        } satisfies QuestProtocolMessage;
-      });
+  private resolvePeerProtocolRunId(
+    request: IntercomToolRequest,
+    vocabulary: "peer" | "quest",
+  ): { runId?: string; error?: string } {
+    const peerRunId = request.peerRunId?.trim();
+    const questId = request.questId?.trim();
 
-    const ackCount = messages.filter((message) => message.kind === "QUEST_ACK").length;
-    const finalCount = messages.filter((message) => message.kind === "QUEST_FINAL").length;
-    const violationCount = messages.filter((message) => message.kind === "UNKNOWN").length;
-    const state: QuestProtocolState = violationCount
-      ? "protocol_violation"
-      : finalCount > 0
-        ? "final_received"
-        : ackCount > 0
-          ? "ack_received"
-          : "no_messages";
+    if (vocabulary === "peer") {
+      if (peerRunId) return { runId: peerRunId };
+      if (questId) return { runId: questId };
+      return { error: "Missing 'peerRunId' parameter" };
+    }
 
-    return {
-      questId,
-      state,
-      ackCount,
-      finalCount,
-      duplicateAckCount: Math.max(0, ackCount - 1),
-      duplicateFinalCount: Math.max(0, finalCount - 1),
-      violationCount,
-      messages,
-    } satisfies QuestProtocolSnapshot;
+    if (questId) return { runId: questId };
+    if (peerRunId) return { runId: peerRunId };
+    return { error: "Missing 'questId' parameter" };
   }
 
-  private formatQuestSnapshot(snapshot: QuestProtocolSnapshot): string {
+  private formatPeerProtocolSnapshot(
+    snapshot: PeerProtocolSnapshot,
+    vocabulary: "peer" | "quest",
+  ): string {
     const rows = snapshot.messages.length
       ? snapshot.messages
           .map(
@@ -410,28 +515,33 @@ export class IntercomCompatibleAdapter {
           .join("\n")
       : "- none";
 
+    const label = vocabulary === "peer" ? "Peer run" : "Quest";
+
     return [
-      `Quest ${snapshot.questId}: ${snapshot.state}`,
+      `${label} ${snapshot.peerRunId}: ${snapshot.state}`,
       `ACK=${snapshot.ackCount} FINAL=${snapshot.finalCount} duplicateACK=${snapshot.duplicateAckCount} duplicateFINAL=${snapshot.duplicateFinalCount} violations=${snapshot.violationCount}`,
       "Messages:",
       rows,
     ].join("\n");
   }
 
-  private questStatus(request: IntercomToolRequest): IntercomToolResponse {
-    const questId = request.questId?.trim();
-    if (!questId) {
-      return textResult("Missing 'questId' parameter", { isError: true });
+  private peerProtocolStatus(
+    request: IntercomToolRequest,
+    vocabulary: "peer" | "quest",
+  ): IntercomToolResponse {
+    const resolved = this.resolvePeerProtocolRunId(request, vocabulary);
+    if (!resolved.runId) {
+      return textResult(resolved.error ?? "Missing peer protocol run id", { isError: true });
     }
 
-    const snapshot = this.buildQuestSnapshot(questId);
-    return textResult(this.formatQuestSnapshot(snapshot), {
+    const snapshot = this.peerProtocolLedger.snapshot(resolved.runId);
+    return textResult(this.formatPeerProtocolSnapshot(snapshot, vocabulary), {
       details: { ...snapshot },
     });
   }
 
-  private questWatchConditionMet(
-    snapshot: QuestProtocolSnapshot,
+  private peerProtocolWatchConditionMet(
+    snapshot: PeerProtocolSnapshot,
     waitFor: "ack" | "final" | "both",
   ): boolean {
     if (snapshot.state === "protocol_violation") return true;
@@ -440,10 +550,13 @@ export class IntercomCompatibleAdapter {
     return snapshot.ackCount > 0 && snapshot.finalCount > 0;
   }
 
-  private async questWatch(request: IntercomToolRequest): Promise<IntercomToolResponse> {
-    const questId = request.questId?.trim();
-    if (!questId) {
-      return textResult("Missing 'questId' parameter", { isError: true });
+  private async peerProtocolWatch(
+    request: IntercomToolRequest,
+    vocabulary: "peer" | "quest",
+  ): Promise<IntercomToolResponse> {
+    const resolved = this.resolvePeerProtocolRunId(request, vocabulary);
+    if (!resolved.runId) {
+      return textResult(resolved.error ?? "Missing peer protocol run id", { isError: true });
     }
 
     const waitFor = request.waitFor ?? "final";
@@ -451,9 +564,9 @@ export class IntercomCompatibleAdapter {
     const deadline = this.now() + timeoutMs;
 
     while (true) {
-      const snapshot = this.buildQuestSnapshot(questId);
-      if (this.questWatchConditionMet(snapshot, waitFor)) {
-        return textResult(this.formatQuestSnapshot(snapshot), {
+      const snapshot = this.peerProtocolLedger.snapshot(resolved.runId);
+      if (this.peerProtocolWatchConditionMet(snapshot, waitFor)) {
+        return textResult(this.formatPeerProtocolSnapshot(snapshot, vocabulary), {
           details: { ...snapshot, timedOut: false, waitFor },
         });
       }
@@ -461,7 +574,7 @@ export class IntercomCompatibleAdapter {
       const remainingMs = deadline - this.now();
       if (remainingMs <= 0) {
         return textResult(
-          `Timed out waiting for ${waitFor} on ${questId}.\n${this.formatQuestSnapshot(snapshot)}`,
+          `Timed out waiting for ${waitFor} on ${resolved.runId}.\n${this.formatPeerProtocolSnapshot(snapshot, vocabulary)}`,
           {
             isError: true,
             details: { ...snapshot, timedOut: true, waitFor },
@@ -473,7 +586,7 @@ export class IntercomCompatibleAdapter {
         let waiter: (() => void) | undefined;
         const timer = setTimeout(
           () => {
-            if (waiter) this.questWaiters.delete(waiter);
+            if (waiter) this.peerProtocolWaiters.delete(waiter);
             resolve();
           },
           Math.min(remainingMs, 250),
@@ -482,7 +595,7 @@ export class IntercomCompatibleAdapter {
           clearTimeout(timer);
           resolve();
         };
-        this.questWaiters.add(waiter);
+        this.peerProtocolWaiters.add(waiter);
       });
     }
   }
