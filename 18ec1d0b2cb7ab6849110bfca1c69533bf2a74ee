@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "18ec1d0b2cb7ab6849110bfca1c69533bf2a74ee"
+created_at: "2026-04-28T01:51:10Z"
+intent: "Add visible peer ADR and RFC documenting the beta contract for quest/peer agents"
+files:
+  - "docs/decisions/2026-04-27-visible-quest-agents-sidequest-parallelquest.md"
+  - "docs/project/2026-04-27-rfc-visible-quest-agents-sidequest-parallelquest.md"
+validation:
+  fast_gate:
+    command: "n/a (docs-only)"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 4
+  total: 7
+  rationale: "AK #1893 documentation artifacts for visible peer beta contract"
+links:
+  task_ids:
+    - 1893
