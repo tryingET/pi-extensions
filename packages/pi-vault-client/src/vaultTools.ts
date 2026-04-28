@@ -1242,11 +1242,28 @@ Example: vault_dispatch_check({ template_names: ["transcendent-iteration", "ooda
         };
       }
 
-      const templatesResult = runtime.retrieveByNamesDetailed(
-        names,
-        false, // content not needed for posture check
-        executionContext,
-      );
+      const escapedNames = names.map((n) => `'${runtime.escapeSql(n)}'`).join(", ");
+      const templatesResult = runtime.queryVaultJsonDetailed(`
+        SELECT
+          id,
+          name,
+          description,
+          '' AS content,
+          artifact_kind,
+          control_mode,
+          formalization_level,
+          owner_company,
+          visibility_companies,
+          controlled_vocabulary,
+          status,
+          export_to_pi,
+          version
+        FROM prompt_templates
+        WHERE name IN (${escapedNames})
+          AND status = 'active'
+          AND ${runtime.buildVisibilityPredicate(executionContext.currentCompany)}
+        ORDER BY name
+      `);
       if (!templatesResult.ok) {
         return {
           content: [
@@ -1255,7 +1272,7 @@ Example: vault_dispatch_check({ template_names: ["transcendent-iteration", "ooda
           details: { ok: false, error: templatesResult.error },
         };
       }
-      const templates = templatesResult.value;
+      const templates = runtime.parseTemplateRows(templatesResult.value);
       const found = new Set(templates.map((t) => t.name));
       const missing = names.filter((n) => !found.has(n));
 
