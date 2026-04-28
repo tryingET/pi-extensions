@@ -3,7 +3,7 @@
   "version": 1,
   "phase": "bounded_runtime_kernel",
   "cwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-little-helpers",
-  "updatedAt": 1777339249132,
+  "updatedAt": 1777342381090,
   "segmentKey": "3c8bd4a36fd129a1ce5ed810",
   "runtimeKey": "5bb22bd478b27253ef6e5a6a",
   "projectionSource": "ledger",
@@ -44,9 +44,9 @@
     }
   },
   "control": {
-    "kind": "awaiting_operator",
+    "kind": "stop",
     "allowedActions": ["stop"],
-    "reason": "Prompt Vault next_hypothesis blocked: Prompt Vault decision execution returned no text output.",
-    "selectedAt": null
+    "reason": "Baseline run succeeded; post-run Prompt Vault next_hypothesis returned no text output, so stop before further bounded iterations.",
+    "selectedAt": 1777342289809
   }
 }
