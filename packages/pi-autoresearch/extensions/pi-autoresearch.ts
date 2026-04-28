@@ -1521,7 +1521,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, autoresearch_self_hosting_run for one bounded supervised self-hosting wave or action=start_and_watch for in-call progress updates, autoresearch_llamacpp_campaign_control for public manifest campaign status/next-step control, or autoresearch_runtime_status with action=setup|finalize for governed packets.",
+      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, autoresearch_self_hosting_run for one bounded supervised self-hosting wave or action=start_and_watch for in-call progress updates, autoresearch_llamacpp_campaign_control for public manifest campaign status/next-step control, autoresearch_runtime_status with action=setup|finalize for governed packets, or the visible peer recommendations in the help text when you want scout_peer_spawn / candidate_peer_spawn guidance without auto-spawning peers.",
       "info",
     );
   }

@@ -512,6 +512,31 @@ export function buildAutoresearchRuntimeStatus(
   });
 }
 
+function formatAutoresearchPeerLaneRecommendations(input: {
+  cwd?: string;
+  runStatus?: RunStatus | null;
+  decisionSummary?: AutoresearchRunDecisionSummary | null;
+}): string[] {
+  const cwd = input.cwd ?? "/path/to/campaign";
+  const failedOrAmbiguous =
+    input.runStatus === "crash" ||
+    input.runStatus === "checks_failed" ||
+    input.runStatus === "discard" ||
+    input.decisionSummary?.status === "blocked";
+  const targetFiles = input.decisionSummary?.targetFiles ?? [];
+  const candidateFiles = targetFiles.length > 0 ? targetFiles : ["<target files>"];
+
+  return [
+    "- pi-autoresearch does not auto-spawn visible peers; the controller/operator chooses whether to launch them.",
+    failedOrAmbiguous
+      ? `- failed/ambiguous run scout: scout_peer_spawn({ objective: "Inspect the latest pi-autoresearch run artifacts under ${cwd} and recommend one bounded next controller action.", cwd: "${cwd}", reportBack: "manual" })`
+      : `- optional scout/reviewer: scout_peer_spawn({ objective: "Review the current pi-autoresearch state under ${cwd} and identify one bounded risk or next experiment.", cwd: "${cwd}", reportBack: "manual" })`,
+    `- candidate patch lane: candidate_peer_spawn({ objective: "Try one bounded candidate patch for the current pi-autoresearch hypothesis in an isolated worktree; report diff and check evidence only.", cwd: "${cwd}", filesInScope: ${JSON.stringify(candidateFiles)}, reportBack: "manual" })`,
+    `- inherited-context lane when intentional: fork_peer_spawn({ objective: "Continue this autoresearch context in a visible peer for operator-guided exploration.", cwd: "${cwd}" }) or /forkpeer "Continue this autoresearch context in a visible peer."`,
+    "- Peer/intercom messages remain communication only; copy verified findings into receipts, ASI, diary, or AK evidence through the controller-owned surfaces before treating them as evidence.",
+  ];
+}
+
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
   const currentSegmentLines = status.currentSegment.configured
     ? [
@@ -583,6 +608,9 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     `- ready Prompt Vault templates: ${status.readyPromptVaultTemplates.join(", ")}`,
     `- blocked Prompt Vault templates: ${status.blockedPromptVaultTemplates.join(", ")}`,
     `- next slices: ${formatNextSlices(status.nextSlices)}`,
+    "",
+    "## Peer lane recommendations",
+    ...formatAutoresearchPeerLaneRecommendations({ cwd: status.cwd }),
   ].join("\n");
 }
 
@@ -636,6 +664,9 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     `- use ${AUTORESEARCH_SELF_HOSTING_TOOL_NAME} for the public supervised self-hosting seam: inspect controller/candidate/evaluator state, prepare the candidate worktree, run one bounded self-hosting wave, use action=start_and_watch for in-call progress updates, and optionally plan/apply promotion or rollback records without package-local self-promotion`,
     `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME} for the public manifest campaign-control seam: current status, optional exact-task AK context, and one-step public advance without raw stage/build inputs`,
     `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME} for lower-level technical manifest work such as branch/lane matrix planning, fork preparation, raw stage binding, exact AK-ready snapshots, or technical one-step advancement`,
+    "",
+    "## Peer lane recommendations",
+    ...formatAutoresearchPeerLaneRecommendations({ cwd: status.cwd }),
     "",
     ...configurationBlock,
     "",
@@ -714,6 +745,13 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     `- current baseline: ${formatMetricValue(result.status.currentSegment.baselineMetric, metricUnit)}`,
     `- current best: ${formatMetricValue(result.status.currentSegment.bestMetric, metricUnit)}`,
     `- confidence: ${formatConfidenceValue(result.status.currentSegment.confidence)}`,
+    "",
+    "## Peer lane recommendations",
+    ...formatAutoresearchPeerLaneRecommendations({
+      cwd: result.cwd,
+      runStatus: result.runReceipt.status,
+      decisionSummary: result.decisionSummary,
+    }),
     "",
     "## Parsed metrics",
     ...(metrics.length > 0 ? metrics : ["- (none)"]),

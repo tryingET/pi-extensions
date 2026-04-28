@@ -48,12 +48,13 @@ The current boundary is now more specific: the package is the runtime owner for 
 
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
-  - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, and the current llama.cpp manifest-campaign projection state when one has been projected locally
+  - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, the current llama.cpp manifest-campaign projection state when one has been projected locally, and visible peer-lane recommendations for optional `scout_peer_spawn` / `candidate_peer_spawn` use without auto-spawning peers
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
   - appends machine/event entries to `autoresearch.events.jsonl`
+  - reports optional peer-lane recommendations after the run: scout peers for failed or ambiguous results, candidate peers for isolated patch exploration, and fork peers only when inherited context is intentional
 - `autoresearch_self_hosting_run`
   - is the bounded public supervised self-hosting seam for `packages/pi-autoresearch` itself
   - can inspect controller/candidate/evaluator state, plan or apply the candidate worktree, run one bounded controller/candidate/evaluator wave, use `action=start_and_watch` for in-call progress updates while that bounded wave runs, and optionally plan/apply explicit promotion or rollback records
@@ -175,7 +176,7 @@ This package does **not** yet implement:
 - shared higher-order session-control orchestration
 - a second control plane that duplicates workstation `lane-op` or the brownfield 41/42/43 scripts
 
-The package now includes the bounded runtime's machine/event-ledger integration, but the broader control-plane and autonomy integrations still belong to later bounded slices after the bounded runtime kernel.
+The package now includes the bounded runtime's machine/event-ledger integration and peer-lane recommendation text for optional visible peer help. It still does not own peer launch: `pi-little-helpers` owns visible peer tools, `pi-peer-messaging` owns communication, peer/intercom messages are not evidence without controller verification, and autoresearch only recommends exact calls such as `scout_peer_spawn(...)`, `candidate_peer_spawn(...)`, or `fork_peer_spawn(...)`. The broader control-plane and autonomy integrations still belong to later bounded slices after the bounded runtime kernel.
 Use [docs/project/current-vs-target.md](./docs/project/current-vs-target.md) as the living package-local map for what is landed vs what still belongs to future verified slices.
 
 ## Example manifest

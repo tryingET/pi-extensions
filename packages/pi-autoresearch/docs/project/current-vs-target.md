@@ -135,10 +135,13 @@ These are **not** landed baseline behavior:
 - remote-review control plane
 - package-local self-promotion
 - automatic controller rotation
+- automatic visible peer spawning from pi-autoresearch; current peer integration is recommendation text only
 
 ## Ownership boundaries
 
-- `packages/pi-autoresearch`: executable runtime state and bounded orchestration
+- `packages/pi-autoresearch`: executable runtime state, bounded orchestration, and optional visible peer-lane recommendations after status/run inspection
+- `packages/pi-little-helpers`: visible peer launch surfaces (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, plus aliases)
+- `packages/pi-peer-messaging`: intercom communication and ACK/FINAL protocol snapshots, not authority
 - Prompt Vault: durable decision procedures
 - AK: durable campaign/task truth
 - orchestrator: bounded live supervision / lifecycle automation above package truth
