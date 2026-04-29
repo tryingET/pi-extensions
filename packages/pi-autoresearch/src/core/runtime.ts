@@ -1109,34 +1109,51 @@ function renderDspxAutoresearchIntent(input: {
   benchmarkCommand: string | null;
   checksCommand: string | null;
 }): string {
-  const fields = [
-    "runtime_status: current pi-autoresearch state summary",
-    "repo_summary: concise repository and script summary",
-    "objective: optimization objective",
-    "constraints: bounded execution and safety constraints",
-  ];
-  const outputs = [
-    "campaign_name: proposed campaign or segment name",
-    "metric_name: primary metric name",
-    "metric_unit: primary metric unit",
-    "direction: lower or higher",
-    "benchmark_command: local command that prints METRIC name=value",
-    "checks_command: optional local safety command",
-    "risks: bounded setup risks",
-    "next_action: exact pi-autoresearch setup or run recommendation",
-  ];
+  const inputFields = [
+    ["runtime_status", "current pi-autoresearch state summary"],
+    ["repo_summary", "concise repository and script summary"],
+    ["objective", "optimization objective"],
+    ["constraints", "bounded execution and safety constraints"],
+  ] as const;
+  const outputFields = [
+    ["campaign_name", "proposed campaign or segment name"],
+    ["metric_name", "primary metric name"],
+    ["metric_unit", "primary metric unit"],
+    ["direction", "lower or higher"],
+    ["benchmark_command", "local command that prints METRIC name=value"],
+    ["checks_command", "optional local safety command"],
+    ["risks", "bounded setup risks"],
+    ["next_action", "exact pi-autoresearch setup or run recommendation"],
+  ] as const;
   return [
     "schema_version: program-intent-v2",
     "name: autoresearch_autosetup_planner",
+    `objective: ${yamlQuote("Plan a bounded pi-autoresearch campaign setup from repo/runtime context.")}`,
+    "task_type: single_module",
+    `metric: ${yamlQuote(input.config.metricName)}`,
+    "inputs:",
+    ...inputFields.map(([name]) => `  - ${name}`),
+    "outputs:",
+    ...outputFields.map(([name]) => `  - ${name}`),
+    "input_fields:",
+    ...inputFields.flatMap(([name, desc]) => [`  - name: ${name}`, `    desc: ${yamlQuote(desc)}`]),
+    "output_fields:",
+    ...outputFields.flatMap(([name, desc]) => [
+      `  - name: ${name}`,
+      `    desc: ${yamlQuote(desc)}`,
+    ]),
     "description: DSPy planner candidate for bounded pi-autoresearch campaign setup.",
+    "constraints:",
+    "  - bounded local runtime only",
+    ...input.constraints.map((constraint) => `  - ${yamlQuote(constraint)}`),
     "topology:",
     "  kind: single_module",
     "signature:",
     "  name: AutoresearchSetupPlanner",
     "  inputs:",
-    ...fields.map((field) => `    - ${yamlQuote(field)}`),
+    ...inputFields.map(([name, desc]) => `    - ${yamlQuote(`${name}: ${desc}`)}`),
     "  outputs:",
-    ...outputs.map((field) => `    - ${yamlQuote(field)}`),
+    ...outputFields.map(([name, desc]) => `    - ${yamlQuote(`${name}: ${desc}`)}`),
     "examples:",
     "  - inputs:",
     `      objective: ${yamlQuote(input.objective)}`,
