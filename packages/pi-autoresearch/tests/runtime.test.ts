@@ -27,6 +27,7 @@ import {
 } from "../src/core/llamacppCampaign.ts";
 import { resolveAutoresearchRuntimeSnapshotPath } from "../src/core/resume.ts";
 import {
+  AUTORESEARCH_AUTOPLAN_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -34,6 +35,7 @@ import {
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
+  AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   appendReceipt,
   buildAutoresearchHelpText,
@@ -353,6 +355,8 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     AUTORESEARCH_FINALIZE_TOOL_NAME,
     AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
     AUTORESEARCH_LOOP_TOOL_NAME,
+    AUTORESEARCH_AUTOPLAN_TOOL_NAME,
+    AUTORESEARCH_SETUP_TOOL_NAME,
     AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
     AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
     AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
@@ -497,6 +501,8 @@ test("extension registers /autoresearch plus the bounded runtime status, control
   assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_PEER_ASSIST_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_SETUP_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_SELF_HOSTING_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME)?.execute, "function");
   assert.equal(
@@ -529,7 +535,104 @@ test("/autoresearch reports status without pre-filling the editor", async () => 
   assert.match(notifications[0]?.message ?? "", /Ignored \/autoresearch arguments/);
   assert.equal(notifications[1]?.level, "info");
   assert.match(notifications[1]?.message ?? "", /pi-autoresearch:/);
-  assert.match(notifications[1]?.message ?? "", /autoresearch_runtime_loop/);
+  assert.match(notifications[1]?.message ?? "", /autoresearch_runtime_autoplan/);
+});
+
+test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent handoff", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-speed",
+        scripts: { bench: "node bench.js", check: "node check.js" },
+      }),
+    );
+    writeFile(path.join(cwd, "src/index.ts"), "export const value = 1;\n");
+
+    const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
+      "call-autoplan",
+      {
+        cwd,
+        objective: "reduce benchmark runtime",
+        planner: "dspx_program",
+        materializeDspxIntent: true,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(result.content[0]?.text ?? "", /DSPx program-gen handoff/);
+    const details = result.details as {
+      config: { name: string; metricName: string; direction: string };
+      benchmarkCommand: string;
+      checksCommand: string;
+      dspxProgramGen: { intentPath: string; materialized: boolean; command: string };
+    };
+    assert.equal(details.config.metricName, "total_ms");
+    assert.equal(details.config.direction, "lower");
+    assert.equal(details.benchmarkCommand, "npm run bench");
+    assert.equal(details.checksCommand, "npm run check");
+    assert.equal(details.dspxProgramGen.materialized, true);
+    assert.match(
+      readFileSync(details.dspxProgramGen.intentPath, "utf8"),
+      /AutoresearchSetupPlanner/,
+    );
+    assert.match(details.dspxProgramGen.command, /program-gen/);
+  });
+});
+
+test("autoresearch_runtime_setup applies config without running and can baseline", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const setupTool = tools.get(AUTORESEARCH_SETUP_TOOL_NAME);
+    assert.ok(setupTool);
+
+    const apply = await setupTool.execute(
+      "call-setup-apply",
+      {
+        cwd,
+        action: "apply",
+        name: "setup-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        benchmarkCommand: "bash autoresearch.sh",
+        benchmarkScript: '#!/usr/bin/env bash\necho "METRIC total_ms=10"\n',
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.match(apply.content[0]?.text ?? "", /applied config: yes/);
+    assert.equal(loadReceiptLog(cwd).entries.filter((entry) => entry.type === "config").length, 1);
+    assert.equal(loadReceiptLog(cwd).entries.filter((entry) => entry.type === "run").length, 0);
+
+    const baseline = await setupTool.execute(
+      "call-setup-baseline",
+      {
+        cwd,
+        action: "baseline",
+        reconfigure: true,
+        name: "setup-speed-v2",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        benchmarkCommand: "bash autoresearch.sh",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.match(baseline.content[0]?.text ?? "", /baseline: baseline total_ms=10ms/);
+    const entries = loadReceiptLog(cwd).entries;
+    assert.equal(entries.filter((entry) => entry.type === "config").length, 2);
+    assert.equal(entries.filter((entry) => entry.type === "run").length, 1);
+  });
 });
 
 test("autoresearch_runtime_peer_assist plans canonical peer tool calls without launching", async () => {

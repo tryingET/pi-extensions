@@ -27,23 +27,29 @@ import {
   prepareLlamacppCampaignFork,
 } from "../src/core/llamacppCampaign.ts";
 import {
+  AUTORESEARCH_AUTOPLAN_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
+  AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   type AutoresearchLoopProgressEvent,
+  buildAutoresearchAutoplan,
   buildAutoresearchPeerAssistPlan,
   buildAutoresearchRuntimeStatus,
   executeAutoresearchLoop,
   executeAutoresearchRun,
+  executeAutoresearchSetup,
+  formatAutoresearchAutoplanResult,
   formatAutoresearchControlResult,
   formatAutoresearchDecisionResult,
   formatAutoresearchLoopResult,
   formatAutoresearchPeerAssistPlan,
   formatAutoresearchRunResult,
+  formatAutoresearchSetupResult,
   formatAutoresearchStatusText,
   inspectAutoresearchRuntimeControl,
   requestAutoresearchFinalizeDecision,
@@ -372,6 +378,84 @@ const peerAssistSchema = Type.Object({
   parentPeerTarget: Type.Optional(
     Type.String({ description: "Exact parent peer target/session id for intercom report-back." }),
   ),
+});
+
+const autoplanPlannerSchema = Type.Union(
+  [Type.Literal("heuristic"), Type.Literal("dspx_program")],
+  {
+    description:
+      "Planner backend. dspx_program materializes or returns a DSPx program-gen handoff intent; pi-autoresearch remains the outer controller.",
+  },
+);
+
+const autoplanSchema = Type.Object({
+  cwd: Type.Optional(
+    Type.String({ description: "Optional cwd override for repo/problem inspection." }),
+  ),
+  objective: Type.String({
+    description: "Optimization objective to turn into a bounded campaign plan.",
+  }),
+  planner: Type.Optional(autoplanPlannerSchema),
+  filesInScope: Type.Optional(stringArraySchema),
+  offLimits: Type.Optional(stringArraySchema),
+  constraints: Type.Optional(stringArraySchema),
+  benchmarkCommand: Type.Optional(
+    Type.String({ description: "Optional benchmark command override." }),
+  ),
+  checksCommand: Type.Optional(nullableStringSchema),
+  metricName: Type.Optional(Type.String({ description: "Optional primary metric name override." })),
+  metricUnit: Type.Optional(Type.String({ description: "Optional primary metric unit override." })),
+  direction: Type.Optional(directionSchema),
+  materializeDspxIntent: Type.Optional(
+    Type.Boolean({
+      description: "When planner=dspx_program, write the local DSPx intent artifact.",
+    }),
+  ),
+  dspxIntentPath: Type.Optional(
+    Type.String({ description: "Optional repo-relative or absolute DSPx intent path." }),
+  ),
+  dspxOutdir: Type.Optional(
+    Type.String({ description: "Optional repo-relative or absolute DSPx program-gen output dir." }),
+  ),
+});
+
+const setupActionSchema = Type.Union(
+  [Type.Literal("plan"), Type.Literal("apply"), Type.Literal("baseline")],
+  { description: "Setup action: plan only, apply config receipt only, or apply and run baseline." },
+);
+
+const setupSchema = Type.Object({
+  cwd: Type.Optional(Type.String({ description: "Optional cwd override for setup." })),
+  action: Type.Optional(setupActionSchema),
+  name: Type.String({ description: "Campaign or segment name." }),
+  metricName: Type.String({ description: "Primary metric name parsed from METRIC name=value." }),
+  metricUnit: Type.Optional(Type.String({ description: "Metric unit." })),
+  direction: directionSchema,
+  benchmarkCommand: Type.Optional(Type.String({ description: "Benchmark command." })),
+  checksCommand: Type.Optional(nullableStringSchema),
+  reconfigure: Type.Optional(
+    Type.Boolean({ description: "Append a new config segment even if one is already configured." }),
+  ),
+  description: Type.Optional(Type.String({ description: "Baseline run description." })),
+  benchmarkScript: Type.Optional(
+    Type.String({
+      description: "Optional autoresearch.sh content to write before apply/baseline.",
+    }),
+  ),
+  checksScript: Type.Optional(
+    Type.String({
+      description: "Optional autoresearch.checks.sh content to write before apply/baseline.",
+    }),
+  ),
+  allowOverwriteScripts: Type.Optional(
+    Type.Boolean({ description: "Allow overwriting existing autoresearch scripts." }),
+  ),
+  postureCommand: Type.Optional(
+    Type.String({ description: "Optional posture gate for baseline." }),
+  ),
+  postureTimeoutSeconds: Type.Optional(Type.Number({ minimum: 1 })),
+  timeoutSeconds: Type.Optional(Type.Number({ minimum: 1 })),
+  checksTimeoutSeconds: Type.Optional(Type.Number({ minimum: 1 })),
 });
 
 const loopPeerModeSchema = Type.Union(
@@ -806,6 +890,109 @@ export function registerPiAutoresearchExtension(
 
       return {
         content: [{ type: "text", text: formatAutoresearchRunResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_AUTOPLAN_TOOL_NAME,
+    label: "Autoresearch Runtime Autoplan",
+    description:
+      "Explore the local repo/problem space and propose a bounded pi-autoresearch campaign setup, optionally with a DSPx program-gen handoff intent.",
+    promptSnippet:
+      "Use before setup when campaign config, metric, benchmark, checks, or DSPx planner handoff should be inferred from the repo and objective.",
+    parameters: asPiToolParameters(autoplanSchema),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const request = params as {
+        cwd?: string;
+        objective: string;
+        planner?: "heuristic" | "dspx_program";
+        filesInScope?: string[];
+        offLimits?: string[];
+        constraints?: string[];
+        benchmarkCommand?: string;
+        checksCommand?: string | null;
+        metricName?: string;
+        metricUnit?: string;
+        direction?: "lower" | "higher";
+        materializeDspxIntent?: boolean;
+        dspxIntentPath?: string;
+        dspxOutdir?: string;
+      };
+      const result = buildAutoresearchAutoplan({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        objective: request.objective,
+        planner: request.planner,
+        filesInScope: request.filesInScope,
+        offLimits: request.offLimits,
+        constraints: request.constraints,
+        benchmarkCommand: request.benchmarkCommand,
+        checksCommand: request.checksCommand,
+        metricName: request.metricName,
+        metricUnit: request.metricUnit,
+        direction: request.direction,
+        materializeDspxIntent: request.materializeDspxIntent,
+        dspxIntentPath: request.dspxIntentPath,
+        dspxOutdir: request.dspxOutdir,
+      });
+      return {
+        content: [{ type: "text", text: formatAutoresearchAutoplanResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_SETUP_TOOL_NAME,
+    label: "Autoresearch Runtime Setup",
+    description:
+      "Plan, apply, or baseline a pi-autoresearch campaign/segment config without requiring a human slash-command wizard.",
+    promptSnippet:
+      "Use after autoplan to write a config receipt, optionally create autoresearch scripts, or run the first baseline.",
+    parameters: asPiToolParameters(setupSchema),
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const request = params as {
+        cwd?: string;
+        action?: "plan" | "apply" | "baseline";
+        name: string;
+        metricName: string;
+        metricUnit?: string;
+        direction: "lower" | "higher";
+        benchmarkCommand?: string;
+        checksCommand?: string | null;
+        reconfigure?: boolean;
+        description?: string;
+        benchmarkScript?: string;
+        checksScript?: string | null;
+        allowOverwriteScripts?: boolean;
+        postureCommand?: string;
+        postureTimeoutSeconds?: number;
+        timeoutSeconds?: number;
+        checksTimeoutSeconds?: number;
+      };
+      const result = await executeAutoresearchSetup({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        action: request.action,
+        name: request.name,
+        metricName: request.metricName,
+        metricUnit: request.metricUnit,
+        direction: request.direction,
+        benchmarkCommand: request.benchmarkCommand,
+        checksCommand: request.checksCommand,
+        reconfigure: request.reconfigure,
+        description: request.description,
+        benchmarkScript: request.benchmarkScript,
+        checksScript: request.checksScript,
+        allowOverwriteScripts: request.allowOverwriteScripts,
+        postureCommand: request.postureCommand,
+        postureTimeoutSeconds: request.postureTimeoutSeconds,
+        timeoutSeconds: request.timeoutSeconds,
+        checksTimeoutSeconds: request.checksTimeoutSeconds,
+        signal,
+      });
+      return {
+        content: [{ type: "text", text: formatAutoresearchSetupResult(result) }],
         details: result,
       };
     },
@@ -1787,7 +1974,7 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "Ignored /autoresearch arguments; use the LLM tools for execution: autoresearch_runtime_status, autoresearch_runtime_run, autoresearch_runtime_loop, autoresearch_runtime_peer_assist, autoresearch_runtime_control, or autoresearch_runtime_finalize.",
+      "Ignored /autoresearch arguments; use the LLM tools for execution: autoresearch_runtime_autoplan, autoresearch_runtime_setup, autoresearch_runtime_status, autoresearch_runtime_run, autoresearch_runtime_loop, autoresearch_runtime_peer_assist, autoresearch_runtime_control, or autoresearch_runtime_finalize.",
       "warning",
     );
   }
@@ -1803,6 +1990,6 @@ function formatAutoresearchCommandNotification(
     `campaign=${status.currentSegment.name ?? "unconfigured"}`,
     `last=${status.currentSegment.lastRunStatus ?? "none"}`,
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
-    "tools: autoresearch_runtime_status | autoresearch_runtime_run | autoresearch_runtime_loop | autoresearch_runtime_peer_assist",
+    "tools: autoresearch_runtime_autoplan | autoresearch_runtime_setup | autoresearch_runtime_status | autoresearch_runtime_run | autoresearch_runtime_loop",
   ].join("; ");
 }

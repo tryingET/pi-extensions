@@ -49,6 +49,13 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
   - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, the current llama.cpp manifest-campaign projection state when one has been projected locally, and visible peer-lane recommendations for optional `scout_peer_spawn` / `candidate_peer_spawn` use without auto-spawning peers
+- `autoresearch_runtime_autoplan`
+  - explores the local repo/problem space from a bounded objective and proposes campaign setup: name, metric, direction, benchmark command, checks command, scope, risks, and exact next tool call
+  - supports `planner: "dspx_program"` to return or materialize a local DSPx `program-gen` handoff intent for an `AutoresearchSetupPlanner` candidate while keeping Pi as the outer controller
+- `autoresearch_runtime_setup`
+  - plans, applies, or baselines a campaign/segment config without requiring a human slash-command wizard
+  - can append a config receipt without running, or bootstrap a baseline run through the same bounded run machinery
+  - can write explicit `autoresearch.sh` / `autoresearch.checks.sh` content when requested and refuses to overwrite existing scripts unless allowed
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
   - bootstraps config receipts when needed

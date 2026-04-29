@@ -43,6 +43,8 @@ Operator/runtime surfaces:
 - `autoresearch_runtime_run`
 - `autoresearch_runtime_control`
 - `autoresearch_runtime_finalize`
+- `autoresearch_runtime_autoplan`
+- `autoresearch_runtime_setup`
 - `autoresearch_runtime_peer_assist`
 - `autoresearch_runtime_loop`
 - `autoresearch_live_supervision`
@@ -55,6 +57,8 @@ Core truths now landed:
 - checked resumable control posture with explicit `continue` / `rebaseline` / `finalize` / `stop`
 - safer finalization with plan / approve / materialize plus freshness and git-safety fences
 - bounded orchestrator-side live supervision and AK lifecycle automation above exact package truth
+- bounded repo/problem autoplan that proposes campaign config, benchmark/check commands, scope, risks, exact setup call, and optional DSPx `program-gen` handoff intent for an `AutoresearchSetupPlanner` candidate
+- setup materializer that can plan/apply a config receipt or bootstrap a baseline without forcing a human slash-command wizard
 - plan-only visible peer-assist handoff through canonical `scout_peer_spawn` / `candidate_peer_spawn` / `fork_peer_spawn` calls
 - bounded in-call autoresearch loop with required iteration budget, optional wall-clock/posture gates, live progress updates, governed next-hypothesis bridge, and explicit peer-launch handoff policy
 
@@ -140,6 +144,7 @@ These are **not** landed baseline behavior:
 - package-local self-promotion
 - automatic controller rotation
 - automatic visible peer spawning from pi-autoresearch; explicit `launch_*` peer modes return a canonical handoff for controller/operator dispatch rather than invoking peer tools internally
+- DSPx program-gen outputs as setup authority; DSPx remains a local evidence/program-synthesis handoff and pi-autoresearch still owns applying setup and running loops
 
 ## Ownership boundaries
 

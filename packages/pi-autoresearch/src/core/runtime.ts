@@ -1,5 +1,12 @@
 import { spawn } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 import type {
@@ -72,6 +79,8 @@ export const AUTORESEARCH_CONTROL_TOOL_NAME = "autoresearch_runtime_control";
 export const AUTORESEARCH_FINALIZE_TOOL_NAME = "autoresearch_runtime_finalize";
 export const AUTORESEARCH_PEER_ASSIST_TOOL_NAME = "autoresearch_runtime_peer_assist";
 export const AUTORESEARCH_LOOP_TOOL_NAME = "autoresearch_runtime_loop";
+export const AUTORESEARCH_AUTOPLAN_TOOL_NAME = "autoresearch_runtime_autoplan";
+export const AUTORESEARCH_SETUP_TOOL_NAME = "autoresearch_runtime_setup";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
@@ -290,6 +299,92 @@ export interface ExecuteAutoresearchRunResult {
   primaryMetric: number;
   decisionSummary: AutoresearchRunDecisionSummary | null;
   status: AutoresearchRuntimeStatus;
+}
+
+export type AutoresearchAutoplanPlanner = "heuristic" | "dspx_program";
+export type AutoresearchSetupAction = "plan" | "apply" | "baseline";
+
+export interface AutoresearchSetupConfigInput {
+  name: string;
+  metricName: string;
+  metricUnit?: string;
+  direction: MetricDirection;
+  benchmarkCommand?: string;
+  checksCommand?: string | null;
+}
+
+export interface BuildAutoresearchAutoplanInput {
+  cwd: string;
+  objective: string;
+  planner?: AutoresearchAutoplanPlanner;
+  filesInScope?: readonly string[];
+  offLimits?: readonly string[];
+  constraints?: readonly string[];
+  benchmarkCommand?: string;
+  checksCommand?: string | null;
+  metricName?: string;
+  metricUnit?: string;
+  direction?: MetricDirection;
+  materializeDspxIntent?: boolean;
+  dspxIntentPath?: string;
+  dspxOutdir?: string;
+}
+
+export interface AutoresearchDspxProgramGenPlan {
+  enabled: boolean;
+  intentPath: string;
+  outdir: string;
+  command: string;
+  materialized: boolean;
+  note: string;
+}
+
+export interface AutoresearchAutoplanResult {
+  cwd: string;
+  objective: string;
+  planner: AutoresearchAutoplanPlanner;
+  config: AutoresearchConfigReceipt;
+  benchmarkCommand: string | null;
+  checksCommand: string | null;
+  benchmarkScriptPresent: boolean;
+  checksScriptPresent: boolean;
+  packageScripts: Record<string, string>;
+  justRecipes: string[];
+  filesInScope: string[];
+  offLimits: string[];
+  constraints: string[];
+  confidence: number;
+  risks: string[];
+  nextToolCall: string;
+  dspxProgramGen: AutoresearchDspxProgramGenPlan | null;
+  status: AutoresearchRuntimeStatus;
+}
+
+export interface ExecuteAutoresearchSetupInput extends AutoresearchSetupConfigInput {
+  cwd: string;
+  action?: AutoresearchSetupAction;
+  reconfigure?: boolean;
+  description?: string;
+  benchmarkScript?: string;
+  checksScript?: string | null;
+  allowOverwriteScripts?: boolean;
+  postureCommand?: string;
+  postureTimeoutSeconds?: number;
+  timeoutSeconds?: number;
+  checksTimeoutSeconds?: number;
+  signal?: AbortSignal;
+}
+
+export interface ExecuteAutoresearchSetupResult {
+  cwd: string;
+  action: AutoresearchSetupAction;
+  plannedConfig: AutoresearchConfigReceipt;
+  appliedConfig: boolean;
+  wroteBenchmarkScript: boolean;
+  wroteChecksScript: boolean;
+  run: ExecuteAutoresearchRunResult | null;
+  status: AutoresearchRuntimeStatus;
+  nextToolCall: string;
 }
 export type AutoresearchPeerAssistLane = "none" | "scout" | "candidate" | "fork";
 export type AutoresearchPeerAssistReportBack = "intercom" | "manual" | "none";
@@ -605,6 +700,505 @@ export function appendReceipt(cwd: string, entry: AutoresearchReceipt): void {
   appendFileSync(jsonlPath, `${serializeReceipt(entry)}\n`, "utf8");
 }
 
+export function buildAutoresearchAutoplan(
+  input: BuildAutoresearchAutoplanInput,
+): AutoresearchAutoplanResult {
+  const cwd = path.resolve(input.cwd);
+  const objective = input.objective.trim();
+  if (objective.length === 0) throw new Error("objective is required");
+
+  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+  const paths = resolveAutoresearchPaths(cwd);
+  const packageScripts = readPackageScripts(cwd);
+  const justRecipes = readJustRecipes(cwd);
+  const metric = inferMetricConfig(input, objective);
+  const benchmarkCommand =
+    normalizeOptionalString(input.benchmarkCommand) ??
+    inferBenchmarkCommand(paths, packageScripts, justRecipes);
+  const checksCommand =
+    input.checksCommand !== undefined
+      ? normalizeOptionalString(input.checksCommand)
+      : inferChecksCommand(paths, packageScripts, justRecipes);
+  const name = slugAutoresearchName(objective, readPackageName(cwd));
+  const filesInScope = inferFilesInScope(cwd, input.filesInScope);
+  const offLimits = normalizeArray(input.offLimits);
+  const constraints = normalizeArray(input.constraints);
+  const risks = buildAutoplanRisks({ benchmarkCommand, checksCommand, status });
+  const config = createConfigReceipt({
+    name,
+    metricName: metric.metricName,
+    metricUnit: metric.metricUnit,
+    direction: metric.direction,
+    benchmarkCommand: benchmarkCommand ?? undefined,
+    checksCommand: checksCommand ?? undefined,
+  });
+  const nextToolCall = `autoresearch_runtime_setup({ action: "baseline", cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(config.name)}, metricName: ${JSON.stringify(config.metricName)}, metricUnit: ${JSON.stringify(config.metricUnit)}, direction: ${JSON.stringify(config.direction)}, benchmarkCommand: ${JSON.stringify(benchmarkCommand ?? "<benchmark command required>")}, checksCommand: ${checksCommand === null ? "null" : JSON.stringify(checksCommand)} })`;
+  const dspxProgramGen =
+    input.planner === "dspx_program"
+      ? buildDspxProgramGenPlan({
+          cwd,
+          objective,
+          filesInScope,
+          offLimits,
+          constraints,
+          config,
+          benchmarkCommand,
+          checksCommand,
+          materialize: input.materializeDspxIntent === true,
+          intentPath: input.dspxIntentPath,
+          outdir: input.dspxOutdir,
+        })
+      : null;
+
+  return {
+    cwd,
+    objective,
+    planner: input.planner ?? "heuristic",
+    config,
+    benchmarkCommand,
+    checksCommand,
+    benchmarkScriptPresent: existsSync(paths.benchmarkScriptPath),
+    checksScriptPresent: existsSync(paths.checksScriptPath),
+    packageScripts,
+    justRecipes,
+    filesInScope,
+    offLimits,
+    constraints,
+    confidence: benchmarkCommand ? 0.74 : 0.42,
+    risks,
+    nextToolCall,
+    dspxProgramGen,
+    status,
+  };
+}
+
+export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanResult): string {
+  return [
+    "# PI-AUTORESEARCH AUTOPLAN",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- planner: ${result.planner}`,
+    `- objective: ${result.objective}`,
+    `- confidence: ${result.confidence.toFixed(2)}`,
+    `- campaign: ${result.config.name}`,
+    `- metric: ${result.config.metricName} (${result.config.metricUnit || "unitless"}, ${result.config.direction} is better)`,
+    `- benchmark command: ${result.benchmarkCommand ?? "(missing)"}`,
+    `- checks command: ${result.checksCommand ?? "(none)"}`,
+    `- current machine state: ${result.status.runtimeProjection.state}`,
+    "",
+    "## Scope",
+    `- files in scope: ${formatTargetFiles(result.filesInScope)}`,
+    `- off limits: ${formatTargetFiles(result.offLimits)}`,
+    "",
+    "## Risks",
+    ...(result.risks.length > 0 ? result.risks.map((risk) => `- ${risk}`) : ["- none detected"]),
+    "",
+    "## Next exact tool call",
+    `\`${result.nextToolCall}\``,
+    ...(result.dspxProgramGen
+      ? [
+          "",
+          "## DSPx program-gen handoff",
+          `- intent: ${result.dspxProgramGen.intentPath}`,
+          `- outdir: ${result.dspxProgramGen.outdir}`,
+          `- materialized: ${result.dspxProgramGen.materialized ? "yes" : "no"}`,
+          `- command: \`${result.dspxProgramGen.command}\``,
+          `- note: ${result.dspxProgramGen.note}`,
+        ]
+      : []),
+  ].join("\n");
+}
+
+export async function executeAutoresearchSetup(
+  input: ExecuteAutoresearchSetupInput,
+): Promise<ExecuteAutoresearchSetupResult> {
+  const cwd = path.resolve(input.cwd);
+  const action = input.action ?? "plan";
+  const paths = resolveAutoresearchPaths(cwd);
+  const plannedConfig = createConfigReceipt(input);
+  let wroteBenchmarkScript = false;
+  let wroteChecksScript = false;
+
+  if (action === "plan") {
+    return {
+      cwd,
+      action,
+      plannedConfig,
+      appliedConfig: false,
+      wroteBenchmarkScript: false,
+      wroteChecksScript: false,
+      run: null,
+      status: buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false }),
+      nextToolCall: formatSetupNextToolCall(cwd, plannedConfig, "apply"),
+    };
+  }
+
+  wroteBenchmarkScript = maybeWriteAutoresearchScript({
+    path: paths.benchmarkScriptPath,
+    content: input.benchmarkScript,
+    allowOverwrite: input.allowOverwriteScripts === true,
+  });
+  wroteChecksScript = maybeWriteAutoresearchScript({
+    path: paths.checksScriptPath,
+    content: input.checksScript ?? undefined,
+    allowOverwrite: input.allowOverwriteScripts === true,
+  });
+
+  if (action === "baseline") {
+    const run = await executeAutoresearchRun({
+      cwd,
+      description: input.description?.trim() || `baseline for ${plannedConfig.name}`,
+      name: plannedConfig.name,
+      metricName: plannedConfig.metricName,
+      metricUnit: plannedConfig.metricUnit,
+      direction: plannedConfig.direction,
+      benchmarkCommand: plannedConfig.benchmarkCommand,
+      checksCommand: plannedConfig.checksCommand,
+      reconfigure: input.reconfigure,
+      postureCommand: input.postureCommand,
+      postureTimeoutSeconds: input.postureTimeoutSeconds,
+      timeoutSeconds: input.timeoutSeconds,
+      checksTimeoutSeconds: input.checksTimeoutSeconds,
+      signal: input.signal,
+    });
+    return {
+      cwd,
+      action,
+      plannedConfig,
+      appliedConfig: run.createdConfig,
+      wroteBenchmarkScript,
+      wroteChecksScript,
+      run,
+      status: run.status,
+      nextToolCall: `autoresearch_runtime_loop({ cwd: ${JSON.stringify(cwd)}, goal: ${JSON.stringify(input.description ?? plannedConfig.name)}, maxIterations: 3 })`,
+    };
+  }
+
+  const currentStatus = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+  if (currentStatus.currentSegment.configured && input.reconfigure !== true) {
+    throw new Error(
+      "runtime already has a configured segment; pass reconfigure=true to append a new config receipt",
+    );
+  }
+  const entries = loadReceiptLog(cwd).entries;
+  ensureEventLedgerInitializedFromReceipts(cwd, entries);
+  appendReceipt(cwd, plannedConfig);
+  appendLedgerEvent(
+    cwd,
+    createLedgerEventEntry(
+      campaignEvents.configureSegment(createCampaignSegmentConfigFromReceipt(plannedConfig)),
+      plannedConfig.createdAt,
+    ),
+  );
+
+  return {
+    cwd,
+    action,
+    plannedConfig,
+    appliedConfig: true,
+    wroteBenchmarkScript,
+    wroteChecksScript,
+    run: null,
+    status: buildAutoresearchRuntimeStatus(cwd),
+    nextToolCall: formatSetupNextToolCall(cwd, plannedConfig, "baseline"),
+  };
+}
+
+export function formatAutoresearchSetupResult(result: ExecuteAutoresearchSetupResult): string {
+  return [
+    "# PI-AUTORESEARCH SETUP",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- action: ${result.action}`,
+    `- applied config: ${result.appliedConfig ? "yes" : "no"}`,
+    `- wrote benchmark script: ${result.wroteBenchmarkScript ? "yes" : "no"}`,
+    `- wrote checks script: ${result.wroteChecksScript ? "yes" : "no"}`,
+    `- campaign: ${result.plannedConfig.name}`,
+    `- metric: ${result.plannedConfig.metricName} (${result.plannedConfig.metricUnit || "unitless"}, ${result.plannedConfig.direction} is better)`,
+    `- benchmark command: ${result.plannedConfig.benchmarkCommand ?? "(default/autodetect)"}`,
+    `- checks command: ${result.plannedConfig.checksCommand ?? "(none)"}`,
+    `- machine state: ${result.status.runtimeProjection.state}`,
+    result.run
+      ? `- baseline: ${result.run.runReceipt.status} ${result.run.primaryMetricName}=${formatMetricValue(result.run.primaryMetric, result.status.currentSegment.metricUnit)}`
+      : "- baseline: not run",
+    "",
+    "## Next exact tool call",
+    `\`${result.nextToolCall}\``,
+  ].join("\n");
+}
+
+function readPackageScripts(cwd: string): Record<string, string> {
+  const packageJsonPath = path.join(cwd, "package.json");
+  if (!existsSync(packageJsonPath)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as unknown;
+    if (!isRecord(parsed) || !isRecord(parsed.scripts)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed.scripts).filter((entry): entry is [string, string] => {
+        return typeof entry[1] === "string";
+      }),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function readPackageName(cwd: string): string | null {
+  const packageJsonPath = path.join(cwd, "package.json");
+  if (!existsSync(packageJsonPath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as unknown;
+    if (!isRecord(parsed) || typeof parsed.name !== "string") return null;
+    return parsed.name;
+  } catch {
+    return null;
+  }
+}
+
+function readJustRecipes(cwd: string): string[] {
+  const justfilePath = path.join(cwd, "Justfile");
+  if (!existsSync(justfilePath)) return [];
+  try {
+    return readFileSync(justfilePath, "utf8")
+      .split(/\r?\n/)
+      .map((line) => /^(?!\s)([A-Za-z0-9_.-]+)\s*:/.exec(line)?.[1])
+      .filter((entry): entry is string => Boolean(entry));
+  } catch {
+    return [];
+  }
+}
+
+function inferMetricConfig(
+  input: Pick<BuildAutoresearchAutoplanInput, "metricName" | "metricUnit" | "direction">,
+  objective: string,
+): { metricName: string; metricUnit: string; direction: MetricDirection } {
+  const lowered = objective.toLowerCase();
+  if (input.metricName?.trim()) {
+    return {
+      metricName: input.metricName.trim(),
+      metricUnit: input.metricUnit ?? "",
+      direction: input.direction ?? "lower",
+    };
+  }
+  if (/accur|quality|score|pass rate|coverage/.test(lowered)) {
+    return { metricName: "score", metricUnit: "", direction: input.direction ?? "higher" };
+  }
+  return {
+    metricName: "total_ms",
+    metricUnit: input.metricUnit ?? "ms",
+    direction: input.direction ?? "lower",
+  };
+}
+
+function inferBenchmarkCommand(
+  paths: AutoresearchPaths,
+  packageScripts: Record<string, string>,
+  justRecipes: readonly string[],
+): string | null {
+  if (existsSync(paths.benchmarkScriptPath)) return "bash autoresearch.sh";
+  for (const name of ["bench", "benchmark", "perf", "test:perf", "test:benchmark"]) {
+    if (packageScripts[name]) return `npm run ${name}`;
+  }
+  for (const name of ["bench", "benchmark", "perf"]) {
+    if (justRecipes.includes(name)) return `just ${name}`;
+  }
+  if (packageScripts.test) return "npm test";
+  return null;
+}
+
+function inferChecksCommand(
+  paths: AutoresearchPaths,
+  packageScripts: Record<string, string>,
+  justRecipes: readonly string[],
+): string | null {
+  if (existsSync(paths.checksScriptPath)) return "bash autoresearch.checks.sh";
+  for (const name of ["check", "quality:ci", "ci", "test"]) {
+    if (packageScripts[name]) return `npm run ${name}`;
+  }
+  for (const name of ["check", "ci", "test"]) {
+    if (justRecipes.includes(name)) return `just ${name}`;
+  }
+  return null;
+}
+
+function slugAutoresearchName(objective: string, packageName: string | null): string {
+  const source = `${packageName ?? "campaign"}-${objective}`;
+  const slug = source
+    .toLowerCase()
+    .replace(/^@/, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64)
+    .replace(/-+$/g, "");
+  return slug || "autoresearch-campaign";
+}
+
+function inferFilesInScope(cwd: string, requested: readonly string[] | undefined): string[] {
+  const normalized = normalizeArray(requested);
+  if (normalized.length > 0) return normalized;
+  return ["src", "tests", "package.json", "Justfile", "autoresearch.sh"].filter((entry) =>
+    existsSync(path.join(cwd, entry)),
+  );
+}
+
+function buildAutoplanRisks(input: {
+  benchmarkCommand: string | null;
+  checksCommand: string | null;
+  status: AutoresearchRuntimeStatus;
+}): string[] {
+  const risks: string[] = [];
+  if (!input.benchmarkCommand) {
+    risks.push(
+      "no benchmark command was detected; provide one or allow a benchmark script to be created",
+    );
+  }
+  if (!input.checksCommand) {
+    risks.push(
+      "no checks command was detected; loop safety will rely on benchmark exit status only",
+    );
+  }
+  if (input.status.currentSegment.configured) {
+    risks.push(
+      "runtime is already configured; setup apply requires reconfigure=true for a new segment",
+    );
+  }
+  return risks;
+}
+
+function buildDspxProgramGenPlan(input: {
+  cwd: string;
+  objective: string;
+  filesInScope: readonly string[];
+  offLimits: readonly string[];
+  constraints: readonly string[];
+  config: AutoresearchConfigReceipt;
+  benchmarkCommand: string | null;
+  checksCommand: string | null;
+  materialize: boolean;
+  intentPath?: string;
+  outdir?: string;
+}): AutoresearchDspxProgramGenPlan {
+  const intentPath = path.resolve(
+    input.cwd,
+    input.intentPath ?? ".autoresearch/dspx/autosetup-intent.yaml",
+  );
+  const outdir = path.resolve(
+    input.cwd,
+    input.outdir ?? ".autoresearch/dspx/generated/autosetup-planner",
+  );
+  if (input.materialize) {
+    mkdirSync(path.dirname(intentPath), { recursive: true });
+    writeFileSync(intentPath, renderDspxAutoresearchIntent(input), "utf8");
+  }
+  return {
+    enabled: true,
+    intentPath,
+    outdir,
+    command: `cd ${JSON.stringify(resolveDspxRepoPath())} && just dspx program-gen --intent ${JSON.stringify(intentPath)} --outdir ${JSON.stringify(outdir)}`,
+    materialized: input.materialize,
+    note: "DSPx program-gen remains a local evidence/program-synthesis handoff; pi-autoresearch still owns setup application, bounded runs, receipts, and stop gates.",
+  };
+}
+
+function renderDspxAutoresearchIntent(input: {
+  objective: string;
+  filesInScope: readonly string[];
+  offLimits: readonly string[];
+  constraints: readonly string[];
+  config: AutoresearchConfigReceipt;
+  benchmarkCommand: string | null;
+  checksCommand: string | null;
+}): string {
+  const fields = [
+    "runtime_status: current pi-autoresearch state summary",
+    "repo_summary: concise repository and script summary",
+    "objective: optimization objective",
+    "constraints: bounded execution and safety constraints",
+  ];
+  const outputs = [
+    "campaign_name: proposed campaign or segment name",
+    "metric_name: primary metric name",
+    "metric_unit: primary metric unit",
+    "direction: lower or higher",
+    "benchmark_command: local command that prints METRIC name=value",
+    "checks_command: optional local safety command",
+    "risks: bounded setup risks",
+    "next_action: exact pi-autoresearch setup or run recommendation",
+  ];
+  return [
+    "schema_version: program-intent-v2",
+    "name: autoresearch_autosetup_planner",
+    "description: DSPy planner candidate for bounded pi-autoresearch campaign setup.",
+    "topology:",
+    "  kind: single_module",
+    "signature:",
+    "  name: AutoresearchSetupPlanner",
+    "  inputs:",
+    ...fields.map((field) => `    - ${yamlQuote(field)}`),
+    "  outputs:",
+    ...outputs.map((field) => `    - ${yamlQuote(field)}`),
+    "examples:",
+    "  - inputs:",
+    `      objective: ${yamlQuote(input.objective)}`,
+    `      constraints: ${yamlQuote(["bounded local runtime only", ...input.constraints].join("; "))}`,
+    `      repo_summary: ${yamlQuote(`files=${input.filesInScope.join(", ")}; off_limits=${input.offLimits.join(", ")}`)}`,
+    "      runtime_status: unconfigured or configured local receipt runtime",
+    "    outputs:",
+    `      campaign_name: ${yamlQuote(input.config.name)}`,
+    `      metric_name: ${yamlQuote(input.config.metricName)}`,
+    `      metric_unit: ${yamlQuote(input.config.metricUnit)}`,
+    `      direction: ${yamlQuote(input.config.direction)}`,
+    `      benchmark_command: ${yamlQuote(input.benchmarkCommand ?? "<benchmark command required>")}`,
+    `      checks_command: ${yamlQuote(input.checksCommand ?? "")}`,
+    "      risks: keep setup bounded; do not mutate authority or launch hidden loops",
+    "      next_action: apply setup through autoresearch_runtime_setup, then run bounded loop",
+    "metadata:",
+    "  authority: evidence_only",
+    "  outer_controller: pi-autoresearch",
+    "  program_gen_automation: false",
+  ].join("\n");
+}
+
+function resolveDspxRepoPath(): string {
+  return process.env.DSPX_HOME ?? "/home/tryinget/ai-society/softwareco/owned/dspx";
+}
+
+function yamlQuote(value: string): string {
+  return JSON.stringify(value);
+}
+
+function maybeWriteAutoresearchScript(input: {
+  path: string;
+  content?: string | null;
+  allowOverwrite: boolean;
+}): boolean {
+  const content = input.content?.trim();
+  if (!content) return false;
+  if (existsSync(input.path) && !input.allowOverwrite) {
+    throw new Error(
+      `${path.basename(input.path)} already exists; pass allowOverwriteScripts=true to overwrite it`,
+    );
+  }
+  mkdirSync(path.dirname(input.path), { recursive: true });
+  writeFileSync(input.path, content.endsWith("\n") ? content : `${content}\n`, "utf8");
+  chmodSync(input.path, 0o755);
+  return true;
+}
+
+function formatSetupNextToolCall(
+  cwd: string,
+  config: AutoresearchConfigReceipt,
+  action: AutoresearchSetupAction,
+): string {
+  return `autoresearch_runtime_setup({ action: ${JSON.stringify(action)}, cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(config.name)}, metricName: ${JSON.stringify(config.metricName)}, metricUnit: ${JSON.stringify(config.metricUnit)}, direction: ${JSON.stringify(config.direction)}, benchmarkCommand: ${JSON.stringify(config.benchmarkCommand ?? "bash autoresearch.sh")}, checksCommand: ${config.checksCommand === undefined ? "undefined" : JSON.stringify(config.checksCommand)} })`;
+}
+
+function normalizeOptionalString(value: string | null | undefined): string | null {
+  if (value === null) return null;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function buildAutoresearchRuntimeStatus(
   cwd?: string,
   options: { persistSnapshot?: boolean } = {},
@@ -867,6 +1461,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
     "- use autoresearch_runtime_finalize to inspect, plan, approve, and materialize a bounded finalization workflow",
     "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal; postureCommand can fail closed before benchmark execution",
+    `- use ${AUTORESEARCH_AUTOPLAN_TOOL_NAME} to inspect the repo/problem space and propose bounded campaign setup; planner=dspx_program can materialize a DSPx program-gen handoff intent`,
+    `- use ${AUTORESEARCH_SETUP_TOOL_NAME} to plan/apply a config receipt or bootstrap a baseline run without needing a slash-command wizard`,
     `- use ${AUTORESEARCH_PEER_ASSIST_TOOL_NAME} to plan one canonical visible peer lane without launching it`,
     `- use ${AUTORESEARCH_LOOP_TOOL_NAME} to execute a bounded in-call loop with maxIterations, optional wall-clock/posture gates, live progress updates, and optional explicit peer-launch handoff`,
     `- use ${AUTORESEARCH_SELF_HOSTING_TOOL_NAME} for the public supervised self-hosting seam: inspect controller/candidate/evaluator state, prepare the candidate worktree, run one bounded self-hosting wave, use action=start_and_watch for in-call progress updates, and optionally plan/apply promotion or rollback records without package-local self-promotion`,
@@ -2210,6 +2806,8 @@ function buildAutoresearchRuntimeStatusFromEntries(
       AUTORESEARCH_FINALIZE_TOOL_NAME,
       AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
       AUTORESEARCH_LOOP_TOOL_NAME,
+      AUTORESEARCH_AUTOPLAN_TOOL_NAME,
+      AUTORESEARCH_SETUP_TOOL_NAME,
       AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
       AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
       AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
