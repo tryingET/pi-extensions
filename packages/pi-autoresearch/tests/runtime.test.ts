@@ -31,6 +31,8 @@ import {
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_LOCAL_ARTIFACTS,
+  AUTORESEARCH_LOOP_TOOL_NAME,
+  AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   appendReceipt,
@@ -349,6 +351,8 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     AUTORESEARCH_RUN_TOOL_NAME,
     AUTORESEARCH_CONTROL_TOOL_NAME,
     AUTORESEARCH_FINALIZE_TOOL_NAME,
+    AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
+    AUTORESEARCH_LOOP_TOOL_NAME,
     AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
     AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
     AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
@@ -491,6 +495,8 @@ test("extension registers /autoresearch plus the bounded runtime status, control
   assert.equal(typeof tools.get(AUTORESEARCH_CONTROL_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_FINALIZE_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_PEER_ASSIST_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_SELF_HOSTING_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME)?.execute, "function");
   assert.equal(
@@ -523,6 +529,192 @@ test("/autoresearch opens the bounded-runtime overview", async () => {
   assert.match(editorText, /machine projection/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0].message, /machine\/ledger-backed run/);
+});
+
+test("autoresearch_runtime_peer_assist plans canonical peer tool calls without launching", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "peer-plan",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+
+    const result = await tools.get(AUTORESEARCH_PEER_ASSIST_TOOL_NAME)?.execute(
+      "call-peer",
+      {
+        cwd,
+        lane: "candidate",
+        targetFiles: ["src/runner.ts"],
+        offLimits: [".env"],
+        constraints: ["focused patch only"],
+        reportBack: "manual",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(result.content[0]?.text ?? "", /candidate_peer_spawn/);
+    const details = result.details as { lane: string; toolName: string; toolCall: string };
+    assert.equal(details.lane, "candidate");
+    assert.equal(details.toolName, "candidate_peer_spawn");
+    assert.match(details.toolCall, /filesInScope/);
+  });
+});
+
+test("autoresearch_runtime_loop runs a bounded iteration budget and returns peer plan", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeExecutable(
+      cwd,
+      "autoresearch.sh",
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "count_file=.loop-count",
+        "count=0",
+        "if [ -f $count_file ]; then count=$(cat $count_file); fi",
+        "count=$((count + 1))",
+        "echo $count > $count_file",
+        'echo "METRIC total_ms=$((200 - count))"',
+      ].join("\n"),
+    );
+
+    const updates: Array<{ details?: { phase?: string } }> = [];
+    const result = await tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute(
+      "call-loop",
+      {
+        cwd,
+        goal: "reduce total_ms",
+        maxIterations: 2,
+        name: "loop-speed",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        peerMode: "launch_scout",
+      },
+      undefined,
+      (update: { details?: { phase?: string } }) => updates.push(update),
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(result.content[0]?.text ?? "", /completed iterations: 2\/2/);
+    const details = result.details as {
+      completedIterations: number;
+      runs: Array<{ runReceipt: { status: string; metric: number } }>;
+      peerAssist: { lane: string; toolName: string };
+      peerLaunchHandoff: { status: string; toolName: string };
+    };
+    assert.equal(details.completedIterations, 2);
+    assert.equal(details.runs[0]?.runReceipt.status, "baseline");
+    assert.equal(details.runs[1]?.runReceipt.status, "candidate");
+    assert.equal(details.peerAssist.lane, "scout");
+    assert.equal(details.peerAssist.toolName, "scout_peer_spawn");
+    assert.equal(details.peerLaunchHandoff.status, "handoff_required");
+    assert.equal(details.peerLaunchHandoff.toolName, "scout_peer_spawn");
+    assert.ok(updates.some((update) => update.details?.phase === "iteration_start"));
+    assert.ok(updates.some((update) => update.details?.phase === "loop_complete"));
+  });
+});
+
+test("autoresearch_runtime_loop stops by default on failed checks", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeExecutable(cwd, "autoresearch.sh", '#!/usr/bin/env bash\necho "METRIC total_ms=1"\n');
+    writeExecutable(cwd, "autoresearch.checks.sh", "#!/usr/bin/env bash\nexit 1\n");
+
+    const result = await tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute(
+      "call-loop-checks",
+      {
+        cwd,
+        goal: "keep checks green while reducing total_ms",
+        maxIterations: 2,
+        name: "checks-loop",
+        metricName: "total_ms",
+        direction: "lower",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const details = result.details as { completedIterations: number; stopReason: string };
+    assert.equal(details.completedIterations, 1);
+    assert.equal(details.stopReason, "stopOn run status checks_failed");
+  });
+});
+
+test("autoresearch_runtime_run fails closed when posture gate blocks", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeExecutable(cwd, "autoresearch.sh", '#!/usr/bin/env bash\necho "METRIC total_ms=1"\n');
+    writeExecutable(
+      cwd,
+      "posture.sh",
+      '#!/usr/bin/env bash\necho \'{"reconcileRecommended":true,"recommendedCommand":"fix-gpu"}\'\n',
+    );
+
+    const tool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(tool);
+    await assert.rejects(
+      () =>
+        tool.execute(
+          "call-posture",
+          {
+            cwd,
+            description: "blocked posture",
+            name: "posture-speed",
+            metricName: "total_ms",
+            direction: "lower",
+            postureCommand: "bash posture.sh",
+          },
+          undefined,
+          undefined,
+          { cwd },
+        ),
+      /posture gate blocked/,
+    );
+  });
+});
+
+test("autoresearch_runtime_loop stops cleanly when posture gate blocks", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeExecutable(cwd, "autoresearch.sh", '#!/usr/bin/env bash\necho "METRIC total_ms=1"\n');
+    writeExecutable(cwd, "posture.sh", "#!/usr/bin/env bash\necho '{\"ready\":false}'\n");
+
+    const result = await tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute(
+      "call-loop-posture",
+      {
+        cwd,
+        goal: "reduce total_ms",
+        maxIterations: 2,
+        name: "posture-loop",
+        metricName: "total_ms",
+        direction: "lower",
+        postureCommand: "bash posture.sh",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(result.content[0]?.text ?? "", /posture gate blocked/);
+    const details = result.details as { completedIterations: number; stopReason: string };
+    assert.equal(details.completedIterations, 0);
+    assert.match(details.stopReason, /posture gate blocked/);
+  });
 });
 
 test("autoresearch_runtime_run bootstraps config, executes benchmark, and appends receipts", async () => {

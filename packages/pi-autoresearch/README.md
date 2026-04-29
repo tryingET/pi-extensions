@@ -54,7 +54,19 @@ The current boundary is now more specific: the package is the runtime owner for 
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
   - appends machine/event entries to `autoresearch.events.jsonl`
+  - can enforce an optional posture command before benchmark execution and fails closed when the posture requires reconciliation
   - reports optional peer-lane recommendations after the run: scout peers for failed or ambiguous results, candidate peers for isolated patch exploration, and fork peers only when inherited context is intentional
+- `autoresearch_runtime_peer_assist`
+  - plans one canonical visible peer lane without launching it
+  - emits exact `scout_peer_spawn`, `candidate_peer_spawn`, or `fork_peer_spawn` calls using the cleaned visible-peer tool surface
+  - preserves the evidence boundary: peer/intercom output remains communication until controller verification
+- `autoresearch_runtime_loop`
+  - executes a bounded in-call loop over `autoresearch_runtime_run` semantics
+  - requires `maxIterations` and can also enforce a wall-clock budget
+  - can request governed Prompt Vault next-hypothesis decisions between runs
+  - streams in-call progress updates for loop start, iteration start/complete, stop, and completion phases
+  - supports explicit `peerMode` values: `off`, `plan`, `launch_scout`, `launch_candidate`, `launch_fork`; `launch_*` modes return an exact canonical peer-tool handoff rather than duplicating or hiding peer-spawn machinery
+  - stops on explicit budget, control, machine, posture, or governed-decision gates rather than becoming a hidden daemon
 - `autoresearch_self_hosting_run`
   - is the bounded public supervised self-hosting seam for `packages/pi-autoresearch` itself
   - can inspect controller/candidate/evaluator state, plan or apply the candidate worktree, run one bounded controller/candidate/evaluator wave, use `action=start_and_watch` for in-call progress updates while that bounded wave runs, and optionally plan/apply explicit promotion or rollback records

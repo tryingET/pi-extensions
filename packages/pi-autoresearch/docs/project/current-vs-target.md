@@ -43,6 +43,8 @@ Operator/runtime surfaces:
 - `autoresearch_runtime_run`
 - `autoresearch_runtime_control`
 - `autoresearch_runtime_finalize`
+- `autoresearch_runtime_peer_assist`
+- `autoresearch_runtime_loop`
 - `autoresearch_live_supervision`
 
 Core truths now landed:
@@ -53,6 +55,8 @@ Core truths now landed:
 - checked resumable control posture with explicit `continue` / `rebaseline` / `finalize` / `stop`
 - safer finalization with plan / approve / materialize plus freshness and git-safety fences
 - bounded orchestrator-side live supervision and AK lifecycle automation above exact package truth
+- plan-only visible peer-assist handoff through canonical `scout_peer_spawn` / `candidate_peer_spawn` / `fork_peer_spawn` calls
+- bounded in-call autoresearch loop with required iteration budget, optional wall-clock/posture gates, live progress updates, governed next-hypothesis bridge, and explicit peer-launch handoff policy
 
 Canonical closure:
 
@@ -135,11 +139,11 @@ These are **not** landed baseline behavior:
 - remote-review control plane
 - package-local self-promotion
 - automatic controller rotation
-- automatic visible peer spawning from pi-autoresearch; current peer integration is recommendation text only
+- automatic visible peer spawning from pi-autoresearch; explicit `launch_*` peer modes return a canonical handoff for controller/operator dispatch rather than invoking peer tools internally
 
 ## Ownership boundaries
 
-- `packages/pi-autoresearch`: executable runtime state, bounded orchestration, and optional visible peer-lane recommendations after status/run inspection
+- `packages/pi-autoresearch`: executable runtime state, bounded orchestration, optional posture-gated run/loop execution, and canonical visible peer-lane handoff planning after status/run/loop inspection
 - `packages/pi-little-helpers`: visible peer launch surfaces (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`)
 - `packages/pi-peer-messaging`: intercom communication and ACK/FINAL protocol snapshots, not authority
 - Prompt Vault: durable decision procedures

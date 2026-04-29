@@ -30,13 +30,20 @@ import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
+  AUTORESEARCH_LOOP_TOOL_NAME,
+  AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
+  type AutoresearchLoopProgressEvent,
   buildAutoresearchHelpText,
+  buildAutoresearchPeerAssistPlan,
   buildAutoresearchRuntimeStatus,
+  executeAutoresearchLoop,
   executeAutoresearchRun,
   formatAutoresearchControlResult,
   formatAutoresearchDecisionResult,
+  formatAutoresearchLoopResult,
+  formatAutoresearchPeerAssistPlan,
   formatAutoresearchRunResult,
   formatAutoresearchStatusText,
   inspectAutoresearchRuntimeControl,
@@ -289,6 +296,15 @@ const runSchema = Type.Object({
   checksTimeoutSeconds: Type.Optional(
     Type.Number({ description: "Checks timeout in seconds (default: 300).", minimum: 1 }),
   ),
+  postureCommand: Type.Optional(
+    Type.String({
+      description:
+        "Optional machine/workstation posture command that must report safe posture before the benchmark starts.",
+    }),
+  ),
+  postureTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "Posture command timeout in seconds (default: 15).", minimum: 1 }),
+  ),
   reconfigure: Type.Optional(
     Type.Boolean({
       description:
@@ -328,6 +344,112 @@ const selfHostingPromotionStatusSchema = Type.Union(
       "Optional promotion-record status for action=run or action=start_and_watch when a default-promotion candidate should also plan/apply the external promotion record.",
   },
 );
+const peerAssistLaneSchema = Type.Union(
+  [
+    Type.Literal("auto"),
+    Type.Literal("none"),
+    Type.Literal("scout"),
+    Type.Literal("candidate"),
+    Type.Literal("fork"),
+  ],
+  { description: "Peer-assist lane to plan. auto selects from current runtime state." },
+);
+
+const reportBackSchema = Type.Union(
+  [Type.Literal("intercom"), Type.Literal("manual"), Type.Literal("none")],
+  { description: "Visible peer report-back mode." },
+);
+
+const peerAssistSchema = Type.Object({
+  cwd: Type.Optional(
+    Type.String({ description: "Optional cwd override for peer-assist planning." }),
+  ),
+  lane: Type.Optional(peerAssistLaneSchema),
+  objective: Type.Optional(Type.String({ description: "Optional peer objective override." })),
+  targetFiles: Type.Optional(stringArraySchema),
+  offLimits: Type.Optional(stringArraySchema),
+  constraints: Type.Optional(stringArraySchema),
+  reportBack: Type.Optional(reportBackSchema),
+  parentPeerTarget: Type.Optional(
+    Type.String({ description: "Exact parent peer target/session id for intercom report-back." }),
+  ),
+});
+
+const loopPeerModeSchema = Type.Union(
+  [
+    Type.Literal("off"),
+    Type.Literal("plan"),
+    Type.Literal("launch_scout"),
+    Type.Literal("launch_candidate"),
+    Type.Literal("launch_fork"),
+  ],
+  {
+    description:
+      "Peer handoff policy after the bounded loop. launch_* returns an exact canonical peer tool call for explicit controller dispatch; pi-autoresearch does not auto-spawn peers.",
+  },
+);
+
+const loopSchema = Type.Object({
+  cwd: Type.Optional(Type.String({ description: "Optional cwd override for the bounded loop." })),
+  goal: Type.String({ description: "Bounded autoresearch loop goal." }),
+  maxIterations: Type.Number({
+    description: "Required maximum iterations for this bounded loop.",
+    minimum: 1,
+  }),
+  maxWallClockMinutes: Type.Optional(
+    Type.Number({ description: "Optional wall-clock budget in minutes.", minimum: 0.01 }),
+  ),
+  description: Type.Optional(Type.String({ description: "Initial run description." })),
+  name: Type.Optional(Type.String({ description: "Campaign name when bootstrapping." })),
+  metricName: Type.Optional(Type.String({ description: "Metric name when bootstrapping." })),
+  metricUnit: Type.Optional(Type.String({ description: "Metric unit." })),
+  direction: Type.Optional(directionSchema),
+  benchmarkCommand: Type.Optional(Type.String({ description: "Benchmark command override." })),
+  checksCommand: Type.Optional(nullableStringSchema),
+  timeoutSeconds: Type.Optional(
+    Type.Number({ description: "Benchmark timeout seconds.", minimum: 1 }),
+  ),
+  checksTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "Checks timeout seconds.", minimum: 1 }),
+  ),
+  reconfigure: Type.Optional(
+    Type.Boolean({ description: "Append a new config receipt before the first loop run." }),
+  ),
+  postureCommand: Type.Optional(
+    Type.String({ description: "Optional posture command required to pass before each run." }),
+  ),
+  postureTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "Posture command timeout seconds.", minimum: 1 }),
+  ),
+  decisionGoal: Type.Optional(
+    Type.String({
+      description: "When set, request governed next-hypothesis decisions between runs.",
+    }),
+  ),
+  decisionConstraints: Type.Optional(stringArraySchema),
+  decisionFilesInScope: Type.Optional(stringArraySchema),
+  decisionOffLimits: Type.Optional(stringArraySchema),
+  decisionIdeasBacklog: Type.Optional(stringArraySchema),
+  decisionAsiNotes: Type.Optional(stringArraySchema),
+  decisionDeadEndMemory: Type.Optional(stringArraySchema),
+  stopOn: Type.Optional(
+    Type.Array(
+      Type.Union([
+        Type.Literal("baseline"),
+        Type.Literal("candidate"),
+        Type.Literal("keep"),
+        Type.Literal("discard"),
+        Type.Literal("crash"),
+        Type.Literal("checks_failed"),
+        Type.Literal("blocked"),
+        Type.Literal("rebaseline"),
+        Type.Literal("finalize"),
+      ]),
+    ),
+  ),
+  peerMode: Type.Optional(loopPeerModeSchema),
+});
+
 const selfHostingActionSchema = Type.Union(
   [
     Type.Literal("status"),
@@ -641,6 +763,8 @@ export function registerPiAutoresearchExtension(
         checksCommand?: string | null;
         timeoutSeconds?: number;
         checksTimeoutSeconds?: number;
+        postureCommand?: string;
+        postureTimeoutSeconds?: number;
         reconfigure?: boolean;
         decisionGoal?: string;
         decisionConstraints?: string[];
@@ -662,6 +786,8 @@ export function registerPiAutoresearchExtension(
         checksCommand: request.checksCommand,
         timeoutSeconds: request.timeoutSeconds,
         checksTimeoutSeconds: request.checksTimeoutSeconds,
+        postureCommand: request.postureCommand,
+        postureTimeoutSeconds: request.postureTimeoutSeconds,
         reconfigure: request.reconfigure,
         liveDecision: request.decisionGoal
           ? {
@@ -681,6 +807,128 @@ export function registerPiAutoresearchExtension(
 
       return {
         content: [{ type: "text", text: formatAutoresearchRunResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
+    label: "Autoresearch Runtime Peer Assist",
+    description:
+      "Plan one canonical visible peer assist lane for the current pi-autoresearch runtime without launching it.",
+    promptSnippet:
+      "Plan scout_peer_spawn, candidate_peer_spawn, or fork_peer_spawn from current autoresearch state without auto-spawning peers.",
+    parameters: asPiToolParameters(peerAssistSchema),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const request = params as {
+        cwd?: string;
+        lane?: "auto" | "none" | "scout" | "candidate" | "fork";
+        objective?: string;
+        targetFiles?: string[];
+        offLimits?: string[];
+        constraints?: string[];
+        reportBack?: "intercom" | "manual" | "none";
+        parentPeerTarget?: string;
+      };
+      const result = buildAutoresearchPeerAssistPlan({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        lane: request.lane,
+        objective: request.objective,
+        targetFiles: request.targetFiles,
+        offLimits: request.offLimits,
+        constraints: request.constraints,
+        reportBack: request.reportBack,
+        parentPeerTarget: request.parentPeerTarget,
+      });
+      return {
+        content: [{ type: "text", text: formatAutoresearchPeerAssistPlan(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_LOOP_TOOL_NAME,
+    label: "Autoresearch Runtime Loop",
+    description:
+      "Execute a bounded pi-autoresearch loop with required iteration budget, receipt/ledger recording, optional posture gate, and optional governed next-hypothesis decisions.",
+    promptSnippet:
+      "Run a bounded autoresearch loop; requires maxIterations and stops on budget, control gates, posture gates, or governed decisions.",
+    parameters: asPiToolParameters(loopSchema),
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const request = params as {
+        cwd?: string;
+        goal: string;
+        maxIterations: number;
+        maxWallClockMinutes?: number;
+        description?: string;
+        name?: string;
+        metricName?: string;
+        metricUnit?: string;
+        direction?: "lower" | "higher";
+        benchmarkCommand?: string;
+        checksCommand?: string | null;
+        timeoutSeconds?: number;
+        checksTimeoutSeconds?: number;
+        reconfigure?: boolean;
+        postureCommand?: string;
+        postureTimeoutSeconds?: number;
+        decisionGoal?: string;
+        decisionConstraints?: string[];
+        decisionFilesInScope?: string[];
+        decisionOffLimits?: string[];
+        decisionIdeasBacklog?: string[];
+        decisionAsiNotes?: string[];
+        decisionDeadEndMemory?: string[];
+        stopOn?: Array<
+          | "baseline"
+          | "candidate"
+          | "keep"
+          | "discard"
+          | "crash"
+          | "checks_failed"
+          | "blocked"
+          | "rebaseline"
+          | "finalize"
+        >;
+        peerMode?: "off" | "plan" | "launch_scout" | "launch_candidate" | "launch_fork";
+      };
+      const result = await executeAutoresearchLoop({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        goal: request.goal,
+        maxIterations: request.maxIterations,
+        maxWallClockMinutes: request.maxWallClockMinutes,
+        description: request.description,
+        name: request.name,
+        metricName: request.metricName,
+        metricUnit: request.metricUnit,
+        direction: request.direction,
+        benchmarkCommand: request.benchmarkCommand,
+        checksCommand: request.checksCommand,
+        timeoutSeconds: request.timeoutSeconds,
+        checksTimeoutSeconds: request.checksTimeoutSeconds,
+        reconfigure: request.reconfigure,
+        postureCommand: request.postureCommand,
+        postureTimeoutSeconds: request.postureTimeoutSeconds,
+        decisionGoal: request.decisionGoal,
+        decisionRuntime: request.decisionGoal
+          ? resolveDecisionRuntime(ctx, signal, options)
+          : undefined,
+        decisionConstraints: request.decisionConstraints,
+        decisionFilesInScope: request.decisionFilesInScope,
+        decisionOffLimits: request.decisionOffLimits,
+        decisionIdeasBacklog: request.decisionIdeasBacklog,
+        decisionAsiNotes: request.decisionAsiNotes,
+        decisionDeadEndMemory: request.decisionDeadEndMemory,
+        model: ctx.model?.id,
+        stopOn: request.stopOn,
+        peerMode: request.peerMode,
+        signal,
+        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
+      });
+      return {
+        content: [{ type: "text", text: formatAutoresearchLoopResult(result) }],
         details: result,
       };
     },
@@ -1375,6 +1623,25 @@ function normalizeAutoresearchSelfHostingCommand(
     return entry;
   });
   return normalized as [string, ...string[]];
+}
+
+function emitAutoresearchLoopUpdate(onUpdate: unknown, event: AutoresearchLoopProgressEvent): void {
+  if (typeof onUpdate !== "function") {
+    return;
+  }
+
+  (
+    onUpdate as (update: {
+      content: Array<{ type: "text"; text: string }>;
+      details: Record<string, unknown>;
+    }) => void
+  )({
+    content: [{ type: "text", text: event.message }],
+    details: {
+      tool: AUTORESEARCH_LOOP_TOOL_NAME,
+      ...event,
+    },
+  });
 }
 
 function emitAutoresearchSelfHostingUpdate(

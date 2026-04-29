@@ -70,6 +70,8 @@ export const AUTORESEARCH_STATUS_TOOL_NAME = "autoresearch_runtime_status";
 export const AUTORESEARCH_RUN_TOOL_NAME = "autoresearch_runtime_run";
 export const AUTORESEARCH_CONTROL_TOOL_NAME = "autoresearch_runtime_control";
 export const AUTORESEARCH_FINALIZE_TOOL_NAME = "autoresearch_runtime_finalize";
+export const AUTORESEARCH_PEER_ASSIST_TOOL_NAME = "autoresearch_runtime_peer_assist";
+export const AUTORESEARCH_LOOP_TOOL_NAME = "autoresearch_runtime_loop";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
@@ -214,15 +216,7 @@ export interface AutoresearchRuntimeStatus {
   phase: typeof AUTORESEARCH_PHASE;
   cwd?: string;
   commandName: typeof AUTORESEARCH_COMMAND_NAME;
-  toolNames: readonly [
-    typeof AUTORESEARCH_STATUS_TOOL_NAME,
-    typeof AUTORESEARCH_RUN_TOOL_NAME,
-    typeof AUTORESEARCH_CONTROL_TOOL_NAME,
-    typeof AUTORESEARCH_FINALIZE_TOOL_NAME,
-    typeof AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
-    typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
-    typeof AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
-  ];
+  toolNames: readonly string[];
   localArtifacts: readonly string[];
   receiptEntryTypes: readonly ["config", "run"];
   readyPromptVaultTemplates: readonly string[];
@@ -277,6 +271,8 @@ export interface ExecuteAutoresearchRunInput {
   timeoutSeconds?: number;
   checksTimeoutSeconds?: number;
   reconfigure?: boolean;
+  postureCommand?: string;
+  postureTimeoutSeconds?: number;
   liveDecision?: ExecuteAutoresearchRunLiveDecisionInput;
   signal?: AbortSignal;
 }
@@ -293,6 +289,116 @@ export interface ExecuteAutoresearchRunResult {
   primaryMetricName: string;
   primaryMetric: number;
   decisionSummary: AutoresearchRunDecisionSummary | null;
+  status: AutoresearchRuntimeStatus;
+}
+export type AutoresearchPeerAssistLane = "none" | "scout" | "candidate" | "fork";
+export type AutoresearchPeerAssistReportBack = "intercom" | "manual" | "none";
+export type AutoresearchLoopPeerMode =
+  | "off"
+  | "plan"
+  | "launch_scout"
+  | "launch_candidate"
+  | "launch_fork";
+export type AutoresearchLoopProgressPhase =
+  | "loop_start"
+  | "iteration_start"
+  | "iteration_complete"
+  | "loop_stop"
+  | "loop_complete";
+
+export interface BuildAutoresearchPeerAssistInput {
+  cwd: string;
+  lane?: AutoresearchPeerAssistLane | "auto";
+  objective?: string;
+  targetFiles?: readonly string[];
+  offLimits?: readonly string[];
+  constraints?: readonly string[];
+  reportBack?: AutoresearchPeerAssistReportBack;
+  parentPeerTarget?: string;
+}
+
+export interface AutoresearchPeerAssistPlan {
+  cwd: string;
+  lane: AutoresearchPeerAssistLane;
+  reason: string;
+  objective: string;
+  toolName: string | null;
+  toolCall: string | null;
+  reportBack: AutoresearchPeerAssistReportBack;
+  parentPeerTargetRequired: boolean;
+  status: AutoresearchRuntimeStatus;
+  evidenceWarning: string;
+}
+
+export interface AutoresearchLoopPeerHandoff {
+  mode: AutoresearchLoopPeerMode;
+  requested: boolean;
+  status: "not_requested" | "handoff_required" | "unavailable";
+  toolName: string | null;
+  toolCall: string | null;
+  note: string;
+}
+
+export interface AutoresearchLoopProgressEvent {
+  phase: AutoresearchLoopProgressPhase;
+  cwd: string;
+  goal: string;
+  iteration: number | null;
+  maxIterations: number;
+  elapsedSeconds: number;
+  stopReason?: string;
+  runStatus?: RunStatus;
+  primaryMetricName?: string;
+  primaryMetric?: number;
+  bestMetric?: number | null;
+  nextHypothesis?: string | null;
+  peerLane?: AutoresearchPeerAssistLane;
+  message: string;
+}
+
+export interface ExecuteAutoresearchLoopInput {
+  cwd: string;
+  goal: string;
+  maxIterations: number;
+  maxWallClockMinutes?: number;
+  description?: string;
+  name?: string;
+  metricName?: string;
+  metricUnit?: string;
+  direction?: MetricDirection;
+  benchmarkCommand?: string;
+  checksCommand?: string | null;
+  timeoutSeconds?: number;
+  checksTimeoutSeconds?: number;
+  reconfigure?: boolean;
+  postureCommand?: string;
+  postureTimeoutSeconds?: number;
+  decisionGoal?: string;
+  decisionRuntime?: AutoresearchDecisionRuntime;
+  decisionConstraints?: readonly string[];
+  decisionFilesInScope?: readonly string[];
+  decisionOffLimits?: readonly string[];
+  decisionIdeasBacklog?: readonly string[];
+  decisionAsiNotes?: readonly string[];
+  decisionDeadEndMemory?: readonly string[];
+  model?: string;
+  stopOn?: readonly (RunStatus | "blocked" | "rebaseline" | "finalize")[];
+  peerMode?: AutoresearchLoopPeerMode;
+  signal?: AbortSignal;
+  onProgress?: (event: AutoresearchLoopProgressEvent) => void;
+}
+
+export interface ExecuteAutoresearchLoopResult {
+  cwd: string;
+  goal: string;
+  requestedIterations: number;
+  completedIterations: number;
+  stopReason: string;
+  elapsedSeconds: number;
+  runs: ExecuteAutoresearchRunResult[];
+  peerMode: AutoresearchLoopPeerMode;
+  peerAssist: AutoresearchPeerAssistPlan;
+  peerLaunchHandoff: AutoresearchLoopPeerHandoff;
   status: AutoresearchRuntimeStatus;
 }
 
@@ -532,9 +638,109 @@ function formatAutoresearchPeerLaneRecommendations(input: {
       ? `- failed/ambiguous run scout: scout_peer_spawn({ objective: "Inspect the latest pi-autoresearch run artifacts under ${cwd} and recommend one bounded next controller action.", cwd: "${cwd}", reportBack: "manual" })`
       : `- optional scout/reviewer: scout_peer_spawn({ objective: "Review the current pi-autoresearch state under ${cwd} and identify one bounded risk or next experiment.", cwd: "${cwd}", reportBack: "manual" })`,
     `- candidate patch lane: candidate_peer_spawn({ objective: "Try one bounded candidate patch for the current pi-autoresearch hypothesis in an isolated worktree; report diff and check evidence only.", cwd: "${cwd}", filesInScope: ${JSON.stringify(candidateFiles)}, reportBack: "manual" })`,
-    `- inherited-context lane when intentional: fork_peer_spawn({ objective: "Continue this autoresearch context in a visible peer for operator-guided exploration.", cwd: "${cwd}" }) or /forkpeer "Continue this autoresearch context in a visible peer."`,
+    `- inherited-context lane when intentional: fork_peer_spawn({ objective: "Continue this autoresearch context in a visible peer for operator-guided exploration.", cwd: "${cwd}" })`,
     "- Peer/intercom messages remain communication only; copy verified findings into receipts, ASI, diary, or AK evidence through the controller-owned surfaces before treating them as evidence.",
   ];
+}
+
+export function buildAutoresearchPeerAssistPlan(
+  input: BuildAutoresearchPeerAssistInput,
+): AutoresearchPeerAssistPlan {
+  const cwd = path.resolve(input.cwd);
+  const status = buildAutoresearchRuntimeStatus(cwd);
+  const targetFiles = normalizeArray(input.targetFiles);
+  const offLimits = normalizeArray(input.offLimits);
+  const constraints = normalizeArray(input.constraints);
+  const reportBack = input.reportBack ?? "manual";
+  const requestedLane = input.lane ?? "auto";
+  const lastRunStatus = status.currentSegment.lastRunStatus;
+  const failedOrAmbiguous =
+    lastRunStatus === "crash" ||
+    lastRunStatus === "checks_failed" ||
+    lastRunStatus === "discard" ||
+    status.promptVaultDecisions.lastPostRunDecision?.status === "blocked";
+
+  let lane: AutoresearchPeerAssistLane;
+  let reason: string;
+  if (requestedLane !== "auto") {
+    lane = requestedLane;
+    reason = `operator requested ${requestedLane} peer lane`;
+  } else if (!status.currentSegment.configured) {
+    lane = "none";
+    reason = "runtime is not configured yet; bootstrap a campaign before peer assist";
+  } else if (failedOrAmbiguous) {
+    lane = "scout";
+    reason =
+      "latest run is failed, ambiguous, or blocked; a read-only scout should diagnose before mutation";
+  } else if (targetFiles.length > 0) {
+    lane = "candidate";
+    reason = "target files are available; an isolated candidate worktree can try one bounded patch";
+  } else {
+    lane = "scout";
+    reason =
+      "runtime is configured but lacks a scoped candidate target; scout review is the safest next peer lane";
+  }
+
+  const baseObjective =
+    input.objective?.trim() ||
+    (lane === "candidate"
+      ? `Try one bounded candidate patch for ${status.currentSegment.name ?? "the current autoresearch campaign"}; report diff and check evidence only.`
+      : lane === "fork"
+        ? `Continue this autoresearch context visibly for operator-guided exploration under ${cwd}.`
+        : lane === "scout"
+          ? `Inspect the current pi-autoresearch state under ${cwd} and recommend one bounded next controller action.`
+          : "No peer assist is recommended until the runtime is configured.");
+
+  const parentRequired = reportBack === "intercom" && (lane === "scout" || lane === "candidate");
+  let toolName: string | null = null;
+  let toolCall: string | null = null;
+  if (lane === "scout") {
+    toolName = "scout_peer_spawn";
+    toolCall = `scout_peer_spawn({ objective: ${JSON.stringify(baseObjective)}, cwd: ${JSON.stringify(cwd)}, reportBack: ${JSON.stringify(reportBack)}${input.parentPeerTarget ? `, parentPeerTarget: ${JSON.stringify(input.parentPeerTarget)}` : ""} })`;
+  } else if (lane === "candidate") {
+    toolName = "candidate_peer_spawn";
+    const files = targetFiles.length > 0 ? targetFiles : ["<target files>"];
+    toolCall = `candidate_peer_spawn({ objective: ${JSON.stringify(baseObjective)}, cwd: ${JSON.stringify(cwd)}, filesInScope: ${JSON.stringify(files)}, offLimits: ${JSON.stringify(offLimits)}, constraints: ${JSON.stringify(constraints)}, reportBack: ${JSON.stringify(reportBack)}${input.parentPeerTarget ? `, parentPeerTarget: ${JSON.stringify(input.parentPeerTarget)}` : ""} })`;
+  } else if (lane === "fork") {
+    toolName = "fork_peer_spawn";
+    toolCall = `fork_peer_spawn({ objective: ${JSON.stringify(baseObjective)}, cwd: ${JSON.stringify(cwd)} })`;
+  }
+
+  return {
+    cwd,
+    lane,
+    reason,
+    objective: baseObjective,
+    toolName,
+    toolCall,
+    reportBack,
+    parentPeerTargetRequired: parentRequired,
+    status,
+    evidenceWarning:
+      "Peer/intercom messages are communication only; controller verification is required before receipts, ASI, diary, or AK evidence treat them as evidence.",
+  };
+}
+
+export function formatAutoresearchPeerAssistPlan(plan: AutoresearchPeerAssistPlan): string {
+  return [
+    "# PI-AUTORESEARCH PEER ASSIST",
+    "",
+    `- cwd: ${plan.cwd}`,
+    `- lane: ${plan.lane}`,
+    `- reason: ${plan.reason}`,
+    `- objective: ${plan.objective}`,
+    `- tool: ${plan.toolName ?? "(none)"}`,
+    `- reportBack: ${plan.reportBack}`,
+    `- parentPeerTarget required: ${plan.parentPeerTargetRequired ? "yes" : "no"}`,
+    `- machine state: ${plan.status.runtimeProjection.state}`,
+    `- latest run: ${formatLastRun(plan.status.currentSegment.lastRunStatus, plan.status.currentSegment.lastRunMetric, plan.status.currentSegment.metricUnit)}`,
+    "",
+    "## Exact suggested call",
+    plan.toolCall ? `\`${plan.toolCall}\`` : "- (none)",
+    "",
+    "## Evidence warning",
+    plan.evidenceWarning,
+  ].join("\n");
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
@@ -650,8 +856,8 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded finalization orchestration, one bounded supervised self-hosting public seam, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection, exact-task AK-binding snapshot derivation, one-step campaign-local advancement, and one dedicated public manifest campaign-control seam.",
-    "This package now owns bounded finalization planning, approval, local branch materialization, one public `autoresearch_self_hosting_run` seam for controller/candidate/evaluator/promotion orchestration under the supervised self-hosting contract, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, one projection-only llama.cpp campaign status artifact, one non-mutating AK-ready manifest-campaign binding helper, one bounded one-step campaign-local advance helper, and one dedicated public `autoresearch_llamacpp_campaign_control` seam for current status plus one-step public advancement with optional exact-task AK context. The technical `autoresearch_llamacpp_campaign` tool remains available below that public seam for raw matrix/fork/stage actions; the current package still does not own the autonomous loop, hidden daemonized self-improvement, direct AK mutation policy, automatic controller rotation, whole-campaign execution, or remote review choreography.",
+    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded loop execution, posture-gated runs, peer-assist planning/launch handoff, bounded finalization orchestration, one bounded supervised self-hosting public seam, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection, exact-task AK-binding snapshot derivation, one-step campaign-local advancement, and one dedicated public manifest campaign-control seam.",
+    "This package now owns bounded finalization planning, approval, local branch materialization, one public `autoresearch_self_hosting_run` seam for controller/candidate/evaluator/promotion orchestration under the supervised self-hosting contract, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, one projection-only llama.cpp campaign status artifact, one non-mutating AK-ready manifest-campaign binding helper, one bounded one-step campaign-local advance helper, one dedicated public `autoresearch_llamacpp_campaign_control` seam for current status plus one-step public advancement with optional exact-task AK context, and a bounded in-call autoresearch loop. The technical `autoresearch_llamacpp_campaign` tool remains available below that public seam for raw matrix/fork/stage actions; the current package still does not own hidden daemonized self-improvement, direct AK mutation policy, automatic controller rotation, whole-campaign execution, automatic visible peer spawning, or remote review choreography.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
@@ -660,7 +866,9 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "- use autoresearch_runtime_status with action=setup or action=finalize to request governed setup/finalize packets",
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
     "- use autoresearch_runtime_finalize to inspect, plan, approve, and materialize a bounded finalization workflow",
-    "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal",
+    "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal; postureCommand can fail closed before benchmark execution",
+    `- use ${AUTORESEARCH_PEER_ASSIST_TOOL_NAME} to plan one canonical visible peer lane without launching it`,
+    `- use ${AUTORESEARCH_LOOP_TOOL_NAME} to execute a bounded in-call loop with maxIterations, optional wall-clock/posture gates, live progress updates, and optional explicit peer-launch handoff`,
     `- use ${AUTORESEARCH_SELF_HOSTING_TOOL_NAME} for the public supervised self-hosting seam: inspect controller/candidate/evaluator state, prepare the candidate worktree, run one bounded self-hosting wave, use action=start_and_watch for in-call progress updates, and optionally plan/apply promotion or rollback records without package-local self-promotion`,
     `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME} for the public manifest campaign-control seam: current status, optional exact-task AK context, and one-step public advance without raw stage/build inputs`,
     `- use ${AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME} for lower-level technical manifest work such as branch/lane matrix planning, fork preparation, raw stage binding, exact AK-ready snapshots, or technical one-step advancement`,
@@ -1005,6 +1213,14 @@ export async function executeAutoresearchRun(
   }
 
   ensureMachineReadyForBoundedRun(cwd);
+  if (input.postureCommand?.trim()) {
+    await assertAutoresearchPostureReady({
+      cwd,
+      command: input.postureCommand,
+      timeoutSeconds: input.postureTimeoutSeconds ?? 15,
+      signal: input.signal,
+    });
+  }
   appendLedgerEvent(
     cwd,
     createLedgerEventEntry(
@@ -1158,6 +1374,371 @@ export async function executeAutoresearchRun(
     decisionSummary,
     status: buildAutoresearchRuntimeStatus(cwd),
   };
+}
+
+export async function executeAutoresearchLoop(
+  input: ExecuteAutoresearchLoopInput,
+): Promise<ExecuteAutoresearchLoopResult> {
+  const cwd = path.resolve(input.cwd);
+  const goal = input.goal.trim();
+  if (goal.length === 0) throw new Error("goal is required");
+  if (!Number.isInteger(input.maxIterations) || input.maxIterations < 1) {
+    throw new Error("maxIterations must be a positive integer");
+  }
+
+  const startedAt = Date.now();
+  const stopOn = new Set(
+    input.stopOn ?? ["blocked", "rebaseline", "finalize", "crash", "checks_failed"],
+  );
+  const peerMode = input.peerMode ?? "plan";
+  const runs: ExecuteAutoresearchRunResult[] = [];
+  let stopReason = "maxIterations reached";
+
+  emitAutoresearchLoopProgress(input, {
+    phase: "loop_start",
+    cwd,
+    goal,
+    iteration: null,
+    maxIterations: input.maxIterations,
+    elapsedSeconds: 0,
+    message: `Starting bounded autoresearch loop for ${goal} with maxIterations=${input.maxIterations}.`,
+  });
+
+  for (let index = 0; index < input.maxIterations; index += 1) {
+    input.signal?.throwIfAborted();
+    const elapsedSeconds = (Date.now() - startedAt) / 1000;
+    if (
+      input.maxWallClockMinutes !== undefined &&
+      Date.now() - startedAt >= input.maxWallClockMinutes * 60_000
+    ) {
+      stopReason = "maxWallClockMinutes reached";
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+
+    const statusBefore = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+    if (statusBefore.control.kind === "awaiting_operator") {
+      stopReason = `awaiting operator control: ${formatAllowedActions(statusBefore.control.allowedActions)}`;
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+    if (["stop", "rebaseline", "finalize"].includes(statusBefore.control.kind)) {
+      stopReason = `control state ${statusBefore.control.kind}`;
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+    const canBootstrapFirstSegment =
+      index === 0 &&
+      statusBefore.runtimeProjection.state === "segment_unconfigured" &&
+      Boolean(input.name?.trim()) &&
+      Boolean(input.metricName?.trim());
+    if (
+      !canBootstrapFirstSegment &&
+      !canCampaignMachineStartBoundedRun(statusBefore.runtimeProjection.state)
+    ) {
+      stopReason = `machine state ${statusBefore.runtimeProjection.state}`;
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+
+    const previousDecision = runs.at(-1)?.decisionSummary;
+    const description =
+      index === 0
+        ? input.description?.trim() || `loop baseline/iteration for ${goal}`
+        : previousDecision?.nextHypothesis?.trim() || `loop iteration ${index + 1} for ${goal}`;
+
+    emitAutoresearchLoopProgress(input, {
+      phase: "iteration_start",
+      cwd,
+      goal,
+      iteration: index + 1,
+      maxIterations: input.maxIterations,
+      elapsedSeconds,
+      nextHypothesis: previousDecision?.nextHypothesis ?? null,
+      message: `Starting autoresearch loop iteration ${index + 1}/${input.maxIterations}: ${description}`,
+    });
+
+    let run: ExecuteAutoresearchRunResult;
+    try {
+      run = await executeAutoresearchRun({
+        cwd,
+        description,
+        name: index === 0 ? input.name : undefined,
+        metricName: index === 0 ? input.metricName : undefined,
+        metricUnit: index === 0 ? input.metricUnit : undefined,
+        direction: index === 0 ? input.direction : undefined,
+        benchmarkCommand: input.benchmarkCommand,
+        checksCommand: input.checksCommand,
+        timeoutSeconds: input.timeoutSeconds,
+        checksTimeoutSeconds: input.checksTimeoutSeconds,
+        reconfigure: index === 0 ? input.reconfigure : false,
+        postureCommand: input.postureCommand,
+        postureTimeoutSeconds: input.postureTimeoutSeconds,
+        liveDecision:
+          input.decisionRuntime && (input.decisionGoal ?? goal).trim().length > 0
+            ? {
+                runtime: input.decisionRuntime,
+                goal: input.decisionGoal ?? goal,
+                constraints: input.decisionConstraints,
+                filesInScope: input.decisionFilesInScope,
+                offLimits: input.decisionOffLimits,
+                ideasBacklog: input.decisionIdeasBacklog,
+                asiNotes: input.decisionAsiNotes,
+                deadEndMemory: input.decisionDeadEndMemory,
+                model: input.model,
+              }
+            : undefined,
+        signal: input.signal,
+      });
+    } catch (error) {
+      stopReason = `run execution stopped: ${formatErrorMessage(error)}`;
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+    runs.push(run);
+
+    emitAutoresearchLoopProgress(input, {
+      phase: "iteration_complete",
+      cwd,
+      goal,
+      iteration: index + 1,
+      maxIterations: input.maxIterations,
+      elapsedSeconds: (Date.now() - startedAt) / 1000,
+      runStatus: run.runReceipt.status,
+      primaryMetricName: run.primaryMetricName,
+      primaryMetric: run.primaryMetric,
+      bestMetric: run.status.currentSegment.bestMetric,
+      nextHypothesis: run.decisionSummary?.nextHypothesis ?? null,
+      message: `Completed autoresearch loop iteration ${index + 1}/${input.maxIterations}: ${run.runReceipt.status} ${run.primaryMetricName}=${formatMetricValue(run.primaryMetric, run.status.currentSegment.metricUnit)}.`,
+    });
+
+    if (stopOn.has(run.runReceipt.status)) {
+      stopReason = `stopOn run status ${run.runReceipt.status}`;
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+    if (run.decisionSummary?.mappedDecision === "block" && stopOn.has("blocked")) {
+      stopReason = run.decisionSummary.blockingReason ?? "governed decision blocked";
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+    if (run.decisionSummary?.mappedDecision === "rebaseline" && stopOn.has("rebaseline")) {
+      stopReason = "governed decision requested rebaseline";
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+    if (run.decisionSummary?.mappedDecision === "finalize" && stopOn.has("finalize")) {
+      stopReason = "governed decision requested finalize";
+      emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
+      break;
+    }
+  }
+
+  const status = buildAutoresearchRuntimeStatus(cwd);
+  const elapsedSeconds = (Date.now() - startedAt) / 1000;
+  const peerAssist = buildAutoresearchPeerAssistPlan(
+    buildLoopPeerAssistInput(input, cwd, goal, peerMode),
+  );
+  const peerLaunchHandoff = buildLoopPeerHandoff(peerMode, peerAssist);
+  const result: ExecuteAutoresearchLoopResult = {
+    cwd,
+    goal,
+    requestedIterations: input.maxIterations,
+    completedIterations: runs.length,
+    stopReason,
+    elapsedSeconds,
+    runs,
+    peerMode,
+    peerAssist,
+    peerLaunchHandoff,
+    status,
+  };
+
+  emitAutoresearchLoopProgress(input, {
+    phase: "loop_complete",
+    cwd,
+    goal,
+    iteration: null,
+    maxIterations: input.maxIterations,
+    elapsedSeconds,
+    stopReason,
+    bestMetric: status.currentSegment.bestMetric,
+    peerLane: peerAssist.lane,
+    message: `Completed bounded autoresearch loop after ${runs.length}/${input.maxIterations} iterations: ${stopReason}.`,
+  });
+
+  return result;
+}
+
+export function formatAutoresearchLoopResult(result: ExecuteAutoresearchLoopResult): string {
+  const runLines = result.runs.map(
+    (run, index) =>
+      `- #${index + 1}: ${run.runReceipt.status} ${run.primaryMetricName}=${formatMetricValue(run.primaryMetric, result.status.currentSegment.metricUnit)}${run.decisionSummary ? ` decision=${run.decisionSummary.mappedDecision}` : ""}`,
+  );
+  const lastDecision = result.runs.at(-1)?.decisionSummary;
+  return [
+    "# PI-AUTORESEARCH LOOP",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- goal: ${result.goal}`,
+    `- completed iterations: ${result.completedIterations}/${result.requestedIterations}`,
+    `- elapsed: ${result.elapsedSeconds.toFixed(2)}s`,
+    `- stop reason: ${result.stopReason}`,
+    `- final machine state: ${result.status.runtimeProjection.state}`,
+    `- current best: ${formatMetricValue(result.status.currentSegment.bestMetric, result.status.currentSegment.metricUnit)}`,
+    `- last hypothesis: ${lastDecision?.nextHypothesis ?? "(none)"}`,
+    "",
+    "## Runs",
+    ...(runLines.length > 0 ? runLines : ["- (none)"]),
+    "",
+    "## Peer assist plan",
+    `- peer mode: ${result.peerMode}`,
+    `- lane: ${result.peerAssist.lane}`,
+    `- reason: ${result.peerAssist.reason}`,
+    `- tool: ${result.peerAssist.toolName ?? "(none)"}`,
+    result.peerAssist.toolCall ? `- call: ${result.peerAssist.toolCall}` : "- call: (none)",
+    `- launch handoff: ${result.peerLaunchHandoff.status}`,
+    `- launch note: ${result.peerLaunchHandoff.note}`,
+  ].join("\n");
+}
+
+function buildLoopPeerAssistInput(
+  input: ExecuteAutoresearchLoopInput,
+  cwd: string,
+  goal: string,
+  peerMode: AutoresearchLoopPeerMode,
+): BuildAutoresearchPeerAssistInput {
+  const lane = peerModeToPeerAssistLane(peerMode);
+  return {
+    cwd,
+    lane,
+    objective: `Review loop outcome for ${goal} and recommend one bounded next controller action.`,
+    targetFiles: input.decisionFilesInScope,
+    offLimits: input.decisionOffLimits,
+    constraints: input.decisionConstraints,
+    reportBack: "manual",
+  };
+}
+
+function peerModeToPeerAssistLane(
+  peerMode: AutoresearchLoopPeerMode,
+): AutoresearchPeerAssistLane | "auto" {
+  if (peerMode === "off") return "none";
+  if (peerMode === "launch_scout") return "scout";
+  if (peerMode === "launch_candidate") return "candidate";
+  if (peerMode === "launch_fork") return "fork";
+  return "auto";
+}
+
+function buildLoopPeerHandoff(
+  peerMode: AutoresearchLoopPeerMode,
+  peerAssist: AutoresearchPeerAssistPlan,
+): AutoresearchLoopPeerHandoff {
+  const requested = peerMode.startsWith("launch_");
+  if (!requested) {
+    return {
+      mode: peerMode,
+      requested: false,
+      status: "not_requested",
+      toolName: peerAssist.toolName,
+      toolCall: peerAssist.toolCall,
+      note:
+        peerMode === "off"
+          ? "Peer assist was disabled for this loop."
+          : "Peer assist was planned only; no visible peer was launched by pi-autoresearch.",
+    };
+  }
+  if (!peerAssist.toolName || !peerAssist.toolCall) {
+    return {
+      mode: peerMode,
+      requested: true,
+      status: "unavailable",
+      toolName: null,
+      toolCall: null,
+      note: "Explicit peer launch was requested, but no canonical peer tool call is available.",
+    };
+  }
+  return {
+    mode: peerMode,
+    requested: true,
+    status: "handoff_required",
+    toolName: peerAssist.toolName,
+    toolCall: peerAssist.toolCall,
+    note: "Explicit peer launch requested: dispatch the canonical visible peer tool call separately; peer/intercom output remains communication until controller verification.",
+  };
+}
+
+function emitAutoresearchLoopStop(
+  input: ExecuteAutoresearchLoopInput,
+  cwd: string,
+  goal: string,
+  startedAt: number,
+  stopReason: string,
+): void {
+  emitAutoresearchLoopProgress(input, {
+    phase: "loop_stop",
+    cwd,
+    goal,
+    iteration: null,
+    maxIterations: input.maxIterations,
+    elapsedSeconds: (Date.now() - startedAt) / 1000,
+    stopReason,
+    message: `Stopping bounded autoresearch loop: ${stopReason}.`,
+  });
+}
+
+function emitAutoresearchLoopProgress(
+  input: ExecuteAutoresearchLoopInput,
+  event: AutoresearchLoopProgressEvent,
+): void {
+  input.onProgress?.(event);
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+async function assertAutoresearchPostureReady(input: {
+  cwd: string;
+  command: string;
+  timeoutSeconds: number;
+  signal?: AbortSignal;
+}): Promise<void> {
+  const posture = await runShellCommand(input);
+  if (posture.exitCode !== 0 || posture.timedOut) {
+    throw new Error(
+      `Autoresearch posture gate failed: command exited ${formatExit(posture.exitCode, posture.timedOut)}; ${posture.outputTail}`,
+    );
+  }
+  const gate = evaluateAutoresearchPostureOutput(joinOutput(posture));
+  if (!gate.ready) {
+    throw new Error(`Autoresearch posture gate blocked: ${gate.reason}`);
+  }
+}
+
+function evaluateAutoresearchPostureOutput(output: string): { ready: boolean; reason: string } {
+  let value: unknown;
+  try {
+    value = JSON.parse(output.trim());
+  } catch {
+    return { ready: true, reason: "posture output was not JSON; treated as advisory" };
+  }
+  if (!value || typeof value !== "object") return { ready: true, reason: "posture ok" };
+  const record = value as Record<string, unknown>;
+  if (record.reconcileRecommended === true) {
+    return { ready: false, reason: "reconcileRecommended=true" };
+  }
+  if (record.ready === false) {
+    return { ready: false, reason: "ready=false" };
+  }
+  if (record.result === "blocked" || record.result === "unsafe") {
+    return { ready: false, reason: `result=${String(record.result)}` };
+  }
+  if (typeof record.recommendedCommand === "string" && record.recommendedCommand.trim()) {
+    return { ready: false, reason: `recommended command: ${record.recommendedCommand.trim()}` };
+  }
+  return { ready: true, reason: "posture ok" };
 }
 
 async function runAutoresearchPostRunDecision(input: {
@@ -1627,6 +2208,8 @@ function buildAutoresearchRuntimeStatusFromEntries(
       AUTORESEARCH_RUN_TOOL_NAME,
       AUTORESEARCH_CONTROL_TOOL_NAME,
       AUTORESEARCH_FINALIZE_TOOL_NAME,
+      AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
+      AUTORESEARCH_LOOP_TOOL_NAME,
       AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
       AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
       AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
