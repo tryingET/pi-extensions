@@ -377,14 +377,15 @@ test("quest tools register as LLM-callable tools while manual sidequest stays re
   assert.ok(commands.has("forkpeer"));
   assert.ok(commands.has("scoutpeer"));
   assert.ok(commands.has("candidatepeer"));
+  assert.ok(commands.has("parallelquest"));
   assert.ok(tools.has("fork_peer_spawn"));
-  assert.ok(tools.has("sidequest_spawn"));
+  assert.equal(tools.has("sidequest_spawn"), false);
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
   assert.equal(tools.has("parallelquest_spawn"), false);
 });
 
-test("sidequest_spawn remains a forked-context peer alias", async () => {
+test("fork_peer_spawn launches a forked-context peer", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n" };
@@ -408,7 +409,7 @@ test("sidequest_spawn remains a forked-context peer alias", async () => {
   });
   const { tools } = registerExtension(extension);
   const result = await tools
-    .get("sidequest_spawn")
+    .get("fork_peer_spawn")
     .execute(
       "tool-call-1",
       { objective: "inherit this context" },
@@ -785,6 +786,50 @@ function withTempDir(fn) {
     .then(() => fn(dir))
     .finally(() => rmSync(dir, { recursive: true, force: true }));
 }
+
+test("/parallelquest launches a human candidate peer worktree", async () => {
+  await withTempDir(async (stateHome) => {
+    const execStub = createCandidatePeerExecStub();
+    const extension = createSidequestExtension({
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        GHOSTTY_SURFACE_ID: "22",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { commands } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("parallelquest").handler("Try a workspace candidate", harness.ctx);
+
+    const worktreeCall = execStub.calls.find(
+      (call) => call.command === "git" && call.args.includes("worktree"),
+    );
+    assert.ok(worktreeCall);
+    assert.deepEqual(worktreeCall.args.slice(5), [
+      "-b",
+      "candidatepeer/try-a-workspace-candidate",
+      "HEAD",
+    ]);
+
+    const launchCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+    );
+    assert.ok(launchCall);
+    assert.match(
+      extractShellCommand(launchCall.args),
+      /PI_SESSION_PRESENCE_TITLE_BASE='Parallelquest: Try a workspace candidate'/,
+    );
+    assert.match(harness.notifications.at(-1)?.message ?? "", /Opened parallelquest/);
+  });
+});
 
 test("candidate_peer_spawn rejects a blank objective before git or Ghostty", async () => {
   const execStub = createCandidatePeerExecStub();

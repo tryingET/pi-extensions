@@ -1319,11 +1319,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
     }
 
-    async function runCandidatePeerCommand(args: string | undefined, ctx: PiCommandContext) {
+    async function runCandidatePeerCommand(
+      args: string | undefined,
+      ctx: PiCommandContext,
+      commandName = "candidatepeer",
+      titlePrefix = "Candidatepeer",
+    ) {
       const objective = getPrompt(args);
       if (!objective) {
         if (ctx.hasUI)
-          ctx.ui.notify('Usage: /candidatepeer "what candidate change to try"', "warning");
+          ctx.ui.notify(`Usage: /${commandName} "what candidate change to try"`, "warning");
         return;
       }
 
@@ -1344,7 +1349,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       });
 
       if (!worktree.ok) {
-        if (ctx.hasUI) ctx.ui.notify(`candidatepeer failed: ${worktree.error}`, "error");
+        if (ctx.hasUI) ctx.ui.notify(`${commandName} failed: ${worktree.error}`, "error");
         return;
       }
 
@@ -1362,13 +1367,13 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         options,
         prompt,
         titlePrompt: objective,
-        titlePrefix: "Candidatepeer",
+        titlePrefix,
         cwd: worktree.worktreePath,
       });
 
       if (!launch.ok) {
         if (ctx.hasUI)
-          ctx.ui.notify(`candidatepeer failed to launch Ghostty: ${launch.failure}`, "error");
+          ctx.ui.notify(`${commandName} failed to launch Ghostty: ${launch.failure}`, "error");
         return;
       }
 
@@ -1377,7 +1382,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
         const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
         ctx.ui.notify(
-          `Opened candidatepeer in ${modeLabel}: ${summarizePrompt(objective)}${suffix}`,
+          `Opened ${commandName} in ${modeLabel}: ${summarizePrompt(objective)}${suffix}`,
           "info",
         );
       }
@@ -1695,7 +1700,13 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
     pi.registerCommand("candidatepeer", {
       description: "Launch a clean visible candidate peer in an isolated git worktree",
-      handler: runCandidatePeerCommand,
+      handler: (args, ctx) => runCandidatePeerCommand(args, ctx, "candidatepeer", "Candidatepeer"),
+    });
+
+    pi.registerCommand("parallelquest", {
+      description:
+        "Human alias for /candidatepeer: launch a clean visible candidate peer in an isolated git worktree",
+      handler: (args, ctx) => runCandidatePeerCommand(args, ctx, "parallelquest", "Parallelquest"),
     });
 
     pi.registerTool({
@@ -1707,18 +1718,6 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       parameters: forkPeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeForkPeerSpawn("fork_peer_spawn", params, ctx),
-    });
-
-    pi.registerTool({
-      name: "sidequest_spawn",
-      label: "Sidequest Spawn",
-      description:
-        "Legacy alias for fork_peer_spawn: launch a visible forked-context peer Pi session.",
-      promptSnippet:
-        "Compatibility alias for fork_peer_spawn. Use when you intentionally want the spawned peer to inherit the current Pi conversation context.",
-      parameters: forkPeerSpawnParameters,
-      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeForkPeerSpawn("sidequest_spawn", params, ctx),
     });
 
     pi.registerTool({
