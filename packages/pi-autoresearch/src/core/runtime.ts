@@ -1155,25 +1155,104 @@ function renderDspxAutoresearchIntent(input: {
     "  outputs:",
     ...outputFields.map(([name, desc]) => `    - ${yamlQuote(`${name}: ${desc}`)}`),
     "examples:",
-    "  - inputs:",
-    `      objective: ${yamlQuote(input.objective)}`,
-    `      constraints: ${yamlQuote(["bounded local runtime only", ...input.constraints].join("; "))}`,
-    `      repo_summary: ${yamlQuote(`files=${input.filesInScope.join(", ")}; off_limits=${input.offLimits.join(", ")}`)}`,
-    "      runtime_status: unconfigured or configured local receipt runtime",
-    "    outputs:",
-    `      campaign_name: ${yamlQuote(input.config.name)}`,
-    `      metric_name: ${yamlQuote(input.config.metricName)}`,
-    `      metric_unit: ${yamlQuote(input.config.metricUnit)}`,
-    `      direction: ${yamlQuote(input.config.direction)}`,
-    `      benchmark_command: ${yamlQuote(input.benchmarkCommand ?? "<benchmark command required>")}`,
-    `      checks_command: ${yamlQuote(input.checksCommand ?? "")}`,
-    "      risks: keep setup bounded; do not mutate authority or launch hidden loops",
-    "      next_action: apply setup through autoresearch_runtime_setup, then run bounded loop",
+    ...renderDspxAutoresearchExamples(input),
     "metadata:",
     "  authority: evidence_only",
     "  outer_controller: pi-autoresearch",
     "  program_gen_automation: false",
   ].join("\n");
+}
+
+function renderDspxAutoresearchExamples(input: {
+  objective: string;
+  filesInScope: readonly string[];
+  offLimits: readonly string[];
+  constraints: readonly string[];
+  config: AutoresearchConfigReceipt;
+  benchmarkCommand: string | null;
+  checksCommand: string | null;
+}): string[] {
+  const examples = [
+    {
+      inputs: {
+        objective: input.objective,
+        constraints: ["bounded local runtime only", ...input.constraints].join("; "),
+        repo_summary: `files=${input.filesInScope.join(", ")}; off_limits=${input.offLimits.join(", ")}`,
+        runtime_status:
+          "segment_unconfigured; no prior receipt log; benchmark/check commands inferred from package scripts or operator overrides",
+      },
+      outputs: {
+        campaign_name: input.config.name,
+        metric_name: input.config.metricName,
+        metric_unit: input.config.metricUnit,
+        direction: input.config.direction,
+        benchmark_command: input.benchmarkCommand ?? "<benchmark command required>",
+        checks_command: input.checksCommand ?? "",
+        risks: "keep setup bounded; do not mutate authority or launch hidden loops",
+        next_action: "apply setup through autoresearch_runtime_setup, then run bounded loop",
+      },
+    },
+    {
+      inputs: {
+        objective: "reduce package test runtime without reducing correctness",
+        constraints:
+          "bounded local runtime only; no network; do not edit lockfiles; stop on checks_failed or crash",
+        repo_summary:
+          "package.json scripts: test=vitest run, check=npm run lint && npm run test; files=src, tests, package.json; off_limits=.env,node_modules,dist",
+        runtime_status: "segment_unconfigured; autoresearch.sh missing; checks script missing",
+      },
+      outputs: {
+        campaign_name: "package-test-runtime",
+        metric_name: "total_ms",
+        metric_unit: "ms",
+        direction: "lower",
+        benchmark_command: "npm test",
+        checks_command: "npm run check",
+        risks:
+          "benchmark may include noisy test startup cost; require repeated bounded runs before interpreting small deltas",
+        next_action:
+          "call autoresearch_runtime_setup action=baseline with benchmarkCommand npm test and checksCommand npm run check",
+      },
+    },
+    {
+      inputs: {
+        objective: "improve answer quality score for a local evaluation harness",
+        constraints:
+          "bounded local runtime only; generated DSPx artifacts are evidence only; Pi remains outer controller",
+        repo_summary:
+          "autoresearch.sh exists and prints METRIC quality_score=value; package.json scripts: check=npm run quality:ci; files=src/evaluator.ts,evals,autoresearch.sh",
+        runtime_status: "ready; existing segment quality-eval has baseline 72; higher is better",
+      },
+      outputs: {
+        campaign_name: "quality-eval-improvement",
+        metric_name: "quality_score",
+        metric_unit: "",
+        direction: "higher",
+        benchmark_command: "bash autoresearch.sh",
+        checks_command: "npm run quality:ci",
+        risks:
+          "quality score can overfit local examples; preserve held-out checks and off-limits eval fixtures",
+        next_action:
+          "if rebaselining, call autoresearch_runtime_setup action=baseline reconfigure=true; otherwise call autoresearch_runtime_loop maxIterations=3",
+      },
+    },
+  ];
+  return examples.flatMap((example) => [
+    "  - inputs:",
+    `      objective: ${yamlQuote(example.inputs.objective)}`,
+    `      constraints: ${yamlQuote(example.inputs.constraints)}`,
+    `      repo_summary: ${yamlQuote(example.inputs.repo_summary)}`,
+    `      runtime_status: ${yamlQuote(example.inputs.runtime_status)}`,
+    "    outputs:",
+    `      campaign_name: ${yamlQuote(example.outputs.campaign_name)}`,
+    `      metric_name: ${yamlQuote(example.outputs.metric_name)}`,
+    `      metric_unit: ${yamlQuote(example.outputs.metric_unit)}`,
+    `      direction: ${yamlQuote(example.outputs.direction)}`,
+    `      benchmark_command: ${yamlQuote(example.outputs.benchmark_command)}`,
+    `      checks_command: ${yamlQuote(example.outputs.checks_command)}`,
+    `      risks: ${yamlQuote(example.outputs.risks)}`,
+    `      next_action: ${yamlQuote(example.outputs.next_action)}`,
+  ]);
 }
 
 function resolveDspxRepoPath(): string {
