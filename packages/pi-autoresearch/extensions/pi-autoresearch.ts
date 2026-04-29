@@ -35,7 +35,6 @@ import {
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   type AutoresearchLoopProgressEvent,
-  buildAutoresearchHelpText,
   buildAutoresearchPeerAssistPlan,
   buildAutoresearchRuntimeStatus,
   executeAutoresearchLoop,
@@ -1788,10 +1787,22 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     ctx.ui.notify(
-      "The autonomous loop is still out of scope. Opened the bounded runtime overview instead; use autoresearch_runtime_control for continue/rebaseline/finalize/stop, autoresearch_runtime_finalize for plan/approve/materialize, autoresearch_runtime_run for machine/ledger-backed runs, autoresearch_self_hosting_run for one bounded supervised self-hosting wave or action=start_and_watch for in-call progress updates, autoresearch_llamacpp_campaign_control for public manifest campaign status/next-step control, autoresearch_runtime_status with action=setup|finalize for governed packets, or the visible peer recommendations in the help text when you want scout_peer_spawn / candidate_peer_spawn guidance without auto-spawning peers.",
-      "info",
+      "Ignored /autoresearch arguments; use the LLM tools for execution: autoresearch_runtime_status, autoresearch_runtime_run, autoresearch_runtime_loop, autoresearch_runtime_peer_assist, autoresearch_runtime_control, or autoresearch_runtime_finalize.",
+      "warning",
     );
   }
 
-  await ctx.ui.editor("pi-autoresearch", buildAutoresearchHelpText(status));
+  ctx.ui.notify(formatAutoresearchCommandNotification(status), "info");
+}
+
+function formatAutoresearchCommandNotification(
+  status: ReturnType<typeof buildAutoresearchRuntimeStatus>,
+): string {
+  return [
+    `pi-autoresearch: ${status.runtimeProjection.state}`,
+    `campaign=${status.currentSegment.name ?? "unconfigured"}`,
+    `last=${status.currentSegment.lastRunStatus ?? "none"}`,
+    `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
+    "tools: autoresearch_runtime_status | autoresearch_runtime_run | autoresearch_runtime_loop | autoresearch_runtime_peer_assist",
+  ].join("; ");
 }

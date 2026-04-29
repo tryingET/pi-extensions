@@ -505,19 +505,17 @@ test("extension registers /autoresearch plus the bounded runtime status, control
   );
 });
 
-test("/autoresearch opens the bounded-runtime overview", async () => {
+test("/autoresearch reports status without pre-filling the editor", async () => {
   const { commands } = registerHarness();
-  let editorTitle = "";
-  let editorText = "";
+  let editorOpened = false;
   const notifications: Array<{ message: string; level?: string }> = [];
 
   await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("optimize startup", {
     cwd: "/repo",
     hasUI: true,
     ui: {
-      async editor(title: string, text: string) {
-        editorTitle = title;
-        editorText = text;
+      async editor(_title: string, _text: string) {
+        editorOpened = true;
       },
       notify(message: string, level?: string) {
         notifications.push({ message, level });
@@ -525,10 +523,13 @@ test("/autoresearch opens the bounded-runtime overview", async () => {
     },
   });
 
-  assert.equal(editorTitle, "pi-autoresearch");
-  assert.match(editorText, /machine projection/);
-  assert.equal(notifications.length, 1);
-  assert.match(notifications[0].message, /machine\/ledger-backed run/);
+  assert.equal(editorOpened, false);
+  assert.equal(notifications.length, 2);
+  assert.equal(notifications[0]?.level, "warning");
+  assert.match(notifications[0]?.message ?? "", /Ignored \/autoresearch arguments/);
+  assert.equal(notifications[1]?.level, "info");
+  assert.match(notifications[1]?.message ?? "", /pi-autoresearch:/);
+  assert.match(notifications[1]?.message ?? "", /autoresearch_runtime_loop/);
 });
 
 test("autoresearch_runtime_peer_assist plans canonical peer tool calls without launching", async () => {
