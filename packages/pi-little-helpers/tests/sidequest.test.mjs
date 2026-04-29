@@ -374,9 +374,9 @@ test("quest tools register as LLM-callable tools while manual sidequest stays re
   const { commands, tools } = registerExtension(extension);
 
   assert.ok(commands.has("sidequest"));
-  assert.ok(commands.has("forkpeer"));
+  assert.equal(commands.has("forkpeer"), false);
   assert.ok(commands.has("scoutpeer"));
-  assert.ok(commands.has("candidatepeer"));
+  assert.equal(commands.has("candidatepeer"), false);
   assert.ok(commands.has("parallelquest"));
   assert.ok(tools.has("fork_peer_spawn"));
   assert.equal(tools.has("sidequest_spawn"), false);

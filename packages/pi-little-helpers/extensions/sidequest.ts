@@ -810,7 +810,7 @@ function buildSidequestSpawnPrompt({
     "",
     "## Anti-Goals",
     "- Do not claim completion for the controller.",
-    "- Do not mutate shared-cwd files; editable shared-cwd work belongs to manual `/sidequest` or `/forkpeer`, not `scout_peer_spawn`.",
+    "- Do not mutate shared-cwd files; editable shared-cwd work belongs to manual `/sidequest`, not `scout_peer_spawn`.",
     "- Do not implement candidate changes here; isolated mutation belongs later in `candidate_peer_spawn`.",
     "- Do not mutate AK, orchestration state, intercom state, or autoresearch runtime authority.",
   ].join("\n");
@@ -1683,14 +1683,8 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     }
 
     pi.registerCommand("sidequest", {
-      description:
-        "Legacy alias for /forkpeer: fork the current Pi session into a visible Ghostty peer",
+      description: "Fork the current Pi session into a visible Ghostty peer",
       handler: (args, ctx) => runForkPeerCommand(args, ctx, "sidequest", "Sidequest"),
-    });
-
-    pi.registerCommand("forkpeer", {
-      description: "Fork the current Pi session/context into a visible Ghostty peer",
-      handler: (args, ctx) => runForkPeerCommand(args, ctx, "forkpeer", "Forkpeer"),
     });
 
     pi.registerCommand("scoutpeer", {
@@ -1698,14 +1692,8 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       handler: runScoutPeerCommand,
     });
 
-    pi.registerCommand("candidatepeer", {
-      description: "Launch a clean visible candidate peer in an isolated git worktree",
-      handler: (args, ctx) => runCandidatePeerCommand(args, ctx, "candidatepeer", "Candidatepeer"),
-    });
-
     pi.registerCommand("parallelquest", {
-      description:
-        "Human alias for /candidatepeer: launch a clean visible candidate peer in an isolated git worktree",
+      description: "Launch a clean visible candidate peer in an isolated git worktree",
       handler: (args, ctx) => runCandidatePeerCommand(args, ctx, "parallelquest", "Parallelquest"),
     });
 
@@ -1714,7 +1702,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       label: "Fork Peer Spawn",
       description: "Launch a visible forked-context peer Pi session.",
       promptSnippet:
-        "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /forkpeer and legacy /sidequest.",
+        "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /sidequest for controller-spawned use.",
       parameters: forkPeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeForkPeerSpawn("fork_peer_spawn", params, ctx),
