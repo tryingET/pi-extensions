@@ -391,6 +391,8 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   ]);
   assert.deepEqual(status.localArtifacts, [...AUTORESEARCH_LOCAL_ARTIFACTS]);
   assert.equal(status.currentSegment.configured, false);
+  assert.equal(status.empiricalPosture.classification, "unconfigured");
+  assert.equal(status.empiricalPosture.promotionReady, false);
   assert.equal(status.runtimeProjection.state, "segment_unconfigured");
   assert.equal(status.runtimeProjection.source, "receipt_fallback");
   assert.equal(status.runtimeProjection.hasLedger, false);
@@ -411,6 +413,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.match(formatAutoresearchStatusText(status), /machine state: segment_unconfigured/);
   assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
+  assert.match(formatAutoresearchStatusText(status), /empirical posture: unconfigured/);
   assert.match(formatAutoresearchStatusText(status), /next slices: \(none currently committed\)/);
   assert.match(buildAutoresearchHelpText(status), /exact-task AK-binding snapshot derivation/);
   assert.match(buildAutoresearchHelpText(status), /one-step campaign-local advancement/);
@@ -478,6 +481,8 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.equal(status.currentSegment.baselineMetric, 100);
     assert.equal(status.currentSegment.bestMetric, 90);
     assert.equal(status.currentSegment.empiricalDecisionClass, "candidate_improvement");
+    assert.equal(status.empiricalPosture.classification, "candidate_review_ready");
+    assert.equal(status.empiricalPosture.promotionReady, true);
     assert.equal(status.currentSegment.metricInterpretation?.verdict, "meaningful_improvement");
     assert.equal(status.currentSegment.metricInterpretation?.sampleCount, 3);
     assert.equal(status.currentSegment.metricInterpretation?.bestDelta, 10);
@@ -486,6 +491,7 @@ test("status builder summarizes best metric and confidence from appended receipt
       /timing interpretation: meaningful_improvement/,
     );
     assert.match(formatAutoresearchStatusText(status), /empirical decision: candidate_improvement/);
+    assert.match(formatAutoresearchStatusText(status), /empirical posture: candidate_review_ready/);
     assert.equal(status.runtimeProjection.state, "ready");
     assert.equal(status.runtimeProjection.source, "receipt_fallback");
     assert.equal(status.runtimeProjection.hasLedger, false);
@@ -549,6 +555,8 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.equal(closeout.campaign, "widget-speed-closeout");
     assert.equal(closeout.runCount, 2);
     assert.equal(closeout.candidateBindings.length, 1);
+    assert.equal(closeout.empiricalPosture.classification, "under_sampled");
+    assert.equal(closeout.empiricalPosture.promotionReady, false);
     assert.equal(closeout.candidateBindings[0]?.branch, "candidate/closeout");
     assert.equal(closeout.runs.at(-1)?.empiricalDecisionClass, "candidate_improvement");
     assert.match(formatAutoresearchSegmentCloseout(closeout), /SEGMENT CLOSEOUT/);
@@ -561,6 +569,7 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
       /packet kind: autoresearch\.closeout\.v1/,
     );
     assert.match(formatAutoresearchSegmentCloseout(closeout), /adapter boundary:/);
+    assert.match(formatAutoresearchSegmentCloseout(closeout), /empirical posture: under_sampled/);
 
     const evidence = buildAutoresearchAkEvidencePacket({ cwd, taskId: 1234 });
     assert.equal(evidence.packetKind, "autoresearch.ak_evidence.v1");
@@ -667,6 +676,8 @@ test("calibration runs inform timing noise without competing as best candidate",
     assert.equal(status.currentSegment.bestMetric, 100);
     assert.equal(status.currentSegment.confidence, null);
     assert.equal(status.currentSegment.empiricalDecisionClass, "calibration_signal");
+    assert.equal(status.empiricalPosture.classification, "calibration_only");
+    assert.equal(status.empiricalPosture.promotionReady, false);
     assert.equal(status.currentSegment.lastRunKind, "calibration");
     assert.equal(status.currentSegment.metricInterpretation?.sampleCount, 3);
     assert.equal(status.currentSegment.metricInterpretation?.bestMetric, 90);
@@ -749,6 +760,8 @@ test("duration candidates are baseline_drift when calibration explains the basel
 
     const status = buildAutoresearchRuntimeStatus(cwd);
     assert.equal(status.currentSegment.empiricalDecisionClass, "baseline_drift");
+    assert.equal(status.empiricalPosture.classification, "baseline_drift_suspected");
+    assert.equal(status.empiricalPosture.promotionReady, false);
     assert.equal(status.currentSegment.metricInterpretation?.verdict, "baseline_drift");
     assert.match(formatAutoresearchStatusText(status), /timing interpretation: baseline_drift/);
 

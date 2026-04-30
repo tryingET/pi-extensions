@@ -216,6 +216,12 @@ interface AutoresearchSegmentCloseout {
   baselineMetric: number | null;
   bestMetric: number | null;
   empiricalDecisionClass: string;
+  empiricalPosture: {
+    classification: string;
+    summary: string;
+    promotionReady: boolean;
+    recommendedNextAction: string;
+  };
   timingInterpretation: unknown | null;
   runs: AutoresearchSegmentCloseoutRun[];
   candidateBindings: AutoresearchCandidateBinding[];
@@ -225,7 +231,7 @@ interface AutoresearchSegmentCloseout {
 }
 ```
 
-Adapters should prefer this structured closeout over scraping formatted Markdown.
+Adapters should prefer this structured closeout over scraping formatted Markdown. `empiricalPosture` is the operator-facing interpretation layer; adapters should preserve it when presenting whether a result is promotion-ready.
 
 ## Adapter design pattern
 

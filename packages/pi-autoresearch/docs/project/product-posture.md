@@ -70,6 +70,7 @@ The package currently owns:
 - XState campaign machine plus append-only local event ledger;
 - Prompt Vault decision bridge for setup, next-hypothesis, and finalize decisions;
 - measurement-contract checks, calibration semantics, duplicate benchmark/check detection, and baseline-drift-aware duration interpretation;
+- operator-facing empirical posture classification with promotion-readiness and recommended-next-action text;
 - hypothesis/result lineage and controller-verified candidate binding metadata;
 - adapter-ready packet family:
   - `autoresearch.closeout.v1`
@@ -118,19 +119,16 @@ Prioritize:
 
 ## Next product bets
 
-### Bet 1 — Operator posture sentence
+### Bet 1 — Operator posture sentence — landed first slice
 
-Add a compact top-level posture such as:
+Runtime status and closeout packets now include an `empiricalPosture` object with:
 
-```text
-empirical posture: baseline drift suspected; candidate result is not promotion-ready
-```
+- classification, for example `calibration_only`, `baseline_drift_suspected`, or `candidate_review_ready`;
+- promotion readiness;
+- a compact summary sentence;
+- a recommended next action.
 
-or:
-
-```text
-empirical posture: ordinary candidate evidence exists and is review-ready
-```
+The remaining product work is to dogfood the wording against real campaigns and keep it concise enough for operators to trust at a glance.
 
 ### Bet 2 — Canonical dogfood playbook
 

@@ -271,6 +271,27 @@ export interface AutoresearchMetricInterpretation {
   reason: string;
 }
 
+export type AutoresearchEmpiricalPostureClassification =
+  | "unconfigured"
+  | "no_runs"
+  | "baseline_only"
+  | "calibration_only"
+  | "under_sampled"
+  | "baseline_drift_suspected"
+  | "candidate_review_ready"
+  | "candidate_regression"
+  | "candidate_neutral"
+  | "checks_failed"
+  | "measurement_invalid"
+  | "inconclusive";
+
+export interface AutoresearchEmpiricalPosture {
+  classification: AutoresearchEmpiricalPostureClassification;
+  summary: string;
+  promotionReady: boolean;
+  recommendedNextAction: string;
+}
+
 export interface AutoresearchSegmentSummary {
   configured: boolean;
   name: string | null;
@@ -409,6 +430,7 @@ export interface AutoresearchSegmentCloseout {
   bestMetric: number | null;
   empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
   timingInterpretation: AutoresearchMetricInterpretation | null;
+  empiricalPosture: AutoresearchEmpiricalPosture;
   runs: AutoresearchSegmentCloseoutRun[];
   candidateBindings: AutoresearchCandidateBinding[];
   recommendedAction: string;
@@ -431,6 +453,7 @@ export interface AutoresearchRuntimeStatus {
   hasChecksScript: boolean;
   invalidReceiptLines: number;
   currentSegment: AutoresearchSegmentSummary;
+  empiricalPosture: AutoresearchEmpiricalPosture;
   runtimeProjection: AutoresearchRuntimeProjection;
   runtimeSnapshot: AutoresearchRuntimeSnapshotStatus;
   control: AutoresearchControlStateV1;
@@ -2192,6 +2215,7 @@ export function buildAutoresearchAdapterContractCatalog(): AutoresearchAdapterCo
           "runCount",
           "successfulRunCount",
           "empiricalDecisionClass",
+          "empiricalPosture",
           "runs",
           "candidateBindings",
           "recommendedAction",
@@ -2402,10 +2426,31 @@ function validateCloseoutPacketFields(
   validateNumberField(packet, "runCount", addIssue, prefix);
   validateNumberField(packet, "successfulRunCount", addIssue, prefix);
   validateStringField(packet, "empiricalDecisionClass", addIssue, prefix);
+  validateEmpiricalPostureField(packet, "empiricalPosture", addIssue, prefix);
   validateArrayField(packet, "runs", addIssue, prefix);
   validateArrayField(packet, "candidateBindings", addIssue, prefix);
   validateStringField(packet, "recommendedAction", addIssue, prefix);
   validateStringField(packet, "adapterBoundary", addIssue, prefix);
+}
+
+function validateEmpiricalPostureField(
+  packet: Record<string, unknown>,
+  field: string,
+  addIssue: (pathName: string, message: string) => void,
+  prefix = "",
+): void {
+  const value = packet[field];
+  const fieldPath = `${prefix}${field}`;
+  if (!isRecord(value) || Array.isArray(value)) {
+    addIssue(fieldPath, `${field} must be an object`);
+    return;
+  }
+  validateStringField(value, "classification", addIssue, `${fieldPath}.`);
+  validateStringField(value, "summary", addIssue, `${fieldPath}.`);
+  if (typeof value.promotionReady !== "boolean") {
+    addIssue(`${fieldPath}.promotionReady`, "promotionReady must be a boolean");
+  }
+  validateStringField(value, "recommendedNextAction", addIssue, `${fieldPath}.`);
 }
 
 function validateStringField(
@@ -2578,6 +2623,7 @@ export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegme
     bestMetric: status.currentSegment.bestMetric,
     empiricalDecisionClass: status.currentSegment.empiricalDecisionClass,
     timingInterpretation: status.currentSegment.metricInterpretation,
+    empiricalPosture: status.empiricalPosture,
     runs: currentSegment.runs.map((run) => ({
       iteration: run.iteration ?? null,
       status: run.status,
@@ -2740,6 +2786,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
         `- best metric: ${formatMetricValue(status.currentSegment.bestMetric, status.currentSegment.metricUnit)}`,
         `- confidence: ${formatConfidenceValue(status.currentSegment.confidence)}`,
         `- empirical decision: ${status.currentSegment.empiricalDecisionClass}`,
+        `- empirical posture: ${formatEmpiricalPosture(status.empiricalPosture)}`,
         `- timing interpretation: ${formatMetricInterpretation(status.currentSegment.metricInterpretation, status.currentSegment.metricUnit)}`,
         `- last run: ${formatLastRun(status.currentSegment.lastRunStatus, status.currentSegment.lastRunMetric, status.currentSegment.metricUnit, status.currentSegment.lastRunKind)}`,
       ]
@@ -2750,6 +2797,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
         "- best metric: (n/a)",
         "- confidence: (n/a)",
         "- empirical decision: not_evaluated",
+        `- empirical posture: ${formatEmpiricalPosture(status.empiricalPosture)}`,
         "- last run: (none)",
       ];
 
@@ -2957,6 +3005,7 @@ export function formatAutoresearchSegmentCloseout(closeout: AutoresearchSegmentC
     `- baseline: ${formatMetricValue(closeout.baselineMetric, metricUnit)}`,
     `- best: ${formatMetricValue(closeout.bestMetric, metricUnit)}`,
     `- empirical decision: ${closeout.empiricalDecisionClass}`,
+    `- empirical posture: ${formatEmpiricalPosture(closeout.empiricalPosture)}`,
     `- timing interpretation: ${formatMetricInterpretation(closeout.timingInterpretation, metricUnit)}`,
     `- recommended action: ${closeout.recommendedAction}`,
     `- adapter boundary: ${closeout.adapterBoundary}`,
@@ -4331,6 +4380,10 @@ function buildAutoresearchRuntimeStatusFromEntries(
 ): AutoresearchRuntimeStatus {
   const currentSegmentView = getCurrentSegment(entries);
   const currentSegment = summarizeCurrentSegment(currentSegmentView);
+  const empiricalPosture = buildAutoresearchEmpiricalPosture(
+    currentSegment,
+    currentSegmentView.runs,
+  );
   const promptVaultDecisions = buildPromptVaultDecisionStatus(currentSegmentView.runs);
   const runtimeProjection = buildRuntimeProjection(
     cwd,
@@ -4387,6 +4440,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     hasChecksScript: paths ? existsSync(paths.checksScriptPath) : false,
     invalidReceiptLines: invalidLineCount,
     currentSegment,
+    empiricalPosture,
     runtimeProjection,
     runtimeSnapshot: loadedControl?.snapshotStatus ?? {
       exists: false,
@@ -4840,6 +4894,138 @@ function summarizeCurrentSegment(currentSegment: CurrentSegmentView): Autoresear
   };
 }
 
+function buildAutoresearchEmpiricalPosture(
+  segment: AutoresearchSegmentSummary,
+  runs: readonly AutoresearchRunReceipt[],
+): AutoresearchEmpiricalPosture {
+  const ordinaryCandidateRuns = runs.filter(
+    (run) =>
+      run.status === "candidate" &&
+      (run.runKind ?? "ordinary") !== "calibration" &&
+      isSuccessfulMetricRun(run),
+  );
+  const calibrationRuns = runs.filter(
+    (run) => (run.runKind ?? "ordinary") === "calibration" && isSuccessfulMetricRun(run),
+  );
+  if (!segment.configured) {
+    return {
+      classification: "unconfigured",
+      summary: `no campaign configured yet`,
+      promotionReady: false,
+      recommendedNextAction: "configure a bounded segment before collecting evidence",
+    };
+  }
+
+  if (segment.runCount === 0) {
+    return {
+      classification: "no_runs",
+      summary: `configured but no baseline or run evidence exists yet`,
+      promotionReady: false,
+      recommendedNextAction: "run a baseline before interpreting candidate evidence",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "measurement_invalid") {
+    return {
+      classification: "measurement_invalid",
+      summary: `measurement is invalid; no promotion-ready evidence exists`,
+      promotionReady: false,
+      recommendedNextAction: "fix the benchmark or metric contract before another optimization run",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "checks_failed") {
+    return {
+      classification: "checks_failed",
+      summary: `checks failed; candidate evidence is blocked`,
+      promotionReady: false,
+      recommendedNextAction:
+        "diagnose the check failure before promotion or another optimization claim",
+    };
+  }
+
+  if (segment.successfulRunCount === 0 || segment.baselineMetric === null) {
+    return {
+      classification: "measurement_invalid",
+      summary: `no successful metric baseline is available`,
+      promotionReady: false,
+      recommendedNextAction: "collect a successful baseline metric before interpreting the segment",
+    };
+  }
+
+  if (ordinaryCandidateRuns.length === 0) {
+    if (calibrationRuns.length > 0 || segment.empiricalDecisionClass === "calibration_signal") {
+      return {
+        classification: "calibration_only",
+        summary: `calibration-only; no ordinary candidate evidence yet`,
+        promotionReady: false,
+        recommendedNextAction: "run an ordinary candidate before claiming improvement",
+      };
+    }
+    return {
+      classification: "baseline_only",
+      summary: `baseline-only; no candidate evidence yet`,
+      promotionReady: false,
+      recommendedNextAction: "collect calibration samples or bind one ordinary candidate run",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "baseline_drift") {
+    return {
+      classification: "baseline_drift_suspected",
+      summary: `baseline drift suspected; candidate result is not promotion-ready`,
+      promotionReady: false,
+      recommendedNextAction: "rebaseline or collect more candidate samples before promotion",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "insufficient_samples") {
+    return {
+      classification: "under_sampled",
+      summary: `under-sampled; candidate result is not promotion-ready`,
+      promotionReady: false,
+      recommendedNextAction: "collect enough successful samples to separate effect from noise",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "candidate_improvement") {
+    return {
+      classification: "candidate_review_ready",
+      summary: `ordinary candidate evidence exists and is review-ready`,
+      promotionReady: true,
+      recommendedNextAction:
+        "generate closeout and promote evidence through the owning review/evidence surface",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "candidate_regression") {
+    return {
+      classification: "candidate_regression",
+      summary: `candidate regression; do not promote this result`,
+      promotionReady: false,
+      recommendedNextAction: "discard or revise the candidate before another measured run",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "candidate_neutral") {
+    return {
+      classification: "candidate_neutral",
+      summary: `candidate appears neutral on the primary metric`,
+      promotionReady: false,
+      recommendedNextAction:
+        "promote only with separate non-metric justification; otherwise try another candidate",
+    };
+  }
+
+  return {
+    classification: "inconclusive",
+    summary: `result is inconclusive; no promotion-ready candidate evidence yet`,
+    promotionReady: false,
+    recommendedNextAction:
+      "collect more samples, rebaseline, or bind a clearer candidate hypothesis",
+  };
+}
+
 function getCurrentSegment(entries: AutoresearchReceipt[]): CurrentSegmentView {
   let config: AutoresearchConfigReceipt | null = null;
   let runs: AutoresearchRunReceipt[] = [];
@@ -5240,6 +5426,7 @@ function renderAutoresearchAkEvidenceResult(closeout: AutoresearchSegmentCloseou
     `metric=${closeout.metricName ?? "(unset)"} ${closeout.metricUnit || "unitless"}; direction=${closeout.direction ?? "unset"}`,
     `runs=${closeout.runCount} total/${closeout.successfulRunCount} successful; baseline=${formatMetricValue(closeout.baselineMetric, closeout.metricUnit)}; best=${formatMetricValue(closeout.bestMetric, closeout.metricUnit)}`,
     `empirical_decision=${closeout.empiricalDecisionClass}`,
+    `empirical_posture=${closeout.empiricalPosture.classification}; promotion_ready=${closeout.empiricalPosture.promotionReady ? "yes" : "no"}; ${closeout.empiricalPosture.summary}`,
     `timing_interpretation=${formatMetricInterpretation(closeout.timingInterpretation, closeout.metricUnit)}`,
     `recommended_action=${closeout.recommendedAction}`,
     closeout.candidateBindings.length > 0
@@ -5782,6 +5969,10 @@ function formatMetricValue(value: number | null, unit: string): string {
 function formatConfidenceValue(value: number | null): string {
   if (value === null) return "(n/a)";
   return `${value.toFixed(2)}x`;
+}
+
+function formatEmpiricalPosture(posture: AutoresearchEmpiricalPosture): string {
+  return `${posture.classification}; promotion_ready=${posture.promotionReady ? "yes" : "no"}; ${posture.summary}; next=${posture.recommendedNextAction}`;
 }
 
 function formatMetricInterpretation(
