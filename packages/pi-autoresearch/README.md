@@ -51,6 +51,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - can build a package-local segment closeout packet (`action: "closeout"`) summarizing runs, hypotheses, candidate bindings, empirical decision, timing interpretation, recommended action, and the evidence boundary before AK/KES promotion
   - can build a non-mutating exact-task AK evidence packet (`action: "ak_evidence"`, `akTaskId`) with a suggested explicit `evidence_record(...)` controller call; it does not mutate AK itself
   - can build an adapter-ready learning/KMS export packet (`action: "learning"`, packet kind `autoresearch.learning.v1`) so external KES, notes, or knowledge-base adapters can persist learning without pi-autoresearch owning those systems
+  - documents the adapter contract in `docs/project/adapter-contracts.md` so AK, Beads, KES, notes, issue trackers, or custom KMS integrations can be implemented as separate Pi extensions consuming stable packet shapes
   - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, the current llama.cpp manifest-campaign projection state when one has been projected locally, and visible peer-lane recommendations for optional `scout_peer_spawn` / `candidate_peer_spawn` use without auto-spawning peers
 - `autoresearch_runtime_autoplan`
   - explores the local repo/problem space from a bounded objective and proposes campaign setup: name, metric, direction, benchmark command, checks command, scope, risks, and exact next tool call
