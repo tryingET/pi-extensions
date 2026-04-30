@@ -1,0 +1,13 @@
+{
+  "invariantId": "pi.provenance.assistant-message-minimality",
+  "kind": "execution-witness",
+  "scenarioId": "minimal-fields-no-content",
+  "sourceFiles": [
+    "packages/pi-provenance/src/provenance-core.js"
+  ],
+  "status": "pass",
+  "testFiles": [
+    "packages/pi-provenance/tests/provenance-core.test.mjs"
+  ],
+  "version": "1"
+}

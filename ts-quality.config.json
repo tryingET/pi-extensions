@@ -1,0 +1,28 @@
+{
+  "sourcePatterns": ["packages/pi-provenance/src/**/*.js"],
+  "testPatterns": ["packages/pi-provenance/tests/**/*.mjs"],
+  "coverage": {
+    "lcovPath": "coverage/pi-provenance.lcov.info",
+    "generateCommand": ["node", "--test", "--experimental-test-coverage", "--test-reporter=lcov", "--test-reporter-destination=coverage/pi-provenance.lcov.info", "packages/pi-provenance/tests/provenance-core.test.mjs"]
+  },
+  "mutations": {
+    "testCommand": ["node", "--test", "packages/pi-provenance/tests/provenance-core.test.mjs"],
+    "coveredOnly": true,
+    "timeoutMs": 15000,
+    "maxSites": 8
+  },
+  "policy": {
+    "maxChangedCrap": 40,
+    "minMutationScore": 0,
+    "minMergeConfidence": 70
+  },
+  "changeSet": { "files": ["packages/pi-provenance/src/provenance-core.js"] },
+  "invariantsPath": ".ts-quality/invariants.ts",
+  "constitutionPath": ".ts-quality/constitution.ts",
+  "agentsPath": ".ts-quality/agents.ts",
+  "approvalsPath": ".ts-quality/approvals.json",
+  "waiversPath": ".ts-quality/waivers.json",
+  "overridesPath": ".ts-quality/overrides.json",
+  "attestationsDir": ".ts-quality/attestations",
+  "trustedKeysDir": ".ts-quality/keys"
+}
