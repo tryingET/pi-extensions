@@ -112,6 +112,18 @@ const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 export type MetricDirection = "lower" | "higher";
 export type RunStatus = "baseline" | "candidate" | "keep" | "discard" | "crash" | "checks_failed";
 export type AutoresearchRunKind = "ordinary" | "calibration";
+export type AutoresearchEmpiricalDecisionClass =
+  | "not_evaluated"
+  | "measurement_invalid"
+  | "checks_failed"
+  | "baseline"
+  | "insufficient_samples"
+  | "possible_noise"
+  | "calibration_signal"
+  | "candidate_improvement"
+  | "candidate_regression"
+  | "candidate_neutral"
+  | "baseline_drift";
 export type MetricMap = Record<string, number>;
 
 export interface AutoresearchRunDecisionSummary {
@@ -191,6 +203,7 @@ export interface AutoresearchRunReceipt {
   status: RunStatus;
   runKind?: AutoresearchRunKind;
   experiment?: AutoresearchExperimentLineage;
+  empiricalDecisionClass?: AutoresearchEmpiricalDecisionClass;
   metric: number;
   metrics: MetricMap;
   description: string;
@@ -249,6 +262,7 @@ export interface AutoresearchSegmentSummary {
   bestMetric: number | null;
   confidence: number | null;
   metricInterpretation: AutoresearchMetricInterpretation | null;
+  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
   lastRunStatus: RunStatus | null;
   lastRunKind: AutoresearchRunKind | null;
   lastRunMetric: number | null;
@@ -708,6 +722,7 @@ export function createRunReceipt(input: {
   status: RunStatus;
   runKind?: AutoresearchRunKind;
   experiment?: AutoresearchExperimentLineageInput;
+  empiricalDecisionClass?: AutoresearchEmpiricalDecisionClass;
   metric: number;
   metrics?: MetricMap;
   description: string;
@@ -730,6 +745,7 @@ export function createRunReceipt(input: {
     status: input.status,
     runKind: input.runKind,
     experiment: normalizeExperimentLineage(input.experiment),
+    empiricalDecisionClass: input.empiricalDecisionClass,
     metric: input.metric,
     metrics: { ...(input.metrics ?? {}) },
     description: input.description,
@@ -2136,6 +2152,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
         `- baseline metric: ${formatMetricValue(status.currentSegment.baselineMetric, status.currentSegment.metricUnit)}`,
         `- best metric: ${formatMetricValue(status.currentSegment.bestMetric, status.currentSegment.metricUnit)}`,
         `- confidence: ${formatConfidenceValue(status.currentSegment.confidence)}`,
+        `- empirical decision: ${status.currentSegment.empiricalDecisionClass}`,
         `- timing interpretation: ${formatMetricInterpretation(status.currentSegment.metricInterpretation, status.currentSegment.metricUnit)}`,
         `- last run: ${formatLastRun(status.currentSegment.lastRunStatus, status.currentSegment.lastRunMetric, status.currentSegment.metricUnit, status.currentSegment.lastRunKind)}`,
       ]
@@ -2145,6 +2162,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
         "- baseline metric: (n/a)",
         "- best metric: (n/a)",
         "- confidence: (n/a)",
+        "- empirical decision: not_evaluated",
         "- last run: (none)",
       ];
 
@@ -2326,6 +2344,7 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     `- created config: ${result.createdConfig ? "yes" : "no"}`,
     `- run status: ${result.runReceipt.status}`,
     `- run kind: ${result.runReceipt.runKind ?? "ordinary"}`,
+    `- empirical decision: ${result.runReceipt.empiricalDecisionClass ?? result.status.currentSegment.empiricalDecisionClass}`,
     ...formatExperimentLineageLines(result.runReceipt.experiment),
     `- machine state: ${result.status.runtimeProjection.state}`,
     `- machine projection source: ${result.status.runtimeProjection.source}`,
@@ -2340,6 +2359,7 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     `- current baseline: ${formatMetricValue(result.status.currentSegment.baselineMetric, metricUnit)}`,
     `- current best: ${formatMetricValue(result.status.currentSegment.bestMetric, metricUnit)}`,
     `- confidence: ${formatConfidenceValue(result.status.currentSegment.confidence)}`,
+    `- segment empirical decision: ${result.status.currentSegment.empiricalDecisionClass}`,
     `- timing interpretation: ${formatMetricInterpretation(result.status.currentSegment.metricInterpretation, metricUnit)}`,
     "",
     "## Peer lane recommendations",
@@ -2712,6 +2732,7 @@ export async function executeAutoresearchRun(
     { persistSnapshot: false },
   );
   runReceipt.confidence = nextStatus.currentSegment.confidence;
+  runReceipt.empiricalDecisionClass = nextStatus.currentSegment.empiricalDecisionClass;
 
   const decisionSummary = input.liveDecision
     ? await runAutoresearchPostRunDecision({
@@ -4025,6 +4046,9 @@ function summarizeCurrentSegment(currentSegment: CurrentSegmentView): Autoresear
     (run) => (run.runKind ?? "ordinary") !== "calibration",
   );
   const baselineMetric = successfulRuns[0]?.metric ?? null;
+  const metricInterpretation = currentSegment.config
+    ? interpretMetricNoise(successfulRuns, currentSegment.config)
+    : null;
   let bestMetric = optimizationRuns[0]?.metric ?? baselineMetric;
 
   if (currentSegment.config) {
@@ -4054,9 +4078,13 @@ function summarizeCurrentSegment(currentSegment: CurrentSegmentView): Autoresear
       currentSegment.config && optimizationRuns.length > 0
         ? computeConfidence(optimizationRuns, currentSegment.config.direction)
         : null,
-    metricInterpretation: currentSegment.config
-      ? interpretMetricNoise(successfulRuns, currentSegment.config)
-      : null,
+    metricInterpretation,
+    empiricalDecisionClass: classifyLatestEmpiricalDecision(
+      currentSegment.runs,
+      successfulRuns,
+      currentSegment.config,
+      metricInterpretation,
+    ),
     lastRunStatus: currentSegment.runs.at(-1)?.status ?? null,
     lastRunKind: currentSegment.runs.at(-1)?.runKind ?? null,
     lastRunMetric: currentSegment.runs.at(-1)?.metric ?? null,
@@ -4126,6 +4154,9 @@ function parseRunReceipt(value: Record<string, unknown>): AutoresearchRunReceipt
     status: value.status,
     runKind: isAutoresearchRunKind(value.runKind) ? value.runKind : undefined,
     experiment: parseExperimentLineage(value.experiment),
+    empiricalDecisionClass: isAutoresearchEmpiricalDecisionClass(value.empiricalDecisionClass)
+      ? value.empiricalDecisionClass
+      : undefined,
     metric: coerceNumber(value.metric, "metric"),
     metrics: parseMetricMap(value.metrics),
     description: value.description,
@@ -4499,6 +4530,7 @@ function formatRunHistoryLine(run: AutoresearchRunReceipt, metricUnit: string): 
     `iteration ${run.iteration ?? "?"}`,
     run.status,
     run.experiment ? `hypothesis ${formatExperimentLabel(run.experiment)}` : null,
+    run.empiricalDecisionClass ? `empirical ${run.empiricalDecisionClass}` : null,
     `metric ${formatMetricValue(run.metric, metricUnit)}`,
     run.decision ? `decision ${run.decision.status}` : null,
     run.description,
@@ -4568,6 +4600,24 @@ function isAutoresearchRunKind(value: unknown): value is AutoresearchRunKind {
   return value === "ordinary" || value === "calibration";
 }
 
+function isAutoresearchEmpiricalDecisionClass(
+  value: unknown,
+): value is AutoresearchEmpiricalDecisionClass {
+  return (
+    value === "not_evaluated" ||
+    value === "measurement_invalid" ||
+    value === "checks_failed" ||
+    value === "baseline" ||
+    value === "insufficient_samples" ||
+    value === "possible_noise" ||
+    value === "calibration_signal" ||
+    value === "candidate_improvement" ||
+    value === "candidate_regression" ||
+    value === "candidate_neutral" ||
+    value === "baseline_drift"
+  );
+}
+
 function isSuccessfulMetricRun(run: AutoresearchRunReceipt): boolean {
   return (
     run.status !== "crash" &&
@@ -4579,6 +4629,54 @@ function isSuccessfulMetricRun(run: AutoresearchRunReceipt): boolean {
 
 function isBetter(current: number, best: number, direction: MetricDirection): boolean {
   return direction === "lower" ? current < best : current > best;
+}
+
+function classifyLatestEmpiricalDecision(
+  runs: AutoresearchRunReceipt[],
+  successfulRuns: AutoresearchRunReceipt[],
+  config: AutoresearchConfigReceipt | null,
+  metricInterpretation: AutoresearchMetricInterpretation | null,
+): AutoresearchEmpiricalDecisionClass {
+  const latestRun = runs.at(-1);
+  if (!latestRun) return "not_evaluated";
+  return classifyRunEmpiricalDecision(latestRun, successfulRuns, config, metricInterpretation);
+}
+
+function classifyRunEmpiricalDecision(
+  run: AutoresearchRunReceipt,
+  successfulRuns: AutoresearchRunReceipt[],
+  config: AutoresearchConfigReceipt | null,
+  metricInterpretation: AutoresearchMetricInterpretation | null,
+): AutoresearchEmpiricalDecisionClass {
+  if (run.status === "checks_failed") return "checks_failed";
+  if (run.status === "crash") return "measurement_invalid";
+  if (!isSuccessfulMetricRun(run)) return "measurement_invalid";
+  if (run.status === "baseline" || successfulRuns[0] === run) return "baseline";
+  if (!config) return "not_evaluated";
+
+  const baselineMetric = successfulRuns[0]?.metric;
+  if (baselineMetric === undefined) return "not_evaluated";
+
+  const delta = directionalDelta(baselineMetric, run.metric, config.direction);
+  const runKind = run.runKind ?? "ordinary";
+
+  if (isDurationMetric(config.metricName, config.metricUnit)) {
+    if (!metricInterpretation || metricInterpretation.sampleCount < 3) {
+      return "insufficient_samples";
+    }
+    if (delta >= metricInterpretation.noiseBand) {
+      return runKind === "calibration" ? "calibration_signal" : "candidate_improvement";
+    }
+    if (delta <= -metricInterpretation.noiseBand) {
+      return runKind === "calibration" ? "baseline_drift" : "candidate_regression";
+    }
+    return "possible_noise";
+  }
+
+  if (runKind === "calibration") return "possible_noise";
+  if (isBetter(run.metric, baselineMetric, config.direction)) return "candidate_improvement";
+  if (run.metric === baselineMetric) return "candidate_neutral";
+  return "candidate_regression";
 }
 
 function interpretMetricNoise(

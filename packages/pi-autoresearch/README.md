@@ -54,6 +54,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - surfaces an explicit measurement contract for metric freshness, causal linkage, and optimization authority before any proposed setup call
   - avoids inferred duplicate benchmark/check execution when package scripts or generated `autoresearch.sh` wrappers resolve to the same command, while warning if an operator explicitly asks to run equivalent gates twice
   - reports noise-aware timing interpretation for duration metrics so one-off lower timings are not mistaken for meaningful improvements
+  - reports an explicit empirical decision class (`baseline`, `insufficient_samples`, `possible_noise`, `calibration_signal`, `candidate_improvement`, `candidate_regression`, and related invalid/check states) so run status is not mistaken for result meaning
   - supports calibration runs that update timing/noise interpretation without competing as candidate improvements; calibration-only faster samples are surfaced as `calibration_signal`, not candidate wins
   - when a generic benchmark command such as `npm test` would not emit `METRIC <name>=<value>`, proposes a conservative local `autoresearch.sh` script only when its measurement contract is fresh, causal to the current run, and allowed to drive optimization
   - supports `planner: "dspx_program"` to return or materialize a local DSPx `program-gen` handoff intent for an `AutoresearchSetupPlanner` candidate while keeping Pi as the outer controller
@@ -65,6 +66,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
   - can bind optional hypothesis/result lineage (`hypothesisId`, `hypothesis`, `interventionSummary`, `expectedPrimaryEffect`, `hypothesisTargetFiles`, `experimentRisk`) into the run receipt so later evidence export can say what was tested and why
+  - records an empirical decision class on new run receipts so downstream closeout/evidence steps can distinguish operational status from measured meaning
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
   - appends machine/event entries to `autoresearch.events.jsonl`

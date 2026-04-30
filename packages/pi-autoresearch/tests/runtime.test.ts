@@ -457,6 +457,7 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.equal(status.currentSegment.successfulRunCount, 3);
     assert.equal(status.currentSegment.baselineMetric, 100);
     assert.equal(status.currentSegment.bestMetric, 90);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "candidate_improvement");
     assert.equal(status.currentSegment.metricInterpretation?.verdict, "meaningful_improvement");
     assert.equal(status.currentSegment.metricInterpretation?.sampleCount, 3);
     assert.equal(status.currentSegment.metricInterpretation?.bestDelta, 10);
@@ -464,6 +465,7 @@ test("status builder summarizes best metric and confidence from appended receipt
       formatAutoresearchStatusText(status),
       /timing interpretation: meaningful_improvement/,
     );
+    assert.match(formatAutoresearchStatusText(status), /empirical decision: candidate_improvement/);
     assert.equal(status.runtimeProjection.state, "ready");
     assert.equal(status.runtimeProjection.source, "receipt_fallback");
     assert.equal(status.runtimeProjection.hasLedger, false);
@@ -518,10 +520,12 @@ test("calibration runs inform timing noise without competing as best candidate",
     assert.equal(status.currentSegment.successfulRunCount, 3);
     assert.equal(status.currentSegment.bestMetric, 100);
     assert.equal(status.currentSegment.confidence, null);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "calibration_signal");
     assert.equal(status.currentSegment.lastRunKind, "calibration");
     assert.equal(status.currentSegment.metricInterpretation?.sampleCount, 3);
     assert.equal(status.currentSegment.metricInterpretation?.bestMetric, 90);
     assert.equal(status.currentSegment.metricInterpretation?.verdict, "calibration_signal");
+    assert.match(formatAutoresearchStatusText(status), /empirical decision: calibration_signal/);
     assert.match(formatAutoresearchStatusText(status), /timing interpretation: calibration_signal/);
     assert.match(
       formatAutoresearchStatusText(status),
@@ -1298,6 +1302,7 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
       runReceipt: {
         status: string;
         metric: number;
+        empiricalDecisionClass?: string;
         experiment?: {
           hypothesisId: string | null;
           hypothesis: string | null;
@@ -1308,7 +1313,12 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
         };
       };
       status: {
-        currentSegment: { baselineMetric: number; bestMetric: number; runCount: number };
+        currentSegment: {
+          baselineMetric: number;
+          bestMetric: number;
+          runCount: number;
+          empiricalDecisionClass: string;
+        };
         runtimeProjection: {
           state: string;
           source: string;
@@ -1333,6 +1343,7 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
     assert.deepEqual(details.parsedMetrics, { total_ms: 152, render_ms: 99 });
     assert.equal(details.runReceipt.status, "baseline");
     assert.equal(details.runReceipt.metric, 152);
+    assert.equal(details.runReceipt.empiricalDecisionClass, "baseline");
     assert.deepEqual(details.runReceipt.experiment, {
       hypothesisId: "H-baseline-001",
       hypothesis: "Baseline establishes the current timing floor before candidate work.",
@@ -1343,6 +1354,7 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
     });
     assert.equal(details.status.currentSegment.baselineMetric, 152);
     assert.equal(details.status.currentSegment.bestMetric, 152);
+    assert.equal(details.status.currentSegment.empiricalDecisionClass, "baseline");
     assert.equal(details.status.currentSegment.runCount, 1);
     assert.equal(details.decisionSummary, null);
     assert.equal(details.status.runtimeProjection.state, "ready");
