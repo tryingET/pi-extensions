@@ -47,6 +47,7 @@ import {
   createConfigReceipt,
   createRunReceipt,
   formatAutoresearchAdapterContractCatalog,
+  formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchSegmentCloseout,
@@ -55,6 +56,7 @@ import {
   parseMetricLines,
   parseReceiptLine,
   serializeReceipt,
+  validateAutoresearchAdapterPacket,
 } from "../src/core/runtime.ts";
 import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "../src/core/selfHosting.ts";
 
@@ -587,6 +589,15 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
       ["autoresearch.closeout.v1", "autoresearch.ak_evidence.v1", "autoresearch.learning.v1"],
     );
     assert.match(formatAutoresearchAdapterContractCatalog(catalog), /ADAPTER CONTRACT CATALOG/);
+
+    const validCloseout = validateAutoresearchAdapterPacket(closeout);
+    assert.equal(validCloseout.valid, true);
+    assert.equal(validCloseout.validatedPacketKind, "autoresearch.closeout.v1");
+    assert.match(formatAutoresearchAdapterPacketValidationResult(validCloseout), /valid: yes/);
+
+    const invalidEvidence = validateAutoresearchAdapterPacket({ ...evidence, taskId: 0 });
+    assert.equal(invalidEvidence.valid, false);
+    assert.match(formatAutoresearchAdapterPacketValidationResult(invalidEvidence), /taskId/);
   }));
 
 test("calibration runs inform timing noise without competing as best candidate", () =>
@@ -1903,6 +1914,21 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(contracts);
     assert.match(contracts?.content[0]?.text ?? "", /ADAPTER CONTRACT CATALOG/);
     assert.match(contracts?.content[0]?.text ?? "", /autoresearch\.closeout\.v1/);
+
+    const validation = await tool?.execute(
+      "call-4e",
+      {
+        cwd,
+        action: "validate_packet",
+        packet: closeout.details,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(validation);
+    assert.match(validation?.content[0]?.text ?? "", /ADAPTER PACKET VALIDATION/);
+    assert.match(validation?.content[0]?.text ?? "", /valid: yes/);
 
     const setup = await tool?.execute(
       "call-5",

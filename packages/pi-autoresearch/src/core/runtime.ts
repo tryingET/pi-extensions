@@ -360,6 +360,22 @@ export interface AutoresearchAdapterContractCatalog {
   adapterBoundary: string;
 }
 
+export interface AutoresearchAdapterPacketValidationIssue {
+  path: string;
+  message: string;
+}
+
+export interface AutoresearchAdapterPacketValidationResult {
+  packetKind: "autoresearch.adapter_validation.v1";
+  adapterContractVersion: 1;
+  targetKinds: string[];
+  valid: boolean;
+  validatedPacketKind: string | null;
+  validatedVersion: number | null;
+  issues: AutoresearchAdapterPacketValidationIssue[];
+  adapterBoundary: string;
+}
+
 export interface AutoresearchSegmentCloseout {
   packetKind: "autoresearch.closeout.v1";
   adapterContractVersion: 1;
@@ -2199,6 +2215,173 @@ export function buildAutoresearchAdapterContractCatalog(): AutoresearchAdapterCo
   };
 }
 
+export function validateAutoresearchAdapterPacket(
+  packet: unknown,
+): AutoresearchAdapterPacketValidationResult {
+  const issues: AutoresearchAdapterPacketValidationIssue[] = [];
+  const adapterBoundary =
+    "Adapter packet validation is non-mutating and structural; target adapters remain responsible for target identity, authority checks, and persistence.";
+
+  const addIssue = (pathName: string, message: string) => {
+    issues.push({ path: pathName, message });
+  };
+
+  if (!isRecord(packet) || Array.isArray(packet)) {
+    return {
+      packetKind: "autoresearch.adapter_validation.v1",
+      adapterContractVersion: 1,
+      targetKinds: ["adapter_validation"],
+      valid: false,
+      validatedPacketKind: null,
+      validatedVersion: null,
+      issues: [{ path: "$", message: "packet must be an object" }],
+      adapterBoundary,
+    };
+  }
+
+  const packetKind = typeof packet.packetKind === "string" ? packet.packetKind : null;
+  const version =
+    typeof packet.adapterContractVersion === "number" ? packet.adapterContractVersion : null;
+  if (!packetKind) addIssue("packetKind", "packetKind must be a string");
+  if (version === null)
+    addIssue("adapterContractVersion", "adapterContractVersion must be a number");
+
+  const catalog = buildAutoresearchAdapterContractCatalog();
+  const entry = catalog.entries.find((candidate) => candidate.packetKind === packetKind);
+  if (packetKind && !entry) {
+    addIssue("packetKind", `unsupported packet kind ${packetKind}`);
+  }
+  if (entry && version !== entry.adapterContractVersion) {
+    addIssue(
+      "adapterContractVersion",
+      `expected adapter contract version ${entry.adapterContractVersion}`,
+    );
+  }
+
+  if (entry) {
+    for (const field of entry.requiredFields) {
+      if (packet[field] === undefined) addIssue(field, "required field is missing");
+    }
+  }
+
+  validateStringArrayField(packet, "targetKinds", addIssue);
+  validateStringField(packet, "adapterBoundary", addIssue);
+
+  if (packetKind === "autoresearch.closeout.v1") {
+    validateCloseoutPacketFields(packet, "", addIssue);
+  } else if (packetKind === "autoresearch.ak_evidence.v1") {
+    validatePositiveIntegerField(packet, "taskId", addIssue);
+    if (packet.checkType !== "autoresearch:segment_closeout") {
+      addIssue("checkType", 'checkType must be "autoresearch:segment_closeout"');
+    }
+    validateStringField(packet, "result", addIssue);
+    validateStringField(packet, "suggestedToolCall", addIssue);
+    if (isRecord(packet.closeout) && !Array.isArray(packet.closeout)) {
+      validateCloseoutPacketFields(packet.closeout, "closeout.", addIssue);
+    } else {
+      addIssue("closeout", "closeout must be an object");
+    }
+  } else if (packetKind === "autoresearch.learning.v1") {
+    validateStringField(packet, "suggestedPath", addIssue);
+    validateStringField(packet, "title", addIssue);
+    validateStringField(packet, "markdown", addIssue);
+    if (isRecord(packet.closeout) && !Array.isArray(packet.closeout)) {
+      validateCloseoutPacketFields(packet.closeout, "closeout.", addIssue);
+    } else {
+      addIssue("closeout", "closeout must be an object");
+    }
+  }
+
+  return {
+    packetKind: "autoresearch.adapter_validation.v1",
+    adapterContractVersion: 1,
+    targetKinds: ["adapter_validation"],
+    valid: issues.length === 0,
+    validatedPacketKind: packetKind,
+    validatedVersion: version,
+    issues,
+    adapterBoundary,
+  };
+}
+
+function validateCloseoutPacketFields(
+  packet: Record<string, unknown>,
+  prefix: string,
+  addIssue: (pathName: string, message: string) => void,
+): void {
+  if (packet.packetKind !== "autoresearch.closeout.v1") {
+    addIssue(`${prefix}packetKind`, 'packetKind must be "autoresearch.closeout.v1"');
+  }
+  if (packet.adapterContractVersion !== 1) {
+    addIssue(`${prefix}adapterContractVersion`, "adapterContractVersion must be 1");
+  }
+  validateStringArrayField(packet, "targetKinds", addIssue, prefix);
+  validateStringField(packet, "cwd", addIssue, prefix);
+  validateStringField(packet, "receiptPath", addIssue, prefix);
+  validateNumberField(packet, "runCount", addIssue, prefix);
+  validateNumberField(packet, "successfulRunCount", addIssue, prefix);
+  validateStringField(packet, "empiricalDecisionClass", addIssue, prefix);
+  validateArrayField(packet, "runs", addIssue, prefix);
+  validateArrayField(packet, "candidateBindings", addIssue, prefix);
+  validateStringField(packet, "recommendedAction", addIssue, prefix);
+  validateStringField(packet, "adapterBoundary", addIssue, prefix);
+}
+
+function validateStringField(
+  packet: Record<string, unknown>,
+  field: string,
+  addIssue: (pathName: string, message: string) => void,
+  prefix = "",
+): void {
+  if (typeof packet[field] !== "string") {
+    addIssue(`${prefix}${field}`, `${field} must be a string`);
+  }
+}
+
+function validateNumberField(
+  packet: Record<string, unknown>,
+  field: string,
+  addIssue: (pathName: string, message: string) => void,
+  prefix = "",
+): void {
+  if (typeof packet[field] !== "number" || !Number.isFinite(packet[field])) {
+    addIssue(`${prefix}${field}`, `${field} must be a finite number`);
+  }
+}
+
+function validatePositiveIntegerField(
+  packet: Record<string, unknown>,
+  field: string,
+  addIssue: (pathName: string, message: string) => void,
+): void {
+  if (!Number.isInteger(packet[field]) || Number(packet[field]) < 1) {
+    addIssue(field, `${field} must be a positive integer`);
+  }
+}
+
+function validateArrayField(
+  packet: Record<string, unknown>,
+  field: string,
+  addIssue: (pathName: string, message: string) => void,
+  prefix = "",
+): void {
+  if (!Array.isArray(packet[field])) {
+    addIssue(`${prefix}${field}`, `${field} must be an array`);
+  }
+}
+
+function validateStringArrayField(
+  packet: Record<string, unknown>,
+  field: string,
+  addIssue: (pathName: string, message: string) => void,
+  prefix = "",
+): void {
+  const value = packet[field];
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    addIssue(`${prefix}${field}`, `${field} must be an array of strings`);
+  }
+}
+
 export function buildAutoresearchKnowledgeExportPacket(
   cwd: string,
 ): AutoresearchKnowledgeExportPacket {
@@ -2534,6 +2717,26 @@ export function formatAutoresearchAdapterContractCatalog(
     "",
     "## Packet contracts",
     ...entries,
+  ].join("\n");
+}
+
+export function formatAutoresearchAdapterPacketValidationResult(
+  result: AutoresearchAdapterPacketValidationResult,
+): string {
+  const issueLines = result.issues.map((issue) => `- ${issue.path}: ${issue.message}`);
+  return [
+    "# PI-AUTORESEARCH ADAPTER PACKET VALIDATION",
+    "",
+    `- packet kind: ${result.packetKind}`,
+    `- adapter contract version: ${result.adapterContractVersion}`,
+    `- target kinds: ${result.targetKinds.join(", ")}`,
+    `- valid: ${result.valid ? "yes" : "no"}`,
+    `- validated packet kind: ${result.validatedPacketKind ?? "(unknown)"}`,
+    `- validated version: ${result.validatedVersion ?? "(unknown)"}`,
+    `- adapter boundary: ${result.adapterBoundary}`,
+    "",
+    "## Issues",
+    ...(issueLines.length > 0 ? issueLines : ["- (none)"]),
   ].join("\n");
 }
 

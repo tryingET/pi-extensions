@@ -61,6 +61,14 @@ autoresearch_runtime_status({ action: "adapter_contracts", cwd })
 
 The returned catalog has packet kind `autoresearch.adapter_contracts.v1` and lists each current packet kind, producer action, target kinds, required fields, optional fields, summary, and boundary. It is descriptive only; adapters must still validate the actual packet they receive.
 
+Adapters can also request structural validation of a packet before planning a target write:
+
+```ts
+autoresearch_runtime_status({ action: "validate_packet", packet })
+```
+
+The validation result has packet kind `autoresearch.adapter_validation.v1`, reports the validated packet kind/version, and lists structural issues. This is intentionally not a target-authority check: adapters still own exact task ids, vault paths, endpoints, dry-run/apply posture, permissions, and persistence receipts.
+
 ## Current packet kinds
 
 ### `autoresearch.learning.v1`
