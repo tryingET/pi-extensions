@@ -218,14 +218,18 @@ NODE
   fi
 fi
 
-echo "== npm view ${NAME} version (pre-publish may be 404)"
-set +e
-npm view "$NAME" version --json --registry https://registry.npmjs.org/
-VIEW_EXIT=$?
-set -e
-echo "npm view exit: $VIEW_EXIT"
-if [[ "$VIEW_EXIT" -ne 0 ]]; then
-  echo "Package likely not published yet (expected for first release)."
+if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
+  echo "Skipping npm view (SKIP_PI_SMOKE=1; quick local checks avoid non-gating registry noise)."
+else
+  echo "== npm view ${NAME} version (pre-publish may be 404)"
+  set +e
+  npm view "$NAME" version --json --registry https://registry.npmjs.org/
+  VIEW_EXIT=$?
+  set -e
+  echo "npm view exit: $VIEW_EXIT"
+  if [[ "$VIEW_EXIT" -ne 0 ]]; then
+    echo "Package likely not published yet (expected for first release)."
+  fi
 fi
 
 echo "release-check done"
