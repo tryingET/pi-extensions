@@ -10,6 +10,7 @@ type ToolResult = Awaited<ReturnType<Parameters<ExtensionAPI["registerTool"]>[0]
 
 type DesignmdFormat = "css" | "oat" | "tailwind" | "dtcg" | "tokens" | "agent-prompt" | "json";
 type OpenPencilExportFormat = "svg" | "png" | "jpg" | "webp" | "fig";
+type SessionArtifactKind = "html" | "svg" | "image" | "markdown" | "css" | "json" | "text";
 
 interface BaseParams {
   cwd?: string;
@@ -65,6 +66,36 @@ interface PaletteParams extends BaseParams {
 }
 
 interface ReadinessParams extends BaseParams {}
+
+interface SessionArtifactSpec {
+  kind: SessionArtifactKind;
+  title: string;
+  mimeType: string;
+  content?: string;
+  path?: string;
+}
+
+interface SessionReportOptions {
+  toolName: string;
+  objective?: string;
+  artifact?: (result: CommandResult) => SessionArtifactSpec | undefined;
+}
+
+interface WatchSession {
+  id: string;
+}
+
+interface CommandResult {
+  ok: boolean;
+  command: string;
+  args: string[];
+  cwd: string;
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+  error: string | undefined;
+}
 
 const FORMAT_VALUES = ["css", "oat", "tailwind", "dtcg", "tokens", "agent-prompt", "json"] as const;
 const MODE_VALUES = ["iterate", "remix", "expand", "audit"] as const;
@@ -128,10 +159,11 @@ export default function (pi: ExtensionAPI) {
     ),
     async execute(_toolCallId, params) {
       const request = params as LintParams;
-      const result = runDesignmd(request, [
-        "lint",
-        resolveInputPath(request.cwd, request.designPath || "DESIGN.md"),
-      ]);
+      const result = await runDesignmdWithSession(
+        request,
+        ["lint", resolveInputPath(request.cwd, request.designPath || "DESIGN.md")],
+        { toolName: "designmd_lint" },
+      );
       return toolResult(result);
     },
   });
@@ -162,7 +194,13 @@ export default function (pi: ExtensionAPI) {
       if (request.mode) args.push("--mode", request.mode);
       if (request.objective) args.push("--objective", request.objective);
       args.push(resolveInputPath(request.cwd, request.designPath || "DESIGN.md"));
-      return toolResult(runDesignmd(request, args));
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_export",
+          objective: request.objective,
+          artifact: (result) => artifactForExport(request.format, result.stdout),
+        }),
+      );
     },
   });
 
@@ -190,7 +228,18 @@ export default function (pi: ExtensionAPI) {
       if (request.mode) args.push("--mode", request.mode);
       if (request.objective) args.push("--objective", request.objective);
       args.push(resolveInputPath(request.cwd, request.designPath || "DESIGN.md"));
-      return toolResult(runDesignmd(request, args));
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_agent_prompt",
+          objective: request.objective,
+          artifact: (result) => ({
+            kind: "markdown",
+            title: "DesignMD agent prompt",
+            mimeType: "text/markdown; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
     },
   });
 
@@ -240,7 +289,18 @@ export default function (pi: ExtensionAPI) {
       if (request.referenceUrl) args.push("--reference-url", request.referenceUrl);
       if (request.observations?.length) args.push("--observations", request.observations.join(";"));
       args.push(resolveInputPath(request.cwd, request.designPath || "DESIGN.md"));
-      return toolResult(runDesignmd(request, args));
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_oat_visual_snapshot",
+          objective: request.referenceUrl || request.referenceTitle,
+          artifact: (result) => ({
+            kind: "html",
+            title: "Oat visual snapshot",
+            mimeType: "text/html; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
     },
   });
 
@@ -267,7 +327,18 @@ export default function (pi: ExtensionAPI) {
       if (request.mode) args.push("--mode", request.mode);
       if (request.objective) args.push("--objective", request.objective);
       args.push(resolveInputPath(request.cwd, request.designPath || "DESIGN.md"));
-      return toolResult(runDesignmd(request, args));
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_openpencil_prompt",
+          objective: request.objective,
+          artifact: (result) => ({
+            kind: "markdown",
+            title: "OpenPencil handoff prompt",
+            mimeType: "text/markdown; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
     },
   });
 
@@ -287,7 +358,11 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params) {
       const request = params as OpenPencilFileParams;
       return toolResult(
-        runDesignmd(request, ["openpencil-info", resolveInputPath(request.cwd, request.filePath)]),
+        await runDesignmdWithSession(
+          request,
+          ["openpencil-info", resolveInputPath(request.cwd, request.filePath)],
+          { toolName: "designmd_openpencil_info" },
+        ),
       );
     },
   });
@@ -308,7 +383,11 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params) {
       const request = params as OpenPencilFileParams;
       return toolResult(
-        runDesignmd(request, ["openpencil-lint", resolveInputPath(request.cwd, request.filePath)]),
+        await runDesignmdWithSession(
+          request,
+          ["openpencil-lint", resolveInputPath(request.cwd, request.filePath)],
+          { toolName: "designmd_openpencil_lint" },
+        ),
       );
     },
   });
@@ -338,15 +417,23 @@ export default function (pi: ExtensionAPI) {
     ),
     async execute(_toolCallId, params) {
       const request = params as OpenPencilExportParams;
+      const resolvedOutputPath = resolveInputPath(request.cwd, request.outputPath);
       return toolResult(
-        runDesignmd(request, [
-          "openpencil-export",
-          resolveInputPath(request.cwd, request.filePath),
-          "--format",
-          request.format,
-          "--output",
-          resolveInputPath(request.cwd, request.outputPath),
-        ]),
+        await runDesignmdWithSession(
+          request,
+          [
+            "openpencil-export",
+            resolveInputPath(request.cwd, request.filePath),
+            "--format",
+            request.format,
+            "--output",
+            resolvedOutputPath,
+          ],
+          {
+            toolName: "designmd_openpencil_export",
+            artifact: () => artifactForOpenPencilExport(request.format, resolvedOutputPath),
+          },
+        ),
       );
     },
   });
@@ -374,7 +461,17 @@ export default function (pi: ExtensionAPI) {
       if (request.name) args.push("--name", request.name);
       if (request.description) args.push("--description", request.description);
       args.push(resolveInputPath(request.cwd, request.tokenPath));
-      return toolResult(runDesignmd(request, args));
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_import_penpot",
+          artifact: (result) => ({
+            kind: "markdown",
+            title: "Imported Penpot/DTCG DESIGN.md",
+            mimeType: "text/markdown; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
     },
   });
 
@@ -415,7 +512,26 @@ export default function (pi: ExtensionAPI) {
       const args = ["palette", paletteArg, "--fromText"];
       if (request.applyDesignPath)
         args.push("--apply", resolveInputPath(request.cwd, request.applyDesignPath));
-      return toolResult(runDesignmd(request, args, request.paletteText));
+      return toolResult(
+        await runDesignmdWithSession(
+          request,
+          args,
+          {
+            toolName: "designmd_palette_from_text",
+            artifact: (result) => ({
+              kind: request.applyDesignPath ? "markdown" : "json",
+              title: request.applyDesignPath
+                ? "Palette-applied DESIGN.md"
+                : "Parsed palette colors",
+              mimeType: request.applyDesignPath
+                ? "text/markdown; charset=utf-8"
+                : "application/json; charset=utf-8",
+              content: result.stdout,
+            }),
+          },
+          request.paletteText,
+        ),
+      );
     },
   });
 
@@ -439,22 +555,68 @@ export default function (pi: ExtensionAPI) {
         },
       );
       return toolResult(
-        commandResult(
-          "node",
-          ["scripts/run-ts.mjs", "scripts/integration-readiness.ts"],
-          foundryRoot,
-          result,
+        await reportCommandResult(
+          commandResult(
+            "node",
+            ["scripts/run-ts.mjs", "scripts/integration-readiness.ts"],
+            foundryRoot,
+            result,
+          ),
+          {
+            toolName: "designmd_readiness",
+            artifact: (command) => ({
+              kind: "json",
+              title: "DesignMD integration readiness",
+              mimeType: "application/json; charset=utf-8",
+              content: command.stdout,
+            }),
+          },
         ),
       );
     },
   });
 }
 
-function runDesignmd(
+async function runDesignmdWithSession(
   params: BaseParams,
   cliArgs: string[],
+  options: SessionReportOptions,
   stdin?: string,
-): ReturnType<typeof commandResult> {
+): Promise<CommandResult> {
+  const session = await ensureWatchSession(options);
+  await postSessionActivity(session, {
+    kind: "action",
+    source: "pi-designmd",
+    message: `${options.toolName} started`,
+    detail: cliArgs.join(" "),
+  });
+  const result = runDesignmd(params, cliArgs, stdin);
+  return reportCommandResult(result, options, session);
+}
+
+async function reportCommandResult(
+  result: CommandResult,
+  options: SessionReportOptions,
+  existingSession?: WatchSession | null,
+): Promise<CommandResult> {
+  const session =
+    existingSession === undefined ? await ensureWatchSession(options) : existingSession;
+  await postSessionActivity(session, {
+    kind: result.ok ? "success" : "error",
+    source: "pi-designmd",
+    message: `${options.toolName} ${result.ok ? "passed" : "failed"}`,
+    detail: result.ok
+      ? result.stdout.slice(0, 1200)
+      : [result.stderr, result.error].filter(Boolean).join("\n").slice(0, 1200),
+  });
+  if (result.ok && options.artifact) {
+    const artifact = options.artifact(result);
+    if (artifact) await postSessionArtifact(session, artifact);
+  }
+  return result;
+}
+
+function runDesignmd(params: BaseParams, cliArgs: string[], stdin?: string): CommandResult {
   const foundryRoot = resolveFoundryRoot(params);
   const { command, args } = designmdCli(foundryRoot);
   return commandResult(
@@ -476,7 +638,7 @@ function commandResult(
   args: string[],
   cwd: string,
   result: SpawnSyncReturns<string>,
-) {
+): CommandResult {
   return {
     ok: !result.error && result.status === 0,
     command,
@@ -490,7 +652,7 @@ function commandResult(
   };
 }
 
-function toolResult(result: ReturnType<typeof commandResult>): ToolResult {
+function toolResult(result: CommandResult): ToolResult {
   const details = {
     ok: result.ok,
     command: result.command,
@@ -512,6 +674,123 @@ function toolResult(result: ReturnType<typeof commandResult>): ToolResult {
 
 function messageResult(text: string, details: Record<string, unknown>): ToolResult {
   return { content: [{ type: "text", text }], details };
+}
+
+function artifactForExport(format: DesignmdFormat, content: string): SessionArtifactSpec {
+  switch (format) {
+    case "css":
+    case "oat":
+      return {
+        kind: "css",
+        title: `DesignMD ${format} export`,
+        mimeType: "text/css; charset=utf-8",
+        content,
+      };
+    case "agent-prompt":
+      return {
+        kind: "markdown",
+        title: "DesignMD agent prompt export",
+        mimeType: "text/markdown; charset=utf-8",
+        content,
+      };
+    case "tailwind":
+    case "dtcg":
+    case "tokens":
+    case "json":
+      return {
+        kind: "json",
+        title: `DesignMD ${format} export`,
+        mimeType: "application/json; charset=utf-8",
+        content,
+      };
+  }
+}
+
+function artifactForOpenPencilExport(
+  format: OpenPencilExportFormat,
+  outputPath: string,
+): SessionArtifactSpec {
+  if (format === "svg" && fs.existsSync(outputPath)) {
+    return {
+      kind: "svg",
+      title: "OpenPencil SVG export",
+      mimeType: "image/svg+xml",
+      content: fs.readFileSync(outputPath, "utf8"),
+      path: outputPath,
+    };
+  }
+  return {
+    kind: format === "png" || format === "jpg" || format === "webp" ? "image" : "text",
+    title: `OpenPencil ${format.toUpperCase()} export`,
+    mimeType:
+      format === "fig" ? "application/octet-stream" : `image/${format === "jpg" ? "jpeg" : format}`,
+    path: outputPath,
+  };
+}
+
+async function ensureWatchSession(options: SessionReportOptions): Promise<WatchSession | null> {
+  const endpoint = normalizedSessionEndpoint();
+  if (!endpoint) return null;
+  const explicitSessionId = process.env.DESIGNMD_SESSION_ID;
+  if (explicitSessionId) return { id: explicitSessionId };
+
+  const current = await postJson<{ session?: { id?: string } | null }>(
+    `${endpoint}/current`,
+    null,
+    "GET",
+  );
+  if (current?.session?.id) return { id: current.session.id };
+
+  const created = await postJson<{ session?: { id?: string } }>(endpoint, {
+    objective: options.objective || `Pi DesignMD tool: ${options.toolName}`,
+    actor: process.env.DESIGNMD_SESSION_ACTOR || "pi-designmd",
+  });
+  return created?.session?.id ? { id: created.session.id } : null;
+}
+
+async function postSessionActivity(
+  session: WatchSession | null,
+  activity: { kind: string; source: string; message: string; detail?: string },
+): Promise<void> {
+  const endpoint = normalizedSessionEndpoint();
+  if (!endpoint || !session) return;
+  await postJson(`${endpoint}/${encodeURIComponent(session.id)}/activity`, activity);
+}
+
+async function postSessionArtifact(
+  session: WatchSession | null,
+  artifact: SessionArtifactSpec,
+): Promise<void> {
+  const endpoint = normalizedSessionEndpoint();
+  if (!endpoint || !session) return;
+  await postJson(`${endpoint}/${encodeURIComponent(session.id)}/artifact`, artifact);
+}
+
+async function postJson<T = unknown>(
+  url: string,
+  body: unknown,
+  method = "POST",
+): Promise<T | null> {
+  try {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (body !== null) headers["Content-Type"] = "application/json";
+    const token = process.env.DESIGNMD_SESSION_TOKEN || process.env.DESIGNMD_API_TOKEN;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body === null ? undefined : JSON.stringify(body),
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function normalizedSessionEndpoint(): string | undefined {
+  const raw = process.env.DESIGNMD_SESSION_ENDPOINT;
+  return raw ? raw.replace(/\/+$/, "") : undefined;
 }
 
 function designmdCli(foundryRoot: string): { command: string; args: string[] } {

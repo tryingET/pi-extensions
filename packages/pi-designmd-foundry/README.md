@@ -17,6 +17,8 @@ This package does **not** reimplement DesignMD Foundry. It wraps the DesignMD Fo
 
 No harnessed LLM provider is bundled here. Pi remains the agent harness; Foundry remains the design contract authority.
 
+When `DESIGNMD_SESSION_ENDPOINT` is set, tools also report start/pass/fail activity and generated artifacts into a running DesignMD Foundry Watch Mode session. Reporting is optional and fail-open: tools still work when no Foundry UI/server is running.
+
 - Workspace path: `packages/pi-designmd-foundry`
 - Release component key: `pi-designmd-foundry`
 - Release config mode: `component`
@@ -96,6 +98,21 @@ Use:
 - `docs/adr/` for adopted architecture decisions
 
 Avoid creating new package-local `docs/dev/` trees.
+
+## Watch Mode reporting
+
+To watch Pi tool progress in the DesignMD Foundry UI, start Foundry and point this package at its session API:
+
+```bash
+export DESIGNMD_SESSION_ENDPOINT=http://127.0.0.1:8788/api/session
+# optional existing session override:
+export DESIGNMD_SESSION_ID=ses_...
+# optional actor label and API token:
+export DESIGNMD_SESSION_ACTOR=pi-designmd
+export DESIGNMD_SESSION_TOKEN=$DESIGNMD_API_TOKEN
+```
+
+Without `DESIGNMD_SESSION_ID`, the adapter reuses the current running session or starts a new one. Output-producing tools attach artifacts such as Oat snapshot HTML, agent prompts, CSS/JSON exports, and SVG/path metadata for OpenPencil exports.
 
 ## DesignMD Foundry root
 

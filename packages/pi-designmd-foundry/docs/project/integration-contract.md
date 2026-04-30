@@ -50,3 +50,16 @@ The CLI entrypoint uses `dist/cli.js` when present, otherwise source mode throug
 ## Safety posture
 
 Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export.
+
+## Optional Watch Mode reporting
+
+When `DESIGNMD_SESSION_ENDPOINT` points at a Foundry session API root such as `http://127.0.0.1:8788/api/session`, every tool reports start/pass/fail activity to the current or newly created session. Output-producing tools also attach previewable artifacts when possible.
+
+Reporting must stay optional and fail-open:
+
+- no hidden dependency on a running Foundry server
+- no tool failure just because session reporting failed
+- no canonical authority claim for session/activity/artifact logs
+- optional bearer token via `DESIGNMD_SESSION_TOKEN` or `DESIGNMD_API_TOKEN`
+
+Use `DESIGNMD_SESSION_ID` only when the operator wants to bind reports to an explicit existing session.

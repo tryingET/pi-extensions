@@ -77,6 +77,16 @@ Do not claim a live integration just because an adapter exists.
 
 ## Output discipline
 
+## Watch Mode reporting
+
+If the operator wants to watch progress in the Foundry UI, set `DESIGNMD_SESSION_ENDPOINT` to the Foundry session API root before using the tools:
+
+```bash
+export DESIGNMD_SESSION_ENDPOINT=http://127.0.0.1:8788/api/session
+```
+
+The adapter will reuse the current running session or create one, then post tool activity and attach generated artifacts. Treat this as an operator watch surface only, not canonical task/evidence authority.
+
 When using DesignMD context in a final answer or implementation note, report:
 
 1. Which `DESIGN.md` was used.
