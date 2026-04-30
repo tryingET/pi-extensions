@@ -63,6 +63,7 @@ Core truths now landed:
 - `autoresearch_runtime_status` can now emit a package-local `autoresearch.closeout.v1` segment closeout packet that summarizes run lineage, candidate bindings, empirical decision, recommended action, and the explicit boundary before AK evidence or KES learning promotion
 - `autoresearch_runtime_status action=ak_evidence` can derive a non-mutating exact-task `autoresearch.ak_evidence.v1` AK evidence packet plus suggested explicit `evidence_record(...)` controller call without writing AK directly
 - `autoresearch_runtime_status action=learning` can derive an adapter-ready `autoresearch.learning.v1` knowledge export packet for KES/KMS/notes consumers without making pi-autoresearch the owner of those systems
+- `autoresearch_runtime_status action=adapter_contracts` can list the current `autoresearch.adapter_contracts.v1` catalog so downstream adapters can discover supported packet kinds without scraping prose docs
 - `docs/project/adapter-contracts.md` defines the portable packet/adapter boundary so AK, Beads, KES, notes, issue trackers, and custom KMS integrations can live as separate Pi extensions instead of being absorbed into pi-autoresearch
 - setup materializer that can plan/apply a config receipt or bootstrap a baseline without forcing a human slash-command wizard
 - plan-only visible peer-assist handoff through canonical `scout_peer_spawn` / `candidate_peer_spawn` / `fork_peer_spawn` calls

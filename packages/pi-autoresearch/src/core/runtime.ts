@@ -341,6 +341,25 @@ export interface AutoresearchKnowledgeExportPacket {
   adapterBoundary: string;
 }
 
+export interface AutoresearchAdapterContractEntry {
+  packetKind: string;
+  adapterContractVersion: number;
+  producerAction: string;
+  targetKinds: string[];
+  requiredFields: string[];
+  optionalFields: string[];
+  summary: string;
+  boundary: string;
+}
+
+export interface AutoresearchAdapterContractCatalog {
+  packetKind: "autoresearch.adapter_contracts.v1";
+  adapterContractVersion: 1;
+  targetKinds: string[];
+  entries: AutoresearchAdapterContractEntry[];
+  adapterBoundary: string;
+}
+
 export interface AutoresearchSegmentCloseout {
   packetKind: "autoresearch.closeout.v1";
   adapterContractVersion: 1;
@@ -2098,6 +2117,88 @@ export function buildAutoresearchRuntimeStatus(
   });
 }
 
+export function buildAutoresearchAdapterContractCatalog(): AutoresearchAdapterContractCatalog {
+  return {
+    packetKind: "autoresearch.adapter_contracts.v1",
+    adapterContractVersion: 1,
+    targetKinds: ["adapter_authoring", "integration", "documentation"],
+    adapterBoundary:
+      "Adapter contracts are descriptive and non-mutating; downstream adapters still own validation, target identity, plan/apply posture, and persistence.",
+    entries: [
+      {
+        packetKind: "autoresearch.closeout.v1",
+        adapterContractVersion: 1,
+        producerAction: 'autoresearch_runtime_status({ action: "closeout", cwd })',
+        targetKinds: ["adapter_source", "evidence", "learning", "task_system", "knowledge_base"],
+        requiredFields: [
+          "packetKind",
+          "adapterContractVersion",
+          "targetKinds",
+          "cwd",
+          "receiptPath",
+          "campaign",
+          "metricName",
+          "direction",
+          "runCount",
+          "successfulRunCount",
+          "empiricalDecisionClass",
+          "runs",
+          "candidateBindings",
+          "recommendedAction",
+          "adapterBoundary",
+        ],
+        optionalFields: ["status", "timingInterpretation", "baselineMetric", "bestMetric"],
+        summary:
+          "Structured package-local empirical segment summary for downstream evidence and learning adapters.",
+        boundary:
+          "Package-local empirical evidence only; adapters must explicitly promote to AK, Beads, KES, notes, or another target owner.",
+      },
+      {
+        packetKind: "autoresearch.ak_evidence.v1",
+        adapterContractVersion: 1,
+        producerAction: 'autoresearch_runtime_status({ action: "ak_evidence", cwd, akTaskId })',
+        targetKinds: ["ak", "task_system", "evidence_ledger"],
+        requiredFields: [
+          "packetKind",
+          "adapterContractVersion",
+          "targetKinds",
+          "taskId",
+          "checkType",
+          "result",
+          "closeout",
+          "suggestedToolCall",
+          "adapterBoundary",
+        ],
+        optionalFields: ["evidenceBoundary"],
+        summary: "Exact-task evidence packet for AK-like evidence ledgers and task systems.",
+        boundary:
+          "Non-mutating and task-bound; controllers or adapters must write through the target evidence owner surface.",
+      },
+      {
+        packetKind: "autoresearch.learning.v1",
+        adapterContractVersion: 1,
+        producerAction: 'autoresearch_runtime_status({ action: "learning", cwd })',
+        targetKinds: ["kes", "kms", "knowledge_base", "notes"],
+        requiredFields: [
+          "packetKind",
+          "adapterContractVersion",
+          "targetKinds",
+          "suggestedPath",
+          "title",
+          "markdown",
+          "closeout",
+          "adapterBoundary",
+        ],
+        optionalFields: [],
+        summary:
+          "Markdown plus structured closeout for KES, notes, KMS, and knowledge-base adapters.",
+        boundary:
+          "Non-mutating and adapter-ready; learning adapters own persistence, promotion, and external writes.",
+      },
+    ],
+  };
+}
+
 export function buildAutoresearchKnowledgeExportPacket(
   cwd: string,
 ): AutoresearchKnowledgeExportPacket {
@@ -2406,6 +2507,33 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     "",
     "## Peer lane recommendations",
     ...formatAutoresearchPeerLaneRecommendations({ cwd: status.cwd }),
+  ].join("\n");
+}
+
+export function formatAutoresearchAdapterContractCatalog(
+  catalog: AutoresearchAdapterContractCatalog,
+): string {
+  const entries = catalog.entries.flatMap((entry) => [
+    `- ${entry.packetKind}`,
+    `  - version: ${entry.adapterContractVersion}`,
+    `  - producer: ${entry.producerAction}`,
+    `  - targets: ${entry.targetKinds.join(", ")}`,
+    `  - required fields: ${entry.requiredFields.join(", ")}`,
+    `  - optional fields: ${entry.optionalFields.length > 0 ? entry.optionalFields.join(", ") : "(none)"}`,
+    `  - summary: ${entry.summary}`,
+    `  - boundary: ${entry.boundary}`,
+  ]);
+
+  return [
+    "# PI-AUTORESEARCH ADAPTER CONTRACT CATALOG",
+    "",
+    `- packet kind: ${catalog.packetKind}`,
+    `- adapter contract version: ${catalog.adapterContractVersion}`,
+    `- target kinds: ${catalog.targetKinds.join(", ")}`,
+    `- adapter boundary: ${catalog.adapterBoundary}`,
+    "",
+    "## Packet contracts",
+    ...entries,
   ].join("\n");
 }
 

@@ -51,6 +51,16 @@ This contract lets downstream Pi extensions add their own task, evidence, or kno
 | Ontology / semantic meaning | ROCS / ontology owner |
 | Prompt procedures | Prompt Vault |
 
+## Contract discovery
+
+Adapters can inspect the current package contract catalog without running a benchmark or writing to any external system:
+
+```ts
+autoresearch_runtime_status({ action: "adapter_contracts", cwd })
+```
+
+The returned catalog has packet kind `autoresearch.adapter_contracts.v1` and lists each current packet kind, producer action, target kinds, required fields, optional fields, summary, and boundary. It is descriptive only; adapters must still validate the actual packet they receive.
+
 ## Current packet kinds
 
 ### `autoresearch.learning.v1`

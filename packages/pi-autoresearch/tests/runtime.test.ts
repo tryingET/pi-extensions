@@ -38,6 +38,7 @@ import {
   AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   appendReceipt,
+  buildAutoresearchAdapterContractCatalog,
   buildAutoresearchAkEvidencePacket,
   buildAutoresearchHelpText,
   buildAutoresearchKnowledgeExportPacket,
@@ -45,6 +46,7 @@ import {
   buildAutoresearchSegmentCloseout,
   createConfigReceipt,
   createRunReceipt,
+  formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAkEvidencePacket,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchSegmentCloseout,
@@ -576,6 +578,15 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.ok(learning.targetKinds.includes("kms"));
     assert.match(learning.markdown, /## What was learned/);
     assert.match(formatAutoresearchKnowledgeExportPacket(learning), /KNOWLEDGE EXPORT PACKET/);
+
+    const catalog = buildAutoresearchAdapterContractCatalog();
+    assert.equal(catalog.packetKind, "autoresearch.adapter_contracts.v1");
+    assert.equal(catalog.adapterContractVersion, 1);
+    assert.deepEqual(
+      catalog.entries.map((entry) => entry.packetKind),
+      ["autoresearch.closeout.v1", "autoresearch.ak_evidence.v1", "autoresearch.learning.v1"],
+    );
+    assert.match(formatAutoresearchAdapterContractCatalog(catalog), /ADAPTER CONTRACT CATALOG/);
   }));
 
 test("calibration runs inform timing noise without competing as best candidate", () =>
@@ -1878,6 +1889,20 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(learning);
     assert.match(learning?.content[0]?.text ?? "", /KNOWLEDGE EXPORT PACKET/);
     assert.match(learning?.content[0]?.text ?? "", /adapter boundary:/);
+
+    const contracts = await tool?.execute(
+      "call-4d",
+      {
+        cwd,
+        action: "adapter_contracts",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(contracts);
+    assert.match(contracts?.content[0]?.text ?? "", /ADAPTER CONTRACT CATALOG/);
+    assert.match(contracts?.content[0]?.text ?? "", /autoresearch\.closeout\.v1/);
 
     const setup = await tool?.execute(
       "call-5",
