@@ -23,7 +23,7 @@ system4d:
 
 Those facts are already captured in:
 
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [runtime machine and event-ledger status](../../../../docs/project/2026-04-16-pi-autoresearch-runtime-machine-and-ledger-status.md)
 - [Prompt Vault runtime-decision contract](./prompt-vault-runtime-decision-contract.md)
 - [Prompt Vault runtime-decision status](./prompt-vault-runtime-decision-status.md)
@@ -529,7 +529,7 @@ Prove and record:
 - what still remains outside Workstream B
 - update:
   - `packages/pi-autoresearch/docs/project/resume-control-surface-status.md`
-  - `packages/pi-autoresearch/docs/project/current-vs-target.md`
+  - `packages/pi-autoresearch/docs/project/product-posture.md`
 
 ---
 

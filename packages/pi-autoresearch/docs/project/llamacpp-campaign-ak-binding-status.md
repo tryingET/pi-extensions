@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-The bounded AK-binding slice in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+The bounded AK-binding slice in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1649` — write the AK binding contract and lifecycle shape for manifest-driven llama.cpp campaigns
 - `#1650` — implement bounded AK projection/binding helpers for campaign manifests

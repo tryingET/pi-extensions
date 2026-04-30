@@ -36,7 +36,7 @@ Together, umbrella `#1634` is now landed locally as the bounded post-target exec
 
 This RFC follows:
 
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [llama.cpp benchmark campaign manifest problem-intent](./2026-04-18-llamacpp-benchmark-campaign-manifest-problem-intent.md)
 - [package README](../../README.md)
 

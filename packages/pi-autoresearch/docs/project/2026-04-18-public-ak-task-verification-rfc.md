@@ -24,7 +24,7 @@ This RFC follows the landed public-control baseline in:
 
 - [llamacpp-campaign-control-surface-contract](./llamacpp-campaign-control-surface-contract.md)
 - [llamacpp-campaign-control-surface-status](./llamacpp-campaign-control-surface-status.md)
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [`packages/pi-autoresearch/src/core/llamacppCampaign.ts`](../../src/core/llamacppCampaign.ts)
 
 ## A) Decision in one sentence

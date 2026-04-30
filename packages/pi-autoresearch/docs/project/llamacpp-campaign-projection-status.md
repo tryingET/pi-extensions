@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-The bounded projection slice in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+The bounded projection slice in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1644` — write the manifest campaign receipt/projection contract and artifact model
 - `#1645` — implement manifest campaign receipts plus runtime status/help integration

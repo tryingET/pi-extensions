@@ -18,7 +18,7 @@ Proposed package-local boundary RFC for a possible **post-target widening** afte
 
 This RFC follows:
 
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [resume/control-surface contract](./resume-control-surface-contract.md)
 - [finalization orchestration contract](./finalization-orchestration-contract.md)
 - [root architecture correction](../../../../docs/project/pi-autoresearch-architecture-correction.md)

@@ -24,7 +24,7 @@ system4d:
 
 Those facts are already captured in:
 
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [llama.cpp benchmark campaign manifest RFC](./2026-04-18-llamacpp-benchmark-campaign-manifest-rfc.md)
 - [llama.cpp execution-binding status](./llamacpp-execution-binding-status.md)
 - [package README](../../README.md)

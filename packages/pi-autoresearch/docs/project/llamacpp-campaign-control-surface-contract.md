@@ -26,7 +26,7 @@ system4d:
 
 Those facts are already captured in:
 
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [llama.cpp campaign AK binding status](./llamacpp-campaign-ak-binding-status.md)
 - [llama.cpp campaign autonomy status](./llamacpp-campaign-autonomy-status.md)
 - [package README](../../README.md)

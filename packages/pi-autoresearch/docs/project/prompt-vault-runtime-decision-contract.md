@@ -23,7 +23,7 @@ system4d:
 
 Those facts are already captured in:
 
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [runtime machine and event-ledger status](../../../../docs/project/2026-04-16-pi-autoresearch-runtime-machine-and-ledger-status.md)
 - [Prompt Vault template set](../../../../docs/project/pi-autoresearch-prompt-vault-template-set.md)
 - [Prompt Vault rollout](../../../../docs/project/pi-autoresearch-prompt-vault-rollout.md)
@@ -560,7 +560,7 @@ Prove and record:
 - what is still out of scope
 - update:
   - `packages/pi-autoresearch/docs/project/prompt-vault-runtime-decision-status.md`
-  - `packages/pi-autoresearch/docs/project/current-vs-target.md`
+  - `packages/pi-autoresearch/docs/project/product-posture.md`
 
 ---
 

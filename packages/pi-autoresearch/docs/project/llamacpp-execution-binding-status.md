@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-The bounded execution-binding slice in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+The bounded execution-binding slice in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1636` — write the manifest-driven 41/42/43 execution-binding contract and done-state
 - `#1640` — implement the bounded manifest-driven 41/42/43 execution surface in `pi-autoresearch`

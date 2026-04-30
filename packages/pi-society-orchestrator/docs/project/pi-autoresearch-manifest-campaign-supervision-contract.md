@@ -27,7 +27,7 @@ The manifest-driven llama.cpp campaign concern in `packages/pi-autoresearch` now
 
 Those facts are already captured in:
 
-- [`packages/pi-autoresearch/docs/project/current-vs-target.md`](../../pi-autoresearch/docs/project/current-vs-target.md)
+- [`packages/pi-autoresearch/docs/project/product-posture.md`](../../pi-autoresearch/docs/project/product-posture.md)
 - [`packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`](../../pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md)
 - [`packages/pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md`](../../pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md)
 - [`packages/pi-autoresearch/docs/adr/2026-04-18-public-ak-task-verification-semantics.md`](../../pi-autoresearch/docs/adr/2026-04-18-public-ak-task-verification-semantics.md)

@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-Workstream C in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+Workstream C in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1538` — write the finalization orchestration contract and safety fences
 - `#1539` — implement the checked finalization planner and grouped artifact runtime

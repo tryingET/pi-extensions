@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-Workstream B in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+Workstream B in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1533` — write the resume/control contract and artifact model
 - `#1534` — implement the resumable runtime snapshot and loader

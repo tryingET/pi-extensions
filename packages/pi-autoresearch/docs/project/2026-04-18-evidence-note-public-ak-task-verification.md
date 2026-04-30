@@ -61,7 +61,7 @@ The public-control status note explicitly says the current surface does **not** 
 Current docs that already name the limitation:
 
 - `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`
-- `packages/pi-autoresearch/docs/project/current-vs-target.md`
+- `packages/pi-autoresearch/docs/project/product-posture.md`
 - `packages/pi-autoresearch/README.md`
 
 So this is not speculative future cleanup.

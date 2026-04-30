@@ -29,7 +29,7 @@ Accepted as the package-level architectural contract for `decision:17`.
   - `../project/2026-04-18-review-public-ak-task-verification-rfc.md`
   - `../project/llamacpp-campaign-control-surface-contract.md`
   - `../project/llamacpp-campaign-control-surface-status.md`
-  - `../project/current-vs-target.md`
+  - `../project/product-posture.md`
 
 ## Executive summary
 

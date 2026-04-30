@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-The bounded campaign-local autonomy slice in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+The bounded campaign-local autonomy slice in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1693` — write the campaign-local autonomy contract and lifecycle shape for manifest-driven llama.cpp campaigns
 - `#1694` — implement bounded campaign-local autonomy helpers for manifest-driven llama.cpp campaigns

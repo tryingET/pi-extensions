@@ -28,7 +28,7 @@ Accepted as the package-level architectural contract for `decision:18`.
   - `../project/2026-04-22-evidence-note-self-hosting-contract.md`
   - `../project/2026-04-22-pi-autoresearch-self-hosting-rfc.md`
   - `../project/2026-04-22-review-self-hosting-rfc.md`
-  - `../project/current-vs-target.md`
+  - `../project/product-posture.md`
   - `../../../../docs/project/pi-autoresearch-architecture-correction.md`
   - `../../../../docs/project/decision-runtime-and-roadmap.md`
 

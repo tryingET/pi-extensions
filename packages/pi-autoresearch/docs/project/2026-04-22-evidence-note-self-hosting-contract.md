@@ -22,7 +22,7 @@ It answers one narrow question:
 
 ## Evidence 1 — the package already has the bounded loop mechanics that make self-hosting thinkable
 
-`packages/pi-autoresearch/docs/project/current-vs-target.md` now records all of the following as landed:
+`packages/pi-autoresearch/docs/project/product-posture.md` now records all of the following as landed:
 
 - package-local runtime machine + ledger
 - Prompt Vault decision integration

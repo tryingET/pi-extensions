@@ -18,7 +18,7 @@ system4d:
 ## Review chain status
 - review kind: bounded RFC review
 - reviewed artifact: `packages/pi-autoresearch/docs/project/2026-04-18-public-ak-task-verification-rfc.md`
-- supporting docs read: `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`; `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`; `packages/pi-autoresearch/docs/project/current-vs-target.md`; `packages/pi-autoresearch/src/core/llamacppCampaign.ts`; `packages/pi-autoresearch/tests/llamacpp-campaign.test.ts`; `~/ai-society/holdingco/governance-kernel/docs/dev/decision-lifecycle.md`; `~/ai-society/softwareco/owned/agent-kernel/docs/project/decision-runtime-and-roadmap.md`
+- supporting docs read: `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-contract.md`; `packages/pi-autoresearch/docs/project/llamacpp-campaign-control-surface-status.md`; `packages/pi-autoresearch/docs/project/product-posture.md`; `packages/pi-autoresearch/src/core/llamacppCampaign.ts`; `packages/pi-autoresearch/tests/llamacpp-campaign.test.ts`; `~/ai-society/holdingco/governance-kernel/docs/dev/decision-lifecycle.md`; `~/ai-society/softwareco/owned/agent-kernel/docs/project/decision-runtime-and-roadmap.md`
 - required lifecycle artifacts present: RFC under review; bounded supporting contract/status notes; AK decision record `decision:17`
 - missing or unclear lifecycle artifacts: dedicated problem brief; dedicated evidence note; ADR artifact; explicit implementation/validation artifact chain for the follow-on
 - ADR legal now?: no

@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-The bounded public campaign-control slice in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+The bounded public campaign-control slice in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1697` — write the public campaign-control contract and consumer seam for manifest-driven pi-autoresearch campaigns
 - `#1698` — implement the bounded public campaign-control surface in pi-autoresearch

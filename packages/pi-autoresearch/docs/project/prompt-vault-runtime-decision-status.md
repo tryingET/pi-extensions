@@ -16,7 +16,7 @@ system4d:
 
 ## Why this note exists
 
-Workstream A in [`current-vs-target`](./current-vs-target.md) is now landed across these tasks:
+Workstream A in [`product-posture`](./product-posture.md) is now landed across these tasks:
 
 - `#1528` — write the live Prompt Vault decision contract
 - `#1529` — implement the bounded decision runtime adapter

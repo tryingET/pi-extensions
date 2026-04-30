@@ -23,7 +23,7 @@ system4d:
 
 Those facts are already captured in:
 
-- [current-vs-target](./current-vs-target.md)
+- [product-posture](./product-posture.md)
 - [Prompt Vault runtime-decision contract](./prompt-vault-runtime-decision-contract.md)
 - [Prompt Vault runtime-decision status](./prompt-vault-runtime-decision-status.md)
 - [resume/control-surface contract](./resume-control-surface-contract.md)
@@ -689,7 +689,7 @@ Prove and record:
 - what still remains outside Workstream C
 - update:
   - `packages/pi-autoresearch/docs/project/finalization-orchestration-status.md`
-  - `packages/pi-autoresearch/docs/project/current-vs-target.md`
+  - `packages/pi-autoresearch/docs/project/product-posture.md`
 
 ---
 

@@ -156,7 +156,7 @@ When a bounded self-hosting campaign fails before promotion:
 - compression targets for the first slice remain:
   - this validation note
   - `packages/pi-autoresearch/docs/project/2026-04-22-plan-self-hosting-contract-first-slice.md`
-  - `packages/pi-autoresearch/docs/project/current-vs-target.md`
+  - `packages/pi-autoresearch/docs/project/product-posture.md`
   - `ak decision passport 18`
 - Oracle / DSPx remain later empirical follow-through only
 
