@@ -40,6 +40,7 @@ import {
   appendReceipt,
   buildAutoresearchAdapterContractCatalog,
   buildAutoresearchAkEvidencePacket,
+  buildAutoresearchCandidateResultPacket,
   buildAutoresearchHelpText,
   buildAutoresearchKnowledgeExportPacket,
   buildAutoresearchRuntimeStatus,
@@ -49,6 +50,7 @@ import {
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
+  formatAutoresearchCandidateResultPacket,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchSegmentCloseout,
   formatAutoresearchStatusText,
@@ -575,6 +577,15 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     );
     assert.match(formatAutoresearchAkEvidencePacket(evidence), /task id: 1234/);
 
+    const candidateResult = buildAutoresearchCandidateResultPacket(cwd);
+    assert.equal(candidateResult.packetKind, "autoresearch.candidate_result.v1");
+    assert.equal(candidateResult.candidate?.branch, "candidate/closeout");
+    assert.equal(candidateResult.candidateRun?.empiricalDecisionClass, "candidate_improvement");
+    assert.match(
+      formatAutoresearchCandidateResultPacket(candidateResult),
+      /CANDIDATE RESULT PACKET/,
+    );
+
     const learning = buildAutoresearchKnowledgeExportPacket(cwd);
     assert.equal(learning.packetKind, "autoresearch.learning.v1");
     assert.ok(learning.targetKinds.includes("kms"));
@@ -586,7 +597,12 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.equal(catalog.adapterContractVersion, 1);
     assert.deepEqual(
       catalog.entries.map((entry) => entry.packetKind),
-      ["autoresearch.closeout.v1", "autoresearch.ak_evidence.v1", "autoresearch.learning.v1"],
+      [
+        "autoresearch.closeout.v1",
+        "autoresearch.ak_evidence.v1",
+        "autoresearch.candidate_result.v1",
+        "autoresearch.learning.v1",
+      ],
     );
     assert.match(formatAutoresearchAdapterContractCatalog(catalog), /ADAPTER CONTRACT CATALOG/);
 
@@ -594,6 +610,9 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.equal(validCloseout.valid, true);
     assert.equal(validCloseout.validatedPacketKind, "autoresearch.closeout.v1");
     assert.match(formatAutoresearchAdapterPacketValidationResult(validCloseout), /valid: yes/);
+
+    const validCandidateResult = validateAutoresearchAdapterPacket(candidateResult);
+    assert.equal(validCandidateResult.valid, true);
 
     const invalidEvidence = validateAutoresearchAdapterPacket({ ...evidence, taskId: 0 });
     assert.equal(invalidEvidence.valid, false);
@@ -1900,6 +1919,23 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(learning);
     assert.match(learning?.content[0]?.text ?? "", /KNOWLEDGE EXPORT PACKET/);
     assert.match(learning?.content[0]?.text ?? "", /adapter boundary:/);
+
+    const candidateResult = await tool?.execute(
+      "call-4c2",
+      {
+        cwd,
+        action: "candidate_result",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(candidateResult);
+    assert.match(candidateResult?.content[0]?.text ?? "", /CANDIDATE RESULT PACKET/);
+    assert.match(
+      candidateResult?.content[0]?.text ?? "",
+      /packet kind: autoresearch\.candidate_result\.v1/,
+    );
 
     const contracts = await tool?.execute(
       "call-4d",

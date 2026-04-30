@@ -71,6 +71,41 @@ The validation result has packet kind `autoresearch.adapter_validation.v1`, repo
 
 ## Current packet kinds
 
+### `autoresearch.candidate_result.v1`
+
+Produced by:
+
+```ts
+autoresearch_runtime_status({ action: "candidate_result", cwd })
+```
+
+Purpose:
+
+- summarize the latest visible-candidate measurement without owning candidate lifecycle
+- give review/task/issue/evidence adapters a compact result object
+- preserve the closeout and candidate binding for downstream traceability
+
+Current fields include:
+
+```ts
+interface AutoresearchCandidateResultPacketV1 {
+  packetKind: "autoresearch.candidate_result.v1";
+  adapterContractVersion: 1;
+  targetKinds: Array<"candidate_review" | "task_system" | "evidence" | "issue_tracker" | string>;
+  cwd: string;
+  campaign: string | null;
+  candidate: AutoresearchCandidateBinding | null;
+  candidateRun: AutoresearchSegmentCloseoutRun | null;
+  empiricalDecisionClass: string;
+  recommendedAction: string;
+  resultSummary: string;
+  closeout: AutoresearchSegmentCloseout;
+  adapterBoundary: string;
+}
+```
+
+This packet is useful for adapters that want to comment on a Beads item, issue, candidate review, or task record. It does not merge, promote, assign review authority, or treat candidate-peer messages as canonical evidence.
+
 ### `autoresearch.learning.v1`
 
 Produced by:

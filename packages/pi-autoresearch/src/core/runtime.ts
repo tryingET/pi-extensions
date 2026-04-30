@@ -341,6 +341,21 @@ export interface AutoresearchKnowledgeExportPacket {
   adapterBoundary: string;
 }
 
+export interface AutoresearchCandidateResultPacket {
+  packetKind: "autoresearch.candidate_result.v1";
+  adapterContractVersion: 1;
+  targetKinds: string[];
+  cwd: string;
+  campaign: string | null;
+  candidate: AutoresearchCandidateBinding | null;
+  candidateRun: AutoresearchSegmentCloseoutRun | null;
+  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
+  recommendedAction: string;
+  resultSummary: string;
+  closeout: AutoresearchSegmentCloseout;
+  adapterBoundary: string;
+}
+
 export interface AutoresearchAdapterContractEntry {
   packetKind: string;
   adapterContractVersion: number;
@@ -2191,6 +2206,31 @@ export function buildAutoresearchAdapterContractCatalog(): AutoresearchAdapterCo
           "Non-mutating and task-bound; controllers or adapters must write through the target evidence owner surface.",
       },
       {
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        producerAction: 'autoresearch_runtime_status({ action: "candidate_result", cwd })',
+        targetKinds: ["candidate_review", "task_system", "evidence", "issue_tracker"],
+        requiredFields: [
+          "packetKind",
+          "adapterContractVersion",
+          "targetKinds",
+          "cwd",
+          "campaign",
+          "candidate",
+          "candidateRun",
+          "empiricalDecisionClass",
+          "recommendedAction",
+          "resultSummary",
+          "closeout",
+          "adapterBoundary",
+        ],
+        optionalFields: [],
+        summary:
+          "Latest visible-candidate measurement summary for review, task, issue, or evidence adapters.",
+        boundary:
+          "Non-mutating candidate-result evidence only; candidate lifecycle, review, merge, and promotion remain external owner responsibilities.",
+      },
+      {
         packetKind: "autoresearch.learning.v1",
         adapterContractVersion: 1,
         producerAction: 'autoresearch_runtime_status({ action: "learning", cwd })',
@@ -2276,6 +2316,28 @@ export function validateAutoresearchAdapterPacket(
     }
     validateStringField(packet, "result", addIssue);
     validateStringField(packet, "suggestedToolCall", addIssue);
+    if (isRecord(packet.closeout) && !Array.isArray(packet.closeout)) {
+      validateCloseoutPacketFields(packet.closeout, "closeout.", addIssue);
+    } else {
+      addIssue("closeout", "closeout must be an object");
+    }
+  } else if (packetKind === "autoresearch.candidate_result.v1") {
+    validateStringField(packet, "cwd", addIssue);
+    validateStringField(packet, "empiricalDecisionClass", addIssue);
+    validateStringField(packet, "recommendedAction", addIssue);
+    validateStringField(packet, "resultSummary", addIssue);
+    if (
+      packet.candidate !== null &&
+      (!isRecord(packet.candidate) || Array.isArray(packet.candidate))
+    ) {
+      addIssue("candidate", "candidate must be an object or null");
+    }
+    if (
+      packet.candidateRun !== null &&
+      (!isRecord(packet.candidateRun) || Array.isArray(packet.candidateRun))
+    ) {
+      addIssue("candidateRun", "candidateRun must be an object or null");
+    }
     if (isRecord(packet.closeout) && !Array.isArray(packet.closeout)) {
       validateCloseoutPacketFields(packet.closeout, "closeout.", addIssue);
     } else {
@@ -2380,6 +2442,40 @@ function validateStringArrayField(
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     addIssue(`${prefix}${field}`, `${field} must be an array of strings`);
   }
+}
+
+export function buildAutoresearchCandidateResultPacket(
+  cwd: string,
+): AutoresearchCandidateResultPacket {
+  const closeout = buildAutoresearchSegmentCloseout(cwd);
+  const candidateRun = [...closeout.runs]
+    .reverse()
+    .find((run) => Boolean(run.experiment?.candidate));
+  const candidate = candidateRun?.experiment?.candidate ?? null;
+  const candidateLabel =
+    candidate?.branch ??
+    candidate?.worktreePath ??
+    candidate?.diffSummary ??
+    "(no candidate binding)";
+  const resultSummary = candidate
+    ? `Candidate ${candidateLabel} measured as ${closeout.empiricalDecisionClass}; ${closeout.recommendedAction}.`
+    : `No visible candidate binding is present; current empirical decision is ${closeout.empiricalDecisionClass}.`;
+
+  return {
+    packetKind: "autoresearch.candidate_result.v1",
+    adapterContractVersion: 1,
+    targetKinds: ["candidate_review", "task_system", "evidence", "issue_tracker"],
+    cwd: closeout.cwd,
+    campaign: closeout.campaign,
+    candidate,
+    candidateRun: candidateRun ?? null,
+    empiricalDecisionClass: closeout.empiricalDecisionClass,
+    recommendedAction: closeout.recommendedAction,
+    resultSummary,
+    closeout,
+    adapterBoundary:
+      "Candidate result packet is non-mutating and adapter-ready; candidate lifecycle, review, merge, and promotion remain owned by visible peer/review/task systems.",
+  };
 }
 
 export function buildAutoresearchKnowledgeExportPacket(
@@ -2717,6 +2813,39 @@ export function formatAutoresearchAdapterContractCatalog(
     "",
     "## Packet contracts",
     ...entries,
+  ].join("\n");
+}
+
+export function formatAutoresearchCandidateResultPacket(
+  packet: AutoresearchCandidateResultPacket,
+): string {
+  const candidateLines = packet.candidate
+    ? formatCandidateBindingLines(packet.candidate)
+    : ["- candidate: (none)"];
+  const runLine = packet.candidateRun
+    ? `- candidate run: iteration ${packet.candidateRun.iteration ?? "?"}; empirical ${packet.candidateRun.empiricalDecisionClass}; metric ${formatMetricValue(packet.candidateRun.metric, packet.closeout.metricUnit)}`
+    : "- candidate run: (none)";
+
+  return [
+    "# PI-AUTORESEARCH CANDIDATE RESULT PACKET",
+    "",
+    `- packet kind: ${packet.packetKind}`,
+    `- adapter contract version: ${packet.adapterContractVersion}`,
+    `- target kinds: ${packet.targetKinds.join(", ")}`,
+    `- cwd: ${packet.cwd}`,
+    `- campaign: ${packet.campaign ?? "(unnamed)"}`,
+    `- empirical decision: ${packet.empiricalDecisionClass}`,
+    `- recommended action: ${packet.recommendedAction}`,
+    `- adapter boundary: ${packet.adapterBoundary}`,
+    "",
+    "## Result summary",
+    packet.resultSummary,
+    "",
+    "## Candidate",
+    ...candidateLines,
+    "",
+    "## Candidate run",
+    runLine,
   ].join("\n");
 }
 

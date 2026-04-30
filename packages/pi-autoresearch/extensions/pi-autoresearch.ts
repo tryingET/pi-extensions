@@ -40,6 +40,7 @@ import {
   buildAutoresearchAdapterContractCatalog,
   buildAutoresearchAkEvidencePacket,
   buildAutoresearchAutoplan,
+  buildAutoresearchCandidateResultPacket,
   buildAutoresearchKnowledgeExportPacket,
   buildAutoresearchPeerAssistPlan,
   buildAutoresearchRuntimeStatus,
@@ -51,6 +52,7 @@ import {
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
   formatAutoresearchAutoplanResult,
+  formatAutoresearchCandidateResultPacket,
   formatAutoresearchControlResult,
   formatAutoresearchDecisionResult,
   formatAutoresearchKnowledgeExportPacket,
@@ -99,12 +101,13 @@ const statusActionSchema = Type.Union(
     Type.Literal("closeout"),
     Type.Literal("ak_evidence"),
     Type.Literal("learning"),
+    Type.Literal("candidate_result"),
     Type.Literal("adapter_contracts"),
     Type.Literal("validate_packet"),
   ],
   {
     description:
-      "Inspect status, build package-local closeout/evidence/learning packets, list adapter packet contracts, validate an adapter packet structurally, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
+      "Inspect status, build package-local closeout/evidence/learning/candidate-result packets, list adapter packet contracts, validate an adapter packet structurally, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
   },
 );
 
@@ -762,9 +765,9 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/learning packets, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
+      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/learning/candidate-result packets, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, exact-task AK evidence packet, adapter-ready learning packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, exact-task AK evidence packet, adapter-ready learning packet, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
     parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
@@ -775,6 +778,7 @@ export function registerPiAutoresearchExtension(
           | "closeout"
           | "ak_evidence"
           | "learning"
+          | "candidate_result"
           | "adapter_contracts"
           | "validate_packet";
         cwd?: string;
@@ -882,6 +886,14 @@ export function registerPiAutoresearchExtension(
         const result = buildAutoresearchKnowledgeExportPacket(cwd);
         return {
           content: [{ type: "text", text: formatAutoresearchKnowledgeExportPacket(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "candidate_result") {
+        const result = buildAutoresearchCandidateResultPacket(cwd);
+        return {
+          content: [{ type: "text", text: formatAutoresearchCandidateResultPacket(result) }],
           details: result,
         };
       }
