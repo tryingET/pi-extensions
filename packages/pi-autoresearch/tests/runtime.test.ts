@@ -625,6 +625,75 @@ test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent
   });
 });
 
+test("autoresearch_runtime_autoplan warns when benchmark may not emit requested metric", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-test",
+        scripts: { test: "node test.js", check: "node check.js" },
+      }),
+    );
+    const dspxOutdir = path.join(cwd, ".autoresearch/dspx/generated/autosetup-planner");
+    mkdirSync(dspxOutdir, { recursive: true });
+    writeFile(
+      path.join(dspxOutdir, "behavior_results.json"),
+      JSON.stringify({
+        summary: { status: "passed", total: 1, passed: 1, failed: 0, error: 0 },
+        examples: [
+          {
+            index: 0,
+            status: "passed",
+            inputs: { objective: "reduce test runtime" },
+            observed_outputs: {
+              campaign_name: "test-runtime",
+              metric_name: "total_ms",
+              metric_unit: "ms",
+              direction: "lower",
+              benchmark_command: "npm test",
+              checks_command: "npm run check",
+              risks: "timing can be noisy",
+              next_action: "apply setup through autoresearch_runtime_setup",
+            },
+          },
+        ],
+      }),
+    );
+
+    const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
+      "call-autoplan-warning",
+      {
+        cwd,
+        objective: "reduce test runtime",
+        planner: "dspx_program",
+        dspxOutdir,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(result.content[0]?.text ?? "", /may not print required METRIC total_ms=value/);
+    const details = result.details as {
+      risks: string[];
+      nextToolCall: string;
+      dspxAdvisory: { warnings: string[]; nextToolCall: string };
+    };
+    assert.ok(
+      details.risks.some((risk) => risk.includes("METRIC total_ms=value")),
+      "heuristic risks should warn about generic npm test benchmark",
+    );
+    assert.match(details.nextToolCall, /action: "plan"/);
+    assert.ok(
+      details.dspxAdvisory.warnings.some((warning) => warning.includes("METRIC total_ms=value")),
+      "DSPx advisory warnings should preserve benchmark contract risk",
+    );
+    assert.match(details.dspxAdvisory.nextToolCall, /action: "plan"/);
+  });
+});
+
 test("autoresearch_runtime_setup applies config without running and can baseline", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();

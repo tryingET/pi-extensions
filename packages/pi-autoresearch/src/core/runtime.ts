@@ -752,7 +752,16 @@ export function buildAutoresearchAutoplan(
   const filesInScope = inferFilesInScope(cwd, input.filesInScope);
   const offLimits = normalizeArray(input.offLimits);
   const constraints = normalizeArray(input.constraints);
-  const risks = buildAutoplanRisks({ benchmarkCommand, checksCommand, status });
+  const benchmarkMetricWarning = buildBenchmarkMetricContractWarning(
+    benchmarkCommand,
+    metric.metricName,
+  );
+  const risks = buildAutoplanRisks({
+    benchmarkCommand,
+    checksCommand,
+    metricName: metric.metricName,
+    status,
+  });
   const config = createConfigReceipt({
     name,
     metricName: metric.metricName,
@@ -761,7 +770,8 @@ export function buildAutoresearchAutoplan(
     benchmarkCommand: benchmarkCommand ?? undefined,
     checksCommand: checksCommand ?? undefined,
   });
-  const nextToolCall = `autoresearch_runtime_setup({ action: "baseline", cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(config.name)}, metricName: ${JSON.stringify(config.metricName)}, metricUnit: ${JSON.stringify(config.metricUnit)}, direction: ${JSON.stringify(config.direction)}, benchmarkCommand: ${JSON.stringify(benchmarkCommand ?? "<benchmark command required>")}, checksCommand: ${checksCommand === null ? "null" : JSON.stringify(checksCommand)} })`;
+  const nextAction: AutoresearchSetupAction = benchmarkMetricWarning ? "plan" : "baseline";
+  const nextToolCall = `autoresearch_runtime_setup({ action: ${JSON.stringify(nextAction)}, cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(config.name)}, metricName: ${JSON.stringify(config.metricName)}, metricUnit: ${JSON.stringify(config.metricUnit)}, direction: ${JSON.stringify(config.direction)}, benchmarkCommand: ${JSON.stringify(benchmarkCommand ?? "<benchmark command required>")}, checksCommand: ${checksCommand === null ? "null" : JSON.stringify(checksCommand)} })`;
   const dspxProgramGen =
     input.planner === "dspx_program"
       ? buildDspxProgramGenPlan({
@@ -1115,6 +1125,7 @@ function inferFilesInScope(cwd: string, requested: readonly string[] | undefined
 function buildAutoplanRisks(input: {
   benchmarkCommand: string | null;
   checksCommand: string | null;
+  metricName: string;
   status: AutoresearchRuntimeStatus;
 }): string[] {
   const risks: string[] = [];
@@ -1128,12 +1139,43 @@ function buildAutoplanRisks(input: {
       "no checks command was detected; loop safety will rely on benchmark exit status only",
     );
   }
+  const metricWarning = buildBenchmarkMetricContractWarning(
+    input.benchmarkCommand,
+    input.metricName,
+  );
+  if (metricWarning) risks.push(metricWarning);
   if (input.status.currentSegment.configured) {
     risks.push(
       "runtime is already configured; setup apply requires reconfigure=true for a new segment",
     );
   }
   return risks;
+}
+
+function buildBenchmarkMetricContractWarning(
+  benchmarkCommand: string | null,
+  metricName: string | null,
+): string | null {
+  if (!benchmarkCommand || !metricName) return null;
+  const command = benchmarkCommand.trim();
+  const normalized = command.toLowerCase().replace(/\s+/g, " ");
+  const metric = metricName.trim();
+  if (!metric) return null;
+  if (command.includes("METRIC") || command.includes(metric)) return null;
+  if (/\bautoresearch(\.sh|\b)/.test(normalized)) return null;
+  if (/\b(bench|benchmark|perf)\b/.test(normalized)) return null;
+  const genericCommands = new Set([
+    "npm test",
+    "npm run test",
+    "npm run check",
+    "npm run ci",
+    "npm run quality:ci",
+    "just test",
+    "just check",
+    "just ci",
+  ]);
+  if (!genericCommands.has(normalized)) return null;
+  return `benchmark command ${JSON.stringify(command)} may not print required METRIC ${metric}=value; provide a benchmark script or explicit benchmarkCommand that emits the metric`;
 }
 
 function buildDspxProgramGenPlan(input: {
@@ -1226,6 +1268,11 @@ function readDspxAutoplanAdvisory(input: {
       );
     if (status && status !== "passed") warnings.push(`DSPx behavior evidence status is ${status}`);
     if (!proposal) warnings.push("DSPx behavior evidence has no observable setup proposal");
+    const metricWarning = buildBenchmarkMetricContractWarning(
+      proposal?.benchmarkCommand ?? null,
+      proposal?.metricName ?? null,
+    );
+    if (metricWarning) warnings.push(metricWarning);
     const nextToolCall = proposalToSetupToolCall(input.cwd, proposal);
     return {
       authority: "evidence_only_non_authoritative",
@@ -1279,7 +1326,13 @@ function proposalToSetupToolCall(
   ) {
     return null;
   }
-  return `autoresearch_runtime_setup({ action: "baseline", cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(proposal.campaignName)}, metricName: ${JSON.stringify(proposal.metricName)}, metricUnit: ${JSON.stringify(proposal.metricUnit)}, direction: ${JSON.stringify(proposal.direction)}, benchmarkCommand: ${JSON.stringify(proposal.benchmarkCommand)}, checksCommand: ${proposal.checksCommand === null ? "null" : JSON.stringify(proposal.checksCommand)} })`;
+  const action: AutoresearchSetupAction = buildBenchmarkMetricContractWarning(
+    proposal.benchmarkCommand,
+    proposal.metricName,
+  )
+    ? "plan"
+    : "baseline";
+  return `autoresearch_runtime_setup({ action: ${JSON.stringify(action)}, cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(proposal.campaignName)}, metricName: ${JSON.stringify(proposal.metricName)}, metricUnit: ${JSON.stringify(proposal.metricUnit)}, direction: ${JSON.stringify(proposal.direction)}, benchmarkCommand: ${JSON.stringify(proposal.benchmarkCommand)}, checksCommand: ${proposal.checksCommand === null ? "null" : JSON.stringify(proposal.checksCommand)} })`;
 }
 
 function stringOrNull(value: unknown): string | null {
