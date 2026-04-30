@@ -679,6 +679,88 @@ test("calibration runs inform timing noise without competing as best candidate",
     );
   }));
 
+test("duration candidates are baseline_drift when calibration explains the baseline gap", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "widget-speed-baseline-drift",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 16699,
+        description: "high baseline",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        runKind: "calibration",
+        metric: 9462,
+        description: "calibration sample 1",
+        timestamp: 3,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        runKind: "calibration",
+        metric: 9022,
+        description: "calibration sample 2",
+        timestamp: 4,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 8665,
+        description: "ordinary candidate near calibration band",
+        timestamp: 5,
+        experiment: {
+          hypothesisId: "H-drift-001",
+          hypothesis: "candidate should not overclaim a high baseline",
+          interventionSummary: "candidate close to calibration samples",
+          expectedPrimaryEffect: "lower total_ms",
+          targetFiles: ["src/core/runtime.ts"],
+          risk: "baseline may be a high outlier",
+          candidate: {
+            source: "candidate_peer_spawn",
+            worktreePath: "/tmp/candidate-drift",
+            branch: "candidate/drift",
+            baseRef: "main",
+            diffSummary: "candidate near calibration band",
+            filesChanged: ["src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "baseline_drift");
+    assert.equal(status.currentSegment.metricInterpretation?.verdict, "baseline_drift");
+    assert.match(formatAutoresearchStatusText(status), /timing interpretation: baseline_drift/);
+
+    const closeout = buildAutoresearchSegmentCloseout(cwd);
+    assert.equal(closeout.empiricalDecisionClass, "baseline_drift");
+    assert.match(formatAutoresearchSegmentCloseout(closeout), /baseline drift/);
+
+    const candidateResult = buildAutoresearchCandidateResultPacket(cwd);
+    assert.equal(candidateResult.empiricalDecisionClass, "baseline_drift");
+    assert.equal(candidateResult.candidate?.branch, "candidate/drift");
+  }));
+
 test("buildAutoresearchRuntimeStatus surfaces the current llama.cpp campaign projection", () =>
   withTempDir((cwd) => {
     const { manifestPath, receiptRootPath } = createLlamacppProjectionFixture(cwd);

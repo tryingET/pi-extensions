@@ -65,6 +65,7 @@ Core truths now landed:
 - `autoresearch_runtime_status action=learning` can derive an adapter-ready `autoresearch.learning.v1` knowledge export packet for KES/KMS/notes consumers without making pi-autoresearch the owner of those systems
 - `autoresearch_runtime_status action=candidate_result` can derive an adapter-ready `autoresearch.candidate_result.v1` packet for review/task/issue consumers without making pi-autoresearch own candidate lifecycle
 - `autoresearch_runtime_status action=adapter_contracts` can list the current `autoresearch.adapter_contracts.v1` catalog so downstream adapters can discover supported packet kinds without scraping prose docs
+- duration-metric interpretation is now baseline-drift-aware: calibration samples can prevent ordinary candidate runs from overclaiming `candidate_improvement` when a high or stale baseline explains the apparent gain
 - `autoresearch_runtime_status action=validate_packet` can produce a non-mutating `autoresearch.adapter_validation.v1` structural validation result before an adapter plans a target write
 - `docs/project/adapter-contracts.md` defines the portable packet/adapter boundary so AK, Beads, KES, notes, issue trackers, and custom KMS integrations can live as separate Pi extensions instead of being absorbed into pi-autoresearch
 - setup materializer that can plan/apply a config receipt or bootstrap a baseline without forcing a human slash-command wizard

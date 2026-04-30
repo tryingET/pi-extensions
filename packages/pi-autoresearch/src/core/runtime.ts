@@ -250,6 +250,7 @@ export type AutoresearchMetricInterpretationVerdict =
   | "insufficient_samples"
   | "possible_noise"
   | "calibration_signal"
+  | "baseline_drift"
   | "meaningful_improvement"
   | "regression";
 
@@ -5551,7 +5552,10 @@ function classifyRunEmpiricalDecision(
       return "insufficient_samples";
     }
     if (delta >= metricInterpretation.noiseBand) {
-      return runKind === "calibration" ? "calibration_signal" : "candidate_improvement";
+      if (runKind === "calibration") return "calibration_signal";
+      return metricInterpretation.verdict === "baseline_drift"
+        ? "baseline_drift"
+        : "candidate_improvement";
     }
     if (delta <= -metricInterpretation.noiseBand) {
       return runKind === "calibration" ? "baseline_drift" : "candidate_regression";
@@ -5609,11 +5613,16 @@ function interpretMetricNoise(
 
   const bestRun = selectBestRun(runs, config.direction);
   const bestRunKind = bestRun?.runKind ?? "ordinary";
+  const baselineDrift = detectBaselineDrift(runs, config.direction, baselineMetric, noiseBand);
   let verdict: AutoresearchMetricInterpretationVerdict = "possible_noise";
   let reason = "best timing delta is within the current noise band";
   if (latestDelta < -noiseBand) {
     verdict = "regression";
     reason = "latest timing sample is worse than baseline beyond the current noise band";
+  } else if (baselineDrift) {
+    verdict = "baseline_drift";
+    reason =
+      "calibration samples explain the apparent baseline improvement; treat candidate gains as baseline drift unless the candidate beats calibration beyond the noise band";
   } else if (bestDelta >= noiseBand && bestRunKind === "calibration") {
     verdict = "calibration_signal";
     reason =
@@ -5661,6 +5670,38 @@ function selectBestRun(
     (best, run) => (best === null || isBetter(run.metric, best.metric, direction) ? run : best),
     null,
   );
+}
+
+function detectBaselineDrift(
+  runs: AutoresearchRunReceipt[],
+  direction: MetricDirection,
+  baselineMetric: number,
+  noiseBand: number,
+): boolean {
+  const calibrationRuns = runs.filter((run) => (run.runKind ?? "ordinary") === "calibration");
+  if (calibrationRuns.length < 2) return false;
+
+  const candidateRuns = runs.filter(
+    (run) =>
+      run.status === "candidate" &&
+      (run.runKind ?? "ordinary") !== "calibration" &&
+      isSuccessfulMetricRun(run),
+  );
+  if (candidateRuns.length === 0) return false;
+
+  const bestCalibration = selectBestRun(calibrationRuns, direction);
+  const bestCandidate = selectBestRun(candidateRuns, direction);
+  if (!bestCalibration || !bestCandidate) return false;
+
+  const calibrationDelta = directionalDelta(baselineMetric, bestCalibration.metric, direction);
+  if (calibrationDelta < noiseBand) return false;
+
+  const candidateBeyondCalibration = directionalDelta(
+    bestCalibration.metric,
+    bestCandidate.metric,
+    direction,
+  );
+  return candidateBeyondCalibration < noiseBand;
 }
 
 function directionalDelta(baseline: number, current: number, direction: MetricDirection): number {
