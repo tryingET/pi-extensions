@@ -195,6 +195,7 @@ export type AutoresearchMetricInterpretationVerdict =
   | "not_applicable"
   | "insufficient_samples"
   | "possible_noise"
+  | "calibration_signal"
   | "meaningful_improvement"
   | "regression";
 
@@ -230,6 +231,7 @@ export interface AutoresearchSegmentSummary {
   confidence: number | null;
   metricInterpretation: AutoresearchMetricInterpretation | null;
   lastRunStatus: RunStatus | null;
+  lastRunKind: AutoresearchRunKind | null;
   lastRunMetric: number | null;
 }
 
@@ -2091,7 +2093,7 @@ export function formatAutoresearchPeerAssistPlan(plan: AutoresearchPeerAssistPla
     `- reportBack: ${plan.reportBack}`,
     `- parentPeerTarget required: ${plan.parentPeerTargetRequired ? "yes" : "no"}`,
     `- machine state: ${plan.status.runtimeProjection.state}`,
-    `- latest run: ${formatLastRun(plan.status.currentSegment.lastRunStatus, plan.status.currentSegment.lastRunMetric, plan.status.currentSegment.metricUnit)}`,
+    `- latest run: ${formatLastRun(plan.status.currentSegment.lastRunStatus, plan.status.currentSegment.lastRunMetric, plan.status.currentSegment.metricUnit, plan.status.currentSegment.lastRunKind)}`,
     "",
     "## Exact suggested call",
     plan.toolCall ? `\`${plan.toolCall}\`` : "- (none)",
@@ -2113,7 +2115,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
         `- best metric: ${formatMetricValue(status.currentSegment.bestMetric, status.currentSegment.metricUnit)}`,
         `- confidence: ${formatConfidenceValue(status.currentSegment.confidence)}`,
         `- timing interpretation: ${formatMetricInterpretation(status.currentSegment.metricInterpretation, status.currentSegment.metricUnit)}`,
-        `- last run: ${formatLastRun(status.currentSegment.lastRunStatus, status.currentSegment.lastRunMetric, status.currentSegment.metricUnit)}`,
+        `- last run: ${formatLastRun(status.currentSegment.lastRunStatus, status.currentSegment.lastRunMetric, status.currentSegment.metricUnit, status.currentSegment.lastRunKind)}`,
       ]
     : [
         "- configured campaign: no",
@@ -3153,7 +3155,7 @@ function buildRuntimeNextHypothesisPacket(input: {
       `successful runs: ${input.status.currentSegment.successfulRunCount}`,
       `baseline: ${formatMetricValue(input.status.currentSegment.baselineMetric, metricUnit)}`,
       `best: ${formatMetricValue(input.status.currentSegment.bestMetric, metricUnit)}`,
-      `last run: ${formatLastRun(input.status.currentSegment.lastRunStatus, input.status.currentSegment.lastRunMetric, metricUnit)}`,
+      `last run: ${formatLastRun(input.status.currentSegment.lastRunStatus, input.status.currentSegment.lastRunMetric, metricUnit, input.status.currentSegment.lastRunKind)}`,
     ],
     baselineHistory: [
       successfulRuns.length > 0
@@ -4025,13 +4027,14 @@ function summarizeCurrentSegment(currentSegment: CurrentSegmentView): Autoresear
     baselineMetric,
     bestMetric,
     confidence:
-      currentSegment.config && successfulRuns.length > 0
-        ? computeConfidence(successfulRuns, currentSegment.config.direction)
+      currentSegment.config && optimizationRuns.length > 0
+        ? computeConfidence(optimizationRuns, currentSegment.config.direction)
         : null,
     metricInterpretation: currentSegment.config
       ? interpretMetricNoise(successfulRuns, currentSegment.config)
       : null,
     lastRunStatus: currentSegment.runs.at(-1)?.status ?? null,
+    lastRunKind: currentSegment.runs.at(-1)?.runKind ?? null,
     lastRunMetric: currentSegment.runs.at(-1)?.metric ?? null,
   };
 }
@@ -4530,11 +4533,17 @@ function interpretMetricNoise(
     };
   }
 
+  const bestRun = selectBestRun(runs, config.direction);
+  const bestRunKind = bestRun?.runKind ?? "ordinary";
   let verdict: AutoresearchMetricInterpretationVerdict = "possible_noise";
   let reason = "best timing delta is within the current noise band";
   if (latestDelta < -noiseBand) {
     verdict = "regression";
     reason = "latest timing sample is worse than baseline beyond the current noise band";
+  } else if (bestDelta >= noiseBand && bestRunKind === "calibration") {
+    verdict = "calibration_signal";
+    reason =
+      "best timing sample is calibration-only evidence beyond the current noise band; do not treat it as a candidate improvement";
   } else if (bestDelta >= noiseBand) {
     verdict = "meaningful_improvement";
     reason = "best timing sample improves on baseline beyond the current noise band";
@@ -4568,6 +4577,16 @@ function isDurationMetric(metricName: string, metricUnit: string): boolean {
 
 function selectBestMetric(values: number[], direction: MetricDirection): number {
   return values.reduce((best, value) => (isBetter(value, best, direction) ? value : best));
+}
+
+function selectBestRun(
+  runs: AutoresearchRunReceipt[],
+  direction: MetricDirection,
+): AutoresearchRunReceipt | null {
+  return runs.reduce<AutoresearchRunReceipt | null>(
+    (best, run) => (best === null || isBetter(run.metric, best.metric, direction) ? run : best),
+    null,
+  );
 }
 
 function directionalDelta(baseline: number, current: number, direction: MetricDirection): number {
@@ -4667,9 +4686,15 @@ function roundMetric(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function formatLastRun(status: RunStatus | null, metric: number | null, unit: string): string {
+function formatLastRun(
+  status: RunStatus | null,
+  metric: number | null,
+  unit: string,
+  runKind?: AutoresearchRunKind | null,
+): string {
   if (!status) return "(none)";
-  return `${status} @ ${formatMetricValue(metric, unit)}`;
+  const kindSuffix = runKind && runKind !== "ordinary" ? ` (${runKind})` : "";
+  return `${status}${kindSuffix} @ ${formatMetricValue(metric, unit)}`;
 }
 
 function formatExit(exitCode: number | null, timedOut: boolean): string {

@@ -509,9 +509,16 @@ test("calibration runs inform timing noise without competing as best candidate",
     const status = buildAutoresearchRuntimeStatus(cwd);
     assert.equal(status.currentSegment.successfulRunCount, 3);
     assert.equal(status.currentSegment.bestMetric, 100);
+    assert.equal(status.currentSegment.confidence, null);
+    assert.equal(status.currentSegment.lastRunKind, "calibration");
     assert.equal(status.currentSegment.metricInterpretation?.sampleCount, 3);
     assert.equal(status.currentSegment.metricInterpretation?.bestMetric, 90);
-    assert.match(formatAutoresearchStatusText(status), /timing interpretation:/);
+    assert.equal(status.currentSegment.metricInterpretation?.verdict, "calibration_signal");
+    assert.match(formatAutoresearchStatusText(status), /timing interpretation: calibration_signal/);
+    assert.match(
+      formatAutoresearchStatusText(status),
+      /last run: candidate \(calibration\) @ 91ms/,
+    );
   }));
 
 test("buildAutoresearchRuntimeStatus surfaces the current llama.cpp campaign projection", () =>
