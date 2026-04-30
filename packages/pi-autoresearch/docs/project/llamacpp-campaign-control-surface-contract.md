@@ -100,7 +100,7 @@ This public campaign-control slice is done when all of the following are true:
 6. public callers do **not** need to pass raw `stage` or `buildId` selections through the public seam
 7. if `taskId` is present, the public result may include one exact-task AK-ready binding snapshot; if `taskId` is absent, the surface still works without inventing a task
 8. the public surface still does **not** expose `plan_matrix`, `prepare_fork`, or raw `execute_stage` as its public contract
-9. `/autoresearch`, `README.md`, and `current-vs-target.md` can point to this public surface truthfully once implemented
+9. `/autoresearch`, `README.md`, and `product-posture.md` can point to this public surface truthfully once implemented
 10. tests prove that the public seam composes existing helpers correctly without widening into whole-campaign execution, direct AK mutation, or manual stage/build selection
 
 ### Explicitly included in this done-state
@@ -409,7 +409,7 @@ Once the public surface lands in `#1698`, the package should update:
 
 - `/autoresearch` help text
 - `README.md`
-- `current-vs-target.md`
+- `product-posture.md`
 
 So that all three say the same thing:
 
@@ -475,7 +475,7 @@ The follow-on implementation is good enough when it proves all of the following:
 6. **blocked/terminal proof**
    - blocked next steps fail closed in apply mode, and terminal-stage completion does not pretend more work exists
 7. **runtime/docs closure proof**
-   - `/autoresearch`, `README.md`, and `current-vs-target.md` now distinguish the technical helper surface from the new public seam without overstating it as whole-campaign execution or direct AK mutation
+   - `/autoresearch`, `README.md`, and `product-posture.md` now distinguish the technical helper surface from the new public seam without overstating it as whole-campaign execution or direct AK mutation
 
 ---
 

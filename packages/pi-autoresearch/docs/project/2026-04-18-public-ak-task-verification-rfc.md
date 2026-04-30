@@ -349,7 +349,7 @@ The implementation is good enough when it proves all of the following:
 7. **technical-surface separation proof**
    - the public change does not silently redefine `build_ak_binding` into the same contract as the public helper
 8. **docs/help proof**
-   - status notes / current-vs-target / README or help text no longer imply that a supplied positive task id is automatically verified public task context
+   - status notes / product-posture / README or help text no longer imply that a supplied positive task id is automatically verified public task context
 
 ## K) Nice-to-have improvements that should ride with the slice
 

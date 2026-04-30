@@ -20,7 +20,7 @@ The bounded AK-binding slice in [`product-posture`](./product-posture.md) is now
 
 - `#1649` — write the AK binding contract and lifecycle shape for manifest-driven llama.cpp campaigns
 - `#1650` — implement bounded AK projection/binding helpers for campaign manifests
-- `#1651` — prove AK-aware manifest campaign binding and update current-vs-target
+- `#1651` — prove AK-aware manifest campaign binding and update product-posture
 
 This note closes the proof question for that slice by answering four things:
 
@@ -79,7 +79,7 @@ The package surface now reflects the closure truthfully:
 
 - `/autoresearch` help still describes AK-ready binding snapshot derivation as a landed capability
 - runtime status/help no longer advertise `ak_campaign_binding` as an active pending next slice
-- `README.md` and `current-vs-target.md` now treat the helper layer as landed and point readers to this status note
+- `README.md` and `product-posture.md` now treat the helper layer as landed and point readers to this status note
 - the repo-root AK milestone projection contract now points manifest-campaign readers to the package-local AK-binding contract/status pair instead of leaving the concern implicit
 
 That keeps the docs aligned with the already-landed helper surface instead of leaving stale proof-pending wording behind.
@@ -130,7 +130,7 @@ These checks verified:
 
 - package lint/typecheck/test behavior including the AK-binding proof coverage
 - package quick packageability checks after the runtime/docs truth updates
-- package-doc metadata/structure validity for this new status note and the current-vs-target updates
+- package-doc metadata/structure validity for this new status note and the product-posture updates
 
 ## What changed in operator/runtime behavior
 

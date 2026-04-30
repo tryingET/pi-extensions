@@ -20,7 +20,7 @@ The bounded execution-binding slice in [`product-posture`](./product-posture.md)
 
 - `#1636` — write the manifest-driven 41/42/43 execution-binding contract and done-state
 - `#1640` — implement the bounded manifest-driven 41/42/43 execution surface in `pi-autoresearch`
-- `#1642` — prove manifest-driven 41/42/43 execution binding and update current-vs-target
+- `#1642` — prove manifest-driven 41/42/43 execution binding and update product-posture
 
 This note closes the proof question for that slice by answering four things:
 
@@ -153,7 +153,7 @@ These checks verified:
 
 - package lint/typecheck/test behavior including the new execution-binding coverage
 - package tarball/packageability quick checks after the public-surface/docs updates
-- package-doc metadata/structure validity for the new status note and current-vs-target updates
+- package-doc metadata/structure validity for the new status note and product-posture updates
 
 ## What changed in operator/runtime behavior
 

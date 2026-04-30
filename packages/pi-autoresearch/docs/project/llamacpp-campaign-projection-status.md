@@ -20,7 +20,7 @@ The bounded projection slice in [`product-posture`](./product-posture.md) is now
 
 - `#1644` — write the manifest campaign receipt/projection contract and artifact model
 - `#1645` — implement manifest campaign receipts plus runtime status/help integration
-- `#1646` — prove manifest campaign projection surface and update current-vs-target
+- `#1646` — prove manifest campaign projection surface and update product-posture
 
 This note closes the proof question for that slice by answering four things:
 
@@ -128,7 +128,7 @@ These checks verified:
 
 - package lint/typecheck/test behavior including the projection/runtime proof coverage
 - package quick packageability checks after the public-surface/docs updates
-- package-doc metadata/structure validity for this new status note and the current-vs-target updates
+- package-doc metadata/structure validity for this new status note and the product-posture updates
 
 ## What changed in operator/runtime behavior
 

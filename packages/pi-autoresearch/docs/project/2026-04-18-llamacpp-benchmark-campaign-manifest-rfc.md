@@ -169,7 +169,7 @@ The first slice is done when all of the following are true:
 4. `prepare_fork` can:
    - plan clone/checkout steps, and
    - safely apply them when requested
-5. README + current-vs-target + package-local problem-intent/RFC docs are updated
+5. README + product-posture + package-local problem-intent/RFC docs are updated
 6. package tests prove validation, matrix expansion, and fork preparation
 
 ## H) Explicit non-goals for this RFC
@@ -286,7 +286,7 @@ The execution-binding follow-on is done when all of the following are true:
 6. stage 42 apply fails closed when the derived stage-41 receipt is missing or the manifest lanes do not fit the current script contract
 7. stage 43 apply fails closed when the derived stage-42 receipt is missing or incompatible with the current script contract
 8. tests prove path resolution, command construction, prerequisite fencing, and bounded script invocation behavior
-9. README + current-vs-target can later be updated in the proof task without overstating this slice as receipt/status projection or AK campaign truth
+9. README + product-posture can later be updated in the proof task without overstating this slice as receipt/status projection or AK campaign truth
 
 ### Explicit non-goals for the execution-binding follow-on
 
@@ -357,7 +357,7 @@ This projection follow-on is done when all of the following are true:
 3. the artifact records per-build expected-vs-present stage status without reinterpreting workstation script payload semantics
 4. runtime/help surfaces can report the projection truthfully
 5. tests prove projection derivation, freshness/discard behavior, and runtime/help exposure
-6. current-vs-target can later be updated in the proof task without overstating this slice as whole-campaign execution or AK campaign truth
+6. product-posture can later be updated in the proof task without overstating this slice as whole-campaign execution or AK campaign truth
 
 ### Explicit non-goals for the projection follow-on
 
@@ -413,7 +413,7 @@ This AK-binding follow-on is now landed locally because all of the following are
 2. `#1650` landed bounded helper exports in `packages/pi-autoresearch/src/core/llamacppCampaign.ts`
 3. those helpers now reduce one exact manifest + task anchor into one deterministic AK-ready binding snapshot
 4. `#1651` proved milestone mapping, terminal-stage classification, idempotent projection-key behavior, and fail-closed negative paths
-5. current-vs-target/runtime/README closure landed without overstating this slice as direct AK mutation, whole-campaign execution, or semantic winner selection
+5. product-posture/runtime/README closure landed without overstating this slice as direct AK mutation, whole-campaign execution, or semantic winner selection
 
 ### Explicit non-goals for the AK-binding follow-on
 
@@ -473,7 +473,7 @@ This campaign-local autonomy follow-on is now landed locally because all of the 
 2. `#1694` landed bounded autonomy helpers in `packages/pi-autoresearch/src/core/llamacppCampaign.ts` plus the bounded manifest-tool `advance_campaign` action for direct use
 3. those helpers now derive one current autonomy snapshot and plan/apply exactly one next stage step
 4. `#1695` proved phase ordering, next-step selection, blocker surfacing, truthful 41/42/43-terminal completion, and one-step-only apply behavior
-5. current-vs-target/runtime/README closure now treats this slice as landed without overstating it as public campaign control, AK mutation, or whole-campaign execution
+5. product-posture/runtime/README closure now treats this slice as landed without overstating it as public campaign control, AK mutation, or whole-campaign execution
 6. status/proof closure now lives in [`llamacpp-campaign-autonomy-status.md`](./llamacpp-campaign-autonomy-status.md)
 
 ### Explicit non-goals for the campaign-local autonomy follow-on

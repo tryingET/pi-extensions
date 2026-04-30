@@ -190,7 +190,7 @@ It preserves what the first school correctly sees — unverified public task con
 - phase 2:
   - update public reason / next-action rendering
   - add tests for `not_requested`, `verified_live`, `not_found`, and `verification_unavailable`
-  - update README / status docs / current-vs-target references as needed
+  - update README / status docs / product-posture references as needed
 - rollback / escape hatch:
   - if live verification integration proves unstable, keep the public seam package-local by surfacing `verification_unavailable`, `akBinding = null`, and `taskBound = false` rather than reverting to caller-asserted public task truth
 

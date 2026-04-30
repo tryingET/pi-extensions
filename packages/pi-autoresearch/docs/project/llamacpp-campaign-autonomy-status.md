@@ -20,7 +20,7 @@ The bounded campaign-local autonomy slice in [`product-posture`](./product-postu
 
 - `#1693` — write the campaign-local autonomy contract and lifecycle shape for manifest-driven llama.cpp campaigns
 - `#1694` — implement bounded campaign-local autonomy helpers for manifest-driven llama.cpp campaigns
-- `#1695` — prove campaign-local autonomy helpers and update current-vs-target
+- `#1695` — prove campaign-local autonomy helpers and update product-posture
 
 This note closes the proof question for that slice by answering four things:
 
@@ -80,7 +80,7 @@ The package surface now reflects the closure truthfully:
 
 - `/autoresearch` help now advertises one-step campaign-local advancement as landed package behavior
 - runtime/help text states that the package still does **not** own a public manifest campaign-control surface
-- `README.md` and `current-vs-target.md` now treat the autonomy helper layer as landed and point readers to this status note
+- `README.md` and `product-posture.md` now treat the autonomy helper layer as landed and point readers to this status note
 
 That keeps the package posture honest: the one-step helper is real, while the later public control surface remains a separate follow-on.
 
@@ -132,7 +132,7 @@ These checks verified:
 
 - package lint/typecheck/test behavior including the autonomy proof coverage
 - package quick packageability checks after the runtime/docs truth updates
-- package-doc metadata/structure validity for this new status note and the current-vs-target updates
+- package-doc metadata/structure validity for this new status note and the product-posture updates
 
 ## What changed in operator/runtime behavior
 

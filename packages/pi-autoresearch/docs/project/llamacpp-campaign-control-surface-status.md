@@ -20,7 +20,7 @@ The bounded public campaign-control slice in [`product-posture`](./product-postu
 
 - `#1697` — write the public campaign-control contract and consumer seam for manifest-driven pi-autoresearch campaigns
 - `#1698` — implement the bounded public campaign-control surface in pi-autoresearch
-- `#1699` — prove the public campaign-control surface and update current-vs-target
+- `#1699` — prove the public campaign-control surface and update product-posture
 
 This note closes the proof question for that slice by answering four things:
 
@@ -92,7 +92,7 @@ The package surface now reflects the closure truthfully:
 
 - `/autoresearch` help now advertises the dedicated public `autoresearch_llamacpp_campaign_control` seam as real package behavior
 - the same help text distinguishes that public seam from the lower-level technical `autoresearch_llamacpp_campaign` tool
-- `README.md` and `current-vs-target.md` now treat the public seam as landed and point readers to this status note
+- `README.md` and `product-posture.md` now treat the public seam as landed and point readers to this status note
 - runtime status/help no longer pretend there is still an open proof-only next slice for this concern
 
 That keeps the package posture honest: the public wrapper seam is real, while whole-campaign execution, direct AK mutation, and broader orchestration are still outside the slice.
@@ -150,7 +150,7 @@ These checks verified:
 
 - package lint/typecheck/test behavior including the public control proof coverage
 - package quick packageability checks after the runtime/docs truth updates
-- package-doc metadata/structure validity for this new status note and the current-vs-target updates
+- package-doc metadata/structure validity for this new status note and the product-posture updates
 - advisory AK closure readiness for the bounded task slice
 
 ## What changed in operator/runtime behavior

@@ -176,4 +176,4 @@ Pick exactly one adapter target after demand is concrete. Until then, keep adapt
 
 ## Compatibility note
 
-Older status and contract documents may still mention `current-vs-target.md`. Treat those as historical closure references. This product posture is now the package-level alignment anchor for new work.
+A compatibility redirect remains for the former alignment anchor. Treat it as historical link support only; this product posture is now the package-level alignment anchor for new work.

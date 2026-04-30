@@ -442,7 +442,7 @@ The follow-on implementation is good enough when it proves all of the following:
 6. **boundary proof**
    - helper tests confirm this slice does not shell AK or mutate task state directly
 7. **closure proof**
-   - the later status note and `current-vs-target` update do not overstate this slice as direct AK mutation, semantic benchmark interpretation, or whole-campaign execution
+   - the later status note and `product-posture` update do not overstate this slice as direct AK mutation, semantic benchmark interpretation, or whole-campaign execution
 
 ---
 
