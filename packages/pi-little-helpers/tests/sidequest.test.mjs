@@ -637,6 +637,57 @@ test("scout_peer_spawn uses the same Ghostty window fallback launch path and ret
   assert.match(result.content[0]?.text ?? "", /peer_watch/);
 });
 
+test("scout_peer_spawn reportBack none makes intercom disabled explicit", async () => {
+  const execStub = createExecStub(({ args }) => {
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
+    }
+    if (args[0] === "+new-tab") {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      GHOSTTY_SURFACE_ID: "19",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension, { thinkingLevel: "high" });
+
+  const result = await tools.get("scout_peer_spawn").execute(
+    "tool-call-1",
+    {
+      objective: "Inspect manually without intercom",
+      reportBack: "none",
+    },
+    undefined,
+    undefined,
+    createContext({ cwd: "/controller" }).ctx,
+  );
+
+  const prompt = extractPiArgs(execStub.calls[1].args).at(-1);
+  assert.match(prompt, /No intercom boot ACK is required because reportBack is none/);
+  assert.match(prompt, /No automatic report-back is requested/);
+  assert.doesNotMatch(prompt, /Only allowed pre-ACK tool: `intercom`/);
+
+  assert.equal(result.details.reportBack, "none");
+  assert.deepEqual(result.details.expectedMessages, []);
+  assert.match(result.details.nextStep, /Intercom report-back is disabled/);
+  assert.match(result.details.nextStep, /peer_watch will have nothing to watch/);
+  assert.match(result.content[0]?.text ?? "", /Expected intercom messages: none/);
+  assert.match(result.content[0]?.text ?? "", /PEER_ACK\/PEER_FINAL disabled/);
+  assert.doesNotMatch(result.content[0]?.text ?? "", /peer_watch", peerRunId/);
+});
+
 test("scout_peer_spawn generated prompt includes read-only policy, context, boundaries, tools, and DoD", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
@@ -859,6 +910,57 @@ test("candidate_peer_spawn rejects a blank objective before git or Ghostty", asy
   assert.equal(blankResult.details.error, "blank_objective");
 
   assert.equal(execStub.calls.length, 0);
+});
+
+test("candidate_peer_spawn reportBack none makes intercom disabled explicit", async () => {
+  await withTempDir(async (stateHome) => {
+    const execStub = createCandidatePeerExecStub({ dirty: "" });
+    const extension = createSidequestExtension({
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        GHOSTTY_SURFACE_ID: "21",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension, { thinkingLevel: "high" });
+
+    const result = await tools.get("candidate_peer_spawn").execute(
+      "tool-call-1",
+      {
+        objective: "Try manual-only candidate lane",
+        cwd: "/repo",
+        reportBack: "none",
+        branchName: "candidatepeer/manual-only",
+      },
+      undefined,
+      undefined,
+      createContext({ cwd: "/repo" }).ctx,
+    );
+
+    const launchCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+    );
+    assert.ok(launchCall);
+    const prompt = extractPiArgs(launchCall.args).at(-1);
+    assert.match(prompt, /No intercom boot ACK is required because reportBack is none/);
+    assert.match(prompt, /No automatic report-back is requested/);
+    assert.doesNotMatch(prompt, /Only allowed pre-ACK tool: `intercom`/);
+
+    assert.equal(result.details.reportBack, "none");
+    assert.deepEqual(result.details.expectedMessages, []);
+    assert.match(result.details.nextStep, /Intercom report-back is disabled/);
+    assert.match(result.details.nextStep, /peer_watch will have nothing to watch/);
+    assert.match(result.content[0]?.text ?? "", /Expected intercom messages: none/);
+    assert.match(result.content[0]?.text ?? "", /PEER_ACK\/PEER_FINAL disabled/);
+    assert.doesNotMatch(result.content[0]?.text ?? "", /peer_watch", peerRunId/);
+  });
 });
 
 test("candidate_peer_spawn requires exact parentPeerTarget for default intercom report-back", async () => {

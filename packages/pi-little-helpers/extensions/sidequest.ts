@@ -159,7 +159,7 @@ function asPiToolParameters(schema: unknown): PiToolParameters {
 const reportBackParameter = Type.Optional(
   Type.Union([Type.Literal("intercom"), Type.Literal("manual"), Type.Literal("none")], {
     description:
-      "Report-back mode. Controller-spawned quest tools default to intercom unless explicitly set to manual or none.",
+      "Report-back mode. Controller-spawned quest tools default to intercom. Use manual or none only for intentionally unsupervised/manual-visible peers; they will not emit PEER_ACK/PEER_FINAL and peer_watch will have nothing to watch.",
   }),
 );
 
@@ -1214,6 +1214,70 @@ function missingParentPeerTargetResult(tool: string) {
   );
 }
 
+function expectedPeerMessages(reportBack: SidequestReportBack): string[] {
+  return reportBack === "intercom" ? ["PEER_ACK", "PEER_FINAL"] : [];
+}
+
+function reportBackNextStep({
+  reportBack,
+  peerRunId,
+  peerLabel,
+  manualAction,
+}: {
+  reportBack: SidequestReportBack;
+  peerRunId: string;
+  peerLabel: string;
+  manualAction: string;
+}): string {
+  if (reportBack === "intercom") {
+    return `Next supervision step: intercom({ action: "peer_watch", peerRunId: "${peerRunId}", waitFor: "ack", timeoutMs: 10000 }). Also ${manualAction} if the peer does not report promptly.`;
+  }
+
+  return `Intercom report-back is disabled because reportBack is "${reportBack}"; no PEER_ACK/PEER_FINAL will be emitted, and peer_watch will have nothing to watch. Next supervision step: ${manualAction} in the visible ${peerLabel} session.`;
+}
+
+function peerLaunchResultMessage({
+  toolName,
+  launchMode,
+  promptSummary,
+  peerRunId,
+  reportBack,
+  peerLabel,
+  manualAction,
+}: {
+  toolName: string;
+  launchMode: LaunchMode;
+  promptSummary: string;
+  peerRunId: string;
+  reportBack: SidequestReportBack;
+  peerLabel: string;
+  manualAction: string;
+}): string {
+  const lines = [
+    `Launched ${toolName} in ${launchMode}: ${promptSummary}`,
+    `Peer run id: ${peerRunId}`,
+  ];
+
+  if (reportBack === "intercom") {
+    lines.push("Expected intercom messages: PEER_ACK, PEER_FINAL");
+  } else {
+    lines.push(
+      `Expected intercom messages: none (reportBack=${reportBack}; PEER_ACK/PEER_FINAL disabled)`,
+    );
+  }
+
+  lines.push(
+    reportBackNextStep({
+      reportBack,
+      peerRunId,
+      peerLabel,
+      manualAction,
+    }),
+  );
+
+  return lines.join("\n");
+}
+
 export function createSidequestExtension(options: SidequestOptions = {}) {
   return function sidequestExtension(pi: ExtensionAPI) {
     async function runForkPeerCommand(
@@ -1520,7 +1584,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           reportBack,
           peerRunId: questId,
           questId,
-          expectedMessages: ["PEER_ACK", "PEER_FINAL"],
+          expectedMessages: expectedPeerMessages(reportBack),
           launchNote: launch.launchNote,
           error: "launch_failed",
         });
@@ -1541,14 +1605,26 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         reportBack,
         peerRunId: questId,
         questId,
-        expectedMessages: ["PEER_ACK", "PEER_FINAL"],
-        nextStep:
-          "Watch the visible scout peer tab/window; if intercom was requested, wait for or inspect the peer report.",
+        expectedMessages: expectedPeerMessages(reportBack),
+        nextStep: reportBackNextStep({
+          reportBack,
+          peerRunId: questId,
+          peerLabel: "scout peer",
+          manualAction: "Watch the visible scout peer tab/window manually",
+        }),
         ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
       };
 
       return successToolResult(
-        `Launched ${toolName} in ${launch.launchMode}: ${launch.promptSummary}\nPeer run id: ${questId}\nExpected intercom messages: PEER_ACK, PEER_FINAL\nNext supervision step: intercom({ action: "peer_watch", peerRunId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
+        peerLaunchResultMessage({
+          toolName,
+          launchMode: launch.launchMode,
+          promptSummary: launch.promptSummary,
+          peerRunId: questId,
+          reportBack,
+          peerLabel: "scout peer",
+          manualAction: "Watch the visible scout peer tab/window manually",
+        }),
         details,
       );
     }
@@ -1646,7 +1722,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           reportBack,
           peerRunId: questId,
           questId,
-          expectedMessages: ["PEER_ACK", "PEER_FINAL"],
+          expectedMessages: expectedPeerMessages(reportBack),
           launchNote: launch.launchNote,
           error: "launch_failed",
         });
@@ -1671,13 +1747,28 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         reportBack,
         peerRunId: questId,
         questId,
-        expectedMessages: ["PEER_ACK", "PEER_FINAL"],
-        nextStep: "Inspect the reported branch/worktree before cherry-pick or merge.",
+        expectedMessages: expectedPeerMessages(reportBack),
+        nextStep: reportBackNextStep({
+          reportBack,
+          peerRunId: questId,
+          peerLabel: "candidate peer",
+          manualAction:
+            "Inspect the reported branch/worktree and visible candidate peer session manually",
+        }),
         ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
       };
 
       return successToolResult(
-        `Launched ${toolName} in ${launch.launchMode}: ${launch.promptSummary}\nPeer run id: ${questId}\nExpected intercom messages: PEER_ACK, PEER_FINAL\nNext supervision step: intercom({ action: "peer_watch", peerRunId: "${questId}", waitFor: "ack", timeoutMs: 10000 })`,
+        peerLaunchResultMessage({
+          toolName,
+          launchMode: launch.launchMode,
+          promptSummary: launch.promptSummary,
+          peerRunId: questId,
+          reportBack,
+          peerLabel: "candidate peer",
+          manualAction:
+            "Inspect the reported branch/worktree and visible candidate peer session manually",
+        }),
         details,
       );
     }
