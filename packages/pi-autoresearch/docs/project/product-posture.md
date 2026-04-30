@@ -1,0 +1,179 @@
+---
+summary: "Product posture for @tryinget/pi-autoresearch: promise, audience, maturity, trust gates, boundaries, and strategic line."
+read_when:
+  - "Before choosing the next pi-autoresearch product or implementation slice."
+  - "When deciding whether work belongs in pi-autoresearch, an adapter, AK, Prompt Vault, peer tooling, or another owner surface."
+  - "When aligning package-level direction with root monorepo vision and AK execution memory."
+type: "reference"
+system4d:
+  container: "Package-local product posture for the pi-autoresearch experiment controller."
+  compass: "Make the package useful as a trustworthy bounded experiment workbench, not a sprawling autonomy or adapter platform."
+  engine:
+    invariants:
+      - "Candidate changes become measured runs, empirical interpretations, and reviewable packets."
+      - "Metric authority, calibration, candidate binding, and evidence promotion stay explicit."
+      - "External persistence and semantic authority remain with their owning systems."
+  fog:
+    risks:
+      - "Capability expansion masquerades as product progress."
+      - "Noisy baselines are overclaimed as candidate wins."
+      - "Adapter or peer lifecycle ownership drifts into pi-autoresearch by convenience."
+---
+
+# Product posture — `@tryinget/pi-autoresearch`
+
+## Product promise
+
+`pi-autoresearch` turns bounded candidate changes into trustworthy empirical evidence and reviewable handoff packets.
+
+A healthy loop is:
+
+```text
+bounded objective -> explicit measurement contract -> baseline/calibration -> candidate binding -> ordinary run -> empirical decision -> closeout/evidence/learning packet -> explicit external promotion
+```
+
+## Primary users
+
+- Pi operators running local supervised experiments.
+- Controller agents coordinating bounded candidate/evidence loops.
+- Visible peer lanes producing candidate worktrees without owning promotion.
+- Adapter authors consuming stable packets for AK, Beads, KES, notes, issue trackers, or custom evidence systems.
+
+## Job to be done
+
+When I have a candidate change, I want to measure it under an explicit contract, understand whether the result is trustworthy, and produce evidence another owner surface can consume without hidden autonomy.
+
+## Current product maturity
+
+- maturity: `supervised dogfood / internal alpha`
+- target control plane: landed
+- current strategic line: measurement trust and operator clarity before new surfaces
+- release posture: package checks pass, but product posture is still pre-public until the canonical dogfood playbook and metric-readiness UX are clearer
+
+## Product success criteria
+
+The package is product-healthy when:
+
+1. an operator can tell the current empirical posture from one status screen;
+2. duration metrics cannot easily overclaim noisy or stale baselines as candidate wins;
+3. every candidate result records what was tested, why, against which metric contract, and with which caveats;
+4. closeout/evidence/learning packets are stable enough for adapters without making this package own those adapters;
+5. visible peer, AK, Prompt Vault, KES, ROCS, and issue-tracker ownership boundaries remain explicit;
+6. new work lands through AK-backed bounded tasks rather than chat-local feature drift.
+
+## Current landed capability baseline
+
+The package currently owns:
+
+- `/autoresearch` operator entrypoint;
+- bounded runtime status, setup, run, loop, control, and finalization surfaces;
+- XState campaign machine plus append-only local event ledger;
+- Prompt Vault decision bridge for setup, next-hypothesis, and finalize decisions;
+- measurement-contract checks, calibration semantics, duplicate benchmark/check detection, and baseline-drift-aware duration interpretation;
+- hypothesis/result lineage and controller-verified candidate binding metadata;
+- adapter-ready packet family:
+  - `autoresearch.closeout.v1`
+  - `autoresearch.ak_evidence.v1`
+  - `autoresearch.learning.v1`
+  - `autoresearch.candidate_result.v1`
+  - `autoresearch.adapter_contracts.v1`
+  - `autoresearch.adapter_validation.v1`
+- visible peer-lane planning without automatic peer launch;
+- bounded self-hosting and manifest-driven llama.cpp campaign helper/control seams.
+
+## Product non-goals
+
+`pi-autoresearch` must not become:
+
+- a hidden daemon or unbounded autonomy loop;
+- an automatic visible-peer spawner;
+- a direct AK, Beads, KES, notes, issue-tracker, or HTTP writer;
+- an ontology or semantic-winner authority;
+- a package-local self-promotion mechanism;
+- a whole-campaign runner above exact bounded stage/control steps;
+- a catch-all adapter platform that adds packet families without real consumers.
+
+## Trust gates
+
+A result is promotion-ready only when the relevant gates are explicit:
+
+1. **Metric contract** — metric freshness, causal linkage, and optimization authority are known.
+2. **Baseline/calibration posture** — duration metrics are sampled enough to distinguish candidate effect from drift/noise.
+3. **Run kind** — calibration and ordinary candidate runs are semantically separate.
+4. **Candidate binding** — candidate source, worktree/ref/branch, diff summary, and files changed are recorded when relevant.
+5. **Empirical decision class** — operational run status does not masquerade as measured meaning.
+6. **Closeout packet** — the segment can be reviewed without scraping raw receipt logs.
+7. **External promotion** — AK/KES/adapter writes happen only through explicit owner surfaces.
+
+## Current strategic line
+
+Stop adding packet families by default.
+
+Prioritize:
+
+1. operator posture clarity;
+2. metric readiness and baseline-drift protection;
+3. one canonical dogfood playbook;
+4. one external adapter proof only after a real consumer needs it.
+
+## Next product bets
+
+### Bet 1 — Operator posture sentence
+
+Add a compact top-level posture such as:
+
+```text
+empirical posture: baseline drift suspected; candidate result is not promotion-ready
+```
+
+or:
+
+```text
+empirical posture: ordinary candidate evidence exists and is review-ready
+```
+
+### Bet 2 — Canonical dogfood playbook
+
+Document the repeatable operator flow:
+
+```text
+setup -> baseline samples -> calibration -> candidate lane/binding -> ordinary run -> closeout -> evidence/learning promotion
+```
+
+### Bet 3 — Metric readiness policy
+
+Make duration metrics report whether they are:
+
+- under-sampled;
+- calibration-only;
+- baseline-drift-suspect;
+- candidate-ready;
+- review-ready.
+
+### Bet 4 — Consumer-driven adapter proof
+
+Pick exactly one adapter target after demand is concrete. Until then, keep adapters external and packet contracts stable.
+
+## Ownership map
+
+| Concern | Owner |
+|---|---|
+| Local experiment runtime, receipts, empirical interpretation, closeout packets | `packages/pi-autoresearch` |
+| Visible peer launch and candidate worktree creation | `packages/pi-little-helpers` / peer tooling |
+| Peer/intercom communication | `packages/pi-peer-messaging` |
+| Durable task truth and evidence lifecycle | AK / evidence owner surfaces |
+| Reusable prompt procedures | Prompt Vault |
+| Ontology and controlled semantics | ROCS / ontology owner repos |
+| Learning persistence and promotion | KES, notes, KMS, or selected adapter |
+| Root monorepo validation/release/policy | `pi-extensions` root |
+
+## Read map
+
+- Product posture: `packages/pi-autoresearch/docs/project/product-posture.md`
+- Package public surface: `packages/pi-autoresearch/README.md`
+- Adapter contract: `packages/pi-autoresearch/docs/project/adapter-contracts.md`
+- Root monorepo vision: `docs/project/vision.md`
+
+## Compatibility note
+
+Older status and contract documents may still mention `current-vs-target.md`. Treat those as historical closure references. This product posture is now the package-level alignment anchor for new work.

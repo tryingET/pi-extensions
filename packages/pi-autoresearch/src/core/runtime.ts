@@ -3055,7 +3055,7 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "## Next bounded slices",
     ...(status.nextSlices.length > 0
       ? status.nextSlices.map((slice) => `- ${slice}`)
-      : ["- none currently committed in current-vs-target"]),
+      : ["- none currently committed in product-posture"]),
   ].join("\n");
 }
 

@@ -17,8 +17,8 @@ Monorepo package for the governed `pi-autoresearch` capability in Pi.
 - Workspace path: `packages/pi-autoresearch`
 - Release component key: `pi-autoresearch`
 - Extension entry: `extensions/pi-autoresearch.ts`
-- Current phase: `live_supervised_target_control_plane`
-- Current-vs-target anchor: [docs/project/current-vs-target.md](./docs/project/current-vs-target.md)
+- Current phase: `supervised_dogfood_internal_alpha`
+- Product posture anchor: [docs/project/product-posture.md](./docs/project/product-posture.md)
 
 ## Why this package exists
 
@@ -213,7 +213,7 @@ This package does **not** yet implement:
 - a second control plane that duplicates workstation `lane-op` or the brownfield 41/42/43 scripts
 
 The package now includes the bounded runtime's machine/event-ledger integration and peer-lane recommendation text for optional visible peer help. It still does not own peer launch: `pi-little-helpers` owns visible peer tools, `pi-peer-messaging` owns communication, peer/intercom messages are not evidence without controller verification, and autoresearch only recommends exact calls such as `scout_peer_spawn(...)`, `candidate_peer_spawn(...)`, or `fork_peer_spawn(...)`. The broader control-plane and autonomy integrations still belong to later bounded slices after the bounded runtime kernel.
-Use [docs/project/current-vs-target.md](./docs/project/current-vs-target.md) as the living package-local map for what is landed vs what still belongs to future verified slices.
+Use [docs/project/product-posture.md](./docs/project/product-posture.md) as the package-level alignment anchor for product promise, maturity, trust gates, boundaries, and next product bets.
 
 ## Example manifest
 

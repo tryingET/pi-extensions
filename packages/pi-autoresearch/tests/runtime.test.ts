@@ -423,7 +423,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.match(buildAutoresearchHelpText(status), /autoresearch_llamacpp_campaign_control/);
   assert.match(buildAutoresearchHelpText(status), /lower-level technical manifest work/);
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
-  assert.match(buildAutoresearchHelpText(status), /none currently committed in current-vs-target/);
+  assert.match(buildAutoresearchHelpText(status), /none currently committed in product-posture/);
   assert.equal(
     buildAutoresearchHelpText(status).includes("llamacpp_campaign_projection_proof"),
     false,
