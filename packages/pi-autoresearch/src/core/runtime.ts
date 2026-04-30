@@ -167,11 +167,30 @@ export interface AutoresearchConfigReceipt {
   checksCommand?: string | null;
 }
 
+export interface AutoresearchExperimentLineage {
+  hypothesisId: string | null;
+  hypothesis: string | null;
+  interventionSummary: string | null;
+  expectedPrimaryEffect: string | null;
+  targetFiles: string[];
+  risk: string | null;
+}
+
+export interface AutoresearchExperimentLineageInput {
+  hypothesisId?: string | null;
+  hypothesis?: string | null;
+  interventionSummary?: string | null;
+  expectedPrimaryEffect?: string | null;
+  targetFiles?: readonly string[];
+  risk?: string | null;
+}
+
 export interface AutoresearchRunReceipt {
   type: "run";
   version: 1;
   status: RunStatus;
   runKind?: AutoresearchRunKind;
+  experiment?: AutoresearchExperimentLineage;
   metric: number;
   metrics: MetricMap;
   description: string;
@@ -301,6 +320,7 @@ export interface ExecuteAutoresearchRunInput {
   cwd: string;
   description: string;
   runKind?: AutoresearchRunKind;
+  experiment?: AutoresearchExperimentLineageInput;
   name?: string;
   metricName?: string;
   metricUnit?: string;
@@ -687,6 +707,7 @@ export function createConfigReceipt(input: {
 export function createRunReceipt(input: {
   status: RunStatus;
   runKind?: AutoresearchRunKind;
+  experiment?: AutoresearchExperimentLineageInput;
   metric: number;
   metrics?: MetricMap;
   description: string;
@@ -708,6 +729,7 @@ export function createRunReceipt(input: {
     version: 1,
     status: input.status,
     runKind: input.runKind,
+    experiment: normalizeExperimentLineage(input.experiment),
     metric: input.metric,
     metrics: { ...(input.metrics ?? {}) },
     description: input.description,
@@ -2304,6 +2326,7 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     `- created config: ${result.createdConfig ? "yes" : "no"}`,
     `- run status: ${result.runReceipt.status}`,
     `- run kind: ${result.runReceipt.runKind ?? "ordinary"}`,
+    ...formatExperimentLineageLines(result.runReceipt.experiment),
     `- machine state: ${result.status.runtimeProjection.state}`,
     `- machine projection source: ${result.status.runtimeProjection.source}`,
     `- snapshot reuse: ${formatAutoresearchRuntimeSnapshotReuse(result.status.runtimeSnapshot.reuse)}`,
@@ -2660,6 +2683,7 @@ export async function executeAutoresearchRun(
   const runReceipt = createRunReceipt({
     status,
     runKind: runKind === "ordinary" ? undefined : runKind,
+    experiment: input.experiment,
     metric: primaryMetric,
     metrics: parsedMetrics,
     description: decorateRunDescription(
@@ -4101,6 +4125,7 @@ function parseRunReceipt(value: Record<string, unknown>): AutoresearchRunReceipt
     version: 1,
     status: value.status,
     runKind: isAutoresearchRunKind(value.runKind) ? value.runKind : undefined,
+    experiment: parseExperimentLineage(value.experiment),
     metric: coerceNumber(value.metric, "metric"),
     metrics: parseMetricMap(value.metrics),
     description: value.description,
@@ -4392,6 +4417,70 @@ function formatTargetFiles(files: readonly string[]): string {
   return files.length > 0 ? files.join(", ") : "(none)";
 }
 
+function normalizeExperimentLineage(
+  input: AutoresearchExperimentLineageInput | null | undefined,
+): AutoresearchExperimentLineage | undefined {
+  if (!input) return undefined;
+  const lineage: AutoresearchExperimentLineage = {
+    hypothesisId: stringOrNull(input.hypothesisId),
+    hypothesis: stringOrNull(input.hypothesis),
+    interventionSummary: stringOrNull(input.interventionSummary),
+    expectedPrimaryEffect: stringOrNull(input.expectedPrimaryEffect),
+    targetFiles: normalizeArray(input.targetFiles),
+    risk: stringOrNull(input.risk),
+  };
+  return lineage.hypothesisId ||
+    lineage.hypothesis ||
+    lineage.interventionSummary ||
+    lineage.expectedPrimaryEffect ||
+    lineage.targetFiles.length > 0 ||
+    lineage.risk
+    ? lineage
+    : undefined;
+}
+
+function parseExperimentLineage(value: unknown): AutoresearchExperimentLineage | undefined {
+  if (!isRecord(value)) return undefined;
+  return normalizeExperimentLineage({
+    hypothesisId: value.hypothesisId === null ? null : stringOrNull(value.hypothesisId),
+    hypothesis: value.hypothesis === null ? null : stringOrNull(value.hypothesis),
+    interventionSummary:
+      value.interventionSummary === null ? null : stringOrNull(value.interventionSummary),
+    expectedPrimaryEffect:
+      value.expectedPrimaryEffect === null ? null : stringOrNull(value.expectedPrimaryEffect),
+    targetFiles: parseStringArray(value.targetFiles),
+    risk: value.risk === null ? null : stringOrNull(value.risk),
+  });
+}
+
+function formatExperimentLabel(experiment: AutoresearchExperimentLineage): string {
+  return (
+    experiment.hypothesisId ??
+    experiment.hypothesis ??
+    experiment.interventionSummary ??
+    experiment.expectedPrimaryEffect ??
+    "(unlabeled)"
+  );
+}
+
+function formatExperimentLineageLines(
+  experiment: AutoresearchExperimentLineage | undefined,
+): string[] {
+  if (!experiment) return [];
+  return [
+    experiment.hypothesisId ? `- hypothesis id: ${experiment.hypothesisId}` : null,
+    experiment.hypothesis ? `- hypothesis: ${experiment.hypothesis}` : null,
+    experiment.interventionSummary ? `- intervention: ${experiment.interventionSummary}` : null,
+    experiment.expectedPrimaryEffect
+      ? `- expected primary effect: ${experiment.expectedPrimaryEffect}`
+      : null,
+    experiment.targetFiles.length > 0
+      ? `- experiment target files: ${formatTargetFiles(experiment.targetFiles)}`
+      : null,
+    experiment.risk ? `- experiment risk: ${experiment.risk}` : null,
+  ].filter((line): line is string => line !== null);
+}
+
 function describeChecksState(run: AutoresearchRunReceipt): string {
   if (run.checksCommand === null || run.checksCommand === undefined) {
     return "not run";
@@ -4409,6 +4498,7 @@ function formatRunHistoryLine(run: AutoresearchRunReceipt, metricUnit: string): 
   return [
     `iteration ${run.iteration ?? "?"}`,
     run.status,
+    run.experiment ? `hypothesis ${formatExperimentLabel(run.experiment)}` : null,
     `metric ${formatMetricValue(run.metric, metricUnit)}`,
     run.decision ? `decision ${run.decision.status}` : null,
     run.description,

@@ -273,6 +273,37 @@ const runSchema = Type.Object({
     description: "Short description of what this bounded run is trying.",
   }),
   runKind: Type.Optional(runKindSchema),
+  hypothesisId: Type.Optional(
+    Type.String({
+      description:
+        "Optional stable hypothesis identifier to bind this run into experiment lineage.",
+    }),
+  ),
+  hypothesis: Type.Optional(
+    Type.String({
+      description: "Optional hypothesis this run is testing.",
+    }),
+  ),
+  interventionSummary: Type.Optional(
+    Type.String({
+      description: "Optional short summary of the intervention or candidate being measured.",
+    }),
+  ),
+  expectedPrimaryEffect: Type.Optional(
+    Type.String({
+      description: "Optional expected effect on the primary metric before the run executes.",
+    }),
+  ),
+  hypothesisTargetFiles: Type.Optional(
+    Type.Array(Type.String(), {
+      description: "Optional files or paths that the hypothesis/intervention concerns.",
+    }),
+  ),
+  experimentRisk: Type.Optional(
+    Type.String({
+      description: "Optional risk or validity caveat for this experiment run.",
+    }),
+  ),
   name: Type.Optional(
     Type.String({
       description:
@@ -851,6 +882,12 @@ export function registerPiAutoresearchExtension(
         cwd?: string;
         description: string;
         runKind?: "ordinary" | "calibration";
+        hypothesisId?: string;
+        hypothesis?: string;
+        interventionSummary?: string;
+        expectedPrimaryEffect?: string;
+        hypothesisTargetFiles?: string[];
+        experimentRisk?: string;
         name?: string;
         metricName?: string;
         metricUnit?: string;
@@ -875,6 +912,14 @@ export function registerPiAutoresearchExtension(
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         description: request.description,
         runKind: request.runKind,
+        experiment: {
+          hypothesisId: request.hypothesisId,
+          hypothesis: request.hypothesis,
+          interventionSummary: request.interventionSummary,
+          expectedPrimaryEffect: request.expectedPrimaryEffect,
+          targetFiles: request.hypothesisTargetFiles,
+          risk: request.experimentRisk,
+        },
         name: request.name,
         metricName: request.metricName,
         metricUnit: request.metricUnit,

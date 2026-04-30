@@ -64,6 +64,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - can write explicit `autoresearch.sh` / `autoresearch.checks.sh` content when requested and refuses to overwrite existing scripts unless allowed
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
+  - can bind optional hypothesis/result lineage (`hypothesisId`, `hypothesis`, `interventionSummary`, `expectedPrimaryEffect`, `hypothesisTargetFiles`, `experimentRisk`) into the run receipt so later evidence export can say what was tested and why
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`
   - appends machine/event entries to `autoresearch.events.jsonl`

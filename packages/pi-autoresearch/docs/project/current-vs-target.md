@@ -58,6 +58,7 @@ Core truths now landed:
 - safer finalization with plan / approve / materialize plus freshness and git-safety fences
 - bounded orchestrator-side live supervision and AK lifecycle automation above exact package truth
 - bounded repo/problem autoplan that proposes campaign config, benchmark/check commands, scope, risks, exact setup call, optional metric-emitting `autoresearch.sh` scripts for safe generic benchmark mismatches, measurement-contract gating for whether a proposed metric may drive baseline optimization, duplicate benchmark/check command detection for package-script aliases, noise-aware duration-metric interpretation with calibration run support, `calibration_signal` labeling for calibration-only faster samples, optional DSPx `program-gen` handoff intent, and evidence-only DSPx behavior advisory proposals for an `AutoresearchSetupPlanner` candidate
+- run receipts can now carry first-class hypothesis/result lineage so a bounded run records what hypothesis/intervention was tested, expected primary effect, target files, and experiment risk without becoming AK evidence by itself
 - setup materializer that can plan/apply a config receipt or bootstrap a baseline without forcing a human slash-command wizard
 - plan-only visible peer-assist handoff through canonical `scout_peer_spawn` / `candidate_peer_spawn` / `fork_peer_spawn` calls
 - bounded in-call autoresearch loop with required iteration budget, optional wall-clock/posture gates, live progress updates, governed next-hypothesis bridge, and explicit peer-launch handoff policy

@@ -337,6 +337,14 @@ test("receipt helpers round-trip config and run entries", () => {
     checksCommand: "bash autoresearch.checks.sh",
     checksPassed: true,
     checksDurationSeconds: 0.14,
+    experiment: {
+      hypothesisId: "H-cache-layout-001",
+      hypothesis: "Caching layout lookups reduces total runtime.",
+      interventionSummary: "cache layout lookups",
+      expectedPrimaryEffect: "lower total_ms",
+      targetFiles: ["src/cache.ts"],
+      risk: "microbenchmark may not represent full workload",
+    },
   });
 
   assert.deepEqual(parseReceiptLine(serializeReceipt(config)), config);
@@ -1264,6 +1272,12 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
         metricName: "total_ms",
         metricUnit: "ms",
         direction: "lower",
+        hypothesisId: "H-baseline-001",
+        hypothesis: "Baseline establishes the current timing floor before candidate work.",
+        interventionSummary: "no code change baseline",
+        expectedPrimaryEffect: "establish total_ms baseline",
+        hypothesisTargetFiles: ["src/core/runtime.ts"],
+        experimentRisk: "single baseline sample is not optimization evidence",
       },
       undefined,
       undefined,
@@ -1272,11 +1286,27 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
 
     assert.ok(result);
     assert.match(result?.content[0]?.text ?? "", /run status: baseline/);
+    assert.match(result?.content[0]?.text ?? "", /hypothesis id: H-baseline-001/);
+    assert.match(
+      result?.content[0]?.text ?? "",
+      /expected primary effect: establish total_ms baseline/,
+    );
     assert.match(result?.content[0]?.text ?? "", /machine state: ready/);
     const details = result?.details as {
       createdConfig: boolean;
       parsedMetrics: Record<string, number>;
-      runReceipt: { status: string; metric: number };
+      runReceipt: {
+        status: string;
+        metric: number;
+        experiment?: {
+          hypothesisId: string | null;
+          hypothesis: string | null;
+          interventionSummary: string | null;
+          expectedPrimaryEffect: string | null;
+          targetFiles: string[];
+          risk: string | null;
+        };
+      };
       status: {
         currentSegment: { baselineMetric: number; bestMetric: number; runCount: number };
         runtimeProjection: {
@@ -1303,6 +1333,14 @@ test("autoresearch_runtime_run bootstraps config, executes benchmark, and append
     assert.deepEqual(details.parsedMetrics, { total_ms: 152, render_ms: 99 });
     assert.equal(details.runReceipt.status, "baseline");
     assert.equal(details.runReceipt.metric, 152);
+    assert.deepEqual(details.runReceipt.experiment, {
+      hypothesisId: "H-baseline-001",
+      hypothesis: "Baseline establishes the current timing floor before candidate work.",
+      interventionSummary: "no code change baseline",
+      expectedPrimaryEffect: "establish total_ms baseline",
+      targetFiles: ["src/core/runtime.ts"],
+      risk: "single baseline sample is not optimization evidence",
+    });
     assert.equal(details.status.currentSegment.baselineMetric, 152);
     assert.equal(details.status.currentSegment.bestMetric, 152);
     assert.equal(details.status.currentSegment.runCount, 1);
