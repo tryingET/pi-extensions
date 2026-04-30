@@ -262,11 +262,17 @@ const campaignControlSchema = Type.Object({
   ),
 });
 
+const runKindSchema = Type.Union([Type.Literal("ordinary"), Type.Literal("calibration")], {
+  description:
+    "Run kind. Calibration runs update timing/noise interpretation but should not be treated as candidate improvements.",
+});
+
 const runSchema = Type.Object({
   cwd: Type.Optional(Type.String({ description: "Optional cwd override for the bounded runtime" })),
   description: Type.String({
     description: "Short description of what this bounded run is trying.",
   }),
+  runKind: Type.Optional(runKindSchema),
   name: Type.Optional(
     Type.String({
       description:
@@ -844,6 +850,7 @@ export function registerPiAutoresearchExtension(
       const request = params as {
         cwd?: string;
         description: string;
+        runKind?: "ordinary" | "calibration";
         name?: string;
         metricName?: string;
         metricUnit?: string;
@@ -867,6 +874,7 @@ export function registerPiAutoresearchExtension(
       const result = await executeAutoresearchRun({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         description: request.description,
+        runKind: request.runKind,
         name: request.name,
         metricName: request.metricName,
         metricUnit: request.metricUnit,

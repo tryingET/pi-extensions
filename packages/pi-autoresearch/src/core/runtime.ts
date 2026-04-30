@@ -111,6 +111,7 @@ const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 
 export type MetricDirection = "lower" | "higher";
 export type RunStatus = "baseline" | "candidate" | "keep" | "discard" | "crash" | "checks_failed";
+export type AutoresearchRunKind = "ordinary" | "calibration";
 export type MetricMap = Record<string, number>;
 
 export interface AutoresearchRunDecisionSummary {
@@ -170,6 +171,7 @@ export interface AutoresearchRunReceipt {
   type: "run";
   version: 1;
   status: RunStatus;
+  runKind?: AutoresearchRunKind;
   metric: number;
   metrics: MetricMap;
   description: string;
@@ -296,6 +298,7 @@ export interface ExecuteAutoresearchRunLiveDecisionInput {
 export interface ExecuteAutoresearchRunInput {
   cwd: string;
   description: string;
+  runKind?: AutoresearchRunKind;
   name?: string;
   metricName?: string;
   metricUnit?: string;
@@ -681,6 +684,7 @@ export function createConfigReceipt(input: {
 
 export function createRunReceipt(input: {
   status: RunStatus;
+  runKind?: AutoresearchRunKind;
   metric: number;
   metrics?: MetricMap;
   description: string;
@@ -701,6 +705,7 @@ export function createRunReceipt(input: {
     type: "run",
     version: 1,
     status: input.status,
+    runKind: input.runKind,
     metric: input.metric,
     metrics: { ...(input.metrics ?? {}) },
     description: input.description,
@@ -2296,6 +2301,7 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
       : "- runtime snapshot: (unresolved)",
     `- created config: ${result.createdConfig ? "yes" : "no"}`,
     `- run status: ${result.runReceipt.status}`,
+    `- run kind: ${result.runReceipt.runKind ?? "ordinary"}`,
     `- machine state: ${result.status.runtimeProjection.state}`,
     `- machine projection source: ${result.status.runtimeProjection.source}`,
     `- snapshot reuse: ${formatAutoresearchRuntimeSnapshotReuse(result.status.runtimeSnapshot.reuse)}`,
@@ -2648,8 +2654,10 @@ export async function executeAutoresearchRun(
     metricContractFailed,
     checksPassed,
   });
+  const runKind = input.runKind ?? "ordinary";
   const runReceipt = createRunReceipt({
     status,
+    runKind: runKind === "ordinary" ? undefined : runKind,
     metric: primaryMetric,
     metrics: parsedMetrics,
     description: decorateRunDescription(
@@ -3987,11 +3995,14 @@ function describeBenchmarkFailure(
 
 function summarizeCurrentSegment(currentSegment: CurrentSegmentView): AutoresearchSegmentSummary {
   const successfulRuns = currentSegment.runs.filter(isSuccessfulMetricRun);
+  const optimizationRuns = successfulRuns.filter(
+    (run) => (run.runKind ?? "ordinary") !== "calibration",
+  );
   const baselineMetric = successfulRuns[0]?.metric ?? null;
-  let bestMetric = baselineMetric;
+  let bestMetric = optimizationRuns[0]?.metric ?? baselineMetric;
 
   if (currentSegment.config) {
-    for (const run of successfulRuns) {
+    for (const run of optimizationRuns) {
       if (
         bestMetric === null ||
         isBetter(run.metric, bestMetric, currentSegment.config.direction)
@@ -4086,6 +4097,7 @@ function parseRunReceipt(value: Record<string, unknown>): AutoresearchRunReceipt
     type: "run",
     version: 1,
     status: value.status,
+    runKind: isAutoresearchRunKind(value.runKind) ? value.runKind : undefined,
     metric: coerceNumber(value.metric, "metric"),
     metrics: parseMetricMap(value.metrics),
     description: value.description,
@@ -4457,6 +4469,10 @@ function isRunStatus(value: unknown): value is RunStatus {
     value === "crash" ||
     value === "checks_failed"
   );
+}
+
+function isAutoresearchRunKind(value: unknown): value is AutoresearchRunKind {
+  return value === "ordinary" || value === "calibration";
 }
 
 function isSuccessfulMetricRun(run: AutoresearchRunReceipt): boolean {

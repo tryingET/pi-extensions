@@ -463,6 +463,57 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.ok((status.currentSegment.confidence ?? 0) > 0);
   }));
 
+test("calibration runs inform timing noise without competing as best candidate", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "widget-speed-calibration",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        runKind: "calibration",
+        metric: 90,
+        description: "calibration sample 1",
+        timestamp: 3,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        runKind: "calibration",
+        metric: 91,
+        description: "calibration sample 2",
+        timestamp: 4,
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.successfulRunCount, 3);
+    assert.equal(status.currentSegment.bestMetric, 100);
+    assert.equal(status.currentSegment.metricInterpretation?.sampleCount, 3);
+    assert.equal(status.currentSegment.metricInterpretation?.bestMetric, 90);
+    assert.match(formatAutoresearchStatusText(status), /timing interpretation:/);
+  }));
+
 test("buildAutoresearchRuntimeStatus surfaces the current llama.cpp campaign projection", () =>
   withTempDir((cwd) => {
     const { manifestPath, receiptRootPath } = createLlamacppProjectionFixture(cwd);
