@@ -625,7 +625,7 @@ test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent
   });
 });
 
-test("autoresearch_runtime_autoplan warns when benchmark may not emit requested metric", async () => {
+test("autoresearch_runtime_autoplan proposes duration script for generic total_ms benchmark", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();
     writeFile(
@@ -635,25 +635,114 @@ test("autoresearch_runtime_autoplan warns when benchmark may not emit requested 
         scripts: { test: "node test.js", check: "node check.js" },
       }),
     );
-    const dspxOutdir = path.join(cwd, ".autoresearch/dspx/generated/autosetup-planner");
+
+    const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
+      "call-autoplan-duration-script",
+      {
+        cwd,
+        objective: "reduce test runtime",
+        metricName: "total_ms",
+        direction: "lower",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const output = result.content[0]?.text ?? "";
+    assert.match(output, /Benchmark script proposal/);
+    assert.doesNotMatch(output, /may not print required METRIC total_ms=value/);
+    const details = result.details as {
+      risks: string[];
+      nextToolCall: string;
+      benchmarkScriptProposal: { benchmarkScript: string; source: string };
+    };
+    assert.equal(details.benchmarkScriptProposal.source, "duration_wrapper");
+    assert.match(details.benchmarkScriptProposal.benchmarkScript, /npm test/);
+    assert.match(details.benchmarkScriptProposal.benchmarkScript, /METRIC total_ms=/);
+    assert.ok(
+      !details.risks.some((risk) => risk.includes("METRIC total_ms=value")),
+      "script proposal should resolve the generic metric-contract warning",
+    );
+    assert.match(details.nextToolCall, /action: "baseline"/);
+    assert.match(details.nextToolCall, /benchmarkCommand: "bash autoresearch\.sh"/);
+    assert.match(details.nextToolCall, /benchmarkScript:/);
+    assert.match(details.nextToolCall, /allowOverwriteScripts: false/);
+  });
+});
+
+test("autoresearch_runtime_autoplan does not invent score script without evidence", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-quality",
+        scripts: { test: "node test.js", check: "node check.js" },
+      }),
+    );
+
+    const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
+      "call-autoplan-score-no-evidence",
+      {
+        cwd,
+        objective: "improve setup quality",
+        metricName: "setup_quality_score",
+        direction: "higher",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    assert.match(
+      result.content[0]?.text ?? "",
+      /may not print required METRIC setup_quality_score=value/,
+    );
+    const details = result.details as {
+      risks: string[];
+      nextToolCall: string;
+      benchmarkScriptProposal: null;
+    };
+    assert.equal(details.benchmarkScriptProposal, null);
+    assert.ok(details.risks.some((risk) => risk.includes("METRIC setup_quality_score=value")));
+    assert.match(details.nextToolCall, /action: "plan"/);
+    assert.doesNotMatch(details.nextToolCall, /benchmarkScript:/);
+  });
+});
+
+test("autoresearch_runtime_autoplan proposes DSPx behavior score script for setup_quality_score", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-quality",
+        scripts: { test: "node test.js", check: "node check.js" },
+      }),
+    );
+    const dspxOutdir = path.join(cwd, ".autoresearch/dspx/generated/autosetup-planner-real");
+    const behaviorPath = path.join(dspxOutdir, "behavior_results.json");
     mkdirSync(dspxOutdir, { recursive: true });
     writeFile(
-      path.join(dspxOutdir, "behavior_results.json"),
+      behaviorPath,
       JSON.stringify({
-        summary: { status: "passed", total: 1, passed: 1, failed: 0, error: 0 },
+        summary: { status: "passed", total: 4, passed: 3, failed: 1, error: 0 },
         examples: [
           {
             index: 0,
             status: "passed",
-            inputs: { objective: "reduce test runtime" },
+            inputs: { objective: "improve setup quality" },
             observed_outputs: {
-              campaign_name: "test-runtime",
-              metric_name: "total_ms",
-              metric_unit: "ms",
-              direction: "lower",
+              campaign_name: "setup-quality",
+              metric_name: "setup_quality_score",
+              metric_unit: "percent",
+              direction: "higher",
               benchmark_command: "npm test",
               checks_command: "npm run check",
-              risks: "timing can be noisy",
+              risks: "quality score comes from DSPx behavior evidence",
               next_action: "apply setup through autoresearch_runtime_setup",
             },
           },
@@ -662,12 +751,15 @@ test("autoresearch_runtime_autoplan warns when benchmark may not emit requested 
     );
 
     const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
-      "call-autoplan-warning",
+      "call-autoplan-dspx-score-script",
       {
         cwd,
-        objective: "reduce test runtime",
+        objective: "improve setup quality",
         planner: "dspx_program",
         dspxOutdir,
+        dspxBehaviorPath: behaviorPath,
+        metricName: "setup_quality_score",
+        direction: "higher",
       },
       undefined,
       undefined,
@@ -675,22 +767,34 @@ test("autoresearch_runtime_autoplan warns when benchmark may not emit requested 
     );
 
     assert.ok(result);
-    assert.match(result.content[0]?.text ?? "", /may not print required METRIC total_ms=value/);
+    const output = result.content[0]?.text ?? "";
+    assert.match(output, /DSPx advisory evidence/);
+    assert.match(output, /Benchmark script proposal/);
     const details = result.details as {
       risks: string[];
       nextToolCall: string;
-      dspxAdvisory: { warnings: string[]; nextToolCall: string };
+      benchmarkScriptProposal: { benchmarkScript: string; source: string };
+      dspxAdvisory: {
+        warnings: string[];
+        nextToolCall: string;
+        benchmarkScriptProposal: { benchmarkScript: string; source: string };
+      };
     };
+    assert.equal(details.benchmarkScriptProposal.source, "dspx_behavior_score");
+    assert.match(details.benchmarkScriptProposal.benchmarkScript, /behavior_results\.json/);
+    assert.match(details.benchmarkScriptProposal.benchmarkScript, /METRIC setup_quality_score=/);
+    assert.ok(!details.risks.some((risk) => risk.includes("METRIC setup_quality_score=value")));
+    assert.match(details.nextToolCall, /action: "baseline"/);
+    assert.match(details.nextToolCall, /benchmarkCommand: "bash autoresearch\.sh"/);
+    assert.match(details.nextToolCall, /benchmarkScript:/);
+    assert.equal(details.dspxAdvisory.benchmarkScriptProposal.source, "dspx_behavior_score");
+    assert.match(details.dspxAdvisory.nextToolCall, /action: "baseline"/);
     assert.ok(
-      details.risks.some((risk) => risk.includes("METRIC total_ms=value")),
-      "heuristic risks should warn about generic npm test benchmark",
+      !details.dspxAdvisory.warnings.some((warning) =>
+        warning.includes("METRIC setup_quality_score=value"),
+      ),
+      "DSPx advisory should not preserve the metric warning once it proposes a score script",
     );
-    assert.match(details.nextToolCall, /action: "plan"/);
-    assert.ok(
-      details.dspxAdvisory.warnings.some((warning) => warning.includes("METRIC total_ms=value")),
-      "DSPx advisory warnings should preserve benchmark contract risk",
-    );
-    assert.match(details.dspxAdvisory.nextToolCall, /action: "plan"/);
   });
 });
 

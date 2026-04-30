@@ -342,6 +342,14 @@ export interface AutoresearchDspxAdvisoryProposal {
   nextAction: string | null;
 }
 
+export interface AutoresearchBenchmarkScriptProposal {
+  benchmarkCommand: "bash autoresearch.sh";
+  benchmarkScript: string;
+  allowOverwriteScripts: false;
+  reason: string;
+  source: "duration_wrapper" | "dspx_behavior_score";
+}
+
 export interface AutoresearchDspxAdvisory {
   authority: "evidence_only_non_authoritative";
   behaviorPath: string;
@@ -354,6 +362,7 @@ export interface AutoresearchDspxAdvisory {
   matchedObjective: boolean;
   selectedExampleIndex: number | null;
   proposal: AutoresearchDspxAdvisoryProposal | null;
+  benchmarkScriptProposal: AutoresearchBenchmarkScriptProposal | null;
   warnings: string[];
   nextToolCall: string | null;
 }
@@ -376,6 +385,7 @@ export interface AutoresearchAutoplanResult {
   checksCommand: string | null;
   benchmarkScriptPresent: boolean;
   checksScriptPresent: boolean;
+  benchmarkScriptProposal: AutoresearchBenchmarkScriptProposal | null;
   packageScripts: Record<string, string>;
   justRecipes: string[];
   filesInScope: string[];
@@ -756,12 +766,6 @@ export function buildAutoresearchAutoplan(
     benchmarkCommand,
     metric.metricName,
   );
-  const risks = buildAutoplanRisks({
-    benchmarkCommand,
-    checksCommand,
-    metricName: metric.metricName,
-    status,
-  });
   const config = createConfigReceipt({
     name,
     metricName: metric.metricName,
@@ -770,8 +774,6 @@ export function buildAutoresearchAutoplan(
     benchmarkCommand: benchmarkCommand ?? undefined,
     checksCommand: checksCommand ?? undefined,
   });
-  const nextAction: AutoresearchSetupAction = benchmarkMetricWarning ? "plan" : "baseline";
-  const nextToolCall = `autoresearch_runtime_setup({ action: ${JSON.stringify(nextAction)}, cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(config.name)}, metricName: ${JSON.stringify(config.metricName)}, metricUnit: ${JSON.stringify(config.metricUnit)}, direction: ${JSON.stringify(config.direction)}, benchmarkCommand: ${JSON.stringify(benchmarkCommand ?? "<benchmark command required>")}, checksCommand: ${checksCommand === null ? "null" : JSON.stringify(checksCommand)} })`;
   const dspxProgramGen =
     input.planner === "dspx_program"
       ? buildDspxProgramGenPlan({
@@ -797,6 +799,36 @@ export function buildAutoresearchAutoplan(
           outdir: dspxProgramGen.outdir,
         })
       : null;
+  const benchmarkScriptProposal = buildMetricBenchmarkScriptProposal({
+    cwd,
+    benchmarkCommand,
+    metricName: metric.metricName,
+    direction: metric.direction,
+    benchmarkMetricWarning,
+    benchmarkScriptPresent: existsSync(paths.benchmarkScriptPath),
+    dspxBehaviorPath: dspxAdvisory?.available ? dspxAdvisory.behaviorPath : null,
+    dspxTotal: dspxAdvisory?.total ?? 0,
+  });
+  const risks = buildAutoplanRisks({
+    benchmarkCommand,
+    checksCommand,
+    metricName: metric.metricName,
+    status,
+    benchmarkMetricWarning: benchmarkScriptProposal ? null : benchmarkMetricWarning,
+  });
+  const nextAction: AutoresearchSetupAction =
+    benchmarkMetricWarning && !benchmarkScriptProposal ? "plan" : "baseline";
+  const nextToolCall = formatAutoplanSetupToolCall({
+    cwd,
+    config,
+    action: nextAction,
+    benchmarkCommand:
+      benchmarkScriptProposal?.benchmarkCommand ??
+      benchmarkCommand ??
+      "<benchmark command required>",
+    checksCommand,
+    benchmarkScriptProposal,
+  });
 
   return {
     cwd,
@@ -807,6 +839,7 @@ export function buildAutoresearchAutoplan(
     checksCommand,
     benchmarkScriptPresent: existsSync(paths.benchmarkScriptPath),
     checksScriptPresent: existsSync(paths.checksScriptPath),
+    benchmarkScriptProposal,
     packageScripts,
     justRecipes,
     filesInScope,
@@ -841,6 +874,17 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
     "",
     "## Risks",
     ...(result.risks.length > 0 ? result.risks.map((risk) => `- ${risk}`) : ["- none detected"]),
+    ...(result.benchmarkScriptProposal
+      ? [
+          "",
+          "## Benchmark script proposal",
+          `- source: ${result.benchmarkScriptProposal.source}`,
+          `- reason: ${result.benchmarkScriptProposal.reason}`,
+          "```bash",
+          result.benchmarkScriptProposal.benchmarkScript.trimEnd(),
+          "```",
+        ]
+      : []),
     "",
     "## Next exact tool call",
     `\`${result.nextToolCall}\``,
@@ -873,6 +917,17 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
                 `- proposed next action: ${result.dspxAdvisory.proposal.nextAction ?? "(missing)"}`,
               ]
             : ["- proposal: (none)"]),
+          ...(result.dspxAdvisory.benchmarkScriptProposal
+            ? [
+                "",
+                "### DSPx advisory benchmark script proposal",
+                `- source: ${result.dspxAdvisory.benchmarkScriptProposal.source}`,
+                `- reason: ${result.dspxAdvisory.benchmarkScriptProposal.reason}`,
+                "```bash",
+                result.dspxAdvisory.benchmarkScriptProposal.benchmarkScript.trimEnd(),
+                "```",
+              ]
+            : []),
           ...(result.dspxAdvisory.nextToolCall
             ? ["", "### DSPx advisory setup call", `\`${result.dspxAdvisory.nextToolCall}\``]
             : []),
@@ -1127,6 +1182,7 @@ function buildAutoplanRisks(input: {
   checksCommand: string | null;
   metricName: string;
   status: AutoresearchRuntimeStatus;
+  benchmarkMetricWarning?: string | null;
 }): string[] {
   const risks: string[] = [];
   if (!input.benchmarkCommand) {
@@ -1139,10 +1195,10 @@ function buildAutoplanRisks(input: {
       "no checks command was detected; loop safety will rely on benchmark exit status only",
     );
   }
-  const metricWarning = buildBenchmarkMetricContractWarning(
-    input.benchmarkCommand,
-    input.metricName,
-  );
+  const metricWarning =
+    input.benchmarkMetricWarning === undefined
+      ? buildBenchmarkMetricContractWarning(input.benchmarkCommand, input.metricName)
+      : input.benchmarkMetricWarning;
   if (metricWarning) risks.push(metricWarning);
   if (input.status.currentSegment.configured) {
     risks.push(
@@ -1176,6 +1232,125 @@ function buildBenchmarkMetricContractWarning(
   ]);
   if (!genericCommands.has(normalized)) return null;
   return `benchmark command ${JSON.stringify(command)} may not print required METRIC ${metric}=value; provide a benchmark script or explicit benchmarkCommand that emits the metric`;
+}
+
+function buildMetricBenchmarkScriptProposal(input: {
+  cwd: string;
+  benchmarkCommand: string | null;
+  metricName: string;
+  direction: MetricDirection;
+  benchmarkMetricWarning: string | null;
+  benchmarkScriptPresent: boolean;
+  dspxBehaviorPath?: string | null;
+  dspxTotal?: number;
+}): AutoresearchBenchmarkScriptProposal | null {
+  if (!input.benchmarkMetricWarning || !input.benchmarkCommand) return null;
+  if (input.benchmarkScriptPresent) return null;
+  if (!isMetricNameScriptSafe(input.metricName)) return null;
+
+  if (isScoreLikeMetricName(input.metricName)) {
+    if (!input.dspxBehaviorPath || !input.dspxTotal || input.dspxTotal <= 0) return null;
+    return {
+      benchmarkCommand: "bash autoresearch.sh",
+      benchmarkScript: buildDspxBehaviorScoreBenchmarkScript({
+        cwd: input.cwd,
+        behaviorPath: input.dspxBehaviorPath,
+        metricName: input.metricName,
+      }),
+      allowOverwriteScripts: false,
+      reason:
+        "generic benchmark command does not emit the requested score metric; compute the score from existing DSPx behavior_results.json evidence instead of inventing a score from test output",
+      source: "dspx_behavior_score",
+    };
+  }
+
+  if (input.direction !== "lower") return null;
+  return {
+    benchmarkCommand: "bash autoresearch.sh",
+    benchmarkScript: buildDurationBenchmarkScript(input.benchmarkCommand, input.metricName),
+    allowOverwriteScripts: false,
+    reason:
+      "generic benchmark command does not emit METRIC output; wrap it with a bounded local duration measurement",
+    source: "duration_wrapper",
+  };
+}
+
+function buildDurationBenchmarkScript(benchmarkCommand: string, metricName: string): string {
+  return [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "",
+    "start_ms=$(node -e 'console.log(Date.now())')",
+    benchmarkCommand.trim(),
+    "end_ms=$(node -e 'console.log(Date.now())')",
+    `echo "METRIC ${metricName}=$((end_ms - start_ms))"`,
+    "",
+  ].join("\n");
+}
+
+function buildDspxBehaviorScoreBenchmarkScript(input: {
+  cwd: string;
+  behaviorPath: string;
+  metricName: string;
+}): string {
+  const behaviorPathForScript = formatLocalScriptPath(input.cwd, input.behaviorPath);
+  return [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "",
+    `DSPX_BEHAVIOR_PATH=${shellSingleQuote(behaviorPathForScript)} node <<'NODE'`,
+    'const fs = require("node:fs");',
+    "const behaviorPath = process.env.DSPX_BEHAVIOR_PATH;",
+    "if (!behaviorPath) throw new Error('DSPX_BEHAVIOR_PATH is required');",
+    "const payload = JSON.parse(fs.readFileSync(behaviorPath, 'utf8'));",
+    "const summary = payload && typeof payload.summary === 'object' && payload.summary ? payload.summary : {};",
+    "const examples = Array.isArray(payload?.examples) ? payload.examples : [];",
+    "const numeric = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : null);",
+    "let total = numeric(summary.total);",
+    "let passed = numeric(summary.passed);",
+    "if (total === null || total <= 0) total = examples.length;",
+    "if (passed === null) passed = examples.filter((example) => example?.status === 'passed').length;",
+    "if (!Number.isFinite(total) || total <= 0) throw new Error('DSPx behavior evidence has no examples to score');",
+    "const score = (passed / total) * 100;",
+    `console.log(\`METRIC ${input.metricName}=\${score}\`);`,
+    "NODE",
+    "",
+  ].join("\n");
+}
+
+function isScoreLikeMetricName(metricName: string): boolean {
+  return /(?:score|quality|accuracy|coverage|success|pass(?:ed)?(?:_|-)?rate|percent|pct)/iu.test(
+    metricName,
+  );
+}
+
+function isMetricNameScriptSafe(metricName: string): boolean {
+  return /^[\w.µ:-]+$/u.test(metricName) && !DENIED_METRIC_NAMES.has(metricName);
+}
+
+function formatLocalScriptPath(cwd: string, targetPath: string): string {
+  const absoluteTarget = path.isAbsolute(targetPath) ? targetPath : path.resolve(cwd, targetPath);
+  const relative = path.relative(cwd, absoluteTarget);
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) return relative;
+  return absoluteTarget;
+}
+
+function shellSingleQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function formatAutoplanSetupToolCall(input: {
+  cwd: string;
+  config: AutoresearchConfigReceipt;
+  action: AutoresearchSetupAction;
+  benchmarkCommand: string;
+  checksCommand: string | null;
+  benchmarkScriptProposal?: AutoresearchBenchmarkScriptProposal | null;
+}): string {
+  const scriptFields = input.benchmarkScriptProposal
+    ? `, benchmarkScript: ${JSON.stringify(input.benchmarkScriptProposal.benchmarkScript)}, allowOverwriteScripts: false`
+    : "";
+  return `autoresearch_runtime_setup({ action: ${JSON.stringify(input.action)}, cwd: ${JSON.stringify(input.cwd)}, name: ${JSON.stringify(input.config.name)}, metricName: ${JSON.stringify(input.config.metricName)}, metricUnit: ${JSON.stringify(input.config.metricUnit)}, direction: ${JSON.stringify(input.config.direction)}, benchmarkCommand: ${JSON.stringify(input.benchmarkCommand)}, checksCommand: ${input.checksCommand === null ? "null" : JSON.stringify(input.checksCommand)}${scriptFields} })`;
 }
 
 function buildDspxProgramGenPlan(input: {
@@ -1235,6 +1410,7 @@ function readDspxAutoplanAdvisory(input: {
     matchedObjective: false,
     selectedExampleIndex: null,
     proposal: null,
+    benchmarkScriptProposal: null,
     warnings: ["DSPx behavior_results.json is not present yet; run the program-gen handoff first"],
     nextToolCall: null,
   };
@@ -1261,6 +1437,28 @@ function readDspxAutoplanAdvisory(input: {
       selected && isRecord(selected.observed_outputs) ? selected.observed_outputs : null;
     const proposal = observed ? parseDspxAdvisoryProposal(observed) : null;
     const status = stringOrNull(summary.status) ?? stringOrNull(payload.behavior_status);
+    const total = numberOrZero(summary.total);
+    const passed = numberOrZero(summary.passed);
+    const failed = numberOrZero(summary.failed);
+    const error = numberOrZero(summary.error);
+    const metricWarning = buildBenchmarkMetricContractWarning(
+      proposal?.benchmarkCommand ?? null,
+      proposal?.metricName ?? null,
+    );
+    const benchmarkScriptProposal = proposal?.metricName
+      ? buildMetricBenchmarkScriptProposal({
+          cwd: input.cwd,
+          benchmarkCommand: proposal.benchmarkCommand,
+          metricName: proposal.metricName,
+          direction: proposal.direction ?? "lower",
+          benchmarkMetricWarning: metricWarning,
+          benchmarkScriptPresent: existsSync(
+            resolveAutoresearchPaths(input.cwd).benchmarkScriptPath,
+          ),
+          dspxBehaviorPath: behaviorPath,
+          dspxTotal: total,
+        })
+      : null;
     const warnings: string[] = [];
     if (!exact)
       warnings.push(
@@ -1268,24 +1466,21 @@ function readDspxAutoplanAdvisory(input: {
       );
     if (status && status !== "passed") warnings.push(`DSPx behavior evidence status is ${status}`);
     if (!proposal) warnings.push("DSPx behavior evidence has no observable setup proposal");
-    const metricWarning = buildBenchmarkMetricContractWarning(
-      proposal?.benchmarkCommand ?? null,
-      proposal?.metricName ?? null,
-    );
-    if (metricWarning) warnings.push(metricWarning);
-    const nextToolCall = proposalToSetupToolCall(input.cwd, proposal);
+    if (metricWarning && !benchmarkScriptProposal) warnings.push(metricWarning);
+    const nextToolCall = proposalToSetupToolCall(input.cwd, proposal, benchmarkScriptProposal);
     return {
       authority: "evidence_only_non_authoritative",
       behaviorPath,
       available: true,
       status,
-      total: numberOrZero(summary.total),
-      passed: numberOrZero(summary.passed),
-      failed: numberOrZero(summary.failed),
-      error: numberOrZero(summary.error),
+      total,
+      passed,
+      failed,
+      error,
       matchedObjective: Boolean(exact),
       selectedExampleIndex: selected ? numberOrNull(selected.index) : null,
       proposal,
+      benchmarkScriptProposal,
       warnings,
       nextToolCall,
     };
@@ -1317,6 +1512,7 @@ function parseDspxAdvisoryProposal(
 function proposalToSetupToolCall(
   cwd: string,
   proposal: AutoresearchDspxAdvisoryProposal | null,
+  benchmarkScriptProposal: AutoresearchBenchmarkScriptProposal | null = null,
 ): string | null {
   if (
     !proposal?.campaignName ||
@@ -1326,13 +1522,25 @@ function proposalToSetupToolCall(
   ) {
     return null;
   }
-  const action: AutoresearchSetupAction = buildBenchmarkMetricContractWarning(
+  const metricWarning = buildBenchmarkMetricContractWarning(
     proposal.benchmarkCommand,
     proposal.metricName,
-  )
-    ? "plan"
-    : "baseline";
-  return `autoresearch_runtime_setup({ action: ${JSON.stringify(action)}, cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(proposal.campaignName)}, metricName: ${JSON.stringify(proposal.metricName)}, metricUnit: ${JSON.stringify(proposal.metricUnit)}, direction: ${JSON.stringify(proposal.direction)}, benchmarkCommand: ${JSON.stringify(proposal.benchmarkCommand)}, checksCommand: ${proposal.checksCommand === null ? "null" : JSON.stringify(proposal.checksCommand)} })`;
+  );
+  const action: AutoresearchSetupAction =
+    metricWarning && !benchmarkScriptProposal ? "plan" : "baseline";
+  return formatAutoplanSetupToolCall({
+    cwd,
+    config: createConfigReceipt({
+      name: proposal.campaignName,
+      metricName: proposal.metricName,
+      metricUnit: proposal.metricUnit,
+      direction: proposal.direction,
+    }),
+    action,
+    benchmarkCommand: benchmarkScriptProposal?.benchmarkCommand ?? proposal.benchmarkCommand,
+    checksCommand: proposal.checksCommand,
+    benchmarkScriptProposal,
+  });
 }
 
 function stringOrNull(value: unknown): string | null {
