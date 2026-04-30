@@ -8,6 +8,8 @@ import { DynamicBorder } from "@mariozechner/pi-coding-agent";
 import { Container, type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
 
 const RECENT_ACTION_WINDOW_MS = 5000;
+const RECENT_ARTIFACT_WINDOW_MS = 60 * 60 * 1000;
+const MAX_RECENT_ARTIFACTS = 50;
 const HTML_WIDGET_ID = "html-output-browser";
 const MAX_ARTIFACT_DEPTH = 5;
 const MAX_ARTIFACT_RESULTS = 200;
@@ -59,6 +61,11 @@ type ArtifactTarget = {
 type BrowserOpenCommand = {
   command: string;
   args: string[];
+};
+
+type RecentArtifactEntry = {
+  absolutePath: string;
+  seenAtMs: number;
 };
 
 export type HtmlOutputBrowserDeps = {
@@ -175,6 +182,61 @@ function isExcludedDir(name: string): boolean {
   return EXCLUDED_DIRS.has(name);
 }
 
+function rememberRecentArtifact(
+  recentArtifacts: Map<string, RecentArtifactEntry>,
+  target: ArtifactTarget,
+  seenAtMs: number,
+): void {
+  recentArtifacts.delete(target.absolutePath);
+  recentArtifacts.set(target.absolutePath, {
+    absolutePath: target.absolutePath,
+    seenAtMs,
+  });
+
+  while (recentArtifacts.size > MAX_RECENT_ARTIFACTS) {
+    const oldestKey = recentArtifacts.keys().next().value;
+    if (typeof oldestKey !== "string") return;
+    recentArtifacts.delete(oldestKey);
+  }
+}
+
+function getRecentArtifactTargets(
+  cwd: string,
+  recentArtifacts: Map<string, RecentArtifactEntry>,
+  currentTime: number,
+): ArtifactTarget[] {
+  const targets: ArtifactTarget[] = [];
+
+  for (const [absolutePath, entry] of recentArtifacts) {
+    if (currentTime - entry.seenAtMs > RECENT_ARTIFACT_WINDOW_MS) {
+      recentArtifacts.delete(absolutePath);
+      continue;
+    }
+
+    const target = resolveArtifactTarget(cwd, entry.absolutePath);
+    if (!target) {
+      recentArtifacts.delete(absolutePath);
+      continue;
+    }
+
+    targets.push(target);
+  }
+
+  return targets.sort((a, b) => {
+    const aSeenAt = recentArtifacts.get(a.absolutePath)?.seenAtMs ?? 0;
+    const bSeenAt = recentArtifacts.get(b.absolutePath)?.seenAtMs ?? 0;
+    return bSeenAt - aSeenAt || b.mtimeMs - a.mtimeMs || a.prettyPath.localeCompare(b.prettyPath);
+  });
+}
+
+function sortArtifactTargets(targets: ArtifactTarget[]): ArtifactTarget[] {
+  return targets.sort((a, b) => {
+    const htmlBias = Number(isHtmlPath(b.absolutePath)) - Number(isHtmlPath(a.absolutePath));
+    if (htmlBias !== 0) return htmlBias;
+    return b.mtimeMs - a.mtimeMs || a.prettyPath.localeCompare(b.prettyPath);
+  });
+}
+
 export function discoverArtifactTargets(cwd: string): ArtifactTarget[] {
   const targets: ArtifactTarget[] = [];
 
@@ -206,11 +268,7 @@ export function discoverArtifactTargets(cwd: string): ArtifactTarget[] {
 
   visit(cwd, 0);
 
-  return targets.sort((a, b) => {
-    const htmlBias = Number(isHtmlPath(b.absolutePath)) - Number(isHtmlPath(a.absolutePath));
-    if (htmlBias !== 0) return htmlBias;
-    return b.mtimeMs - a.mtimeMs || a.prettyPath.localeCompare(b.prettyPath);
-  });
+  return sortArtifactTargets(targets);
 }
 
 function getBrowserOpenCommand(fileUrl: string): BrowserOpenCommand {
@@ -243,6 +301,7 @@ export function createHtmlOutputBrowserExtension(
   const spawnImpl = deps.spawn ?? spawn;
   const now = deps.now ?? (() => Date.now());
   const recentHtmlActions = new Map<string, number>();
+  const recentArtifacts = new Map<string, RecentArtifactEntry>();
 
   function shouldAutoOpen(absolutePath: string): boolean {
     const currentTime = now();
@@ -313,17 +372,27 @@ export function createHtmlOutputBrowserExtension(
   async function showArtifactPicker(ctx: ExtensionContext): Promise<void> {
     if (!ctx.hasUI) return;
 
-    const targets = discoverArtifactTargets(ctx.cwd);
+    const recentTargets = getRecentArtifactTargets(ctx.cwd, recentArtifacts, now());
+    const recentAbsolutePaths = new Set(recentTargets.map((target) => target.absolutePath));
+    const discoveredTargets = discoverArtifactTargets(ctx.cwd).filter(
+      (target) => !recentAbsolutePaths.has(target.absolutePath),
+    );
+    const targets = [...recentTargets, ...discoveredTargets];
     if (targets.length === 0) {
       ctx.ui.notify("No openable artifacts found in this workspace", "info");
       return;
     }
 
-    const items: SelectItem[] = targets.map((target, index) => ({
-      value: String(index),
-      label: `[${target.kind}] ${target.prettyPath}`,
-      description: target.fileUrl,
-    }));
+    const items: SelectItem[] = targets.map((target, index) => {
+      const kind = recentAbsolutePaths.has(target.absolutePath)
+        ? `recent ${target.kind}`
+        : target.kind;
+      return {
+        value: String(index),
+        label: `[${kind}] ${target.prettyPath}`,
+        description: target.fileUrl,
+      };
+    });
 
     const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
       const container = new Container();
@@ -370,12 +439,14 @@ export function createHtmlOutputBrowserExtension(
       if (event.toolName !== "write" && event.toolName !== "edit") return undefined;
 
       const rawPath = normalizeToolPath(event.input);
+      const target = rawPath ? resolveArtifactTarget(ctx.cwd, rawPath) : undefined;
+      if (target) rememberRecentArtifact(recentArtifacts, target, now());
+
       if (!rawPath || !isHtmlPath(rawPath)) {
         clearHtmlWidget(ctx);
         return undefined;
       }
 
-      const target = resolveArtifactTarget(ctx.cwd, rawPath);
       if (!target) {
         clearHtmlWidget(ctx);
         return undefined;
@@ -397,6 +468,7 @@ export function createHtmlOutputBrowserExtension(
             ctx.ui.notify(`Artifact not found or unsupported: ${requestedPath}`, "warning");
             return;
           }
+          rememberRecentArtifact(recentArtifacts, target, now());
           await presentArtifactTarget(ctx, target);
           return;
         }

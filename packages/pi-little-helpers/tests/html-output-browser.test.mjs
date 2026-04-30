@@ -39,19 +39,25 @@ function registerExtension(extension) {
   };
 }
 
-function createUiHarness() {
+function createUiHarness({ custom } = {}) {
   const notifications = [];
   const widgets = [];
+  const customCalls = [];
 
   return {
     notifications,
     widgets,
+    customCalls,
     ui: {
       notify(message, type = "info") {
         notifications.push({ message, type });
       },
       setWidget(key, content, options) {
         widgets.push({ key, content, options });
+      },
+      async custom(...args) {
+        customCalls.push(args);
+        return custom ? custom(...args) : null;
       },
     },
   };
@@ -287,6 +293,49 @@ test("artifact discovery includes HTML and generated JSON artifacts while skippi
     assert.equal(isOpenableArtifactPath("plain.json"), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("recent non-workspace image writes are included in the artifact picker", async () => {
+  const dir = createTempDir();
+  const artifactDir = createTempDir();
+  const imagePath = join(artifactDir, "capture.png");
+  writeFileSync(imagePath, "not really a png, but enough for opener routing");
+
+  try {
+    const spawnStub = createSpawnStub();
+    const uiHarness = createUiHarness({ custom: async () => "0" });
+    const { shortcuts, toolResultHandler } = registerExtension(
+      createHtmlOutputBrowserExtension({ spawn: spawnStub.spawnImpl }),
+    );
+    const ctx = createContext(dir, uiHarness);
+
+    const toolResult = await toolResultHandler(
+      {
+        isError: false,
+        toolName: "write",
+        input: { path: imagePath },
+        content: [{ type: "text", text: "Saved image" }],
+      },
+      ctx,
+    );
+
+    assert.equal(toolResult, undefined);
+    assert.equal(spawnStub.calls.length, 0);
+
+    await shortcuts.get("ctrl+shift+s").handler(ctx);
+
+    assert.equal(uiHarness.customCalls.length, 1);
+    assert.equal(spawnStub.calls.length, 1);
+    assert.equal(spawnStub.calls[0].args.at(-1), pathToFileURL(imagePath).href);
+    assert.equal(uiHarness.notifications.at(-1).type, "info");
+    assert.match(
+      uiHarness.notifications.at(-1).message,
+      /Opened artifact in browser: .*capture\.png/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(artifactDir, { recursive: true, force: true });
   }
 });
 

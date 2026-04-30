@@ -22,7 +22,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | Extension | Description |
 |---|---|
 | `code-block-picker` | Pick a code block from the conversation and copy it safely to the clipboard |
-| `html-output-browser` | Auto-open written/edited HTML files in the browser, append clickable `file://` links to tool output, and expose `/artifacts` / `/show-artifacts` plus `Ctrl+Shift+S` to pick an openable artifact from the workspace |
+| `html-output-browser` | Auto-open written/edited HTML files in the browser, append clickable `file://` links to tool output, and expose `/artifacts` / `/show-artifacts` plus `Ctrl+Shift+S` to pick an openable artifact from the workspace or recently written outside it |
 | `package-update-notify` | Check for updates to pinned npm/git packages in Pi settings |
 | `session-presence` | Publish exact Pi session identity for Steve's Ghostty/Niri hourly observation and hot restore flow |
 | `sidequest` | Human slash command to fork the current Pi session into the current Ghostty window as a new tab when supported; otherwise a new Ghostty window |
