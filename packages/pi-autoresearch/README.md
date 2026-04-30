@@ -48,6 +48,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
+  - can build a package-local segment closeout packet (`action: "closeout"`) summarizing runs, hypotheses, candidate bindings, empirical decision, timing interpretation, recommended action, and the evidence boundary before AK/KES promotion
   - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, the current llama.cpp manifest-campaign projection state when one has been projected locally, and visible peer-lane recommendations for optional `scout_peer_spawn` / `candidate_peer_spawn` use without auto-spawning peers
 - `autoresearch_runtime_autoplan`
   - explores the local repo/problem space from a bounded objective and proposes campaign setup: name, metric, direction, benchmark command, checks command, scope, risks, and exact next tool call

@@ -305,6 +305,38 @@ export interface AutoresearchRuntimeProjection {
   syncIssues: readonly string[];
 }
 
+export interface AutoresearchSegmentCloseoutRun {
+  iteration: number | null;
+  status: RunStatus;
+  runKind: AutoresearchRunKind;
+  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
+  metric: number;
+  description: string;
+  timestamp: number;
+  checks: string;
+  experiment: AutoresearchExperimentLineage | null;
+}
+
+export interface AutoresearchSegmentCloseout {
+  cwd: string;
+  receiptPath: string;
+  status: AutoresearchRuntimeStatus;
+  campaign: string | null;
+  metricName: string | null;
+  metricUnit: string;
+  direction: MetricDirection | null;
+  runCount: number;
+  successfulRunCount: number;
+  baselineMetric: number | null;
+  bestMetric: number | null;
+  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
+  timingInterpretation: AutoresearchMetricInterpretation | null;
+  runs: AutoresearchSegmentCloseoutRun[];
+  candidateBindings: AutoresearchCandidateBinding[];
+  recommendedAction: string;
+  evidenceBoundary: string;
+}
+
 export interface AutoresearchRuntimeStatus {
   phase: typeof AUTORESEARCH_PHASE;
   cwd?: string;
@@ -2038,6 +2070,62 @@ export function buildAutoresearchRuntimeStatus(
   });
 }
 
+export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegmentCloseout {
+  const resolvedCwd = path.resolve(cwd);
+  const paths = resolveAutoresearchPaths(resolvedCwd);
+  const { entries, invalidLineCount } = loadReceiptLog(resolvedCwd);
+  const status = buildAutoresearchRuntimeStatusFromEntries(
+    resolvedCwd,
+    paths,
+    entries,
+    invalidLineCount,
+    { persistSnapshot: false },
+  );
+  const currentSegment = getCurrentSegment(entries);
+  const successfulRuns = currentSegment.runs.filter(isSuccessfulMetricRun);
+  const candidateBindings = currentSegment.runs
+    .map((run) => run.experiment?.candidate)
+    .filter((binding): binding is AutoresearchCandidateBinding => Boolean(binding));
+
+  return {
+    cwd: resolvedCwd,
+    receiptPath: paths.jsonlPath,
+    status,
+    campaign: status.currentSegment.name,
+    metricName: status.currentSegment.metricName,
+    metricUnit: status.currentSegment.metricUnit,
+    direction: status.currentSegment.direction,
+    runCount: status.currentSegment.runCount,
+    successfulRunCount: status.currentSegment.successfulRunCount,
+    baselineMetric: status.currentSegment.baselineMetric,
+    bestMetric: status.currentSegment.bestMetric,
+    empiricalDecisionClass: status.currentSegment.empiricalDecisionClass,
+    timingInterpretation: status.currentSegment.metricInterpretation,
+    runs: currentSegment.runs.map((run) => ({
+      iteration: run.iteration ?? null,
+      status: run.status,
+      runKind: run.runKind ?? "ordinary",
+      empiricalDecisionClass:
+        run.empiricalDecisionClass ??
+        classifyRunEmpiricalDecision(
+          run,
+          successfulRuns,
+          currentSegment.config,
+          status.currentSegment.metricInterpretation,
+        ),
+      metric: run.metric,
+      description: run.description,
+      timestamp: run.timestamp,
+      checks: describeChecksState(run),
+      experiment: run.experiment ?? null,
+    })),
+    candidateBindings,
+    recommendedAction: recommendSegmentCloseoutAction(status.currentSegment.empiricalDecisionClass),
+    evidenceBoundary:
+      "Segment closeout is package-local empirical evidence only; promote to AK evidence or KES learning through explicit owner surfaces.",
+  };
+}
+
 function formatAutoresearchPeerLaneRecommendations(input: {
   cwd?: string;
   runStatus?: RunStatus | null;
@@ -2240,6 +2328,45 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     "",
     "## Peer lane recommendations",
     ...formatAutoresearchPeerLaneRecommendations({ cwd: status.cwd }),
+  ].join("\n");
+}
+
+export function formatAutoresearchSegmentCloseout(closeout: AutoresearchSegmentCloseout): string {
+  const metricUnit = closeout.metricUnit;
+  const runLines = closeout.runs.map((run) => {
+    const experimentLabel = run.experiment
+      ? ` | hypothesis ${formatExperimentLabel(run.experiment)}`
+      : "";
+    const candidateLabel = run.experiment?.candidate?.branch
+      ? ` | candidate ${run.experiment.candidate.branch}`
+      : "";
+    return `- iteration ${run.iteration ?? "?"}: ${run.status}/${run.runKind} | empirical ${run.empiricalDecisionClass} | metric ${formatMetricValue(run.metric, metricUnit)} | checks ${run.checks}${experimentLabel}${candidateLabel} | ${run.description}`;
+  });
+  const candidateLines = closeout.candidateBindings.flatMap((binding, index) => [
+    `- candidate ${index + 1}:`,
+    ...formatCandidateBindingLines(binding).map((line) => `  ${line}`),
+  ]);
+
+  return [
+    "# PI-AUTORESEARCH SEGMENT CLOSEOUT",
+    "",
+    `- cwd: ${closeout.cwd}`,
+    `- receipt log: ${closeout.receiptPath}`,
+    `- campaign: ${closeout.campaign ?? "(unnamed)"}`,
+    `- metric: ${closeout.metricName ?? "(unset)"} (${metricUnit || "unitless"}, ${closeout.direction ?? "unset"} is better)`,
+    `- runs: ${closeout.runCount} total / ${closeout.successfulRunCount} successful`,
+    `- baseline: ${formatMetricValue(closeout.baselineMetric, metricUnit)}`,
+    `- best: ${formatMetricValue(closeout.bestMetric, metricUnit)}`,
+    `- empirical decision: ${closeout.empiricalDecisionClass}`,
+    `- timing interpretation: ${formatMetricInterpretation(closeout.timingInterpretation, metricUnit)}`,
+    `- recommended action: ${closeout.recommendedAction}`,
+    `- evidence boundary: ${closeout.evidenceBoundary}`,
+    "",
+    "## Runs",
+    ...(runLines.length > 0 ? runLines : ["- (none)"]),
+    "",
+    "## Candidate bindings",
+    ...(candidateLines.length > 0 ? candidateLines : ["- (none)"]),
   ].join("\n");
 }
 
@@ -4468,6 +4595,29 @@ function cloneAutoresearchControlState(
 
 function formatTargetFiles(files: readonly string[]): string {
   return files.length > 0 ? files.join(", ") : "(none)";
+}
+
+function recommendSegmentCloseoutAction(decisionClass: AutoresearchEmpiricalDecisionClass): string {
+  switch (decisionClass) {
+    case "candidate_improvement":
+      return "verify or finalize the candidate through explicit review/evidence promotion";
+    case "candidate_regression":
+    case "checks_failed":
+    case "measurement_invalid":
+      return "discard the candidate or diagnose the measurement/check failure before another optimization run";
+    case "calibration_signal":
+    case "insufficient_samples":
+    case "possible_noise":
+      return "collect more evidence or rebaseline before treating the segment as an improvement";
+    case "baseline_drift":
+      return "investigate environment drift and consider an explicit rebaseline";
+    case "candidate_neutral":
+      return "treat as neutral; keep only if there is a non-metric reason and record that separately";
+    case "baseline":
+      return "run a scoped candidate or calibration sample before finalizing";
+    case "not_evaluated":
+      return "configure and run a bounded segment before closeout";
+  }
 }
 
 function normalizeCandidateBinding(

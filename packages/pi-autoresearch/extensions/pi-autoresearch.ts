@@ -40,6 +40,7 @@ import {
   buildAutoresearchAutoplan,
   buildAutoresearchPeerAssistPlan,
   buildAutoresearchRuntimeStatus,
+  buildAutoresearchSegmentCloseout,
   executeAutoresearchLoop,
   executeAutoresearchRun,
   executeAutoresearchSetup,
@@ -49,6 +50,7 @@ import {
   formatAutoresearchLoopResult,
   formatAutoresearchPeerAssistPlan,
   formatAutoresearchRunResult,
+  formatAutoresearchSegmentCloseout,
   formatAutoresearchSetupResult,
   formatAutoresearchStatusText,
   inspectAutoresearchRuntimeControl,
@@ -82,10 +84,15 @@ const nullableStringSchema = Type.Union([
   Type.Null({ description: "Explicitly clear this string value." }),
 ]);
 const statusActionSchema = Type.Union(
-  [Type.Literal("status"), Type.Literal("setup"), Type.Literal("finalize")],
+  [
+    Type.Literal("status"),
+    Type.Literal("setup"),
+    Type.Literal("finalize"),
+    Type.Literal("closeout"),
+  ],
   {
     description:
-      "Inspect status, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
+      "Inspect status, build a package-local segment closeout packet, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
   },
 );
 
@@ -733,13 +740,13 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, or request a governed setup/finalize packet through the existing runtime surface.",
+      "Inspect the current pi-autoresearch bounded runtime, build a package-local segment closeout packet, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, and optionally request a governed setup/finalize packet.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout packet, and optionally request a governed setup/finalize packet.",
     parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
-        action?: "status" | "setup" | "finalize";
+        action?: "status" | "setup" | "finalize" | "closeout";
         cwd?: string;
         optimizationObjective?: string;
         repoContext?: string[];
@@ -796,6 +803,14 @@ export function registerPiAutoresearchExtension(
 
         return {
           content: [{ type: "text", text: formatAutoresearchDecisionResult(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "closeout") {
+        const result = buildAutoresearchSegmentCloseout(cwd);
+        return {
+          content: [{ type: "text", text: formatAutoresearchSegmentCloseout(result) }],
           details: result,
         };
       }

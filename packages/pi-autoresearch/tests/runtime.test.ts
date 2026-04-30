@@ -40,8 +40,10 @@ import {
   appendReceipt,
   buildAutoresearchHelpText,
   buildAutoresearchRuntimeStatus,
+  buildAutoresearchSegmentCloseout,
   createConfigReceipt,
   createRunReceipt,
+  formatAutoresearchSegmentCloseout,
   formatAutoresearchStatusText,
   loadReceiptLog,
   parseMetricLines,
@@ -479,6 +481,69 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.equal(status.runtimeProjection.hasLedger, false);
     assert.equal(status.promptVaultDecisions.availability, "available_not_yet_used");
     assert.ok((status.currentSegment.confidence ?? 0) > 0);
+  }));
+
+test("segment closeout summarizes empirical decisions and candidate bindings", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "widget-speed-closeout",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        empiricalDecisionClass: "candidate_improvement",
+        metric: 80,
+        description: "candidate peer patch",
+        timestamp: 3,
+        experiment: {
+          hypothesisId: "H-closeout-001",
+          hypothesis: "A visible candidate peer patch reduces runtime.",
+          interventionSummary: "evaluate candidate peer patch",
+          expectedPrimaryEffect: "lower total_ms",
+          targetFiles: ["src/core/runtime.ts"],
+          risk: "timing benchmark may be noisy",
+          candidate: {
+            source: "candidate_peer_spawn",
+            worktreePath: "/tmp/candidate-closeout",
+            branch: "candidate/closeout",
+            baseRef: "main",
+            diffSummary: "reduce runtime overhead",
+            filesChanged: ["src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const closeout = buildAutoresearchSegmentCloseout(cwd);
+    assert.equal(closeout.campaign, "widget-speed-closeout");
+    assert.equal(closeout.runCount, 2);
+    assert.equal(closeout.candidateBindings.length, 1);
+    assert.equal(closeout.candidateBindings[0]?.branch, "candidate/closeout");
+    assert.equal(closeout.runs.at(-1)?.empiricalDecisionClass, "candidate_improvement");
+    assert.match(formatAutoresearchSegmentCloseout(closeout), /SEGMENT CLOSEOUT/);
+    assert.match(
+      formatAutoresearchSegmentCloseout(closeout),
+      /candidate branch: candidate\/closeout/,
+    );
+    assert.match(formatAutoresearchSegmentCloseout(closeout), /evidence boundary:/);
   }));
 
 test("calibration runs inform timing noise without competing as best candidate", () =>
@@ -1710,13 +1775,47 @@ test("status builder preserves a receipt-only governed decision when the ledger 
     assert.equal(status.promptVaultDecisions.lastPostRunDecision?.mappedDecision, "rebaseline");
   }));
 
-test("autoresearch_runtime_status can request governed setup and finalize packets", async () => {
+test("autoresearch_runtime_status can request closeout, setup, and finalize packets", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness({
       createDecisionRuntime: () => createDecisionRuntimeStub(),
     });
     const tool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
     assert.ok(tool);
+
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "status-closeout",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "status closeout baseline",
+        timestamp: 2,
+      }),
+    );
+
+    const closeout = await tool?.execute(
+      "call-4",
+      {
+        cwd,
+        action: "closeout",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(closeout);
+    assert.match(closeout?.content[0]?.text ?? "", /SEGMENT CLOSEOUT/);
+    assert.match(closeout?.content[0]?.text ?? "", /evidence boundary:/);
 
     const setup = await tool?.execute(
       "call-5",
