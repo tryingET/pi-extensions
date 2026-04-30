@@ -37,7 +37,7 @@ What is still missing is the exact orchestrator-side policy for the later follow
 > how `pi-society-orchestrator` may observe manifest-driven campaign truth and write bounded AK evidence above that package seam without taking over campaign execution, duplicating package-local logic, or turning package-local completion into automatic task lifecycle mutation.
 
 This note freezes that contract for task `#1701`.
-Implementation status for the first bounded follow-on now lives in [pi-autoresearch manifest campaign supervision status](./pi-autoresearch-manifest-campaign-supervision-status.md).
+Implementation status and refreshed proof coverage for the bounded follow-on now live in [pi-autoresearch manifest campaign supervision status](./pi-autoresearch-manifest-campaign-supervision-status.md).
 
 ---
 
@@ -143,7 +143,7 @@ It must **not**:
 - invent a second persisted supervision artifact for the manifest concern
 - reinterpret package-local receipts into benchmark winner semantics
 
-A fresh in-process reuse of the package helper layer is the truthful source.
+A fresh in-process reuse of the package helper layer is the truthful source. The task `#1703` guardrail proof keeps this concrete by allowing `pi-society-orchestrator` imports of `pi-autoresearch` only through the package runtime seam.
 
 ---
 

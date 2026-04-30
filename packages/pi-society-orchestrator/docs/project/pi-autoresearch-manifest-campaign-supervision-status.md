@@ -75,6 +75,17 @@ node --test tests/autoresearch-manifest-campaign-supervision.test.mjs tests/auto
 npm run check
 ```
 
+Task `#1703` refreshes the proof chain by keeping the supervision-specific tests green and adding guardrail coverage in the broader orchestrator seams:
+
+```bash
+node --test tests/autoresearch-manifest-campaign-supervision.test.mjs tests/autoresearch-manifest-campaign-control-plane.test.mjs tests/execution-seam-guardrails.test.mjs tests/runtime-shared-paths.test.mjs
+```
+
+The refreshed guardrails prove:
+
+- orchestrator source reaches `pi-autoresearch` only through the package runtime seam, not by re-parsing manifest internals or importing narrower package files directly;
+- the public tool contract advertises and exposes exact-anchor one-shot observation / evidence-only projection only, without polling, stage, or build inputs.
+
 ## Bottom line
 
 The orchestrator now has the smallest truthful follow-on above manifest-driven `pi-autoresearch` campaign control:

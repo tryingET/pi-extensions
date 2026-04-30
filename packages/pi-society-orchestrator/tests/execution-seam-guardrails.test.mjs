@@ -18,6 +18,20 @@ const allowedVaultConsumers = [
     specifier: "pi-vault-client/prompt-plane",
   },
 ];
+const allowedAutoresearchConsumers = [
+  {
+    file: "src/runtime/autoresearch-ak-lifecycle.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
+  {
+    file: "src/runtime/autoresearch-manifest-campaign-supervision.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
+  {
+    file: "src/runtime/autoresearch-supervisor-runner.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
+];
 const sourceRoots = ["src", "extensions"];
 
 function listSourceFiles() {
@@ -145,4 +159,19 @@ test("vault adapters do not drift back to private pi-vault-client imports", () =
       );
     }
   }
+});
+
+test("orchestrator consumes pi-autoresearch only through the package runtime seam", () => {
+  const autoresearchImports = [];
+
+  for (const file of listSourceFiles()) {
+    const source = fs.readFileSync(path.join(packageRoot, file), "utf8");
+    for (const specifier of collectImportSpecifiers(source)) {
+      if (specifier.includes("pi-autoresearch")) {
+        autoresearchImports.push({ file, specifier });
+      }
+    }
+  }
+
+  assert.deepEqual(autoresearchImports, allowedAutoresearchConsumers);
 });

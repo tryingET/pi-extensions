@@ -82,6 +82,8 @@ The package currently owns:
 - visible peer-lane planning without automatic peer launch;
 - bounded self-hosting and manifest-driven llama.cpp campaign helper/control seams.
 
+Adjacent external proof now exists in `pi-society-orchestrator`: one-shot exact-manifest observation plus idempotent evidence-only AK projection from verified task context above the package seam. That proof is product-relevant boundary evidence, not a new ownership claim for this package.
+
 ## Product non-goals
 
 `pi-autoresearch` must not become:
@@ -109,6 +111,8 @@ A result is promotion-ready only when the relevant gates are explicit:
 ## Current strategic line
 
 Stop adding packet families by default.
+
+The manifest-campaign follow-on above this package is now proven externally in `pi-society-orchestrator`; do not read that as permission to widen `pi-autoresearch` into a whole-campaign runner, AK lifecycle writer, or adapter platform.
 
 Prioritize:
 
@@ -157,6 +161,7 @@ Pick exactly one adapter target after demand is concrete. Until then, keep adapt
 | Concern | Owner |
 |---|---|
 | Local experiment runtime, receipts, empirical interpretation, closeout packets | `packages/pi-autoresearch` |
+| Manifest-campaign one-shot supervision and evidence-only AK projection above the package seam | `packages/pi-society-orchestrator` |
 | Visible peer launch and candidate worktree creation | `packages/pi-little-helpers` / peer tooling |
 | Peer/intercom communication | `packages/pi-peer-messaging` |
 | Durable task truth and evidence lifecycle | AK / evidence owner surfaces |
@@ -170,6 +175,7 @@ Pick exactly one adapter target after demand is concrete. Until then, keep adapt
 - Product posture: `packages/pi-autoresearch/docs/project/product-posture.md`
 - Package public surface: `packages/pi-autoresearch/README.md`
 - Adapter contract: `packages/pi-autoresearch/docs/project/adapter-contracts.md`
+- External manifest-campaign supervision status: `packages/pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-status.md`
 - Root monorepo vision: `docs/project/vision.md`
 
 ## Compatibility note

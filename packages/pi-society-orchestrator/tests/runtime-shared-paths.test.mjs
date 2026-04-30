@@ -1777,6 +1777,37 @@ test("agents-team command stores team selection per session key", async () => {
   }
 });
 
+test("manifest campaign supervision tool advertises exact-anchor evidence-only boundaries", () => {
+  const tools = new Map();
+
+  extension({
+    registerTool(tool) {
+      tools.set(tool.name, tool);
+    },
+    registerCommand() {},
+    on() {},
+  });
+
+  const tool = tools.get("autoresearch_manifest_campaign_supervision");
+  assert.ok(tool, "expected autoresearch_manifest_campaign_supervision to register");
+  assert.match(tool.description, /Observe one exact manifest-driven pi-autoresearch campaign/);
+  assert.ok(
+    tool.promptGuidelines.some((line) =>
+      /one-shot observation or bounded AK evidence projection/.test(line),
+    ),
+  );
+  assert.ok(
+    tool.promptGuidelines.some((line) =>
+      /does not add polling, stage execution, or task lifecycle mutation/.test(line),
+    ),
+  );
+
+  const parameterContract = JSON.stringify(tool.parameters);
+  assert.equal(parameterContract.includes("intervalSeconds"), false);
+  assert.equal(parameterContract.includes("stage"), false);
+  assert.equal(parameterContract.includes("buildId"), false);
+});
+
 test("workflow command seeds a workflow_execute call into the editor", async () => {
   const commands = new Map();
 

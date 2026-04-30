@@ -25,6 +25,13 @@ for current product promise, maturity, trust gates, boundaries, strategic line, 
 
 Older status, ADR, and contract documents link here as historical closure evidence. This shim keeps those links truthful without preserving a second live planning authority.
 
+## Current external follow-on pointer
+
+The manifest-campaign supervision follow-on above this package is tracked outside this redirect:
+
+- [product-posture.md](./product-posture.md) for package posture and ownership boundaries
+- [pi-autoresearch manifest campaign supervision status](../../../pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-status.md) for the landed orchestrator-side one-shot observation / evidence-only AK projection proof
+
 ## Rule for new work
 
 Do not add new status truth here. Update `product-posture.md` or a narrower status/ADR/evidence note instead.
