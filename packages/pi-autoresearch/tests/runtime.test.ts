@@ -651,17 +651,21 @@ test("autoresearch_runtime_autoplan proposes duration script for generic total_m
 
     assert.ok(result);
     const output = result.content[0]?.text ?? "";
+    assert.match(output, /Measurement contract/);
     assert.match(output, /Benchmark script proposal/);
     assert.doesNotMatch(output, /may not print required METRIC total_ms=value/);
     const details = result.details as {
       risks: string[];
       nextToolCall: string;
+      measurementContract: { optimizationAuthority: string; freshness: string };
       benchmarkScriptProposal: {
         benchmarkScript: string;
         source: string;
         measurementContract: { optimizationAuthority: string; freshness: string };
       };
     };
+    assert.equal(details.measurementContract.optimizationAuthority, "baseline_allowed");
+    assert.equal(details.measurementContract.freshness, "run_generated");
     assert.equal(details.benchmarkScriptProposal.source, "duration_wrapper");
     assert.equal(
       details.benchmarkScriptProposal.measurementContract.optimizationAuthority,
@@ -713,8 +717,10 @@ test("autoresearch_runtime_autoplan does not invent score script without evidenc
     const details = result.details as {
       risks: string[];
       nextToolCall: string;
+      measurementContract: null;
       benchmarkScriptProposal: null;
     };
+    assert.equal(details.measurementContract, null);
     assert.equal(details.benchmarkScriptProposal, null);
     assert.ok(details.risks.some((risk) => risk.includes("METRIC setup_quality_score=value")));
     assert.match(details.nextToolCall, /action: "plan"/);
@@ -778,11 +784,13 @@ test("autoresearch_runtime_autoplan keeps static DSPx behavior score advisory-on
     assert.ok(result);
     const output = result.content[0]?.text ?? "";
     assert.match(output, /DSPx advisory evidence/);
-    assert.match(output, /Benchmark script proposal/);
+    assert.match(output, /Advisory metric summary \(not baseline authority\)/);
+    assert.doesNotMatch(output, /## Benchmark script proposal/);
     assert.match(output, /measurement authority: advisory_only/);
     const details = result.details as {
       risks: string[];
       nextToolCall: string;
+      measurementContract: { optimizationAuthority: string; freshness: string };
       benchmarkScriptProposal: {
         benchmarkScript: string;
         source: string;
@@ -798,6 +806,8 @@ test("autoresearch_runtime_autoplan keeps static DSPx behavior score advisory-on
         };
       };
     };
+    assert.equal(details.measurementContract.optimizationAuthority, "advisory_only");
+    assert.equal(details.measurementContract.freshness, "static_existing_artifact");
     assert.equal(details.benchmarkScriptProposal.source, "dspx_behavior_score");
     assert.equal(
       details.benchmarkScriptProposal.measurementContract.optimizationAuthority,
