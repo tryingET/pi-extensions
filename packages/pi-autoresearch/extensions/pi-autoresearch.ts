@@ -267,6 +267,14 @@ const runKindSchema = Type.Union([Type.Literal("ordinary"), Type.Literal("calibr
     "Run kind. Calibration runs update timing/noise interpretation but should not be treated as candidate improvements.",
 });
 
+const candidateBindingSourceSchema = Type.Union(
+  [Type.Literal("candidate_peer_spawn"), Type.Literal("manual")],
+  {
+    description:
+      "Optional source for a visible candidate binding. candidate_peer_spawn means a visible isolated peer/worktree produced the candidate; manual means the controller supplied the candidate binding directly.",
+  },
+);
+
 const runSchema = Type.Object({
   cwd: Type.Optional(Type.String({ description: "Optional cwd override for the bounded runtime" })),
   description: Type.String({
@@ -302,6 +310,33 @@ const runSchema = Type.Object({
   experimentRisk: Type.Optional(
     Type.String({
       description: "Optional risk or validity caveat for this experiment run.",
+    }),
+  ),
+  candidateSource: Type.Optional(candidateBindingSourceSchema),
+  candidateWorktree: Type.Optional(
+    Type.String({
+      description:
+        "Optional visible candidate worktree/path being evaluated. This binds evidence only; pi-autoresearch does not spawn, merge, or promote the candidate.",
+    }),
+  ),
+  candidateBranch: Type.Optional(
+    Type.String({
+      description: "Optional candidate branch name or ref supplied by the visible candidate lane.",
+    }),
+  ),
+  candidateBaseRef: Type.Optional(
+    Type.String({
+      description: "Optional base ref the candidate was produced from.",
+    }),
+  ),
+  candidateDiffSummary: Type.Optional(
+    Type.String({
+      description: "Optional controller-verified summary of the candidate diff.",
+    }),
+  ),
+  candidateFilesChanged: Type.Optional(
+    Type.Array(Type.String(), {
+      description: "Optional controller-verified files changed by the candidate.",
     }),
   ),
   name: Type.Optional(
@@ -888,6 +923,12 @@ export function registerPiAutoresearchExtension(
         expectedPrimaryEffect?: string;
         hypothesisTargetFiles?: string[];
         experimentRisk?: string;
+        candidateSource?: "candidate_peer_spawn" | "manual";
+        candidateWorktree?: string;
+        candidateBranch?: string;
+        candidateBaseRef?: string;
+        candidateDiffSummary?: string;
+        candidateFilesChanged?: string[];
         name?: string;
         metricName?: string;
         metricUnit?: string;
@@ -919,6 +960,14 @@ export function registerPiAutoresearchExtension(
           expectedPrimaryEffect: request.expectedPrimaryEffect,
           targetFiles: request.hypothesisTargetFiles,
           risk: request.experimentRisk,
+          candidate: {
+            source: request.candidateSource,
+            worktreePath: request.candidateWorktree,
+            branch: request.candidateBranch,
+            baseRef: request.candidateBaseRef,
+            diffSummary: request.candidateDiffSummary,
+            filesChanged: request.candidateFilesChanged,
+          },
         },
         name: request.name,
         metricName: request.metricName,

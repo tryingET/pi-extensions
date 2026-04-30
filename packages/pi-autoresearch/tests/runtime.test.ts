@@ -344,6 +344,14 @@ test("receipt helpers round-trip config and run entries", () => {
       expectedPrimaryEffect: "lower total_ms",
       targetFiles: ["src/cache.ts"],
       risk: "microbenchmark may not represent full workload",
+      candidate: {
+        source: "candidate_peer_spawn",
+        worktreePath: "/tmp/candidate-cache-layout",
+        branch: "candidate/cache-layout",
+        baseRef: "main",
+        diffSummary: "memoize layout lookups in the hot path",
+        filesChanged: ["src/cache.ts"],
+      },
     },
   });
 
@@ -1493,13 +1501,39 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
       {
         cwd,
         description: "candidate after ledger backfill",
+        hypothesisId: "H-candidate-peer-001",
+        hypothesis: "A visible candidate peer patch reduces total_ms.",
+        interventionSummary: "Evaluate the visible candidate peer diff.",
+        expectedPrimaryEffect: "lower total_ms beyond timing noise",
+        hypothesisTargetFiles: ["src/core/runtime.ts"],
+        candidateSource: "candidate_peer_spawn",
+        candidateWorktree: "/tmp/candidate-peer-runtime",
+        candidateBranch: "candidate/runtime-speed",
+        candidateBaseRef: "main",
+        candidateDiffSummary: "tighten runtime hot path after peer exploration",
+        candidateFilesChanged: ["src/core/runtime.ts"],
       },
       undefined,
       undefined,
       { cwd },
     );
 
+    assert.match(result?.content[0]?.text ?? "", /candidate source: candidate_peer_spawn/);
+    assert.match(result?.content[0]?.text ?? "", /candidate branch: candidate\/runtime-speed/);
+
     const details = result?.details as {
+      runReceipt: {
+        experiment?: {
+          candidate?: {
+            source: string | null;
+            worktreePath: string | null;
+            branch: string | null;
+            baseRef: string | null;
+            diffSummary: string | null;
+            filesChanged: string[];
+          };
+        };
+      };
       status: {
         currentSegment: { runCount: number; bestMetric: number | null };
         runtimeProjection: {
@@ -1512,6 +1546,14 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
       };
     };
 
+    assert.deepEqual(details.runReceipt.experiment?.candidate, {
+      source: "candidate_peer_spawn",
+      worktreePath: "/tmp/candidate-peer-runtime",
+      branch: "candidate/runtime-speed",
+      baseRef: "main",
+      diffSummary: "tighten runtime hot path after peer exploration",
+      filesChanged: ["src/core/runtime.ts"],
+    });
     assert.equal(details.status.currentSegment.runCount, 2);
     assert.equal(details.status.currentSegment.bestMetric, 180);
     assert.equal(details.status.runtimeProjection.state, "ready");

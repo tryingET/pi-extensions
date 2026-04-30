@@ -66,6 +66,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `autoresearch_runtime_run`
   - executes one bounded local benchmark/check run
   - can bind optional hypothesis/result lineage (`hypothesisId`, `hypothesis`, `interventionSummary`, `expectedPrimaryEffect`, `hypothesisTargetFiles`, `experimentRisk`) into the run receipt so later evidence export can say what was tested and why
+  - can bind controller-verified visible candidate lane metadata (`candidateSource`, `candidateWorktree`, `candidateBranch`, `candidateBaseRef`, `candidateDiffSummary`, `candidateFilesChanged`) without spawning, merging, or promoting the candidate
   - records an empirical decision class on new run receipts so downstream closeout/evidence steps can distinguish operational status from measured meaning
   - bootstraps config receipts when needed
   - appends config/run receipts to `autoresearch.jsonl`

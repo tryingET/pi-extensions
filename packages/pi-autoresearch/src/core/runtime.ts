@@ -179,6 +179,26 @@ export interface AutoresearchConfigReceipt {
   checksCommand?: string | null;
 }
 
+export type AutoresearchCandidateBindingSource = "candidate_peer_spawn" | "manual";
+
+export interface AutoresearchCandidateBinding {
+  source: AutoresearchCandidateBindingSource | null;
+  worktreePath: string | null;
+  branch: string | null;
+  baseRef: string | null;
+  diffSummary: string | null;
+  filesChanged: string[];
+}
+
+export interface AutoresearchCandidateBindingInput {
+  source?: AutoresearchCandidateBindingSource | null;
+  worktreePath?: string | null;
+  branch?: string | null;
+  baseRef?: string | null;
+  diffSummary?: string | null;
+  filesChanged?: readonly string[];
+}
+
 export interface AutoresearchExperimentLineage {
   hypothesisId: string | null;
   hypothesis: string | null;
@@ -186,6 +206,7 @@ export interface AutoresearchExperimentLineage {
   expectedPrimaryEffect: string | null;
   targetFiles: string[];
   risk: string | null;
+  candidate?: AutoresearchCandidateBinding;
 }
 
 export interface AutoresearchExperimentLineageInput {
@@ -195,6 +216,7 @@ export interface AutoresearchExperimentLineageInput {
   expectedPrimaryEffect?: string | null;
   targetFiles?: readonly string[];
   risk?: string | null;
+  candidate?: AutoresearchCandidateBindingInput | null;
 }
 
 export interface AutoresearchRunReceipt {
@@ -4448,10 +4470,67 @@ function formatTargetFiles(files: readonly string[]): string {
   return files.length > 0 ? files.join(", ") : "(none)";
 }
 
+function normalizeCandidateBinding(
+  input: AutoresearchCandidateBindingInput | null | undefined,
+): AutoresearchCandidateBinding | undefined {
+  if (!input) return undefined;
+  const binding: AutoresearchCandidateBinding = {
+    source: isAutoresearchCandidateBindingSource(input.source) ? input.source : null,
+    worktreePath: stringOrNull(input.worktreePath),
+    branch: stringOrNull(input.branch),
+    baseRef: stringOrNull(input.baseRef),
+    diffSummary: stringOrNull(input.diffSummary),
+    filesChanged: normalizeArray(input.filesChanged),
+  };
+  return binding.source ||
+    binding.worktreePath ||
+    binding.branch ||
+    binding.baseRef ||
+    binding.diffSummary ||
+    binding.filesChanged.length > 0
+    ? binding
+    : undefined;
+}
+
+function parseCandidateBinding(value: unknown): AutoresearchCandidateBinding | undefined {
+  if (!isRecord(value)) return undefined;
+  return normalizeCandidateBinding({
+    source: isAutoresearchCandidateBindingSource(value.source) ? value.source : null,
+    worktreePath: value.worktreePath === null ? null : stringOrNull(value.worktreePath),
+    branch: value.branch === null ? null : stringOrNull(value.branch),
+    baseRef: value.baseRef === null ? null : stringOrNull(value.baseRef),
+    diffSummary: value.diffSummary === null ? null : stringOrNull(value.diffSummary),
+    filesChanged: parseStringArray(value.filesChanged),
+  });
+}
+
+function isAutoresearchCandidateBindingSource(
+  value: unknown,
+): value is AutoresearchCandidateBindingSource {
+  return value === "candidate_peer_spawn" || value === "manual";
+}
+
+function formatCandidateBindingLines(
+  binding: AutoresearchCandidateBinding | undefined,
+): Array<string | null> {
+  if (!binding) return [];
+  return [
+    binding.source ? `- candidate source: ${binding.source}` : null,
+    binding.worktreePath ? `- candidate worktree: ${binding.worktreePath}` : null,
+    binding.branch ? `- candidate branch: ${binding.branch}` : null,
+    binding.baseRef ? `- candidate base ref: ${binding.baseRef}` : null,
+    binding.diffSummary ? `- candidate diff summary: ${binding.diffSummary}` : null,
+    binding.filesChanged.length > 0
+      ? `- candidate files changed: ${formatTargetFiles(binding.filesChanged)}`
+      : null,
+  ];
+}
+
 function normalizeExperimentLineage(
   input: AutoresearchExperimentLineageInput | null | undefined,
 ): AutoresearchExperimentLineage | undefined {
   if (!input) return undefined;
+  const candidate = normalizeCandidateBinding(input.candidate);
   const lineage: AutoresearchExperimentLineage = {
     hypothesisId: stringOrNull(input.hypothesisId),
     hypothesis: stringOrNull(input.hypothesis),
@@ -4459,13 +4538,15 @@ function normalizeExperimentLineage(
     expectedPrimaryEffect: stringOrNull(input.expectedPrimaryEffect),
     targetFiles: normalizeArray(input.targetFiles),
     risk: stringOrNull(input.risk),
+    ...(candidate ? { candidate } : {}),
   };
   return lineage.hypothesisId ||
     lineage.hypothesis ||
     lineage.interventionSummary ||
     lineage.expectedPrimaryEffect ||
     lineage.targetFiles.length > 0 ||
-    lineage.risk
+    lineage.risk ||
+    lineage.candidate
     ? lineage
     : undefined;
 }
@@ -4481,6 +4562,7 @@ function parseExperimentLineage(value: unknown): AutoresearchExperimentLineage |
       value.expectedPrimaryEffect === null ? null : stringOrNull(value.expectedPrimaryEffect),
     targetFiles: parseStringArray(value.targetFiles),
     risk: value.risk === null ? null : stringOrNull(value.risk),
+    candidate: parseCandidateBinding(value.candidate),
   });
 }
 
@@ -4509,6 +4591,7 @@ function formatExperimentLineageLines(
       ? `- experiment target files: ${formatTargetFiles(experiment.targetFiles)}`
       : null,
     experiment.risk ? `- experiment risk: ${experiment.risk}` : null,
+    ...formatCandidateBindingLines(experiment.candidate),
   ].filter((line): line is string => line !== null);
 }
 
