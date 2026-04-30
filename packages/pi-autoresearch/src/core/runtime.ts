@@ -317,6 +317,15 @@ export interface AutoresearchSegmentCloseoutRun {
   experiment: AutoresearchExperimentLineage | null;
 }
 
+export interface AutoresearchAkEvidencePacket {
+  taskId: number;
+  checkType: "autoresearch:segment_closeout";
+  result: string;
+  closeout: AutoresearchSegmentCloseout;
+  suggestedToolCall: string;
+  evidenceBoundary: string;
+}
+
 export interface AutoresearchSegmentCloseout {
   cwd: string;
   receiptPath: string;
@@ -2070,6 +2079,26 @@ export function buildAutoresearchRuntimeStatus(
   });
 }
 
+export function buildAutoresearchAkEvidencePacket(input: {
+  cwd: string;
+  taskId: number;
+}): AutoresearchAkEvidencePacket {
+  if (!Number.isInteger(input.taskId) || input.taskId < 1) {
+    throw new Error("AK evidence export requires an exact positive integer taskId.");
+  }
+  const closeout = buildAutoresearchSegmentCloseout(input.cwd);
+  const result = renderAutoresearchAkEvidenceResult(closeout);
+  return {
+    taskId: input.taskId,
+    checkType: "autoresearch:segment_closeout",
+    result,
+    closeout,
+    suggestedToolCall: `evidence_record({ task_id: ${input.taskId}, check_type: "autoresearch:segment_closeout", result: ${JSON.stringify(result)} })`,
+    evidenceBoundary:
+      "AK evidence packet is non-mutating and task-bound; the controller must explicitly call the AK/evidence owner surface to record it.",
+  };
+}
+
 export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegmentCloseout {
   const resolvedCwd = path.resolve(cwd);
   const paths = resolveAutoresearchPaths(resolvedCwd);
@@ -2328,6 +2357,24 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     "",
     "## Peer lane recommendations",
     ...formatAutoresearchPeerLaneRecommendations({ cwd: status.cwd }),
+  ].join("\n");
+}
+
+export function formatAutoresearchAkEvidencePacket(packet: AutoresearchAkEvidencePacket): string {
+  return [
+    "# PI-AUTORESEARCH AK EVIDENCE PACKET",
+    "",
+    `- task id: ${packet.taskId}`,
+    `- check type: ${packet.checkType}`,
+    `- campaign: ${packet.closeout.campaign ?? "(unnamed)"}`,
+    `- empirical decision: ${packet.closeout.empiricalDecisionClass}`,
+    `- evidence boundary: ${packet.evidenceBoundary}`,
+    "",
+    "## Result",
+    packet.result,
+    "",
+    "## Suggested explicit controller call",
+    `\`${packet.suggestedToolCall}\``,
   ].join("\n");
 }
 
@@ -4595,6 +4642,23 @@ function cloneAutoresearchControlState(
 
 function formatTargetFiles(files: readonly string[]): string {
   return files.length > 0 ? files.join(", ") : "(none)";
+}
+
+function renderAutoresearchAkEvidenceResult(closeout: AutoresearchSegmentCloseout): string {
+  return [
+    `pi-autoresearch segment closeout for ${closeout.campaign ?? "(unnamed campaign)"}`,
+    `metric=${closeout.metricName ?? "(unset)"} ${closeout.metricUnit || "unitless"}; direction=${closeout.direction ?? "unset"}`,
+    `runs=${closeout.runCount} total/${closeout.successfulRunCount} successful; baseline=${formatMetricValue(closeout.baselineMetric, closeout.metricUnit)}; best=${formatMetricValue(closeout.bestMetric, closeout.metricUnit)}`,
+    `empirical_decision=${closeout.empiricalDecisionClass}`,
+    `timing_interpretation=${formatMetricInterpretation(closeout.timingInterpretation, closeout.metricUnit)}`,
+    `recommended_action=${closeout.recommendedAction}`,
+    closeout.candidateBindings.length > 0
+      ? `candidate_bindings=${closeout.candidateBindings
+          .map((binding) => binding.branch ?? binding.worktreePath ?? binding.source ?? "candidate")
+          .join(", ")}`
+      : "candidate_bindings=(none)",
+    `receipt_log=${closeout.receiptPath}`,
+  ].join("\n");
 }
 
 function recommendSegmentCloseoutAction(decisionClass: AutoresearchEmpiricalDecisionClass): string {

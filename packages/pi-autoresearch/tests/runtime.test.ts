@@ -38,11 +38,13 @@ import {
   AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   appendReceipt,
+  buildAutoresearchAkEvidencePacket,
   buildAutoresearchHelpText,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
   createConfigReceipt,
   createRunReceipt,
+  formatAutoresearchAkEvidencePacket,
   formatAutoresearchSegmentCloseout,
   formatAutoresearchStatusText,
   loadReceiptLog,
@@ -544,6 +546,14 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
       /candidate branch: candidate\/closeout/,
     );
     assert.match(formatAutoresearchSegmentCloseout(closeout), /evidence boundary:/);
+
+    const evidence = buildAutoresearchAkEvidencePacket({ cwd, taskId: 1234 });
+    assert.equal(evidence.taskId, 1234);
+    assert.equal(evidence.checkType, "autoresearch:segment_closeout");
+    assert.match(evidence.result, /empirical_decision=insufficient_samples/);
+    assert.match(evidence.suggestedToolCall, /evidence_record/);
+    assert.match(formatAutoresearchAkEvidencePacket(evidence), /AK EVIDENCE PACKET/);
+    assert.match(formatAutoresearchAkEvidencePacket(evidence), /task id: 1234/);
   }));
 
 test("calibration runs inform timing noise without competing as best candidate", () =>
@@ -1816,6 +1826,22 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(closeout);
     assert.match(closeout?.content[0]?.text ?? "", /SEGMENT CLOSEOUT/);
     assert.match(closeout?.content[0]?.text ?? "", /evidence boundary:/);
+
+    const akEvidence = await tool?.execute(
+      "call-4b",
+      {
+        cwd,
+        action: "ak_evidence",
+        akTaskId: 5678,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(akEvidence);
+    assert.match(akEvidence?.content[0]?.text ?? "", /AK EVIDENCE PACKET/);
+    assert.match(akEvidence?.content[0]?.text ?? "", /task id: 5678/);
+    assert.match(akEvidence?.content[0]?.text ?? "", /evidence_record/);
 
     const setup = await tool?.execute(
       "call-5",
