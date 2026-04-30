@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { createHtmlOutputBrowserExtension } from "../extensions/html-output-browser.ts";
+import {
+  createHtmlOutputBrowserExtension,
+  discoverArtifactTargets,
+  isOpenableArtifactPath,
+} from "../extensions/html-output-browser.ts";
 
 function registerExtension(extension) {
   const handlers = new Map();
+  const commands = new Map();
+  const shortcuts = new Map();
 
   extension({
     on(eventName, handler) {
@@ -17,10 +23,18 @@ function registerExtension(extension) {
       existing.push(handler);
       handlers.set(eventName, existing);
     },
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+    registerShortcut(key, shortcut) {
+      shortcuts.set(key, shortcut);
+    },
   });
 
   return {
     handlers,
+    commands,
+    shortcuts,
     toolResultHandler: handlers.get("tool_result")?.[0],
   };
 }
@@ -88,11 +102,16 @@ function expectedOpenCommand() {
   return "xdg-open";
 }
 
-test("html output browser only registers the tool_result hook", () => {
-  const { handlers, toolResultHandler } = registerExtension(createHtmlOutputBrowserExtension());
+test("html output browser registers tool_result plus artifact command and shortcut", () => {
+  const { commands, handlers, shortcuts, toolResultHandler } = registerExtension(
+    createHtmlOutputBrowserExtension(),
+  );
 
   assert.equal(typeof toolResultHandler, "function");
   assert.deepEqual([...handlers.keys()], ["tool_result"]);
+  assert.equal(typeof commands.get("artifacts")?.handler, "function");
+  assert.equal(typeof commands.get("show-artifacts")?.handler, "function");
+  assert.equal(typeof shortcuts.get("ctrl+shift+s")?.handler, "function");
 });
 
 test("successful HTML write opens the exact file, updates the widget, and appends a notice", async () => {
@@ -128,12 +147,12 @@ test("successful HTML write opens the exact file, updates the widget, and append
     assert.equal(uiHarness.widgets.length, 1);
     assert.equal(uiHarness.widgets[0].key, "html-output-browser");
     assert.equal(uiHarness.widgets[0].options.placement, "belowEditor");
-    assert.match(uiHarness.widgets[0].content[0], /Latest HTML preview/);
+    assert.match(uiHarness.widgets[0].content[0], /Latest artifact preview/);
     assert.match(uiHarness.widgets[0].content[1], /@preview\.html/);
 
     assert.equal(uiHarness.notifications.length, 1);
     assert.equal(uiHarness.notifications[0].type, "info");
-    assert.match(uiHarness.notifications[0].message, /Opened HTML in browser: @preview\.html/);
+    assert.match(uiHarness.notifications[0].message, /Opened artifact in browser: @preview\.html/);
 
     assert.equal(result.content[0].text, "Saved HTML");
     assert.match(result.content[1].text, /HTML preview:/);
@@ -240,6 +259,56 @@ test("opener failures warn without dropping the HTML notice", async () => {
     assert.equal(uiHarness.notifications[0].type, "warning");
     assert.match(uiHarness.notifications[0].message, /auto-open failed/i);
     assert.match(result.content[1].text, /HTML preview:/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("artifact discovery includes HTML and generated JSON artifacts while skipping ordinary JSON", () => {
+  const dir = createTempDir();
+
+  try {
+    mkdirSync(join(dir, "docs", "project"), { recursive: true });
+    mkdirSync(join(dir, "node_modules", "pkg"), { recursive: true });
+    writeFileSync(join(dir, "docs", "project", "direction-explorer-mvp.html"), "<html></html>");
+    writeFileSync(join(dir, "docs", "project", "direction-explorer-mvp.export.json"), "{}");
+    writeFileSync(join(dir, "plain.json"), "{}");
+    writeFileSync(join(dir, "node_modules", "pkg", "ignored.html"), "<html></html>");
+
+    const targets = discoverArtifactTargets(dir);
+    const prettyPaths = targets.map((target) => target.prettyPath).sort();
+
+    assert.deepEqual(prettyPaths, [
+      "docs/project/direction-explorer-mvp.export.json",
+      "docs/project/direction-explorer-mvp.html",
+    ]);
+    assert.equal(isOpenableArtifactPath("report.html"), true);
+    assert.equal(isOpenableArtifactPath("direction-explorer-mvp.export.json"), true);
+    assert.equal(isOpenableArtifactPath("plain.json"), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("artifacts command opens an explicit artifact path", async () => {
+  const dir = createTempDir();
+  const htmlPath = join(dir, "preview.html");
+  writeFileSync(htmlPath, "<html>preview</html>");
+
+  try {
+    const spawnStub = createSpawnStub();
+    const uiHarness = createUiHarness();
+    const { commands } = registerExtension(
+      createHtmlOutputBrowserExtension({ spawn: spawnStub.spawnImpl }),
+    );
+
+    await commands.get("artifacts").handler("preview.html", createContext(dir, uiHarness));
+
+    assert.equal(spawnStub.calls.length, 1);
+    assert.equal(spawnStub.calls[0].args.at(-1), pathToFileURL(htmlPath).href);
+    assert.equal(uiHarness.widgets.length, 1);
+    assert.equal(uiHarness.notifications[0].type, "info");
+    assert.match(uiHarness.notifications[0].message, /Opened artifact in browser: preview\.html/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

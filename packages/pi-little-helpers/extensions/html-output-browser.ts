@@ -1,22 +1,59 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, relative, resolve } from "node:path";
+import { basename, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { DynamicBorder } from "@mariozechner/pi-coding-agent";
+import { Container, type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
 
 const RECENT_ACTION_WINDOW_MS = 5000;
 const HTML_WIDGET_ID = "html-output-browser";
+const MAX_ARTIFACT_DEPTH = 5;
+const MAX_ARTIFACT_RESULTS = 200;
+const ARTIFACT_SHORTCUT = "ctrl+shift+s";
+const ARTIFACT_COMMAND = "artifacts";
+const EXCLUDED_DIRS = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  "node_modules",
+  "target",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".cache",
+  ".venv",
+  "__pycache__",
+]);
+
+const OPENABLE_ARTIFACT_EXTENSIONS = new Set([
+  ".html",
+  ".htm",
+  ".pdf",
+  ".svg",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+]);
+
+const JSON_ARTIFACT_NAME =
+  /(?:artifact|artifacts|report|reports|export|snapshot|receipt|receipts|coverage|result|results|manifest|index)/i;
 
 type ToolPathInput = {
   path?: unknown;
 };
 
-type HtmlTarget = {
+type ArtifactTarget = {
   absolutePath: string;
   rawReference: string;
   prettyPath: string;
   fileUrl: string;
+  kind: string;
+  mtimeMs: number;
 };
 
 type BrowserOpenCommand = {
@@ -42,6 +79,19 @@ function isHtmlPath(filePath: string): boolean {
   return /\.html?$/i.test(filePath);
 }
 
+export function isOpenableArtifactPath(filePath: string): boolean {
+  const extension = extname(filePath).toLowerCase();
+  if (OPENABLE_ARTIFACT_EXTENSIONS.has(extension)) return true;
+  if (extension !== ".json") return false;
+  return JSON_ARTIFACT_NAME.test(basename(filePath));
+}
+
+function artifactKind(filePath: string): string {
+  const extension = extname(filePath).toLowerCase().replace(/^\./, "");
+  if (extension === "htm") return "html";
+  return extension || "file";
+}
+
 function displayPath(cwd: string, rawPath: string, absolutePath: string): string {
   if (!isAbsolute(rawPath)) return rawPath;
   const relativePath = relative(cwd, absolutePath);
@@ -59,7 +109,7 @@ function buildOsc8Hyperlink(target: string, label: string): string {
   return `\u001b]8;;${target}\u0007${label}\u001b]8;;\u0007`;
 }
 
-function buildHtmlNotice(target: HtmlTarget): string {
+function buildHtmlNotice(target: ArtifactTarget): string {
   return [
     "HTML preview:",
     buildOsc8Hyperlink(target.fileUrl, `- ${target.prettyPath}`),
@@ -67,9 +117,9 @@ function buildHtmlNotice(target: HtmlTarget): string {
   ].join("\n");
 }
 
-function buildHtmlWidgetLines(target: HtmlTarget): string[] {
+function buildArtifactWidgetLines(target: ArtifactTarget): string[] {
   return [
-    "Latest HTML preview",
+    "Latest artifact preview",
     buildOsc8Hyperlink(target.fileUrl, `- ${target.prettyPath}`),
     `  ${target.fileUrl}`,
   ];
@@ -86,7 +136,7 @@ function expandUserPath(candidate: string): string {
   return candidate;
 }
 
-function resolveHtmlTarget(cwd: string, candidate: string): HtmlTarget | undefined {
+function resolveArtifactTarget(cwd: string, candidate: string): ArtifactTarget | undefined {
   const normalized = candidate.trim();
   if (!normalized) return undefined;
 
@@ -102,14 +152,65 @@ function resolveHtmlTarget(cwd: string, candidate: string): HtmlTarget | undefin
     absolutePath = isAbsolute(expanded) ? expanded : resolve(cwd, expanded);
   }
 
-  if (!existsSync(absolutePath) || !isHtmlPath(absolutePath)) return undefined;
+  if (!existsSync(absolutePath) || !isOpenableArtifactPath(absolutePath)) return undefined;
+
+  let mtimeMs = 0;
+  try {
+    mtimeMs = statSync(absolutePath).mtimeMs;
+  } catch {
+    return undefined;
+  }
 
   return {
     absolutePath,
     rawReference: normalized,
     prettyPath: displayPathForReference(cwd, normalized, absolutePath),
     fileUrl: pathToFileURL(absolutePath).href,
+    kind: artifactKind(absolutePath),
+    mtimeMs,
   };
+}
+
+function isExcludedDir(name: string): boolean {
+  return EXCLUDED_DIRS.has(name);
+}
+
+export function discoverArtifactTargets(cwd: string): ArtifactTarget[] {
+  const targets: ArtifactTarget[] = [];
+
+  function visit(dir: string, depth: number): void {
+    if (depth > MAX_ARTIFACT_DEPTH || targets.length >= MAX_ARTIFACT_RESULTS) return;
+
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (targets.length >= MAX_ARTIFACT_RESULTS) return;
+      if (entry.isDirectory()) {
+        if (!isExcludedDir(entry.name)) visit(resolve(dir, entry.name), depth + 1);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      const absolutePath = resolve(dir, entry.name);
+      if (!isOpenableArtifactPath(absolutePath)) continue;
+
+      const target = resolveArtifactTarget(cwd, absolutePath);
+      if (target) targets.push(target);
+    }
+  }
+
+  visit(cwd, 0);
+
+  return targets.sort((a, b) => {
+    const htmlBias = Number(isHtmlPath(b.absolutePath)) - Number(isHtmlPath(a.absolutePath));
+    if (htmlBias !== 0) return htmlBias;
+    return b.mtimeMs - a.mtimeMs || a.prettyPath.localeCompare(b.prettyPath);
+  });
 }
 
 function getBrowserOpenCommand(fileUrl: string): BrowserOpenCommand {
@@ -188,10 +289,13 @@ export function createHtmlOutputBrowserExtension(
     });
   }
 
-  async function presentHtmlTarget(ctx: ExtensionContext, target: HtmlTarget): Promise<void> {
+  async function presentArtifactTarget(
+    ctx: ExtensionContext,
+    target: ArtifactTarget,
+  ): Promise<void> {
     if (!ctx.hasUI) return;
 
-    ctx.ui.setWidget(HTML_WIDGET_ID, buildHtmlWidgetLines(target), {
+    ctx.ui.setWidget(HTML_WIDGET_ID, buildArtifactWidgetLines(target), {
       placement: "belowEditor",
     });
 
@@ -199,11 +303,65 @@ export function createHtmlOutputBrowserExtension(
 
     try {
       await openInBrowser(target.fileUrl);
-      ctx.ui.notify(`Opened HTML in browser: ${target.prettyPath}`, "info");
+      ctx.ui.notify(`Opened artifact in browser: ${target.prettyPath}`, "info");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      ctx.ui.notify(`HTML preview ready, but auto-open failed: ${message}`, "warning");
+      ctx.ui.notify(`Artifact preview ready, but auto-open failed: ${message}`, "warning");
     }
+  }
+
+  async function showArtifactPicker(ctx: ExtensionContext): Promise<void> {
+    if (!ctx.hasUI) return;
+
+    const targets = discoverArtifactTargets(ctx.cwd);
+    if (targets.length === 0) {
+      ctx.ui.notify("No openable artifacts found in this workspace", "info");
+      return;
+    }
+
+    const items: SelectItem[] = targets.map((target, index) => ({
+      value: String(index),
+      label: `[${target.kind}] ${target.prettyPath}`,
+      description: target.fileUrl,
+    }));
+
+    const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
+      const container = new Container();
+      container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+      container.addChild(
+        new Text(theme.fg("accent", theme.bold(`Artifacts (${targets.length})`)), 1, 0),
+      );
+      container.addChild(
+        new Text(theme.fg("dim", "Select to open or copy the clickable file URL"), 1, 0),
+      );
+
+      const selectList = new SelectList(items, Math.min(items.length, 15), {
+        selectedPrefix: (t) => theme.fg("accent", t),
+        selectedText: (t) => theme.fg("accent", t),
+        description: (t) => theme.fg("muted", t),
+        scrollInfo: (t) => theme.fg("dim", t),
+        noMatch: (t) => theme.fg("warning", t),
+      });
+
+      selectList.onSelect = (item) => done(item.value);
+      selectList.onCancel = () => done(null);
+      container.addChild(selectList);
+      container.addChild(new Text(theme.fg("dim", "↑↓ navigate • enter open • esc cancel"), 1, 0));
+      container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+
+      return {
+        render: (w) => container.render(w),
+        invalidate: () => container.invalidate(),
+        handleInput: (data) => {
+          selectList.handleInput(data);
+          tui.requestRender();
+        },
+      };
+    });
+
+    if (result === null) return;
+    const target = targets[parseInt(result, 10)];
+    if (target) await presentArtifactTarget(ctx, target);
   }
 
   return function htmlOutputBrowserExtension(pi: ExtensionAPI): void {
@@ -217,16 +375,43 @@ export function createHtmlOutputBrowserExtension(
         return undefined;
       }
 
-      const target = resolveHtmlTarget(ctx.cwd, rawPath);
+      const target = resolveArtifactTarget(ctx.cwd, rawPath);
       if (!target) {
         clearHtmlWidget(ctx);
         return undefined;
       }
 
-      await presentHtmlTarget(ctx, target);
+      await presentArtifactTarget(ctx, target);
       return {
         content: appendNotice(event.content, buildHtmlNotice(target)),
       };
+    });
+
+    const artifactCommand = {
+      description: "Pick an artifact from the workspace to open",
+      handler: async (args: string, ctx: ExtensionContext) => {
+        const requestedPath = args.trim();
+        if (requestedPath) {
+          const target = resolveArtifactTarget(ctx.cwd, requestedPath);
+          if (!target) {
+            ctx.ui.notify(`Artifact not found or unsupported: ${requestedPath}`, "warning");
+            return;
+          }
+          await presentArtifactTarget(ctx, target);
+          return;
+        }
+        await showArtifactPicker(ctx);
+      },
+    };
+
+    pi.registerCommand(ARTIFACT_COMMAND, artifactCommand);
+    pi.registerCommand("show-artifacts", artifactCommand);
+
+    pi.registerShortcut(ARTIFACT_SHORTCUT, {
+      description: "Show artifacts",
+      handler: async (ctx) => {
+        await showArtifactPicker(ctx);
+      },
     });
   };
 }
