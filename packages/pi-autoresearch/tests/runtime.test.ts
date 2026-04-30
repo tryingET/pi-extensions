@@ -449,6 +449,13 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.equal(status.currentSegment.successfulRunCount, 3);
     assert.equal(status.currentSegment.baselineMetric, 100);
     assert.equal(status.currentSegment.bestMetric, 90);
+    assert.equal(status.currentSegment.metricInterpretation?.verdict, "meaningful_improvement");
+    assert.equal(status.currentSegment.metricInterpretation?.sampleCount, 3);
+    assert.equal(status.currentSegment.metricInterpretation?.bestDelta, 10);
+    assert.match(
+      formatAutoresearchStatusText(status),
+      /timing interpretation: meaningful_improvement/,
+    );
     assert.equal(status.runtimeProjection.state, "ready");
     assert.equal(status.runtimeProjection.source, "receipt_fallback");
     assert.equal(status.runtimeProjection.hasLedger, false);

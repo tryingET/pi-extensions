@@ -189,6 +189,30 @@ export interface AutoresearchRunReceipt {
 
 export type AutoresearchReceipt = AutoresearchConfigReceipt | AutoresearchRunReceipt;
 
+export type AutoresearchMetricInterpretationVerdict =
+  | "not_applicable"
+  | "insufficient_samples"
+  | "possible_noise"
+  | "meaningful_improvement"
+  | "regression";
+
+export interface AutoresearchMetricInterpretation {
+  verdict: AutoresearchMetricInterpretationVerdict;
+  sampleCount: number;
+  baselineMetric: number;
+  bestMetric: number;
+  latestMetric: number;
+  minMetric: number;
+  medianMetric: number;
+  maxMetric: number;
+  noiseBand: number;
+  bestDelta: number;
+  latestDelta: number;
+  bestDeltaPercent: number;
+  latestDeltaPercent: number;
+  reason: string;
+}
+
 export interface AutoresearchSegmentSummary {
   configured: boolean;
   name: string | null;
@@ -202,6 +226,7 @@ export interface AutoresearchSegmentSummary {
   baselineMetric: number | null;
   bestMetric: number | null;
   confidence: number | null;
+  metricInterpretation: AutoresearchMetricInterpretation | null;
   lastRunStatus: RunStatus | null;
   lastRunMetric: number | null;
 }
@@ -2082,6 +2107,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
         `- baseline metric: ${formatMetricValue(status.currentSegment.baselineMetric, status.currentSegment.metricUnit)}`,
         `- best metric: ${formatMetricValue(status.currentSegment.bestMetric, status.currentSegment.metricUnit)}`,
         `- confidence: ${formatConfidenceValue(status.currentSegment.confidence)}`,
+        `- timing interpretation: ${formatMetricInterpretation(status.currentSegment.metricInterpretation, status.currentSegment.metricUnit)}`,
         `- last run: ${formatLastRun(status.currentSegment.lastRunStatus, status.currentSegment.lastRunMetric, status.currentSegment.metricUnit)}`,
       ]
     : [
@@ -2283,6 +2309,7 @@ export function formatAutoresearchRunResult(result: ExecuteAutoresearchRunResult
     `- current baseline: ${formatMetricValue(result.status.currentSegment.baselineMetric, metricUnit)}`,
     `- current best: ${formatMetricValue(result.status.currentSegment.bestMetric, metricUnit)}`,
     `- confidence: ${formatConfidenceValue(result.status.currentSegment.confidence)}`,
+    `- timing interpretation: ${formatMetricInterpretation(result.status.currentSegment.metricInterpretation, metricUnit)}`,
     "",
     "## Peer lane recommendations",
     ...formatAutoresearchPeerLaneRecommendations({
@@ -3990,6 +4017,9 @@ function summarizeCurrentSegment(currentSegment: CurrentSegmentView): Autoresear
       currentSegment.config && successfulRuns.length > 0
         ? computeConfidence(successfulRuns, currentSegment.config.direction)
         : null,
+    metricInterpretation: currentSegment.config
+      ? interpretMetricNoise(successfulRuns, currentSegment.config)
+      : null,
     lastRunStatus: currentSegment.runs.at(-1)?.status ?? null,
     lastRunMetric: currentSegment.runs.at(-1)?.metric ?? null,
   };
@@ -4442,6 +4472,96 @@ function isBetter(current: number, best: number, direction: MetricDirection): bo
   return direction === "lower" ? current < best : current > best;
 }
 
+function interpretMetricNoise(
+  runs: AutoresearchRunReceipt[],
+  config: AutoresearchConfigReceipt,
+): AutoresearchMetricInterpretation | null {
+  if (!isDurationMetric(config.metricName, config.metricUnit)) return null;
+  if (runs.length === 0) return null;
+
+  const values = runs.map((run) => run.metric);
+  const baselineMetric = values[0];
+  const bestMetric = selectBestMetric(values, config.direction);
+  const latestMetric = values.at(-1) ?? baselineMetric;
+  const minMetric = Math.min(...values);
+  const maxMetric = Math.max(...values);
+  const medianMetric = sortedMedian(values);
+  const deviations = values.map((value) => Math.abs(value - medianMetric));
+  const mad = sortedMedian(deviations);
+  const noiseBand = Math.max(Math.abs(baselineMetric) * 0.05, mad * 2, 1);
+  const bestDelta = directionalDelta(baselineMetric, bestMetric, config.direction);
+  const latestDelta = directionalDelta(baselineMetric, latestMetric, config.direction);
+  const bestDeltaPercent = percentDelta(bestDelta, baselineMetric);
+  const latestDeltaPercent = percentDelta(latestDelta, baselineMetric);
+
+  if (values.length < 3) {
+    return {
+      verdict: "insufficient_samples",
+      sampleCount: values.length,
+      baselineMetric,
+      bestMetric,
+      latestMetric,
+      minMetric,
+      medianMetric,
+      maxMetric,
+      noiseBand,
+      bestDelta,
+      latestDelta,
+      bestDeltaPercent,
+      latestDeltaPercent,
+      reason:
+        "duration metrics need at least 3 successful samples before small deltas are meaningful",
+    };
+  }
+
+  let verdict: AutoresearchMetricInterpretationVerdict = "possible_noise";
+  let reason = "best timing delta is within the current noise band";
+  if (latestDelta < -noiseBand) {
+    verdict = "regression";
+    reason = "latest timing sample is worse than baseline beyond the current noise band";
+  } else if (bestDelta >= noiseBand) {
+    verdict = "meaningful_improvement";
+    reason = "best timing sample improves on baseline beyond the current noise band";
+  }
+
+  return {
+    verdict,
+    sampleCount: values.length,
+    baselineMetric,
+    bestMetric,
+    latestMetric,
+    minMetric,
+    medianMetric,
+    maxMetric,
+    noiseBand,
+    bestDelta,
+    latestDelta,
+    bestDeltaPercent,
+    latestDeltaPercent,
+    reason,
+  };
+}
+
+function isDurationMetric(metricName: string, metricUnit: string): boolean {
+  return (
+    /(?:^|[_:-])(?:ms|millis|milliseconds|seconds|secs|duration|runtime|latency|time)$/iu.test(
+      metricName,
+    ) || /^(?:ms|s|sec|secs|seconds|milliseconds)$/iu.test(metricUnit)
+  );
+}
+
+function selectBestMetric(values: number[], direction: MetricDirection): number {
+  return values.reduce((best, value) => (isBetter(value, best, direction) ? value : best));
+}
+
+function directionalDelta(baseline: number, current: number, direction: MetricDirection): number {
+  return direction === "lower" ? baseline - current : current - baseline;
+}
+
+function percentDelta(delta: number, baseline: number): number {
+  return baseline === 0 ? 0 : (delta / Math.abs(baseline)) * 100;
+}
+
 function computeConfidence(
   runs: AutoresearchRunReceipt[],
   direction: MetricDirection,
@@ -4512,6 +4632,23 @@ function formatMetricValue(value: number | null, unit: string): string {
 function formatConfidenceValue(value: number | null): string {
   if (value === null) return "(n/a)";
   return `${value.toFixed(2)}x`;
+}
+
+function formatMetricInterpretation(
+  interpretation: AutoresearchMetricInterpretation | null,
+  unit: string,
+): string {
+  if (!interpretation) return "(n/a)";
+  return `${interpretation.verdict}; samples=${interpretation.sampleCount}; noise_band=±${formatMetricValue(roundMetric(interpretation.noiseBand), unit)}; best_delta=${formatSignedMetric(interpretation.bestDelta, unit)} (${interpretation.bestDeltaPercent.toFixed(1)}%); latest_delta=${formatSignedMetric(interpretation.latestDelta, unit)} (${interpretation.latestDeltaPercent.toFixed(1)}%); ${interpretation.reason}`;
+}
+
+function formatSignedMetric(value: number, unit: string): string {
+  const rounded = roundMetric(value);
+  return `${rounded >= 0 ? "+" : ""}${rounded}${unit}`;
+}
+
+function roundMetric(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function formatLastRun(status: RunStatus | null, metric: number | null, unit: string): string {
