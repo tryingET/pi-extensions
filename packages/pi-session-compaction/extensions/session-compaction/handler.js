@@ -8,7 +8,7 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { collectFilesTouched, renderFilesTouchedManifestBlock } from "./files-touched.js";
 import { resolveSummarizerModel } from "./model-resolver.js";
@@ -509,8 +509,41 @@ export function buildSummaryUserPrompt(params) {
   return sections.join("\n\n").trim();
 }
 
+async function importPiAiModule() {
+  try {
+    return await import("@mariozechner/pi-ai");
+  } catch (primaryError) {
+    // Some live Pi extension loader paths have resolved scoped packages to
+    // <package>/index.js instead of honoring package.json#exports/main. The
+    // published @mariozechner/pi-ai package ships dist/index.js, not index.js,
+    // so fall back to the concrete installed runtime file from this package's
+    // own node_modules directory.
+    const fallbackPath = path.join(
+      EXTENSION_DIR,
+      "..",
+      "..",
+      "node_modules",
+      "@mariozechner",
+      "pi-ai",
+      "dist",
+      "index.js",
+    );
+    try {
+      return await import(pathToFileURL(fallbackPath).href);
+    } catch (fallbackError) {
+      const primaryMessage =
+        primaryError instanceof Error ? primaryError.message : String(primaryError);
+      const fallbackMessage =
+        fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      throw new Error(
+        `Failed to import @mariozechner/pi-ai. Primary import failed: ${primaryMessage}. Fallback import failed from ${fallbackPath}: ${fallbackMessage}`,
+      );
+    }
+  }
+}
+
 async function defaultComplete(model, context, options) {
-  const mod = await import("@mariozechner/pi-ai");
+  const mod = await importPiAiModule();
   return mod.completeSimple(model, context, options);
 }
 

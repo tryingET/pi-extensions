@@ -54,17 +54,14 @@
     "./user-prompts": "./extensions/session-compaction/user-prompts.js"
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "^0.65.2",
     "@tryinget/pi-model-selection": "file:../pi-interaction/pi-model-selection"
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
     "typebox": "*"
   },
   "peerDependenciesMeta": {
-    "@mariozechner/pi-ai": {
-      "optional": true
-    },
     "@mariozechner/pi-coding-agent": {
       "optional": true
     }
