@@ -896,7 +896,12 @@ test("autoresearch_runtime_autoplan proposes duration script for generic total_m
     );
     assert.equal(details.benchmarkScriptProposal.measurementContract.freshness, "run_generated");
     assert.match(details.benchmarkScriptProposal.benchmarkScript, /npm test/);
+    assert.match(
+      details.benchmarkScriptProposal.benchmarkScript,
+      /AUTORESEARCH_BENCHMARK_COMMAND=/,
+    );
     assert.match(details.benchmarkScriptProposal.benchmarkScript, /METRIC total_ms=/);
+    assert.doesNotMatch(details.benchmarkScriptProposal.benchmarkScript, /node -e 'console\.log/);
     assert.ok(
       !details.risks.some((risk) => risk.includes("METRIC total_ms=value")),
       "script proposal should resolve the generic metric-contract warning",
@@ -969,10 +974,16 @@ test("autoresearch_runtime_autoplan omits inferred duplicate checks for existing
       [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
-        "start_ms=$(node -e 'console.log(Date.now())')",
-        "npm test",
-        "end_ms=$(node -e 'console.log(Date.now())')",
-        'echo "METRIC total_ms=$((end_ms - start_ms))"',
+        '# autoresearch-wrapped-command-json: "npm test"',
+        "",
+        "AUTORESEARCH_BENCHMARK_COMMAND='npm test' node <<'NODE'",
+        'const { spawnSync } = require("node:child_process");',
+        "const startedAt = Date.now();",
+        "const result = spawnSync(process.env.AUTORESEARCH_BENCHMARK_COMMAND, { shell: true });",
+        "const durationMs = Date.now() - startedAt;",
+        "if (typeof result.status === 'number' && result.status !== 0) process.exit(result.status);",
+        "console.log('METRIC total_ms=' + durationMs);",
+        "NODE",
         "",
       ].join("\n"),
     );

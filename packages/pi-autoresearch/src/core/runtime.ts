@@ -1482,6 +1482,14 @@ function parseAutoresearchWrappedCommand(cwd: string, normalizedCommand: string)
   try {
     for (const rawLine of readFileSync(scriptPath, "utf8").split(/\r?\n/)) {
       const line = rawLine.trim();
+      if (line.startsWith("# autoresearch-wrapped-command-json: ")) {
+        try {
+          const command = JSON.parse(line.slice("# autoresearch-wrapped-command-json: ".length));
+          return typeof command === "string" ? command : null;
+        } catch {
+          return null;
+        }
+      }
       if (!line || line.startsWith("#") || line === "set -euo pipefail") continue;
       if (/^(?:start_ms|end_ms)=/u.test(line)) continue;
       if (/^echo\s+["']?METRIC\b/u.test(line)) continue;
@@ -1652,14 +1660,24 @@ function buildMeasurementContractRisk(
 }
 
 function buildDurationBenchmarkScript(benchmarkCommand: string, metricName: string): string {
+  const command = benchmarkCommand.trim();
   return [
     "#!/usr/bin/env bash",
     "set -euo pipefail",
+    `# autoresearch-wrapped-command-json: ${JSON.stringify(command)}`,
     "",
-    "start_ms=$(node -e 'console.log(Date.now())')",
-    benchmarkCommand.trim(),
-    "end_ms=$(node -e 'console.log(Date.now())')",
-    `echo "METRIC ${metricName}=$((end_ms - start_ms))"`,
+    `AUTORESEARCH_BENCHMARK_COMMAND=${shellSingleQuote(command)} node <<'NODE'`,
+    'const { spawnSync } = require("node:child_process");',
+    "const command = process.env.AUTORESEARCH_BENCHMARK_COMMAND;",
+    "if (!command) throw new Error('AUTORESEARCH_BENCHMARK_COMMAND is required');",
+    "const startedAt = Date.now();",
+    "const result = spawnSync(command, { shell: true, stdio: 'inherit' });",
+    "const durationMs = Date.now() - startedAt;",
+    "if (result.error) throw result.error;",
+    "if (result.signal) process.exit(1);",
+    "if (typeof result.status === 'number' && result.status !== 0) process.exit(result.status);",
+    `console.log(\`METRIC ${metricName}=\${durationMs}\`);`,
+    "NODE",
     "",
   ].join("\n");
 }
