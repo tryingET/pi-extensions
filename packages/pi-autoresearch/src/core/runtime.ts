@@ -326,6 +326,17 @@ export interface AutoresearchAkEvidencePacket {
   evidenceBoundary: string;
 }
 
+export interface AutoresearchKnowledgeExportPacket {
+  packetKind: "autoresearch.learning.v1";
+  adapterContractVersion: 1;
+  targetKinds: string[];
+  suggestedPath: string;
+  title: string;
+  markdown: string;
+  closeout: AutoresearchSegmentCloseout;
+  adapterBoundary: string;
+}
+
 export interface AutoresearchSegmentCloseout {
   cwd: string;
   receiptPath: string;
@@ -2079,6 +2090,25 @@ export function buildAutoresearchRuntimeStatus(
   });
 }
 
+export function buildAutoresearchKnowledgeExportPacket(
+  cwd: string,
+): AutoresearchKnowledgeExportPacket {
+  const closeout = buildAutoresearchSegmentCloseout(cwd);
+  const title = `Autoresearch learning: ${closeout.campaign ?? "unnamed campaign"}`;
+  const suggestedPath = `docs/learnings/${slugAutoresearchName("autoresearch-learning", closeout.campaign)}.md`;
+  return {
+    packetKind: "autoresearch.learning.v1",
+    adapterContractVersion: 1,
+    targetKinds: ["kes", "kms", "knowledge_base", "notes"],
+    suggestedPath,
+    title,
+    markdown: renderAutoresearchLearningMarkdown(closeout, title),
+    closeout,
+    adapterBoundary:
+      "Knowledge export packet is non-mutating and adapter-ready; KES/KMS adapters own persistence, promotion, and any external writes.",
+  };
+}
+
 export function buildAutoresearchAkEvidencePacket(input: {
   cwd: string;
   taskId: number;
@@ -2357,6 +2387,23 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     "",
     "## Peer lane recommendations",
     ...formatAutoresearchPeerLaneRecommendations({ cwd: status.cwd }),
+  ].join("\n");
+}
+
+export function formatAutoresearchKnowledgeExportPacket(
+  packet: AutoresearchKnowledgeExportPacket,
+): string {
+  return [
+    "# PI-AUTORESEARCH KNOWLEDGE EXPORT PACKET",
+    "",
+    `- packet kind: ${packet.packetKind}`,
+    `- adapter contract version: ${packet.adapterContractVersion}`,
+    `- target kinds: ${packet.targetKinds.join(", ")}`,
+    `- suggested path: ${packet.suggestedPath}`,
+    `- adapter boundary: ${packet.adapterBoundary}`,
+    "",
+    "## Markdown",
+    packet.markdown,
   ].join("\n");
 }
 
@@ -4642,6 +4689,43 @@ function cloneAutoresearchControlState(
 
 function formatTargetFiles(files: readonly string[]): string {
   return files.length > 0 ? files.join(", ") : "(none)";
+}
+
+function renderAutoresearchLearningMarkdown(
+  closeout: AutoresearchSegmentCloseout,
+  title: string,
+): string {
+  const metricUnit = closeout.metricUnit;
+  return [
+    `# ${title}`,
+    "",
+    "## Summary",
+    `- campaign: ${closeout.campaign ?? "(unnamed)"}`,
+    `- metric: ${closeout.metricName ?? "(unset)"} (${metricUnit || "unitless"}, ${closeout.direction ?? "unset"} is better)`,
+    `- runs: ${closeout.runCount} total / ${closeout.successfulRunCount} successful`,
+    `- baseline: ${formatMetricValue(closeout.baselineMetric, metricUnit)}`,
+    `- best: ${formatMetricValue(closeout.bestMetric, metricUnit)}`,
+    `- empirical decision: ${closeout.empiricalDecisionClass}`,
+    `- recommended action: ${closeout.recommendedAction}`,
+    "",
+    "## Timing interpretation",
+    formatMetricInterpretation(closeout.timingInterpretation, metricUnit),
+    "",
+    "## What was learned",
+    `- Current empirical meaning: ${closeout.empiricalDecisionClass}.`,
+    `- This packet is learning material, not canonical AK evidence or ontology truth.`,
+    "",
+    "## Candidate bindings",
+    ...(closeout.candidateBindings.length > 0
+      ? closeout.candidateBindings.flatMap((binding, index) => [
+          `- candidate ${index + 1}`,
+          ...formatCandidateBindingLines(binding).map((line) => `  ${line}`),
+        ])
+      : ["- (none)"]),
+    "",
+    "## Receipt references",
+    `- receipt log: ${closeout.receiptPath}`,
+  ].join("\n");
 }
 
 function renderAutoresearchAkEvidenceResult(closeout: AutoresearchSegmentCloseout): string {

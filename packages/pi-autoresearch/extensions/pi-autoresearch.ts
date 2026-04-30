@@ -39,6 +39,7 @@ import {
   type AutoresearchLoopProgressEvent,
   buildAutoresearchAkEvidencePacket,
   buildAutoresearchAutoplan,
+  buildAutoresearchKnowledgeExportPacket,
   buildAutoresearchPeerAssistPlan,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
@@ -49,6 +50,7 @@ import {
   formatAutoresearchAutoplanResult,
   formatAutoresearchControlResult,
   formatAutoresearchDecisionResult,
+  formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchLoopResult,
   formatAutoresearchPeerAssistPlan,
   formatAutoresearchRunResult,
@@ -92,10 +94,11 @@ const statusActionSchema = Type.Union(
     Type.Literal("finalize"),
     Type.Literal("closeout"),
     Type.Literal("ak_evidence"),
+    Type.Literal("learning"),
   ],
   {
     description:
-      "Inspect status, build a package-local segment closeout packet, build a non-mutating exact-task AK evidence packet, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
+      "Inspect status, build a package-local segment closeout packet, build a non-mutating exact-task AK evidence packet, build an adapter-ready learning/KMS packet, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
   },
 );
 
@@ -747,13 +750,13 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, build a package-local segment closeout packet, build a non-mutating exact-task AK evidence packet, or request a governed setup/finalize packet through the existing runtime surface.",
+      "Inspect the current pi-autoresearch bounded runtime, build a package-local segment closeout packet, build a non-mutating exact-task AK evidence packet, build an adapter-ready learning/KMS packet, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout or exact-task AK evidence packet, and optionally request a governed setup/finalize packet.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, exact-task AK evidence packet, or adapter-ready learning packet, and optionally request a governed setup/finalize packet.",
     parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
-        action?: "status" | "setup" | "finalize" | "closeout" | "ak_evidence";
+        action?: "status" | "setup" | "finalize" | "closeout" | "ak_evidence" | "learning";
         cwd?: string;
         optimizationObjective?: string;
         repoContext?: string[];
@@ -829,6 +832,14 @@ export function registerPiAutoresearchExtension(
         const result = buildAutoresearchAkEvidencePacket({ cwd, taskId: request.akTaskId });
         return {
           content: [{ type: "text", text: formatAutoresearchAkEvidencePacket(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "learning") {
+        const result = buildAutoresearchKnowledgeExportPacket(cwd);
+        return {
+          content: [{ type: "text", text: formatAutoresearchKnowledgeExportPacket(result) }],
           details: result,
         };
       }

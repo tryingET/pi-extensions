@@ -40,11 +40,13 @@ import {
   appendReceipt,
   buildAutoresearchAkEvidencePacket,
   buildAutoresearchHelpText,
+  buildAutoresearchKnowledgeExportPacket,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
   createConfigReceipt,
   createRunReceipt,
   formatAutoresearchAkEvidencePacket,
+  formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchSegmentCloseout,
   formatAutoresearchStatusText,
   loadReceiptLog,
@@ -554,6 +556,12 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.match(evidence.suggestedToolCall, /evidence_record/);
     assert.match(formatAutoresearchAkEvidencePacket(evidence), /AK EVIDENCE PACKET/);
     assert.match(formatAutoresearchAkEvidencePacket(evidence), /task id: 1234/);
+
+    const learning = buildAutoresearchKnowledgeExportPacket(cwd);
+    assert.equal(learning.packetKind, "autoresearch.learning.v1");
+    assert.ok(learning.targetKinds.includes("kms"));
+    assert.match(learning.markdown, /## What was learned/);
+    assert.match(formatAutoresearchKnowledgeExportPacket(learning), /KNOWLEDGE EXPORT PACKET/);
   }));
 
 test("calibration runs inform timing noise without competing as best candidate", () =>
@@ -1842,6 +1850,20 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.match(akEvidence?.content[0]?.text ?? "", /AK EVIDENCE PACKET/);
     assert.match(akEvidence?.content[0]?.text ?? "", /task id: 5678/);
     assert.match(akEvidence?.content[0]?.text ?? "", /evidence_record/);
+
+    const learning = await tool?.execute(
+      "call-4c",
+      {
+        cwd,
+        action: "learning",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(learning);
+    assert.match(learning?.content[0]?.text ?? "", /KNOWLEDGE EXPORT PACKET/);
+    assert.match(learning?.content[0]?.text ?? "", /adapter boundary:/);
 
     const setup = await tool?.execute(
       "call-5",

@@ -62,6 +62,7 @@ Core truths now landed:
 - run and segment output now carries an explicit empirical decision class so `baseline` / `candidate` / `checks_failed` operational status does not masquerade as measured meaning
 - `autoresearch_runtime_status` can now emit a package-local segment closeout packet that summarizes run lineage, candidate bindings, empirical decision, recommended action, and the explicit boundary before AK evidence or KES learning promotion
 - `autoresearch_runtime_status action=ak_evidence` can derive a non-mutating exact-task AK evidence packet plus suggested explicit `evidence_record(...)` controller call without writing AK directly
+- `autoresearch_runtime_status action=learning` can derive an adapter-ready `autoresearch.learning.v1` knowledge export packet for KES/KMS/notes consumers without making pi-autoresearch the owner of those systems
 - setup materializer that can plan/apply a config receipt or bootstrap a baseline without forcing a human slash-command wizard
 - plan-only visible peer-assist handoff through canonical `scout_peer_spawn` / `candidate_peer_spawn` / `fork_peer_spawn` calls
 - bounded in-call autoresearch loop with required iteration budget, optional wall-clock/posture gates, live progress updates, governed next-hypothesis bridge, and explicit peer-launch handoff policy
