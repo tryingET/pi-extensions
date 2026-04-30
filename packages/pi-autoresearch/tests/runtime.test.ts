@@ -685,6 +685,48 @@ test("autoresearch_runtime_autoplan proposes duration script for generic total_m
   });
 });
 
+test("autoresearch_runtime_autoplan omits inferred duplicate checks command", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-duplicate-checks",
+        scripts: {
+          test: "npm run quality:ci",
+          check: "npm run quality:ci",
+          "quality:ci": "node test.js",
+        },
+      }),
+    );
+
+    const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
+      "call-autoplan-duplicate-checks",
+      {
+        cwd,
+        objective: "reduce test runtime",
+        benchmarkCommand: "npm test",
+        metricName: "total_ms",
+        direction: "lower",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const details = result.details as {
+      checksCommand: null;
+      risks: string[];
+      nextToolCall: string;
+    };
+    assert.equal(details.checksCommand, null);
+    assert.ok(details.risks.some((risk) => risk.includes("checks command omitted")));
+    assert.match(details.nextToolCall, /checksCommand: null/);
+    assert.match(details.nextToolCall, /action: "baseline"/);
+  });
+});
+
 test("autoresearch_runtime_autoplan does not invent score script without evidence", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();

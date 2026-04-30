@@ -768,10 +768,17 @@ export function buildAutoresearchAutoplan(
   const benchmarkCommand =
     normalizeOptionalString(input.benchmarkCommand) ??
     inferBenchmarkCommand(paths, packageScripts, justRecipes);
-  const checksCommand =
+  const requestedChecksCommand =
     input.checksCommand !== undefined
       ? normalizeOptionalString(input.checksCommand)
       : inferChecksCommand(paths, packageScripts, justRecipes);
+  const duplicateChecksReason = buildDuplicateChecksReason(
+    benchmarkCommand,
+    requestedChecksCommand,
+    packageScripts,
+  );
+  const checksCommand =
+    input.checksCommand === undefined && duplicateChecksReason ? null : requestedChecksCommand;
   const name = slugAutoresearchName(objective, readPackageName(cwd));
   const filesInScope = inferFilesInScope(cwd, input.filesInScope);
   const offLimits = normalizeArray(input.offLimits);
@@ -838,6 +845,8 @@ export function buildAutoresearchAutoplan(
     status,
     benchmarkMetricWarning: scriptProposalCanDriveBaseline ? null : benchmarkMetricWarning,
     measurementContractRisk: buildMeasurementContractRisk(benchmarkScriptProposal),
+    duplicateChecksReason,
+    duplicateChecksOmitted: Boolean(duplicateChecksReason && input.checksCommand === undefined),
   });
   const nextAction: AutoresearchSetupAction =
     benchmarkMetricWarning && !scriptProposalCanDriveBaseline ? "plan" : "baseline";
@@ -1223,6 +1232,41 @@ function inferFilesInScope(cwd: string, requested: readonly string[] | undefined
   );
 }
 
+function buildDuplicateChecksReason(
+  benchmarkCommand: string | null,
+  checksCommand: string | null,
+  packageScripts: Record<string, string>,
+): string | null {
+  if (!benchmarkCommand || !checksCommand) return null;
+  const benchmark = resolveCommandEquivalenceKey(benchmarkCommand, packageScripts);
+  const checks = resolveCommandEquivalenceKey(checksCommand, packageScripts);
+  if (!benchmark || !checks || benchmark !== checks) return null;
+  return `${JSON.stringify(benchmarkCommand)} and ${JSON.stringify(checksCommand)} both resolve to ${benchmark}`;
+}
+
+function resolveCommandEquivalenceKey(
+  command: string,
+  packageScripts: Record<string, string>,
+  seen: Set<string> = new Set(),
+): string | null {
+  const normalized = command.trim().toLowerCase().replace(/\s+/g, " ");
+  const scriptName = parseNpmScriptName(normalized);
+  if (!scriptName) return normalized;
+  if (seen.has(scriptName)) return `npm-script:${scriptName}`;
+  seen.add(scriptName);
+  const scriptBody = packageScripts[scriptName]?.trim();
+  if (!scriptBody) return `npm-script:${scriptName}`;
+  const nestedScriptName = parseNpmScriptName(scriptBody.toLowerCase().replace(/\s+/g, " "));
+  if (nestedScriptName) return resolveCommandEquivalenceKey(scriptBody, packageScripts, seen);
+  return `npm-script-body:${scriptBody}`;
+}
+
+function parseNpmScriptName(normalizedCommand: string): string | null {
+  if (normalizedCommand === "npm test" || normalizedCommand === "npm run test") return "test";
+  const match = /^npm run(?:-script)? ([a-z0-9:_-]+)$/u.exec(normalizedCommand);
+  return match?.[1] ?? null;
+}
+
 function buildAutoplanRisks(input: {
   benchmarkCommand: string | null;
   checksCommand: string | null;
@@ -1230,6 +1274,8 @@ function buildAutoplanRisks(input: {
   status: AutoresearchRuntimeStatus;
   benchmarkMetricWarning?: string | null;
   measurementContractRisk?: string | null;
+  duplicateChecksReason?: string | null;
+  duplicateChecksOmitted?: boolean;
 }): string[] {
   const risks: string[] = [];
   if (!input.benchmarkCommand) {
@@ -1239,7 +1285,13 @@ function buildAutoplanRisks(input: {
   }
   if (!input.checksCommand) {
     risks.push(
-      "no checks command was detected; loop safety will rely on benchmark exit status only",
+      input.duplicateChecksOmitted && input.duplicateChecksReason
+        ? `checks command omitted because ${input.duplicateChecksReason}`
+        : "no checks command was detected; loop safety will rely on benchmark exit status only",
+    );
+  } else if (input.duplicateChecksReason) {
+    risks.push(
+      `benchmark and checks commands appear equivalent; setup will run the same gate twice because checksCommand was provided explicitly (${input.duplicateChecksReason})`,
     );
   }
   const metricWarning =
