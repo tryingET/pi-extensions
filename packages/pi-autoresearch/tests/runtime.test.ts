@@ -656,9 +656,18 @@ test("autoresearch_runtime_autoplan proposes duration script for generic total_m
     const details = result.details as {
       risks: string[];
       nextToolCall: string;
-      benchmarkScriptProposal: { benchmarkScript: string; source: string };
+      benchmarkScriptProposal: {
+        benchmarkScript: string;
+        source: string;
+        measurementContract: { optimizationAuthority: string; freshness: string };
+      };
     };
     assert.equal(details.benchmarkScriptProposal.source, "duration_wrapper");
+    assert.equal(
+      details.benchmarkScriptProposal.measurementContract.optimizationAuthority,
+      "baseline_allowed",
+    );
+    assert.equal(details.benchmarkScriptProposal.measurementContract.freshness, "run_generated");
     assert.match(details.benchmarkScriptProposal.benchmarkScript, /npm test/);
     assert.match(details.benchmarkScriptProposal.benchmarkScript, /METRIC total_ms=/);
     assert.ok(
@@ -713,7 +722,7 @@ test("autoresearch_runtime_autoplan does not invent score script without evidenc
   });
 });
 
-test("autoresearch_runtime_autoplan proposes DSPx behavior score script for setup_quality_score", async () => {
+test("autoresearch_runtime_autoplan keeps static DSPx behavior score advisory-only", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();
     writeFile(
@@ -770,30 +779,52 @@ test("autoresearch_runtime_autoplan proposes DSPx behavior score script for setu
     const output = result.content[0]?.text ?? "";
     assert.match(output, /DSPx advisory evidence/);
     assert.match(output, /Benchmark script proposal/);
+    assert.match(output, /measurement authority: advisory_only/);
     const details = result.details as {
       risks: string[];
       nextToolCall: string;
-      benchmarkScriptProposal: { benchmarkScript: string; source: string };
+      benchmarkScriptProposal: {
+        benchmarkScript: string;
+        source: string;
+        measurementContract: { optimizationAuthority: string; freshness: string };
+      };
       dspxAdvisory: {
         warnings: string[];
         nextToolCall: string;
-        benchmarkScriptProposal: { benchmarkScript: string; source: string };
+        benchmarkScriptProposal: {
+          benchmarkScript: string;
+          source: string;
+          measurementContract: { optimizationAuthority: string; freshness: string };
+        };
       };
     };
     assert.equal(details.benchmarkScriptProposal.source, "dspx_behavior_score");
+    assert.equal(
+      details.benchmarkScriptProposal.measurementContract.optimizationAuthority,
+      "advisory_only",
+    );
+    assert.equal(
+      details.benchmarkScriptProposal.measurementContract.freshness,
+      "static_existing_artifact",
+    );
     assert.match(details.benchmarkScriptProposal.benchmarkScript, /behavior_results\.json/);
     assert.match(details.benchmarkScriptProposal.benchmarkScript, /METRIC setup_quality_score=/);
-    assert.ok(!details.risks.some((risk) => risk.includes("METRIC setup_quality_score=value")));
-    assert.match(details.nextToolCall, /action: "baseline"/);
-    assert.match(details.nextToolCall, /benchmarkCommand: "bash autoresearch\.sh"/);
-    assert.match(details.nextToolCall, /benchmarkScript:/);
+    assert.ok(details.risks.some((risk) => risk.includes("METRIC setup_quality_score=value")));
+    assert.ok(details.risks.some((risk) => risk.includes("measurement contract is advisory_only")));
+    assert.match(details.nextToolCall, /action: "plan"/);
+    assert.match(details.nextToolCall, /benchmarkCommand: "npm test"/);
+    assert.doesNotMatch(details.nextToolCall, /benchmarkScript:/);
     assert.equal(details.dspxAdvisory.benchmarkScriptProposal.source, "dspx_behavior_score");
-    assert.match(details.dspxAdvisory.nextToolCall, /action: "baseline"/);
+    assert.equal(
+      details.dspxAdvisory.benchmarkScriptProposal.measurementContract.optimizationAuthority,
+      "advisory_only",
+    );
+    assert.match(details.dspxAdvisory.nextToolCall, /action: "plan"/);
     assert.ok(
-      !details.dspxAdvisory.warnings.some((warning) =>
-        warning.includes("METRIC setup_quality_score=value"),
+      details.dspxAdvisory.warnings.some((warning) =>
+        warning.includes("measurement contract is advisory_only"),
       ),
-      "DSPx advisory should not preserve the metric warning once it proposes a score script",
+      "DSPx advisory must not become baseline authority when it reads static evidence",
     );
   });
 });

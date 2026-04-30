@@ -51,9 +51,9 @@ The current boundary is now more specific: the package is the runtime owner for 
   - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, the current llama.cpp manifest-campaign projection state when one has been projected locally, and visible peer-lane recommendations for optional `scout_peer_spawn` / `candidate_peer_spawn` use without auto-spawning peers
 - `autoresearch_runtime_autoplan`
   - explores the local repo/problem space from a bounded objective and proposes campaign setup: name, metric, direction, benchmark command, checks command, scope, risks, and exact next tool call
-  - when a generic benchmark command such as `npm test` would not emit `METRIC <name>=<value>`, proposes a conservative local `autoresearch.sh` script when a safe metric source is known, and keeps setup plan-only when it is not
+  - when a generic benchmark command such as `npm test` would not emit `METRIC <name>=<value>`, proposes a conservative local `autoresearch.sh` script only when its measurement contract is fresh, causal to the current run, and allowed to drive optimization
   - supports `planner: "dspx_program"` to return or materialize a local DSPx `program-gen` handoff intent for an `AutoresearchSetupPlanner` candidate while keeping Pi as the outer controller
-  - when DSPx `behavior_results.json` exists, reads it as evidence-only advisory setup input and can propose a score-emitting benchmark script from passed/total evidence without applying it or treating it as authority
+  - when DSPx `behavior_results.json` exists, reads it as evidence-only advisory setup input and may summarize passed/total as an advisory-only score, but static behavior evidence cannot drive a baseline unless regenerated during the benchmark
 - `autoresearch_runtime_setup`
   - plans, applies, or baselines a campaign/segment config without requiring a human slash-command wizard
   - can append a config receipt without running, or bootstrap a baseline run through the same bounded run machinery

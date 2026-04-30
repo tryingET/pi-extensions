@@ -342,12 +342,22 @@ export interface AutoresearchDspxAdvisoryProposal {
   nextAction: string | null;
 }
 
+export interface AutoresearchMeasurementContract {
+  metricName: string;
+  generatedBy: string;
+  freshness: "run_generated" | "static_existing_artifact";
+  causalLink: "wraps_current_benchmark_command" | "reads_prior_advisory_artifact";
+  optimizationAuthority: "baseline_allowed" | "advisory_only";
+  reason: string;
+}
+
 export interface AutoresearchBenchmarkScriptProposal {
   benchmarkCommand: "bash autoresearch.sh";
   benchmarkScript: string;
   allowOverwriteScripts: false;
   reason: string;
   source: "duration_wrapper" | "dspx_behavior_score";
+  measurementContract: AutoresearchMeasurementContract;
 }
 
 export interface AutoresearchDspxAdvisory {
@@ -809,25 +819,28 @@ export function buildAutoresearchAutoplan(
     dspxBehaviorPath: dspxAdvisory?.available ? dspxAdvisory.behaviorPath : null,
     dspxTotal: dspxAdvisory?.total ?? 0,
   });
+  const scriptProposalCanDriveBaseline =
+    canBenchmarkScriptProposalDriveBaseline(benchmarkScriptProposal);
   const risks = buildAutoplanRisks({
     benchmarkCommand,
     checksCommand,
     metricName: metric.metricName,
     status,
-    benchmarkMetricWarning: benchmarkScriptProposal ? null : benchmarkMetricWarning,
+    benchmarkMetricWarning: scriptProposalCanDriveBaseline ? null : benchmarkMetricWarning,
+    measurementContractRisk: buildMeasurementContractRisk(benchmarkScriptProposal),
   });
   const nextAction: AutoresearchSetupAction =
-    benchmarkMetricWarning && !benchmarkScriptProposal ? "plan" : "baseline";
+    benchmarkMetricWarning && !scriptProposalCanDriveBaseline ? "plan" : "baseline";
   const nextToolCall = formatAutoplanSetupToolCall({
     cwd,
     config,
     action: nextAction,
     benchmarkCommand:
-      benchmarkScriptProposal?.benchmarkCommand ??
-      benchmarkCommand ??
-      "<benchmark command required>",
+      scriptProposalCanDriveBaseline && benchmarkScriptProposal
+        ? benchmarkScriptProposal.benchmarkCommand
+        : (benchmarkCommand ?? "<benchmark command required>"),
     checksCommand,
-    benchmarkScriptProposal,
+    benchmarkScriptProposal: scriptProposalCanDriveBaseline ? benchmarkScriptProposal : null,
   });
 
   return {
@@ -880,6 +893,9 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
           "## Benchmark script proposal",
           `- source: ${result.benchmarkScriptProposal.source}`,
           `- reason: ${result.benchmarkScriptProposal.reason}`,
+          `- measurement authority: ${result.benchmarkScriptProposal.measurementContract.optimizationAuthority}`,
+          `- freshness: ${result.benchmarkScriptProposal.measurementContract.freshness}`,
+          `- causal link: ${result.benchmarkScriptProposal.measurementContract.causalLink}`,
           "```bash",
           result.benchmarkScriptProposal.benchmarkScript.trimEnd(),
           "```",
@@ -923,6 +939,9 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
                 "### DSPx advisory benchmark script proposal",
                 `- source: ${result.dspxAdvisory.benchmarkScriptProposal.source}`,
                 `- reason: ${result.dspxAdvisory.benchmarkScriptProposal.reason}`,
+                `- measurement authority: ${result.dspxAdvisory.benchmarkScriptProposal.measurementContract.optimizationAuthority}`,
+                `- freshness: ${result.dspxAdvisory.benchmarkScriptProposal.measurementContract.freshness}`,
+                `- causal link: ${result.dspxAdvisory.benchmarkScriptProposal.measurementContract.causalLink}`,
                 "```bash",
                 result.dspxAdvisory.benchmarkScriptProposal.benchmarkScript.trimEnd(),
                 "```",
@@ -1183,6 +1202,7 @@ function buildAutoplanRisks(input: {
   metricName: string;
   status: AutoresearchRuntimeStatus;
   benchmarkMetricWarning?: string | null;
+  measurementContractRisk?: string | null;
 }): string[] {
   const risks: string[] = [];
   if (!input.benchmarkCommand) {
@@ -1200,6 +1220,7 @@ function buildAutoplanRisks(input: {
       ? buildBenchmarkMetricContractWarning(input.benchmarkCommand, input.metricName)
       : input.benchmarkMetricWarning;
   if (metricWarning) risks.push(metricWarning);
+  if (input.measurementContractRisk) risks.push(input.measurementContractRisk);
   if (input.status.currentSegment.configured) {
     risks.push(
       "runtime is already configured; setup apply requires reconfigure=true for a new segment",
@@ -1259,8 +1280,17 @@ function buildMetricBenchmarkScriptProposal(input: {
       }),
       allowOverwriteScripts: false,
       reason:
-        "generic benchmark command does not emit the requested score metric; compute the score from existing DSPx behavior_results.json evidence instead of inventing a score from test output",
+        "generic benchmark command does not emit the requested score metric; existing DSPx behavior_results.json can be summarized as advisory evidence but cannot drive a baseline unless regenerated during the benchmark",
       source: "dspx_behavior_score",
+      measurementContract: {
+        metricName: input.metricName,
+        generatedBy: "existing DSPx behavior_results.json summary",
+        freshness: "static_existing_artifact",
+        causalLink: "reads_prior_advisory_artifact",
+        optimizationAuthority: "advisory_only",
+        reason:
+          "the script reads a pre-existing advisory artifact rather than generating fresh evidence during the current benchmark run",
+      },
     };
   }
 
@@ -1272,7 +1302,29 @@ function buildMetricBenchmarkScriptProposal(input: {
     reason:
       "generic benchmark command does not emit METRIC output; wrap it with a bounded local duration measurement",
     source: "duration_wrapper",
+    measurementContract: {
+      metricName: input.metricName,
+      generatedBy: `duration wrapper around ${input.benchmarkCommand.trim()}`,
+      freshness: "run_generated",
+      causalLink: "wraps_current_benchmark_command",
+      optimizationAuthority: "baseline_allowed",
+      reason:
+        "the metric is generated during the current benchmark run by measuring elapsed wall-clock time around the benchmark command",
+    },
   };
+}
+
+function canBenchmarkScriptProposalDriveBaseline(
+  proposal: AutoresearchBenchmarkScriptProposal | null,
+): boolean {
+  return proposal?.measurementContract.optimizationAuthority === "baseline_allowed";
+}
+
+function buildMeasurementContractRisk(
+  proposal: AutoresearchBenchmarkScriptProposal | null,
+): string | null {
+  if (!proposal || canBenchmarkScriptProposalDriveBaseline(proposal)) return null;
+  return `measurement contract is ${proposal.measurementContract.optimizationAuthority}: ${proposal.measurementContract.reason}`;
 }
 
 function buildDurationBenchmarkScript(benchmarkCommand: string, metricName: string): string {
@@ -1459,6 +1511,8 @@ function readDspxAutoplanAdvisory(input: {
           dspxTotal: total,
         })
       : null;
+    const scriptProposalCanDriveBaseline =
+      canBenchmarkScriptProposalDriveBaseline(benchmarkScriptProposal);
     const warnings: string[] = [];
     if (!exact)
       warnings.push(
@@ -1466,7 +1520,9 @@ function readDspxAutoplanAdvisory(input: {
       );
     if (status && status !== "passed") warnings.push(`DSPx behavior evidence status is ${status}`);
     if (!proposal) warnings.push("DSPx behavior evidence has no observable setup proposal");
-    if (metricWarning && !benchmarkScriptProposal) warnings.push(metricWarning);
+    if (metricWarning && !scriptProposalCanDriveBaseline) warnings.push(metricWarning);
+    const measurementContractRisk = buildMeasurementContractRisk(benchmarkScriptProposal);
+    if (measurementContractRisk) warnings.push(measurementContractRisk);
     const nextToolCall = proposalToSetupToolCall(input.cwd, proposal, benchmarkScriptProposal);
     return {
       authority: "evidence_only_non_authoritative",
@@ -1526,8 +1582,10 @@ function proposalToSetupToolCall(
     proposal.benchmarkCommand,
     proposal.metricName,
   );
+  const scriptProposalCanDriveBaseline =
+    canBenchmarkScriptProposalDriveBaseline(benchmarkScriptProposal);
   const action: AutoresearchSetupAction =
-    metricWarning && !benchmarkScriptProposal ? "plan" : "baseline";
+    metricWarning && !scriptProposalCanDriveBaseline ? "plan" : "baseline";
   return formatAutoplanSetupToolCall({
     cwd,
     config: createConfigReceipt({
@@ -1537,9 +1595,12 @@ function proposalToSetupToolCall(
       direction: proposal.direction,
     }),
     action,
-    benchmarkCommand: benchmarkScriptProposal?.benchmarkCommand ?? proposal.benchmarkCommand,
+    benchmarkCommand:
+      scriptProposalCanDriveBaseline && benchmarkScriptProposal
+        ? benchmarkScriptProposal.benchmarkCommand
+        : proposal.benchmarkCommand,
     checksCommand: proposal.checksCommand,
-    benchmarkScriptProposal,
+    benchmarkScriptProposal: scriptProposalCanDriveBaseline ? benchmarkScriptProposal : null,
   });
 }
 
