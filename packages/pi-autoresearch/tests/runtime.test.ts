@@ -727,6 +727,61 @@ test("autoresearch_runtime_autoplan omits inferred duplicate checks command", as
   });
 });
 
+test("autoresearch_runtime_autoplan omits inferred duplicate checks for existing autoresearch wrapper", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-wrapper-duplicate-checks",
+        scripts: {
+          test: "npm run quality:ci",
+          check: "npm run quality:ci",
+          "quality:ci": "node test.js",
+        },
+      }),
+    );
+    writeFile(
+      path.join(cwd, "autoresearch.sh"),
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "start_ms=$(node -e 'console.log(Date.now())')",
+        "npm test",
+        "end_ms=$(node -e 'console.log(Date.now())')",
+        'echo "METRIC total_ms=$((end_ms - start_ms))"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
+      "call-autoplan-wrapper-duplicate-checks",
+      {
+        cwd,
+        objective: "reduce test runtime",
+        metricName: "total_ms",
+        direction: "lower",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const details = result.details as {
+      benchmarkCommand: string;
+      checksCommand: null;
+      risks: string[];
+      nextToolCall: string;
+    };
+    assert.equal(details.benchmarkCommand, "bash autoresearch.sh");
+    assert.equal(details.checksCommand, null);
+    assert.ok(details.risks.some((risk) => risk.includes("checks command omitted")));
+    assert.match(details.nextToolCall, /checksCommand: null/);
+    assert.match(details.nextToolCall, /action: "baseline"/);
+  });
+});
+
 test("autoresearch_runtime_autoplan does not invent score script without evidence", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();

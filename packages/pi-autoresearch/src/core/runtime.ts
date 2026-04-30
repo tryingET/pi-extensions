@@ -773,6 +773,7 @@ export function buildAutoresearchAutoplan(
       ? normalizeOptionalString(input.checksCommand)
       : inferChecksCommand(paths, packageScripts, justRecipes);
   const duplicateChecksReason = buildDuplicateChecksReason(
+    cwd,
     benchmarkCommand,
     requestedChecksCommand,
     packageScripts,
@@ -1233,13 +1234,14 @@ function inferFilesInScope(cwd: string, requested: readonly string[] | undefined
 }
 
 function buildDuplicateChecksReason(
+  cwd: string,
   benchmarkCommand: string | null,
   checksCommand: string | null,
   packageScripts: Record<string, string>,
 ): string | null {
   if (!benchmarkCommand || !checksCommand) return null;
-  const benchmark = resolveCommandEquivalenceKey(benchmarkCommand, packageScripts);
-  const checks = resolveCommandEquivalenceKey(checksCommand, packageScripts);
+  const benchmark = resolveCommandEquivalenceKey(benchmarkCommand, packageScripts, cwd);
+  const checks = resolveCommandEquivalenceKey(checksCommand, packageScripts, cwd);
   if (!benchmark || !checks || benchmark !== checks) return null;
   return `${JSON.stringify(benchmarkCommand)} and ${JSON.stringify(checksCommand)} both resolve to ${benchmark}`;
 }
@@ -1247,9 +1249,13 @@ function buildDuplicateChecksReason(
 function resolveCommandEquivalenceKey(
   command: string,
   packageScripts: Record<string, string>,
+  cwd: string,
   seen: Set<string> = new Set(),
 ): string | null {
   const normalized = command.trim().toLowerCase().replace(/\s+/g, " ");
+  const wrappedCommand = parseAutoresearchWrappedCommand(cwd, normalized);
+  if (wrappedCommand)
+    return resolveCommandEquivalenceKey(wrappedCommand, packageScripts, cwd, seen);
   const scriptName = parseNpmScriptName(normalized);
   if (!scriptName) return normalized;
   if (seen.has(scriptName)) return `npm-script:${scriptName}`;
@@ -1257,7 +1263,7 @@ function resolveCommandEquivalenceKey(
   const scriptBody = packageScripts[scriptName]?.trim();
   if (!scriptBody) return `npm-script:${scriptName}`;
   const nestedScriptName = parseNpmScriptName(scriptBody.toLowerCase().replace(/\s+/g, " "));
-  if (nestedScriptName) return resolveCommandEquivalenceKey(scriptBody, packageScripts, seen);
+  if (nestedScriptName) return resolveCommandEquivalenceKey(scriptBody, packageScripts, cwd, seen);
   return `npm-script-body:${scriptBody}`;
 }
 
@@ -1265,6 +1271,24 @@ function parseNpmScriptName(normalizedCommand: string): string | null {
   if (normalizedCommand === "npm test" || normalizedCommand === "npm run test") return "test";
   const match = /^npm run(?:-script)? ([a-z0-9:_-]+)$/u.exec(normalizedCommand);
   return match?.[1] ?? null;
+}
+
+function parseAutoresearchWrappedCommand(cwd: string, normalizedCommand: string): string | null {
+  if (!/^(?:bash\s+)?(?:\.\/)?autoresearch\.sh$/u.test(normalizedCommand)) return null;
+  const scriptPath = resolveAutoresearchPaths(cwd).benchmarkScriptPath;
+  if (!existsSync(scriptPath)) return null;
+  try {
+    for (const rawLine of readFileSync(scriptPath, "utf8").split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#") || line === "set -euo pipefail") continue;
+      if (/^(?:start_ms|end_ms)=/u.test(line)) continue;
+      if (/^echo\s+["']?METRIC\b/u.test(line)) continue;
+      if (/^(?:npm\s+(?:test|run|run-script)\b|just\s+)/u.test(line)) return line;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function buildAutoplanRisks(input: {
