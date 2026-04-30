@@ -52,6 +52,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `autoresearch_runtime_autoplan`
   - explores the local repo/problem space from a bounded objective and proposes campaign setup: name, metric, direction, benchmark command, checks command, scope, risks, and exact next tool call
   - supports `planner: "dspx_program"` to return or materialize a local DSPx `program-gen` handoff intent for an `AutoresearchSetupPlanner` candidate while keeping Pi as the outer controller
+  - when DSPx `behavior_results.json` exists, reads it as evidence-only advisory setup input and surfaces a separate DSPx proposal without applying it or treating it as authority
 - `autoresearch_runtime_setup`
   - plans, applies, or baselines a campaign/segment config without requiring a human slash-command wizard
   - can append a config receipt without running, or bootstrap a baseline run through the same bounded run machinery

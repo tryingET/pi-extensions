@@ -328,6 +328,34 @@ export interface BuildAutoresearchAutoplanInput {
   materializeDspxIntent?: boolean;
   dspxIntentPath?: string;
   dspxOutdir?: string;
+  dspxBehaviorPath?: string;
+}
+
+export interface AutoresearchDspxAdvisoryProposal {
+  campaignName: string | null;
+  metricName: string | null;
+  metricUnit: string;
+  direction: MetricDirection | null;
+  benchmarkCommand: string | null;
+  checksCommand: string | null;
+  risks: string | null;
+  nextAction: string | null;
+}
+
+export interface AutoresearchDspxAdvisory {
+  authority: "evidence_only_non_authoritative";
+  behaviorPath: string;
+  available: boolean;
+  status: string | null;
+  total: number;
+  passed: number;
+  failed: number;
+  error: number;
+  matchedObjective: boolean;
+  selectedExampleIndex: number | null;
+  proposal: AutoresearchDspxAdvisoryProposal | null;
+  warnings: string[];
+  nextToolCall: string | null;
 }
 
 export interface AutoresearchDspxProgramGenPlan {
@@ -357,6 +385,7 @@ export interface AutoresearchAutoplanResult {
   risks: string[];
   nextToolCall: string;
   dspxProgramGen: AutoresearchDspxProgramGenPlan | null;
+  dspxAdvisory: AutoresearchDspxAdvisory | null;
   status: AutoresearchRuntimeStatus;
 }
 
@@ -749,6 +778,15 @@ export function buildAutoresearchAutoplan(
           outdir: input.dspxOutdir,
         })
       : null;
+  const dspxAdvisory =
+    input.planner === "dspx_program" && dspxProgramGen
+      ? readDspxAutoplanAdvisory({
+          cwd,
+          objective,
+          behaviorPath: input.dspxBehaviorPath,
+          outdir: dspxProgramGen.outdir,
+        })
+      : null;
 
   return {
     cwd,
@@ -768,6 +806,7 @@ export function buildAutoresearchAutoplan(
     risks,
     nextToolCall,
     dspxProgramGen,
+    dspxAdvisory,
     status,
   };
 }
@@ -804,6 +843,38 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
           `- materialized: ${result.dspxProgramGen.materialized ? "yes" : "no"}`,
           `- command: \`${result.dspxProgramGen.command}\``,
           `- note: ${result.dspxProgramGen.note}`,
+        ]
+      : []),
+    ...(result.dspxAdvisory
+      ? [
+          "",
+          "## DSPx advisory evidence",
+          `- authority: ${result.dspxAdvisory.authority}`,
+          `- behavior: ${result.dspxAdvisory.behaviorPath}`,
+          `- available: ${result.dspxAdvisory.available ? "yes" : "no"}`,
+          `- status: ${result.dspxAdvisory.status ?? "unknown"} (${result.dspxAdvisory.passed}/${result.dspxAdvisory.total} passed, failed=${result.dspxAdvisory.failed}, error=${result.dspxAdvisory.error})`,
+          `- objective match: ${result.dspxAdvisory.matchedObjective ? "yes" : "no"}`,
+          ...(result.dspxAdvisory.proposal
+            ? [
+                `- proposed campaign: ${result.dspxAdvisory.proposal.campaignName ?? "(missing)"}`,
+                `- proposed metric: ${result.dspxAdvisory.proposal.metricName ?? "(missing)"} (${result.dspxAdvisory.proposal.metricUnit || "unitless"}, ${result.dspxAdvisory.proposal.direction ?? "unknown"} is better)`,
+                `- proposed benchmark: ${result.dspxAdvisory.proposal.benchmarkCommand ?? "(missing)"}`,
+                `- proposed checks: ${result.dspxAdvisory.proposal.checksCommand ?? "(none)"}`,
+                `- proposed next action: ${result.dspxAdvisory.proposal.nextAction ?? "(missing)"}`,
+              ]
+            : ["- proposal: (none)"]),
+          ...(result.dspxAdvisory.nextToolCall
+            ? ["", "### DSPx advisory setup call", `\`${result.dspxAdvisory.nextToolCall}\``]
+            : []),
+          ...(result.dspxAdvisory.warnings.length > 0
+            ? [
+                "",
+                "### DSPx advisory warnings",
+                ...result.dspxAdvisory.warnings.map((warning) => `- ${warning}`),
+              ]
+            : []),
+          "",
+          "DSPx advisory output is evidence only; use autoresearch_runtime_setup to apply any setup.",
         ]
       : []),
   ].join("\n");
@@ -1098,6 +1169,129 @@ function buildDspxProgramGenPlan(input: {
     materialized: input.materialize,
     note: "DSPx program-gen remains a local evidence/program-synthesis handoff; pi-autoresearch still owns setup application, bounded runs, receipts, and stop gates.",
   };
+}
+
+function readDspxAutoplanAdvisory(input: {
+  cwd: string;
+  objective: string;
+  outdir: string;
+  behaviorPath?: string;
+}): AutoresearchDspxAdvisory {
+  const behaviorPath = path.resolve(
+    input.cwd,
+    input.behaviorPath ?? path.join(input.outdir, "behavior_results.json"),
+  );
+  const missing: AutoresearchDspxAdvisory = {
+    authority: "evidence_only_non_authoritative",
+    behaviorPath,
+    available: false,
+    status: null,
+    total: 0,
+    passed: 0,
+    failed: 0,
+    error: 0,
+    matchedObjective: false,
+    selectedExampleIndex: null,
+    proposal: null,
+    warnings: ["DSPx behavior_results.json is not present yet; run the program-gen handoff first"],
+    nextToolCall: null,
+  };
+  if (!existsSync(behaviorPath)) return missing;
+
+  try {
+    const payload = JSON.parse(readFileSync(behaviorPath, "utf8")) as unknown;
+    if (!isRecord(payload)) {
+      return {
+        ...missing,
+        available: true,
+        warnings: ["DSPx behavior_results.json is not an object"],
+      };
+    }
+    const summary = isRecord(payload.summary) ? payload.summary : {};
+    const examples = Array.isArray(payload.examples) ? payload.examples : [];
+    const records = examples.filter(isRecord);
+    const exact = records.find((record) => {
+      const inputs = isRecord(record.inputs) ? record.inputs : {};
+      return stringOrNull(inputs.objective) === input.objective;
+    });
+    const selected = exact ?? records.find((record) => isRecord(record.observed_outputs)) ?? null;
+    const observed =
+      selected && isRecord(selected.observed_outputs) ? selected.observed_outputs : null;
+    const proposal = observed ? parseDspxAdvisoryProposal(observed) : null;
+    const status = stringOrNull(summary.status) ?? stringOrNull(payload.behavior_status);
+    const warnings: string[] = [];
+    if (!exact)
+      warnings.push(
+        "DSPx behavior evidence does not contain an exact objective match; treat proposal as stale or generic",
+      );
+    if (status && status !== "passed") warnings.push(`DSPx behavior evidence status is ${status}`);
+    if (!proposal) warnings.push("DSPx behavior evidence has no observable setup proposal");
+    const nextToolCall = proposalToSetupToolCall(input.cwd, proposal);
+    return {
+      authority: "evidence_only_non_authoritative",
+      behaviorPath,
+      available: true,
+      status,
+      total: numberOrZero(summary.total),
+      passed: numberOrZero(summary.passed),
+      failed: numberOrZero(summary.failed),
+      error: numberOrZero(summary.error),
+      matchedObjective: Boolean(exact),
+      selectedExampleIndex: selected ? numberOrNull(selected.index) : null,
+      proposal,
+      warnings,
+      nextToolCall,
+    };
+  } catch (error) {
+    return {
+      ...missing,
+      available: true,
+      warnings: [`could not parse DSPx behavior evidence: ${formatErrorMessage(error)}`],
+    };
+  }
+}
+
+function parseDspxAdvisoryProposal(
+  observed: Record<string, unknown>,
+): AutoresearchDspxAdvisoryProposal {
+  const direction = stringOrNull(observed.direction);
+  return {
+    campaignName: stringOrNull(observed.campaign_name),
+    metricName: stringOrNull(observed.metric_name),
+    metricUnit: stringOrNull(observed.metric_unit) ?? "",
+    direction: direction === "lower" || direction === "higher" ? direction : null,
+    benchmarkCommand: stringOrNull(observed.benchmark_command),
+    checksCommand: stringOrNull(observed.checks_command),
+    risks: stringOrNull(observed.risks),
+    nextAction: stringOrNull(observed.next_action),
+  };
+}
+
+function proposalToSetupToolCall(
+  cwd: string,
+  proposal: AutoresearchDspxAdvisoryProposal | null,
+): string | null {
+  if (
+    !proposal?.campaignName ||
+    !proposal.metricName ||
+    !proposal.direction ||
+    !proposal.benchmarkCommand
+  ) {
+    return null;
+  }
+  return `autoresearch_runtime_setup({ action: "baseline", cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(proposal.campaignName)}, metricName: ${JSON.stringify(proposal.metricName)}, metricUnit: ${JSON.stringify(proposal.metricUnit)}, direction: ${JSON.stringify(proposal.direction)}, benchmarkCommand: ${JSON.stringify(proposal.benchmarkCommand)}, checksCommand: ${proposal.checksCommand === null ? "null" : JSON.stringify(proposal.checksCommand)} })`;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function renderDspxAutoresearchIntent(input: {

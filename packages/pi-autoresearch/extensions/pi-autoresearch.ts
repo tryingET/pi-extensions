@@ -417,6 +417,12 @@ const autoplanSchema = Type.Object({
   dspxOutdir: Type.Optional(
     Type.String({ description: "Optional repo-relative or absolute DSPx program-gen output dir." }),
   ),
+  dspxBehaviorPath: Type.Optional(
+    Type.String({
+      description:
+        "Optional repo-relative or absolute DSPx behavior_results.json path to read as evidence-only advisory setup input.",
+    }),
+  ),
 });
 
 const setupActionSchema = Type.Union(
@@ -919,6 +925,7 @@ export function registerPiAutoresearchExtension(
         materializeDspxIntent?: boolean;
         dspxIntentPath?: string;
         dspxOutdir?: string;
+        dspxBehaviorPath?: string;
       };
       const result = buildAutoresearchAutoplan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
@@ -935,6 +942,7 @@ export function registerPiAutoresearchExtension(
         materializeDspxIntent: request.materializeDspxIntent,
         dspxIntentPath: request.dspxIntentPath,
         dspxOutdir: request.dspxOutdir,
+        dspxBehaviorPath: request.dspxBehaviorPath,
       });
       return {
         content: [{ type: "text", text: formatAutoresearchAutoplanResult(result) }],

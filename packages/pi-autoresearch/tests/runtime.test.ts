@@ -550,6 +550,32 @@ test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent
     );
     writeFile(path.join(cwd, "src/index.ts"), "export const value = 1;\n");
 
+    const dspxOutdir = path.join(cwd, ".autoresearch/dspx/generated/autosetup-planner");
+    mkdirSync(dspxOutdir, { recursive: true });
+    writeFile(
+      path.join(dspxOutdir, "behavior_results.json"),
+      JSON.stringify({
+        summary: { status: "passed", total: 1, passed: 1, failed: 0, error: 0 },
+        examples: [
+          {
+            index: 0,
+            status: "passed",
+            inputs: { objective: "reduce benchmark runtime" },
+            observed_outputs: {
+              campaign_name: "dspx-speed",
+              metric_name: "total_ms",
+              metric_unit: "ms",
+              direction: "lower",
+              benchmark_command: "npm run bench",
+              checks_command: "npm run check",
+              risks: "watch noisy timing",
+              next_action: "apply via autoresearch_runtime_setup only",
+            },
+          },
+        ],
+      }),
+    );
+
     const result = await tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute(
       "call-autoplan",
       {
@@ -557,6 +583,7 @@ test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent
         objective: "reduce benchmark runtime",
         planner: "dspx_program",
         materializeDspxIntent: true,
+        dspxOutdir,
       },
       undefined,
       undefined,
@@ -570,12 +597,26 @@ test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent
       benchmarkCommand: string;
       checksCommand: string;
       dspxProgramGen: { intentPath: string; materialized: boolean; command: string };
+      dspxAdvisory: {
+        available: boolean;
+        status: string;
+        matchedObjective: boolean;
+        proposal: { campaignName: string; benchmarkCommand: string };
+        nextToolCall: string;
+      };
     };
     assert.equal(details.config.metricName, "total_ms");
     assert.equal(details.config.direction, "lower");
     assert.equal(details.benchmarkCommand, "npm run bench");
     assert.equal(details.checksCommand, "npm run check");
     assert.equal(details.dspxProgramGen.materialized, true);
+    assert.equal(details.dspxAdvisory.available, true);
+    assert.equal(details.dspxAdvisory.status, "passed");
+    assert.equal(details.dspxAdvisory.matchedObjective, true);
+    assert.equal(details.dspxAdvisory.proposal.campaignName, "dspx-speed");
+    assert.equal(details.dspxAdvisory.proposal.benchmarkCommand, "npm run bench");
+    assert.match(details.dspxAdvisory.nextToolCall, /autoresearch_runtime_setup/);
+    assert.match(result.content[0]?.text ?? "", /DSPx advisory evidence/);
     assert.match(
       readFileSync(details.dspxProgramGen.intentPath, "utf8"),
       /AutoresearchSetupPlanner/,
