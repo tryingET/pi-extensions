@@ -19,6 +19,7 @@ Monorepo package for the governed `pi-autoresearch` capability in Pi.
 - Extension entry: `extensions/pi-autoresearch.ts`
 - Current phase: `supervised_dogfood_internal_alpha`
 - Product posture anchor: [docs/project/product-posture.md](./docs/project/product-posture.md)
+- Canonical dogfood playbook: [docs/project/dogfood-playbook.md](./docs/project/dogfood-playbook.md)
 
 ## Why this package exists
 
@@ -214,6 +215,7 @@ This package does **not** yet implement:
 
 The package now includes the bounded runtime's machine/event-ledger integration and peer-lane recommendation text for optional visible peer help. It still does not own peer launch: `pi-little-helpers` owns visible peer tools, `pi-peer-messaging` owns communication, peer/intercom messages are not evidence without controller verification, and autoresearch only recommends exact calls such as `scout_peer_spawn(...)`, `candidate_peer_spawn(...)`, or `fork_peer_spawn(...)`. The broader control-plane and autonomy integrations still belong to later bounded slices after the bounded runtime kernel.
 Use [docs/project/product-posture.md](./docs/project/product-posture.md) as the package-level alignment anchor for product promise, maturity, trust gates, boundaries, and next product bets.
+Use [docs/project/dogfood-playbook.md](./docs/project/dogfood-playbook.md) for the canonical supervised operator flow from setup through baseline/calibration, candidate binding, empirical closeout, and explicit external evidence/learning promotion.
 
 ## Example manifest
 

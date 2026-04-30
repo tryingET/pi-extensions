@@ -48,7 +48,7 @@ When I have a candidate change, I want to measure it under an explicit contract,
 - maturity: `supervised dogfood / internal alpha`
 - target control plane: landed
 - current strategic line: measurement trust and operator clarity before new surfaces
-- release posture: package checks pass, but product posture is still pre-public until the canonical dogfood playbook and metric-readiness UX are clearer
+- release posture: package checks pass, but product posture is still pre-public until the canonical dogfood playbook is exercised against real campaigns and metric-readiness UX is clearer
 
 ## Product success criteria
 
@@ -134,13 +134,15 @@ Runtime status and closeout packets now include an `empiricalPosture` object wit
 
 The remaining product work is to dogfood the wording against real campaigns and keep it concise enough for operators to trust at a glance.
 
-### Bet 2 — Canonical dogfood playbook
+### Bet 2 — Canonical dogfood playbook — documentation landed
 
-Document the repeatable operator flow:
+The canonical supervised operator flow now lives in [dogfood-playbook.md](./dogfood-playbook.md):
 
 ```text
 setup -> baseline samples -> calibration -> candidate lane/binding -> ordinary run -> closeout -> evidence/learning promotion
 ```
+
+The next product work is to dogfood that playbook against real campaigns and tighten wording where operators still overclaim noisy or under-bound results.
 
 ### Bet 3 — Metric readiness policy
 
@@ -174,6 +176,7 @@ Pick exactly one adapter target after demand is concrete. Until then, keep adapt
 
 - Product posture: `packages/pi-autoresearch/docs/project/product-posture.md`
 - Package public surface: `packages/pi-autoresearch/README.md`
+- Dogfood playbook: `packages/pi-autoresearch/docs/project/dogfood-playbook.md`
 - Adapter contract: `packages/pi-autoresearch/docs/project/adapter-contracts.md`
 - External manifest-campaign supervision status: `packages/pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-status.md`
 - Root monorepo vision: `docs/project/vision.md`
