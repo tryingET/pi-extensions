@@ -97,15 +97,19 @@ Produced by:
 autoresearch_runtime_status({ action: "ak_evidence", cwd, akTaskId })
 ```
 
-Current implementation returns an AK-shaped evidence packet with:
+Current implementation returns an AK-shaped evidence packet with the same adapter contract header as other packets:
 
 ```ts
 interface AutoresearchAkEvidencePacketV1 {
+  packetKind: "autoresearch.ak_evidence.v1";
+  adapterContractVersion: 1;
+  targetKinds: Array<"ak" | "task_system" | "evidence_ledger" | string>;
   taskId: number;
   checkType: "autoresearch:segment_closeout";
   result: string;
   closeout: AutoresearchSegmentCloseout;
   suggestedToolCall: string;
+  adapterBoundary: string;
   evidenceBoundary: string;
 }
 ```
@@ -128,7 +132,7 @@ A Beads or other task-system adapter should use the same pattern:
 4. return the target receipt/id;
 5. never infer task identity from the campaign name alone.
 
-### `autoresearch.closeout.v1` (implicit current structure)
+### `autoresearch.closeout.v1`
 
 Produced by:
 
@@ -141,10 +145,13 @@ Purpose:
 - structured empirical segment summary
 - source material for evidence and learning adapters
 
-Current fields include:
+Current fields include the adapter contract header directly so downstream systems can validate closeout packets without wrapping them first:
 
 ```ts
 interface AutoresearchSegmentCloseout {
+  packetKind: "autoresearch.closeout.v1";
+  adapterContractVersion: 1;
+  targetKinds: Array<"adapter_source" | "evidence" | "learning" | "task_system" | "knowledge_base" | string>;
   cwd: string;
   receiptPath: string;
   campaign: string | null;
@@ -160,6 +167,7 @@ interface AutoresearchSegmentCloseout {
   runs: AutoresearchSegmentCloseoutRun[];
   candidateBindings: AutoresearchCandidateBinding[];
   recommendedAction: string;
+  adapterBoundary: string;
   evidenceBoundary: string;
 }
 ```

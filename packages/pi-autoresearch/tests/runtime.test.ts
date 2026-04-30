@@ -537,6 +537,9 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     );
 
     const closeout = buildAutoresearchSegmentCloseout(cwd);
+    assert.equal(closeout.packetKind, "autoresearch.closeout.v1");
+    assert.equal(closeout.adapterContractVersion, 1);
+    assert.ok(closeout.targetKinds.includes("evidence"));
     assert.equal(closeout.campaign, "widget-speed-closeout");
     assert.equal(closeout.runCount, 2);
     assert.equal(closeout.candidateBindings.length, 1);
@@ -547,14 +550,25 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
       formatAutoresearchSegmentCloseout(closeout),
       /candidate branch: candidate\/closeout/,
     );
-    assert.match(formatAutoresearchSegmentCloseout(closeout), /evidence boundary:/);
+    assert.match(
+      formatAutoresearchSegmentCloseout(closeout),
+      /packet kind: autoresearch\.closeout\.v1/,
+    );
+    assert.match(formatAutoresearchSegmentCloseout(closeout), /adapter boundary:/);
 
     const evidence = buildAutoresearchAkEvidencePacket({ cwd, taskId: 1234 });
+    assert.equal(evidence.packetKind, "autoresearch.ak_evidence.v1");
+    assert.equal(evidence.adapterContractVersion, 1);
+    assert.ok(evidence.targetKinds.includes("ak"));
     assert.equal(evidence.taskId, 1234);
     assert.equal(evidence.checkType, "autoresearch:segment_closeout");
     assert.match(evidence.result, /empirical_decision=insufficient_samples/);
     assert.match(evidence.suggestedToolCall, /evidence_record/);
     assert.match(formatAutoresearchAkEvidencePacket(evidence), /AK EVIDENCE PACKET/);
+    assert.match(
+      formatAutoresearchAkEvidencePacket(evidence),
+      /packet kind: autoresearch\.ak_evidence\.v1/,
+    );
     assert.match(formatAutoresearchAkEvidencePacket(evidence), /task id: 1234/);
 
     const learning = buildAutoresearchKnowledgeExportPacket(cwd);

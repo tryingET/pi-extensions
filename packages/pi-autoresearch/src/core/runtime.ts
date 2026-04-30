@@ -318,11 +318,15 @@ export interface AutoresearchSegmentCloseoutRun {
 }
 
 export interface AutoresearchAkEvidencePacket {
+  packetKind: "autoresearch.ak_evidence.v1";
+  adapterContractVersion: 1;
+  targetKinds: string[];
   taskId: number;
   checkType: "autoresearch:segment_closeout";
   result: string;
   closeout: AutoresearchSegmentCloseout;
   suggestedToolCall: string;
+  adapterBoundary: string;
   evidenceBoundary: string;
 }
 
@@ -338,6 +342,9 @@ export interface AutoresearchKnowledgeExportPacket {
 }
 
 export interface AutoresearchSegmentCloseout {
+  packetKind: "autoresearch.closeout.v1";
+  adapterContractVersion: 1;
+  targetKinds: string[];
   cwd: string;
   receiptPath: string;
   status: AutoresearchRuntimeStatus;
@@ -354,6 +361,7 @@ export interface AutoresearchSegmentCloseout {
   runs: AutoresearchSegmentCloseoutRun[];
   candidateBindings: AutoresearchCandidateBinding[];
   recommendedAction: string;
+  adapterBoundary: string;
   evidenceBoundary: string;
 }
 
@@ -2118,14 +2126,19 @@ export function buildAutoresearchAkEvidencePacket(input: {
   }
   const closeout = buildAutoresearchSegmentCloseout(input.cwd);
   const result = renderAutoresearchAkEvidenceResult(closeout);
+  const adapterBoundary =
+    "AK evidence packet is non-mutating and task-bound; the controller must explicitly call the AK/evidence owner surface to record it.";
   return {
+    packetKind: "autoresearch.ak_evidence.v1",
+    adapterContractVersion: 1,
+    targetKinds: ["ak", "task_system", "evidence_ledger"],
     taskId: input.taskId,
     checkType: "autoresearch:segment_closeout",
     result,
     closeout,
     suggestedToolCall: `evidence_record({ task_id: ${input.taskId}, check_type: "autoresearch:segment_closeout", result: ${JSON.stringify(result)} })`,
-    evidenceBoundary:
-      "AK evidence packet is non-mutating and task-bound; the controller must explicitly call the AK/evidence owner surface to record it.",
+    adapterBoundary,
+    evidenceBoundary: adapterBoundary,
   };
 }
 
@@ -2146,7 +2159,13 @@ export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegme
     .map((run) => run.experiment?.candidate)
     .filter((binding): binding is AutoresearchCandidateBinding => Boolean(binding));
 
+  const adapterBoundary =
+    "Segment closeout is package-local empirical evidence only; promote to AK evidence, KES learning, or another target through an explicit adapter or owner surface.";
+
   return {
+    packetKind: "autoresearch.closeout.v1",
+    adapterContractVersion: 1,
+    targetKinds: ["adapter_source", "evidence", "learning", "task_system", "knowledge_base"],
     cwd: resolvedCwd,
     receiptPath: paths.jsonlPath,
     status,
@@ -2180,8 +2199,8 @@ export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegme
     })),
     candidateBindings,
     recommendedAction: recommendSegmentCloseoutAction(status.currentSegment.empiricalDecisionClass),
-    evidenceBoundary:
-      "Segment closeout is package-local empirical evidence only; promote to AK evidence or KES learning through explicit owner surfaces.",
+    adapterBoundary,
+    evidenceBoundary: adapterBoundary,
   };
 }
 
@@ -2411,10 +2430,14 @@ export function formatAutoresearchAkEvidencePacket(packet: AutoresearchAkEvidenc
   return [
     "# PI-AUTORESEARCH AK EVIDENCE PACKET",
     "",
+    `- packet kind: ${packet.packetKind}`,
+    `- adapter contract version: ${packet.adapterContractVersion}`,
+    `- target kinds: ${packet.targetKinds.join(", ")}`,
     `- task id: ${packet.taskId}`,
     `- check type: ${packet.checkType}`,
     `- campaign: ${packet.closeout.campaign ?? "(unnamed)"}`,
     `- empirical decision: ${packet.closeout.empiricalDecisionClass}`,
+    `- adapter boundary: ${packet.adapterBoundary}`,
     `- evidence boundary: ${packet.evidenceBoundary}`,
     "",
     "## Result",
@@ -2444,6 +2467,9 @@ export function formatAutoresearchSegmentCloseout(closeout: AutoresearchSegmentC
   return [
     "# PI-AUTORESEARCH SEGMENT CLOSEOUT",
     "",
+    `- packet kind: ${closeout.packetKind}`,
+    `- adapter contract version: ${closeout.adapterContractVersion}`,
+    `- target kinds: ${closeout.targetKinds.join(", ")}`,
     `- cwd: ${closeout.cwd}`,
     `- receipt log: ${closeout.receiptPath}`,
     `- campaign: ${closeout.campaign ?? "(unnamed)"}`,
@@ -2454,6 +2480,7 @@ export function formatAutoresearchSegmentCloseout(closeout: AutoresearchSegmentC
     `- empirical decision: ${closeout.empiricalDecisionClass}`,
     `- timing interpretation: ${formatMetricInterpretation(closeout.timingInterpretation, metricUnit)}`,
     `- recommended action: ${closeout.recommendedAction}`,
+    `- adapter boundary: ${closeout.adapterBoundary}`,
     `- evidence boundary: ${closeout.evidenceBoundary}`,
     "",
     "## Runs",
