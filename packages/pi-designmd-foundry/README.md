@@ -35,6 +35,7 @@ When `DESIGNMD_SESSION_ENDPOINT` is set, tools also report start/pass/fail activ
 - `designmd_openpencil_export` — export a `.fig` / `.pen` file to `svg`, `png`, `jpg`, `webp`, or `fig`; `jsx` is intentionally excluded.
 - `designmd_import_penpot` — convert DTCG/Penpot token JSON into DESIGN.md text.
 - `designmd_palette_from_text` — parse or apply Pigmnts-style hex palette text.
+- `designmd_penpot_mcp_bridge` — plan or explicitly apply one bounded `designmd.canvas-bridge.v1` board mutation through the official Penpot MCP server.
 - `designmd_readiness` — run DesignMD Foundry's integration readiness probe.
 
 Prompt/export modes are deliberately constrained to the Foundry CLI contract: `iterate`, `remix`, `expand`, or `audit`.
@@ -112,7 +113,7 @@ export DESIGNMD_SESSION_ACTOR=pi-designmd
 export DESIGNMD_SESSION_TOKEN=$DESIGNMD_API_TOKEN
 ```
 
-Without `DESIGNMD_SESSION_ID`, the adapter reuses the current running session or starts a new one. Output-producing tools attach artifacts such as Oat snapshot HTML, agent prompts, CSS/JSON exports, and SVG/path metadata for OpenPencil exports.
+Without `DESIGNMD_SESSION_ID`, the adapter reuses the current running session or starts a new one. Output-producing tools attach artifacts such as Oat snapshot HTML, agent prompts, CSS/JSON exports, SVG/path metadata for OpenPencil exports, and Penpot MCP bridge plans or SVG proof artifacts.
 
 ## DesignMD Foundry root
 

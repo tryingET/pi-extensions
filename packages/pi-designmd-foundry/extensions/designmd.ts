@@ -65,6 +65,15 @@ interface PaletteParams extends BaseParams {
   applyDesignPath?: string;
 }
 
+interface PenpotMcpBridgeParams extends BaseParams {
+  bridgePath: string;
+  apply?: boolean;
+  outputPath?: string;
+  endpoint?: string;
+  boardName?: string;
+  maxNodes?: number;
+}
+
 interface ReadinessParams extends BaseParams {}
 
 interface SessionArtifactSpec {
@@ -536,6 +545,68 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    name: "designmd_penpot_mcp_bridge",
+    label: "DesignMD Penpot MCP bridge",
+    description:
+      "Plan or explicitly apply a bounded DesignMD canvas-bridge to Penpot through the official Penpot MCP server. Plan-only by default; apply requires a connected Penpot MCP plugin and creates one board.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        bridgePath: Type.String({
+          description:
+            "designmd.canvas-bridge.v1 JSON path, relative to cwd or absolute. Use /api/session/:id/canvas-bridge to obtain one.",
+        }),
+        apply: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, explicitly apply the bridge to the active Penpot file through MCP. Defaults to false (plan only).",
+          }),
+        ),
+        outputPath: Type.Optional(
+          Type.String({
+            description:
+              "Optional SVG proof output path for apply=true, relative to cwd or absolute.",
+          }),
+        ),
+        endpoint: Type.Optional(
+          Type.String({
+            description:
+              "Penpot MCP HTTP endpoint. Defaults to PENPOT_MCP_URL or http://127.0.0.1:4401/mcp.",
+          }),
+        ),
+        boardName: Type.Optional(
+          Type.String({ description: "Optional Penpot board name for the bridge apply plan." }),
+        ),
+        maxNodes: Type.Optional(
+          Type.Number({
+            description: "Optional positive maximum number of bridge nodes to render.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as PenpotMcpBridgeParams;
+      const args = ["penpot-mcp-bridge", resolveInputPath(request.cwd, request.bridgePath)];
+      if (request.apply) args.push("--apply");
+      const resolvedOutputPath = request.outputPath
+        ? resolveInputPath(request.cwd, request.outputPath)
+        : undefined;
+      if (resolvedOutputPath) args.push("--output", resolvedOutputPath);
+      if (request.endpoint) args.push("--endpoint", request.endpoint);
+      if (request.boardName) args.push("--board-name", request.boardName);
+      if (request.maxNodes !== undefined) args.push("--max-nodes", String(request.maxNodes));
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_penpot_mcp_bridge",
+          objective: request.apply ? "Apply Penpot MCP bridge" : "Plan Penpot MCP bridge",
+          artifact: (result) =>
+            artifactForPenpotMcpBridge(request, result.stdout, resolvedOutputPath),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
     name: "designmd_readiness",
     label: "DesignMD readiness",
     description:
@@ -725,6 +796,28 @@ function artifactForOpenPencilExport(
     mimeType:
       format === "fig" ? "application/octet-stream" : `image/${format === "jpg" ? "jpeg" : format}`,
     path: outputPath,
+  };
+}
+
+function artifactForPenpotMcpBridge(
+  request: PenpotMcpBridgeParams,
+  stdout: string,
+  outputPath?: string,
+): SessionArtifactSpec {
+  if (request.apply && outputPath && fs.existsSync(outputPath)) {
+    return {
+      kind: "svg",
+      title: "Penpot MCP bridge proof SVG",
+      mimeType: "image/svg+xml",
+      content: fs.readFileSync(outputPath, "utf8"),
+      path: outputPath,
+    };
+  }
+  return {
+    kind: "json",
+    title: request.apply ? "Penpot MCP bridge apply result" : "Penpot MCP bridge plan",
+    mimeType: "application/json; charset=utf-8",
+    content: stdout,
   };
 }
 
