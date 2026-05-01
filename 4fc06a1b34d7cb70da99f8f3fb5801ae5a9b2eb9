@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "4fc06a1b34d7cb70da99f8f3fb5801ae5a9b2eb9"
+created_at: "2026-05-01T04:33:35Z"
+intent: "Add benchmark matrix runbook for surface/scenario optimization campaigns and cross-link from README, product-posture, and dogfood-playbook."
+files:
+  - "packages/pi-autoresearch/docs/project/benchmark-matrix-runbook.md"
+  - "packages/pi-autoresearch/README.md"
+  - "packages/pi-autoresearch/docs/project/dogfood-playbook.md"
+  - "packages/pi-autoresearch/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run check --prefix packages/pi-autoresearch"
+    status: "pass"
+  full_gate:
+    command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch/docs/project --strict"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Single coherent docs-only change: new runbook plus cross-references."
