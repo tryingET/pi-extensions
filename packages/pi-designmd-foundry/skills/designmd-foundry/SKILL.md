@@ -32,8 +32,9 @@ When the `pi-designmd-foundry` extension is installed, prefer its tools over ad-
 8. `designmd_openpencil_export`
 9. `designmd_import_penpot`
 10. `designmd_palette_from_text`
-11. `designmd_penpot_mcp_bridge`
-12. `designmd_readiness`
+11. `designmd_penpot_mcp_inspect`
+12. `designmd_penpot_mcp_bridge`
+13. `designmd_readiness`
 
 Use shell commands only when the extension is unavailable.
 
@@ -70,7 +71,7 @@ npm run build
 
 Do not claim a live integration just because an adapter exists.
 
-- Penpot: file-based DTCG/Penpot token import is stable; official Penpot MCP bridge board creation is available only as a plan-by-default / explicit-apply operation from `designmd.canvas-bridge.v1`; do not claim continuous sync or unattended mutation automation.
+- Penpot: file-based DTCG/Penpot token import is stable; official Penpot MCP inspect is read-only; official Penpot MCP bridge board creation is available only as a plan-by-default / explicit-apply operation from `designmd.canvas-bridge.v1`; do not claim continuous sync or unattended mutation automation.
 - OpenPencil: prompt handoff, info/lint, and export to `svg`, `png`, `jpg`, `webp`, or `fig` are stable when DesignMD readiness reports the project-local `openpencil` dev dependency; `jsx` export remains unwrapped until fixture-verified.
 - Pigmnts: text-output palette parsing is stable; image extraction requires installed `pigmnts` and a real image fixture.
 - Oat: theme/preview export and visual snapshot HTML are stable; CDN remains explicit opt-in.

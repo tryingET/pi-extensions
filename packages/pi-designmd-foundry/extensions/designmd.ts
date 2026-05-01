@@ -65,6 +65,10 @@ interface PaletteParams extends BaseParams {
   applyDesignPath?: string;
 }
 
+interface PenpotMcpInspectParams extends BaseParams {
+  endpoint?: string;
+}
+
 interface PenpotMcpBridgeParams extends BaseParams {
   bridgePath: string;
   apply?: boolean;
@@ -540,6 +544,41 @@ export default function (pi: ExtensionAPI) {
           },
           request.paletteText,
         ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_penpot_mcp_inspect",
+    label: "DesignMD Penpot MCP inspect",
+    description:
+      "Read-only inspect of the active Penpot file through the official Penpot MCP server. Requires the Penpot MCP plugin to be connected; does not mutate the file.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        endpoint: Type.Optional(
+          Type.String({
+            description:
+              "Penpot MCP HTTP endpoint. Defaults to PENPOT_MCP_URL or http://127.0.0.1:4401/mcp.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as PenpotMcpInspectParams;
+      const args = ["penpot-mcp-inspect"];
+      if (request.endpoint) args.push("--endpoint", request.endpoint);
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_penpot_mcp_inspect",
+          objective: "Inspect active Penpot MCP file",
+          artifact: (result) => ({
+            kind: "json",
+            title: "Penpot MCP inspect result",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
       );
     },
   });
