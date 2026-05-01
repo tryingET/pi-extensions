@@ -31,6 +31,8 @@ bounded objective -> explicit measurement contract -> baseline/calibration -> ca
 
 Use this playbook for one bounded local candidate at a time. It is deliberately not a hidden daemon, a whole-campaign runner, a peer spawner, or an AK/KES writer.
 
+When the target is broader than one candidate patch — for example a command family, latency surface, or scenario/hypothesis sweep — use [benchmark-matrix-runbook.md](./benchmark-matrix-runbook.md) to define the campaign matrix, then use this playbook for each bounded candidate segment.
+
 ## Product boundary in one sentence
 
 `pi-autoresearch` owns the local experiment runtime, receipts, empirical interpretation, and reviewable packets; external systems own candidate creation, durable task/evidence state, learning persistence, and promotion.

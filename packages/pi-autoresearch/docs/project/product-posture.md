@@ -177,6 +177,7 @@ Pick exactly one adapter target after demand is concrete. Until then, keep adapt
 - Product posture: `packages/pi-autoresearch/docs/project/product-posture.md`
 - Package public surface: `packages/pi-autoresearch/README.md`
 - Dogfood playbook: `packages/pi-autoresearch/docs/project/dogfood-playbook.md`
+- Benchmark matrix runbook: `packages/pi-autoresearch/docs/project/benchmark-matrix-runbook.md`
 - Adapter contract: `packages/pi-autoresearch/docs/project/adapter-contracts.md`
 - External manifest-campaign supervision status: `packages/pi-society-orchestrator/docs/project/pi-autoresearch-manifest-campaign-supervision-status.md`
 - Root monorepo vision: `docs/project/vision.md`
