@@ -78,6 +78,13 @@ interface PenpotMcpBridgeParams extends BaseParams {
   maxNodes?: number;
 }
 
+interface PenpotMcpExportParams extends BaseParams {
+  outputPath: string;
+  boardId?: string;
+  latest?: boolean;
+  endpoint?: string;
+}
+
 interface ReadinessParams extends BaseParams {}
 
 interface SessionArtifactSpec {
@@ -646,6 +653,62 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    name: "designmd_penpot_mcp_export",
+    label: "DesignMD Penpot MCP export",
+    description:
+      "Read-only SVG export of an existing DesignMD bridge board from the active Penpot file through the official Penpot MCP server. Requires an explicit outputPath; does not mutate the Penpot file.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        outputPath: Type.String({
+          description:
+            "SVG output path, relative to cwd or absolute. The tool writes this requested artifact.",
+        }),
+        boardId: Type.Optional(
+          Type.String({
+            description:
+              "Optional exact existing Penpot bridge board id. When omitted, the latest DesignMD bridge board is exported.",
+          }),
+        ),
+        latest: Type.Optional(
+          Type.Boolean({
+            description:
+              "Export the latest DesignMD bridge board when boardId is omitted. Defaults to true.",
+          }),
+        ),
+        endpoint: Type.Optional(
+          Type.String({
+            description:
+              "Penpot MCP HTTP endpoint. Defaults to PENPOT_MCP_URL or http://127.0.0.1:4401/mcp.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as PenpotMcpExportParams;
+      if (!request.boardId && request.latest === false) {
+        return messageResult("Provide boardId or leave latest enabled for Penpot MCP export.", {
+          ok: false,
+        });
+      }
+      const resolvedOutputPath = resolveInputPath(request.cwd, request.outputPath);
+      const args = ["penpot-mcp-export", "--output", resolvedOutputPath];
+      if (request.boardId) args.push("--board-id", request.boardId);
+      else args.push("--latest");
+      if (request.endpoint) args.push("--endpoint", request.endpoint);
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_penpot_mcp_export",
+          objective: request.boardId
+            ? `Export Penpot MCP bridge board ${request.boardId}`
+            : "Export latest Penpot MCP bridge board",
+          artifact: (result) => artifactForPenpotMcpExport(result.stdout, resolvedOutputPath),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
     name: "designmd_readiness",
     label: "DesignMD readiness",
     description:
@@ -855,6 +918,24 @@ function artifactForPenpotMcpBridge(
   return {
     kind: "json",
     title: request.apply ? "Penpot MCP bridge apply result" : "Penpot MCP bridge plan",
+    mimeType: "application/json; charset=utf-8",
+    content: stdout,
+  };
+}
+
+function artifactForPenpotMcpExport(stdout: string, outputPath: string): SessionArtifactSpec {
+  if (fs.existsSync(outputPath)) {
+    return {
+      kind: "svg",
+      title: "Penpot MCP existing board SVG export",
+      mimeType: "image/svg+xml",
+      content: fs.readFileSync(outputPath, "utf8"),
+      path: outputPath,
+    };
+  }
+  return {
+    kind: "json",
+    title: "Penpot MCP existing board export result",
     mimeType: "application/json; charset=utf-8",
     content: stdout,
   };

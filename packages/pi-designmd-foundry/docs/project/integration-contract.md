@@ -29,13 +29,14 @@ The extension exposes operations that are readiness-verified in DesignMD Foundry
 - `designmd_palette_from_text`
 - `designmd_penpot_mcp_inspect` for read-only active-file bridge-board snapshots through official Penpot MCP
 - `designmd_penpot_mcp_bridge` for plan-by-default / explicit-apply DesignMD canvas bridge boards through official Penpot MCP
+- `designmd_penpot_mcp_export` for read-only SVG export of an existing DesignMD bridge board through official Penpot MCP
 - `designmd_readiness`
 
 ## Non-goals for the initial package
 
 - No direct save of canonical `DESIGN.md`.
 - No provider-backed LLM generation.
-- No continuous Penpot webhook/plugin synchronization; the MCP bridge wrapper is limited to one explicit bounded board creation from `designmd.canvas-bridge.v1`.
+- No continuous Penpot webhook/plugin synchronization; the MCP bridge wrapper is limited to one explicit bounded board creation from `designmd.canvas-bridge.v1`, while the MCP export wrapper is limited to read-only SVG export of an existing bridge board.
 - No OpenPencil JSX export wrapper until JSX behavior is fixture-verified.
 - No claim that `open-pencil`/`openpencil` or `pigmnts` live CLIs exist unless DesignMD readiness reports them.
 
@@ -51,7 +52,7 @@ The CLI entrypoint uses `dist/cli.js` when present, otherwise source mode throug
 
 ## Safety posture
 
-Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export and Penpot MCP SVG proof output. Penpot MCP inspect is read-only. Penpot MCP mutation requires `apply: true` and a human-connected plugin; plan mode is the default.
+Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export, Penpot MCP bridge-apply SVG proof output, and read-only Penpot MCP existing-board SVG export. Penpot MCP inspect and export are read-only. Penpot MCP mutation requires `apply: true` and a human-connected plugin; plan mode is the default.
 
 ## Optional Watch Mode reporting
 
