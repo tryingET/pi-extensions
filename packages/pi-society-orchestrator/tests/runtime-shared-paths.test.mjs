@@ -1966,7 +1966,8 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
           ");",
           "INSERT INTO prompt_templates VALUES",
           "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',false,4),",
-          "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',false,1);",
+          "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',false,1),",
+          "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',false,1);",
         ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
@@ -2018,10 +2019,27 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
     );
     assert.equal(workflowResult.details.ok, false);
     assert.equal(workflowResult.details.error, "vault-template-not-executable-through-bridge");
-    assert.match(
-      workflowResult.content[0].text,
-      /workflow-grade but has no executable orchestrator binding/,
+    assert.match(workflowResult.content[0].text, /workflow-grade but has no executable binding/);
+    assert.match(workflowResult.content[0].text, /No owner-specific route is registered/);
+
+    const autoresearchSetupResult = await vaultExecuteTool.execute(
+      "tool-call-id-3",
+      {
+        template_name: "pi-autoresearch-setup",
+        objective: "Reduce lane-op startup latency through a manifest campaign",
+      },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined },
     );
+    assert.equal(autoresearchSetupResult.details.ok, false);
+    assert.equal(
+      autoresearchSetupResult.details.error,
+      "vault-template-not-executable-through-bridge",
+    );
+    assert.match(autoresearchSetupResult.content[0].text, /Owner-specific lawful route/);
+    assert.match(autoresearchSetupResult.content[0].text, /autoresearch_runtime_status/);
+    assert.match(autoresearchSetupResult.content[0].text, /loop back to discovery\/design/);
   } finally {
     if (previousVaultDir === undefined) {
       delete process.env.VAULT_DIR;

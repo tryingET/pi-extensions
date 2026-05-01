@@ -792,6 +792,65 @@ interface VaultDispatchRuntimeModule {
   };
 }
 
+const WORKFLOW_TEMPLATE_OWNER_ROUTES: Record<
+  string,
+  { owner: string; tool: string; purpose: string; example: (objective: string) => string }
+> = {
+  "pi-autoresearch-setup": {
+    owner: "packages/pi-autoresearch",
+    tool: "autoresearch_runtime_status(action=setup)",
+    purpose: "request the governed setup packet through the package-owned decision runner",
+    example: (objective) =>
+      `autoresearch_runtime_status({ action: "setup", cwd, optimizationObjective: ${JSON.stringify(objective)} })`,
+  },
+  "pi-autoresearch-next-hypothesis": {
+    owner: "packages/pi-autoresearch",
+    tool: "autoresearch_runtime_run(..., decisionGoal=...) or autoresearch_runtime_loop(..., decisionGoal=...)",
+    purpose:
+      "request the governed post-run next-hypothesis decision from a concrete runtime segment",
+    example: (objective) =>
+      `autoresearch_runtime_run({ cwd, description: "<bounded run>", decisionGoal: ${JSON.stringify(objective)} })`,
+  },
+  "pi-autoresearch-finalize": {
+    owner: "packages/pi-autoresearch",
+    tool: "autoresearch_runtime_status(action=finalize) or autoresearch_runtime_finalize",
+    purpose: "request the governed finalization packet through the package-owned finalization seam",
+    example: () =>
+      'autoresearch_runtime_status({ action: "finalize", cwd, keptRuns: ["<kept-run>"], campaignContext: ["<context>"] })',
+  },
+};
+
+function formatWorkflowGateFailure(templateName: string, objective: string): string {
+  const ownerRoute = WORKFLOW_TEMPLATE_OWNER_ROUTES[templateName];
+  const lines = [
+    `Vault template ${templateName} is workflow-grade but has no executable binding in vault_execute_template. Failing closed.`,
+    "",
+    "Process invariant:",
+    "discovery/design -> architecture/UX/AX -> implement -> execute; if execution binding is missing or fails, loop back to discovery/design instead of manually bypassing the gate -> verify -> commit.",
+  ];
+
+  if (ownerRoute) {
+    lines.push(
+      "",
+      "Owner-specific lawful route:",
+      `- owner: ${ownerRoute.owner}`,
+      `- tool: ${ownerRoute.tool}`,
+      `- purpose: ${ownerRoute.purpose}`,
+      `- example: ${ownerRoute.example(objective)}`,
+      "",
+      "Do not continue by interpreting the retrieved template as inert text; use the owner route or design a missing execution binding first.",
+    );
+  } else {
+    lines.push(
+      "",
+      "No owner-specific route is registered for this workflow template.",
+      "Stop and design the execution binding or choose a lawful owner surface before continuing.",
+    );
+  }
+
+  return lines.join("\n");
+}
+
 // ============================================================================
 // TOOL REGISTRATION
 // ============================================================================
@@ -1127,6 +1186,7 @@ Unknown loop templates and workflow-grade templates without an execution binding
     promptGuidelines: [
       "Use vault_execute_template when the operator asks to run/apply/execute a Prompt Vault template by name.",
       "Do not use raw vault_retrieve content as execution when this tool reports an orchestrator gate.",
+      "If a workflow-grade template has no bridge binding, stop and use the owning package surface or design the missing binding before continuing.",
     ],
     parameters: Type.Object({
       template_name: Type.String({ description: "Exact Prompt Vault template name to execute" }),
@@ -1241,7 +1301,7 @@ Unknown loop templates and workflow-grade templates without an execution binding
               posture.posture === "missing_execution_binding_fail_closed"
                 ? `Vault template ${templateName} has control_mode=loop but no execution binding. Failing closed.`
                 : posture.posture === "orchestrator_workflow_gate_required"
-                  ? `Vault template ${templateName} is workflow-grade but has no executable orchestrator binding in this bridge. Failing closed.`
+                  ? formatWorkflowGateFailure(templateName, objective)
                   : `Vault template ${templateName} does not require an orchestrator execution binding. Use retrieval/preparation surfaces instead of vault_execute_template.`,
           },
         ],

@@ -33,6 +33,26 @@ Use this playbook for one bounded local candidate at a time. It is deliberately 
 
 When the target is broader than one candidate patch — for example a command family, latency surface, or scenario/hypothesis sweep — use [benchmark-matrix-runbook.md](./benchmark-matrix-runbook.md) to define the campaign matrix, then use this playbook for each bounded candidate segment.
 
+## Process gate: do not bypass missing Prompt Vault bindings
+
+The package has governed Prompt Vault templates, but the lawful execution path is the package-owned runtime seam, not ad hoc template interpretation.
+
+If `vault_execute_template` reports that a `pi-autoresearch-*` workflow template has no executable orchestrator binding, treat that as a **process stop**, not permission to continue manually. Loop back through:
+
+```text
+discovery/design -> architecture/UX/AX -> implement -> execute; if it does not work, loop back to discovery/design -> verify -> commit
+```
+
+Use these owner routes instead:
+
+| Prompt Vault template | Lawful owner route |
+|---|---|
+| `pi-autoresearch-setup` | `autoresearch_runtime_status({ action: "setup", ... })` |
+| `pi-autoresearch-next-hypothesis` | `autoresearch_runtime_run(...)` or `autoresearch_runtime_loop(...)` with `decisionGoal` |
+| `pi-autoresearch-finalize` | `autoresearch_runtime_status({ action: "finalize", ... })` or `autoresearch_runtime_finalize(...)` |
+
+Do not treat retrieved workflow-template prose as execution. Either use the owner route above or first land the missing execution binding as its own architecture/UX/AX slice.
+
 ## Product boundary in one sentence
 
 `pi-autoresearch` owns the local experiment runtime, receipts, empirical interpretation, and reviewable packets; external systems own candidate creation, durable task/evidence state, learning persistence, and promotion.

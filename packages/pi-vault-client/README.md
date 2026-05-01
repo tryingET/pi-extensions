@@ -195,6 +195,7 @@ Tool-query defaults:
   - `orchestrator_workflow_gate_required`
   - `missing_execution_binding_fail_closed`
   - known loop bindings: `transcendent-iteration -> loop_execute(loop="transcendent")`, `ooda -> loop_execute(loop="ooda")`
+  - workflow-grade templates without explicit bindings are process gates, not inert text: stop, use the owning package surface when one exists, or design the missing execution binding before continuing.
 
 ### Receipt and replay operator workflow
 
