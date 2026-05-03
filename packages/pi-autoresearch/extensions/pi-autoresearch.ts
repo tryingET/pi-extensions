@@ -1089,8 +1089,9 @@ export function registerPiAutoresearchExtension(
     unregisterAutoresearchLiveTrigger = registration.unregister;
   });
 
-  const maybeOn = (pi as { on?: (event: string, handler: (...args: unknown[]) => void) => void })
-    .on;
+  const maybeOn = (
+    pi as unknown as { on?: (event: string, handler: (...args: unknown[]) => unknown) => void }
+  ).on;
   if (typeof maybeOn === "function") {
     maybeOn.call(pi, "session_start", (_event: unknown, ctx: unknown) => {
       if (process.env.PI_AUTORESEARCH_WIDGET === "0") return;
@@ -1111,6 +1112,20 @@ export function registerPiAutoresearchExtension(
       await openAutoresearchShell(args, ctx, dashboardExportIntervals);
     },
   });
+
+  if (typeof maybeOn === "function") {
+    maybeOn.call(pi, "input", async (event: unknown, ctx: unknown) => {
+      const inputEvent = event as { source?: string; text?: unknown };
+      const inputContext = ctx as { cwd: string };
+      if (inputEvent.source === "extension") return { action: "continue" as const };
+      const transformed = transformAutoresearchDollarInput(
+        String(inputEvent.text ?? ""),
+        inputContext.cwd,
+      );
+      if (!transformed) return { action: "continue" as const };
+      return { action: "transform" as const, text: transformed };
+    });
+  }
 
   pi.registerTool({
     name: AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
@@ -2780,6 +2795,18 @@ function buildAutoresearchCampaignStartEditorCall(cwd: string, objective: string
     runMode: "plan_only",
     maxIterations: 3,
   });
+}
+
+function transformAutoresearchDollarInput(text: string, cwd: string): string | null {
+  const match = text.trim().match(/^\$\$\s*(?:autoresearch|ar)(?:\s+([^\n]*))?$/);
+  if (!match) return null;
+  const raw = String(match[1] ?? "").trim();
+  if (!raw) return "$$ autoresearch <objective>";
+  const candidateDecisionAction = parseAutoresearchCandidateDecisionCommand(raw);
+  if (candidateDecisionAction) {
+    return buildAutoresearchCandidateDecisionEditorCall(cwd, candidateDecisionAction);
+  }
+  return buildAutoresearchCampaignStartEditorCall(cwd, raw);
 }
 
 function parseAutoresearchCandidateDecisionCommand(

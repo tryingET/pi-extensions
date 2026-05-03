@@ -95,7 +95,7 @@ type CommandContext = {
   };
 };
 
-type RegisteredEventHandler = (...args: unknown[]) => void;
+type RegisteredEventHandler = (...args: unknown[]) => unknown;
 
 function registerHarness(options: PiAutoresearchExtensionOptions = {}) {
   const commands = new Map<string, RegisteredCommand>();
@@ -1047,6 +1047,38 @@ test("/autoresearch widget on and off controls the persistent status widget", as
   await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("widget off", ctx);
   assert.equal(widgets.size, 0);
   assert.match(notifications.at(-1)?.message ?? "", /Disabled the pi-autoresearch status widget/);
+});
+
+test("$$ autoresearch input fallback prepares exact tool calls without PTX", async () => {
+  const { eventHandlers } = registerHarness();
+  const inputHandler = eventHandlers.get("input");
+  assert.equal(typeof inputHandler, "function");
+
+  const rewindResult = (await inputHandler?.(
+    { source: "user", text: "$$ autoresearch rewind" },
+    {
+      cwd: "/repo",
+    },
+  )) as { action: string; text: string };
+  assert.equal(rewindResult.action, "transform");
+  assert.match(rewindResult.text, /autoresearch_candidate_decision/);
+  assert.match(rewindResult.text, /action: "plan_rewind"/);
+
+  const campaignResult = (await inputHandler?.(
+    { source: "user", text: "$$ ar optimize startup" },
+    { cwd: "/repo" },
+  )) as { action: string; text: string };
+  assert.equal(campaignResult.action, "transform");
+  assert.match(campaignResult.text, /autoresearch_campaign_start/);
+  assert.match(campaignResult.text, /optimize startup/);
+
+  const slashResult = (await inputHandler?.(
+    { source: "user", text: "$$ /100x mindset" },
+    {
+      cwd: "/repo",
+    },
+  )) as { action: string };
+  assert.equal(slashResult.action, "continue");
 });
 
 test("/autoresearch keep/discard/rewind prepare candidate-decision tool calls", async () => {

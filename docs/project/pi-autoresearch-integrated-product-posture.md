@@ -361,6 +361,7 @@ The tenth optional interaction-picker candidate decision slice is now also lande
 - `$$ autoresearch keep|discard|rewind` direct-trigger the same picker with the direct action prioritized;
 - picker options can be decorated as direct or recommended from package-local runtime receipts/status;
 - the picker inserts the exact `autoresearch_candidate_decision({ ... })` call selected by the operator;
+- a deterministic non-slash `$$ autoresearch ...` input fallback prevents PTX's `$$ /template` namespace from stealing autoresearch candidate-decision inputs;
 - it still applies no worktree cleanup/reset/recreate, peer launch, AK/KES/evidence write, or promotion.
 
 Still next in this slice: richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
