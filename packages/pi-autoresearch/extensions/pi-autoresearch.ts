@@ -2852,6 +2852,18 @@ async function openAutoresearchShell(
     return;
   }
 
+  if (parseAutoresearchCandidateNextCommand(normalizedArgs)) {
+    await ctx.ui.editor(
+      "Next autoresearch candidate action",
+      buildAutoresearchCandidateNextEditorCall(ctx.cwd),
+    );
+    ctx.ui.notify(
+      "Prepared the next recommended autoresearch candidate call for review. No worktree or durable action was applied.",
+      "info",
+    );
+    return;
+  }
+
   const candidateMeasure = parseAutoresearchCandidateMeasureCommand(normalizedArgs, ctx.cwd);
   if (candidateMeasure) {
     await ctx.ui.editor(
@@ -2919,6 +2931,9 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   if (!match) return null;
   const raw = String(match[1] ?? "").trim();
   if (!raw) return "$$ autoresearch <objective>";
+  if (parseAutoresearchCandidateNextCommand(raw)) {
+    return buildAutoresearchCandidateNextEditorCall(cwd);
+  }
   const candidateMeasure = parseAutoresearchCandidateMeasureCommand(raw, cwd);
   if (candidateMeasure) {
     return buildAutoresearchCandidateMeasureEditorCall(cwd, candidateMeasure.candidateWorktree);
@@ -2932,6 +2947,18 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
     return buildAutoresearchCandidateDecisionEditorCall(cwd, candidateDecisionAction);
   }
   return buildAutoresearchCampaignStartEditorCall(cwd, raw);
+}
+
+function parseAutoresearchCandidateNextCommand(value: string): boolean {
+  switch (value.trim().toLowerCase()) {
+    case "next":
+    case "candidate next":
+    case "decision next":
+    case "what next":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function parseAutoresearchCandidateMeasureCommand(
@@ -2984,6 +3011,32 @@ function buildAutoresearchCandidateMeasureEditorCall(
     description: "Measure bound candidate",
   });
   return plan.exactNextCalls[0] ?? buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
+}
+
+function buildAutoresearchCandidateNextEditorCall(cwd: string): string {
+  const decision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+  switch (decision.recommendedDecision) {
+    case "no_candidate_bound_yet":
+      return buildAutoresearchCandidateBindEditorCall(cwd, cwd);
+    case "keep":
+      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_keep");
+    case "discard":
+      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_discard");
+    case "rewind":
+      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_rewind");
+    case "finalize":
+    case "rebaseline":
+    case "collect_more_samples":
+      return selectAutoresearchActionableNextCall(decision.exactNextCalls);
+  }
+}
+
+function selectAutoresearchActionableNextCall(calls: string[]): string {
+  return (
+    calls.find((call) => !call.startsWith(`${AUTORESEARCH_STATUS_TOOL_NAME}(`)) ??
+    calls[0] ??
+    `${AUTORESEARCH_STATUS_TOOL_NAME}({ action: "dashboard" })`
+  );
 }
 
 function parseAutoresearchCandidateDecisionCommand(
@@ -3588,6 +3641,7 @@ function formatAutoresearchCommandNotification(
     `last=${status.currentSegment.lastRunStatus ?? "none"}`,
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
+    "candidate next: /autoresearch next -> recommended candidate bind/measure/decision call",
     "candidate bind: /autoresearch bind [current|<worktree>] -> autoresearch_candidate_bind",
     "candidate measure: /autoresearch measure [current|<worktree>] -> autoresearch_runtime_run candidate call",
     "candidate decision: /autoresearch candidate|keep|discard|rewind -> autoresearch_candidate_decision",

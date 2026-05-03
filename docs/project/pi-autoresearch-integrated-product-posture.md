@@ -357,6 +357,7 @@ The ninth candidate decision workbench slice is now also landed:
 
 The tenth slash-command candidate confirmation slice is now also landed:
 
+- `/autoresearch next` prepares the recommended next candidate call from current runtime posture;
 - `/autoresearch bind [current|<worktree>]` prepares a reviewable candidate-bind intake call;
 - `/autoresearch measure [current|<worktree>]` prepares a reviewable `autoresearch_runtime_run({ ...candidate metadata... })` candidate measurement call without executing it;
 - `/autoresearch candidate` and `/autoresearch decision` prepare a reviewable candidate-decision status call;
@@ -366,6 +367,7 @@ The tenth slash-command candidate confirmation slice is now also landed:
 
 The eleventh optional interaction-picker candidate decision slice is now also landed:
 
+- `$$ autoresearch next` / `$$ ar next` use the deterministic fallback to insert the recommended next candidate call;
 - `$$ autoresearch bind|measure [current|<worktree>]` / `$$ ar bind|measure [current|<worktree>]` open a picker/fallback for candidate-bind intake planning or reviewable candidate measurement-call preparation;
 - `$$ autoresearch candidate` / `$$ ar candidate` open a picker for candidate-decision status, keep, discard, or rewind planning;
 - `$$ autoresearch keep|discard|rewind` direct-trigger the same picker with the direct action prioritized;

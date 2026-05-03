@@ -1085,6 +1085,13 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
   assert.match(measureResult.text, /autoresearch_runtime_run/);
   assert.match(measureResult.text, /candidateWorktree/);
 
+  const nextResult = (await inputHandler?.(
+    { source: "user", text: "$$ autoresearch next" },
+    { cwd: "/repo" },
+  )) as { action: string; text: string };
+  assert.equal(nextResult.action, "transform");
+  assert.match(nextResult.text, /autoresearch_candidate_bind/);
+
   const campaignResult = (await inputHandler?.(
     { source: "user", text: "$$ ar optimize startup" },
     { cwd: "/repo" },
@@ -1100,6 +1107,92 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
     },
   )) as { action: string };
   assert.equal(slashResult.action, "continue");
+});
+
+test("/autoresearch next prepares the current recommended candidate call", async () => {
+  await withTempDir(async (cwd) => {
+    const { commands } = registerHarness();
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("next", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /Next autoresearch candidate action/);
+    assert.match(editorText, /autoresearch_candidate_bind/);
+    assert.match(editorText, /candidateWorktree/);
+    assert.equal(notifications.length, 1);
+
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "next-candidate",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        empiricalDecisionClass: "candidate_regression",
+        metric: 150,
+        description: "regression",
+        timestamp: 3,
+        experiment: {
+          candidate: {
+            source: "manual",
+            worktreePath: path.join(cwd, "candidate"),
+            branch: "candidate/next",
+            baseRef: "HEAD~1",
+            diffSummary: "regressed",
+            filesChanged: ["src/value.ts"],
+          },
+        },
+      }),
+    );
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("candidate next", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorText, /autoresearch_runtime_run/);
+    assert.match(editorText, /Collect another ordinary candidate sample/);
+  });
 });
 
 test("/autoresearch measure prepares a candidate measurement run call", async () => {
