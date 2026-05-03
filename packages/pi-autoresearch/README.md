@@ -44,6 +44,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `/autoresearch`
   - with no objective, opens/reports the bounded runtime overview
   - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate policy, and next legal surfaces
+  - with `widget on|off`, shows or hides the persistent above-editor status widget for the current session
   - with an objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
   - keeps execution explicit: the slash command does not secretly run baselines, loops, peers, worktree mutations, commits, AK writes, or KES promotion
 - `$$ autoresearch <objective>` / `$$ ar <objective>` when `@tryinget/pi-interaction` or `@tryinget/pi-trigger-adapter` is loaded
@@ -105,6 +106,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - executes a bounded in-call loop over `autoresearch_runtime_run` semantics
   - requires `maxIterations` and can also enforce a wall-clock budget
   - can request governed Prompt Vault next-hypothesis decisions between runs
+  - keeps a persistent above-editor status widget current while the session is active unless `PI_AUTORESEARCH_WIDGET=0` is set or `/autoresearch widget off` is used
   - streams in-call live progress cards for loop start, iteration start/complete, stop, and completion phases; each update also carries the current dashboard snapshot in tool-update details
   - returns the final read-only dashboard after the run summary, so an operator can start a bounded run, step away, and come back to the final posture without scraping receipts
   - supports explicit `peerMode` values: `off`, `plan`, `launch_scout`, `launch_candidate`, `launch_fork`; `launch_*` modes return an exact canonical peer-tool handoff rather than duplicating or hiding peer-spawn machinery

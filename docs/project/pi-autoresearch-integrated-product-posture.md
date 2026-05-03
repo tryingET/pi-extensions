@@ -316,7 +316,14 @@ The fourth interaction/progress slice is now also landed:
 - loop and campaign-start bounded-loop results include a final dashboard after the run summary;
 - this supports the practical "start a bounded run, step away, and come back to final posture" use case without adding hidden background autonomy.
 
-Still next in this slice: persistent contrib-style TUI widgets/overlays, browser export, and interactive candidate keep/discard/rewind decisions.
+The fifth interaction/widget slice is now also landed:
+
+- session start registers a persistent above-editor status widget unless `PI_AUTORESEARCH_WIDGET=0` disables it;
+- `/autoresearch widget on|off` controls the widget for the current session;
+- the widget shows machine state, run counts, best metric, confidence, empirical posture, and promotion readiness;
+- the widget is read-only and uses local runtime receipts/projection only.
+
+Still next in this slice: expanded/fullscreen TUI overlays, browser export, and interactive candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

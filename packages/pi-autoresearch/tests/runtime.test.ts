@@ -86,12 +86,16 @@ type CommandContext = {
   ui: {
     editor(title: string, text: string): Promise<void>;
     notify(message: string, level?: string): void;
+    setWidget?(id: string, widget: unknown, options?: unknown): void;
   };
 };
+
+type RegisteredEventHandler = (...args: unknown[]) => void;
 
 function registerHarness(options: PiAutoresearchExtensionOptions = {}) {
   const commands = new Map<string, RegisteredCommand>();
   const tools = new Map<string, RegisteredTool>();
+  const eventHandlers = new Map<string, RegisteredEventHandler>();
 
   registerPiAutoresearchExtension(
     {
@@ -101,11 +105,14 @@ function registerHarness(options: PiAutoresearchExtensionOptions = {}) {
       registerTool(tool: RegisteredTool) {
         tools.set(tool.name, tool);
       },
+      on(event: string, handler: RegisteredEventHandler) {
+        eventHandlers.set(event, handler);
+      },
     } as never,
     options,
   );
 
-  return { commands, tools };
+  return { commands, tools, eventHandlers };
 }
 
 async function withTempDir(fn: (cwd: string) => Promise<void> | void): Promise<void> {
@@ -884,6 +891,46 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(editorText, /Next legal surfaces/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
+});
+
+test("/autoresearch widget on and off controls the persistent status widget", async () => {
+  const { commands } = registerHarness();
+  const widgets = new Map<string, unknown>();
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  const ctx: CommandContext = {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor() {},
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+      setWidget(id: string, widget: unknown) {
+        if (widget === undefined) {
+          widgets.delete(id);
+          return;
+        }
+        widgets.set(id, widget);
+      },
+    },
+  };
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("widget on", ctx);
+  assert.equal(widgets.size, 1);
+  const widgetFactory = [...widgets.values()][0] as (tui: { requestRender?: () => void }) => {
+    render(width: number): string[];
+    dispose?: () => void;
+  };
+  const widget = widgetFactory({ requestRender() {} });
+  const rendered = widget.render(120).join("\n");
+  assert.match(rendered, /🔬 autoresearch/);
+  assert.match(rendered, /0 runs\/0 ok/);
+  widget.dispose?.();
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("widget off", ctx);
+  assert.equal(widgets.size, 0);
+  assert.match(notifications.at(-1)?.message ?? "", /Disabled the pi-autoresearch status widget/);
 });
 
 test("/autoresearch with an objective prepares the campaign-start tool call", async () => {

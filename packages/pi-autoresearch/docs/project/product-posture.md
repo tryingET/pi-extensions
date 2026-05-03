@@ -163,9 +163,11 @@ autoresearch_runtime_status({ action: "dashboard" })
 
 The dashboard summarizes current posture, metric contract, confidence/noise interpretation, candidate lifecycle policy, and next legal surfaces without running benchmarks or mutating worktrees.
 
-A first live-progress slice is now landed for bounded loops: `autoresearch_runtime_loop` and `autoresearch_campaign_start({ runMode: "bounded_loop" })` stream compact live progress cards during execution and return a final dashboard in the result. This is not yet a persistent contrib-style widget, but it gives an operator a truthful "start a bounded run, step away, and come back to final posture" path inside the active tool call.
+A first live-progress slice is now landed for bounded loops: `autoresearch_runtime_loop` and `autoresearch_campaign_start({ runMode: "bounded_loop" })` stream compact live progress cards during execution and return a final dashboard in the result. This gives an operator a truthful "start a bounded run, step away, and come back to final posture" path inside the active tool call.
 
-Next product work: dogfood this front door against real campaigns, then add persistent TUI/dashboard affordances and interactive candidate keep/discard/rewind decisions.
+A first persistent widget slice is also landed: session start registers an above-editor status widget unless `PI_AUTORESEARCH_WIDGET=0` is set, and `/autoresearch widget on|off` controls it for the current session. The widget is read-only and shows machine state, run counts, best metric, confidence, empirical posture, and promotion readiness.
+
+Next product work: dogfood this front door against real campaigns, then add expanded/fullscreen dashboard affordances and interactive candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

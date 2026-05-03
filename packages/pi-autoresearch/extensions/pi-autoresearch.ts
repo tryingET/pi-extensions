@@ -119,7 +119,23 @@ type AutoresearchTriggerContext = {
   cwd?: string;
 };
 
+type AutoresearchWidgetUi = {
+  setWidget?: (id: string, widget: unknown, options?: unknown) => void;
+  notify?: (message: string, level?: "info" | "warning" | "error") => void;
+};
+
+type AutoresearchWidgetContext = {
+  cwd: string;
+  hasUI: boolean;
+  ui: AutoresearchWidgetUi;
+};
+
+type AutoresearchWidgetTui = {
+  requestRender?: () => void;
+};
+
 const AUTORESEARCH_LIVE_TRIGGER_ID = "autoresearch-campaign-start-picker";
+const AUTORESEARCH_WIDGET_ID = "pi-autoresearch-status-widget";
 const AUTORESEARCH_TRIGGER_CANDIDATES: AutoresearchTriggerCandidate[] = [
   {
     id: "plan-only",
@@ -972,8 +988,13 @@ export function registerPiAutoresearchExtension(
     unregisterAutoresearchLiveTrigger = registration.unregister;
   });
 
-  const maybeOn = (pi as { on?: (event: string, handler: () => void) => void }).on;
+  const maybeOn = (pi as { on?: (event: string, handler: (...args: unknown[]) => void) => void })
+    .on;
   if (typeof maybeOn === "function") {
+    maybeOn.call(pi, "session_start", (_event: unknown, ctx: unknown) => {
+      if (process.env.PI_AUTORESEARCH_WIDGET === "0") return;
+      registerAutoresearchWidget(ctx as AutoresearchWidgetContext);
+    });
     maybeOn.call(pi, "session_shutdown", () => {
       sessionActive = false;
       unregisterAutoresearchLiveTrigger?.();
@@ -2547,6 +2568,18 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
   const normalizedArgs = args.trim();
   const status = buildAutoresearchRuntimeStatus(ctx.cwd);
 
+  if (normalizedArgs === "widget off") {
+    clearAutoresearchWidget(ctx as AutoresearchWidgetContext);
+    ctx.ui.notify("Disabled the pi-autoresearch status widget for this session.", "info");
+    return;
+  }
+
+  if (normalizedArgs === "widget" || normalizedArgs === "widget on") {
+    registerAutoresearchWidget(ctx as AutoresearchWidgetContext);
+    ctx.ui.notify("Enabled the pi-autoresearch status widget for this session.", "info");
+    return;
+  }
+
   if (normalizedArgs === "dashboard") {
     await ctx.ui.editor("Pi-autoresearch dashboard", formatAutoresearchDashboard(status));
     ctx.ui.notify(
@@ -2587,6 +2620,49 @@ function buildAutoresearchCampaignStartToolCall(input: {
   maxIterations: number;
 }): string {
   return `autoresearch_campaign_start({\n  cwd: ${JSON.stringify(input.cwd)},\n  objective: ${JSON.stringify(input.objective)},\n  setupMode: ${JSON.stringify(input.setupMode)},\n  runMode: ${JSON.stringify(input.runMode)},\n  maxIterations: ${input.maxIterations},\n  peerMode: "plan",\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
+}
+
+function registerAutoresearchWidget(ctx: AutoresearchWidgetContext): void {
+  if (!ctx.hasUI || typeof ctx.ui.setWidget !== "function") return;
+
+  ctx.ui.setWidget(AUTORESEARCH_WIDGET_ID, (tui: AutoresearchWidgetTui) => {
+    const interval = setInterval(() => tui.requestRender?.(), 2000);
+    interval.unref?.();
+    return {
+      render(width: number): string[] {
+        return formatAutoresearchWidgetLines(ctx.cwd, width);
+      },
+      invalidate() {},
+      dispose() {
+        clearInterval(interval);
+      },
+    };
+  });
+}
+
+function clearAutoresearchWidget(ctx: AutoresearchWidgetContext): void {
+  if (typeof ctx.ui.setWidget !== "function") return;
+  ctx.ui.setWidget(AUTORESEARCH_WIDGET_ID, undefined);
+}
+
+function formatAutoresearchWidgetLines(cwd: string, width: number): string[] {
+  const status = buildAutoresearchRuntimeStatus(cwd);
+  const segment = status.currentSegment;
+  const runCount = segment.runCount;
+  const successful = segment.successfulRunCount;
+  const metricName = segment.metricName ?? "metric";
+  const unit = segment.metricUnit ?? "";
+  const best = segment.bestMetric === null ? "n/a" : `${segment.bestMetric}${unit}`;
+  const confidence = segment.confidence === null ? "n/a" : `${segment.confidence.toFixed(2)}×`;
+  const ready = status.empiricalPosture.promotionReady ? "ready" : "not-ready";
+  const line = `🔬 autoresearch ${status.runtimeProjection.state} │ ${runCount} runs/${successful} ok │ ★ ${metricName}: ${best} │ conf ${confidence} │ ${status.empiricalPosture.classification}/${ready}`;
+  return [truncatePlainLine(line, Math.max(20, width))];
+}
+
+function truncatePlainLine(line: string, width: number): string {
+  if (line.length <= width) return line;
+  if (width <= 1) return line.slice(0, Math.max(0, width));
+  return `${line.slice(0, Math.max(0, width - 1))}…`;
 }
 
 async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
@@ -2695,6 +2771,7 @@ function formatAutoresearchCommandNotification(
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
+    "widget: /autoresearch widget on|off",
     "tools: autoresearch_campaign_start | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
   ].join("; ");
 }
