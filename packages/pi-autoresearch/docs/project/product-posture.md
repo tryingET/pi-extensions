@@ -67,6 +67,7 @@ The package currently owns:
 
 - `/autoresearch` operator entrypoint; with an objective it now prepares the supervised campaign-start tool call instead of silently ignoring arguments;
 - `autoresearch_campaign_start` as the first package-owned front door that composes autoplan, optional governed setup, optional baseline, and optional bounded loop modes;
+- `autoresearch_candidate_decision` as a read-only / plan-only candidate lifecycle workbench for keep/discard/rewind/rebaseline/sample/finalize recommendations from current runtime status, closeout, and candidate-result evidence;
 - bounded runtime status, setup, run, loop, control, and finalization surfaces;
 - XState campaign machine plus append-only local event ledger;
 - Prompt Vault decision bridge for setup, next-hypothesis, and finalize decisions;
@@ -161,17 +162,25 @@ A compact read-only dashboard slice is now also landed:
 autoresearch_runtime_status({ action: "dashboard" })
 ```
 
-The dashboard summarizes current posture, metric contract, confidence/noise interpretation, candidate lifecycle policy, and next legal surfaces without running benchmarks or mutating worktrees.
+The dashboard summarizes current posture, metric contract, confidence/noise interpretation, candidate decision summary, candidate lifecycle policy, and next legal surfaces without running benchmarks or mutating worktrees.
 
 A first live-progress slice is now landed for bounded loops: `autoresearch_runtime_loop` and `autoresearch_campaign_start({ runMode: "bounded_loop" })` stream compact live progress cards during execution and return a final dashboard in the result. This gives an operator a truthful "start a bounded run, step away, and come back to final posture" path inside the active tool call.
 
 A first persistent widget slice is also landed: session start registers an above-editor status widget unless `PI_AUTORESEARCH_WIDGET=0` is set, and `/autoresearch widget on|off` controls it for the current session. The widget is read-only and shows machine state, run counts, best metric, confidence, empirical posture, and promotion readiness.
 
-A first fullscreen/overlay slice is also landed: `/autoresearch overlay` and `/autoresearch fullscreen` open a read-only live TUI dashboard overlay with periodic refresh, compact posture, metric contract, recent-run table, and candidate policy summary. It closes with `q`/Escape and supports simple keyboard scrolling.
+A first fullscreen/overlay slice is also landed: `/autoresearch overlay` and `/autoresearch fullscreen` open a read-only live TUI dashboard overlay with periodic refresh, compact posture, metric contract, recent-run table, candidate decision summary, and candidate policy summary. It closes with `q`/Escape and supports simple keyboard scrolling.
 
 A browser export slice is now landed: `/autoresearch export` writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session. `/autoresearch export off` stops that session-local refresher. The export is read-only and does not own execution or promotion.
 
-Next product work: dogfood this front door against real campaigns, then add interactive candidate keep/discard/rewind decisions.
+A first candidate decision workbench slice is now landed:
+
+```text
+autoresearch_candidate_decision({ action: "status" | "plan_keep" | "plan_discard" | "plan_rewind" })
+```
+
+The surface consumes runtime status, closeout, and candidate-result evidence to show the current candidate binding, empirical posture, promotion readiness, confidence/noise interpretation, checks status, baseline-drift risk, and the next legal lifecycle decision. Keep/discard/rewind outputs are command plans only: no merge, worktree deletion, reset/recreate, peer launch, AK/KES/evidence write, or promotion is applied by the package. The dashboard, overlay, and browser export now surface a compact candidate decision summary so the next keep/discard/rewind/rebaseline/sample/finalize move is visible without scraping receipts.
+
+Next product work: dogfood this front door and candidate decision workbench against real campaigns, then add richer interactive confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

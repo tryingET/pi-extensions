@@ -29,6 +29,7 @@ import { resolveAutoresearchRuntimeSnapshotPath } from "../src/core/resume.ts";
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -41,6 +42,7 @@ import {
   appendReceipt,
   buildAutoresearchAdapterContractCatalog,
   buildAutoresearchAkEvidencePacket,
+  buildAutoresearchCandidateDecisionWorkbench,
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchHelpText,
   buildAutoresearchKnowledgeExportPacket,
@@ -52,6 +54,7 @@ import {
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
+  formatAutoresearchCandidateDecisionWorkbench,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchSegmentCloseout,
@@ -389,6 +392,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.deepEqual(status.toolNames, [
     AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
     AUTORESEARCH_STATUS_TOOL_NAME,
+    AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
     AUTORESEARCH_RUN_TOOL_NAME,
     AUTORESEARCH_CONTROL_TOOL_NAME,
     AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -606,6 +610,32 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
       formatAutoresearchCandidateResultPacket(candidateResult),
       /CANDIDATE RESULT PACKET/,
     );
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({
+      cwd,
+      action: "status",
+    });
+    assert.equal(candidateDecision.candidate?.branch, "candidate/closeout");
+    assert.equal(candidateDecision.recommendedDecision, "collect_more_samples");
+    assert.equal(candidateDecision.empirical.checksStatus, "not run");
+    assert.match(candidateDecision.exactNextCalls.join("\n"), /candidate_result/);
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(candidateDecision),
+      /CANDIDATE DECISION WORKBENCH/,
+    );
+
+    const discardPlan = buildAutoresearchCandidateDecisionWorkbench({
+      cwd,
+      action: "plan_discard",
+      candidatePolicy: { discard: "delete_worktree_after_confirm" },
+    });
+    assert.equal(discardPlan.recommendedDecision, "discard");
+    assert.match(discardPlan.plannedCommands.join("\n"), /worktree remove/);
+    assert.match(discardPlan.plannedCommands.join("\n"), /plan only/);
+
+    const rewindPlan = buildAutoresearchCandidateDecisionWorkbench({ cwd, action: "plan_rewind" });
+    assert.equal(rewindPlan.recommendedDecision, "rewind");
+    assert.match(rewindPlan.plannedCommands.join("\n"), /reset --hard/);
 
     const learning = buildAutoresearchKnowledgeExportPacket(cwd);
     assert.equal(learning.packetKind, "autoresearch.learning.v1");
@@ -827,6 +857,7 @@ test("extension registers /autoresearch plus the supervised campaign front door 
   assert.equal(typeof commands.get(AUTORESEARCH_COMMAND_NAME)?.handler, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_STATUS_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_CONTROL_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_FINALIZE_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
@@ -1065,7 +1096,72 @@ test("autoresearch_runtime_status can render the compact dashboard", async () =>
       output,
       /worktree role: primary candidate accept\/keep\/discard\/rewind primitive/,
     );
+    assert.match(output, /Candidate decision/);
+    assert.match(output, /no candidate bound yet/);
     assert.match(output, /Next legal surfaces/);
+  });
+});
+
+test("autoresearch_candidate_decision renders a read-only candidate lifecycle plan", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "candidate-decision",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        empiricalDecisionClass: "candidate_regression",
+        metric: 130,
+        description: "candidate regression",
+        timestamp: 3,
+        experiment: {
+          candidate: {
+            source: "manual",
+            worktreePath: path.join(cwd, "../candidate-decision-worktree"),
+            branch: "candidate/decision",
+            baseRef: "HEAD~1",
+            diffSummary: "slower implementation",
+            filesChanged: ["src/slow.ts"],
+          },
+        },
+      }),
+    );
+
+    const result = await tools
+      .get(AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME)
+      ?.execute("call-candidate-decision", { cwd, action: "plan_rewind" }, undefined, undefined, {
+        cwd,
+      });
+
+    assert.ok(result);
+    const output = result.content[0]?.text ?? "";
+    assert.match(output, /PI-AUTORESEARCH CANDIDATE DECISION WORKBENCH/);
+    assert.match(output, /recommended lifecycle decision: rewind/);
+    assert.match(output, /candidate branch\/ref: candidate\/decision/);
+    assert.match(output, /reset --hard/);
+    assert.match(output, /Replay Fabric is observer\/history\/recovery-clue only/);
+    const details = result.details as { recommendedDecision: string; plannedCommands: string[] };
+    assert.equal(details.recommendedDecision, "rewind");
+    assert.match(details.plannedCommands.join("\n"), /plan only/);
   });
 });
 

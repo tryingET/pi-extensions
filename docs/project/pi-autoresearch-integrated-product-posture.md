@@ -306,7 +306,7 @@ The third interaction/dashboard slice is now also landed:
 
 - `/autoresearch dashboard` opens a compact read-only operator dashboard in the editor;
 - `autoresearch_runtime_status({ action: "dashboard" })` exposes the same dashboard through the tool surface;
-- the dashboard shows current machine/control posture, empirical posture, metric contract, confidence/noise interpretation, candidate policy, and next legal surfaces;
+- the dashboard shows current machine/control posture, empirical posture, metric contract, confidence/noise interpretation, candidate decision summary, candidate policy, and next legal surfaces;
 - it is explicitly read-only and does not run benchmarks, spawn peers, mutate worktrees, write AK/KES/evidence, or promote results.
 
 The fourth interaction/progress slice is now also landed:
@@ -338,7 +338,17 @@ The seventh interaction/browser-export slice is now also landed:
 - `/autoresearch export off` stops that refresher;
 - the browser dashboard is read-only and does not own execution, worktree mutation, evidence writes, or promotion.
 
-Still next in this slice: interactive candidate keep/discard/rewind decisions.
+The eighth candidate decision workbench slice is now also landed:
+
+- `autoresearch_candidate_decision` exposes `status`, `plan_keep`, `plan_discard`, and `plan_rewind` actions;
+- it consumes package-local runtime status, closeout, and candidate-result evidence;
+- it shows candidate source, worktree, branch/ref/base, changed files, diff summary, empirical posture, promotion readiness, confidence/noise interpretation, checks status, and baseline-drift risk;
+- it recommends keep, discard, rewind, rebaseline, collect more samples, finalize, or no candidate bound yet;
+- it returns exact next tool calls plus plan-only git commands when a worktree/base/branch is known;
+- it does not merge, delete worktrees, reset/recreate worktrees, spawn peers, write AK/KES/evidence, or promote;
+- the editor dashboard, overlay, and browser export now include a compact candidate decision summary/next surface.
+
+Still next in this slice: richer interactive confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

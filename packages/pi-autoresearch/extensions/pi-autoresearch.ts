@@ -30,6 +30,7 @@ import {
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -42,6 +43,7 @@ import {
   buildAutoresearchAdapterContractCatalog,
   buildAutoresearchAkEvidencePacket,
   buildAutoresearchAutoplan,
+  buildAutoresearchCandidateDecisionWorkbench,
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchKnowledgeExportPacket,
   buildAutoresearchPeerAssistPlan,
@@ -57,6 +59,7 @@ import {
   formatAutoresearchAkEvidencePacket,
   formatAutoresearchAutoplanResult,
   formatAutoresearchCampaignStartResult,
+  formatAutoresearchCandidateDecisionWorkbench,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchControlResult,
   formatAutoresearchDashboard,
@@ -737,6 +740,29 @@ const campaignStartCandidatePolicySchema = Type.Object({
   ),
 });
 
+const candidateDecisionActionSchema = Type.Union(
+  [
+    Type.Literal("status"),
+    Type.Literal("plan_keep"),
+    Type.Literal("plan_discard"),
+    Type.Literal("plan_rewind"),
+  ],
+  {
+    description:
+      "Inspect current candidate lifecycle posture or produce a read-only plan for keep, discard, or rewind.",
+  },
+);
+
+const candidateDecisionSchema = Type.Object({
+  cwd: Type.Optional(
+    Type.String({
+      description: "Optional cwd override for candidate lifecycle decision planning.",
+    }),
+  ),
+  action: Type.Optional(candidateDecisionActionSchema),
+  candidatePolicy: Type.Optional(campaignStartCandidatePolicySchema),
+});
+
 const campaignStartSchema = Type.Object({
   cwd: Type.Optional(
     Type.String({ description: "Optional cwd override for the supervised campaign front door." }),
@@ -1032,6 +1058,37 @@ export function registerPiAutoresearchExtension(
     description: "Open the pi-autoresearch bounded-runtime overview",
     handler: async (args, ctx) => {
       await openAutoresearchShell(args, ctx, dashboardExportIntervals);
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
+    label: "Autoresearch Candidate Decision",
+    description:
+      "Plan current pi-autoresearch candidate keep/discard/rewind decisions from runtime status, closeout, and candidate-result evidence without mutating worktrees or promoting.",
+    promptSnippet:
+      "Inspect or plan the current pi-autoresearch candidate lifecycle decision. Read-only: status, plan_keep, plan_discard, or plan_rewind. It consumes runtime receipts/closeout/candidate-result posture and returns exact next calls/commands without applying them.",
+    parameters: asPiToolParameters(candidateDecisionSchema),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: "status" | "plan_keep" | "plan_discard" | "plan_rewind";
+        cwd?: string;
+        candidatePolicy?: {
+          mode?: "worktree";
+          keep?: "preserve_branch" | "plan_review_branch";
+          discard?: "suggest_cleanup" | "delete_worktree_after_confirm";
+          rewind?: "reset_worktree_to_base" | "recreate_worktree_from_base";
+        };
+      };
+      const result = buildAutoresearchCandidateDecisionWorkbench({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        action: request.action,
+        candidatePolicy: request.candidatePolicy,
+      });
+      return {
+        content: [{ type: "text", text: formatAutoresearchCandidateDecisionWorkbench(result) }],
+        details: result,
+      };
     },
   });
 
@@ -2878,6 +2935,7 @@ function buildAutoresearchOverlayBody(cwd: string): string[] {
   const status = buildAutoresearchRuntimeStatus(cwd);
   const closeout = buildAutoresearchSegmentCloseout(cwd);
   const segment = status.currentSegment;
+  const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
   const recentRuns = closeout.runs.slice(-12);
   const runRows =
     recentRuns.length > 0
@@ -2901,6 +2959,11 @@ function buildAutoresearchOverlayBody(cwd: string): string[] {
     "",
     "Recent runs",
     ...runRows,
+    "",
+    "Candidate decision",
+    `candidate: ${candidateDecision.candidate?.label ?? "no candidate bound yet"}`,
+    `decision: ${candidateDecision.recommendedDecision} • checks=${candidateDecision.empirical.checksStatus}`,
+    `next surface: ${candidateDecision.exactNextCalls[0] ?? `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "status" })`}`,
     "",
     "Candidate policy",
     "mode=worktree • keep=preserve_branch • discard=suggest_cleanup • rewind=reset_worktree_to_base",

@@ -83,6 +83,7 @@ export const AUTORESEARCH_LOOP_TOOL_NAME = "autoresearch_runtime_loop";
 export const AUTORESEARCH_AUTOPLAN_TOOL_NAME = "autoresearch_runtime_autoplan";
 export const AUTORESEARCH_SETUP_TOOL_NAME = "autoresearch_runtime_setup";
 export const AUTORESEARCH_CAMPAIGN_START_TOOL_NAME = "autoresearch_campaign_start";
+export const AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME = "autoresearch_candidate_decision";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
@@ -575,6 +576,59 @@ export const DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY: AutoresearchCandid
     replayFabricRole: "observer/history/recovery-clue projection only; not the executor",
     ascRewindRole: "live Pi/session recovery only; not candidate accept/discard authority",
   };
+
+export type AutoresearchCandidateDecisionAction =
+  | "status"
+  | "plan_keep"
+  | "plan_discard"
+  | "plan_rewind";
+export type AutoresearchCandidateLifecycleDecision =
+  | "keep"
+  | "discard"
+  | "rewind"
+  | "rebaseline"
+  | "collect_more_samples"
+  | "finalize"
+  | "no_candidate_bound_yet";
+
+export interface BuildAutoresearchCandidateDecisionInput {
+  cwd: string;
+  action?: AutoresearchCandidateDecisionAction;
+  candidatePolicy?: AutoresearchCandidateLifecyclePolicyInput;
+}
+
+export interface AutoresearchCandidateDecisionSummary {
+  source: AutoresearchCandidateBindingSource | null;
+  worktreePath: string | null;
+  branch: string | null;
+  baseRef: string | null;
+  diffSummary: string | null;
+  filesChanged: string[];
+  label: string;
+}
+
+export interface AutoresearchCandidateDecisionWorkbench {
+  cwd: string;
+  action: AutoresearchCandidateDecisionAction;
+  candidatePolicy: AutoresearchCandidateLifecyclePolicy;
+  candidate: AutoresearchCandidateDecisionSummary | null;
+  empirical: {
+    classification: AutoresearchEmpiricalPostureClassification;
+    empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
+    promotionReady: boolean;
+    confidence: number | null;
+    confidenceNoiseInterpretation: string;
+    checksStatus: string;
+    baselineDriftRisk: string;
+  };
+  recommendedDecision: AutoresearchCandidateLifecycleDecision;
+  recommendationReason: string;
+  exactNextCalls: string[];
+  plannedCommands: string[];
+  boundaryWarnings: string[];
+  status: AutoresearchRuntimeStatus;
+  candidateResult: AutoresearchCandidateResultPacket;
+}
 
 export interface AutoresearchSetupConfigInput {
   name: string;
@@ -2936,6 +2990,147 @@ export function buildAutoresearchCandidateResultPacket(
   };
 }
 
+export function buildAutoresearchCandidateDecisionWorkbench(
+  input: BuildAutoresearchCandidateDecisionInput,
+): AutoresearchCandidateDecisionWorkbench {
+  const cwd = path.resolve(input.cwd);
+  const action = input.action ?? "status";
+  const candidatePolicy = normalizeAutoresearchCandidateLifecyclePolicy(input.candidatePolicy);
+  const candidateResult = buildAutoresearchCandidateResultPacket(cwd);
+  const status = candidateResult.closeout.status;
+  const candidate = summarizeCandidateForDecision(candidateResult.candidate);
+  const candidateRun = candidateResult.candidateRun;
+  const confidenceNoiseInterpretation = formatMetricInterpretation(
+    status.currentSegment.metricInterpretation,
+    status.currentSegment.metricUnit,
+  );
+  const baselineDriftRisk = describeAutoresearchBaselineDriftRisk(status);
+  const checksStatus =
+    candidateRun?.checks ?? describeLatestCloseoutChecks(candidateResult.closeout);
+  const recommendedDecision = chooseAutoresearchCandidateLifecycleDecision({
+    action,
+    candidate,
+    status,
+  });
+  const recommendationReason = explainAutoresearchCandidateLifecycleDecision({
+    action,
+    decision: recommendedDecision,
+    status,
+    candidate,
+  });
+  const exactNextCalls = buildAutoresearchCandidateDecisionNextCalls({
+    cwd,
+    action,
+    decision: recommendedDecision,
+    candidate,
+    status,
+  });
+  const plannedCommands = buildAutoresearchCandidateDecisionCommandPlan({
+    cwd,
+    action,
+    candidatePolicy,
+    candidate,
+  });
+
+  return {
+    cwd,
+    action,
+    candidatePolicy,
+    candidate,
+    empirical: {
+      classification: status.empiricalPosture.classification,
+      empiricalDecisionClass: candidateResult.empiricalDecisionClass,
+      promotionReady: status.empiricalPosture.promotionReady,
+      confidence: status.currentSegment.confidence,
+      confidenceNoiseInterpretation,
+      checksStatus,
+      baselineDriftRisk,
+    },
+    recommendedDecision,
+    recommendationReason,
+    exactNextCalls,
+    plannedCommands,
+    boundaryWarnings: [...AUTORESEARCH_CANDIDATE_DECISION_BOUNDARY_WARNINGS],
+    status,
+    candidateResult,
+  };
+}
+
+export function formatAutoresearchCandidateDecisionWorkbench(
+  result: AutoresearchCandidateDecisionWorkbench,
+): string {
+  const candidateLines = result.candidate
+    ? [
+        `- candidate source: ${result.candidate.source ?? "(unknown)"}`,
+        `- candidate worktree: ${result.candidate.worktreePath ?? "(unknown)"}`,
+        `- candidate branch/ref: ${result.candidate.branch ?? "(unknown)"}`,
+        `- candidate base ref: ${result.candidate.baseRef ?? "(unknown)"}`,
+        `- candidate files changed: ${formatTargetFiles(result.candidate.filesChanged)}`,
+        `- candidate diff summary: ${result.candidate.diffSummary ?? "(unknown)"}`,
+      ]
+    : ["- candidate: no candidate bound yet"];
+  const commandLines =
+    result.plannedCommands.length > 0
+      ? result.plannedCommands.map((command) => `- ${command}`)
+      : ["- (none; no worktree mutation is planned for this action)"];
+
+  return [
+    "# PI-AUTORESEARCH CANDIDATE DECISION WORKBENCH",
+    "",
+    "Read-only / plan-only candidate lifecycle surface. It consumes runtime status, closeout, and candidate-result evidence; it does not merge, delete worktrees, rewind worktrees, spawn peers, write AK/KES/evidence, or promote results.",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- action: ${result.action}`,
+    `- recommended lifecycle decision: ${result.recommendedDecision}`,
+    `- reason: ${result.recommendationReason}`,
+    "",
+    "## Candidate summary",
+    ...candidateLines,
+    "",
+    "## Empirical posture",
+    `- classification: ${result.empirical.classification}`,
+    `- empirical decision: ${result.empirical.empiricalDecisionClass}`,
+    `- promotion readiness: ${result.empirical.promotionReady ? "ready" : "not ready"}`,
+    `- confidence: ${formatConfidenceValue(result.empirical.confidence)}`,
+    `- confidence/noise: ${result.empirical.confidenceNoiseInterpretation}`,
+    `- checks status: ${result.empirical.checksStatus}`,
+    `- baseline drift risk: ${result.empirical.baselineDriftRisk}`,
+    "",
+    "## Candidate lifecycle policy",
+    `- mode: ${result.candidatePolicy.mode}`,
+    `- keep: ${result.candidatePolicy.keep}`,
+    `- discard: ${result.candidatePolicy.discard}`,
+    `- rewind: ${result.candidatePolicy.rewind}`,
+    `- authority: ${result.candidatePolicy.authority}`,
+    "",
+    "## Exact next calls",
+    ...result.exactNextCalls.map((call) => `- ${call}`),
+    "",
+    "## Planned commands (not executed)",
+    ...commandLines,
+    "",
+    "## Boundary warnings",
+    ...result.boundaryWarnings.map((warning) => `- ${warning}`),
+  ].join("\n");
+}
+
+export function formatAutoresearchCandidateDecisionDashboardSummary(
+  result: AutoresearchCandidateDecisionWorkbench,
+): string {
+  const candidateLabel = result.candidate?.label ?? "no candidate bound yet";
+  const nextCall =
+    result.exactNextCalls[0] ??
+    `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(result.cwd)}, action: "status" })`;
+  return [
+    `- candidate: ${candidateLabel}`,
+    `- recommended decision: ${result.recommendedDecision}`,
+    `- reason: ${result.recommendationReason}`,
+    `- empirical posture: ${result.empirical.classification}; promotion ready: ${result.empirical.promotionReady ? "yes" : "no"}`,
+    `- checks: ${result.empirical.checksStatus}; baseline drift risk: ${result.empirical.baselineDriftRisk}`,
+    `- next surface: ${nextCall}`,
+  ].join("\n");
+}
+
 export function buildAutoresearchKnowledgeExportPacket(
   cwd: string,
 ): AutoresearchKnowledgeExportPacket {
@@ -3198,6 +3393,11 @@ export function formatAutoresearchDashboard(
   const runLine = segment.configured
     ? `${segment.runCount} total / ${segment.successfulRunCount} successful; last=${formatLastRun(segment.lastRunStatus, segment.lastRunMetric, segment.metricUnit, segment.lastRunKind)}`
     : "0 total / 0 successful";
+  const candidateDecision = status.cwd
+    ? formatAutoresearchCandidateDecisionDashboardSummary(
+        buildAutoresearchCandidateDecisionWorkbench({ cwd: status.cwd, candidatePolicy }),
+      )
+    : "- candidate: (unavailable without cwd)\n- next surface: provide cwd to autoresearch_candidate_decision";
 
   return [
     "# PI-AUTORESEARCH DASHBOARD",
@@ -3234,10 +3434,14 @@ export function formatAutoresearchDashboard(
     `- replay-fabric role: ${candidatePolicy.replayFabricRole}`,
     `- ASC rewind role: ${candidatePolicy.ascRewindRole}`,
     "",
+    "## Candidate decision",
+    candidateDecision,
+    "",
     "## Next legal surfaces",
     `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "closeout" })`,
+    `- candidate decision: ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     `- control gate: ${AUTORESEARCH_CONTROL_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     "",
     "## Boundaries",
@@ -3260,6 +3464,8 @@ function renderAutoresearchDashboardHtml(
     )
     .join("\n");
   const generatedAt = new Date().toLocaleString();
+  const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd: closeout.cwd });
+  const candidateDecisionLabel = candidateDecision.candidate?.label ?? "no candidate bound yet";
 
   return `<!doctype html>
 <html lang="en">
@@ -3302,6 +3508,12 @@ code { color: #bae6fd; }
 <section class="card">
   <div class="label">Recommended next</div>
   <div class="value">${escapeHtml(status.empiricalPosture.recommendedNextAction)}</div>
+</section>
+<section class="card">
+  <div class="label">Candidate decision</div>
+  <div class="value">${escapeHtml(candidateDecision.recommendedDecision)}</div>
+  <div class="subtle">${escapeHtml(candidateDecisionLabel)} — ${escapeHtml(candidateDecision.recommendationReason)}</div>
+  <div class="subtle"><code>${escapeHtml(candidateDecision.exactNextCalls[0] ?? `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "status" })`)}</code></div>
 </section>
 <div class="grid">
   <section class="card"><div class="label">Campaign</div><div class="value">${escapeHtml(segment.name ?? "unconfigured")}</div></section>
@@ -3618,6 +3830,7 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     `- tools: ${status.toolNames.join(", ")}`,
     `- use ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME} as the supervised campaign front door from one bounded objective; plan first, then optionally bootstrap a baseline or bounded loop`,
     "- use autoresearch_runtime_status to inspect the current bounded runtime state",
+    `- use ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME} to inspect or plan candidate keep/discard/rewind decisions without mutating worktrees or promoting`,
     "- use autoresearch_runtime_status with action=setup or action=finalize to request governed setup/finalize packets",
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
     "- use autoresearch_runtime_finalize to inspect, plan, approve, and materialize a bounded finalization workflow",
@@ -4979,6 +5192,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     toolNames: [
       AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
       AUTORESEARCH_STATUS_TOOL_NAME,
+      AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
       AUTORESEARCH_RUN_TOOL_NAME,
       AUTORESEARCH_CONTROL_TOOL_NAME,
       AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -6019,6 +6233,229 @@ function recommendSegmentCloseoutAction(decisionClass: AutoresearchEmpiricalDeci
     case "not_evaluated":
       return "configure and run a bounded segment before closeout";
   }
+}
+
+const AUTORESEARCH_CANDIDATE_DECISION_BOUNDARY_WARNINGS = [
+  "worktree lifecycle is the candidate keep/discard/rewind primitive; this workbench only plans commands",
+  "Replay Fabric is observer/history/recovery-clue only and does not accept, discard, or rewind candidates",
+  "ASC rewind is live Pi/session recovery only, not candidate lifecycle authority",
+  "durable promotion belongs to external owner surfaces such as AK/KES/adapters after explicit review",
+  "this surface does not merge, delete worktrees, reset worktrees, spawn peers, write evidence, or promote",
+] as const;
+
+function summarizeCandidateForDecision(
+  binding: AutoresearchCandidateBinding | null,
+): AutoresearchCandidateDecisionSummary | null {
+  if (!binding) return null;
+  const label =
+    binding.branch ??
+    binding.worktreePath ??
+    binding.diffSummary ??
+    binding.source ??
+    "bound candidate";
+  return {
+    source: binding.source,
+    worktreePath: binding.worktreePath,
+    branch: binding.branch,
+    baseRef: binding.baseRef,
+    diffSummary: binding.diffSummary,
+    filesChanged: [...binding.filesChanged],
+    label,
+  };
+}
+
+function chooseAutoresearchCandidateLifecycleDecision(input: {
+  action: AutoresearchCandidateDecisionAction;
+  candidate: AutoresearchCandidateDecisionSummary | null;
+  status: AutoresearchRuntimeStatus;
+}): AutoresearchCandidateLifecycleDecision {
+  if (!input.candidate) return "no_candidate_bound_yet";
+  if (input.action === "plan_discard") return "discard";
+  if (input.action === "plan_rewind") return "rewind";
+  if (input.action === "plan_keep") return "keep";
+  if (
+    input.status.runtimeProjection.state === "finalize_candidate" ||
+    input.status.control.kind === "finalize"
+  ) {
+    return "finalize";
+  }
+
+  const posture = input.status.empiricalPosture.classification;
+  const decision = input.status.currentSegment.empiricalDecisionClass;
+  if (posture === "baseline_drift_suspected" || decision === "baseline_drift") return "rebaseline";
+  if (
+    decision === "candidate_regression" ||
+    decision === "checks_failed" ||
+    decision === "measurement_invalid"
+  ) {
+    return "discard";
+  }
+  if (decision === "candidate_neutral") return "rewind";
+  if (decision === "candidate_improvement") {
+    return input.status.empiricalPosture.promotionReady ? "keep" : "collect_more_samples";
+  }
+  if (posture === "candidate_review_ready") return "keep";
+  return "collect_more_samples";
+}
+
+function explainAutoresearchCandidateLifecycleDecision(input: {
+  action: AutoresearchCandidateDecisionAction;
+  decision: AutoresearchCandidateLifecycleDecision;
+  status: AutoresearchRuntimeStatus;
+  candidate: AutoresearchCandidateDecisionSummary | null;
+}): string {
+  if (!input.candidate) {
+    return "No controller-verified candidate binding exists in the current segment; bind a candidate before keep/discard/rewind decisions.";
+  }
+  if (input.action === "plan_keep") {
+    return input.status.empiricalPosture.promotionReady
+      ? "Requested keep plan and empirical posture is promotion-ready; preserve the worktree/branch and plan finalization externally."
+      : "Requested keep plan is shown read-only, but empirical posture is not promotion-ready; collect more samples or rebaseline before durable promotion.";
+  }
+  if (input.action === "plan_discard") {
+    return "Requested discard plan; cleanup remains operator-confirmed and receipts stay available for review.";
+  }
+  if (input.action === "plan_rewind") {
+    return "Requested rewind plan; reset/recreate commands are proposed only and must be applied explicitly by the operator.";
+  }
+  switch (input.decision) {
+    case "keep":
+      return "Candidate evidence is promising enough for a keep/review path; no merge or promotion is automatic.";
+    case "discard":
+      return "Candidate evidence is invalid, failing, or regressive; discard or diagnose before another optimization run.";
+    case "rewind":
+      return "Candidate is neutral or not useful enough to keep; rewind the worktree only after explicit operator confirmation.";
+    case "rebaseline":
+      return "Baseline drift is suspected; rebaseline before deciding whether this candidate is a true improvement.";
+    case "collect_more_samples":
+      return "Candidate evidence exists but is under-sampled, noisy, calibration-only, or inconclusive.";
+    case "finalize":
+      return "Candidate can move toward finalization through the explicit finalization owner surface.";
+    case "no_candidate_bound_yet":
+      return "No candidate binding exists yet.";
+  }
+}
+
+function buildAutoresearchCandidateDecisionNextCalls(input: {
+  cwd: string;
+  action: AutoresearchCandidateDecisionAction;
+  decision: AutoresearchCandidateLifecycleDecision;
+  candidate: AutoresearchCandidateDecisionSummary | null;
+  status: AutoresearchRuntimeStatus;
+}): string[] {
+  const cwdLiteral = JSON.stringify(input.cwd);
+  const calls = [
+    `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "candidate_result" })`,
+  ];
+  if (!input.candidate) {
+    calls.push(
+      `${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${cwdLiteral}, description: "Measure a controller-verified candidate", candidateSource: "manual", candidateWorktree: "<worktree>", candidateBranch: "<branch>", candidateBaseRef: "<base-ref>", candidateDiffSummary: "<verified diff summary>", candidateFilesChanged: ["<file>"] })`,
+    );
+    return calls;
+  }
+  if (input.decision === "keep") {
+    calls.push(
+      `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "plan_keep" })`,
+    );
+    calls.push(`${AUTORESEARCH_FINALIZE_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "plan" })`);
+  } else if (input.decision === "finalize") {
+    calls.push(`${AUTORESEARCH_FINALIZE_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "plan" })`);
+  } else if (input.decision === "discard") {
+    calls.push(
+      `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "plan_discard" })`,
+    );
+  } else if (input.decision === "rewind") {
+    calls.push(
+      `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "plan_rewind" })`,
+    );
+  } else if (input.decision === "rebaseline") {
+    calls.push(
+      `${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${cwdLiteral}, description: "Rebaseline before candidate decision", reconfigure: true, name: ${JSON.stringify(input.status.currentSegment.name ?? "<campaign>")}, metricName: ${JSON.stringify(input.status.currentSegment.metricName ?? "<metric>")} })`,
+    );
+  } else if (input.decision === "collect_more_samples") {
+    calls.push(
+      `${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${cwdLiteral}, description: "Collect another ordinary candidate sample" })`,
+    );
+  }
+  calls.push(`${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "closeout" })`);
+  return calls;
+}
+
+function buildAutoresearchCandidateDecisionCommandPlan(input: {
+  cwd: string;
+  action: AutoresearchCandidateDecisionAction;
+  candidatePolicy: AutoresearchCandidateLifecyclePolicy;
+  candidate: AutoresearchCandidateDecisionSummary | null;
+}): string[] {
+  const candidate = input.candidate;
+  if (!candidate) return [];
+  const worktree = candidate.worktreePath;
+  const baseRef = candidate.baseRef;
+  if (input.action === "plan_keep") {
+    return worktree
+      ? [`git -C ${shellSingleQuote(worktree)} status --short # read-only pre-review check`]
+      : [];
+  }
+  if (input.action === "plan_discard") {
+    const commands: string[] = [];
+    if (worktree) {
+      commands.push(
+        `git -C ${shellSingleQuote(input.cwd)} worktree remove ${shellSingleQuote(worktree)} # plan only; run only after explicit operator confirmation`,
+      );
+    }
+    if (candidate.branch) {
+      commands.push(
+        `git -C ${shellSingleQuote(input.cwd)} branch -D ${shellSingleQuote(candidate.branch)} # plan only; only after receipts/review no longer need the branch`,
+      );
+    }
+    if (commands.length === 0 && input.candidatePolicy.discard === "suggest_cleanup") {
+      commands.push("# no worktree/branch known; inspect candidate_result before cleanup");
+    }
+    return commands;
+  }
+  if (input.action === "plan_rewind") {
+    if (input.candidatePolicy.rewind === "reset_worktree_to_base") {
+      return worktree && baseRef
+        ? [
+            `git -C ${shellSingleQuote(worktree)} reset --hard ${shellSingleQuote(baseRef)} # plan only; destructive if applied`,
+          ]
+        : [
+            "# rewind requires a candidate worktree path and base ref before a reset command can be planned",
+          ];
+    }
+    return worktree && baseRef
+      ? [
+          `git -C ${shellSingleQuote(input.cwd)} worktree remove ${shellSingleQuote(worktree)} # plan only; run only after explicit confirmation`,
+          `git -C ${shellSingleQuote(input.cwd)} worktree add ${shellSingleQuote(worktree)} ${shellSingleQuote(baseRef)} # plan only; recreates candidate worktree from base`,
+        ]
+      : [
+          "# recreate rewind requires a candidate worktree path and base ref before commands can be planned",
+        ];
+  }
+  return [];
+}
+
+function describeAutoresearchBaselineDriftRisk(status: AutoresearchRuntimeStatus): string {
+  if (
+    status.empiricalPosture.classification === "baseline_drift_suspected" ||
+    status.currentSegment.metricInterpretation?.verdict === "baseline_drift"
+  ) {
+    return "suspected; rebaseline before candidate promotion";
+  }
+  if (
+    status.currentSegment.metricInterpretation?.verdict === "possible_noise" ||
+    status.currentSegment.metricInterpretation?.verdict === "insufficient_samples"
+  ) {
+    return "possible; collect more samples before overclaiming";
+  }
+  if (!status.currentSegment.configured || status.currentSegment.runCount === 0) {
+    return "unknown; no measured segment yet";
+  }
+  return "not currently indicated by runtime posture";
+}
+
+function describeLatestCloseoutChecks(closeout: AutoresearchSegmentCloseout): string {
+  return closeout.runs.at(-1)?.checks ?? "not run";
 }
 
 function normalizeCandidateBinding(

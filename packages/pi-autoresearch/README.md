@@ -43,7 +43,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 
 - `/autoresearch`
   - with no objective, opens/reports the bounded runtime overview
-  - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate policy, and next legal surfaces
+  - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate decision summary, candidate policy, and next legal surfaces
   - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
   - with `export`, writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session; `export off` stops the refresher
   - with `widget on|off`, shows or hides the persistent above-editor status widget for the current session
@@ -65,9 +65,18 @@ The current boundary is now more specific: the package is the runtime owner for 
   - supports a policy-only `candidatePolicy` for worktree-based keep/discard/rewind choices; default keep preserves the branch, default discard suggests cleanup after receipt review, and default rewind resets the candidate worktree to base
   - keeps Replay Fabric as observer/history/recovery-clue projection and ASC rewind as live Pi/session recovery; neither becomes the candidate accept/discard executor
   - does not auto-spawn peers, commit, merge/delete worktrees, write AK/KES/evidence, or perform durable promotion
+- `autoresearch_candidate_decision`
+  - is the read-only / plan-only candidate lifecycle decision workbench
+  - supports `action: "status" | "plan_keep" | "plan_discard" | "plan_rewind"`
+  - consumes current runtime status, segment closeout, and candidate-result evidence to summarize candidate source, worktree, branch/ref/base, changed files, and diff summary when bound
+  - reports empirical posture, promotion readiness, confidence/noise interpretation, checks status, and baseline-drift risk before suggesting a lifecycle decision
+  - recommends keep, discard, rewind, rebaseline, collect more samples, finalize, or no candidate bound yet
+  - returns exact next tool calls and plan-only git commands such as `git -C <worktree> reset --hard <baseRef>` without applying them
+  - keeps worktree lifecycle as the candidate primitive; Replay Fabric remains observer/history/recovery-clue only, ASC rewind remains live Pi/session recovery only, and durable promotion remains external
+  - does not merge, delete worktrees, reset worktrees, spawn peers, write AK/KES/evidence, or promote
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
-  - supports `action: "dashboard"` for a compact read-only operator dashboard that is easier to scan than the full diagnostic status
+  - supports `action: "dashboard"` for a compact read-only operator dashboard that is easier to scan than the full diagnostic status and now includes the same candidate decision summary/next legal surface
   - can build a package-local segment closeout packet (`action: "closeout"`, packet kind `autoresearch.closeout.v1`) summarizing runs, hypotheses, candidate bindings, empirical decision, timing interpretation, recommended action, and the adapter/evidence boundary before external promotion
   - can build a non-mutating exact-task AK evidence packet (`action: "ak_evidence"`, `akTaskId`, packet kind `autoresearch.ak_evidence.v1`) with a suggested explicit `evidence_record(...)` controller call; it does not mutate AK itself
   - can build an adapter-ready learning/KMS export packet (`action: "learning"`, packet kind `autoresearch.learning.v1`) so external KES, notes, or knowledge-base adapters can persist learning without pi-autoresearch owning those systems
