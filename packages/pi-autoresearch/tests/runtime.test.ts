@@ -882,6 +882,8 @@ test("/autoresearch with an objective prepares the campaign-start tool call", as
   assert.match(editorText, /autoresearch_campaign_start/);
   assert.match(editorText, /optimize startup/);
   assert.match(editorText, /runMode: "plan_only"/);
+  assert.match(editorText, /candidatePolicy/);
+  assert.match(editorText, /mode: "worktree"/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_campaign_start/);
 });
@@ -917,14 +919,21 @@ test("autoresearch_campaign_start provides a plan-only supervised front door", a
     assert.match(output, /PI-AUTORESEARCH CAMPAIGN START/);
     assert.match(output, /run mode: plan_only/);
     assert.match(output, /benchmark command: npm run bench/);
+    assert.match(output, /Candidate lifecycle policy/);
+    assert.match(
+      output,
+      /replay-fabric role: observer\/history\/recovery-clue projection only; not the executor/,
+    );
     assert.match(output, /Next exact tool call/);
     assert.match(output, /runMode: "baseline"/);
+    assert.match(output, /candidatePolicy/);
     const details = result.details as {
       objective: string;
       runMode: string;
       maxIterations: number;
       setupResult: null;
       loopResult: null;
+      candidatePolicy: { mode: string; keep: string; discard: string; rewind: string };
       autoplan: { config: { metricName: string }; benchmarkCommand: string; checksCommand: string };
       nextToolCall: string;
     };
@@ -933,6 +942,10 @@ test("autoresearch_campaign_start provides a plan-only supervised front door", a
     assert.equal(details.maxIterations, 4);
     assert.equal(details.setupResult, null);
     assert.equal(details.loopResult, null);
+    assert.equal(details.candidatePolicy.mode, "worktree");
+    assert.equal(details.candidatePolicy.keep, "preserve_branch");
+    assert.equal(details.candidatePolicy.discard, "suggest_cleanup");
+    assert.equal(details.candidatePolicy.rewind, "reset_worktree_to_base");
     assert.equal(details.autoplan.config.metricName, "total_ms");
     assert.equal(details.autoplan.benchmarkCommand, "npm run bench");
     assert.equal(details.autoplan.checksCommand, "npm run check");

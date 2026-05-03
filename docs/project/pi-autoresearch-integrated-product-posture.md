@@ -294,7 +294,15 @@ The first `pi-interaction` affordance now exists:
 - the selected mode replaces editor text with the exact `autoresearch_campaign_start({ ... })` call;
 - the trigger degrades safely when the optional interaction runtime is unavailable.
 
-Still next in this slice: TUI widgets/dashboard surfaces for setup review, metric-contract confirmation, policy selection, live posture display, and candidate keep/discard/rewind decisions.
+The second interaction/policy slice is also now package-owned in the campaign front door:
+
+- `autoresearch_campaign_start` accepts and reports a policy-only `candidatePolicy`;
+- default policy is worktree-first: keep preserves the candidate branch, discard suggests cleanup after receipt review, and rewind resets the candidate worktree to base;
+- Replay Fabric stays observer/history/recovery-clue projection, not the accept/discard/rewind executor;
+- ASC rewind stays live Pi/session recovery, not candidate lifecycle authority;
+- the exact next tool call carries the candidate policy forward.
+
+Still next in this slice: richer TUI widgets/dashboard surfaces for setup review, metric-contract confirmation, live posture display, and interactive candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

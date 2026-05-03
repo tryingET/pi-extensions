@@ -57,8 +57,10 @@ The current boundary is now more specific: the package is the runtime owner for 
   - composes existing autoplan/setup/loop surfaces instead of inventing a second runtime
   - supports `runMode: "plan_only" | "baseline" | "bounded_loop"`
   - supports `setupMode: "autoplan" | "prompt_vault_setup"`; governed setup uses the package-owned Prompt Vault decision runner and typed parser
-  - reports campaign name, metric contract, scope, warnings/gates, current machine state, and the next exact tool call
-  - does not auto-spawn peers, commit, write AK/KES/evidence, or perform durable promotion
+  - reports campaign name, metric contract, scope, candidate lifecycle policy, warnings/gates, current machine state, and the next exact tool call
+  - supports a policy-only `candidatePolicy` for worktree-based keep/discard/rewind choices; default keep preserves the branch, default discard suggests cleanup after receipt review, and default rewind resets the candidate worktree to base
+  - keeps Replay Fabric as observer/history/recovery-clue projection and ASC rewind as live Pi/session recovery; neither becomes the candidate accept/discard executor
+  - does not auto-spawn peers, commit, merge/delete worktrees, write AK/KES/evidence, or perform durable promotion
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
   - can build a package-local segment closeout packet (`action: "closeout"`, packet kind `autoresearch.closeout.v1`) summarizing runs, hypotheses, candidate bindings, empirical decision, timing interpretation, recommended action, and the adapter/evidence boundary before external promotion

@@ -148,11 +148,13 @@ The initial version is intentionally conservative:
 
 - default slash-command behavior prepares a plan-only tool call for operator review;
 - the optional `$$ autoresearch <objective>` / `$$ ar <objective>` pi-interaction picker lets the operator select plan-only, governed setup plan, baseline, or bounded-loop mode before the exact tool call is inserted;
-- the tool reports the measurement contract, scope, warnings, status, and next exact call;
+- the tool reports the measurement contract, scope, candidate lifecycle policy, warnings, status, and next exact call;
+- default candidate policy is explicit and worktree-first: keep preserves the candidate branch, discard suggests cleanup after receipt review, and rewind resets the candidate worktree to base;
+- Replay Fabric remains observer/history/recovery-clue projection and ASC rewind remains live Pi/session recovery, so neither becomes candidate accept/discard authority;
 - baseline and bounded-loop execution are explicit `runMode` choices;
-- peer launch, commits, AK/KES/evidence writes, and durable promotion remain outside this front door.
+- peer launch, commits, worktree deletion/merge, AK/KES/evidence writes, and durable promotion remain outside this front door.
 
-Next product work: dogfood this front door against real campaigns, then add richer TUI/dashboard affordances for live posture, confidence/noise display, and candidate keep/discard/rewind policy selection.
+Next product work: dogfood this front door against real campaigns, then add richer TUI/dashboard affordances for live posture, confidence/noise display, and interactive candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

@@ -526,6 +526,44 @@ export type AutoresearchAutoplanPlanner = "heuristic" | "dspx_program";
 export type AutoresearchSetupAction = "plan" | "apply" | "baseline";
 export type AutoresearchCampaignStartSetupMode = "autoplan" | "prompt_vault_setup";
 export type AutoresearchCampaignStartRunMode = "plan_only" | "baseline" | "bounded_loop";
+export type AutoresearchCandidateLifecycleMode = "worktree";
+export type AutoresearchCandidateKeepAction = "preserve_branch" | "plan_review_branch";
+export type AutoresearchCandidateDiscardAction =
+  | "suggest_cleanup"
+  | "delete_worktree_after_confirm";
+export type AutoresearchCandidateRewindAction =
+  | "reset_worktree_to_base"
+  | "recreate_worktree_from_base";
+
+export interface AutoresearchCandidateLifecyclePolicyInput {
+  mode?: AutoresearchCandidateLifecycleMode;
+  keep?: AutoresearchCandidateKeepAction;
+  discard?: AutoresearchCandidateDiscardAction;
+  rewind?: AutoresearchCandidateRewindAction;
+}
+
+export interface AutoresearchCandidateLifecyclePolicy {
+  mode: AutoresearchCandidateLifecycleMode;
+  keep: AutoresearchCandidateKeepAction;
+  discard: AutoresearchCandidateDiscardAction;
+  rewind: AutoresearchCandidateRewindAction;
+  authority: "policy_only_no_mutation";
+  worktreeRole: string;
+  replayFabricRole: string;
+  ascRewindRole: string;
+}
+
+export const DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY: AutoresearchCandidateLifecyclePolicy =
+  {
+    mode: "worktree",
+    keep: "preserve_branch",
+    discard: "suggest_cleanup",
+    rewind: "reset_worktree_to_base",
+    authority: "policy_only_no_mutation",
+    worktreeRole: "primary candidate accept/keep/discard/rewind primitive",
+    replayFabricRole: "observer/history/recovery-clue projection only; not the executor",
+    ascRewindRole: "live Pi/session recovery only; not candidate accept/discard authority",
+  };
 
 export interface AutoresearchSetupConfigInput {
   name: string;
@@ -686,6 +724,7 @@ export interface ExecuteAutoresearchCampaignStartInput extends BuildAutoresearch
   model?: string;
   stopOn?: readonly (RunStatus | "blocked" | "rebaseline" | "finalize")[];
   peerMode?: AutoresearchLoopPeerMode;
+  candidatePolicy?: AutoresearchCandidateLifecyclePolicyInput;
   signal?: AbortSignal;
   onProgress?: (event: AutoresearchLoopProgressEvent) => void;
 }
@@ -700,6 +739,7 @@ export interface ExecuteAutoresearchCampaignStartResult {
   setupDecision: ExecuteAutoresearchSetupDecisionResult | null;
   setupResult: ExecuteAutoresearchSetupResult | null;
   loopResult: ExecuteAutoresearchLoopResult | null;
+  candidatePolicy: AutoresearchCandidateLifecyclePolicy;
   status: AutoresearchRuntimeStatus;
   nextToolCall: string;
   warnings: string[];
@@ -1390,6 +1430,36 @@ export function formatAutoresearchSetupResult(result: ExecuteAutoresearchSetupRe
   ].join("\n");
 }
 
+function normalizeAutoresearchCandidateLifecyclePolicy(
+  input?: AutoresearchCandidateLifecyclePolicyInput,
+): AutoresearchCandidateLifecyclePolicy {
+  const mode = input?.mode ?? DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY.mode;
+  if (mode !== "worktree") throw new Error(`Unsupported candidatePolicy.mode: ${mode}`);
+
+  const keep = input?.keep ?? DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY.keep;
+  if (keep !== "preserve_branch" && keep !== "plan_review_branch") {
+    throw new Error(`Unsupported candidatePolicy.keep: ${keep}`);
+  }
+
+  const discard = input?.discard ?? DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY.discard;
+  if (discard !== "suggest_cleanup" && discard !== "delete_worktree_after_confirm") {
+    throw new Error(`Unsupported candidatePolicy.discard: ${discard}`);
+  }
+
+  const rewind = input?.rewind ?? DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY.rewind;
+  if (rewind !== "reset_worktree_to_base" && rewind !== "recreate_worktree_from_base") {
+    throw new Error(`Unsupported candidatePolicy.rewind: ${rewind}`);
+  }
+
+  return {
+    ...DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY,
+    mode,
+    keep,
+    discard,
+    rewind,
+  };
+}
+
 export async function executeAutoresearchCampaignStart(
   input: ExecuteAutoresearchCampaignStartInput,
 ): Promise<ExecuteAutoresearchCampaignStartResult> {
@@ -1401,6 +1471,7 @@ export async function executeAutoresearchCampaignStart(
   const runMode = input.runMode ?? "plan_only";
   const maxIterations = input.maxIterations ?? 3;
   if (maxIterations < 1) throw new Error("maxIterations must be at least 1");
+  const candidatePolicy = normalizeAutoresearchCandidateLifecyclePolicy(input.candidatePolicy);
 
   const autoplan = buildAutoresearchAutoplan({
     cwd,
@@ -1536,6 +1607,7 @@ export async function executeAutoresearchCampaignStart(
     setupDecision,
     setupResult,
     loopResult,
+    candidatePolicy,
     status,
     nextToolCall: formatCampaignStartNextToolCall({
       cwd,
@@ -1544,6 +1616,7 @@ export async function executeAutoresearchCampaignStart(
       maxIterations,
       setupMode,
       canExecute: Boolean(benchmarkCommand),
+      candidatePolicy,
     }),
     warnings,
   };
@@ -1606,6 +1679,16 @@ export function formatAutoresearchCampaignStartResult(
           `- reason: ${result.autoplan.measurementContract.reason}`,
         ]
       : ["- unavailable; review benchmark command before execution"]),
+    "",
+    "## Candidate lifecycle policy",
+    `- mode: ${result.candidatePolicy.mode}`,
+    `- keep: ${result.candidatePolicy.keep}`,
+    `- discard: ${result.candidatePolicy.discard}`,
+    `- rewind: ${result.candidatePolicy.rewind}`,
+    `- authority: ${result.candidatePolicy.authority}`,
+    `- worktree role: ${result.candidatePolicy.worktreeRole}`,
+    `- replay-fabric role: ${result.candidatePolicy.replayFabricRole}`,
+    `- ASC rewind role: ${result.candidatePolicy.ascRewindRole}`,
     ...setupDecisionLines,
     ...executionLines,
     "",
@@ -1624,13 +1707,20 @@ function formatCampaignStartNextToolCall(input: {
   maxIterations: number;
   setupMode: AutoresearchCampaignStartSetupMode;
   canExecute: boolean;
+  candidatePolicy: AutoresearchCandidateLifecyclePolicy;
 }): string {
+  const candidatePolicy = JSON.stringify({
+    mode: input.candidatePolicy.mode,
+    keep: input.candidatePolicy.keep,
+    discard: input.candidatePolicy.discard,
+    rewind: input.candidatePolicy.rewind,
+  });
   if (input.runMode === "plan_only") {
     const nextRunMode = input.canExecute ? "baseline" : "plan_only";
-    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(nextRunMode)}, maxIterations: ${input.maxIterations} })`;
+    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(nextRunMode)}, maxIterations: ${input.maxIterations}, candidatePolicy: ${candidatePolicy} })`;
   }
   if (input.runMode === "baseline") {
-    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: "bounded_loop", maxIterations: ${input.maxIterations} })`;
+    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: "bounded_loop", maxIterations: ${input.maxIterations}, candidatePolicy: ${candidatePolicy} })`;
   }
   return `autoresearch_runtime_status({ cwd: ${JSON.stringify(input.cwd)}, action: "closeout" })`;
 }

@@ -668,6 +668,34 @@ const campaignStartRunModeSchema = Type.Union(
   },
 );
 
+const campaignStartCandidatePolicySchema = Type.Object({
+  mode: Type.Optional(
+    Type.Literal("worktree", {
+      description: "Use isolated git worktrees as the candidate lifecycle primitive.",
+    }),
+  ),
+  keep: Type.Optional(
+    Type.Union([Type.Literal("preserve_branch"), Type.Literal("plan_review_branch")], {
+      description: "Keep policy after a promising run; no merge or promotion is automatic.",
+    }),
+  ),
+  discard: Type.Optional(
+    Type.Union([Type.Literal("suggest_cleanup"), Type.Literal("delete_worktree_after_confirm")], {
+      description:
+        "Discard policy after a rejected run; receipts remain, and cleanup requires explicit operator confirmation.",
+    }),
+  ),
+  rewind: Type.Optional(
+    Type.Union(
+      [Type.Literal("reset_worktree_to_base"), Type.Literal("recreate_worktree_from_base")],
+      {
+        description:
+          "Candidate rewind policy for worktree state. ASC rewind remains live session recovery, not candidate authority.",
+      },
+    ),
+  ),
+});
+
 const campaignStartSchema = Type.Object({
   cwd: Type.Optional(
     Type.String({ description: "Optional cwd override for the supervised campaign front door." }),
@@ -756,6 +784,7 @@ const campaignStartSchema = Type.Object({
     ),
   ),
   peerMode: Type.Optional(loopPeerModeSchema),
+  candidatePolicy: Type.Optional(campaignStartCandidatePolicySchema),
 });
 
 const loopSchema = Type.Object({
@@ -1457,6 +1486,12 @@ export function registerPiAutoresearchExtension(
           | "finalize"
         >;
         peerMode?: "off" | "plan" | "launch_scout" | "launch_candidate" | "launch_fork";
+        candidatePolicy?: {
+          mode?: "worktree";
+          keep?: "preserve_branch" | "plan_review_branch";
+          discard?: "suggest_cleanup" | "delete_worktree_after_confirm";
+          rewind?: "reset_worktree_to_base" | "recreate_worktree_from_base";
+        };
       };
       const result = await executeAutoresearchCampaignStart({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
@@ -1499,6 +1534,7 @@ export function registerPiAutoresearchExtension(
         model: ctx.model?.id,
         stopOn: request.stopOn,
         peerMode: request.peerMode,
+        candidatePolicy: request.candidatePolicy,
         signal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
       });
@@ -2513,7 +2549,7 @@ function buildAutoresearchCampaignStartToolCall(input: {
   runMode: AutoresearchTriggerRunMode;
   maxIterations: number;
 }): string {
-  return `autoresearch_campaign_start({\n  cwd: ${JSON.stringify(input.cwd)},\n  objective: ${JSON.stringify(input.objective)},\n  setupMode: ${JSON.stringify(input.setupMode)},\n  runMode: ${JSON.stringify(input.runMode)},\n  maxIterations: ${input.maxIterations},\n  peerMode: "plan"\n})`;
+  return `autoresearch_campaign_start({\n  cwd: ${JSON.stringify(input.cwd)},\n  objective: ${JSON.stringify(input.objective)},\n  setupMode: ${JSON.stringify(input.setupMode)},\n  runMode: ${JSON.stringify(input.runMode)},\n  maxIterations: ${input.maxIterations},\n  peerMode: "plan",\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
 }
 
 async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
