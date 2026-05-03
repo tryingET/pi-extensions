@@ -30,7 +30,7 @@ Implemented checkpoint:
 - catalog search/explain/activate/deactivate/status flows exist
 - activation TTLs expire unpinned tools on later turns
 - bundle/profile activation fails closed when requested profile tools remain unavailable after lazy import
-- `vault` is the first lazy-ready production bundle through the existing `pi-vault-client` extension entrypoint
+- `vault` is the first lazy-ready production bundle through the package-owned `pi-vault-client/toolbox-bundle` export
 
 Still pending for the full target architecture:
 
@@ -668,7 +668,7 @@ Initial target order:
 
 Each package conversion must prove schema/behavior parity for the activated tools.
 
-Implementation status: partially started. The toolbox can lazy-import owner modules and `vault` is wired through the existing `pi-vault-client` extension entrypoint as the first production proof. The preferred package-owned `src/toolbox-bundle.ts` contract remains pending for broader package conversion.
+Implementation status: partially started. The toolbox can lazy-import owner modules and `vault` is wired through the package-owned `pi-vault-client/toolbox-bundle` export as the first production proof. Broader package-owned bundle exports remain pending for the other heavy packages.
 
 ### Phase 4 — settings default switch
 

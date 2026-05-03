@@ -83,10 +83,13 @@ export const CATALOG: ToolboxBundle[] = [
       "pi-vault-client owns Prompt Vault behavior; toolbox discovers, lazily imports the owner extension when available, and activates the owner tools without reimplementing Prompt Vault behavior.",
     keywords: ["prompt vault", "vault", "template", "prompt", "governed prompt"],
     lazyModules: [
-      { specifier: "pi-vault-client", label: "published package entrypoint" },
       {
-        specifier: new URL("../../pi-vault-client/extensions/vault.js", import.meta.url).href,
-        label: "monorepo sibling extension entrypoint",
+        specifier: "pi-vault-client/toolbox-bundle",
+        label: "published package-owned toolbox bundle",
+      },
+      {
+        specifier: new URL("../../pi-vault-client/src/toolboxBundle.js", import.meta.url).href,
+        label: "monorepo sibling package-owned toolbox bundle",
       },
     ],
     profiles: [
@@ -566,7 +569,9 @@ function describeLeases(state: ToolboxState): string[] {
 
 function getLazyRegistrationFunction(
   moduleValue: unknown,
-): ((pi: ExtensionAPI) => unknown) | undefined {
+):
+  | ((pi: ExtensionAPI, context: { profile: string; requestedTools: string[] }) => unknown)
+  | undefined {
   if (!moduleValue || typeof moduleValue !== "object") return undefined;
   const record = moduleValue as { default?: unknown; registerToolboxBundle?: unknown };
   if (typeof record.registerToolboxBundle === "function") return record.registerToolboxBundle;
@@ -578,6 +583,7 @@ async function tryLazyImportBundle(
   pi: ExtensionAPI,
   state: ToolboxState,
   bundle: ToolboxBundle | undefined,
+  profile: ToolboxProfile | undefined,
   requestedTools: string[],
 ): Promise<{ attempted: boolean; records: LazyImportRecord[] }> {
   if (!bundle?.lazyModules?.length) return { attempted: false, records: [] };
@@ -591,7 +597,9 @@ async function tryLazyImportBundle(
     try {
       const moduleValue = await import(lazyModule.specifier);
       const register = getLazyRegistrationFunction(moduleValue);
-      if (register) await register(pi);
+      if (register) {
+        await register(pi, { profile: profile?.id ?? "default", requestedTools });
+      }
       const nowKnown = getKnownToolNames(pi);
       const registeredRequestedTools = requestedTools.filter((tool) => nowKnown.has(tool));
       const record = {
@@ -743,6 +751,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           pi,
           state,
           resolved.bundle,
+          resolved.profile,
           resolved.requestedTools,
         );
         const knownToolNames = getKnownToolNames(pi);

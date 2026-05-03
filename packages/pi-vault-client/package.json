@@ -16,7 +16,8 @@
     "./dispatch-runtime": {
       "types": "./src/dispatchRuntime.d.ts",
       "default": "./src/dispatchRuntime.js"
-    }
+    },
+    "./toolbox-bundle": "./src/toolboxBundle.js"
   },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
