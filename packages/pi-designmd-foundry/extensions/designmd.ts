@@ -103,6 +103,13 @@ interface SessionCloseoutParams extends BaseParams {
   materialize?: boolean;
 }
 
+interface SessionHandoffParams extends BaseParams {
+  projectId?: string;
+  sessionId?: string;
+  laneId?: string;
+  materialize?: boolean;
+}
+
 interface SessionPromotionCandidateParams extends BaseParams {
   projectId?: string;
   sessionId?: string;
@@ -871,6 +878,62 @@ export default function (pi: ExtensionAPI) {
             title: request.materialize
               ? "DesignMD materialized session closeout result"
               : "DesignMD session closeout packet",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_session_handoff",
+    label: "DesignMD session handoff",
+    description:
+      "Build or materialize a local DesignMD session handoff prompt for one variant lane. This is local agent/operator guidance only, not canonical authority.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sessionId: Type.Optional(
+          Type.String({
+            description:
+              "Watch Mode session id. Defaults to current running session in local Foundry storage.",
+          }),
+        ),
+        laneId: Type.Optional(
+          Type.String({
+            description:
+              "Optional variant lane id or suffix such as safe-iterate, edge-remix, evidence-audit, or microscope-a11y-motion.",
+          }),
+        ),
+        materialize: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, write the handoff prompt as a local session artifact and check. Defaults to false.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as SessionHandoffParams;
+      const args = ["session-handoff", request.sessionId || "current"];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.laneId) args.push("--lane", request.laneId);
+      if (request.materialize) args.push("--materialize");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_session_handoff",
+          objective: request.materialize
+            ? "Materialize DesignMD session handoff"
+            : "Build DesignMD session handoff",
+          artifact: (result) => ({
+            kind: "json",
+            title: request.materialize
+              ? "DesignMD materialized session handoff result"
+              : "DesignMD session handoff packet",
             mimeType: "application/json; charset=utf-8",
             content: result.stdout,
           }),

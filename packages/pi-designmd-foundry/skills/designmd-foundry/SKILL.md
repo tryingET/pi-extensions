@@ -37,9 +37,10 @@ When the `pi-designmd-foundry` extension is installed, prefer its tools over ad-
 13. `designmd_penpot_mcp_export`
 14. `designmd_session_plan`
 15. `designmd_session_variants`
-16. `designmd_session_closeout`
-17. `designmd_session_promotion_candidate`
-18. `designmd_readiness`
+16. `designmd_session_handoff`
+17. `designmd_session_closeout`
+18. `designmd_session_promotion_candidate`
+19. `designmd_readiness`
 
 Use shell commands only when the extension is unavailable.
 
