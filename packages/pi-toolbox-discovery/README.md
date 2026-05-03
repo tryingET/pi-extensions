@@ -27,7 +27,7 @@ The package keeps `self`, `interview`, and `toolbox` as foundational always-acti
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - fails closed for bundle/profile activation if requested profile tools remain unavailable after lazy import
 
-The first package-owned lazy-ready production bundle is `vault` via `pi-vault-client/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
+The first package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle` and `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`

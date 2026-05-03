@@ -131,8 +131,19 @@ export const CATALOG: ToolboxBundle[] = [
     description: "ROCS-backed ontology inspect, proposal, and governed change workflows.",
     ownerPackage: "packages/pi-ontology-workflows",
     ownerSemantics:
-      "pi-ontology-workflows owns ontology workflow behavior; toolbox only activates the owning package tools.",
+      "pi-ontology-workflows owns ontology workflow behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing ontology behavior.",
     keywords: ["ontology", "rocs", "concept", "relation", "semantic"],
+    lazyModules: [
+      {
+        specifier: "@tryinget/pi-ontology-workflows/toolbox-bundle",
+        label: "published package-owned toolbox bundle",
+      },
+      {
+        specifier: new URL("../../pi-ontology-workflows/src/toolboxBundle.ts", import.meta.url)
+          .href,
+        label: "monorepo sibling package-owned toolbox bundle",
+      },
+    ],
     profiles: [
       {
         id: "read",

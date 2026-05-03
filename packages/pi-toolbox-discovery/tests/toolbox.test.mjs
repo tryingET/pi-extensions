@@ -154,7 +154,7 @@ test("toolbox refuses risky activation without acknowledgement", async () => {
   assert.equal(harness.activeTools.includes("vault_insert"), false);
 });
 
-test("toolbox fails closed when a bundle profile remains partially unavailable", async () => {
+test("toolbox lazily imports ontology read tools before activation", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
@@ -164,9 +164,25 @@ test("toolbox fails closed when a bundle profile remains partially unavailable",
     profile: "read",
   });
 
-  assert.match(result.content[0].text, /Cannot activate ontology\/read/);
+  assert.match(result.content[0].text, /Activated tools: ontology_inspect, ontology_proposal/);
+  assert.match(result.content[0].text, /Lazy import attempts:/);
+  assert.equal(harness.activeTools.includes("ontology_inspect"), true);
+  assert.equal(harness.activeTools.includes("ontology_proposal"), true);
+});
+
+test("toolbox fails closed when a bundle profile remains unavailable", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    bundle: "designmd",
+    profile: "read",
+  });
+
+  assert.match(result.content[0].text, /Cannot activate designmd\/read/);
   assert.equal(result.details.ok, false);
-  assert.equal(harness.activeTools.includes("ontology_inspect"), false);
+  assert.equal(harness.activeTools.includes("designmd_lint"), false);
 });
 
 test("toolbox deactivation preserves always-active tools", async () => {

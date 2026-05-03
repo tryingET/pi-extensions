@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Pi extension package for ontology inspection, routing, and change workflows backed by ROCS.",
   "type": "module",
+  "exports": {
+    "./toolbox-bundle": "./src/toolboxBundle.ts"
+  },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
