@@ -2695,6 +2695,19 @@ async function openAutoresearchShell(
     return;
   }
 
+  const candidateDecisionAction = parseAutoresearchCandidateDecisionCommand(normalizedArgs);
+  if (candidateDecisionAction) {
+    await ctx.ui.editor(
+      "Plan autoresearch candidate decision",
+      buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, candidateDecisionAction),
+    );
+    ctx.ui.notify(
+      `Prepared autoresearch_candidate_decision ${candidateDecisionAction} call. Review the plan before any external worktree action.`,
+      "info",
+    );
+    return;
+  }
+
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     const toolCall = buildAutoresearchCampaignStartEditorCall(ctx.cwd, normalizedArgs);
     await ctx.ui.editor("Start supervised autoresearch campaign", toolCall);
@@ -2716,6 +2729,42 @@ function buildAutoresearchCampaignStartEditorCall(cwd: string, objective: string
     runMode: "plan_only",
     maxIterations: 3,
   });
+}
+
+function parseAutoresearchCandidateDecisionCommand(
+  value: string,
+): "status" | "plan_keep" | "plan_discard" | "plan_rewind" | null {
+  switch (value.toLowerCase()) {
+    case "candidate":
+    case "decision":
+    case "candidate status":
+    case "candidate decision":
+      return "status";
+    case "keep":
+    case "candidate keep":
+    case "plan keep":
+    case "plan_keep":
+      return "plan_keep";
+    case "discard":
+    case "candidate discard":
+    case "plan discard":
+    case "plan_discard":
+      return "plan_discard";
+    case "rewind":
+    case "candidate rewind":
+    case "plan rewind":
+    case "plan_rewind":
+      return "plan_rewind";
+    default:
+      return null;
+  }
+}
+
+function buildAutoresearchCandidateDecisionEditorCall(
+  cwd: string,
+  action: "status" | "plan_keep" | "plan_discard" | "plan_rewind",
+): string {
+  return `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: ${JSON.stringify(action)},\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
 }
 
 function buildAutoresearchCampaignStartToolCall(input: {
@@ -3085,10 +3134,11 @@ function formatAutoresearchCommandNotification(
     `last=${status.currentSegment.lastRunStatus ?? "none"}`,
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
+    "candidate decision: /autoresearch candidate|keep|discard|rewind -> autoresearch_candidate_decision",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
     "overlay: /autoresearch overlay",
     "browser: /autoresearch export|export off",
     "widget: /autoresearch widget on|off",
-    "tools: autoresearch_campaign_start | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
+    "tools: autoresearch_campaign_start | autoresearch_candidate_decision | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
   ].join("; ");
 }

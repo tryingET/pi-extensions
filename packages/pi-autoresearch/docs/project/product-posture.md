@@ -180,7 +180,9 @@ autoresearch_candidate_decision({ action: "status" | "plan_keep" | "plan_discard
 
 The surface consumes runtime status, closeout, and candidate-result evidence to show the current candidate binding, empirical posture, promotion readiness, confidence/noise interpretation, checks status, baseline-drift risk, and the next legal lifecycle decision. Keep/discard/rewind outputs are command plans only: no merge, worktree deletion, reset/recreate, peer launch, AK/KES/evidence write, or promotion is applied by the package. The dashboard, overlay, and browser export now surface a compact candidate decision summary so the next keep/discard/rewind/rebaseline/sample/finalize move is visible without scraping receipts.
 
-Next product work: dogfood this front door and candidate decision workbench against real campaigns, then add richer interactive confirmation affordances for candidate keep/discard/rewind decisions.
+A first slash-command confirmation affordance is also landed: `/autoresearch candidate|decision|keep|discard|rewind` prepares the exact `autoresearch_candidate_decision({ ... })` call in the editor for review. This makes candidate lifecycle planning discoverable from the operator surface without applying any destructive or durable action.
+
+Next product work: dogfood this front door and candidate decision workbench against real campaigns, then add richer interactive picker/form confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

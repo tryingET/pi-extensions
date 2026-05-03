@@ -44,6 +44,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `/autoresearch`
   - with no objective, opens/reports the bounded runtime overview
   - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate decision summary, candidate policy, and next legal surfaces
+  - with `candidate`, `decision`, `keep`, `discard`, or `rewind`, prepares a reviewable `autoresearch_candidate_decision({ ... })` call for status or plan-only lifecycle decisions
   - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
   - with `export`, writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session; `export off` stops the refresher
   - with `widget on|off`, shows or hides the persistent above-editor status widget for the current session

@@ -348,7 +348,14 @@ The eighth candidate decision workbench slice is now also landed:
 - it does not merge, delete worktrees, reset/recreate worktrees, spawn peers, write AK/KES/evidence, or promote;
 - the editor dashboard, overlay, and browser export now include a compact candidate decision summary/next surface.
 
-Still next in this slice: richer interactive confirmation affordances for candidate keep/discard/rewind decisions.
+The ninth slash-command candidate confirmation slice is now also landed:
+
+- `/autoresearch candidate` and `/autoresearch decision` prepare a reviewable candidate-decision status call;
+- `/autoresearch keep`, `/autoresearch discard`, and `/autoresearch rewind` prepare reviewable `plan_keep`, `plan_discard`, and `plan_rewind` calls;
+- the slash affordance opens exact tool calls in the editor rather than applying commands;
+- destructive worktree cleanup/reset/recreate and durable promotion still require explicit external operator action.
+
+Still next in this slice: richer interaction-picker/form confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

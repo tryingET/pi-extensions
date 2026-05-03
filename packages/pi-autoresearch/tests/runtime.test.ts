@@ -1049,6 +1049,37 @@ test("/autoresearch widget on and off controls the persistent status widget", as
   assert.match(notifications.at(-1)?.message ?? "", /Disabled the pi-autoresearch status widget/);
 });
 
+test("/autoresearch keep/discard/rewind prepare candidate-decision tool calls", async () => {
+  const { commands } = registerHarness();
+  let editorTitle = "";
+  let editorText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("rewind", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor(title: string, text: string) {
+        editorTitle = title;
+        editorText = text;
+      },
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(editorTitle, /candidate decision/);
+  assert.match(editorText, /autoresearch_candidate_decision/);
+  assert.match(editorText, /action: "plan_rewind"/);
+  assert.match(editorText, /candidatePolicy/);
+  assert.equal(notifications.length, 1);
+  assert.match(
+    notifications[0]?.message ?? "",
+    /Prepared autoresearch_candidate_decision plan_rewind/,
+  );
+});
+
 test("/autoresearch with an objective prepares the campaign-start tool call", async () => {
   const { commands } = registerHarness();
   let editorTitle = "";
