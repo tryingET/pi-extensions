@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import toolboxDiscoveryExtension from "../extensions/toolbox.ts";
+import toolboxDiscoveryExtension, { CATALOG } from "../extensions/toolbox.ts";
 
 function createHarness() {
   const commands = new Map();
   const tools = new Map();
+  const handlers = new Map();
   const allToolNames = new Set([
     "read",
     "bash",
@@ -21,6 +22,11 @@ function createHarness() {
   let activeTools = ["read", "bash", "edit", "write", "self", "interview", "toolbox"];
 
   const pi = {
+    on(event, handler) {
+      const eventHandlers = handlers.get(event) ?? [];
+      eventHandlers.push(handler);
+      handlers.set(event, eventHandlers);
+    },
     registerCommand(name, definition) {
       commands.set(name, definition);
     },
@@ -47,6 +53,14 @@ function createHarness() {
   return {
     commands,
     tools,
+    async runEvent(event) {
+      for (const handler of handlers.get(event) ?? []) {
+        await handler({}, { ui: { notify() {} } });
+      }
+    },
+    setActiveTools(names) {
+      activeTools = [...names];
+    },
     get activeTools() {
       return activeTools;
     },
@@ -61,6 +75,32 @@ test("toolbox registers a command and model-callable discovery tool", () => {
   const harness = createHarness();
   assert.equal(typeof harness.commands.get("toolbox")?.handler, "function");
   assert.equal(typeof harness.tools.get("toolbox")?.execute, "function");
+});
+
+test("session start enforces the minimal always-active startup profile", async () => {
+  const harness = createHarness();
+  harness.setActiveTools([
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "self",
+    "interview",
+    "toolbox",
+    "vault_query",
+  ]);
+
+  await harness.runEvent("session_start");
+
+  assert.deepEqual(harness.activeTools, [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "self",
+    "interview",
+    "toolbox",
+  ]);
 });
 
 test("toolbox search returns catalog entries without changing active tools", async () => {
@@ -81,7 +121,7 @@ test("toolbox search returns catalog entries without changing active tools", asy
   ]);
 });
 
-test("toolbox activates only already registered read-profile tools", async () => {
+test("toolbox lazily imports missing read-profile tools before activation", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
@@ -92,9 +132,11 @@ test("toolbox activates only already registered read-profile tools", async () =>
   });
 
   assert.match(result.content[0].text, /Activated tools: vault_query, vault_retrieve/);
-  assert.match(result.content[0].text, /Not registered in this session:/);
+  assert.match(result.content[0].text, /Lazy import attempts:/);
   assert.ok(harness.activeTools.includes("vault_query"));
   assert.ok(harness.activeTools.includes("vault_retrieve"));
+  assert.ok(harness.activeTools.includes("vault_vocabulary"));
+  assert.ok(harness.activeTools.includes("vault_dispatch_check"));
 });
 
 test("toolbox refuses risky activation without acknowledgement", async () => {
@@ -112,6 +154,21 @@ test("toolbox refuses risky activation without acknowledgement", async () => {
   assert.equal(harness.activeTools.includes("vault_insert"), false);
 });
 
+test("toolbox fails closed when a bundle profile remains partially unavailable", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    bundle: "ontology",
+    profile: "read",
+  });
+
+  assert.match(result.content[0].text, /Cannot activate ontology\/read/);
+  assert.equal(result.details.ok, false);
+  assert.equal(harness.activeTools.includes("ontology_inspect"), false);
+});
+
 test("toolbox deactivation preserves always-active tools", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
@@ -126,4 +183,68 @@ test("toolbox deactivation preserves always-active tools", async () => {
   assert.equal(harness.activeTools.includes("self"), true);
   assert.equal(harness.activeTools.includes("interview"), true);
   assert.match(result.content[0].text, /Protected always-active tools retained: self, interview/);
+});
+
+test("toolbox TTL expires unpinned activations on later turns", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  await executeToolbox(toolbox, { action: "activate", tools: ["vault_query"], ttlTurns: 1 });
+  assert.equal(harness.activeTools.includes("vault_query"), true);
+
+  await harness.runEvent("turn_start");
+
+  assert.equal(harness.activeTools.includes("vault_query"), false);
+});
+
+test("toolbox can lazily import an owner bundle before activation", async () => {
+  const moduleSource = `export default function(pi) {
+    pi.registerTool({
+      name: "lazy_test_tool",
+      label: "Lazy Test Tool",
+      description: "Registered by a lazy toolbox import",
+      parameters: { type: "object", additionalProperties: false, properties: {} },
+      async execute() { return { content: [{ type: "text", text: "ok" }], details: {} }; }
+    });
+  }`;
+  const bundle = {
+    id: "lazy-test",
+    title: "Lazy test bundle",
+    description: "Test-only lazy import bundle",
+    ownerPackage: "test",
+    ownerSemantics: "test-only",
+    keywords: ["lazy-test"],
+    lazyModules: [
+      {
+        specifier: `data:text/javascript,${encodeURIComponent(moduleSource)}`,
+        label: "test module",
+      },
+    ],
+    profiles: [
+      {
+        id: "default",
+        description: "Default lazy-test profile",
+        tools: ["lazy_test_tool"],
+        risk: "read",
+        defaultTtlTurns: 2,
+        requiresExplicitUserIntent: false,
+      },
+    ],
+  };
+  CATALOG.push(bundle);
+
+  try {
+    const harness = createHarness();
+    const toolbox = harness.tools.get("toolbox");
+
+    const result = await executeToolbox(toolbox, {
+      action: "activate",
+      bundle: "lazy-test",
+    });
+
+    assert.match(result.content[0].text, /Lazy import attempts: ok/);
+    assert.equal(harness.activeTools.includes("lazy_test_tool"), true);
+  } finally {
+    CATALOG.splice(CATALOG.indexOf(bundle), 1);
+  }
 });

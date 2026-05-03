@@ -13,12 +13,21 @@ system4d:
 
 Lazy custom-tool discovery and activation broker for Pi sessions.
 
-The first slice registers:
+The package registers:
 
 - `/toolbox` — human-visible status command
 - `toolbox` — model-callable discovery/activation tool
 
-The package keeps `self`, `interview`, and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools remain latent until explicitly activated. This first slice activates tools that are already registered in the current session; true lazy package imports are the next architectural phase described in [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
+The package keeps `self`, `interview`, and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools remain latent until explicitly activated. Current behavior:
+
+- enforces the minimal active tool set on `session_start`
+- searches/explains catalog metadata without importing owner packages
+- activates bundle profiles only after risk gates pass
+- lazily imports owner modules for lazy-ready bundles when tools are not already registered
+- tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
+- fails closed for bundle/profile activation if requested profile tools remain unavailable after lazy import
+
+The first lazy-ready production bundle is `vault`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`

@@ -18,6 +18,11 @@ interface ToolboxProfile {
   requiresExplicitUserIntent: boolean;
 }
 
+interface ToolboxLazyModule {
+  specifier: string;
+  label: string;
+}
+
 interface ToolboxBundle {
   id: string;
   title: string;
@@ -26,6 +31,29 @@ interface ToolboxBundle {
   ownerSemantics: string;
   keywords: string[];
   profiles: ToolboxProfile[];
+  lazyModules?: ToolboxLazyModule[];
+}
+
+interface ActivationLease {
+  tool: string;
+  bundle?: string;
+  profile?: string;
+  pinned: boolean;
+  expiresAtTurn?: number;
+}
+
+interface LazyImportRecord {
+  bundle: string;
+  specifier: string;
+  ok: boolean;
+  message: string;
+}
+
+interface ToolboxState {
+  turn: number;
+  leases: Map<string, ActivationLease>;
+  loadedBundles: Set<string>;
+  lazyImportRecords: LazyImportRecord[];
 }
 
 interface ToolboxParams {
@@ -41,7 +69,10 @@ interface ToolboxParams {
 
 const ALWAYS_ACTIVE_TOOLS = ["read", "bash", "edit", "write", "self", "interview", "toolbox"];
 
-const CATALOG: ToolboxBundle[] = [
+const DEFAULT_TTL_TURNS = 4;
+const MAX_TTL_TURNS = 12;
+
+export const CATALOG: ToolboxBundle[] = [
   {
     id: "vault",
     title: "Prompt Vault tools",
@@ -49,8 +80,15 @@ const CATALOG: ToolboxBundle[] = [
       "Prompt Vault query, retrieve, vocabulary, dispatch-check, mutation, execution, and feedback workflows.",
     ownerPackage: "packages/pi-vault-client",
     ownerSemantics:
-      "pi-vault-client owns Prompt Vault behavior; toolbox only discovers and activates already-registered tools in this first slice.",
+      "pi-vault-client owns Prompt Vault behavior; toolbox discovers, lazily imports the owner extension when available, and activates the owner tools without reimplementing Prompt Vault behavior.",
     keywords: ["prompt vault", "vault", "template", "prompt", "governed prompt"],
+    lazyModules: [
+      { specifier: "pi-vault-client", label: "published package entrypoint" },
+      {
+        specifier: new URL("../../pi-vault-client/extensions/vault.js", import.meta.url).href,
+        label: "monorepo sibling extension entrypoint",
+      },
+    ],
     profiles: [
       {
         id: "read",
@@ -329,12 +367,12 @@ const TOOLBOX_PARAMETERS = {
     ttlTurns: {
       type: "number",
       description:
-        "Requested activation lifetime in turns. This first slice reports but does not enforce TTL.",
+        "Requested activation lifetime in turns. Defaults to the selected profile TTL and is capped to a bounded maximum.",
     },
     pin: {
       type: "boolean",
       description:
-        "Whether activation should be treated as pinned. This first slice reports but does not persist pins.",
+        "Whether activation should stay active until explicit deactivation instead of expiring by TTL.",
     },
     riskAcknowledged: {
       type: "boolean",
@@ -437,7 +475,154 @@ function resolveRequestedTools(params: ToolboxParams): {
   return { bundle, profile, requestedTools: [...new Set(profile.tools)], errors: [] };
 }
 
-function formatStatus(pi: ExtensionAPI): string {
+function createToolboxState(): ToolboxState {
+  return {
+    turn: 0,
+    leases: new Map(),
+    loadedBundles: new Set(),
+    lazyImportRecords: [],
+  };
+}
+
+function getKnownToolNames(pi: ExtensionAPI): Set<string> {
+  return new Set(pi.getAllTools().map((tool) => tool.name));
+}
+
+function boundedTtlTurns(
+  requested: number | undefined,
+  profile: ToolboxProfile | undefined,
+): number {
+  const fallback = profile?.defaultTtlTurns ?? DEFAULT_TTL_TURNS;
+  const candidate = Number.isFinite(requested) ? Math.floor(requested as number) : fallback;
+  return Math.max(1, Math.min(MAX_TTL_TURNS, candidate));
+}
+
+function applyMinimalStartupProfile(pi: ExtensionAPI): string[] {
+  const registered = getKnownToolNames(pi);
+  const minimal = ALWAYS_ACTIVE_TOOLS.filter((tool) => registered.has(tool));
+  pi.setActiveTools(minimal);
+  return minimal;
+}
+
+function recordLeases(
+  state: ToolboxState,
+  tools: string[],
+  params: ToolboxParams,
+  resolved: { bundle?: ToolboxBundle; profile?: ToolboxProfile },
+): ActivationLease[] {
+  const pinned = params.pin === true;
+  const ttl = boundedTtlTurns(params.ttlTurns, resolved.profile);
+  const leases = tools
+    .filter((tool) => !ALWAYS_ACTIVE_TOOLS.includes(tool))
+    .map(
+      (tool): ActivationLease => ({
+        tool,
+        bundle: resolved.bundle?.id,
+        profile: resolved.profile?.id,
+        pinned,
+        expiresAtTurn: pinned ? undefined : state.turn + ttl,
+      }),
+    );
+
+  for (const lease of leases) {
+    const existing = state.leases.get(lease.tool);
+    if (existing?.pinned) continue;
+    if (lease.pinned || (lease.expiresAtTurn ?? 0) >= (existing?.expiresAtTurn ?? 0)) {
+      state.leases.set(lease.tool, lease);
+    }
+  }
+
+  return leases;
+}
+
+function expireLeases(pi: ExtensionAPI, state: ToolboxState): string[] {
+  state.turn += 1;
+  const expired = [...state.leases.values()].filter(
+    (lease) => !lease.pinned && (lease.expiresAtTurn ?? Number.POSITIVE_INFINITY) <= state.turn,
+  );
+  if (expired.length === 0) return [];
+
+  for (const lease of expired) {
+    state.leases.delete(lease.tool);
+  }
+
+  const expiredTools = new Set(expired.map((lease) => lease.tool));
+  const nextActive = pi
+    .getActiveTools()
+    .filter((tool) => !expiredTools.has(tool) || ALWAYS_ACTIVE_TOOLS.includes(tool));
+  pi.setActiveTools(nextActive);
+  return [...expiredTools];
+}
+
+function describeLeases(state: ToolboxState): string[] {
+  return [...state.leases.values()].map((lease) => {
+    const lifetime = lease.pinned
+      ? "pinned"
+      : `expires in ${Math.max(0, (lease.expiresAtTurn ?? state.turn) - state.turn)} turn(s)`;
+    const source = [lease.bundle, lease.profile].filter(Boolean).join("/") || "explicit-tools";
+    return `${lease.tool} (${source}; ${lifetime})`;
+  });
+}
+
+function getLazyRegistrationFunction(
+  moduleValue: unknown,
+): ((pi: ExtensionAPI) => unknown) | undefined {
+  if (!moduleValue || typeof moduleValue !== "object") return undefined;
+  const record = moduleValue as { default?: unknown; registerToolboxBundle?: unknown };
+  if (typeof record.registerToolboxBundle === "function") return record.registerToolboxBundle;
+  if (typeof record.default === "function") return record.default;
+  return undefined;
+}
+
+async function tryLazyImportBundle(
+  pi: ExtensionAPI,
+  state: ToolboxState,
+  bundle: ToolboxBundle | undefined,
+  requestedTools: string[],
+): Promise<{ attempted: boolean; records: LazyImportRecord[] }> {
+  if (!bundle?.lazyModules?.length) return { attempted: false, records: [] };
+  if (requestedTools.every((tool) => getKnownToolNames(pi).has(tool))) {
+    return { attempted: false, records: [] };
+  }
+
+  const records: LazyImportRecord[] = [];
+  for (const lazyModule of bundle.lazyModules) {
+    if (state.loadedBundles.has(`${bundle.id}:${lazyModule.specifier}`)) continue;
+    try {
+      const moduleValue = await import(lazyModule.specifier);
+      const register = getLazyRegistrationFunction(moduleValue);
+      if (register) await register(pi);
+      const nowKnown = getKnownToolNames(pi);
+      const registeredRequestedTools = requestedTools.filter((tool) => nowKnown.has(tool));
+      const record = {
+        bundle: bundle.id,
+        specifier: lazyModule.specifier,
+        ok: registeredRequestedTools.length > 0,
+        message:
+          registeredRequestedTools.length > 0
+            ? `registered requested tools: ${registeredRequestedTools.join(", ")}`
+            : `imported ${lazyModule.label} but none of the requested tools registered`,
+      };
+      records.push(record);
+      state.lazyImportRecords.push(record);
+      state.loadedBundles.add(`${bundle.id}:${lazyModule.specifier}`);
+      if (requestedTools.every((tool) => nowKnown.has(tool))) break;
+    } catch (error) {
+      const record = {
+        bundle: bundle.id,
+        specifier: lazyModule.specifier,
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+      records.push(record);
+      state.lazyImportRecords.push(record);
+    }
+  }
+
+  return { attempted: true, records };
+}
+
+function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
   const active = pi.getActiveTools();
   const all = pi.getAllTools();
   const registeredNames = new Set(all.map((tool) => tool.name));
@@ -446,23 +631,45 @@ function formatStatus(pi: ExtensionAPI): string {
   ];
   const registeredCatalogTools = latentCatalogTools.filter((tool) => registeredNames.has(tool));
   const unavailableCatalogTools = latentCatalogTools.filter((tool) => !registeredNames.has(tool));
+  const lazyReadyBundles = CATALOG.filter((bundle) => bundle.lazyModules?.length).map(
+    (bundle) => bundle.id,
+  );
+  const activeLeases = describeLeases(state);
+  const recentLazyImports = state.lazyImportRecords.slice(-5);
 
   return [
     "toolbox status",
     `- active tools (${active.length}): ${active.join(", ") || "none"}`,
     `- registered tools (${all.length}): ${all.map((tool) => tool.name).join(", ") || "none"}`,
     `- catalog bundles (${CATALOG.length}): ${CATALOG.map((bundle) => bundle.id).join(", ")}`,
+    `- lazy-import-ready bundles (${lazyReadyBundles.length}): ${lazyReadyBundles.join(", ") || "none"}`,
     `- registered catalog tools (${registeredCatalogTools.length}): ${registeredCatalogTools.join(", ") || "none"}`,
     `- not currently registered (${unavailableCatalogTools.length}): ${unavailableCatalogTools.join(", ") || "none"}`,
-    "- lazy import: not implemented in this first slice; activate works only for already-registered tools.",
+    `- active leases (${activeLeases.length}): ${activeLeases.join("; ") || "none"}`,
+    `- recent lazy imports (${recentLazyImports.length}): ${
+      recentLazyImports
+        .map((record) => `${record.bundle}:${record.ok ? "ok" : "failed"}`)
+        .join(", ") || "none"
+    }`,
+    "- startup profile: minimal active set is enforced on session_start when these tools are registered.",
   ].join("\n");
 }
 
 export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
+  const state = createToolboxState();
+
+  pi.on("session_start", () => {
+    applyMinimalStartupProfile(pi);
+  });
+
+  pi.on("turn_start", () => {
+    expireLeases(pi, state);
+  });
+
   pi.registerCommand("toolbox", {
     description: "Inspect the toolbox discovery catalog and currently active tools",
     handler: async (_args, ctx) => {
-      const message = formatStatus(pi);
+      const message = formatStatus(pi, state);
       if (ctx.hasUI) {
         ctx.ui.notify(message, "info");
         return;
@@ -488,9 +695,10 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
       const action = params.action ?? "status";
 
       if (action === "status") {
-        return textResult(formatStatus(pi), {
+        return textResult(formatStatus(pi, state), {
           activeTools: pi.getActiveTools(),
           bundles: CATALOG.map((bundle) => bundle.id),
+          leases: describeLeases(state),
         });
       }
 
@@ -531,19 +739,56 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           );
         }
 
-        const knownToolNames = new Set(pi.getAllTools().map((tool) => tool.name));
+        const lazyImport = await tryLazyImportBundle(
+          pi,
+          state,
+          resolved.bundle,
+          resolved.requestedTools,
+        );
+        const knownToolNames = getKnownToolNames(pi);
         const availableTools = resolved.requestedTools.filter((tool) => knownToolNames.has(tool));
         const missingTools = resolved.requestedTools.filter((tool) => !knownToolNames.has(tool));
+        if (resolved.bundle && missingTools.length > 0) {
+          return textResult(
+            [
+              `Cannot activate ${resolved.bundle.id}/${resolved.profile?.id ?? "default"}: missing registered tools after lazy import: ${missingTools.join(", ")}`,
+              lazyImport.attempted
+                ? `Lazy import attempts: ${
+                    lazyImport.records
+                      .map(
+                        (record) =>
+                          `${record.ok ? "ok" : "failed"} ${record.specifier}: ${record.message}`,
+                      )
+                      .join("; ") || "none"
+                  }`
+                : "No lazy import module is declared for this bundle.",
+            ].join("\n"),
+            { ok: false, missing: missingTools, lazyImport },
+          );
+        }
+
         const nextActive = [...new Set([...pi.getActiveTools(), ...availableTools])];
         pi.setActiveTools(nextActive);
+        const leases = recordLeases(state, availableTools, params, resolved);
+        const ttl = boundedTtlTurns(params.ttlTurns, resolved.profile);
 
         const text = [
           `Activated tools: ${availableTools.join(", ") || "none"}`,
+          lazyImport.attempted
+            ? `Lazy import attempts: ${
+                lazyImport.records
+                  .map(
+                    (record) =>
+                      `${record.ok ? "ok" : "failed"} ${record.specifier}: ${record.message}`,
+                  )
+                  .join("; ") || "none"
+              }`
+            : undefined,
           missingTools.length > 0
-            ? `Not registered in this session: ${missingTools.join(", ")} (lazy package import is a later RFC phase).`
+            ? `Not registered in this session after lazy import: ${missingTools.join(", ")}.`
             : undefined,
           resolved.profile
-            ? `Profile: ${resolved.bundle?.id}/${resolved.profile.id}; risk=${resolved.profile.risk}; ttlTurns=${params.ttlTurns ?? resolved.profile.defaultTtlTurns}; pin=${params.pin === true}`
+            ? `Profile: ${resolved.bundle?.id}/${resolved.profile.id}; risk=${resolved.profile.risk}; ttlTurns=${ttl}; pin=${params.pin === true}`
             : undefined,
         ]
           .filter(Boolean)
@@ -556,6 +801,8 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           activeTools: nextActive,
           bundle: resolved.bundle?.id,
           profile: resolved.profile?.id,
+          leases,
+          lazyImport,
         });
       }
 
@@ -568,6 +815,9 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           });
         }
         const remove = new Set(resolved.requestedTools);
+        for (const tool of remove) {
+          state.leases.delete(tool);
+        }
         const nextActive = pi
           .getActiveTools()
           .filter((tool) => !remove.has(tool) || ALWAYS_ACTIVE_TOOLS.includes(tool));

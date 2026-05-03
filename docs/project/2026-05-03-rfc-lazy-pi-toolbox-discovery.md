@@ -20,7 +20,24 @@ Create a new **`pi-toolbox-discovery`** package from the pi-extensions package t
 
 ## Status
 
-Draft RFC for review.
+Draft RFC for review, with the first implementation slices now landed in `packages/pi-toolbox-discovery`.
+
+Implemented checkpoint:
+
+- template-based `pi-toolbox-discovery` package exists
+- `/toolbox` command and model-callable `toolbox` broker exist
+- minimal active startup set is enforced on `session_start`
+- catalog search/explain/activate/deactivate/status flows exist
+- activation TTLs expire unpinned tools on later turns
+- bundle/profile activation fails closed when requested profile tools remain unavailable after lazy import
+- `vault` is the first lazy-ready production bundle through the existing `pi-vault-client` extension entrypoint
+
+Still pending for the full target architecture:
+
+- package-owned `src/toolbox-bundle.ts` style exports for each heavy package
+- startup-load measurement before/after disabling eager heavy packages
+- settings-default switch that disables converted heavy extensions by default
+- persistent pinned activation/session restore policy
 
 This RFC revises the initial architecture sketch after review findings identified required fixes around:
 
@@ -624,11 +641,15 @@ This reduces model-visible tool schemas but does not yet reduce heavy package lo
 
 Phase 1 must be labeled transitional.
 
+Implementation status: landed.
+
 ### Phase 2 — catalog-backed activation
 
 Add the catalog and search/activate/deactivate/status flows.
 
 Existing eager packages may still load, but activation becomes explicit and observable.
+
+Implementation status: landed for the first broker slice, including risk gates, fail-closed partial bundle activation, and turn-based TTL expiry.
 
 ### Phase 3 — lazy package exports
 
@@ -646,6 +667,8 @@ Initial target order:
 8. selected `pi-little-helpers` tools
 
 Each package conversion must prove schema/behavior parity for the activated tools.
+
+Implementation status: partially started. The toolbox can lazy-import owner modules and `vault` is wired through the existing `pi-vault-client` extension entrypoint as the first production proof. The preferred package-owned `src/toolbox-bundle.ts` contract remains pending for broader package conversion.
 
 ### Phase 4 — settings default switch
 
@@ -838,10 +861,10 @@ If this RFC is accepted after review, the ADR should carry forward these decisio
 
 ## Next legal move
 
-Run a fresh multi-perspective RFC review against this revised RFC.
+Convert the next heavy owner package to an explicit package-owned toolbox bundle export, then run a fresh multi-perspective RFC review against this revised RFC and the landed implementation.
 
 Recommended review prompt:
 
 ```text
-Review docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md as an architecture-significant RFC for pi-extensions. Focus on runtime/tool activation boundary, package-owner separation, migration/rollback, and validation realism. System4D mode: lite.
+Review docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md and packages/pi-toolbox-discovery/extensions/toolbox.ts as an architecture-significant RFC/implementation pair for pi-extensions. Focus on runtime/tool activation boundary, package-owner separation, migration/rollback, and validation realism. System4D mode: lite.
 ```
