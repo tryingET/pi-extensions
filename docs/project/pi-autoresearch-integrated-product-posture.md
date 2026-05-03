@@ -302,7 +302,14 @@ The second interaction/policy slice is also now package-owned in the campaign fr
 - ASC rewind stays live Pi/session recovery, not candidate lifecycle authority;
 - the exact next tool call carries the candidate policy forward.
 
-Still next in this slice: richer TUI widgets/dashboard surfaces for setup review, metric-contract confirmation, live posture display, and interactive candidate keep/discard/rewind decisions.
+The third interaction/dashboard slice is now also landed:
+
+- `/autoresearch dashboard` opens a compact read-only operator dashboard in the editor;
+- `autoresearch_runtime_status({ action: "dashboard" })` exposes the same dashboard through the tool surface;
+- the dashboard shows current machine/control posture, empirical posture, metric contract, confidence/noise interpretation, candidate policy, and next legal surfaces;
+- it is explicitly read-only and does not run benchmarks, spawn peers, mutate worktrees, write AK/KES/evidence, or promote results.
+
+Still next in this slice: richer live TUI widgets for posture updates and interactive candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

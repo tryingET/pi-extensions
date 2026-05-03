@@ -858,6 +858,34 @@ test("/autoresearch without an objective reports status", async () => {
   assert.match(notifications[0]?.message ?? "", /autoresearch_campaign_start/);
 });
 
+test("/autoresearch dashboard opens a read-only operator dashboard", async () => {
+  const { commands } = registerHarness();
+  let editorTitle = "";
+  let editorText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("dashboard", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor(title: string, text: string) {
+        editorTitle = title;
+        editorText = text;
+      },
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(editorTitle, /Pi-autoresearch dashboard/);
+  assert.match(editorText, /PI-AUTORESEARCH DASHBOARD/);
+  assert.match(editorText, /Candidate lifecycle policy/);
+  assert.match(editorText, /Next legal surfaces/);
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
+});
+
 test("/autoresearch with an objective prepares the campaign-start tool call", async () => {
   const { commands } = registerHarness();
   let editorTitle = "";
@@ -886,6 +914,27 @@ test("/autoresearch with an objective prepares the campaign-start tool call", as
   assert.match(editorText, /mode: "worktree"/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_campaign_start/);
+});
+
+test("autoresearch_runtime_status can render the compact dashboard", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+
+    const result = await tools
+      .get(AUTORESEARCH_STATUS_TOOL_NAME)
+      ?.execute("call-dashboard", { cwd, action: "dashboard" }, undefined, undefined, { cwd });
+
+    assert.ok(result);
+    const output = result.content[0]?.text ?? "";
+    assert.match(output, /PI-AUTORESEARCH DASHBOARD/);
+    assert.match(output, /Read-only operator dashboard/);
+    assert.match(output, /Candidate lifecycle policy/);
+    assert.match(
+      output,
+      /worktree role: primary candidate accept\/keep\/discard\/rewind primitive/,
+    );
+    assert.match(output, /Next legal surfaces/);
+  });
 });
 
 test("autoresearch_campaign_start provides a plan-only supervised front door", async () => {

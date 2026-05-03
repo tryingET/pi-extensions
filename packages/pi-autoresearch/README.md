@@ -43,8 +43,9 @@ The current boundary is now more specific: the package is the runtime owner for 
 
 - `/autoresearch`
   - with no objective, opens/reports the bounded runtime overview
+  - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate policy, and next legal surfaces
   - with an objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
-  - keeps execution explicit: the slash command does not secretly run baselines, loops, peers, commits, AK writes, or KES promotion
+  - keeps execution explicit: the slash command does not secretly run baselines, loops, peers, worktree mutations, commits, AK writes, or KES promotion
 - `$$ autoresearch <objective>` / `$$ ar <objective>` when `@tryinget/pi-interaction` or `@tryinget/pi-trigger-adapter` is loaded
   - opens the pi-interaction picker for plan-only, governed setup plan, baseline, or bounded-loop campaign-start modes
   - replaces the editor text with the exact `autoresearch_campaign_start({ ... })` call selected by the operator
@@ -63,6 +64,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - does not auto-spawn peers, commit, merge/delete worktrees, write AK/KES/evidence, or perform durable promotion
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
+  - supports `action: "dashboard"` for a compact read-only operator dashboard that is easier to scan than the full diagnostic status
   - can build a package-local segment closeout packet (`action: "closeout"`, packet kind `autoresearch.closeout.v1`) summarizing runs, hypotheses, candidate bindings, empirical decision, timing interpretation, recommended action, and the adapter/evidence boundary before external promotion
   - can build a non-mutating exact-task AK evidence packet (`action: "ak_evidence"`, `akTaskId`, packet kind `autoresearch.ak_evidence.v1`) with a suggested explicit `evidence_record(...)` controller call; it does not mutate AK itself
   - can build an adapter-ready learning/KMS export packet (`action: "learning"`, packet kind `autoresearch.learning.v1`) so external KES, notes, or knowledge-base adapters can persist learning without pi-autoresearch owning those systems

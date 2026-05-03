@@ -57,6 +57,7 @@ import {
   formatAutoresearchCampaignStartResult,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchControlResult,
+  formatAutoresearchDashboard,
   formatAutoresearchDecisionResult,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchLoopResult,
@@ -166,6 +167,7 @@ const nullableStringSchema = Type.Union([
 const statusActionSchema = Type.Union(
   [
     Type.Literal("status"),
+    Type.Literal("dashboard"),
     Type.Literal("setup"),
     Type.Literal("finalize"),
     Type.Literal("closeout"),
@@ -998,6 +1000,7 @@ export function registerPiAutoresearchExtension(
       const request = params as {
         action?:
           | "status"
+          | "dashboard"
           | "setup"
           | "finalize"
           | "closeout"
@@ -1030,6 +1033,14 @@ export function registerPiAutoresearchExtension(
       };
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "status";
+
+      if (action === "dashboard") {
+        const status = buildAutoresearchRuntimeStatus(cwd);
+        return {
+          content: [{ type: "text", text: formatAutoresearchDashboard(status) }],
+          details: status,
+        };
+      }
 
       if (action === "setup") {
         const result = await requestAutoresearchSetupDecision({
@@ -2519,6 +2530,15 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
   const normalizedArgs = args.trim();
   const status = buildAutoresearchRuntimeStatus(ctx.cwd);
 
+  if (normalizedArgs === "dashboard") {
+    await ctx.ui.editor("Pi-autoresearch dashboard", formatAutoresearchDashboard(status));
+    ctx.ui.notify(
+      "Opened read-only pi-autoresearch dashboard. Use the listed exact calls to act.",
+      "info",
+    );
+    return;
+  }
+
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
     const toolCall = buildAutoresearchCampaignStartEditorCall(ctx.cwd, normalizedArgs);
     await ctx.ui.editor("Start supervised autoresearch campaign", toolCall);
@@ -2657,6 +2677,7 @@ function formatAutoresearchCommandNotification(
     `last=${status.currentSegment.lastRunStatus ?? "none"}`,
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
+    'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
     "tools: autoresearch_campaign_start | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
   ].join("; ");
 }

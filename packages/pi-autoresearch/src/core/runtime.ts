@@ -3154,6 +3154,65 @@ export function formatAutoresearchPeerAssistPlan(plan: AutoresearchPeerAssistPla
   ].join("\n");
 }
 
+export function formatAutoresearchDashboard(
+  status: AutoresearchRuntimeStatus,
+  candidatePolicy: AutoresearchCandidateLifecyclePolicy = DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY,
+): string {
+  const segment = status.currentSegment;
+  const metricLine = segment.configured
+    ? `${segment.metricName ?? "(unset)"} (${segment.metricUnit || "unitless"}, ${segment.direction ?? "unset"} is better)`
+    : "(not configured)";
+  const runLine = segment.configured
+    ? `${segment.runCount} total / ${segment.successfulRunCount} successful; last=${formatLastRun(segment.lastRunStatus, segment.lastRunMetric, segment.metricUnit, segment.lastRunKind)}`
+    : "0 total / 0 successful";
+
+  return [
+    "# PI-AUTORESEARCH DASHBOARD",
+    "",
+    "Read-only operator dashboard. It summarizes campaign posture and next legal surfaces without running a benchmark, spawning peers, mutating worktrees, or promoting evidence.",
+    "",
+    "## Current posture",
+    status.cwd ? `- cwd: ${status.cwd}` : "- cwd: (unset)",
+    `- machine state: ${status.runtimeProjection.state}`,
+    `- control state: ${status.control.kind}`,
+    `- allowed actions: ${formatAllowedActions(status.control.allowedActions)}`,
+    `- empirical posture: ${formatEmpiricalPosture(status.empiricalPosture)}`,
+    `- promotion ready: ${status.empiricalPosture.promotionReady ? "yes" : "no"}`,
+    `- recommended next: ${status.empiricalPosture.recommendedNextAction}`,
+    "",
+    "## Metric contract",
+    `- campaign: ${segment.name ?? "(not configured)"}`,
+    `- primary metric: ${metricLine}`,
+    `- benchmark command: ${segment.benchmarkCommand ?? "(unset)"}`,
+    `- checks command: ${segment.checksCommand ?? "(none)"}`,
+    `- runs: ${runLine}`,
+    `- baseline: ${formatMetricValue(segment.baselineMetric, segment.metricUnit)}`,
+    `- best: ${formatMetricValue(segment.bestMetric, segment.metricUnit)}`,
+    `- confidence: ${formatConfidenceValue(segment.confidence)}`,
+    `- timing interpretation: ${formatMetricInterpretation(segment.metricInterpretation, segment.metricUnit)}`,
+    "",
+    "## Candidate lifecycle policy",
+    `- mode: ${candidatePolicy.mode}`,
+    `- keep: ${candidatePolicy.keep}`,
+    `- discard: ${candidatePolicy.discard}`,
+    `- rewind: ${candidatePolicy.rewind}`,
+    `- authority: ${candidatePolicy.authority}`,
+    `- worktree role: ${candidatePolicy.worktreeRole}`,
+    `- replay-fabric role: ${candidatePolicy.replayFabricRole}`,
+    `- ASC rewind role: ${candidatePolicy.ascRewindRole}`,
+    "",
+    "## Next legal surfaces",
+    `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
+    `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
+    `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "closeout" })`,
+    `- control gate: ${AUTORESEARCH_CONTROL_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
+    "",
+    "## Boundaries",
+    "- peers are planned or visibly launched only through explicit peer surfaces.",
+    "- worktree cleanup, merge, branch materialization, AK/KES/evidence writes, and durable promotion stay outside this dashboard.",
+  ].join("\n");
+}
+
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
   const currentSegmentLines = status.currentSegment.configured
     ? [
