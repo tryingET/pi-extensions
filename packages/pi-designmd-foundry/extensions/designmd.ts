@@ -16,6 +16,7 @@ type DesignmdFormat =
   | "tokens"
   | "agent-prompt"
   | "xstate"
+  | "rive"
   | "json";
 type OpenPencilExportFormat = "svg" | "png" | "jpg" | "webp" | "fig";
 type SessionArtifactKind = "html" | "svg" | "image" | "markdown" | "css" | "json" | "text";
@@ -164,6 +165,7 @@ const FORMAT_VALUES = [
   "tokens",
   "agent-prompt",
   "xstate",
+  "rive",
   "json",
 ] as const;
 const MODE_VALUES = ["iterate", "remix", "expand", "audit"] as const;
@@ -1170,6 +1172,7 @@ function artifactForExport(format: DesignmdFormat, content: string): SessionArti
     case "dtcg":
     case "tokens":
     case "xstate":
+    case "rive":
     case "json":
       return {
         kind: "json",

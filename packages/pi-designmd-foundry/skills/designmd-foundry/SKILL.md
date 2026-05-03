@@ -50,7 +50,7 @@ Use shell commands only when the extension is unavailable.
 2. Run a design lint check.
 3. Export agent context and concrete implementation artifacts:
    - `agent-prompt` for guidance
-   - `css`, `tailwind`, `dtcg`, `tokens`, or `xstate` as appropriate
+   - `css`, `tailwind`, `dtcg`, `tokens`, `xstate`, or `rive` as appropriate
 4. Implement using the exported tokens and prose constraints.
 5. If implementation requires design-system changes, return them as a separate `DESIGN.md` patch proposal.
 6. Re-run lint after any proposed design contract change.
@@ -66,6 +66,7 @@ node dist/cli.js export --format agent-prompt DESIGN.md
 node dist/cli.js export --format css DESIGN.md
 node dist/cli.js export --format dtcg DESIGN.md
 node dist/cli.js export --format xstate DESIGN.md
+node dist/cli.js export --format rive DESIGN.md
 ```
 
 If `dist/` is unavailable:

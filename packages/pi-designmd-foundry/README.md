@@ -26,7 +26,7 @@ When `DESIGNMD_SESSION_ENDPOINT` is set, tools also report start/pass/fail activ
 ## Tools
 
 - `designmd_lint` — lint a `DESIGN.md` file.
-- `designmd_export` — export `css`, `oat`, `tailwind`, `dtcg`, `tokens`, `agent-prompt`, `xstate`, or `json`.
+- `designmd_export` — export `css`, `oat`, `tailwind`, `dtcg`, `tokens`, `agent-prompt`, `xstate`, `rive`, or `json`.
 - `designmd_agent_prompt` — convenience wrapper for `agent-prompt` export.
 - `designmd_oat_visual_snapshot` — generate token-preserving Oat visual snapshot HTML for manual review.
 - `designmd_openpencil_prompt` — build an OpenPencil handoff prompt.
