@@ -79,7 +79,8 @@ The current boundary is now more specific: the package is the runtime owner for 
   - does not auto-spawn peers, commit, merge/delete worktrees, write AK/KES/evidence, or perform durable promotion
 - `autoresearch_candidate_bind`
   - is the read-only / plan-only candidate intake planner
-  - inspects a controller-verified candidate worktree/path, detects git worktree status, same-repository posture, branch/ref, HEAD, optional base-ref resolution, changed files, and a diff summary
+  - inspects a controller-verified candidate worktree/path, detects git worktree status, same-repository posture, branch/ref, HEAD, optional or inferred base-ref resolution, changed files, and a diff summary
+  - infers a conservative base ref from `merge-base(HEAD, upstream|main|master)` when `candidateBaseRef` is omitted, while warning the operator to verify before destructive rewind planning
   - prepares the exact `autoresearch_runtime_run({ ... candidateWorktree, candidateBranch, candidateBaseRef, candidateDiffSummary, candidateFilesChanged ... })` call needed to bind and measure the candidate
   - defaults `candidateWorktree` to `cwd` so `/autoresearch bind current` supports the common current-worktree handoff
   - surfaces read-only git preflight commands and warnings when the worktree or base ref is missing

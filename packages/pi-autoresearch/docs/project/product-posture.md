@@ -179,7 +179,7 @@ A first candidate intake planner slice is now landed:
 autoresearch_candidate_bind({ candidateWorktree, candidateBaseRef, action: "plan_run" })
 ```
 
-The surface inspects a controller-verified worktree/path, detects git worktree status, same-repository posture, branch/ref, HEAD, optional base-ref resolution, changed files, and a diff summary. It prepares the exact `autoresearch_runtime_run({ ...candidate binding metadata... })` call needed to measure the candidate and then return to candidate decisions. It is read-only/plan-only: no benchmark, merge, worktree deletion, reset/recreate, peer launch, AK/KES/evidence write, or promotion is applied by the package.
+The surface inspects a controller-verified worktree/path, detects git worktree status, same-repository posture, branch/ref, HEAD, optional or inferred base-ref resolution, changed files, and a diff summary. When `candidateBaseRef` is omitted it conservatively infers a base from `merge-base(HEAD, upstream|main|master)` and warns the operator to verify it before destructive rewind planning. It prepares the exact `autoresearch_runtime_run({ ...candidate binding metadata... })` call needed to measure the candidate and then return to candidate decisions. It is read-only/plan-only: no benchmark, merge, worktree deletion, reset/recreate, peer launch, AK/KES/evidence write, or promotion is applied by the package.
 
 A first candidate decision workbench slice is also landed:
 

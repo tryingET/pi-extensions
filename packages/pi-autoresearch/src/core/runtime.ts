@@ -652,6 +652,7 @@ export interface AutoresearchCandidateBindInspection {
   branch: string | null;
   head: string | null;
   baseRef: string | null;
+  baseRefSource: string | null;
   baseResolved: boolean;
   statusShort: string[];
   filesChanged: string[];
@@ -3234,6 +3235,7 @@ export function formatAutoresearchCandidateBindPlan(result: AutoresearchCandidat
     `- branch/ref: ${result.inspection.branch ?? "(unknown)"}`,
     `- head: ${result.inspection.head ?? "(unknown)"}`,
     `- base ref: ${result.inspection.baseRef ?? "(not supplied; provide candidateBaseRef for base-relative diffs and rewind plans)"}`,
+    `- base ref source: ${result.inspection.baseRefSource ?? "(none)"}`,
     `- base resolved: ${result.inspection.baseResolved ? "yes" : "no"}`,
     `- files changed: ${formatTargetFiles(result.inspection.filesChanged)}`,
     `- diff summary: ${result.inspection.diffSummary}`,
@@ -6589,6 +6591,7 @@ function inspectAutoresearchCandidateWorktree(input: {
       branch: stringOrNull(input.candidateBranch),
       head: null,
       baseRef: stringOrNull(input.candidateBaseRef),
+      baseRefSource: stringOrNull(input.candidateBaseRef) ? "supplied" : null,
       baseResolved: false,
       statusShort: [],
       filesChanged: [],
@@ -6635,7 +6638,12 @@ function inspectAutoresearchCandidateWorktree(input: {
         runGitForCandidateBind(input.candidateWorktree, ["rev-parse", "--short", "HEAD"]).stdout,
       )
     : null;
-  const baseRef = stringOrNull(input.candidateBaseRef);
+  const suppliedBaseRef = stringOrNull(input.candidateBaseRef);
+  const inferredBaseRef = suppliedBaseRef
+    ? null
+    : inferAutoresearchCandidateBindBaseRef(input.candidateWorktree);
+  const baseRef = suppliedBaseRef ?? inferredBaseRef?.baseRef ?? null;
+  const baseRefSource = suppliedBaseRef ? "supplied" : (inferredBaseRef?.source ?? null);
   const baseCheck = baseRef
     ? runGitForCandidateBind(input.candidateWorktree, [
         "rev-parse",
@@ -6644,14 +6652,19 @@ function inspectAutoresearchCandidateWorktree(input: {
       ])
     : null;
   const baseResolved = Boolean(baseCheck?.ok);
-  if (baseRef && !baseResolved) {
+  if (suppliedBaseRef && !baseResolved) {
     warnings.push(
-      `candidateBaseRef ${JSON.stringify(baseRef)} did not resolve in the candidate worktree`,
+      `candidateBaseRef ${JSON.stringify(suppliedBaseRef)} did not resolve in the candidate worktree`,
+    );
+  }
+  if (!suppliedBaseRef && inferredBaseRef) {
+    warnings.push(
+      `candidateBaseRef was inferred from ${inferredBaseRef.source}; verify before destructive rewind planning`,
     );
   }
   if (!baseRef) {
     warnings.push(
-      "candidateBaseRef was not supplied; diff summary falls back to working-tree status and rewind plans cannot be complete",
+      "candidateBaseRef was not supplied and could not be inferred; diff summary falls back to working-tree status and rewind plans cannot be complete",
     );
   }
 
@@ -6691,6 +6704,7 @@ function inspectAutoresearchCandidateWorktree(input: {
     branch: stringOrNull(input.candidateBranch) ?? detectedBranch,
     head,
     baseRef,
+    baseRefSource,
     baseResolved,
     statusShort,
     filesChanged,
@@ -6741,6 +6755,35 @@ function buildAutoresearchCandidateBindCommandPlan(input: {
   return commands;
 }
 
+function inferAutoresearchCandidateBindBaseRef(
+  worktree: string,
+): { baseRef: string; source: string } | null {
+  const upstream = nullIfEmpty(
+    runGitForCandidateBind(worktree, [
+      "rev-parse",
+      "--abbrev-ref",
+      "--symbolic-full-name",
+      "@{upstream}",
+    ]).stdout,
+  );
+  const candidates = uniqueStrings(
+    [upstream, "origin/main", "main", "origin/master", "master"].filter(isNonEmptyString),
+  );
+  for (const candidate of candidates) {
+    const refCheck = runGitForCandidateBind(worktree, [
+      "rev-parse",
+      "--verify",
+      `${candidate}^{commit}`,
+    ]);
+    if (!refCheck.ok) continue;
+    const mergeBase = nullIfEmpty(
+      runGitForCandidateBind(worktree, ["merge-base", "HEAD", candidate]).stdout,
+    );
+    if (mergeBase) return { baseRef: mergeBase, source: `merge-base(HEAD, ${candidate})` };
+  }
+  return null;
+}
+
 function deriveCandidateBindFilesChanged(input: {
   worktree: string;
   baseRef: string | null;
@@ -6753,9 +6796,11 @@ function deriveCandidateBindFilesChanged(input: {
         .stdout,
     );
     const statusFiles = input.statusShort.map(parseGitStatusPath).filter(isNonEmptyString);
-    return uniqueStrings([...baseFiles, ...statusFiles]);
+    return filterAutoresearchLocalArtifactPaths(uniqueStrings([...baseFiles, ...statusFiles]));
   }
-  return uniqueStrings(input.statusShort.map(parseGitStatusPath).filter(isNonEmptyString));
+  return filterAutoresearchLocalArtifactPaths(
+    uniqueStrings(input.statusShort.map(parseGitStatusPath).filter(isNonEmptyString)),
+  );
 }
 
 function deriveCandidateBindDiffSummary(input: {
@@ -6797,6 +6842,18 @@ function runGitForCandidateBind(
     stdout: String(result.stdout ?? ""),
     stderr: String(result.stderr ?? ""),
   };
+}
+
+function filterAutoresearchLocalArtifactPaths(files: string[]): string[] {
+  return files.filter((file) => !isAutoresearchLocalArtifactPath(file));
+}
+
+function isAutoresearchLocalArtifactPath(file: string): boolean {
+  const normalized = file.replaceAll("\\", "/");
+  if (normalized.startsWith(".autoresearch/")) return true;
+  return AUTORESEARCH_LOCAL_ARTIFACTS.some(
+    (artifact) => normalized === artifact || normalized.startsWith(`${artifact}/`),
+  );
 }
 
 function parseGitStatusPath(line: string): string | null {

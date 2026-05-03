@@ -341,7 +341,7 @@ The seventh interaction/browser-export slice is now also landed:
 The eighth candidate intake planner slice is now also landed:
 
 - `autoresearch_candidate_bind` exposes read-only `status` / `plan_run` candidate intake planning;
-- it inspects a controller-verified worktree/path, branch/ref, optional base ref, changed files, and diff summary;
+- it inspects a controller-verified worktree/path, branch/ref, optional or inferred base ref, changed files, and diff summary;
 - it prepares the exact `autoresearch_runtime_run({ ...candidate binding metadata... })` call needed to measure the candidate;
 - it does not run benchmarks, merge, delete/reset worktrees, spawn peers, write AK/KES/evidence, or promote.
 

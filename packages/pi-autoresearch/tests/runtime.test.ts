@@ -1251,6 +1251,20 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
     assert.match(plan.plannedCommands.join("\n"), /diff --stat/);
     assert.match(formatAutoresearchCandidateBindPlan(plan), /CANDIDATE BIND PLAN/);
 
+    const inferredPlan = buildAutoresearchCandidateBindPlan({
+      cwd,
+      candidateWorktree: cwd,
+    });
+    const expectedBase = execFileSync("git", ["rev-parse", "HEAD~1"], {
+      cwd,
+      encoding: "utf8",
+    }).trim();
+    assert.equal(inferredPlan.inspection.baseRef, expectedBase);
+    assert.match(inferredPlan.inspection.baseRefSource ?? "", /merge-base/);
+    assert.deepEqual(inferredPlan.inspection.filesChanged, ["src/value.txt"]);
+    assert.match(inferredPlan.inspection.warnings.join("\n"), /inferred/);
+    assert.doesNotMatch(inferredPlan.inspection.warnings.join("\n"), /could not be inferred/);
+
     const { tools } = registerHarness();
     const result = await tools
       .get(AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME)
