@@ -1,3 +1,9 @@
+---
+summary: "pi-session-compaction package overview."
+read_when:
+  - "Orienting to this package or directory before changing its behavior."
+---
+
 # pi-session-compaction
 
 Dedicated Pi package for custom session compaction summaries.

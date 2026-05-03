@@ -1,4 +1,7 @@
 ---
+summary: "Ontology concept: Benchmark harness (pi.extensions.BenchmarkHarness)"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.BenchmarkHarness"
   type: concept

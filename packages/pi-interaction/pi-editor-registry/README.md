@@ -1,3 +1,9 @@
+---
+summary: "@tryinget/pi-editor-registry package overview."
+read_when:
+  - "Orienting to this package or directory before changing its behavior."
+---
+
 # @tryinget/pi-editor-registry
 
 Editor ownership and mount primitives for the `pi-interaction` runtime family.

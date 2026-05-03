@@ -1,4 +1,7 @@
 ---
+summary: "Commit"
+read_when:
+  - "Reading this document before changing adjacent package behavior."
 description: Deterministic multi-commit workflow with explicit staging, fail-fast validation, concise success reporting, and commit-local provenance notes
 model: zai/glm-5.1
 ---

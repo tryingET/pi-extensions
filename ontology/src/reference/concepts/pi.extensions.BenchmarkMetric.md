@@ -1,4 +1,7 @@
 ---
+summary: "Ontology concept: Benchmark metric (pi.extensions.BenchmarkMetric)"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.BenchmarkMetric"
   type: concept

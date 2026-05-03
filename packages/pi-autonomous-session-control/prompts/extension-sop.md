@@ -1,4 +1,8 @@
 ---
+summary: "Execute a change using this repository's Extension SOP (plan -> implement -> verify -> maintain -> release)"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Execute a change using this repository's Extension SOP (plan -> implement -> verify -> maintain -> release)
 system4d:
   container: "Prompt template for SOP-driven extension delivery."

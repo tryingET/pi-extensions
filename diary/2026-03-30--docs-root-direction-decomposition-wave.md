@@ -1,3 +1,10 @@
+---
+summary: "Session diary: 2026-03-30: Seed root direction decomposition and materialize the next reduced-form wave"
+read_when:
+  - "Reconstructing the historical session or validation outcome named by this diary file."
+  - "Checking prior package or monorepo work before changing adjacent behavior."
+---
+
 # 2026-03-30 — Seed root direction decomposition and materialize the next reduced-form wave
 
 ## What I Did

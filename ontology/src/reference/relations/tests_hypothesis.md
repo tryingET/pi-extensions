@@ -1,4 +1,7 @@
 ---
+summary: "Ontology relation: tests_hypothesis"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.rel.tests_hypothesis"
   type: relation

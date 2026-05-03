@@ -1,4 +1,8 @@
 ---
+summary: "Review ontology state and route likely changes without writing"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Review ontology state and route likely changes without writing
 system4d:
   container: "Prompt template for ontology review and routing."

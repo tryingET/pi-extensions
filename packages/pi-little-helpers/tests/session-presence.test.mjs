@@ -6,6 +6,22 @@ import test from "node:test";
 
 import { createSessionPresenceExtension } from "../extensions/session-presence.ts";
 
+const AMBIENT_SESSION_PRESENCE_ENV_KEYS = [
+  "PI_SESSION_PRESENCE_DIR",
+  "PI_SESSION_PRESENCE_PI_BIN",
+  "PI_SESSION_PRESENCE_TITLE_BASE",
+  "PI_SESSION_PRESENCE_TITLE_MODE",
+];
+
+// The live Pi process may set session-presence environment overrides for its own
+// window title. Unit fixtures must not inherit those overrides, or the expected
+// default cwd-derived titles become host-session dependent.
+test.beforeEach(() => {
+  for (const key of AMBIENT_SESSION_PRESENCE_ENV_KEYS) {
+    delete process.env[key];
+  }
+});
+
 function createTempDir() {
   return mkdtempSync(path.join(tmpdir(), "session-presence-"));
 }

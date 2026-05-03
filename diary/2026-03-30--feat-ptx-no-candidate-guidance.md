@@ -1,3 +1,10 @@
+---
+summary: "Session diary: 2026-03-30: Make PTX no-candidate warnings actionable"
+read_when:
+  - "Reconstructing the historical session or validation outcome named by this diary file."
+  - "Checking prior package or monorepo work before changing adjacent behavior."
+---
+
 # 2026-03-30 — Make PTX no-candidate warnings actionable
 
 ## What I Did

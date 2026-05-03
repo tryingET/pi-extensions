@@ -1,4 +1,7 @@
 ---
+summary: "Ontology concept: Finalization group (pi.extensions.FinalizationGroup)"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.FinalizationGroup"
   type: concept

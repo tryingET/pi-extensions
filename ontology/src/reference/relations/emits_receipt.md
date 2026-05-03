@@ -1,4 +1,7 @@
 ---
+summary: "Ontology relation: emits_receipt"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.rel.emits_receipt"
   type: relation

@@ -1,4 +1,8 @@
 ---
+summary: "Generate a one-sentence fresh-context handoff using a 4-argument contract"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Generate a one-sentence fresh-context handoff using a 4-argument contract
 system4d:
   container: "Prompt template for context-window reset handoff."

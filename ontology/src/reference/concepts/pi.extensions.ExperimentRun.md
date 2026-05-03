@@ -1,4 +1,7 @@
 ---
+summary: "Ontology concept: Experiment run (pi.extensions.ExperimentRun)"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.ExperimentRun"
   type: concept

@@ -1,4 +1,8 @@
 ---
+summary: "Plan or apply an ontology change through the package's workflow core"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Plan or apply an ontology change through the package's workflow core
 system4d:
   container: "Prompt template for ontology mutations."

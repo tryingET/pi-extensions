@@ -1,4 +1,7 @@
 ---
+summary: "Ontology relation: tracks_metric"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.rel.tracks_metric"
   type: relation

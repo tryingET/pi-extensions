@@ -1,3 +1,9 @@
+---
+summary: "@tryinget/pi-prompt-template-execution package overview."
+read_when:
+  - "Orienting to this package or directory before changing its behavior."
+---
+
 # @tryinget/pi-prompt-template-execution
 
 Live monorepo-owned successor for the external `npm:pi-prompt-template-model` package inside the `pi-extensions` monorepo.

@@ -78,7 +78,9 @@ export function parseMarkdownFrontmatter(markdown) {
   const rawFrontmatter = text.slice(3 + newline.length, closeIndex);
   const body = text.slice(closeIndex + closeToken.length);
   const frontmatter = {};
-  for (const line of rawFrontmatter.split(/\r?\n/)) {
+  const lines = rawFrontmatter.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     if (trimmed.startsWith("- ")) {
@@ -86,7 +88,32 @@ export function parseMarkdownFrontmatter(markdown) {
     }
     const match = line.match(/^\s*([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*?)\s*$/);
     if (!match) throw new Error(`Unsupported frontmatter line: ${line}`);
-    frontmatter[match[1]] = parseScalar(match[2] ?? "");
+
+    const key = match[1];
+    const rawValue = match[2] ?? "";
+    if (rawValue.trim() === "") {
+      const items = [];
+      let cursor = index + 1;
+      while (cursor < lines.length) {
+        const candidate = lines[cursor];
+        const candidateTrimmed = candidate.trim();
+        if (!candidateTrimmed || candidateTrimmed.startsWith("#")) {
+          cursor += 1;
+          continue;
+        }
+        const itemMatch = candidate.match(/^\s+-\s*(.*?)\s*$/);
+        if (!itemMatch) break;
+        items.push(parseScalar(itemMatch[1] ?? ""));
+        cursor += 1;
+      }
+      if (items.length > 0) {
+        frontmatter[key] = items;
+        index = cursor - 1;
+        continue;
+      }
+    }
+
+    frontmatter[key] = parseScalar(rawValue);
   }
   return { frontmatter, body };
 }

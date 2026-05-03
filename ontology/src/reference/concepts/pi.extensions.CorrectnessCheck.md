@@ -1,4 +1,7 @@
 ---
+summary: "Ontology concept: Correctness check (pi.extensions.CorrectnessCheck)"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.CorrectnessCheck"
   type: concept

@@ -1,3 +1,9 @@
+---
+summary: "What to include"
+read_when:
+  - "Reading this document before changing adjacent package behavior."
+---
+
 # What to include
 
 This summary must be self-contained. Assume little or no recent conversation will remain verbatim after compaction, especially when `keepRecentTokens` is low or `0`.

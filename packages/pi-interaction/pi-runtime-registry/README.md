@@ -1,3 +1,9 @@
+---
+summary: "@tryinget/pi-runtime-registry package overview."
+read_when:
+  - "Orienting to this package or directory before changing its behavior."
+---
+
 # @tryinget/pi-runtime-registry
 
 Shared runtime instance registry for pi-interaction extensions.

@@ -35,6 +35,19 @@ describe("markdown frontmatter parsing", () => {
     assert.equal(parsed.body, "Body");
   });
 
+  it("parses docs-list metadata arrays without invalidating prompt ownership frontmatter", () => {
+    const parsed = parseMarkdownFrontmatter(
+      '---\nsummary: "Commit"\nread_when:\n  - "Committing changes"\ndescription: Commit changes\nmodel: zai/glm-5.1\n---\nBody',
+    );
+    assert.deepEqual(parsed.frontmatter, {
+      summary: "Commit",
+      read_when: ["Committing changes"],
+      description: "Commit changes",
+      model: "zai/glm-5.1",
+    });
+    assert.equal(parsed.body, "Body");
+  });
+
   it("treats markdown without frontmatter as an empty frontmatter object", () => {
     assert.deepEqual(parseMarkdownFrontmatter("Plain body"), {
       frontmatter: {},

@@ -54,6 +54,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-prompt-template-accelerator` | yes | speed up prompt-template command workflows | picker/prefill UX only |
 | `pi-prompt-template-execution` | yes | own prompt-template execution semantics | live successor for external `pi-prompt-template-model`; owns `/commit` extension execution semantics through a minimal guarded entrypoint, with no prompt bundle and no loop/chain/subagent runtime |
 | `pi-session-compaction` | yes | own custom compaction summaries | live local `session_before_compact` owner after guarded cutover; handler and fail-closed registration guard are tested, branch augmentation helpers remain non-live |
+| `pi-toolbox-discovery` | yes | discover and activate custom-tool bundles on demand | keeps `self`, `interview`, and `toolbox` small/active while heavy package tools stay latent |
 | `pi-interaction/pi-interaction` | yes | shared interaction features | host-facing interaction layer |
 | `pi-interaction/pi-editor-registry` | yes | provide editor integration seams | lower-level building block |
 | `pi-interaction/pi-interaction-kit` | yes | provide reusable interaction helpers | lower-level building block |

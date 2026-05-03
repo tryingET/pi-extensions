@@ -1,3 +1,9 @@
+---
+summary: "@tryinget/pi-interaction-kit package overview."
+read_when:
+  - "Orienting to this package or directory before changing its behavior."
+---
+
 # @tryinget/pi-interaction-kit
 
 Shared interaction primitives for the `pi-interaction` runtime family.

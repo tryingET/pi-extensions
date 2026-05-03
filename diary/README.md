@@ -1,3 +1,10 @@
+---
+summary: "Index and convention notes for repo-local diary session logs."
+read_when:
+  - "Reconstructing the historical session or validation outcome named by this diary file."
+  - "Checking prior package or monorepo work before changing adjacent behavior."
+---
+
 # Diary
 
 Repo-local session capture for KES (Knowledge Evolution System).

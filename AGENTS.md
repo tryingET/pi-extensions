@@ -1,3 +1,10 @@
+---
+summary: "Repo-level meta context for the pi-extensions monorepo."
+read_when:
+  - "Starting work in the pi-extensions monorepo root."
+  - "Needing repo-level structure, package guidance, or live package activation rules."
+---
+
 # AGENTS.md — pi-extensions
 
 ## Scope

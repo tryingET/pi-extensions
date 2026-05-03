@@ -1,3 +1,9 @@
+---
+summary: "@tryinget/pi-peer-messaging package overview."
+read_when:
+  - "Orienting to this package or directory before changing its behavior."
+---
+
 # @tryinget/pi-peer-messaging
 
 Stable core contract for the accepted same-machine peer-session messaging primitive in `pi-extensions`.

@@ -1,4 +1,7 @@
 ---
+summary: "Ontology relation: belongs_to_campaign"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.rel.belongs_to_campaign"
   type: relation

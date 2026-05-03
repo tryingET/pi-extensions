@@ -1,4 +1,8 @@
 ---
+summary: "Use DesignMD Foundry when doing UI, CSS, design-token, design-system, Penpot/OpenPencil/Pigmnts/Oat, or AI design handoff work. It tells the agent to lint DESIGN.md, export verified design context/tokens, preserve tokens unless intentionally changing the design contract, and avoid wrapping unverified external tool paths."
+read_when:
+  - "Using or maintaining this Pi skill."
+  - "Checking skill metadata for Pi package discovery or docs-list validation."
 name: designmd-foundry
 description: Use DesignMD Foundry when doing UI, CSS, design-token, design-system, Penpot/OpenPencil/Pigmnts/Oat, or AI design handoff work. It tells the agent to lint DESIGN.md, export verified design context/tokens, preserve tokens unless intentionally changing the design contract, and avoid wrapping unverified external tool paths.
 system4d:

@@ -1,3 +1,9 @@
+---
+summary: "Governance directory overview for pi-extensions policies and projections."
+read_when:
+  - "Inspecting pi-extensions governance projections, policies, or execution-seam fixtures."
+---
+
 # Project Work Items
 
 This file tracks project-specific work (features, bugs, improvements).

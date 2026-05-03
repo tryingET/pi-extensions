@@ -1,4 +1,8 @@
 ---
+summary: "Condense a full discussion into one sentence for clean-context continuation"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Condense a full discussion into one sentence for clean-context continuation
 system4d:
   container: "Prompt template for context-window handoff."

@@ -1,4 +1,8 @@
 ---
+summary: "Generate a text report of current context composition"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Generate a text report of current context composition
 system4d:
   container: "Prompt template for summarizing current Pi context composition."

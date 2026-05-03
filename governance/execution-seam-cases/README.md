@@ -1,3 +1,9 @@
+---
+summary: "Execution-seam case fixtures for validating ASC/orchestrator boundary guardrails."
+read_when:
+  - "Inspecting pi-extensions governance projections, policies, or execution-seam fixtures."
+---
+
 # Execution seam casebook
 
 Shared canonical seam scenarios for the ASC → orchestrator execution boundary.

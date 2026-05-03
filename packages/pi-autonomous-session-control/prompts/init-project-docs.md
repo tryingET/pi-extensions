@@ -1,4 +1,8 @@
 ---
+summary: "Run interview-first initialization for organization and project docs"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Run interview-first initialization for organization and project docs
 system4d:
   container: "Prompt template for document initialization workflow."

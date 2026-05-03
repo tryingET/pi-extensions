@@ -1,3 +1,10 @@
+---
+summary: "Session diary: 2026-03-22: Integrate PTX runtime ownership and model lifecycle into the shared runtime registry"
+read_when:
+  - "Reconstructing the historical session or validation outcome named by this diary file."
+  - "Checking prior package or monorepo work before changing adjacent behavior."
+---
+
 # 2026-03-22 — Integrate PTX runtime ownership and model lifecycle into the shared runtime registry
 
 ## What I Did

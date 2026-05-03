@@ -1,4 +1,7 @@
 ---
+summary: "Ontology concept: Optimization hypothesis (pi.extensions.OptimizationHypothesis)"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.OptimizationHypothesis"
   type: concept

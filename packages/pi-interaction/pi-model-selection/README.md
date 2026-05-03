@@ -1,3 +1,9 @@
+---
+summary: "@tryinget/pi-model-selection package overview."
+read_when:
+  - "Orienting to this package or directory before changing its behavior."
+---
+
 # @tryinget/pi-model-selection
 
 Shared Pi model-selection and auth-resolution primitives.

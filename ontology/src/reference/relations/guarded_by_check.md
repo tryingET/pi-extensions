@@ -1,4 +1,7 @@
 ---
+summary: "Ontology relation: guarded_by_check"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.rel.guarded_by_check"
   type: relation

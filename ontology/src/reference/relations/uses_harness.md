@@ -1,4 +1,7 @@
 ---
+summary: "Ontology relation: uses_harness"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.rel.uses_harness"
   type: relation

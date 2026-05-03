@@ -1,4 +1,7 @@
 ---
+summary: "Ontology relation: groups_run"
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
 ont:
   id: "pi.extensions.rel.groups_run"
   type: relation

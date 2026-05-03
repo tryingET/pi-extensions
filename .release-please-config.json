@@ -69,6 +69,10 @@
       "release-type": "node",
       "component": "pi-society-startup-context"
     },
+    "packages/pi-toolbox-discovery": {
+      "release-type": "node",
+      "component": "pi-toolbox-discovery"
+    },
     "packages/pi-vault-client": {
       "release-type": "node",
       "component": "pi-vault-client"

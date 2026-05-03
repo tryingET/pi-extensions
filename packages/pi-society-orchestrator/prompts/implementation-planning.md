@@ -1,4 +1,8 @@
 ---
+summary: "Draft an implementation plan for a requested change"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Draft an implementation plan for a requested change
 system4d:
   container: "Prompt template for implementation planning."

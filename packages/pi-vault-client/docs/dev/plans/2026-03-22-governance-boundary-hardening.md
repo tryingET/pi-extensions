@@ -1,4 +1,6 @@
 ---
+read_when:
+  - "Reviewing the vault-client governance boundary hardening plan or its closure evidence."
 summary: "Close the remaining governance and provenance gaps after deep-review hardening."
 status: "completed"
 updated: "2026-03-22"

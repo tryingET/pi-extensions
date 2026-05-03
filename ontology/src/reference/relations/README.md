@@ -1,3 +1,9 @@
+---
+summary: "Reference index for pi-extensions ontology relation documents."
+read_when:
+  - "Inspecting pi-extensions ontology reference or bridge documentation."
+---
+
 # Repo Relations
 
 Add repo-local relation extensions here only when the root repo needs semantics not already provided by core or company layers.
