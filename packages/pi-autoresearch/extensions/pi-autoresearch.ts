@@ -139,7 +139,10 @@ type AutoresearchCandidateDecisionTriggerParsedInput = {
   directAction: AutoresearchCandidateDecisionTriggerAction | null;
 };
 
+type AutoresearchCandidateBindTriggerMode = "bind" | "measure";
+
 type AutoresearchCandidateBindTriggerParsedInput = {
+  mode: AutoresearchCandidateBindTriggerMode;
   candidateWorktree: string;
   query: string;
   raw: string;
@@ -2849,6 +2852,19 @@ async function openAutoresearchShell(
     return;
   }
 
+  const candidateMeasure = parseAutoresearchCandidateMeasureCommand(normalizedArgs, ctx.cwd);
+  if (candidateMeasure) {
+    await ctx.ui.editor(
+      "Measure autoresearch candidate",
+      buildAutoresearchCandidateMeasureEditorCall(ctx.cwd, candidateMeasure.candidateWorktree),
+    );
+    ctx.ui.notify(
+      "Prepared autoresearch_runtime_run candidate measurement call. Review benchmark/check settings before execution.",
+      "info",
+    );
+    return;
+  }
+
   const candidateBind = parseAutoresearchCandidateBindCommand(normalizedArgs, ctx.cwd);
   if (candidateBind) {
     await ctx.ui.editor(
@@ -2903,6 +2919,10 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   if (!match) return null;
   const raw = String(match[1] ?? "").trim();
   if (!raw) return "$$ autoresearch <objective>";
+  const candidateMeasure = parseAutoresearchCandidateMeasureCommand(raw, cwd);
+  if (candidateMeasure) {
+    return buildAutoresearchCandidateMeasureEditorCall(cwd, candidateMeasure.candidateWorktree);
+  }
   const candidateBind = parseAutoresearchCandidateBindCommand(raw, cwd);
   if (candidateBind) {
     return buildAutoresearchCandidateBindEditorCall(cwd, candidateBind.candidateWorktree);
@@ -2914,18 +2934,33 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   return buildAutoresearchCampaignStartEditorCall(cwd, raw);
 }
 
+function parseAutoresearchCandidateMeasureCommand(
+  value: string,
+  cwd: string,
+): { candidateWorktree: string } | null {
+  return parseAutoresearchCandidatePathCommand(value, cwd, "measure");
+}
+
 function parseAutoresearchCandidateBindCommand(
   value: string,
   cwd: string,
 ): { candidateWorktree: string } | null {
+  return parseAutoresearchCandidatePathCommand(value, cwd, "bind");
+}
+
+function parseAutoresearchCandidatePathCommand(
+  value: string,
+  cwd: string,
+  verb: "bind" | "measure",
+): { candidateWorktree: string } | null {
   const normalized = value.trim();
   const lower = normalized.toLowerCase();
-  if (lower === "bind" || lower === "bind current" || lower === "candidate bind current") {
+  if (lower === verb || lower === `${verb} current` || lower === `candidate ${verb} current`) {
     return { candidateWorktree: cwd };
   }
-  if (lower === "candidate bind") return { candidateWorktree: cwd };
-  const bindPrefix = lower.startsWith("bind ") ? "bind " : null;
-  const candidateBindPrefix = lower.startsWith("candidate bind ") ? "candidate bind " : null;
+  if (lower === `candidate ${verb}`) return { candidateWorktree: cwd };
+  const bindPrefix = lower.startsWith(`${verb} `) ? `${verb} ` : null;
+  const candidateBindPrefix = lower.startsWith(`candidate ${verb} `) ? `candidate ${verb} ` : null;
   const prefix = bindPrefix ?? candidateBindPrefix;
   if (!prefix) return null;
   const worktree = normalized.slice(prefix.length).trim();
@@ -2935,6 +2970,20 @@ function parseAutoresearchCandidateBindCommand(
 
 function buildAutoresearchCandidateBindEditorCall(cwd: string, candidateWorktree: string): string {
   return `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: "plan_run",\n  candidateSource: "manual",\n  candidateWorktree: ${JSON.stringify(candidateWorktree)},\n  candidateBaseRef: "<base-ref>",\n  description: "Measure bound candidate"\n})`;
+}
+
+function buildAutoresearchCandidateMeasureEditorCall(
+  cwd: string,
+  candidateWorktree: string,
+): string {
+  const plan = buildAutoresearchCandidateBindPlan({
+    cwd,
+    action: "plan_run",
+    candidateSource: "manual",
+    candidateWorktree,
+    description: "Measure bound candidate",
+  });
+  return plan.exactNextCalls[0] ?? buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
 }
 
 function parseAutoresearchCandidateDecisionCommand(
@@ -3318,27 +3367,29 @@ async function maybeRegisterAutoresearchLiveTrigger(): Promise<{ unregister: () 
       triggerSurface.registerPickerInteraction({
         id: AUTORESEARCH_CANDIDATE_BIND_TRIGGER_ID,
         description:
-          "pi-autoresearch candidate bind picker for $$ autoresearch bind [current|<worktree>]",
+          "pi-autoresearch candidate bind/measure picker for $$ autoresearch bind|measure [current|<worktree>]",
         priority: 116,
-        match: /^\$\$\s*(?:autoresearch|ar)\s+(?:candidate\s+)?bind(?:\s+([^\n]*))?$/,
+        match: /^\$\$\s*(?:autoresearch|ar)\s+(?:candidate\s+)?(bind|measure)(?:\s+([^\n]*))?$/,
         requireCursorAtEnd: true,
         debounceMs: 150,
         showInPicker: true,
-        pickerLabel: "$$ autoresearch bind",
+        pickerLabel: "$$ autoresearch bind/measure",
         pickerDetail: "Inspect a candidate worktree and prepare measurement binding",
         parseInput: (
           match: { groups?: string[] },
           context?: AutoresearchTriggerContext,
         ): AutoresearchCandidateBindTriggerParsedInput => {
-          const raw = String(match?.groups?.[0] ?? "").trim();
+          const mode = String(match?.groups?.[0] ?? "bind") === "measure" ? "measure" : "bind";
+          const raw = String(match?.groups?.[1] ?? "").trim();
           const cwd = context?.cwd ?? process.cwd();
           const candidateWorktree = raw && raw.toLowerCase() !== "current" ? raw : cwd;
-          return { candidateWorktree, query: raw, raw };
+          return { mode, candidateWorktree, query: raw, raw };
         },
         loadCandidates: () => ({ candidates: AUTORESEARCH_CANDIDATE_BIND_TRIGGER_CANDIDATES }),
         selectTitle: ({ parsed }: { parsed?: AutoresearchCandidateBindTriggerParsedInput }) => {
           const query = parsed?.query ? `: ${parsed.query}` : " current";
-          return `Autoresearch candidate bind${query}`;
+          const mode = parsed?.mode ?? "bind";
+          return `Autoresearch candidate ${mode}${query}`;
         },
         applySelection: ({
           parsed,
@@ -3352,7 +3403,12 @@ async function maybeRegisterAutoresearchLiveTrigger(): Promise<{ unregister: () 
         }) => {
           const cwd = context?.cwd ?? process.cwd();
           const candidateWorktree = parsed?.candidateWorktree ?? cwd;
-          api?.setText?.(buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree));
+          const mode = parsed?.mode ?? "bind";
+          api?.setText?.(
+            mode === "measure"
+              ? buildAutoresearchCandidateMeasureEditorCall(cwd, candidateWorktree)
+              : buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree),
+          );
         },
         onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
           api?.notify?.("No autoresearch candidate-bind actions are available.", "warning");
@@ -3533,6 +3589,7 @@ function formatAutoresearchCommandNotification(
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
     "candidate bind: /autoresearch bind [current|<worktree>] -> autoresearch_candidate_bind",
+    "candidate measure: /autoresearch measure [current|<worktree>] -> autoresearch_runtime_run candidate call",
     "candidate decision: /autoresearch candidate|keep|discard|rewind -> autoresearch_candidate_decision",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
     "overlay: /autoresearch overlay",

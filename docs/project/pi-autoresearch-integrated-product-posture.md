@@ -358,6 +358,7 @@ The ninth candidate decision workbench slice is now also landed:
 The tenth slash-command candidate confirmation slice is now also landed:
 
 - `/autoresearch bind [current|<worktree>]` prepares a reviewable candidate-bind intake call;
+- `/autoresearch measure [current|<worktree>]` prepares a reviewable `autoresearch_runtime_run({ ...candidate metadata... })` candidate measurement call without executing it;
 - `/autoresearch candidate` and `/autoresearch decision` prepare a reviewable candidate-decision status call;
 - `/autoresearch keep`, `/autoresearch discard`, and `/autoresearch rewind` prepare reviewable `plan_keep`, `plan_discard`, and `plan_rewind` calls;
 - the slash affordance opens exact tool calls in the editor rather than applying commands;
@@ -365,7 +366,7 @@ The tenth slash-command candidate confirmation slice is now also landed:
 
 The eleventh optional interaction-picker candidate decision slice is now also landed:
 
-- `$$ autoresearch bind [current|<worktree>]` / `$$ ar bind [current|<worktree>]` open a picker/fallback for candidate-bind intake planning;
+- `$$ autoresearch bind|measure [current|<worktree>]` / `$$ ar bind|measure [current|<worktree>]` open a picker/fallback for candidate-bind intake planning or reviewable candidate measurement-call preparation;
 - `$$ autoresearch candidate` / `$$ ar candidate` open a picker for candidate-decision status, keep, discard, or rewind planning;
 - `$$ autoresearch keep|discard|rewind` direct-trigger the same picker with the direct action prioritized;
 - picker options can be decorated as direct or recommended from package-local runtime receipts/status;

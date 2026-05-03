@@ -1077,6 +1077,14 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
   assert.match(bindResult.text, /autoresearch_candidate_bind/);
   assert.match(bindResult.text, /candidateWorktree: "\/repo"/);
 
+  const measureResult = (await inputHandler?.(
+    { source: "user", text: "$$ autoresearch measure current" },
+    { cwd: "/repo" },
+  )) as { action: string; text: string };
+  assert.equal(measureResult.action, "transform");
+  assert.match(measureResult.text, /autoresearch_runtime_run/);
+  assert.match(measureResult.text, /candidateWorktree/);
+
   const campaignResult = (await inputHandler?.(
     { source: "user", text: "$$ ar optimize startup" },
     { cwd: "/repo" },
@@ -1092,6 +1100,61 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
     },
   )) as { action: string };
   assert.equal(slashResult.action, "continue");
+});
+
+test("/autoresearch measure prepares a candidate measurement run call", async () => {
+  await withTempDir(async (cwd) => {
+    const { commands } = registerHarness();
+    execFileSync("git", ["init"], { cwd, stdio: "ignore" });
+    writeFileSync(path.join(cwd, "value.txt"), "base\n");
+    execFileSync("git", ["add", "value.txt"], { cwd, stdio: "ignore" });
+    execFileSync(
+      "git",
+      ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "base"],
+      { cwd, stdio: "ignore" },
+    );
+    execFileSync("git", ["checkout", "-b", "candidate/measure"], { cwd, stdio: "ignore" });
+    writeFileSync(path.join(cwd, "value.txt"), "candidate\n");
+    execFileSync("git", ["add", "value.txt"], { cwd, stdio: "ignore" });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-m",
+        "candidate",
+      ],
+      { cwd, stdio: "ignore" },
+    );
+
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("measure current", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /Measure autoresearch candidate/);
+    assert.match(editorText, /autoresearch_runtime_run/);
+    assert.match(editorText, /candidateWorktree/);
+    assert.match(editorText, /candidateFilesChanged: \["value.txt"\]/);
+    assert.equal(notifications.length, 1);
+    assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_runtime_run/);
+  });
 });
 
 test("/autoresearch bind prepares a candidate-bind tool call", async () => {
