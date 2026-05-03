@@ -190,15 +190,15 @@ test("non-UI: slash-only '$$ /' selector invocation returns deterministic transf
   assert.equal(result.text, "PTX input error: expected slash command after '$$'.");
 });
 
-test("non-UI: invalid '$$' selector invocation returns deterministic transform error", async () => {
+test("non-UI: non-slash '$$' selector input is left for other trigger owners", async () => {
   const handlers = createRuntime({ extensions: [ptxExtension] });
   const result = await runWithTimeout(
     runInputPipeline(handlers, "$$ not-a-slash-command", createNonUiContext(process.cwd())),
     1500,
   );
 
-  assert.equal(result.action, "transform");
-  assert.equal(result.text, "PTX input error: expected slash command after '$$'.");
+  assert.equal(result.action, "continue");
+  assert.equal(result.text, "$$ not-a-slash-command");
 });
 
 test("non-UI: optional rest args (${@:4}) are omitted when no extras are inferred", async () => {

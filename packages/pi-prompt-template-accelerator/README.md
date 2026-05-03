@@ -46,6 +46,7 @@ Hint-aware: reads template lines to infer slot types from keywords.
 ## Fuzzy selection (primary)
 
 - `$$ /<partial>` opens the PTX fuzzy picker.
+- PTX intentionally owns only the `$$ /...` selector namespace; non-slash `$$ <word>` input is left for other trigger owners such as `$$ autoresearch ...`.
 - `/ptx-select [partial]` opens the same picker explicitly.
 - PTX picker candidates now include only prompt commands with a usable template path, so picker selection stays aligned with the PTX contract of producing a fully prefilled command.
 - When multiple packages expose the same prompt name, PTX now carries the exact selected prompt metadata and adds origin detail to duplicate entries so the chosen template stays stable.

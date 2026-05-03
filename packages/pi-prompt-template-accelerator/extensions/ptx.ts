@@ -590,6 +590,10 @@ export default function ptxExtension(pi: ExtensionAPI) {
       return { action: "handled" as const };
     }
 
+    if (!rawAfterPrefix.startsWith("/")) {
+      return { action: "continue" as const };
+    }
+
     let parsed: SelectorInvocation | null;
     try {
       parsed = parseSelectorInvocation(rawAfterPrefix);
