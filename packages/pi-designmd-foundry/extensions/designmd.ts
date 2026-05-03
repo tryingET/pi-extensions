@@ -103,6 +103,12 @@ interface SessionCloseoutParams extends BaseParams {
   materialize?: boolean;
 }
 
+interface SessionPromotionCandidateParams extends BaseParams {
+  projectId?: string;
+  sessionId?: string;
+  materialize?: boolean;
+}
+
 interface ReadinessParams extends BaseParams {}
 
 interface SessionArtifactSpec {
@@ -865,6 +871,55 @@ export default function (pi: ExtensionAPI) {
             title: request.materialize
               ? "DesignMD materialized session closeout result"
               : "DesignMD session closeout packet",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_session_promotion_candidate",
+    label: "DesignMD session promotion candidate",
+    description:
+      "Build or materialize a local DesignMD promotion candidate packet for owner-surface review. This does not promote, publish, merge, or mutate AK/society authority.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sessionId: Type.Optional(
+          Type.String({
+            description:
+              "Watch Mode session id. Defaults to current running session in local Foundry storage.",
+          }),
+        ),
+        materialize: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, write the promotion candidate packet as a local session artifact and check. Defaults to false.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as SessionPromotionCandidateParams;
+      const args = ["session-promotion-candidate", request.sessionId || "current"];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.materialize) args.push("--materialize");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_session_promotion_candidate",
+          objective: request.materialize
+            ? "Materialize DesignMD promotion candidate"
+            : "Build DesignMD promotion candidate",
+          artifact: (result) => ({
+            kind: "json",
+            title: request.materialize
+              ? "DesignMD materialized promotion candidate result"
+              : "DesignMD promotion candidate packet",
             mimeType: "application/json; charset=utf-8",
             content: result.stdout,
           }),
