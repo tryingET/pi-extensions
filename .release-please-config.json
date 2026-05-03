@@ -17,6 +17,10 @@
       "release-type": "node",
       "component": "pi-context-overlay"
     },
+    "packages/pi-designmd-foundry": {
+      "release-type": "node",
+      "component": "pi-designmd-foundry"
+    },
     "packages/pi-interaction/pi-editor-registry": {
       "release-type": "node",
       "component": "pi-editor-registry"

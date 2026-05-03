@@ -54,8 +54,8 @@ Refreshed from `node ./scripts/tech-stack-review-surfaces.mjs --json`.
 
 Snapshot summary:
 
-- package entries audited: `20`
-- legacy-full: `10`
+- package entries audited: `22`
+- legacy-full: `12`
 - reduced-form: `2`
 - policy-only: `0`
 - no local surface: `8`
@@ -64,10 +64,12 @@ Snapshot summary:
 
 - `packages/pi-autoresearch`
 - `packages/pi-context-overlay`
+- `packages/pi-designmd-foundry`
 - `packages/pi-interaction/pi-model-selection`
 - `packages/pi-little-helpers`
 - `packages/pi-ontology-workflows`
 - `packages/pi-prompt-template-execution`
+- `packages/pi-provenance`
 - `packages/pi-session-compaction`
 - `packages/pi-society-orchestrator`
 - `packages/pi-society-startup-context`
@@ -97,13 +99,15 @@ Snapshot summary:
 
 The `#601` audit confirmed that the original `legacy-full` bucket was not uniform, and the first routed follow-up wave has now proved that classification in practice:
 
-- the current ten `legacy-full` package-local surfaces still carry both `docs/tech-stack.local.md` and `policy/stack-lane.json`:
+- the current twelve `legacy-full` package-local surfaces still carry both `docs/tech-stack.local.md` and `policy/stack-lane.json`:
   - `packages/pi-autoresearch`
   - `packages/pi-context-overlay`
+  - `packages/pi-designmd-foundry`
   - `packages/pi-interaction/pi-model-selection`
   - `packages/pi-little-helpers`
   - `packages/pi-ontology-workflows`
   - `packages/pi-prompt-template-execution`
+  - `packages/pi-provenance`
   - `packages/pi-session-compaction`
   - `packages/pi-society-orchestrator`
   - `packages/pi-society-startup-context`
@@ -120,16 +124,19 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
 | `packages/pi-autonomous-session-control` | same boilerplate doc copy at a monorepo-package root | `none` | completed in `#635`; use as the monorepo-package reference path for the same boilerplate-only reduction |
 | `packages/pi-autoresearch` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-autoresearch` |
 | `packages/pi-context-overlay` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-context-overlay` |
+| `packages/pi-designmd-foundry` | simple-package full surface currently present after package introduction | `review-first` | classify whether the design-tool package has a real local override before reducing |
 | `packages/pi-interaction/pi-interaction` | distinct child-package doc retained after `#636`; keeps the package-specific typecheck/validation note without local policy metadata (`sha256:ce50c7…d6fa`) | `reduced-form` | completed in `#636`; use as the reference path for future child-package reduced-form reductions |
 | `packages/pi-little-helpers` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-little-helpers` |
 | `packages/pi-ontology-workflows` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-ontology-workflows` |
 | `packages/pi-peer-messaging` | new simple-package scaffold already landing without package-local tech-stack overrides or local policy metadata | `none` | keep as a proof point that fresh simple-package scaffolds can land directly in the root-owned `none` steady state |
+| `packages/pi-provenance` | simple-package full surface currently present after package introduction | `review-first` | classify whether provenance-specific local stack notes are real overrides before reducing |
 | `packages/pi-society-orchestrator` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-society-orchestrator` |
 | `packages/pi-vault-client` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root with adjacent template-verification responsibility | `none` | package-local reduction candidate in `packages/pi-vault-client`; when scaffold defaults change, route adjacent Nunjucks verification through this package |
 
 ## Routed next-candidate clusters
 
 - **Cluster A — remaining boilerplate-only `none` targets:** `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` remain explicitly classified as boilerplate-only local surfaces. `#634` and `#635` have already proved the simple-package and monorepo-package reference paths for this cluster, and the next queue should stay narrow instead of opening a blanket migration backlog.
+- **Cluster A2 — newly present full surfaces needing classification:** `packages/pi-designmd-foundry` and `packages/pi-provenance` currently appear in the `legacy-full` bucket, but their package-specific status should be reviewed before they are folded into the boilerplate-only reduction queue.
 - **Cluster B — completed `reduced-form` reference path:** `packages/pi-interaction/pi-interaction` no longer sits in the `legacy-full` bucket; `#636` now serves as the reference path for the only child-package case that needed to keep a real local override doc while dropping local policy metadata.
 - **Adjacent template/default follow-up:** if the next slice changes what fresh package scaffolds emit, route that change to `~/ai-society/softwareco/owned/pi-extensions-template`, then prove the live template lane through `packages/pi-vault-client` when Nunjucks verification is involved.
 
@@ -182,5 +189,5 @@ Notable refresh outcome for the current alignment wave:
 - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` sit in the `none` bucket after the two completed `none` pilots.
 - `packages/pi-peer-messaging` now also sits in the `none` bucket as a fresh simple-package scaffold that landed directly in the root-owned steady state without local tech-stack duplication.
 - `packages/pi-interaction/pi-interaction` now joins `packages/pi-interaction` in the `reduced-form` bucket after `#636`.
-- `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` are the current `legacy-full` package-local surfaces.
+- `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-designmd-foundry`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` are among the current `legacy-full` package-local surfaces; `packages/pi-interaction/pi-model-selection`, `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
 - no package is currently in a `policy-only` intermediate state.

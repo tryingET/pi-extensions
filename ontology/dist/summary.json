@@ -5,6 +5,7 @@
     "co.software.Service",
     "core.Actor",
     "core.Agent",
+    "core.AgentExperience",
     "core.Assumption",
     "core.AuditEvent",
     "core.Capability",
@@ -45,7 +46,7 @@
     "pi.extensions.OptimizationHypothesis"
   ],
   "counts": {
-    "concepts": 43,
+    "concepts": 44,
     "relations": 20
   },
   "layers": [
