@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,6 +30,7 @@ import { resolveAutoresearchRuntimeSnapshotPath } from "../src/core/resume.ts";
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
@@ -42,6 +44,7 @@ import {
   appendReceipt,
   buildAutoresearchAdapterContractCatalog,
   buildAutoresearchAkEvidencePacket,
+  buildAutoresearchCandidateBindPlan,
   buildAutoresearchCandidateDecisionWorkbench,
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchHelpText,
@@ -54,6 +57,7 @@ import {
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
+  formatAutoresearchCandidateBindPlan,
   formatAutoresearchCandidateDecisionWorkbench,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchKnowledgeExportPacket,
@@ -392,6 +396,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.deepEqual(status.toolNames, [
     AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
     AUTORESEARCH_STATUS_TOOL_NAME,
+    AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
     AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
     AUTORESEARCH_RUN_TOOL_NAME,
     AUTORESEARCH_CONTROL_TOOL_NAME,
@@ -1064,6 +1069,14 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
   assert.match(rewindResult.text, /autoresearch_candidate_decision/);
   assert.match(rewindResult.text, /action: "plan_rewind"/);
 
+  const bindResult = (await inputHandler?.(
+    { source: "user", text: "$$ autoresearch bind current" },
+    { cwd: "/repo" },
+  )) as { action: string; text: string };
+  assert.equal(bindResult.action, "transform");
+  assert.match(bindResult.text, /autoresearch_candidate_bind/);
+  assert.match(bindResult.text, /candidateWorktree: "\/repo"/);
+
   const campaignResult = (await inputHandler?.(
     { source: "user", text: "$$ ar optimize startup" },
     { cwd: "/repo" },
@@ -1079,6 +1092,34 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
     },
   )) as { action: string };
   assert.equal(slashResult.action, "continue");
+});
+
+test("/autoresearch bind prepares a candidate-bind tool call", async () => {
+  const { commands } = registerHarness();
+  let editorTitle = "";
+  let editorText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("bind current", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor(title: string, text: string) {
+        editorTitle = title;
+        editorText = text;
+      },
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(editorTitle, /Bind autoresearch candidate/);
+  assert.match(editorText, /autoresearch_candidate_bind/);
+  assert.match(editorText, /candidateWorktree: "\/repo"/);
+  assert.match(editorText, /candidateBaseRef: "<base-ref>"/);
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_candidate_bind/);
 });
 
 test("/autoresearch keep/discard/rewind prepare candidate-decision tool calls", async () => {
@@ -1162,6 +1203,67 @@ test("autoresearch_runtime_status can render the compact dashboard", async () =>
     assert.match(output, /Candidate decision/);
     assert.match(output, /no candidate bound yet/);
     assert.match(output, /Next legal surfaces/);
+  });
+});
+
+test("autoresearch_candidate_bind inspects a worktree and prepares the measurement call", async () => {
+  await withTempDir(async (cwd) => {
+    execFileSync("git", ["init"], { cwd, stdio: "ignore" });
+    mkdirSync(path.join(cwd, "src"), { recursive: true });
+    writeFileSync(path.join(cwd, "src/value.txt"), "base\n");
+    execFileSync("git", ["add", "src/value.txt"], { cwd, stdio: "ignore" });
+    execFileSync(
+      "git",
+      ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "base"],
+      { cwd, stdio: "ignore" },
+    );
+    execFileSync("git", ["checkout", "-b", "candidate/bind"], { cwd, stdio: "ignore" });
+    writeFileSync(path.join(cwd, "src/value.txt"), "candidate\n");
+    execFileSync("git", ["add", "src/value.txt"], { cwd, stdio: "ignore" });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-m",
+        "candidate",
+      ],
+      { cwd, stdio: "ignore" },
+    );
+
+    const plan = buildAutoresearchCandidateBindPlan({
+      cwd,
+      candidateWorktree: cwd,
+      candidateBaseRef: "HEAD~1",
+    });
+
+    assert.equal(plan.inspection.exists, true);
+    assert.equal(plan.inspection.isGitWorktree, true);
+    assert.equal(plan.inspection.sameRepository, true);
+    assert.equal(plan.inspection.branch, "candidate/bind");
+    assert.deepEqual(plan.inspection.filesChanged, ["src/value.txt"]);
+    assert.match(plan.exactNextCalls[0] ?? "", /autoresearch_runtime_run/);
+    assert.match(plan.exactNextCalls[0] ?? "", /candidateWorktree/);
+    assert.match(plan.exactNextCalls[0] ?? "", /candidateBaseRef/);
+    assert.match(plan.plannedCommands.join("\n"), /diff --stat/);
+    assert.match(formatAutoresearchCandidateBindPlan(plan), /CANDIDATE BIND PLAN/);
+
+    const { tools } = registerHarness();
+    const result = await tools
+      .get(AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME)
+      ?.execute(
+        "call-candidate-bind",
+        { cwd, candidateWorktree: cwd, candidateBaseRef: "HEAD~1" },
+        undefined,
+        undefined,
+        { cwd },
+      );
+    assert.ok(result);
+    assert.match(result.content[0]?.text ?? "", /PI-AUTORESEARCH CANDIDATE BIND PLAN/);
+    assert.match(result.content[0]?.text ?? "", /candidate\/bind/);
   });
 });
 

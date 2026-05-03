@@ -67,6 +67,7 @@ The package currently owns:
 
 - `/autoresearch` operator entrypoint; with an objective it now prepares the supervised campaign-start tool call instead of silently ignoring arguments;
 - `autoresearch_campaign_start` as the first package-owned front door that composes autoplan, optional governed setup, optional baseline, and optional bounded loop modes;
+- `autoresearch_candidate_bind` as a read-only / plan-only candidate intake surface that inspects a controller-verified worktree/branch/base ref and prepares the exact measurement call before lifecycle decisions;
 - `autoresearch_candidate_decision` as a read-only / plan-only candidate lifecycle workbench for keep/discard/rewind/rebaseline/sample/finalize recommendations from current runtime status, closeout, and candidate-result evidence;
 - bounded runtime status, setup, run, loop, control, and finalization surfaces;
 - XState campaign machine plus append-only local event ledger;
@@ -172,19 +173,27 @@ A first fullscreen/overlay slice is also landed: `/autoresearch overlay` and `/a
 
 A browser export slice is now landed: `/autoresearch export` writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session. `/autoresearch export off` stops that session-local refresher. The export is read-only and does not own execution or promotion.
 
-A first candidate decision workbench slice is now landed:
+A first candidate intake planner slice is now landed:
+
+```text
+autoresearch_candidate_bind({ candidateWorktree, candidateBaseRef, action: "plan_run" })
+```
+
+The surface inspects a controller-verified worktree/path, detects git worktree status, same-repository posture, branch/ref, HEAD, optional base-ref resolution, changed files, and a diff summary. It prepares the exact `autoresearch_runtime_run({ ...candidate binding metadata... })` call needed to measure the candidate and then return to candidate decisions. It is read-only/plan-only: no benchmark, merge, worktree deletion, reset/recreate, peer launch, AK/KES/evidence write, or promotion is applied by the package.
+
+A first candidate decision workbench slice is also landed:
 
 ```text
 autoresearch_candidate_decision({ action: "status" | "plan_keep" | "plan_discard" | "plan_rewind" })
 ```
 
-The surface consumes runtime status, closeout, and candidate-result evidence to show the current candidate binding, empirical posture, promotion readiness, confidence/noise interpretation, checks status, baseline-drift risk, and the next legal lifecycle decision. Keep/discard/rewind outputs are command plans only: no merge, worktree deletion, reset/recreate, peer launch, AK/KES/evidence write, or promotion is applied by the package. The dashboard, overlay, and browser export now surface a compact candidate decision summary so the next keep/discard/rewind/rebaseline/sample/finalize move is visible without scraping receipts.
+The surface consumes runtime status, closeout, and candidate-result evidence to show the current candidate binding, empirical posture, promotion readiness, confidence/noise interpretation, checks status, baseline-drift risk, and the next legal lifecycle decision. Keep/discard/rewind outputs are command plans only: no merge, worktree deletion, reset/recreate, peer launch, AK/KES/evidence write, or promotion is applied by the package. The dashboard, overlay, and browser export now surface a compact candidate decision summary so the next bind/keep/discard/rewind/rebaseline/sample/finalize move is visible without scraping receipts.
 
-A first slash-command confirmation affordance is also landed: `/autoresearch candidate|decision|keep|discard|rewind` prepares the exact `autoresearch_candidate_decision({ ... })` call in the editor for review. This makes candidate lifecycle planning discoverable from the operator surface without applying any destructive or durable action.
+A first slash-command confirmation affordance is also landed: `/autoresearch bind [current|<worktree>]` prepares the exact `autoresearch_candidate_bind({ ... })` call, and `/autoresearch candidate|decision|keep|discard|rewind` prepares the exact `autoresearch_candidate_decision({ ... })` call in the editor for review. This makes candidate intake and lifecycle planning discoverable from the operator surface without applying any destructive or durable action.
 
 A first optional interaction-picker affordance is now also landed: `$$ autoresearch candidate`, `$$ ar candidate`, and `$$ autoresearch keep|discard|rewind` open a candidate-decision picker when `@tryinget/pi-interaction` / `@tryinget/pi-trigger-adapter` is loaded. It offers status/keep/discard/rewind planning choices, decorates direct/recommended choices where runtime receipts make that possible, and inserts the exact `autoresearch_candidate_decision({ ... })` call selected by the operator. A deterministic non-slash `$$ autoresearch ...` input fallback also exists so PTX's `$$ /template` namespace does not steal candidate-decision inputs. The picker/fallback still applies no worktree or durable owner-surface mutation.
 
-Next product work: dogfood this front door and candidate decision workbench against real campaigns, then add richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
+Next product work: dogfood this front door, candidate bind planner, and candidate decision workbench against real campaigns, then add richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

@@ -44,6 +44,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `/autoresearch`
   - with no objective, opens/reports the bounded runtime overview
   - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate decision summary, candidate policy, and next legal surfaces
+  - with `bind` or `bind current`, prepares a reviewable `autoresearch_candidate_bind({ ... })` call to inspect a candidate worktree and prepare the exact measurement run call
   - with `candidate`, `decision`, `keep`, `discard`, or `rewind`, prepares a reviewable `autoresearch_candidate_decision({ ... })` call for status or plan-only lifecycle decisions
   - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
   - with `export`, writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session; `export off` stops the refresher
@@ -54,6 +55,10 @@ The current boundary is now more specific: the package is the runtime owner for 
   - opens the pi-interaction picker for plan-only, governed setup plan, baseline, or bounded-loop campaign-start modes
   - replaces the editor text with the exact `autoresearch_campaign_start({ ... })` call selected by the operator
   - degrades safely when the optional interaction runtime is not installed
+- `$$ autoresearch bind [current|<worktree>]` / `$$ ar bind [current|<worktree>]`
+  - when the optional interaction runtime is loaded, opens a candidate-bind picker that inserts the exact `autoresearch_candidate_bind({ ... })` call
+  - also has a deterministic input fallback so candidate intake does not get mistaken for a campaign objective
+  - remains read-only/plan-only; no benchmark, worktree command, or durable promotion is applied by the picker/fallback
 - `$$ autoresearch candidate` / `$$ ar candidate` and `$$ autoresearch keep|discard|rewind`
   - when the optional interaction runtime is loaded, opens a candidate-decision picker for status, keep, discard, or rewind planning
   - decorates direct and currently recommended choices when runtime receipts make that possible
@@ -72,6 +77,13 @@ The current boundary is now more specific: the package is the runtime owner for 
   - supports a policy-only `candidatePolicy` for worktree-based keep/discard/rewind choices; default keep preserves the branch, default discard suggests cleanup after receipt review, and default rewind resets the candidate worktree to base
   - keeps Replay Fabric as observer/history/recovery-clue projection and ASC rewind as live Pi/session recovery; neither becomes the candidate accept/discard executor
   - does not auto-spawn peers, commit, merge/delete worktrees, write AK/KES/evidence, or perform durable promotion
+- `autoresearch_candidate_bind`
+  - is the read-only / plan-only candidate intake planner
+  - inspects a controller-verified candidate worktree/path, detects git worktree status, same-repository posture, branch/ref, HEAD, optional base-ref resolution, changed files, and a diff summary
+  - prepares the exact `autoresearch_runtime_run({ ... candidateWorktree, candidateBranch, candidateBaseRef, candidateDiffSummary, candidateFilesChanged ... })` call needed to bind and measure the candidate
+  - defaults `candidateWorktree` to `cwd` so `/autoresearch bind current` supports the common current-worktree handoff
+  - surfaces read-only git preflight commands and warnings when the worktree or base ref is missing
+  - does not run benchmarks, merge, delete/reset worktrees, spawn peers, write AK/KES/evidence, or promote
 - `autoresearch_candidate_decision`
   - is the read-only / plan-only candidate lifecycle decision workbench
   - supports `action: "status" | "plan_keep" | "plan_discard" | "plan_rewind"`

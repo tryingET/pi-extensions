@@ -338,7 +338,14 @@ The seventh interaction/browser-export slice is now also landed:
 - `/autoresearch export off` stops that refresher;
 - the browser dashboard is read-only and does not own execution, worktree mutation, evidence writes, or promotion.
 
-The eighth candidate decision workbench slice is now also landed:
+The eighth candidate intake planner slice is now also landed:
+
+- `autoresearch_candidate_bind` exposes read-only `status` / `plan_run` candidate intake planning;
+- it inspects a controller-verified worktree/path, branch/ref, optional base ref, changed files, and diff summary;
+- it prepares the exact `autoresearch_runtime_run({ ...candidate binding metadata... })` call needed to measure the candidate;
+- it does not run benchmarks, merge, delete/reset worktrees, spawn peers, write AK/KES/evidence, or promote.
+
+The ninth candidate decision workbench slice is now also landed:
 
 - `autoresearch_candidate_decision` exposes `status`, `plan_keep`, `plan_discard`, and `plan_rewind` actions;
 - it consumes package-local runtime status, closeout, and candidate-result evidence;
@@ -348,15 +355,17 @@ The eighth candidate decision workbench slice is now also landed:
 - it does not merge, delete worktrees, reset/recreate worktrees, spawn peers, write AK/KES/evidence, or promote;
 - the editor dashboard, overlay, and browser export now include a compact candidate decision summary/next surface.
 
-The ninth slash-command candidate confirmation slice is now also landed:
+The tenth slash-command candidate confirmation slice is now also landed:
 
+- `/autoresearch bind [current|<worktree>]` prepares a reviewable candidate-bind intake call;
 - `/autoresearch candidate` and `/autoresearch decision` prepare a reviewable candidate-decision status call;
 - `/autoresearch keep`, `/autoresearch discard`, and `/autoresearch rewind` prepare reviewable `plan_keep`, `plan_discard`, and `plan_rewind` calls;
 - the slash affordance opens exact tool calls in the editor rather than applying commands;
 - destructive worktree cleanup/reset/recreate and durable promotion still require explicit external operator action.
 
-The tenth optional interaction-picker candidate decision slice is now also landed:
+The eleventh optional interaction-picker candidate decision slice is now also landed:
 
+- `$$ autoresearch bind [current|<worktree>]` / `$$ ar bind [current|<worktree>]` open a picker/fallback for candidate-bind intake planning;
 - `$$ autoresearch candidate` / `$$ ar candidate` open a picker for candidate-decision status, keep, discard, or rewind planning;
 - `$$ autoresearch keep|discard|rewind` direct-trigger the same picker with the direct action prioritized;
 - picker options can be decorated as direct or recommended from package-local runtime receipts/status;

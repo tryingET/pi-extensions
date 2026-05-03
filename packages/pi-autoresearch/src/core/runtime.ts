@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   appendFileSync,
   chmodSync,
@@ -83,6 +83,7 @@ export const AUTORESEARCH_LOOP_TOOL_NAME = "autoresearch_runtime_loop";
 export const AUTORESEARCH_AUTOPLAN_TOOL_NAME = "autoresearch_runtime_autoplan";
 export const AUTORESEARCH_SETUP_TOOL_NAME = "autoresearch_runtime_setup";
 export const AUTORESEARCH_CAMPAIGN_START_TOOL_NAME = "autoresearch_campaign_start";
+export const AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME = "autoresearch_candidate_bind";
 export const AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME = "autoresearch_candidate_decision";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 
@@ -628,6 +629,46 @@ export interface AutoresearchCandidateDecisionWorkbench {
   boundaryWarnings: string[];
   status: AutoresearchRuntimeStatus;
   candidateResult: AutoresearchCandidateResultPacket;
+}
+
+export type AutoresearchCandidateBindAction = "status" | "plan_run";
+
+export interface BuildAutoresearchCandidateBindInput {
+  cwd: string;
+  action?: AutoresearchCandidateBindAction;
+  candidateWorktree?: string | null;
+  candidateSource?: AutoresearchCandidateBindingSource;
+  candidateBranch?: string | null;
+  candidateBaseRef?: string | null;
+  description?: string | null;
+}
+
+export interface AutoresearchCandidateBindInspection {
+  candidateWorktree: string;
+  exists: boolean;
+  isGitWorktree: boolean;
+  sameRepository: boolean | null;
+  repositoryRoot: string | null;
+  branch: string | null;
+  head: string | null;
+  baseRef: string | null;
+  baseResolved: boolean;
+  statusShort: string[];
+  filesChanged: string[];
+  diffSummary: string;
+  warnings: string[];
+}
+
+export interface AutoresearchCandidateBindPlan {
+  cwd: string;
+  action: AutoresearchCandidateBindAction;
+  candidateSource: AutoresearchCandidateBindingSource;
+  description: string;
+  inspection: AutoresearchCandidateBindInspection;
+  exactNextCalls: string[];
+  plannedCommands: string[];
+  boundaryWarnings: string[];
+  status: AutoresearchRuntimeStatus;
 }
 
 export interface AutoresearchSetupConfigInput {
@@ -3121,13 +3162,95 @@ export function formatAutoresearchCandidateDecisionDashboardSummary(
   const nextCall =
     result.exactNextCalls[0] ??
     `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(result.cwd)}, action: "status" })`;
+  const bindHint = result.candidate
+    ? []
+    : [
+        `- bind surface: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(result.cwd)}, candidateWorktree: ${JSON.stringify(result.cwd)}, action: "plan_run" })`,
+      ];
   return [
     `- candidate: ${candidateLabel}`,
     `- recommended decision: ${result.recommendedDecision}`,
     `- reason: ${result.recommendationReason}`,
     `- empirical posture: ${result.empirical.classification}; promotion ready: ${result.empirical.promotionReady ? "yes" : "no"}`,
     `- checks: ${result.empirical.checksStatus}; baseline drift risk: ${result.empirical.baselineDriftRisk}`,
+    ...bindHint,
     `- next surface: ${nextCall}`,
+  ].join("\n");
+}
+
+export function buildAutoresearchCandidateBindPlan(
+  input: BuildAutoresearchCandidateBindInput,
+): AutoresearchCandidateBindPlan {
+  const cwd = path.resolve(input.cwd);
+  const candidateWorktree = path.resolve(cwd, input.candidateWorktree ?? cwd);
+  const candidateSource = input.candidateSource ?? "manual";
+  const inspection = inspectAutoresearchCandidateWorktree({
+    cwd,
+    candidateWorktree,
+    candidateBranch: input.candidateBranch,
+    candidateBaseRef: input.candidateBaseRef,
+  });
+  const description =
+    stringOrNull(input.description) ??
+    `Measure bound candidate ${inspection.branch ?? path.basename(candidateWorktree)}`;
+  const exactNextCalls = buildAutoresearchCandidateBindNextCalls({
+    cwd,
+    description,
+    candidateSource,
+    inspection,
+  });
+  const plannedCommands = buildAutoresearchCandidateBindCommandPlan({ cwd, inspection });
+
+  return {
+    cwd,
+    action: input.action ?? "plan_run",
+    candidateSource,
+    description,
+    inspection,
+    exactNextCalls,
+    plannedCommands,
+    boundaryWarnings: [...AUTORESEARCH_CANDIDATE_BIND_BOUNDARY_WARNINGS],
+    status: buildAutoresearchRuntimeStatus(cwd),
+  };
+}
+
+export function formatAutoresearchCandidateBindPlan(result: AutoresearchCandidateBindPlan): string {
+  return [
+    "# PI-AUTORESEARCH CANDIDATE BIND PLAN",
+    "",
+    "Read-only / plan-only candidate intake surface. It inspects a controller-verified worktree/branch and prepares the exact measurement call; it does not run benchmarks, merge, delete worktrees, reset worktrees, spawn peers, write AK/KES/evidence, or promote results.",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- action: ${result.action}`,
+    `- candidate source: ${result.candidateSource}`,
+    `- measurement description: ${result.description}`,
+    "",
+    "## Candidate inspection",
+    `- candidate worktree: ${result.inspection.candidateWorktree}`,
+    `- exists: ${result.inspection.exists ? "yes" : "no"}`,
+    `- git worktree: ${result.inspection.isGitWorktree ? "yes" : "no"}`,
+    `- same repository as cwd: ${formatNullableBoolean(result.inspection.sameRepository)}`,
+    `- repository root: ${result.inspection.repositoryRoot ?? "(unknown)"}`,
+    `- branch/ref: ${result.inspection.branch ?? "(unknown)"}`,
+    `- head: ${result.inspection.head ?? "(unknown)"}`,
+    `- base ref: ${result.inspection.baseRef ?? "(not supplied; provide candidateBaseRef for base-relative diffs and rewind plans)"}`,
+    `- base resolved: ${result.inspection.baseResolved ? "yes" : "no"}`,
+    `- files changed: ${formatTargetFiles(result.inspection.filesChanged)}`,
+    `- diff summary: ${result.inspection.diffSummary}`,
+    "",
+    "## Read-only inspection commands",
+    ...result.plannedCommands.map((command) => `- ${command}`),
+    "",
+    "## Exact next calls",
+    ...result.exactNextCalls.map((call) => `- ${call}`),
+    "",
+    "## Warnings",
+    ...(result.inspection.warnings.length > 0
+      ? result.inspection.warnings.map((warning) => `- ${warning}`)
+      : ["- none"]),
+    "",
+    "## Boundary warnings",
+    ...result.boundaryWarnings.map((warning) => `- ${warning}`),
   ].join("\n");
 }
 
@@ -3441,6 +3564,7 @@ export function formatAutoresearchDashboard(
     `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "closeout" })`,
+    `- candidate bind: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, candidateWorktree: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "plan_run" })`,
     `- candidate decision: ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     `- control gate: ${AUTORESEARCH_CONTROL_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     "",
@@ -3830,6 +3954,7 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     `- tools: ${status.toolNames.join(", ")}`,
     `- use ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME} as the supervised campaign front door from one bounded objective; plan first, then optionally bootstrap a baseline or bounded loop`,
     "- use autoresearch_runtime_status to inspect the current bounded runtime state",
+    `- use ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME} to inspect a candidate worktree/branch and prepare the exact measurement call without running or mutating anything`,
     `- use ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME} to inspect or plan candidate keep/discard/rewind decisions without mutating worktrees or promoting`,
     "- use autoresearch_runtime_status with action=setup or action=finalize to request governed setup/finalize packets",
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
@@ -5192,6 +5317,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     toolNames: [
       AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
       AUTORESEARCH_STATUS_TOOL_NAME,
+      AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
       AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
       AUTORESEARCH_RUN_TOOL_NAME,
       AUTORESEARCH_CONTROL_TOOL_NAME,
@@ -6243,6 +6369,13 @@ const AUTORESEARCH_CANDIDATE_DECISION_BOUNDARY_WARNINGS = [
   "this surface does not merge, delete worktrees, reset worktrees, spawn peers, write evidence, or promote",
 ] as const;
 
+const AUTORESEARCH_CANDIDATE_BIND_BOUNDARY_WARNINGS = [
+  "candidate bind is intake only; it prepares measurement metadata and does not execute the benchmark",
+  "controller verification remains required for candidate source, base ref, diff summary, and changed files",
+  "worktree lifecycle remains the keep/discard/rewind primitive; bind does not merge, delete, reset, or promote",
+  "durable promotion and evidence writes remain external owner-surface actions after explicit review",
+] as const;
+
 function summarizeCandidateForDecision(
   binding: AutoresearchCandidateBinding | null,
 ): AutoresearchCandidateDecisionSummary | null {
@@ -6349,7 +6482,7 @@ function buildAutoresearchCandidateDecisionNextCalls(input: {
   ];
   if (!input.candidate) {
     calls.push(
-      `${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${cwdLiteral}, description: "Measure a controller-verified candidate", candidateSource: "manual", candidateWorktree: "<worktree>", candidateBranch: "<branch>", candidateBaseRef: "<base-ref>", candidateDiffSummary: "<verified diff summary>", candidateFilesChanged: ["<file>"] })`,
+      `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${cwdLiteral}, candidateWorktree: "<worktree>", candidateBaseRef: "<base-ref>", action: "plan_run" })`,
     );
     return calls;
   }
@@ -6433,6 +6566,271 @@ function buildAutoresearchCandidateDecisionCommandPlan(input: {
         ];
   }
   return [];
+}
+
+function inspectAutoresearchCandidateWorktree(input: {
+  cwd: string;
+  candidateWorktree: string;
+  candidateBranch?: string | null;
+  candidateBaseRef?: string | null;
+}): AutoresearchCandidateBindInspection {
+  const warnings: string[] = [];
+  const exists = existsSync(input.candidateWorktree);
+  if (!exists) {
+    warnings.push(
+      "candidate worktree path does not exist; create/select a worktree before measurement",
+    );
+    return {
+      candidateWorktree: input.candidateWorktree,
+      exists,
+      isGitWorktree: false,
+      sameRepository: null,
+      repositoryRoot: null,
+      branch: stringOrNull(input.candidateBranch),
+      head: null,
+      baseRef: stringOrNull(input.candidateBaseRef),
+      baseResolved: false,
+      statusShort: [],
+      filesChanged: [],
+      diffSummary: "candidate worktree is unavailable",
+      warnings,
+    };
+  }
+
+  const inside = runGitForCandidateBind(input.candidateWorktree, [
+    "rev-parse",
+    "--is-inside-work-tree",
+  ]);
+  const isGitWorktree = inside.ok && inside.stdout.trim() === "true";
+  if (!isGitWorktree) {
+    warnings.push("candidate path exists but is not a git worktree");
+  }
+
+  const repositoryRoot = isGitWorktree
+    ? nullIfEmpty(
+        runGitForCandidateBind(input.candidateWorktree, ["rev-parse", "--show-toplevel"]).stdout,
+      )
+    : null;
+  const cwdCommonDir = runGitForCandidateBind(input.cwd, ["rev-parse", "--git-common-dir"]);
+  const candidateCommonDir = runGitForCandidateBind(input.candidateWorktree, [
+    "rev-parse",
+    "--git-common-dir",
+  ]);
+  const sameRepository =
+    cwdCommonDir.ok && candidateCommonDir.ok
+      ? path.resolve(input.cwd, cwdCommonDir.stdout.trim()) ===
+        path.resolve(input.candidateWorktree, candidateCommonDir.stdout.trim())
+      : null;
+  if (sameRepository === false) {
+    warnings.push("candidate worktree does not appear to belong to the same git repository as cwd");
+  }
+
+  const detectedBranch = isGitWorktree
+    ? nullIfEmpty(
+        runGitForCandidateBind(input.candidateWorktree, ["branch", "--show-current"]).stdout,
+      )
+    : null;
+  const head = isGitWorktree
+    ? nullIfEmpty(
+        runGitForCandidateBind(input.candidateWorktree, ["rev-parse", "--short", "HEAD"]).stdout,
+      )
+    : null;
+  const baseRef = stringOrNull(input.candidateBaseRef);
+  const baseCheck = baseRef
+    ? runGitForCandidateBind(input.candidateWorktree, [
+        "rev-parse",
+        "--verify",
+        `${baseRef}^{commit}`,
+      ])
+    : null;
+  const baseResolved = Boolean(baseCheck?.ok);
+  if (baseRef && !baseResolved) {
+    warnings.push(
+      `candidateBaseRef ${JSON.stringify(baseRef)} did not resolve in the candidate worktree`,
+    );
+  }
+  if (!baseRef) {
+    warnings.push(
+      "candidateBaseRef was not supplied; diff summary falls back to working-tree status and rewind plans cannot be complete",
+    );
+  }
+
+  const statusShort = isGitWorktree
+    ? splitNonEmptyLines(
+        runGitForCandidateBind(input.candidateWorktree, [
+          "status",
+          "--short",
+          "--untracked-files=all",
+        ]).stdout,
+      )
+    : [];
+  const filesChanged = isGitWorktree
+    ? deriveCandidateBindFilesChanged({
+        worktree: input.candidateWorktree,
+        baseRef,
+        baseResolved,
+        statusShort,
+      })
+    : [];
+  const diffSummary = isGitWorktree
+    ? deriveCandidateBindDiffSummary({
+        worktree: input.candidateWorktree,
+        baseRef,
+        baseResolved,
+        statusShort,
+        filesChanged,
+      })
+    : "candidate path is not a git worktree";
+
+  return {
+    candidateWorktree: input.candidateWorktree,
+    exists,
+    isGitWorktree,
+    sameRepository,
+    repositoryRoot,
+    branch: stringOrNull(input.candidateBranch) ?? detectedBranch,
+    head,
+    baseRef,
+    baseResolved,
+    statusShort,
+    filesChanged,
+    diffSummary,
+    warnings,
+  };
+}
+
+function buildAutoresearchCandidateBindNextCalls(input: {
+  cwd: string;
+  description: string;
+  candidateSource: AutoresearchCandidateBindingSource;
+  inspection: AutoresearchCandidateBindInspection;
+}): string[] {
+  const candidateWorktree = input.inspection.isGitWorktree
+    ? input.inspection.candidateWorktree
+    : "<worktree>";
+  const candidateBranch = input.inspection.branch ?? "<branch>";
+  const candidateBaseRef = input.inspection.baseRef ?? "<base-ref>";
+  const files =
+    input.inspection.filesChanged.length > 0 ? input.inspection.filesChanged : ["<file>"];
+  return [
+    `${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, description: ${JSON.stringify(input.description)}, candidateSource: ${JSON.stringify(input.candidateSource)}, candidateWorktree: ${JSON.stringify(candidateWorktree)}, candidateBranch: ${JSON.stringify(candidateBranch)}, candidateBaseRef: ${JSON.stringify(candidateBaseRef)}, candidateDiffSummary: ${JSON.stringify(input.inspection.diffSummary)}, candidateFilesChanged: ${JSON.stringify(files)} })`,
+    `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, action: "status" })`,
+  ];
+}
+
+function buildAutoresearchCandidateBindCommandPlan(input: {
+  cwd: string;
+  inspection: AutoresearchCandidateBindInspection;
+}): string[] {
+  const worktree = input.inspection.candidateWorktree;
+  const commands = [
+    `git -C ${shellSingleQuote(worktree)} status --short --untracked-files=all # read-only candidate preflight`,
+  ];
+  if (input.inspection.baseRef) {
+    commands.push(
+      `git -C ${shellSingleQuote(worktree)} diff --stat --compact-summary ${shellSingleQuote(input.inspection.baseRef)}...HEAD # read-only base-relative summary`,
+    );
+    commands.push(
+      `git -C ${shellSingleQuote(worktree)} diff --name-only ${shellSingleQuote(input.inspection.baseRef)}...HEAD # read-only candidate files`,
+    );
+  } else {
+    commands.push(
+      `git -C ${shellSingleQuote(input.cwd)} worktree list --porcelain # read-only; choose candidate worktree and base ref`,
+    );
+  }
+  return commands;
+}
+
+function deriveCandidateBindFilesChanged(input: {
+  worktree: string;
+  baseRef: string | null;
+  baseResolved: boolean;
+  statusShort: string[];
+}): string[] {
+  if (input.baseRef && input.baseResolved) {
+    const baseFiles = splitNonEmptyLines(
+      runGitForCandidateBind(input.worktree, ["diff", "--name-only", `${input.baseRef}...HEAD`])
+        .stdout,
+    );
+    const statusFiles = input.statusShort.map(parseGitStatusPath).filter(isNonEmptyString);
+    return uniqueStrings([...baseFiles, ...statusFiles]);
+  }
+  return uniqueStrings(input.statusShort.map(parseGitStatusPath).filter(isNonEmptyString));
+}
+
+function deriveCandidateBindDiffSummary(input: {
+  worktree: string;
+  baseRef: string | null;
+  baseResolved: boolean;
+  statusShort: string[];
+  filesChanged: string[];
+}): string {
+  if (input.baseRef && input.baseResolved) {
+    const summary = splitNonEmptyLines(
+      runGitForCandidateBind(input.worktree, [
+        "diff",
+        "--stat",
+        "--compact-summary",
+        `${input.baseRef}...HEAD`,
+      ]).stdout,
+    ).join("; ");
+    return (
+      summary ||
+      `base-relative diff is empty; ${input.statusShort.length} working-tree status line(s)`
+    );
+  }
+  return `${input.filesChanged.length} changed path(s) from working-tree status; provide candidateBaseRef for base-relative diff summary`;
+}
+
+function runGitForCandidateBind(
+  cwd: string,
+  args: string[],
+): { ok: boolean; stdout: string; stderr: string } {
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    timeout: 5000,
+    maxBuffer: 1024 * 1024,
+  });
+  return {
+    ok: result.status === 0,
+    stdout: String(result.stdout ?? ""),
+    stderr: String(result.stderr ?? ""),
+  };
+}
+
+function parseGitStatusPath(line: string): string | null {
+  const raw = line.slice(3).trim();
+  if (!raw) return null;
+  const renameMarker = " -> ";
+  return raw.includes(renameMarker)
+    ? raw.slice(raw.lastIndexOf(renameMarker) + renameMarker.length)
+    : raw;
+}
+
+function splitNonEmptyLines(value: string): string[] {
+  return value
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(isNonEmptyString);
+}
+
+function isNonEmptyString(value: string | null): value is string {
+  return Boolean(value && value.trim().length > 0);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function nullIfEmpty(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function formatNullableBoolean(value: boolean | null): string {
+  if (value === null) return "unknown";
+  return value ? "yes" : "no";
 }
 
 function describeAutoresearchBaselineDriftRisk(status: AutoresearchRuntimeStatus): string {
