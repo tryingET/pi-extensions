@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import type {
   CampaignMachineInput,
@@ -95,6 +96,8 @@ export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.checks.sh",
   "autoresearch.ideas.md",
 ] as const;
+
+export const AUTORESEARCH_DASHBOARD_EXPORT_FILE = ".autoresearch/autoresearch-dashboard.html";
 
 export const READY_PROMPT_VAULT_TEMPLATES = [
   AUTORESEARCH_SETUP_TEMPLATE_NAME,
@@ -437,6 +440,14 @@ export interface AutoresearchSegmentCloseout {
   recommendedAction: string;
   adapterBoundary: string;
   evidenceBoundary: string;
+}
+
+export interface AutoresearchDashboardExportResult {
+  cwd: string;
+  path: string;
+  fileUrl: string;
+  refreshedAt: number;
+  status: AutoresearchRuntimeStatus;
 }
 
 export interface AutoresearchRuntimeStatus {
@@ -3157,6 +3168,25 @@ export function formatAutoresearchPeerAssistPlan(plan: AutoresearchPeerAssistPla
   ].join("\n");
 }
 
+export function exportAutoresearchDashboardHtml(input: {
+  cwd: string;
+  outputPath?: string;
+}): AutoresearchDashboardExportResult {
+  const cwd = path.resolve(input.cwd);
+  const outputPath = path.resolve(cwd, input.outputPath ?? AUTORESEARCH_DASHBOARD_EXPORT_FILE);
+  const status = buildAutoresearchRuntimeStatus(cwd);
+  const closeout = buildAutoresearchSegmentCloseout(cwd);
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, renderAutoresearchDashboardHtml(status, closeout), "utf8");
+  return {
+    cwd,
+    path: outputPath,
+    fileUrl: pathToFileURL(outputPath).href,
+    refreshedAt: Date.now(),
+    status,
+  };
+}
+
 export function formatAutoresearchDashboard(
   status: AutoresearchRuntimeStatus,
   candidatePolicy: AutoresearchCandidateLifecyclePolicy = DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY,
@@ -3214,6 +3244,89 @@ export function formatAutoresearchDashboard(
     "- peers are planned or visibly launched only through explicit peer surfaces.",
     "- worktree cleanup, merge, branch materialization, AK/KES/evidence writes, and durable promotion stay outside this dashboard.",
   ].join("\n");
+}
+
+function renderAutoresearchDashboardHtml(
+  status: AutoresearchRuntimeStatus,
+  closeout: AutoresearchSegmentCloseout,
+): string {
+  const segment = status.currentSegment;
+  const rows = closeout.runs
+    .slice(-50)
+    .reverse()
+    .map(
+      (run) =>
+        `<tr><td>${escapeHtml(String(run.iteration ?? "-"))}</td><td>${escapeHtml(run.status)}</td><td>${escapeHtml(run.runKind)}</td><td>${escapeHtml(String(run.metric))}${escapeHtml(closeout.metricUnit)}</td><td>${escapeHtml(run.empiricalDecisionClass)}</td><td>${escapeHtml(run.description)}</td></tr>`,
+    )
+    .join("\n");
+  const generatedAt = new Date().toLocaleString();
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="refresh" content="2" />
+<title>pi-autoresearch dashboard</title>
+<style>
+:root { color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0b1020; color: #e5e7eb; }
+body { margin: 0; padding: 24px; }
+main { max-width: 1180px; margin: 0 auto; }
+h1 { margin: 0 0 6px; font-size: 28px; }
+.subtle { color: #94a3b8; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 20px 0; }
+.card { background: #111827; border: 1px solid #253047; border-radius: 14px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.label { color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.value { margin-top: 6px; font-size: 19px; font-weight: 700; overflow-wrap: anywhere; }
+.ready { color: #86efac; }
+.not-ready { color: #fca5a5; }
+table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 12px; background: #111827; }
+th, td { border-bottom: 1px solid #253047; padding: 10px 12px; text-align: left; vertical-align: top; }
+th { color: #cbd5e1; background: #172033; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+code { color: #bae6fd; }
+.footer { margin-top: 20px; font-size: 13px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<main>
+<h1>🔬 pi-autoresearch live dashboard</h1>
+<div class="subtle">Auto-refreshes every 2s while Pi keeps rewriting this file. Generated ${escapeHtml(generatedAt)}.</div>
+<div class="grid">
+  <section class="card"><div class="label">Machine</div><div class="value">${escapeHtml(String(status.runtimeProjection.state))}</div></section>
+  <section class="card"><div class="label">Posture</div><div class="value">${escapeHtml(status.empiricalPosture.classification)}</div></section>
+  <section class="card"><div class="label">Promotion</div><div class="value ${status.empiricalPosture.promotionReady ? "ready" : "not-ready"}">${status.empiricalPosture.promotionReady ? "ready" : "not ready"}</div></section>
+  <section class="card"><div class="label">Best metric</div><div class="value">${escapeHtml(String(segment.bestMetric ?? "n/a"))}${escapeHtml(segment.metricUnit)}</div></section>
+  <section class="card"><div class="label">Confidence</div><div class="value">${escapeHtml(segment.confidence === null ? "n/a" : `${segment.confidence.toFixed(2)}×`)}</div></section>
+  <section class="card"><div class="label">Runs</div><div class="value">${segment.runCount} total / ${segment.successfulRunCount} ok</div></section>
+</div>
+<section class="card">
+  <div class="label">Recommended next</div>
+  <div class="value">${escapeHtml(status.empiricalPosture.recommendedNextAction)}</div>
+</section>
+<div class="grid">
+  <section class="card"><div class="label">Campaign</div><div class="value">${escapeHtml(segment.name ?? "unconfigured")}</div></section>
+  <section class="card"><div class="label">Metric contract</div><div class="value">${escapeHtml(segment.metricName ?? "(unset)")} ${escapeHtml(segment.direction ?? "")} ${segment.metricUnit ? `(${escapeHtml(segment.metricUnit)})` : ""}</div></section>
+  <section class="card"><div class="label">Benchmark</div><div class="value"><code>${escapeHtml(segment.benchmarkCommand ?? "(unset)")}</code></div></section>
+  <section class="card"><div class="label">Checks</div><div class="value"><code>${escapeHtml(segment.checksCommand ?? "(none)")}</code></div></section>
+</div>
+<h2>Recent runs</h2>
+<table><thead><tr><th>#</th><th>Status</th><th>Kind</th><th>Metric</th><th>Decision</th><th>Description</th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="subtle">No runs recorded yet.</td></tr>`}</tbody></table>
+<section class="card footer">
+  <strong>Candidate policy:</strong> mode=worktree; keep=preserve_branch; discard=suggest_cleanup; rewind=reset_worktree_to_base.<br />
+  Replay Fabric observes history. ASC rewind is live session recovery. Browser export is read-only and does not run benchmarks, spawn peers, mutate worktrees, or promote evidence.
+</section>
+</main>
+</body>
+</html>\n`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {

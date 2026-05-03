@@ -169,7 +169,9 @@ A first persistent widget slice is also landed: session start registers an above
 
 A first fullscreen/overlay slice is also landed: `/autoresearch overlay` and `/autoresearch fullscreen` open a read-only live TUI dashboard overlay with periodic refresh, compact posture, metric contract, recent-run table, and candidate policy summary. It closes with `q`/Escape and supports simple keyboard scrolling.
 
-Next product work: dogfood this front door against real campaigns, then add browser export and interactive candidate keep/discard/rewind decisions.
+A browser export slice is now landed: `/autoresearch export` writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session. `/autoresearch export off` stops that session-local refresher. The export is read-only and does not own execution or promotion.
+
+Next product work: dogfood this front door against real campaigns, then add interactive candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
@@ -50,6 +51,7 @@ import {
   executeAutoresearchLoop,
   executeAutoresearchRun,
   executeAutoresearchSetup,
+  exportAutoresearchDashboardHtml,
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
@@ -148,6 +150,11 @@ type AutoresearchOverlayComponent = {
   handleInput(data: string): void;
   invalidate(): void;
   dispose?: () => void;
+};
+
+type AutoresearchBrowserOpenCommand = {
+  command: string;
+  args: string[];
 };
 
 const AUTORESEARCH_LIVE_TRIGGER_ID = "autoresearch-campaign-start-picker";
@@ -994,6 +1001,7 @@ export function registerPiAutoresearchExtension(
   options: PiAutoresearchExtensionOptions = {},
 ): void {
   let unregisterAutoresearchLiveTrigger: (() => void) | null = null;
+  const dashboardExportIntervals = new Map<string, ReturnType<typeof setInterval>>();
   let sessionActive = true;
 
   void maybeRegisterAutoresearchLiveTrigger().then((registration) => {
@@ -1015,13 +1023,15 @@ export function registerPiAutoresearchExtension(
       sessionActive = false;
       unregisterAutoresearchLiveTrigger?.();
       unregisterAutoresearchLiveTrigger = null;
+      for (const interval of dashboardExportIntervals.values()) clearInterval(interval);
+      dashboardExportIntervals.clear();
     });
   }
 
   pi.registerCommand(AUTORESEARCH_COMMAND_NAME, {
     description: "Open the pi-autoresearch bounded-runtime overview",
     handler: async (args, ctx) => {
-      await openAutoresearchShell(args, ctx);
+      await openAutoresearchShell(args, ctx, dashboardExportIntervals);
     },
   });
 
@@ -2578,7 +2588,11 @@ function createDefaultDecisionRuntime(
   });
 }
 
-async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promise<void> {
+async function openAutoresearchShell(
+  args: string,
+  ctx: ExtensionContext,
+  dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
+): Promise<void> {
   if (!ctx.hasUI) return;
 
   const normalizedArgs = args.trim();
@@ -2593,6 +2607,20 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
   if (normalizedArgs === "widget" || normalizedArgs === "widget on") {
     registerAutoresearchWidget(ctx as AutoresearchWidgetContext);
     ctx.ui.notify("Enabled the pi-autoresearch status widget for this session.", "info");
+    return;
+  }
+
+  if (normalizedArgs === "export" || normalizedArgs === "browser") {
+    await exportAutoresearchDashboardToBrowser(
+      ctx as AutoresearchWidgetContext,
+      dashboardExportIntervals,
+    );
+    return;
+  }
+
+  if (normalizedArgs === "export off" || normalizedArgs === "browser off") {
+    stopAutoresearchDashboardBrowserExport(ctx.cwd, dashboardExportIntervals);
+    ctx.ui.notify("Stopped pi-autoresearch browser dashboard refresh for this session.", "info");
     return;
   }
 
@@ -2684,6 +2712,83 @@ function truncatePlainLine(line: string, width: number): string {
   if (line.length <= width) return line;
   if (width <= 1) return line.slice(0, Math.max(0, width));
   return `${line.slice(0, Math.max(0, width - 1))}…`;
+}
+
+async function exportAutoresearchDashboardToBrowser(
+  ctx: AutoresearchWidgetContext,
+  dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
+): Promise<void> {
+  const result = exportAutoresearchDashboardHtml({ cwd: ctx.cwd });
+  startAutoresearchDashboardBrowserRefresh(ctx.cwd, dashboardExportIntervals);
+  try {
+    await openAutoresearchFileUrl(result.fileUrl);
+    ctx.ui.notify?.(`Opened pi-autoresearch browser dashboard: ${result.path}`, "info");
+  } catch (error) {
+    ctx.ui.notify?.(
+      `Browser dashboard exported to ${result.path}, but auto-open failed: ${error instanceof Error ? error.message : String(error)}`,
+      "warning",
+    );
+  }
+}
+
+function startAutoresearchDashboardBrowserRefresh(
+  cwd: string,
+  dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
+): void {
+  const existing = dashboardExportIntervals.get(cwd);
+  if (existing) clearInterval(existing);
+  const interval = setInterval(() => {
+    try {
+      exportAutoresearchDashboardHtml({ cwd });
+    } catch {
+      // Browser export is best-effort read-only UI; status/tool surfaces remain authoritative.
+    }
+  }, 2000);
+  interval.unref?.();
+  dashboardExportIntervals.set(cwd, interval);
+}
+
+function stopAutoresearchDashboardBrowserExport(
+  cwd: string,
+  dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
+): void {
+  const existing = dashboardExportIntervals.get(cwd);
+  if (existing) clearInterval(existing);
+  dashboardExportIntervals.delete(cwd);
+}
+
+async function openAutoresearchFileUrl(fileUrl: string): Promise<void> {
+  const { command, args } = getAutoresearchBrowserOpenCommand(fileUrl);
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    try {
+      const child = spawn(command, args, { detached: true, stdio: "ignore" });
+      let settled = false;
+      const settle = (callback: (value?: unknown) => void) => (value?: unknown) => {
+        if (settled) return;
+        settled = true;
+        callback(value);
+      };
+      child.once(
+        "error",
+        settle((error) => rejectPromise(error instanceof Error ? error : new Error(String(error)))),
+      );
+      child.once(
+        "spawn",
+        settle(() => {
+          child.unref();
+          resolvePromise();
+        }),
+      );
+    } catch (error) {
+      rejectPromise(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
+}
+
+function getAutoresearchBrowserOpenCommand(fileUrl: string): AutoresearchBrowserOpenCommand {
+  if (process.platform === "darwin") return { command: "open", args: [fileUrl] };
+  if (process.platform === "win32") return { command: "cmd", args: ["/c", "start", "", fileUrl] };
+  return { command: "xdg-open", args: [fileUrl] };
 }
 
 async function openAutoresearchDashboardOverlay(ctx: AutoresearchWidgetContext): Promise<void> {
@@ -2919,6 +3024,7 @@ function formatAutoresearchCommandNotification(
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
     "overlay: /autoresearch overlay",
+    "browser: /autoresearch export|export off",
     "widget: /autoresearch widget on|off",
     "tools: autoresearch_campaign_start | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
   ].join("; ");

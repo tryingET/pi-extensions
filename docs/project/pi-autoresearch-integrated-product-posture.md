@@ -330,7 +330,15 @@ The sixth interaction/overlay slice is now also landed:
 - it shows posture, metric contract, recent runs, and candidate policy;
 - it closes with `q`/Escape and supports simple keyboard scrolling.
 
-Still next in this slice: browser export and interactive candidate keep/discard/rewind decisions.
+The seventh interaction/browser-export slice is now also landed:
+
+- `/autoresearch export` writes `.autoresearch/autoresearch-dashboard.html`;
+- it opens the file in the browser when the platform opener is available;
+- a session-local refresher rewrites the HTML every ~2s so browser meta-refresh sees updated runtime posture;
+- `/autoresearch export off` stops that refresher;
+- the browser dashboard is read-only and does not own execution, worktree mutation, evidence writes, or promotion.
+
+Still next in this slice: interactive candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

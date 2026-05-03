@@ -48,6 +48,7 @@ import {
   buildAutoresearchSegmentCloseout,
   createConfigReceipt,
   createRunReceipt,
+  exportAutoresearchDashboardHtml,
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
@@ -892,6 +893,40 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(editorText, /Next legal surfaces/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
+});
+
+test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =>
+  withTempDir((cwd) => {
+    const result = exportAutoresearchDashboardHtml({ cwd });
+    const html = readFileSync(result.path, "utf8");
+
+    assert.equal(result.cwd, cwd);
+    assert.match(result.fileUrl, /^file:/);
+    assert.match(html, /pi-autoresearch live dashboard/);
+    assert.match(html, /Auto-refreshes every 2s/);
+    assert.match(html, /Browser export is read-only/);
+  }));
+
+test("/autoresearch export off stops browser dashboard refresh without opening a browser", async () => {
+  const { commands } = registerHarness();
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("export off", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor() {},
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.equal(notifications.length, 1);
+  assert.match(
+    notifications[0]?.message ?? "",
+    /Stopped pi-autoresearch browser dashboard refresh/,
+  );
 });
 
 test("/autoresearch overlay opens a read-only live dashboard overlay", async () => {
