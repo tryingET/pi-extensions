@@ -1697,6 +1697,9 @@ export function formatAutoresearchCampaignStartResult(
     "",
     "## Next exact tool call",
     `\`${result.nextToolCall}\``,
+    "",
+    "## Dashboard",
+    formatAutoresearchDashboard(result.status, result.candidatePolicy),
   ].join("\n");
 }
 
@@ -4249,6 +4252,9 @@ export function formatAutoresearchLoopResult(result: ExecuteAutoresearchLoopResu
     result.peerAssist.toolCall ? `- call: ${result.peerAssist.toolCall}` : "- call: (none)",
     `- launch handoff: ${result.peerLaunchHandoff.status}`,
     `- launch note: ${result.peerLaunchHandoff.note}`,
+    "",
+    "## Final dashboard",
+    formatAutoresearchDashboard(result.status),
   ].join("\n");
 }
 

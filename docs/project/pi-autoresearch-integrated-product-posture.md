@@ -309,7 +309,14 @@ The third interaction/dashboard slice is now also landed:
 - the dashboard shows current machine/control posture, empirical posture, metric contract, confidence/noise interpretation, candidate policy, and next legal surfaces;
 - it is explicitly read-only and does not run benchmarks, spawn peers, mutate worktrees, write AK/KES/evidence, or promote results.
 
-Still next in this slice: richer live TUI widgets for posture updates and interactive candidate keep/discard/rewind decisions.
+The fourth interaction/progress slice is now also landed:
+
+- bounded loops stream compact live progress cards during the active tool call;
+- each loop update carries a current dashboard snapshot in tool-update details;
+- loop and campaign-start bounded-loop results include a final dashboard after the run summary;
+- this supports the practical "start a bounded run, step away, and come back to final posture" use case without adding hidden background autonomy.
+
+Still next in this slice: persistent contrib-style TUI widgets/overlays, browser export, and interactive candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

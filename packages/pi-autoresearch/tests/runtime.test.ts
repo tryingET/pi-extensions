@@ -976,6 +976,8 @@ test("autoresearch_campaign_start provides a plan-only supervised front door", a
     assert.match(output, /Next exact tool call/);
     assert.match(output, /runMode: "baseline"/);
     assert.match(output, /candidatePolicy/);
+    assert.match(output, /## Dashboard/);
+    assert.match(output, /PI-AUTORESEARCH DASHBOARD/);
     const details = result.details as {
       objective: string;
       runMode: string;
@@ -1520,7 +1522,10 @@ test("autoresearch_runtime_loop runs a bounded iteration budget and returns peer
       ].join("\n"),
     );
 
-    const updates: Array<{ details?: { phase?: string } }> = [];
+    const updates: Array<{
+      content?: Array<{ text?: string }>;
+      details?: { phase?: string; dashboard?: string };
+    }> = [];
     const result = await tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute(
       "call-loop",
       {
@@ -1534,12 +1539,18 @@ test("autoresearch_runtime_loop runs a bounded iteration budget and returns peer
         peerMode: "launch_scout",
       },
       undefined,
-      (update: { details?: { phase?: string } }) => updates.push(update),
+      (update: {
+        content?: Array<{ text?: string }>;
+        details?: { phase?: string; dashboard?: string };
+      }) => updates.push(update),
       { cwd },
     );
 
     assert.ok(result);
-    assert.match(result.content[0]?.text ?? "", /completed iterations: 2\/2/);
+    const output = result.content[0]?.text ?? "";
+    assert.match(output, /completed iterations: 2\/2/);
+    assert.match(output, /Final dashboard/);
+    assert.match(output, /PI-AUTORESEARCH DASHBOARD/);
     const details = result.details as {
       completedIterations: number;
       runs: Array<{ runReceipt: { status: string; metric: number } }>;
@@ -1555,6 +1566,12 @@ test("autoresearch_runtime_loop runs a bounded iteration budget and returns peer
     assert.equal(details.peerLaunchHandoff.toolName, "scout_peer_spawn");
     assert.ok(updates.some((update) => update.details?.phase === "iteration_start"));
     assert.ok(updates.some((update) => update.details?.phase === "loop_complete"));
+    assert.ok(
+      updates.some((update) => /PI-AUTORESEARCH LIVE UPDATE/.test(update.content?.[0]?.text ?? "")),
+    );
+    assert.ok(
+      updates.some((update) => /PI-AUTORESEARCH DASHBOARD/.test(update.details?.dashboard ?? "")),
+    );
   });
 });
 

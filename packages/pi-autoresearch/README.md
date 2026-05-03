@@ -105,7 +105,8 @@ The current boundary is now more specific: the package is the runtime owner for 
   - executes a bounded in-call loop over `autoresearch_runtime_run` semantics
   - requires `maxIterations` and can also enforce a wall-clock budget
   - can request governed Prompt Vault next-hypothesis decisions between runs
-  - streams in-call progress updates for loop start, iteration start/complete, stop, and completion phases
+  - streams in-call live progress cards for loop start, iteration start/complete, stop, and completion phases; each update also carries the current dashboard snapshot in tool-update details
+  - returns the final read-only dashboard after the run summary, so an operator can start a bounded run, step away, and come back to the final posture without scraping receipts
   - supports explicit `peerMode` values: `off`, `plan`, `launch_scout`, `launch_candidate`, `launch_fork`; `launch_*` modes return an exact canonical peer-tool handoff rather than duplicating or hiding peer-spawn machinery
   - stops on explicit budget, control, machine, posture, or governed-decision gates rather than becoming a hidden daemon
 - `autoresearch_self_hosting_run`
