@@ -85,6 +85,12 @@ interface PenpotMcpExportParams extends BaseParams {
   endpoint?: string;
 }
 
+interface SessionPlanParams extends BaseParams {
+  projectId?: string;
+  sessionId?: string;
+  materialize?: boolean;
+}
+
 interface SessionCloseoutParams extends BaseParams {
   projectId?: string;
   sessionId?: string;
@@ -709,6 +715,55 @@ export default function (pi: ExtensionAPI) {
             ? `Export Penpot MCP bridge board ${request.boardId}`
             : "Export latest Penpot MCP bridge board",
           artifact: (result) => artifactForPenpotMcpExport(result.stdout, resolvedOutputPath),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_session_plan",
+    label: "DesignMD session plan",
+    description:
+      "Build or materialize a local DesignMD Watch Mode session plan packet. This is Watch Mode planning guidance only, not canonical AK/society authority.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sessionId: Type.Optional(
+          Type.String({
+            description:
+              "Watch Mode session id. Defaults to current running session in local Foundry storage.",
+          }),
+        ),
+        materialize: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, write the plan packet as a local session artifact and check. Defaults to false.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as SessionPlanParams;
+      const args = ["session-plan", request.sessionId || "current"];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.materialize) args.push("--materialize");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_session_plan",
+          objective: request.materialize
+            ? "Materialize DesignMD session plan"
+            : "Build DesignMD session plan",
+          artifact: (result) => ({
+            kind: "json",
+            title: request.materialize
+              ? "DesignMD materialized session plan result"
+              : "DesignMD session plan packet",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
         }),
       );
     },
