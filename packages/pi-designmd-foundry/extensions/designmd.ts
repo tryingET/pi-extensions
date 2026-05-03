@@ -91,6 +91,12 @@ interface SessionPlanParams extends BaseParams {
   materialize?: boolean;
 }
 
+interface SessionVariantsParams extends BaseParams {
+  projectId?: string;
+  sessionId?: string;
+  materialize?: boolean;
+}
+
 interface SessionCloseoutParams extends BaseParams {
   projectId?: string;
   sessionId?: string;
@@ -761,6 +767,55 @@ export default function (pi: ExtensionAPI) {
             title: request.materialize
               ? "DesignMD materialized session plan result"
               : "DesignMD session plan packet",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_session_variants",
+    label: "DesignMD session variants",
+    description:
+      "Build or materialize bounded local DesignMD Watch Mode session variant lanes. These are proposal lanes only, not accepted durable variants or canonical direction.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sessionId: Type.Optional(
+          Type.String({
+            description:
+              "Watch Mode session id. Defaults to current running session in local Foundry storage.",
+          }),
+        ),
+        materialize: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, write the variant lanes packet as a local session artifact and check. Defaults to false.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as SessionVariantsParams;
+      const args = ["session-variants", request.sessionId || "current"];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.materialize) args.push("--materialize");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_session_variants",
+          objective: request.materialize
+            ? "Materialize DesignMD session variant lanes"
+            : "Build DesignMD session variant lanes",
+          artifact: (result) => ({
+            kind: "json",
+            title: request.materialize
+              ? "DesignMD materialized session variant lanes result"
+              : "DesignMD session variant lanes packet",
             mimeType: "application/json; charset=utf-8",
             content: result.stdout,
           }),
