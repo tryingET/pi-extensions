@@ -65,7 +65,8 @@ The package is product-healthy when:
 
 The package currently owns:
 
-- `/autoresearch` operator entrypoint;
+- `/autoresearch` operator entrypoint; with an objective it now prepares the supervised campaign-start tool call instead of silently ignoring arguments;
+- `autoresearch_campaign_start` as the first package-owned front door that composes autoplan, optional governed setup, optional baseline, and optional bounded loop modes;
 - bounded runtime status, setup, run, loop, control, and finalization surfaces;
 - XState campaign machine plus append-only local event ledger;
 - Prompt Vault decision bridge for setup, next-hypothesis, and finalize decisions;
@@ -93,7 +94,7 @@ Adjacent external proof now exists in `pi-society-orchestrator`: one-shot exact-
 - a direct AK, Beads, KES, notes, issue-tracker, or HTTP writer;
 - an ontology or semantic-winner authority;
 - a package-local self-promotion mechanism;
-- a whole-campaign runner above exact bounded stage/control steps;
+- a hidden unbounded daemon or automatic whole-campaign runner above explicit budgets and review gates;
 - a catch-all adapter platform that adds packet families without real consumers.
 
 ## Trust gates
@@ -112,18 +113,47 @@ A result is promotion-ready only when the relevant gates are explicit:
 
 Stop adding packet families by default.
 
-The manifest-campaign follow-on above this package is now proven externally in `pi-society-orchestrator`; do not read that as permission to widen `pi-autoresearch` into a whole-campaign runner, AK lifecycle writer, or adapter platform.
+The manifest-campaign follow-on above this package is now proven externally in `pi-society-orchestrator`; do not read that as permission to widen `pi-autoresearch` into a hidden unbounded daemon, AK lifecycle writer, or adapter platform. The package should own bounded supervised campaign mode, but execution depth must remain explicit through `runMode`, budgets, machine gates, and reviewable next tool calls.
 
 Prioritize:
 
-1. operator posture clarity;
-2. metric readiness and baseline-drift protection;
-3. one canonical dogfood playbook;
-4. one external adapter proof only after a real consumer needs it.
+1. dogfood and harden the new `/autoresearch <objective>` + `autoresearch_campaign_start` front door;
+2. operator posture clarity;
+3. metric readiness and baseline-drift protection;
+4. one canonical dogfood playbook;
+5. one external adapter proof only after a real consumer needs it.
 
 ## Next product bets
 
-### Bet 1 — Operator posture sentence — landed first slice
+### Bet 1 — Supervised campaign front door — landed first slice
+
+The first integrated product front door now exists in package-owned code:
+
+```text
+/autoresearch <objective> -> reviewable autoresearch_campaign_start({ ... }) call
+```
+
+```ts
+autoresearch_campaign_start({
+  cwd,
+  objective,
+  setupMode: "autoplan" | "prompt_vault_setup",
+  runMode: "plan_only" | "baseline" | "bounded_loop",
+  maxIterations,
+  maxWallClockMinutes,
+})
+```
+
+The initial version is intentionally conservative:
+
+- default slash-command behavior prepares a plan-only tool call for operator review;
+- the tool reports the measurement contract, scope, warnings, status, and next exact call;
+- baseline and bounded-loop execution are explicit `runMode` choices;
+- peer launch, commits, AK/KES/evidence writes, and durable promotion remain outside this front door.
+
+Next product work: dogfood this front door against real campaigns, then add `pi-interaction`/TUI affordances for guided setup, dashboard status, and policy selection.
+
+### Bet 2 — Operator posture sentence — landed first slice
 
 Runtime status and closeout packets now include an `empiricalPosture` object with:
 
@@ -134,7 +164,7 @@ Runtime status and closeout packets now include an `empiricalPosture` object wit
 
 The remaining product work is to dogfood the wording against real campaigns and keep it concise enough for operators to trust at a glance.
 
-### Bet 2 — Canonical dogfood playbook — documentation landed
+### Bet 3 — Canonical dogfood playbook — documentation landed
 
 The canonical supervised operator flow now lives in [dogfood-playbook.md](./dogfood-playbook.md):
 
@@ -144,7 +174,7 @@ setup -> baseline samples -> calibration -> candidate lane/binding -> ordinary r
 
 The next product work is to dogfood that playbook against real campaigns and tighten wording where operators still overclaim noisy or under-bound results.
 
-### Bet 3 — Metric readiness policy
+### Bet 4 — Metric readiness policy
 
 Make duration metrics report whether they are:
 
@@ -154,7 +184,7 @@ Make duration metrics report whether they are:
 - candidate-ready;
 - review-ready.
 
-### Bet 4 — Consumer-driven adapter proof
+### Bet 5 — Consumer-driven adapter proof
 
 Pick exactly one adapter target after demand is concrete. Until then, keep adapters external and packet contracts stable.
 

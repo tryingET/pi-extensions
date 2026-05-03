@@ -42,12 +42,19 @@ The current boundary is now more specific: the package is the runtime owner for 
 ### Command
 
 - `/autoresearch`
-  - opens the bounded runtime overview
-  - names the current boundary honestly
-  - points to the current bounded implementation posture without inventing future slices
+  - with no objective, opens/reports the bounded runtime overview
+  - with an objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
+  - keeps execution explicit: the slash command does not secretly run baselines, loops, peers, commits, AK writes, or KES promotion
 
 ### Tools
 
+- `autoresearch_campaign_start`
+  - is the supervised campaign front door from one bounded optimization objective
+  - composes existing autoplan/setup/loop surfaces instead of inventing a second runtime
+  - supports `runMode: "plan_only" | "baseline" | "bounded_loop"`
+  - supports `setupMode: "autoplan" | "prompt_vault_setup"`; governed setup uses the package-owned Prompt Vault decision runner and typed parser
+  - reports campaign name, metric contract, scope, warnings/gates, current machine state, and the next exact tool call
+  - does not auto-spawn peers, commit, write AK/KES/evidence, or perform durable promotion
 - `autoresearch_runtime_status`
   - returns the current bounded-runtime status
   - can build a package-local segment closeout packet (`action: "closeout"`, packet kind `autoresearch.closeout.v1`) summarizing runs, hypotheses, candidate bindings, empirical decision, timing interpretation, recommended action, and the adapter/evidence boundary before external promotion

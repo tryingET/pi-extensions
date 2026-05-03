@@ -81,6 +81,7 @@ export const AUTORESEARCH_PEER_ASSIST_TOOL_NAME = "autoresearch_runtime_peer_ass
 export const AUTORESEARCH_LOOP_TOOL_NAME = "autoresearch_runtime_loop";
 export const AUTORESEARCH_AUTOPLAN_TOOL_NAME = "autoresearch_runtime_autoplan";
 export const AUTORESEARCH_SETUP_TOOL_NAME = "autoresearch_runtime_setup";
+export const AUTORESEARCH_CAMPAIGN_START_TOOL_NAME = "autoresearch_campaign_start";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
@@ -523,6 +524,8 @@ export interface ExecuteAutoresearchRunResult {
 
 export type AutoresearchAutoplanPlanner = "heuristic" | "dspx_program";
 export type AutoresearchSetupAction = "plan" | "apply" | "baseline";
+export type AutoresearchCampaignStartSetupMode = "autoplan" | "prompt_vault_setup";
+export type AutoresearchCampaignStartRunMode = "plan_only" | "baseline" | "bounded_loop";
 
 export interface AutoresearchSetupConfigInput {
   name: string;
@@ -658,6 +661,48 @@ export interface ExecuteAutoresearchSetupResult {
   run: ExecuteAutoresearchRunResult | null;
   status: AutoresearchRuntimeStatus;
   nextToolCall: string;
+}
+
+export interface ExecuteAutoresearchCampaignStartInput extends BuildAutoresearchAutoplanInput {
+  setupMode?: AutoresearchCampaignStartSetupMode;
+  runMode?: AutoresearchCampaignStartRunMode;
+  maxIterations?: number;
+  maxWallClockMinutes?: number;
+  description?: string;
+  allowOverwriteScripts?: boolean;
+  reconfigure?: boolean;
+  timeoutSeconds?: number;
+  checksTimeoutSeconds?: number;
+  postureCommand?: string;
+  postureTimeoutSeconds?: number;
+  decisionRuntime?: AutoresearchDecisionRuntime;
+  decisionGoal?: string;
+  decisionConstraints?: readonly string[];
+  decisionFilesInScope?: readonly string[];
+  decisionOffLimits?: readonly string[];
+  decisionIdeasBacklog?: readonly string[];
+  decisionAsiNotes?: readonly string[];
+  decisionDeadEndMemory?: readonly string[];
+  model?: string;
+  stopOn?: readonly (RunStatus | "blocked" | "rebaseline" | "finalize")[];
+  peerMode?: AutoresearchLoopPeerMode;
+  signal?: AbortSignal;
+  onProgress?: (event: AutoresearchLoopProgressEvent) => void;
+}
+
+export interface ExecuteAutoresearchCampaignStartResult {
+  cwd: string;
+  objective: string;
+  setupMode: AutoresearchCampaignStartSetupMode;
+  runMode: AutoresearchCampaignStartRunMode;
+  maxIterations: number;
+  autoplan: AutoresearchAutoplanResult;
+  setupDecision: ExecuteAutoresearchSetupDecisionResult | null;
+  setupResult: ExecuteAutoresearchSetupResult | null;
+  loopResult: ExecuteAutoresearchLoopResult | null;
+  status: AutoresearchRuntimeStatus;
+  nextToolCall: string;
+  warnings: string[];
 }
 export type AutoresearchPeerAssistLane = "none" | "scout" | "candidate" | "fork";
 export type AutoresearchPeerAssistReportBack = "intercom" | "manual" | "none";
@@ -1343,6 +1388,251 @@ export function formatAutoresearchSetupResult(result: ExecuteAutoresearchSetupRe
     "## Next exact tool call",
     `\`${result.nextToolCall}\``,
   ].join("\n");
+}
+
+export async function executeAutoresearchCampaignStart(
+  input: ExecuteAutoresearchCampaignStartInput,
+): Promise<ExecuteAutoresearchCampaignStartResult> {
+  const cwd = path.resolve(input.cwd);
+  const objective = input.objective.trim();
+  if (!objective) throw new Error("objective is required for autoresearch_campaign_start");
+
+  const setupMode = input.setupMode ?? "autoplan";
+  const runMode = input.runMode ?? "plan_only";
+  const maxIterations = input.maxIterations ?? 3;
+  if (maxIterations < 1) throw new Error("maxIterations must be at least 1");
+
+  const autoplan = buildAutoresearchAutoplan({
+    cwd,
+    objective,
+    planner: input.planner,
+    filesInScope: input.filesInScope,
+    offLimits: input.offLimits,
+    constraints: input.constraints,
+    benchmarkCommand: input.benchmarkCommand,
+    checksCommand: input.checksCommand,
+    metricName: input.metricName,
+    metricUnit: input.metricUnit,
+    direction: input.direction,
+    materializeDspxIntent: input.materializeDspxIntent,
+    dspxIntentPath: input.dspxIntentPath,
+    dspxOutdir: input.dspxOutdir,
+    dspxBehaviorPath: input.dspxBehaviorPath,
+  });
+
+  const warnings = [...autoplan.risks];
+  let setupDecision: ExecuteAutoresearchSetupDecisionResult | null = null;
+  if (setupMode === "prompt_vault_setup") {
+    if (!input.decisionRuntime) {
+      throw new Error("setupMode=prompt_vault_setup requires a decisionRuntime");
+    }
+    setupDecision = await requestAutoresearchSetupDecision({
+      cwd,
+      packet: {
+        optimizationObjective: objective,
+        repoContext: [
+          `runtime_status=${autoplan.status.runtimeProjection.state}`,
+          `autoplan_campaign=${autoplan.config.name}`,
+          `autoplan_metric=${autoplan.config.metricName}`,
+        ],
+        filesInScope: autoplan.filesInScope,
+        offLimits: autoplan.offLimits,
+        benchmarkSurfaces: [
+          autoplan.benchmarkCommand ?? "(missing benchmark command)",
+          autoplan.checksCommand ? `checks: ${autoplan.checksCommand}` : "checks: none",
+        ],
+        existingArtifacts: AUTORESEARCH_LOCAL_ARTIFACTS.filter((artifact) =>
+          existsSync(path.join(cwd, artifact)),
+        ),
+        hardConstraints: autoplan.constraints,
+        blockers: autoplan.risks,
+      },
+      runtime: input.decisionRuntime,
+      model: input.model,
+      signal: input.signal,
+    });
+  }
+
+  const benchmarkScriptProposal = canBenchmarkScriptProposalDriveBaseline(
+    autoplan.benchmarkScriptProposal,
+  )
+    ? autoplan.benchmarkScriptProposal
+    : null;
+  const benchmarkCommand = benchmarkScriptProposal?.benchmarkCommand ?? autoplan.benchmarkCommand;
+
+  if (runMode !== "plan_only" && !benchmarkCommand) {
+    throw new Error(
+      "autoresearch_campaign_start cannot execute because no benchmark command is available; rerun with runMode=plan_only or pass benchmarkCommand.",
+    );
+  }
+
+  let setupResult: ExecuteAutoresearchSetupResult | null = null;
+  let loopResult: ExecuteAutoresearchLoopResult | null = null;
+
+  if (runMode === "baseline") {
+    setupResult = await executeAutoresearchSetup({
+      cwd,
+      action: "baseline",
+      name: autoplan.config.name,
+      metricName: autoplan.config.metricName,
+      metricUnit: autoplan.config.metricUnit,
+      direction: autoplan.config.direction,
+      benchmarkCommand: benchmarkCommand ?? undefined,
+      checksCommand: autoplan.checksCommand,
+      description: input.description ?? `Baseline for ${objective}`,
+      benchmarkScript: benchmarkScriptProposal?.benchmarkScript,
+      allowOverwriteScripts: input.allowOverwriteScripts,
+      reconfigure: input.reconfigure,
+      postureCommand: input.postureCommand,
+      postureTimeoutSeconds: input.postureTimeoutSeconds,
+      timeoutSeconds: input.timeoutSeconds,
+      checksTimeoutSeconds: input.checksTimeoutSeconds,
+      signal: input.signal,
+    });
+  }
+
+  if (runMode === "bounded_loop") {
+    loopResult = await executeAutoresearchLoop({
+      cwd,
+      goal: objective,
+      maxIterations,
+      maxWallClockMinutes: input.maxWallClockMinutes,
+      description: input.description ?? `Start supervised campaign for ${objective}`,
+      name: autoplan.config.name,
+      metricName: autoplan.config.metricName,
+      metricUnit: autoplan.config.metricUnit,
+      direction: autoplan.config.direction,
+      benchmarkCommand: benchmarkCommand ?? undefined,
+      checksCommand: autoplan.checksCommand,
+      timeoutSeconds: input.timeoutSeconds,
+      checksTimeoutSeconds: input.checksTimeoutSeconds,
+      reconfigure: input.reconfigure,
+      postureCommand: input.postureCommand,
+      postureTimeoutSeconds: input.postureTimeoutSeconds,
+      decisionGoal: input.decisionGoal,
+      decisionRuntime: input.decisionRuntime,
+      decisionConstraints: input.decisionConstraints ?? autoplan.constraints,
+      decisionFilesInScope: input.decisionFilesInScope ?? autoplan.filesInScope,
+      decisionOffLimits: input.decisionOffLimits ?? autoplan.offLimits,
+      decisionIdeasBacklog: input.decisionIdeasBacklog,
+      decisionAsiNotes: input.decisionAsiNotes,
+      decisionDeadEndMemory: input.decisionDeadEndMemory,
+      model: input.model,
+      stopOn: input.stopOn,
+      peerMode: input.peerMode,
+      signal: input.signal,
+      onProgress: input.onProgress,
+    });
+  }
+
+  const status = loopResult?.status ?? setupResult?.status ?? buildAutoresearchRuntimeStatus(cwd);
+  return {
+    cwd,
+    objective,
+    setupMode,
+    runMode,
+    maxIterations,
+    autoplan,
+    setupDecision,
+    setupResult,
+    loopResult,
+    status,
+    nextToolCall: formatCampaignStartNextToolCall({
+      cwd,
+      objective,
+      runMode,
+      maxIterations,
+      setupMode,
+      canExecute: Boolean(benchmarkCommand),
+    }),
+    warnings,
+  };
+}
+
+export function formatAutoresearchCampaignStartResult(
+  result: ExecuteAutoresearchCampaignStartResult,
+): string {
+  const setupDecisionLines = result.setupDecision
+    ? [
+        "",
+        "## Governed setup decision",
+        `- status: ${result.setupDecision.outcome.status}`,
+        `- template: ${result.setupDecision.outcome.templateName}`,
+        `- kind: ${result.setupDecision.outcome.kind}`,
+      ]
+    : [];
+  const executionLines = result.loopResult
+    ? [
+        "",
+        "## Bounded loop",
+        `- completed iterations: ${result.loopResult.completedIterations}/${result.loopResult.requestedIterations}`,
+        `- stop reason: ${result.loopResult.stopReason}`,
+        `- peer lane: ${result.loopResult.peerAssist.lane}`,
+      ]
+    : result.setupResult
+      ? [
+          "",
+          "## Baseline",
+          `- applied config: ${result.setupResult.appliedConfig ? "yes" : "no"}`,
+          result.setupResult.run
+            ? `- result: ${result.setupResult.run.runReceipt.status} ${result.setupResult.run.primaryMetricName}=${formatMetricValue(result.setupResult.run.primaryMetric, result.setupResult.status.currentSegment.metricUnit)}`
+            : "- result: not run",
+        ]
+      : [];
+
+  return [
+    "# PI-AUTORESEARCH CAMPAIGN START",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- objective: ${result.objective}`,
+    `- setup mode: ${result.setupMode}`,
+    `- run mode: ${result.runMode}`,
+    `- campaign: ${result.autoplan.config.name}`,
+    `- metric: ${result.autoplan.config.metricName} (${result.autoplan.config.metricUnit || "unitless"}, ${result.autoplan.config.direction} is better)`,
+    `- benchmark command: ${result.autoplan.benchmarkCommand ?? "(missing)"}`,
+    `- checks command: ${result.autoplan.checksCommand ?? "(none)"}`,
+    `- machine state: ${result.status.runtimeProjection.state}`,
+    "",
+    "## Scope",
+    `- files in scope: ${formatTargetFiles(result.autoplan.filesInScope)}`,
+    `- off limits: ${formatTargetFiles(result.autoplan.offLimits)}`,
+    "",
+    "## Measurement contract",
+    ...(result.autoplan.measurementContract
+      ? [
+          `- authority: ${result.autoplan.measurementContract.optimizationAuthority}`,
+          `- freshness: ${result.autoplan.measurementContract.freshness}`,
+          `- causal link: ${result.autoplan.measurementContract.causalLink}`,
+          `- reason: ${result.autoplan.measurementContract.reason}`,
+        ]
+      : ["- unavailable; review benchmark command before execution"]),
+    ...setupDecisionLines,
+    ...executionLines,
+    "",
+    "## Warnings / gates",
+    ...(result.warnings.length > 0 ? result.warnings.map((warning) => `- ${warning}`) : ["- none"]),
+    "",
+    "## Next exact tool call",
+    `\`${result.nextToolCall}\``,
+  ].join("\n");
+}
+
+function formatCampaignStartNextToolCall(input: {
+  cwd: string;
+  objective: string;
+  runMode: AutoresearchCampaignStartRunMode;
+  maxIterations: number;
+  setupMode: AutoresearchCampaignStartSetupMode;
+  canExecute: boolean;
+}): string {
+  if (input.runMode === "plan_only") {
+    const nextRunMode = input.canExecute ? "baseline" : "plan_only";
+    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(nextRunMode)}, maxIterations: ${input.maxIterations} })`;
+  }
+  if (input.runMode === "baseline") {
+    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: "bounded_loop", maxIterations: ${input.maxIterations} })`;
+  }
+  return `autoresearch_runtime_status({ cwd: ${JSON.stringify(input.cwd)}, action: "closeout" })`;
 }
 
 function readPackageScripts(cwd: string): Record<string, string> {
@@ -3055,12 +3345,13 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
   return [
     "# /autoresearch",
     "",
-    "The bounded runtime kernel is available for local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded loop execution, posture-gated runs, peer-assist planning/launch handoff, bounded finalization orchestration, one bounded supervised self-hosting public seam, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection, exact-task AK-binding snapshot derivation, one-step campaign-local advancement, and one dedicated public manifest campaign-control seam.",
+    "The bounded runtime kernel is available through the /autoresearch <objective> front door, local benchmark/check execution, machine projection, append-only receipt/event logging, governed Prompt Vault decision requests, bounded loop execution, posture-gated runs, peer-assist planning/launch handoff, bounded finalization orchestration, one bounded supervised self-hosting public seam, and manifest-driven llama.cpp campaign planning/fork preparation/stage binding plus package-local campaign receipt/status projection, exact-task AK-binding snapshot derivation, one-step campaign-local advancement, and one dedicated public manifest campaign-control seam.",
     "This package now owns bounded finalization planning, approval, local branch materialization, one public `autoresearch_self_hosting_run` seam for controller/candidate/evaluator/promotion orchestration under the supervised self-hosting contract, checked manifest-driven branch/lane planning, one exact 41/42/43 stage-binding surface, one projection-only llama.cpp campaign status artifact, one non-mutating AK-ready manifest-campaign binding helper, one bounded one-step campaign-local advance helper, one dedicated public `autoresearch_llamacpp_campaign_control` seam for current status plus one-step public advancement with optional exact-task AK context, and a bounded in-call autoresearch loop. The technical `autoresearch_llamacpp_campaign` tool remains available below that public seam for raw matrix/fork/stage actions; the current package still does not own hidden daemonized self-improvement, direct AK mutation policy, automatic controller rotation, whole-campaign execution, automatic visible peer spawning, or remote review choreography.",
     "",
     "## Available surfaces",
     `- command: /${status.commandName}`,
     `- tools: ${status.toolNames.join(", ")}`,
+    `- use ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME} as the supervised campaign front door from one bounded objective; plan first, then optionally bootstrap a baseline or bounded loop`,
     "- use autoresearch_runtime_status to inspect the current bounded runtime state",
     "- use autoresearch_runtime_status with action=setup or action=finalize to request governed setup/finalize packets",
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
@@ -4418,6 +4709,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
     cwd,
     commandName: AUTORESEARCH_COMMAND_NAME,
     toolNames: [
+      AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
       AUTORESEARCH_STATUS_TOOL_NAME,
       AUTORESEARCH_RUN_TOOL_NAME,
       AUTORESEARCH_CONTROL_TOOL_NAME,

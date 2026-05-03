@@ -28,6 +28,7 @@ import {
 } from "../src/core/llamacppCampaign.ts";
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,
+  AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -45,6 +46,7 @@ import {
   buildAutoresearchPeerAssistPlan,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
+  executeAutoresearchCampaignStart,
   executeAutoresearchLoop,
   executeAutoresearchRun,
   executeAutoresearchSetup,
@@ -52,6 +54,7 @@ import {
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
   formatAutoresearchAutoplanResult,
+  formatAutoresearchCampaignStartResult,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchControlResult,
   formatAutoresearchDecisionResult,
@@ -581,6 +584,112 @@ const loopPeerModeSchema = Type.Union(
       "Peer handoff policy after the bounded loop. launch_* returns an exact canonical peer tool call for explicit controller dispatch; pi-autoresearch does not auto-spawn peers.",
   },
 );
+
+const campaignStartSetupModeSchema = Type.Union(
+  [Type.Literal("autoplan"), Type.Literal("prompt_vault_setup")],
+  {
+    description:
+      "How the front door should prepare the setup decision. autoplan is local and fast; prompt_vault_setup also requests the governed setup packet through the package-owned decision runner.",
+  },
+);
+
+const campaignStartRunModeSchema = Type.Union(
+  [Type.Literal("plan_only"), Type.Literal("baseline"), Type.Literal("bounded_loop")],
+  {
+    description:
+      "How far to execute the supervised campaign front door: plan only, run the first baseline, or enter a bounded loop.",
+  },
+);
+
+const campaignStartSchema = Type.Object({
+  cwd: Type.Optional(
+    Type.String({ description: "Optional cwd override for the supervised campaign front door." }),
+  ),
+  objective: Type.String({ description: "Bounded optimization objective for the campaign." }),
+  setupMode: Type.Optional(campaignStartSetupModeSchema),
+  runMode: Type.Optional(campaignStartRunModeSchema),
+  maxIterations: Type.Optional(
+    Type.Number({ description: "Maximum loop iterations when runMode=bounded_loop.", minimum: 1 }),
+  ),
+  maxWallClockMinutes: Type.Optional(
+    Type.Number({ description: "Optional wall-clock budget in minutes.", minimum: 0.01 }),
+  ),
+  planner: Type.Optional(autoplanPlannerSchema),
+  filesInScope: Type.Optional(stringArraySchema),
+  offLimits: Type.Optional(stringArraySchema),
+  constraints: Type.Optional(stringArraySchema),
+  benchmarkCommand: Type.Optional(
+    Type.String({ description: "Optional benchmark command override." }),
+  ),
+  checksCommand: Type.Optional(nullableStringSchema),
+  metricName: Type.Optional(Type.String({ description: "Optional primary metric name override." })),
+  metricUnit: Type.Optional(Type.String({ description: "Optional primary metric unit override." })),
+  direction: Type.Optional(directionSchema),
+  materializeDspxIntent: Type.Optional(
+    Type.Boolean({
+      description: "When planner=dspx_program, write the local DSPx intent artifact.",
+    }),
+  ),
+  dspxIntentPath: Type.Optional(
+    Type.String({ description: "Optional repo-relative or absolute DSPx intent path." }),
+  ),
+  dspxOutdir: Type.Optional(
+    Type.String({ description: "Optional repo-relative or absolute DSPx program-gen output dir." }),
+  ),
+  dspxBehaviorPath: Type.Optional(
+    Type.String({
+      description: "Optional DSPx behavior_results.json path for advisory setup input.",
+    }),
+  ),
+  description: Type.Optional(
+    Type.String({ description: "Baseline or first-loop run description." }),
+  ),
+  allowOverwriteScripts: Type.Optional(
+    Type.Boolean({ description: "Allow overwriting existing autoresearch scripts." }),
+  ),
+  reconfigure: Type.Optional(
+    Type.Boolean({ description: "Append a new config segment even if one is already configured." }),
+  ),
+  timeoutSeconds: Type.Optional(
+    Type.Number({ description: "Benchmark timeout seconds.", minimum: 1 }),
+  ),
+  checksTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "Checks timeout seconds.", minimum: 1 }),
+  ),
+  postureCommand: Type.Optional(
+    Type.String({ description: "Optional posture command required before benchmark execution." }),
+  ),
+  postureTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "Posture command timeout seconds.", minimum: 1 }),
+  ),
+  decisionGoal: Type.Optional(
+    Type.String({
+      description: "When set, request governed next-hypothesis decisions in loop mode.",
+    }),
+  ),
+  decisionConstraints: Type.Optional(stringArraySchema),
+  decisionFilesInScope: Type.Optional(stringArraySchema),
+  decisionOffLimits: Type.Optional(stringArraySchema),
+  decisionIdeasBacklog: Type.Optional(stringArraySchema),
+  decisionAsiNotes: Type.Optional(stringArraySchema),
+  decisionDeadEndMemory: Type.Optional(stringArraySchema),
+  stopOn: Type.Optional(
+    Type.Array(
+      Type.Union([
+        Type.Literal("baseline"),
+        Type.Literal("candidate"),
+        Type.Literal("keep"),
+        Type.Literal("discard"),
+        Type.Literal("crash"),
+        Type.Literal("checks_failed"),
+        Type.Literal("blocked"),
+        Type.Literal("rebaseline"),
+        Type.Literal("finalize"),
+      ]),
+    ),
+  ),
+  peerMode: Type.Optional(loopPeerModeSchema),
+});
 
 const loopSchema = Type.Object({
   cwd: Type.Optional(Type.String({ description: "Optional cwd override for the bounded loop." })),
@@ -1201,6 +1310,113 @@ export function registerPiAutoresearchExtension(
       });
       return {
         content: [{ type: "text", text: formatAutoresearchSetupResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
+    label: "Autoresearch Campaign Start",
+    description:
+      "Start from one bounded optimization objective and compose the pi-autoresearch supervised campaign front door: setup planning, optional governed setup packet, optional baseline, or optional bounded loop.",
+    promptSnippet:
+      "Use as the one-command/tool front door before lower-level autoresearch setup/run/loop calls when the operator gives a bounded optimization objective.",
+    parameters: asPiToolParameters(campaignStartSchema),
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const request = params as {
+        cwd?: string;
+        objective: string;
+        setupMode?: "autoplan" | "prompt_vault_setup";
+        runMode?: "plan_only" | "baseline" | "bounded_loop";
+        maxIterations?: number;
+        maxWallClockMinutes?: number;
+        planner?: "heuristic" | "dspx_program";
+        filesInScope?: string[];
+        offLimits?: string[];
+        constraints?: string[];
+        benchmarkCommand?: string;
+        checksCommand?: string | null;
+        metricName?: string;
+        metricUnit?: string;
+        direction?: "lower" | "higher";
+        materializeDspxIntent?: boolean;
+        dspxIntentPath?: string;
+        dspxOutdir?: string;
+        dspxBehaviorPath?: string;
+        description?: string;
+        allowOverwriteScripts?: boolean;
+        reconfigure?: boolean;
+        timeoutSeconds?: number;
+        checksTimeoutSeconds?: number;
+        postureCommand?: string;
+        postureTimeoutSeconds?: number;
+        decisionGoal?: string;
+        decisionConstraints?: string[];
+        decisionFilesInScope?: string[];
+        decisionOffLimits?: string[];
+        decisionIdeasBacklog?: string[];
+        decisionAsiNotes?: string[];
+        decisionDeadEndMemory?: string[];
+        stopOn?: Array<
+          | "baseline"
+          | "candidate"
+          | "keep"
+          | "discard"
+          | "crash"
+          | "checks_failed"
+          | "blocked"
+          | "rebaseline"
+          | "finalize"
+        >;
+        peerMode?: "off" | "plan" | "launch_scout" | "launch_candidate" | "launch_fork";
+      };
+      const result = await executeAutoresearchCampaignStart({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        objective: request.objective,
+        setupMode: request.setupMode,
+        runMode: request.runMode,
+        maxIterations: request.maxIterations,
+        maxWallClockMinutes: request.maxWallClockMinutes,
+        planner: request.planner,
+        filesInScope: request.filesInScope,
+        offLimits: request.offLimits,
+        constraints: request.constraints,
+        benchmarkCommand: request.benchmarkCommand,
+        checksCommand: request.checksCommand,
+        metricName: request.metricName,
+        metricUnit: request.metricUnit,
+        direction: request.direction,
+        materializeDspxIntent: request.materializeDspxIntent,
+        dspxIntentPath: request.dspxIntentPath,
+        dspxOutdir: request.dspxOutdir,
+        dspxBehaviorPath: request.dspxBehaviorPath,
+        description: request.description,
+        allowOverwriteScripts: request.allowOverwriteScripts,
+        reconfigure: request.reconfigure,
+        timeoutSeconds: request.timeoutSeconds,
+        checksTimeoutSeconds: request.checksTimeoutSeconds,
+        postureCommand: request.postureCommand,
+        postureTimeoutSeconds: request.postureTimeoutSeconds,
+        decisionRuntime:
+          request.setupMode === "prompt_vault_setup" || request.decisionGoal
+            ? resolveDecisionRuntime(ctx, signal, options)
+            : undefined,
+        decisionGoal: request.decisionGoal,
+        decisionConstraints: request.decisionConstraints,
+        decisionFilesInScope: request.decisionFilesInScope,
+        decisionOffLimits: request.decisionOffLimits,
+        decisionIdeasBacklog: request.decisionIdeasBacklog,
+        decisionAsiNotes: request.decisionAsiNotes,
+        decisionDeadEndMemory: request.decisionDeadEndMemory,
+        model: ctx.model?.id,
+        stopOn: request.stopOn,
+        peerMode: request.peerMode,
+        signal,
+        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
+      });
+      return {
+        content: [{ type: "text", text: formatAutoresearchCampaignStartResult(result) }],
         details: result,
       };
     },
@@ -2181,13 +2397,20 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
   const status = buildAutoresearchRuntimeStatus(ctx.cwd);
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
+    const toolCall = buildAutoresearchCampaignStartEditorCall(ctx.cwd, normalizedArgs);
+    await ctx.ui.editor("Start supervised autoresearch campaign", toolCall);
     ctx.ui.notify(
-      "Ignored /autoresearch arguments; use the LLM tools for execution: autoresearch_runtime_autoplan, autoresearch_runtime_setup, autoresearch_runtime_status, autoresearch_runtime_run, autoresearch_runtime_loop, autoresearch_runtime_peer_assist, autoresearch_runtime_control, or autoresearch_runtime_finalize.",
-      "warning",
+      "Prepared autoresearch_campaign_start front-door call. Review budget/scope, then send it to run the bounded campaign start.",
+      "info",
     );
+    return;
   }
 
   ctx.ui.notify(formatAutoresearchCommandNotification(status), "info");
+}
+
+function buildAutoresearchCampaignStartEditorCall(cwd: string, objective: string): string {
+  return `autoresearch_campaign_start({\n  cwd: ${JSON.stringify(cwd)},\n  objective: ${JSON.stringify(objective)},\n  setupMode: "autoplan",\n  runMode: "plan_only",\n  maxIterations: 3,\n  peerMode: "plan"\n})`;
 }
 
 function formatAutoresearchCommandNotification(
@@ -2198,6 +2421,7 @@ function formatAutoresearchCommandNotification(
     `campaign=${status.currentSegment.name ?? "unconfigured"}`,
     `last=${status.currentSegment.lastRunStatus ?? "none"}`,
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
-    "tools: autoresearch_runtime_autoplan | autoresearch_runtime_setup | autoresearch_runtime_status | autoresearch_runtime_run | autoresearch_runtime_loop",
+    "front door: /autoresearch <objective> -> autoresearch_campaign_start",
+    "tools: autoresearch_campaign_start | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
   ].join("; ");
 }

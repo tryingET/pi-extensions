@@ -28,6 +28,7 @@ import {
 import { resolveAutoresearchRuntimeSnapshotPath } from "../src/core/resume.ts";
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,
+  AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -377,6 +378,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.equal(status.phase, "bounded_runtime_kernel");
   assert.equal(status.commandName, AUTORESEARCH_COMMAND_NAME);
   assert.deepEqual(status.toolNames, [
+    AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
     AUTORESEARCH_STATUS_TOOL_NAME,
     AUTORESEARCH_RUN_TOOL_NAME,
     AUTORESEARCH_CONTROL_TOOL_NAME,
@@ -425,6 +427,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.match(buildAutoresearchHelpText(status), /supervised self-hosting seam/);
   assert.match(buildAutoresearchHelpText(status), /autoresearch_llamacpp_campaign_control/);
   assert.match(buildAutoresearchHelpText(status), /lower-level technical manifest work/);
+  assert.match(buildAutoresearchHelpText(status), /autoresearch_campaign_start/);
   assert.match(buildAutoresearchHelpText(status), /## Next bounded slices/);
   assert.match(buildAutoresearchHelpText(status), /none currently committed in product-posture/);
   assert.equal(
@@ -809,10 +812,11 @@ test("buildAutoresearchRuntimeStatus marks the llama.cpp campaign projection sta
     assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: stale/);
   }));
 
-test("extension registers /autoresearch plus the bounded runtime status, control, finalize, run, public self-hosting, technical llama.cpp campaign, and public campaign-control tools", () => {
+test("extension registers /autoresearch plus the supervised campaign front door and bounded runtime tools", () => {
   const { commands, tools } = registerHarness();
 
   assert.equal(typeof commands.get(AUTORESEARCH_COMMAND_NAME)?.handler, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_STATUS_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_CONTROL_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_FINALIZE_TOOL_NAME)?.execute, "function");
@@ -829,12 +833,12 @@ test("extension registers /autoresearch plus the bounded runtime status, control
   );
 });
 
-test("/autoresearch reports status without pre-filling the editor", async () => {
+test("/autoresearch without an objective reports status", async () => {
   const { commands } = registerHarness();
   let editorOpened = false;
   const notifications: Array<{ message: string; level?: string }> = [];
 
-  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("optimize startup", {
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("status", {
     cwd: "/repo",
     hasUI: true,
     ui: {
@@ -848,12 +852,93 @@ test("/autoresearch reports status without pre-filling the editor", async () => 
   });
 
   assert.equal(editorOpened, false);
-  assert.equal(notifications.length, 2);
-  assert.equal(notifications[0]?.level, "warning");
-  assert.match(notifications[0]?.message ?? "", /Ignored \/autoresearch arguments/);
-  assert.equal(notifications[1]?.level, "info");
-  assert.match(notifications[1]?.message ?? "", /pi-autoresearch:/);
-  assert.match(notifications[1]?.message ?? "", /autoresearch_runtime_autoplan/);
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0]?.level, "info");
+  assert.match(notifications[0]?.message ?? "", /pi-autoresearch:/);
+  assert.match(notifications[0]?.message ?? "", /autoresearch_campaign_start/);
+});
+
+test("/autoresearch with an objective prepares the campaign-start tool call", async () => {
+  const { commands } = registerHarness();
+  let editorTitle = "";
+  let editorText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("optimize startup", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor(title: string, text: string) {
+        editorTitle = title;
+        editorText = text;
+      },
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(editorTitle, /Start supervised autoresearch campaign/);
+  assert.match(editorText, /autoresearch_campaign_start/);
+  assert.match(editorText, /optimize startup/);
+  assert.match(editorText, /runMode: "plan_only"/);
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_campaign_start/);
+});
+
+test("autoresearch_campaign_start provides a plan-only supervised front door", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-speed",
+        scripts: { bench: "node bench.js", check: "node check.js" },
+      }),
+    );
+    writeFile(path.join(cwd, "src/index.ts"), "export const value = 1;\n");
+
+    const result = await tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME)?.execute(
+      "call-campaign-start-plan",
+      {
+        cwd,
+        objective: "reduce benchmark runtime",
+        runMode: "plan_only",
+        maxIterations: 4,
+        peerMode: "plan",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const output = result.content[0]?.text ?? "";
+    assert.match(output, /PI-AUTORESEARCH CAMPAIGN START/);
+    assert.match(output, /run mode: plan_only/);
+    assert.match(output, /benchmark command: npm run bench/);
+    assert.match(output, /Next exact tool call/);
+    assert.match(output, /runMode: "baseline"/);
+    const details = result.details as {
+      objective: string;
+      runMode: string;
+      maxIterations: number;
+      setupResult: null;
+      loopResult: null;
+      autoplan: { config: { metricName: string }; benchmarkCommand: string; checksCommand: string };
+      nextToolCall: string;
+    };
+    assert.equal(details.objective, "reduce benchmark runtime");
+    assert.equal(details.runMode, "plan_only");
+    assert.equal(details.maxIterations, 4);
+    assert.equal(details.setupResult, null);
+    assert.equal(details.loopResult, null);
+    assert.equal(details.autoplan.config.metricName, "total_ms");
+    assert.equal(details.autoplan.benchmarkCommand, "npm run bench");
+    assert.equal(details.autoplan.checksCommand, "npm run check");
+    assert.match(details.nextToolCall, /autoresearch_campaign_start/);
+    assert.equal(loadReceiptLog(cwd).entries.length, 0);
+  });
 });
 
 test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent handoff", async () => {
