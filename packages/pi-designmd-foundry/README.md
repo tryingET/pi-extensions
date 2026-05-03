@@ -41,6 +41,7 @@ When `DESIGNMD_SESSION_ENDPOINT` is set, tools also report start/pass/fail activ
 - `designmd_session_plan` — build or materialize a local `designmd.session-plan.v1` Watch Mode planning packet without claiming canonical AK/society authority.
 - `designmd_session_variants` — build or materialize local `designmd.session-variants.v1` proposal lanes without claiming accepted durable variants or canonical direction.
 - `designmd_session_handoff` — build or materialize a local `designmd.session-handoff.v1` prompt for one executable variant lane without claiming canonical authority.
+- `designmd_session_browser_agent_handoff` — build or materialize a local `designmd.browser-agent-handoff.v1` prompt for optional browser-side review such as Sitegeist without granting mutation or promotion authority.
 - `designmd_session_closeout` — build or materialize a local `designmd.session-closeout.v1` Watch Mode evidence packet without claiming canonical AK/society promotion.
 - `designmd_session_promotion_candidate` — build or materialize a local `designmd.promotion-candidate.v1` owner-review packet without promoting, publishing, merging, or mutating AK/society authority.
 - `designmd_readiness` — run DesignMD Foundry's integration readiness probe.

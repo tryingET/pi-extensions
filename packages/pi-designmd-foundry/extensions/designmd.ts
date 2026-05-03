@@ -119,6 +119,14 @@ interface SessionHandoffParams extends BaseParams {
   materialize?: boolean;
 }
 
+interface SessionBrowserAgentHandoffParams extends BaseParams {
+  projectId?: string;
+  sessionId?: string;
+  target?: "sitegeist" | "manual-browser-agent";
+  baseUrl?: string;
+  materialize?: boolean;
+}
+
 interface SessionPromotionCandidateParams extends BaseParams {
   projectId?: string;
   sessionId?: string;
@@ -953,6 +961,68 @@ export default function (pi: ExtensionAPI) {
             title: request.materialize
               ? "DesignMD materialized session handoff result"
               : "DesignMD session handoff packet",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_session_browser_agent_handoff",
+    label: "DesignMD browser-agent handoff",
+    description:
+      "Build or materialize a local DesignMD browser-agent handoff prompt for optional browser-side review, such as Sitegeist. This is local Watch Mode guidance only, not mutation or promotion authority.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sessionId: Type.Optional(
+          Type.String({
+            description:
+              "Watch Mode session id. Defaults to current running session in local Foundry storage.",
+          }),
+        ),
+        target: Type.Optional(
+          Type.Union([Type.Literal("sitegeist"), Type.Literal("manual-browser-agent")], {
+            description: "Optional browser-agent handoff target. Defaults to sitegeist.",
+          }),
+        ),
+        baseUrl: Type.Optional(
+          Type.String({
+            description:
+              "Local Foundry base URL to include in the handoff, for example http://127.0.0.1:8787.",
+          }),
+        ),
+        materialize: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, write the browser-agent handoff prompt as a local session artifact and check. Defaults to false.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as SessionBrowserAgentHandoffParams;
+      const args = ["session-browser-agent-handoff", request.sessionId || "current"];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.target) args.push("--target", request.target);
+      if (request.baseUrl) args.push("--base-url", request.baseUrl);
+      if (request.materialize) args.push("--materialize");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_session_browser_agent_handoff",
+          objective: request.materialize
+            ? "Materialize DesignMD browser-agent handoff"
+            : "Build DesignMD browser-agent handoff",
+          artifact: (result) => ({
+            kind: "json",
+            title: request.materialize
+              ? "DesignMD materialized browser-agent handoff result"
+              : "DesignMD browser-agent handoff packet",
             mimeType: "application/json; charset=utf-8",
             content: result.stdout,
           }),
