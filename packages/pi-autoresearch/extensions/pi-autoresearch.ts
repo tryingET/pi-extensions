@@ -122,6 +122,8 @@ type AutoresearchTriggerContext = {
 type AutoresearchWidgetUi = {
   setWidget?: (id: string, widget: unknown, options?: unknown) => void;
   notify?: (message: string, level?: "info" | "warning" | "error") => void;
+  editor?: (title: string, text: string) => Promise<void> | void;
+  custom?: <T>(factory: AutoresearchCustomFactory<T>, options?: unknown) => Promise<T>;
 };
 
 type AutoresearchWidgetContext = {
@@ -132,6 +134,20 @@ type AutoresearchWidgetContext = {
 
 type AutoresearchWidgetTui = {
   requestRender?: () => void;
+};
+
+type AutoresearchCustomFactory<T> = (
+  tui: AutoresearchWidgetTui,
+  theme: unknown,
+  keybindings: unknown,
+  done: (result: T) => void,
+) => unknown;
+
+type AutoresearchOverlayComponent = {
+  render(width: number): string[];
+  handleInput(data: string): void;
+  invalidate(): void;
+  dispose?: () => void;
 };
 
 const AUTORESEARCH_LIVE_TRIGGER_ID = "autoresearch-campaign-start-picker";
@@ -2580,6 +2596,11 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
     return;
   }
 
+  if (normalizedArgs === "overlay" || normalizedArgs === "fullscreen") {
+    await openAutoresearchDashboardOverlay(ctx as AutoresearchWidgetContext);
+    return;
+  }
+
   if (normalizedArgs === "dashboard") {
     await ctx.ui.editor("Pi-autoresearch dashboard", formatAutoresearchDashboard(status));
     ctx.ui.notify(
@@ -2663,6 +2684,132 @@ function truncatePlainLine(line: string, width: number): string {
   if (line.length <= width) return line;
   if (width <= 1) return line.slice(0, Math.max(0, width));
   return `${line.slice(0, Math.max(0, width - 1))}…`;
+}
+
+async function openAutoresearchDashboardOverlay(ctx: AutoresearchWidgetContext): Promise<void> {
+  if (!ctx.hasUI) return;
+  if (typeof ctx.ui.custom !== "function") {
+    await ctx.ui.editor?.(
+      "Pi-autoresearch dashboard",
+      formatAutoresearchDashboard(buildAutoresearchRuntimeStatus(ctx.cwd)),
+    );
+    ctx.ui.notify?.(
+      "TUI overlay unavailable; opened read-only dashboard in the editor.",
+      "warning",
+    );
+    return;
+  }
+
+  await ctx.ui.custom<void>(
+    (tui, _theme, _keybindings, done) => createAutoresearchDashboardOverlay(ctx.cwd, tui, done),
+    {
+      overlay: true,
+      overlayOptions: {
+        anchor: "center",
+        width: "92%",
+        maxHeight: "85%",
+        margin: 1,
+        visible: (termWidth: number, termHeight: number) => termWidth >= 70 && termHeight >= 18,
+      },
+    },
+  );
+}
+
+function createAutoresearchDashboardOverlay(
+  cwd: string,
+  tui: AutoresearchWidgetTui,
+  done: () => void,
+): AutoresearchOverlayComponent {
+  let offset = 0;
+  let closed = false;
+  const interval = setInterval(() => tui.requestRender?.(), 2000);
+  interval.unref?.();
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(interval);
+    done();
+  };
+
+  return {
+    render(width: number): string[] {
+      return formatAutoresearchOverlayLines(cwd, Math.max(40, width), offset);
+    },
+    handleInput(data: string): void {
+      if (data === "q" || data === "Q" || data === "\u001b" || data === "\u0003") {
+        close();
+        return;
+      }
+      if (data === "j" || data === "\u001b[B") offset += 1;
+      if (data === "k" || data === "\u001b[A") offset = Math.max(0, offset - 1);
+      if (data === "d" || data === "\u001b[6~") offset += 10;
+      if (data === "u" || data === "\u001b[5~") offset = Math.max(0, offset - 10);
+      tui.requestRender?.();
+    },
+    invalidate() {},
+    dispose() {
+      clearInterval(interval);
+    },
+  };
+}
+
+function formatAutoresearchOverlayLines(cwd: string, width: number, offset: number): string[] {
+  const innerWidth = Math.max(20, width - 2);
+  const body = buildAutoresearchOverlayBody(cwd);
+  const visibleBody = body.slice(offset, offset + 22);
+  const lines = [
+    borderLine("┌", "─", "┐", innerWidth),
+    borderedLine("🔬 pi-autoresearch live dashboard", innerWidth),
+    borderedLine("q/Esc close • j/k scroll • updates every 2s • read-only", innerWidth),
+    borderLine("├", "─", "┤", innerWidth),
+    ...visibleBody.map((line) => borderedLine(line, innerWidth)),
+    borderLine("└", "─", "┘", innerWidth),
+  ];
+  return lines.map((line) => truncatePlainLine(line, width));
+}
+
+function buildAutoresearchOverlayBody(cwd: string): string[] {
+  const status = buildAutoresearchRuntimeStatus(cwd);
+  const closeout = buildAutoresearchSegmentCloseout(cwd);
+  const segment = status.currentSegment;
+  const recentRuns = closeout.runs.slice(-12);
+  const runRows =
+    recentRuns.length > 0
+      ? recentRuns.map(
+          (run) =>
+            `#${run.iteration ?? "-"} ${run.status}/${run.runKind} metric=${run.metric}${closeout.metricUnit} decision=${run.empiricalDecisionClass} :: ${run.description}`,
+        )
+      : ["(no runs recorded yet)"];
+
+  return [
+    `cwd: ${cwd}`,
+    `machine: ${status.runtimeProjection.state} • control: ${status.control.kind} • actions: ${status.control.allowedActions.join(", ") || "none"}`,
+    `posture: ${status.empiricalPosture.classification} • ready=${status.empiricalPosture.promotionReady ? "yes" : "no"}`,
+    `next: ${status.empiricalPosture.recommendedNextAction}`,
+    "",
+    `campaign: ${segment.name ?? "unconfigured"}`,
+    `metric: ${segment.metricName ?? "(unset)"} ${segment.direction ?? ""} ${segment.metricUnit ? `(${segment.metricUnit})` : ""}`,
+    `best: ${segment.bestMetric ?? "n/a"}${segment.metricUnit} • baseline: ${segment.baselineMetric ?? "n/a"}${segment.metricUnit} • confidence: ${segment.confidence ?? "n/a"}`,
+    `benchmark: ${segment.benchmarkCommand ?? "(unset)"}`,
+    `checks: ${segment.checksCommand ?? "(none)"}`,
+    "",
+    "Recent runs",
+    ...runRows,
+    "",
+    "Candidate policy",
+    "mode=worktree • keep=preserve_branch • discard=suggest_cleanup • rewind=reset_worktree_to_base",
+    "Replay Fabric observes history; ASC rewind is live session recovery; promotion remains external.",
+  ];
+}
+
+function borderedLine(text: string, innerWidth: number): string {
+  const truncated = truncatePlainLine(text, innerWidth);
+  return `│${truncated}${" ".repeat(Math.max(0, innerWidth - truncated.length))}│`;
+}
+
+function borderLine(left: string, fill: string, right: string, innerWidth: number): string {
+  return `${left}${fill.repeat(innerWidth)}${right}`;
 }
 
 async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
@@ -2771,6 +2918,7 @@ function formatAutoresearchCommandNotification(
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
+    "overlay: /autoresearch overlay",
     "widget: /autoresearch widget on|off",
     "tools: autoresearch_campaign_start | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
   ].join("; ");

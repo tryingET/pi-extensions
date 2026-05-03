@@ -87,6 +87,7 @@ type CommandContext = {
     editor(title: string, text: string): Promise<void>;
     notify(message: string, level?: string): void;
     setWidget?(id: string, widget: unknown, options?: unknown): void;
+    custom?<T>(factory: (...args: unknown[]) => unknown, options?: unknown): Promise<T>;
   };
 };
 
@@ -891,6 +892,55 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(editorText, /Next legal surfaces/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
+});
+
+test("/autoresearch overlay opens a read-only live dashboard overlay", async () => {
+  const { commands } = registerHarness();
+  let overlayOptions: unknown;
+  let overlayText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("overlay", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor() {},
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+      async custom<T>(factory: (...args: unknown[]) => unknown, options?: unknown): Promise<T> {
+        overlayOptions = options;
+        const component = factory({ requestRender() {} }, {}, {}, () => {}) as {
+          render(width: number): string[];
+          dispose?: () => void;
+        };
+        overlayText = component.render(100).join("\n");
+        component.dispose?.();
+        return undefined as T;
+      },
+    },
+  });
+
+  const options = overlayOptions as {
+    overlay: boolean;
+    overlayOptions: {
+      anchor: string;
+      width: string;
+      maxHeight: string;
+      margin: number;
+      visible: unknown;
+    };
+  };
+  assert.equal(options.overlay, true);
+  assert.equal(options.overlayOptions.anchor, "center");
+  assert.equal(options.overlayOptions.width, "92%");
+  assert.equal(options.overlayOptions.maxHeight, "85%");
+  assert.equal(options.overlayOptions.margin, 1);
+  assert.equal(typeof options.overlayOptions.visible, "function");
+  assert.match(overlayText, /pi-autoresearch live dashboard/);
+  assert.match(overlayText, /read-only/);
+  assert.match(overlayText, /Candidate policy/);
+  assert.equal(notifications.length, 0);
 });
 
 test("/autoresearch widget on and off controls the persistent status widget", async () => {

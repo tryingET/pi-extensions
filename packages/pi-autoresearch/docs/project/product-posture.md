@@ -167,7 +167,9 @@ A first live-progress slice is now landed for bounded loops: `autoresearch_runti
 
 A first persistent widget slice is also landed: session start registers an above-editor status widget unless `PI_AUTORESEARCH_WIDGET=0` is set, and `/autoresearch widget on|off` controls it for the current session. The widget is read-only and shows machine state, run counts, best metric, confidence, empirical posture, and promotion readiness.
 
-Next product work: dogfood this front door against real campaigns, then add expanded/fullscreen dashboard affordances and interactive candidate keep/discard/rewind decisions.
+A first fullscreen/overlay slice is also landed: `/autoresearch overlay` and `/autoresearch fullscreen` open a read-only live TUI dashboard overlay with periodic refresh, compact posture, metric contract, recent-run table, and candidate policy summary. It closes with `q`/Escape and supports simple keyboard scrolling.
+
+Next product work: dogfood this front door against real campaigns, then add browser export and interactive candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

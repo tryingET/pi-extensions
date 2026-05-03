@@ -323,7 +323,14 @@ The fifth interaction/widget slice is now also landed:
 - the widget shows machine state, run counts, best metric, confidence, empirical posture, and promotion readiness;
 - the widget is read-only and uses local runtime receipts/projection only.
 
-Still next in this slice: expanded/fullscreen TUI overlays, browser export, and interactive candidate keep/discard/rewind decisions.
+The sixth interaction/overlay slice is now also landed:
+
+- `/autoresearch overlay` and `/autoresearch fullscreen` open a read-only live TUI dashboard overlay;
+- the overlay periodically refreshes from local runtime receipts/projection;
+- it shows posture, metric contract, recent runs, and candidate policy;
+- it closes with `q`/Escape and supports simple keyboard scrolling.
+
+Still next in this slice: browser export and interactive candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

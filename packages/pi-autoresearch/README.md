@@ -44,6 +44,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `/autoresearch`
   - with no objective, opens/reports the bounded runtime overview
   - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate policy, and next legal surfaces
+  - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
   - with `widget on|off`, shows or hides the persistent above-editor status widget for the current session
   - with an objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
   - keeps execution explicit: the slash command does not secretly run baselines, loops, peers, worktree mutations, commits, AK writes, or KES promotion
