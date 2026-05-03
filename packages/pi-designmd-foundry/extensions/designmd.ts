@@ -8,7 +8,15 @@ import { Type } from "typebox";
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 type ToolResult = Awaited<ReturnType<Parameters<ExtensionAPI["registerTool"]>[0]["execute"]>>;
 
-type DesignmdFormat = "css" | "oat" | "tailwind" | "dtcg" | "tokens" | "agent-prompt" | "json";
+type DesignmdFormat =
+  | "css"
+  | "oat"
+  | "tailwind"
+  | "dtcg"
+  | "tokens"
+  | "agent-prompt"
+  | "xstate"
+  | "json";
 type OpenPencilExportFormat = "svg" | "png" | "jpg" | "webp" | "fig";
 type SessionArtifactKind = "html" | "svg" | "image" | "markdown" | "css" | "json" | "text";
 
@@ -148,7 +156,16 @@ interface CommandResult {
   error: string | undefined;
 }
 
-const FORMAT_VALUES = ["css", "oat", "tailwind", "dtcg", "tokens", "agent-prompt", "json"] as const;
+const FORMAT_VALUES = [
+  "css",
+  "oat",
+  "tailwind",
+  "dtcg",
+  "tokens",
+  "agent-prompt",
+  "xstate",
+  "json",
+] as const;
 const MODE_VALUES = ["iterate", "remix", "expand", "audit"] as const;
 const OPENPENCIL_EXPORT_FORMAT_VALUES = ["svg", "png", "jpg", "webp", "fig"] as const;
 
@@ -1152,6 +1169,7 @@ function artifactForExport(format: DesignmdFormat, content: string): SessionArti
     case "tailwind":
     case "dtcg":
     case "tokens":
+    case "xstate":
     case "json":
       return {
         kind: "json",
