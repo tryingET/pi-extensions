@@ -54,6 +54,11 @@ The current boundary is now more specific: the package is the runtime owner for 
   - opens the pi-interaction picker for plan-only, governed setup plan, baseline, or bounded-loop campaign-start modes
   - replaces the editor text with the exact `autoresearch_campaign_start({ ... })` call selected by the operator
   - degrades safely when the optional interaction runtime is not installed
+- `$$ autoresearch candidate` / `$$ ar candidate` and `$$ autoresearch keep|discard|rewind` when the optional interaction runtime is loaded
+  - opens a candidate-decision picker for status, keep, discard, or rewind planning
+  - decorates direct and currently recommended choices when runtime receipts make that possible
+  - replaces the editor text with the exact `autoresearch_candidate_decision({ ... })` call selected by the operator
+  - remains read-only/plan-only; no worktree command or durable promotion is applied by the picker
 
 ### Tools
 

@@ -355,7 +355,15 @@ The ninth slash-command candidate confirmation slice is now also landed:
 - the slash affordance opens exact tool calls in the editor rather than applying commands;
 - destructive worktree cleanup/reset/recreate and durable promotion still require explicit external operator action.
 
-Still next in this slice: richer interaction-picker/form confirmation affordances for candidate keep/discard/rewind decisions.
+The tenth optional interaction-picker candidate decision slice is now also landed:
+
+- `$$ autoresearch candidate` / `$$ ar candidate` open a picker for candidate-decision status, keep, discard, or rewind planning;
+- `$$ autoresearch keep|discard|rewind` direct-trigger the same picker with the direct action prioritized;
+- picker options can be decorated as direct or recommended from package-local runtime receipts/status;
+- the picker inserts the exact `autoresearch_candidate_decision({ ... })` call selected by the operator;
+- it still applies no worktree cleanup/reset/recreate, peer launch, AK/KES/evidence write, or promotion.
+
+Still next in this slice: richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 

@@ -105,10 +105,29 @@ type AutoresearchTriggerCandidate = {
   maxIterations: number;
 };
 
+type AutoresearchCandidateDecisionTriggerAction =
+  | "status"
+  | "plan_keep"
+  | "plan_discard"
+  | "plan_rewind";
+
+type AutoresearchCandidateDecisionTriggerCandidate = {
+  id: string;
+  label: string;
+  detail: string;
+  action: AutoresearchCandidateDecisionTriggerAction;
+};
+
 type AutoresearchTriggerParsedInput = {
   objective: string;
   query: string;
   raw: string;
+};
+
+type AutoresearchCandidateDecisionTriggerParsedInput = {
+  query: string;
+  raw: string;
+  directAction: AutoresearchCandidateDecisionTriggerAction | null;
 };
 
 type AutoresearchTriggerSurface = {
@@ -161,6 +180,7 @@ type AutoresearchBrowserOpenCommand = {
 };
 
 const AUTORESEARCH_LIVE_TRIGGER_ID = "autoresearch-campaign-start-picker";
+const AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_ID = "autoresearch-candidate-decision-picker";
 const AUTORESEARCH_WIDGET_ID = "pi-autoresearch-status-widget";
 const AUTORESEARCH_TRIGGER_CANDIDATES: AutoresearchTriggerCandidate[] = [
   {
@@ -196,6 +216,37 @@ const AUTORESEARCH_TRIGGER_CANDIDATES: AutoresearchTriggerCandidate[] = [
     maxIterations: 3,
   },
 ];
+const AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES: AutoresearchCandidateDecisionTriggerCandidate[] =
+  [
+    {
+      id: "status",
+      label: "Candidate status",
+      detail:
+        "Inspect current candidate posture and recommended lifecycle decision without planning a worktree command.",
+      action: "status",
+    },
+    {
+      id: "keep",
+      label: "Plan keep",
+      detail:
+        "Plan a safe keep/review path; no merge, branch materialization, evidence write, or promotion is automatic.",
+      action: "plan_keep",
+    },
+    {
+      id: "discard",
+      label: "Plan discard",
+      detail:
+        "Plan cleanup guidance only; worktree removal and branch deletion require explicit operator confirmation.",
+      action: "plan_discard",
+    },
+    {
+      id: "rewind",
+      label: "Plan rewind",
+      detail:
+        "Plan reset/recreate guidance only; no destructive worktree command is applied by pi-autoresearch.",
+      action: "plan_rewind",
+    },
+  ];
 
 function asPiToolParameters(schema: unknown): PiToolParameters {
   return schema as PiToolParameters;
@@ -2767,6 +2818,62 @@ function buildAutoresearchCandidateDecisionEditorCall(
   return `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: ${JSON.stringify(action)},\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
 }
 
+function buildAutoresearchCandidateDecisionTriggerCandidates(input: {
+  cwd: string;
+  directAction: AutoresearchCandidateDecisionTriggerAction | null;
+}): AutoresearchCandidateDecisionTriggerCandidate[] {
+  let recommendation: ReturnType<typeof buildAutoresearchCandidateDecisionWorkbench> | null = null;
+  try {
+    recommendation = buildAutoresearchCandidateDecisionWorkbench({ cwd: input.cwd });
+  } catch {
+    recommendation = null;
+  }
+
+  const decorated = AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES.map((candidate) => {
+    const badges: string[] = [];
+    if (input.directAction === candidate.action) badges.push("direct");
+    if (
+      recommendation &&
+      candidateActionMatchesLifecycleDecision(candidate.action, recommendation.recommendedDecision)
+    ) {
+      badges.push("recommended");
+    }
+    return {
+      ...candidate,
+      detail: badges.length > 0 ? `${candidate.detail} (${badges.join(", ")})` : candidate.detail,
+    };
+  });
+
+  return decorated.sort((left, right) => {
+    const leftDirect = input.directAction === left.action ? 1 : 0;
+    const rightDirect = input.directAction === right.action ? 1 : 0;
+    if (leftDirect !== rightDirect) return rightDirect - leftDirect;
+    const leftRecommended =
+      recommendation &&
+      candidateActionMatchesLifecycleDecision(left.action, recommendation.recommendedDecision)
+        ? 1
+        : 0;
+    const rightRecommended =
+      recommendation &&
+      candidateActionMatchesLifecycleDecision(right.action, recommendation.recommendedDecision)
+        ? 1
+        : 0;
+    return rightRecommended - leftRecommended;
+  });
+}
+
+function candidateActionMatchesLifecycleDecision(
+  action: AutoresearchCandidateDecisionTriggerAction,
+  decision: string,
+): boolean {
+  return (
+    (action === "status" && decision === "no_candidate_bound_yet") ||
+    (action === "plan_keep" && (decision === "keep" || decision === "finalize")) ||
+    (action === "plan_discard" && decision === "discard") ||
+    (action === "plan_rewind" && decision === "rewind")
+  );
+}
+
 function buildAutoresearchCampaignStartToolCall(input: {
   cwd: string;
   objective: string;
@@ -3050,75 +3157,159 @@ async function maybeRegisterAutoresearchLiveTrigger(): Promise<{ unregister: () 
       return { unregister: () => {} };
     }
 
-    const registration = triggerSurface.registerPickerInteraction({
-      id: AUTORESEARCH_LIVE_TRIGGER_ID,
-      description: "pi-autoresearch campaign-start picker for $$ autoresearch <objective>",
-      priority: 105,
-      match: /^\$\$\s*(?:autoresearch|ar)(?:\s+([^\n]*))?$/,
-      requireCursorAtEnd: true,
-      debounceMs: 150,
-      showInPicker: true,
-      pickerLabel: "$$ autoresearch picker",
-      pickerDetail: "Supervised campaign start modes",
-      parseInput: (match: { groups?: string[] }): AutoresearchTriggerParsedInput => {
-        const raw = String(match?.groups?.[0] ?? "");
-        const objective = raw.trim();
-        return { objective, query: objective, raw };
-      },
-      loadCandidates: () => ({
-        candidates: AUTORESEARCH_TRIGGER_CANDIDATES,
-      }),
-      selectTitle: ({ parsed }: { parsed?: AutoresearchTriggerParsedInput }) => {
-        const objective = parsed?.objective ? `: ${parsed.objective}` : "";
-        return `Autoresearch campaign start${objective}`;
-      },
-      applySelection: ({
-        selected,
-        parsed,
-        context,
-        api,
-      }: {
-        selected?: AutoresearchTriggerCandidate;
-        parsed?: AutoresearchTriggerParsedInput;
-        context?: AutoresearchTriggerContext;
-        api?: AutoresearchTriggerApi;
-      }) => {
-        const objective = parsed?.objective.trim() ?? "";
-        if (!objective) {
-          api?.setText?.("$$ autoresearch <objective>");
-          api?.notify?.(
-            "Autoresearch picker needs an objective after '$$ autoresearch'.",
-            "warning",
-          );
-          return;
-        }
+    const registrations: Array<{ unregister?: () => void }> = [];
 
-        const selectedMode = selected ?? AUTORESEARCH_TRIGGER_CANDIDATES[0];
-        const cwd = context?.cwd ?? process.cwd();
-        api?.setText?.(
-          buildAutoresearchCampaignStartToolCall({
-            cwd,
-            objective,
-            setupMode: selectedMode.setupMode,
-            runMode: selectedMode.runMode,
-            maxIterations: selectedMode.maxIterations,
+    registrations.push(
+      triggerSurface.registerPickerInteraction({
+        id: AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_ID,
+        description:
+          "pi-autoresearch candidate decision picker for $$ autoresearch candidate|keep|discard|rewind",
+        priority: 115,
+        match:
+          /^\$\$\s*(?:autoresearch|ar)\s+(?:(candidate|decision)(?:\s+([^\n]*))?|(keep|discard|rewind))$/,
+        requireCursorAtEnd: true,
+        debounceMs: 150,
+        showInPicker: true,
+        pickerLabel: "$$ autoresearch candidate decision",
+        pickerDetail: "Plan keep/discard/rewind without applying worktree actions",
+        parseInput: (match: {
+          groups?: string[];
+        }): AutoresearchCandidateDecisionTriggerParsedInput => {
+          const direct = parseAutoresearchCandidateDecisionCommand(
+            String(match?.groups?.[2] ?? ""),
+          );
+          const raw = direct ? String(match?.groups?.[2] ?? "") : String(match?.groups?.[1] ?? "");
+          const query = direct ? raw : raw.trim();
+          return { query, raw, directAction: direct };
+        },
+        loadCandidates: ({
+          parsed,
+          context,
+        }: {
+          parsed?: AutoresearchCandidateDecisionTriggerParsedInput;
+          context?: AutoresearchTriggerContext;
+        }) => ({
+          candidates: buildAutoresearchCandidateDecisionTriggerCandidates({
+            cwd: context?.cwd ?? process.cwd(),
+            directAction: parsed?.directAction ?? null,
           }),
-        );
-      },
-      onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
-        api?.notify?.("No autoresearch campaign-start modes are available.", "warning");
-      },
-      onError: ({ error, api }: { error?: unknown; api?: AutoresearchTriggerApi }) => {
-        api?.notify?.(
-          `Autoresearch picker error: ${error instanceof Error ? error.message : String(error)}`,
-          "error",
-        );
-      },
-    });
+        }),
+        selectTitle: ({ parsed }: { parsed?: AutoresearchCandidateDecisionTriggerParsedInput }) => {
+          const query = parsed?.query ? `: ${parsed.query}` : "";
+          return `Autoresearch candidate decision${query}`;
+        },
+        applySelection: ({
+          selected,
+          parsed,
+          context,
+          api,
+        }: {
+          selected?: AutoresearchCandidateDecisionTriggerCandidate;
+          parsed?: AutoresearchCandidateDecisionTriggerParsedInput;
+          context?: AutoresearchTriggerContext;
+          api?: AutoresearchTriggerApi;
+        }) => {
+          const fallback = parsed?.directAction
+            ? AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES.find(
+                (candidate) => candidate.action === parsed.directAction,
+              )
+            : AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES[0];
+          const selectedDecision = selected ?? fallback;
+          if (!selectedDecision) {
+            api?.notify?.("No autoresearch candidate-decision action is available.", "warning");
+            return;
+          }
+          const cwd = context?.cwd ?? process.cwd();
+          api?.setText?.(
+            buildAutoresearchCandidateDecisionEditorCall(cwd, selectedDecision.action),
+          );
+        },
+        onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
+          api?.notify?.("No autoresearch candidate-decision actions are available.", "warning");
+        },
+        onError: ({ error, api }: { error?: unknown; api?: AutoresearchTriggerApi }) => {
+          api?.notify?.(
+            `Autoresearch candidate-decision picker error: ${error instanceof Error ? error.message : String(error)}`,
+            "error",
+          );
+        },
+      }),
+    );
+
+    registrations.push(
+      triggerSurface.registerPickerInteraction({
+        id: AUTORESEARCH_LIVE_TRIGGER_ID,
+        description: "pi-autoresearch campaign-start picker for $$ autoresearch <objective>",
+        priority: 105,
+        match: /^\$\$\s*(?:autoresearch|ar)(?:\s+([^\n]*))?$/,
+        requireCursorAtEnd: true,
+        debounceMs: 150,
+        showInPicker: true,
+        pickerLabel: "$$ autoresearch picker",
+        pickerDetail: "Supervised campaign start modes",
+        parseInput: (match: { groups?: string[] }): AutoresearchTriggerParsedInput => {
+          const raw = String(match?.groups?.[0] ?? "");
+          const objective = raw.trim();
+          return { objective, query: objective, raw };
+        },
+        loadCandidates: () => ({
+          candidates: AUTORESEARCH_TRIGGER_CANDIDATES,
+        }),
+        selectTitle: ({ parsed }: { parsed?: AutoresearchTriggerParsedInput }) => {
+          const objective = parsed?.objective ? `: ${parsed.objective}` : "";
+          return `Autoresearch campaign start${objective}`;
+        },
+        applySelection: ({
+          selected,
+          parsed,
+          context,
+          api,
+        }: {
+          selected?: AutoresearchTriggerCandidate;
+          parsed?: AutoresearchTriggerParsedInput;
+          context?: AutoresearchTriggerContext;
+          api?: AutoresearchTriggerApi;
+        }) => {
+          const objective = parsed?.objective.trim() ?? "";
+          if (!objective) {
+            api?.setText?.("$$ autoresearch <objective>");
+            api?.notify?.(
+              "Autoresearch picker needs an objective after '$$ autoresearch'.",
+              "warning",
+            );
+            return;
+          }
+
+          const selectedMode = selected ?? AUTORESEARCH_TRIGGER_CANDIDATES[0];
+          const cwd = context?.cwd ?? process.cwd();
+          api?.setText?.(
+            buildAutoresearchCampaignStartToolCall({
+              cwd,
+              objective,
+              setupMode: selectedMode.setupMode,
+              runMode: selectedMode.runMode,
+              maxIterations: selectedMode.maxIterations,
+            }),
+          );
+        },
+        onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
+          api?.notify?.("No autoresearch campaign-start modes are available.", "warning");
+        },
+        onError: ({ error, api }: { error?: unknown; api?: AutoresearchTriggerApi }) => {
+          api?.notify?.(
+            `Autoresearch picker error: ${error instanceof Error ? error.message : String(error)}`,
+            "error",
+          );
+        },
+      }),
+    );
 
     return {
-      unregister:
-        typeof registration?.unregister === "function" ? registration.unregister : () => {},
+      unregister: () => {
+        for (const registration of registrations) {
+          if (typeof registration?.unregister === "function") registration.unregister();
+        }
+      },
     };
   } catch {
     return { unregister: () => {} };

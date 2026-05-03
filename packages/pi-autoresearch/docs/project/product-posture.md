@@ -182,7 +182,9 @@ The surface consumes runtime status, closeout, and candidate-result evidence to 
 
 A first slash-command confirmation affordance is also landed: `/autoresearch candidate|decision|keep|discard|rewind` prepares the exact `autoresearch_candidate_decision({ ... })` call in the editor for review. This makes candidate lifecycle planning discoverable from the operator surface without applying any destructive or durable action.
 
-Next product work: dogfood this front door and candidate decision workbench against real campaigns, then add richer interactive picker/form confirmation affordances for candidate keep/discard/rewind decisions.
+A first optional interaction-picker affordance is now also landed: `$$ autoresearch candidate`, `$$ ar candidate`, and `$$ autoresearch keep|discard|rewind` open a candidate-decision picker when `@tryinget/pi-interaction` / `@tryinget/pi-trigger-adapter` is loaded. It offers status/keep/discard/rewind planning choices, decorates direct/recommended choices where runtime receipts make that possible, and inserts the exact `autoresearch_candidate_decision({ ... })` call selected by the operator. The picker still applies no worktree or durable owner-surface mutation.
+
+Next product work: dogfood this front door and candidate decision workbench against real campaigns, then add richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 
