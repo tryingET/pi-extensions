@@ -170,7 +170,7 @@ test("toolbox lazily imports ontology read tools before activation", async () =>
   assert.equal(harness.activeTools.includes("ontology_proposal"), true);
 });
 
-test("toolbox fails closed when a bundle profile remains unavailable", async () => {
+test("toolbox lazily imports designmd read tools before activation", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
@@ -180,9 +180,25 @@ test("toolbox fails closed when a bundle profile remains unavailable", async () 
     profile: "read",
   });
 
-  assert.match(result.content[0].text, /Cannot activate designmd\/read/);
+  assert.match(result.content[0].text, /Activated tools: designmd_lint/);
+  assert.match(result.content[0].text, /Lazy import attempts:/);
+  assert.equal(harness.activeTools.includes("designmd_lint"), true);
+  assert.equal(harness.activeTools.includes("designmd_readiness"), true);
+});
+
+test("toolbox fails closed when a bundle profile remains unavailable", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    bundle: "autoresearch",
+    profile: "read",
+  });
+
+  assert.match(result.content[0].text, /Cannot activate autoresearch\/read/);
   assert.equal(result.details.ok, false);
-  assert.equal(harness.activeTools.includes("designmd_lint"), false);
+  assert.equal(harness.activeTools.includes("autoresearch_runtime_status"), false);
 });
 
 test("toolbox deactivation preserves always-active tools", async () => {

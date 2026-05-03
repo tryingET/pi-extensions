@@ -170,8 +170,18 @@ export const CATALOG: ToolboxBundle[] = [
       "DESIGN.md lint, export, Oat snapshot, OpenPencil, Penpot, palette, and session handoff workflows.",
     ownerPackage: "packages/pi-designmd-foundry",
     ownerSemantics:
-      "pi-designmd-foundry owns DesignMD tool behavior; toolbox only activates the owning package tools.",
+      "pi-designmd-foundry owns DesignMD tool behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing design behavior.",
     keywords: ["design", "designmd", "css", "tokens", "penpot", "openpencil", "oat", "palette"],
+    lazyModules: [
+      {
+        specifier: "@tryinget/pi-designmd-foundry/toolbox-bundle",
+        label: "published package-owned toolbox bundle",
+      },
+      {
+        specifier: new URL("../../pi-designmd-foundry/src/toolboxBundle.ts", import.meta.url).href,
+        label: "monorepo sibling package-owned toolbox bundle",
+      },
+    ],
     profiles: [
       {
         id: "read",

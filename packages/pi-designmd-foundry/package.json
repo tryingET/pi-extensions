@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Pi extension and skill package for using DesignMD Foundry as a design-contract tool surface.",
   "type": "module",
+  "exports": {
+    "./toolbox-bundle": "./src/toolboxBundle.ts"
+  },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
@@ -44,6 +47,7 @@
   },
   "files": [
     "extensions/designmd.ts",
+    "src",
     "skills",
     "prompts",
     "examples",
