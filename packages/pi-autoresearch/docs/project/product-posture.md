@@ -147,11 +147,12 @@ autoresearch_campaign_start({
 The initial version is intentionally conservative:
 
 - default slash-command behavior prepares a plan-only tool call for operator review;
+- the optional `$$ autoresearch <objective>` / `$$ ar <objective>` pi-interaction picker lets the operator select plan-only, governed setup plan, baseline, or bounded-loop mode before the exact tool call is inserted;
 - the tool reports the measurement contract, scope, warnings, status, and next exact call;
 - baseline and bounded-loop execution are explicit `runMode` choices;
 - peer launch, commits, AK/KES/evidence writes, and durable promotion remain outside this front door.
 
-Next product work: dogfood this front door against real campaigns, then add `pi-interaction`/TUI affordances for guided setup, dashboard status, and policy selection.
+Next product work: dogfood this front door against real campaigns, then add richer TUI/dashboard affordances for live posture, confidence/noise display, and candidate keep/discard/rewind policy selection.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 

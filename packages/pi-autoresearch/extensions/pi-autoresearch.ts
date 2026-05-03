@@ -87,6 +87,73 @@ import {
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 
+type AutoresearchTriggerRunMode = "plan_only" | "baseline" | "bounded_loop";
+type AutoresearchTriggerSetupMode = "autoplan" | "prompt_vault_setup";
+
+type AutoresearchTriggerCandidate = {
+  id: string;
+  label: string;
+  detail: string;
+  runMode: AutoresearchTriggerRunMode;
+  setupMode: AutoresearchTriggerSetupMode;
+  maxIterations: number;
+};
+
+type AutoresearchTriggerParsedInput = {
+  objective: string;
+  query: string;
+  raw: string;
+};
+
+type AutoresearchTriggerSurface = {
+  registerPickerInteraction?: (config: Record<string, unknown>) => { unregister?: () => void };
+};
+
+type AutoresearchTriggerApi = {
+  setText?: (text: string) => void;
+  notify?: (message: string, level?: string) => void;
+};
+
+type AutoresearchTriggerContext = {
+  cwd?: string;
+};
+
+const AUTORESEARCH_LIVE_TRIGGER_ID = "autoresearch-campaign-start-picker";
+const AUTORESEARCH_TRIGGER_CANDIDATES: AutoresearchTriggerCandidate[] = [
+  {
+    id: "plan-only",
+    label: "Plan only",
+    detail: "Review metric contract, scope, warnings, and next exact call before execution.",
+    runMode: "plan_only",
+    setupMode: "autoplan",
+    maxIterations: 3,
+  },
+  {
+    id: "governed-setup-plan",
+    label: "Governed setup plan",
+    detail: "Request the package-owned Prompt Vault setup decision, then stop for review.",
+    runMode: "plan_only",
+    setupMode: "prompt_vault_setup",
+    maxIterations: 3,
+  },
+  {
+    id: "baseline",
+    label: "Run baseline",
+    detail: "Apply setup and run the first baseline through explicit runMode=baseline.",
+    runMode: "baseline",
+    setupMode: "autoplan",
+    maxIterations: 3,
+  },
+  {
+    id: "bounded-loop",
+    label: "Bounded loop",
+    detail: "Enter the supervised loop with an explicit three-iteration budget.",
+    runMode: "bounded_loop",
+    setupMode: "autoplan",
+    maxIterations: 3,
+  },
+];
+
 function asPiToolParameters(schema: unknown): PiToolParameters {
   return schema as PiToolParameters;
 }
@@ -863,6 +930,26 @@ export function registerPiAutoresearchExtension(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions = {},
 ): void {
+  let unregisterAutoresearchLiveTrigger: (() => void) | null = null;
+  let sessionActive = true;
+
+  void maybeRegisterAutoresearchLiveTrigger().then((registration) => {
+    if (!sessionActive) {
+      registration.unregister();
+      return;
+    }
+    unregisterAutoresearchLiveTrigger = registration.unregister;
+  });
+
+  const maybeOn = (pi as { on?: (event: string, handler: () => void) => void }).on;
+  if (typeof maybeOn === "function") {
+    maybeOn.call(pi, "session_shutdown", () => {
+      sessionActive = false;
+      unregisterAutoresearchLiveTrigger?.();
+      unregisterAutoresearchLiveTrigger = null;
+    });
+  }
+
   pi.registerCommand(AUTORESEARCH_COMMAND_NAME, {
     description: "Open the pi-autoresearch bounded-runtime overview",
     handler: async (args, ctx) => {
@@ -2410,7 +2497,119 @@ async function openAutoresearchShell(args: string, ctx: ExtensionContext): Promi
 }
 
 function buildAutoresearchCampaignStartEditorCall(cwd: string, objective: string): string {
-  return `autoresearch_campaign_start({\n  cwd: ${JSON.stringify(cwd)},\n  objective: ${JSON.stringify(objective)},\n  setupMode: "autoplan",\n  runMode: "plan_only",\n  maxIterations: 3,\n  peerMode: "plan"\n})`;
+  return buildAutoresearchCampaignStartToolCall({
+    cwd,
+    objective,
+    setupMode: "autoplan",
+    runMode: "plan_only",
+    maxIterations: 3,
+  });
+}
+
+function buildAutoresearchCampaignStartToolCall(input: {
+  cwd: string;
+  objective: string;
+  setupMode: AutoresearchTriggerSetupMode;
+  runMode: AutoresearchTriggerRunMode;
+  maxIterations: number;
+}): string {
+  return `autoresearch_campaign_start({\n  cwd: ${JSON.stringify(input.cwd)},\n  objective: ${JSON.stringify(input.objective)},\n  setupMode: ${JSON.stringify(input.setupMode)},\n  runMode: ${JSON.stringify(input.runMode)},\n  maxIterations: ${input.maxIterations},\n  peerMode: "plan"\n})`;
+}
+
+async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
+  try {
+    const interactionModuleName = "@tryinget/pi-interaction";
+    return (await import(interactionModuleName)) as AutoresearchTriggerSurface;
+  } catch {
+    try {
+      const triggerAdapterModuleName = "@tryinget/pi-trigger-adapter";
+      return (await import(triggerAdapterModuleName)) as AutoresearchTriggerSurface;
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function maybeRegisterAutoresearchLiveTrigger(): Promise<{ unregister: () => void }> {
+  try {
+    const triggerSurface = await loadAutoresearchTriggerSurface();
+    if (typeof triggerSurface?.registerPickerInteraction !== "function") {
+      return { unregister: () => {} };
+    }
+
+    const registration = triggerSurface.registerPickerInteraction({
+      id: AUTORESEARCH_LIVE_TRIGGER_ID,
+      description: "pi-autoresearch campaign-start picker for $$ autoresearch <objective>",
+      priority: 105,
+      match: /^\$\$\s*(?:autoresearch|ar)(?:\s+([^\n]*))?$/,
+      requireCursorAtEnd: true,
+      debounceMs: 150,
+      showInPicker: true,
+      pickerLabel: "$$ autoresearch picker",
+      pickerDetail: "Supervised campaign start modes",
+      parseInput: (match: { groups?: string[] }): AutoresearchTriggerParsedInput => {
+        const raw = String(match?.groups?.[0] ?? "");
+        const objective = raw.trim();
+        return { objective, query: objective, raw };
+      },
+      loadCandidates: () => ({
+        candidates: AUTORESEARCH_TRIGGER_CANDIDATES,
+      }),
+      selectTitle: ({ parsed }: { parsed?: AutoresearchTriggerParsedInput }) => {
+        const objective = parsed?.objective ? `: ${parsed.objective}` : "";
+        return `Autoresearch campaign start${objective}`;
+      },
+      applySelection: ({
+        selected,
+        parsed,
+        context,
+        api,
+      }: {
+        selected?: AutoresearchTriggerCandidate;
+        parsed?: AutoresearchTriggerParsedInput;
+        context?: AutoresearchTriggerContext;
+        api?: AutoresearchTriggerApi;
+      }) => {
+        const objective = parsed?.objective.trim() ?? "";
+        if (!objective) {
+          api?.setText?.("$$ autoresearch <objective>");
+          api?.notify?.(
+            "Autoresearch picker needs an objective after '$$ autoresearch'.",
+            "warning",
+          );
+          return;
+        }
+
+        const selectedMode = selected ?? AUTORESEARCH_TRIGGER_CANDIDATES[0];
+        const cwd = context?.cwd ?? process.cwd();
+        api?.setText?.(
+          buildAutoresearchCampaignStartToolCall({
+            cwd,
+            objective,
+            setupMode: selectedMode.setupMode,
+            runMode: selectedMode.runMode,
+            maxIterations: selectedMode.maxIterations,
+          }),
+        );
+      },
+      onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
+        api?.notify?.("No autoresearch campaign-start modes are available.", "warning");
+      },
+      onError: ({ error, api }: { error?: unknown; api?: AutoresearchTriggerApi }) => {
+        api?.notify?.(
+          `Autoresearch picker error: ${error instanceof Error ? error.message : String(error)}`,
+          "error",
+        );
+      },
+    });
+
+    return {
+      unregister:
+        typeof registration?.unregister === "function" ? registration.unregister : () => {},
+    };
+  } catch {
+    return { unregister: () => {} };
+  }
 }
 
 function formatAutoresearchCommandNotification(

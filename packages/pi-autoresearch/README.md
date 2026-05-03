@@ -45,6 +45,10 @@ The current boundary is now more specific: the package is the runtime owner for 
   - with no objective, opens/reports the bounded runtime overview
   - with an objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
   - keeps execution explicit: the slash command does not secretly run baselines, loops, peers, commits, AK writes, or KES promotion
+- `$$ autoresearch <objective>` / `$$ ar <objective>` when `@tryinget/pi-interaction` or `@tryinget/pi-trigger-adapter` is loaded
+  - opens the pi-interaction picker for plan-only, governed setup plan, baseline, or bounded-loop campaign-start modes
+  - replaces the editor text with the exact `autoresearch_campaign_start({ ... })` call selected by the operator
+  - degrades safely when the optional interaction runtime is not installed
 
 ### Tools
 

@@ -285,11 +285,18 @@ The minimal front door is now:
 - no peer auto-launch;
 - no direct external promotion.
 
-### Slice 3 — Add interaction/TUI affordances — next
+### Slice 3 — Add interaction/TUI affordances — first picker slice landed
 
-Use `pi-interaction` affordances, `$$/` style triggers where appropriate, and TUI widgets/dashboard surfaces for setup review, metric-contract confirmation, policy selection, and live posture display before materializing files or running loops.
+The first `pi-interaction` affordance now exists:
 
-### Slice 4 — Orchestrator workflow wrapper — next after Slice 3/owner review
+- `$$ autoresearch <objective>` and `$$ ar <objective>` register through `@tryinget/pi-interaction` / `@tryinget/pi-trigger-adapter` when that optional runtime is loaded;
+- the picker offers plan-only, governed setup plan, baseline, and bounded-loop campaign-start modes;
+- the selected mode replaces editor text with the exact `autoresearch_campaign_start({ ... })` call;
+- the trigger degrades safely when the optional interaction runtime is unavailable.
+
+Still next in this slice: TUI widgets/dashboard surfaces for setup review, metric-contract confirmation, policy selection, live posture display, and candidate keep/discard/rewind decisions.
+
+### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 
 Add an orchestrator-level wrapper only after the package-owned front door exists, so orchestration composes owner surfaces rather than inventing a second runtime.
 
