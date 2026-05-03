@@ -38,6 +38,7 @@ When `DESIGNMD_SESSION_ENDPOINT` is set, tools also report start/pass/fail activ
 - `designmd_penpot_mcp_inspect` — read-only inspect of the active Penpot file through the official Penpot MCP server.
 - `designmd_penpot_mcp_bridge` — plan or explicitly apply one bounded `designmd.canvas-bridge.v1` board mutation through the official Penpot MCP server.
 - `designmd_penpot_mcp_export` — read-only SVG export of an existing DesignMD bridge board through the official Penpot MCP server.
+- `designmd_session_closeout` — build or materialize a local `designmd.session-closeout.v1` Watch Mode evidence packet without claiming canonical AK/society promotion.
 - `designmd_readiness` — run DesignMD Foundry's integration readiness probe.
 
 Prompt/export modes are deliberately constrained to the Foundry CLI contract: `iterate`, `remix`, `expand`, or `audit`.
@@ -115,7 +116,7 @@ export DESIGNMD_SESSION_ACTOR=pi-designmd
 export DESIGNMD_SESSION_TOKEN=$DESIGNMD_API_TOKEN
 ```
 
-Without `DESIGNMD_SESSION_ID`, the adapter reuses the current running session or starts a new one. Output-producing tools attach artifacts such as Oat snapshot HTML, agent prompts, CSS/JSON exports, SVG/path metadata for OpenPencil exports, Penpot MCP bridge plans, bridge-apply proof SVGs, and read-only existing-board export SVGs.
+Without `DESIGNMD_SESSION_ID`, the adapter reuses the current running session or starts a new one. Output-producing tools attach artifacts such as Oat snapshot HTML, agent prompts, CSS/JSON exports, SVG/path metadata for OpenPencil exports, Penpot MCP bridge plans, bridge-apply proof SVGs, read-only existing-board export SVGs, and local session closeout packets.
 
 ## DesignMD Foundry root
 

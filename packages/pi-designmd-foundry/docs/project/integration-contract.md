@@ -30,6 +30,7 @@ The extension exposes operations that are readiness-verified in DesignMD Foundry
 - `designmd_penpot_mcp_inspect` for read-only active-file bridge-board snapshots through official Penpot MCP
 - `designmd_penpot_mcp_bridge` for plan-by-default / explicit-apply DesignMD canvas bridge boards through official Penpot MCP
 - `designmd_penpot_mcp_export` for read-only SVG export of an existing DesignMD bridge board through official Penpot MCP
+- `designmd_session_closeout` for local `designmd.session-closeout.v1` Watch Mode evidence packets without canonical promotion claims
 - `designmd_readiness`
 
 ## Non-goals for the initial package
@@ -52,7 +53,7 @@ The CLI entrypoint uses `dist/cli.js` when present, otherwise source mode throug
 
 ## Safety posture
 
-Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export, Penpot MCP bridge-apply SVG proof output, and read-only Penpot MCP existing-board SVG export. Penpot MCP inspect and export are read-only. Penpot MCP mutation requires `apply: true` and a human-connected plugin; plan mode is the default.
+Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export, Penpot MCP bridge-apply SVG proof output, and read-only Penpot MCP existing-board SVG export. The closeout tool can materialize only local Watch Mode artifacts/checks and explicitly does not promote AK/society authority. Penpot MCP inspect and export are read-only. Penpot MCP mutation requires `apply: true` and a human-connected plugin; plan mode is the default.
 
 ## Optional Watch Mode reporting
 

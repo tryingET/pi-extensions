@@ -85,6 +85,12 @@ interface PenpotMcpExportParams extends BaseParams {
   endpoint?: string;
 }
 
+interface SessionCloseoutParams extends BaseParams {
+  projectId?: string;
+  sessionId?: string;
+  materialize?: boolean;
+}
+
 interface ReadinessParams extends BaseParams {}
 
 interface SessionArtifactSpec {
@@ -703,6 +709,55 @@ export default function (pi: ExtensionAPI) {
             ? `Export Penpot MCP bridge board ${request.boardId}`
             : "Export latest Penpot MCP bridge board",
           artifact: (result) => artifactForPenpotMcpExport(result.stdout, resolvedOutputPath),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_session_closeout",
+    label: "DesignMD session closeout",
+    description:
+      "Build or materialize a local DesignMD Watch Mode session closeout packet. This is Watch Mode evidence only, not canonical AK/society promotion.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sessionId: Type.Optional(
+          Type.String({
+            description:
+              "Watch Mode session id. Defaults to current running session in local Foundry storage.",
+          }),
+        ),
+        materialize: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, write the closeout packet as a local session artifact and check. Defaults to false.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as SessionCloseoutParams;
+      const args = ["session-closeout", request.sessionId || "current"];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.materialize) args.push("--materialize");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_session_closeout",
+          objective: request.materialize
+            ? "Materialize DesignMD session closeout"
+            : "Build DesignMD session closeout",
+          artifact: (result) => ({
+            kind: "json",
+            title: request.materialize
+              ? "DesignMD materialized session closeout result"
+              : "DesignMD session closeout packet",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
         }),
       );
     },
