@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "a796374ad9be44b2af5dd6ee1efc9992608df024"
+created_at: "2026-05-04T01:25:34Z"
+intent: "Record ontology authority receipt mode projection."
+files:
+  - "ontology/dist/authority-receipt.json"
+  - "ontology/dist/authority-receipt.validate.json"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run check"
+    status: "pending"
+group:
+  index: 1
+  total: 4
+  rationale: "Generated ontology authority receipt projection changed from strict to loose workspace ref mode."
