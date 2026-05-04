@@ -85,6 +85,11 @@ const ALWAYS_ACTIVE_TOOLS = [
 
 const DEFAULT_TTL_TURNS = 4;
 const MAX_TTL_TURNS = 12;
+const ALLOWED_EAGER_REGISTERED_BUNDLE_IDS = new Set([
+  "vault",
+  "session-introspection",
+  "operator-interaction",
+]);
 
 export const CATALOG: ToolboxBundle[] = [
   {
@@ -635,6 +640,46 @@ function describeLeases(state: ToolboxState): string[] {
   });
 }
 
+function buildCatalogToolBundleIndex(): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>();
+  for (const bundle of CATALOG) {
+    for (const profile of bundle.profiles) {
+      for (const tool of profile.tools) {
+        const bundleIds = index.get(tool) ?? new Set<string>();
+        bundleIds.add(bundle.id);
+        index.set(tool, bundleIds);
+      }
+    }
+  }
+  return index;
+}
+
+function findEagerRegistrationDrift(pi: ExtensionAPI, state: ToolboxState): string[] {
+  const active = new Set(pi.getActiveTools());
+  const registered = getKnownToolNames(pi);
+  const leased = new Set(state.leases.keys());
+  const lazilyImportedBundles = new Set(
+    state.lazyImportRecords.filter((record) => record.ok).map((record) => record.bundle),
+  );
+  const catalogToolBundles = buildCatalogToolBundleIndex();
+  const drift = new Set<string>();
+
+  for (const [tool, bundleIds] of catalogToolBundles) {
+    if (!registered.has(tool) || active.has(tool) || leased.has(tool)) {
+      continue;
+    }
+    if ([...bundleIds].some((bundleId) => ALLOWED_EAGER_REGISTERED_BUNDLE_IDS.has(bundleId))) {
+      continue;
+    }
+    if ([...bundleIds].some((bundleId) => lazilyImportedBundles.has(bundleId))) {
+      continue;
+    }
+    drift.add(tool);
+  }
+
+  return [...drift].sort();
+}
+
 function getLazyRegistrationFunction(
   moduleValue: unknown,
 ):
@@ -711,6 +756,7 @@ function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
     (bundle) => bundle.id,
   );
   const activeLeases = describeLeases(state);
+  const eagerRegistrationDrift = findEagerRegistrationDrift(pi, state);
   const recentLazyImports = state.lazyImportRecords.slice(-5);
 
   return [
@@ -722,6 +768,7 @@ function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
     `- registered catalog tools (${registeredCatalogTools.length}): ${registeredCatalogTools.join(", ") || "none"}`,
     `- not currently registered (${unavailableCatalogTools.length}): ${unavailableCatalogTools.join(", ") || "none"}`,
     `- active leases (${activeLeases.length}): ${activeLeases.join("; ") || "none"}`,
+    `- eager registration drift (${eagerRegistrationDrift.length}): ${eagerRegistrationDrift.join(", ") || "none"}`,
     `- recent lazy imports (${recentLazyImports.length}): ${
       recentLazyImports
         .map((record) => `${record.bundle}:${record.ok ? "ok" : "failed"}`)
@@ -775,6 +822,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           activeTools: pi.getActiveTools(),
           bundles: CATALOG.map((bundle) => bundle.id),
           leases: describeLeases(state),
+          eagerRegistrationDrift: findEagerRegistrationDrift(pi, state),
         });
       }
 

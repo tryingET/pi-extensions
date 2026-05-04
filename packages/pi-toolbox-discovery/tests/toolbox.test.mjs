@@ -19,11 +19,15 @@ const ALWAYS_ACTIVE_TOOLS = [
   "toolbox",
 ];
 
-function createHarness() {
+function createHarness(options = {}) {
   const commands = new Map();
   const tools = new Map();
   const handlers = new Map();
-  const allToolNames = new Set([...ALWAYS_ACTIVE_TOOLS, "vault_insert"]);
+  const allToolNames = new Set([
+    ...ALWAYS_ACTIVE_TOOLS,
+    "vault_insert",
+    ...(options.registeredTools ?? []),
+  ]);
   let activeTools = [...ALWAYS_ACTIVE_TOOLS];
 
   const pi = {
@@ -128,6 +132,34 @@ test("Prompt Vault read tools are part of the cognitive always-active set", asyn
     result.content[0].text,
     /Protected always-active tools retained: vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check/,
   );
+});
+
+test("toolbox status reports unexpected eager catalog registrations", async () => {
+  const harness = createHarness({
+    registeredTools: ["autoresearch_runtime_status", "autoresearch_runtime_run"],
+  });
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, { action: "status" });
+
+  assert.match(
+    result.content[0].text,
+    /eager registration drift \(2\): autoresearch_runtime_run, autoresearch_runtime_status/,
+  );
+  assert.deepEqual(result.details.eagerRegistrationDrift, [
+    "autoresearch_runtime_run",
+    "autoresearch_runtime_status",
+  ]);
+});
+
+test("toolbox status allows Prompt Vault inactive registrations as cognitive baseline", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, { action: "status" });
+
+  assert.match(result.content[0].text, /eager registration drift \(0\): none/);
+  assert.deepEqual(result.details.eagerRegistrationDrift, []);
 });
 
 test("toolbox refuses risky activation without acknowledgement", async () => {

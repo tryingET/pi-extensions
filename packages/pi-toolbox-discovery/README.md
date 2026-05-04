@@ -26,6 +26,7 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - lazily imports owner modules for lazy-ready bundles when tools are not already registered
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - fails closed for bundle/profile activation if requested profile tools remain unavailable after lazy import
+- reports eager registration drift when catalog tools from lazy bundles are already registered without an active lease or lazy-import record, which catches settings drift such as duplicate worktree package entries
 
 The package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` via `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` via `@tryinget/pi-little-helpers/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 
