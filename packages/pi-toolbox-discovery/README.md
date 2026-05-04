@@ -23,13 +23,15 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - enforces the minimal active tool set on `session_start`
 - searches/explains catalog metadata without importing owner packages
 - plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
-- activates bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement
+- activates bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement plus `riskJustification`
 - lazily imports owner modules for lazy-ready bundles when tools are not already registered
 - restores the pre-import active-tool set before adding requested profile tools, so owner packages that auto-activate newly registered tools cannot leak out-of-profile tools into the active set
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - fails closed for bundle/profile or explicit-tool activation if requested tools remain unavailable after lazy import, and restores the pre-import active-tool baseline when a partial lazy import registered or auto-activated tools
-- reports eager registration drift when catalog tools from lazy bundles are already registered without an active lease or lazy-import record, which catches settings drift such as duplicate worktree package entries
-- provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, active leases, eager registration drift, unleased active catalog tools, and duplicate/settings suspects
+- reports eager registration drift when catalog tools from lazy bundles are already registered without an active lease or accepted lazy-import record, which catches settings drift such as duplicate worktree package entries
+- reports partial lazy imports separately because registered tool definitions cannot be fully rolled back without `/reload`
+- clears lease/lazy-import bookkeeping on `session_start` before re-applying the lean active-tool baseline
+- provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, active leases, eager registration drift, unleased active catalog tools, partial lazy imports, and duplicate/settings suspects
 
 The package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` via `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` via `@tryinget/pi-little-helpers/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 

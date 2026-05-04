@@ -40,12 +40,15 @@ interface ActivationLease {
   profile?: string;
   pinned: boolean;
   expiresAtTurn?: number;
+  riskJustification?: string;
 }
 
 interface LazyImportRecord {
   bundle: string;
   specifier: string;
+  profile: string;
   ok: boolean;
+  registeredTools: string[];
   message: string;
 }
 
@@ -65,6 +68,7 @@ interface ToolboxParams {
   ttlTurns?: number;
   pin?: boolean;
   riskAcknowledged?: boolean;
+  riskJustification?: string;
 }
 
 interface ToolCatalogMatch {
@@ -469,6 +473,11 @@ const TOOLBOX_PARAMETERS = {
       type: "boolean",
       description: "Required for mutating, external-mutation, and orchestrator-gated profiles.",
     },
+    riskJustification: {
+      type: "string",
+      description:
+        "Required with riskAcknowledged for mutating, external-mutation, and orchestrator-gated activation. Summarize the explicit user intent/risk reason.",
+    },
   },
 } as const;
 
@@ -665,6 +674,7 @@ function recordLeases(
         profile: resolved.profile?.id,
         pinned,
         expiresAtTurn: pinned ? undefined : state.turn + ttl,
+        riskJustification: params.riskJustification?.trim() || undefined,
       }),
     );
 
@@ -704,7 +714,8 @@ function describeLeases(state: ToolboxState): string[] {
       ? "pinned"
       : `expires in ${Math.max(0, (lease.expiresAtTurn ?? state.turn) - state.turn)} turn(s)`;
     const source = [lease.bundle, lease.profile].filter(Boolean).join("/") || "explicit-tools";
-    return `${lease.tool} (${source}; ${lifetime})`;
+    const riskNote = lease.riskJustification ? `; risk=${lease.riskJustification}` : "";
+    return `${lease.tool} (${source}; ${lifetime}${riskNote})`;
   });
 }
 
@@ -726,8 +737,10 @@ function findEagerRegistrationDrift(pi: ExtensionAPI, state: ToolboxState): stri
   const active = new Set(pi.getActiveTools());
   const registered = getKnownToolNames(pi);
   const leased = new Set(state.leases.keys());
-  const lazilyImportedBundles = new Set(
-    state.lazyImportRecords.filter((record) => record.ok).map((record) => record.bundle),
+  const acceptedLazyTools = new Set(
+    state.lazyImportRecords
+      .filter((record) => record.ok)
+      .flatMap((record) => record.registeredTools),
   );
   const catalogToolBundles = buildCatalogToolBundleIndex();
   const drift = new Set<string>();
@@ -739,7 +752,7 @@ function findEagerRegistrationDrift(pi: ExtensionAPI, state: ToolboxState): stri
     if ([...bundleIds].some((bundleId) => ALLOWED_EAGER_REGISTERED_BUNDLE_IDS.has(bundleId))) {
       continue;
     }
-    if ([...bundleIds].some((bundleId) => lazilyImportedBundles.has(bundleId))) {
+    if (acceptedLazyTools.has(tool)) {
       continue;
     }
     drift.add(tool);
@@ -761,6 +774,15 @@ function findUnleasedActiveCatalogTools(pi: ExtensionAPI, state: ToolboxState): 
         catalogTools.has(tool) && !ALWAYS_ACTIVE_TOOLS.includes(tool) && !state.leases.has(tool),
     )
     .sort();
+}
+
+function findPartialLazyImportRecords(state: ToolboxState): string[] {
+  return state.lazyImportRecords
+    .filter((record) => !record.ok && record.registeredTools.length > 0)
+    .map(
+      (record) =>
+        `${record.bundle}/${record.profile}: ${record.registeredTools.join(", ")} (${record.message})`,
+    );
 }
 
 function groupToolsByBundle(tools: string[]): string[] {
@@ -795,6 +817,7 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
   );
   const eagerRegistrationDrift = findEagerRegistrationDrift(pi, state);
   const unleasedActiveCatalogTools = findUnleasedActiveCatalogTools(pi, state);
+  const partialLazyImports = findPartialLazyImportRecords(state);
   const duplicateOrSettingsSuspects = groupToolsByBundle(eagerRegistrationDrift).map((group) => {
     const bundleId = group.split(":", 1)[0] ?? "unknown";
     const bundle = CATALOG.find((candidate) => candidate.id === bundleId);
@@ -830,6 +853,12 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
       "Deactivate unneeded catalog tools or reactivate them through toolbox so TTL/pin state is explicit.",
     );
   }
+  if (partialLazyImports.length > 0) {
+    problems.push(`partial lazy imports left registered tools: ${partialLazyImports.join("; ")}`);
+    recommendations.push(
+      "Reload Pi before trusting registered-tool posture, then activate the owner bundle/profile again if needed.",
+    );
+  }
   if (recommendations.length === 0) {
     recommendations.push(
       "Lean startup profile is healthy; activate lazy bundles only when the task needs them.",
@@ -845,14 +874,14 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
     inactiveAlwaysActiveTools,
     eagerRegistrationDrift,
     unleasedActiveCatalogTools,
+    partialLazyImports,
     duplicateOrSettingsSuspects,
     recommendations,
     problems,
   };
 }
 
-function formatDoctor(pi: ExtensionAPI, state: ToolboxState): string {
-  const report = buildDoctorReport(pi, state);
+function formatDoctor(report: ReturnType<typeof buildDoctorReport>): string {
   return [
     "toolbox doctor",
     `- verdict: ${report.ok ? "pass" : "fail"}`,
@@ -869,6 +898,7 @@ function formatDoctor(pi: ExtensionAPI, state: ToolboxState): string {
     `- active leases (${report.activeLeases.length}): ${report.activeLeases.join("; ") || "none"}`,
     `- eager registration drift (${report.eagerRegistrationDrift.length}): ${report.eagerRegistrationDrift.join(", ") || "none"}`,
     `- unleased active catalog tools (${report.unleasedActiveCatalogTools.length}): ${report.unleasedActiveCatalogTools.join(", ") || "none"}`,
+    `- partial lazy imports (${report.partialLazyImports.length}): ${report.partialLazyImports.join("; ") || "none"}`,
     `- duplicate/settings suspects (${report.duplicateOrSettingsSuspects.length}): ${report.duplicateOrSettingsSuspects.join("; ") || "none"}`,
     `- recommendations: ${report.recommendations.join(" ")}`,
   ].join("\n");
@@ -894,39 +924,56 @@ async function tryLazyImportBundle(
   requestedTools: string[],
 ): Promise<{ attempted: boolean; records: LazyImportRecord[] }> {
   if (!bundle?.lazyModules?.length) return { attempted: false, records: [] };
-  if (requestedTools.every((tool) => getKnownToolNames(pi).has(tool))) {
+
+  const profileId = profile?.id ?? "default";
+  const moduleKeys = bundle.lazyModules.map(
+    (lazyModule) => `${bundle.id}:${profileId}:${lazyModule.specifier}`,
+  );
+  if (
+    requestedTools.every((tool) => getKnownToolNames(pi).has(tool)) &&
+    moduleKeys.every((key) => state.loadedBundles.has(key))
+  ) {
     return { attempted: false, records: [] };
   }
 
   const records: LazyImportRecord[] = [];
   for (const lazyModule of bundle.lazyModules) {
-    if (state.loadedBundles.has(`${bundle.id}:${lazyModule.specifier}`)) continue;
+    const moduleKey = `${bundle.id}:${profileId}:${lazyModule.specifier}`;
+    if (state.loadedBundles.has(moduleKey)) continue;
     try {
       const moduleValue = await import(lazyModule.specifier);
       const register = getLazyRegistrationFunction(moduleValue);
       if (register) {
-        await register(pi, { profile: profile?.id ?? "default", requestedTools });
+        await register(pi, { profile: profileId, requestedTools });
       }
       const nowKnown = getKnownToolNames(pi);
       const registeredRequestedTools = requestedTools.filter((tool) => nowKnown.has(tool));
+      const complete = requestedTools.every((tool) => nowKnown.has(tool));
       const record = {
         bundle: bundle.id,
         specifier: lazyModule.specifier,
-        ok: registeredRequestedTools.length > 0,
-        message:
-          registeredRequestedTools.length > 0
-            ? `registered requested tools: ${registeredRequestedTools.join(", ")}`
+        profile: profileId,
+        ok: complete,
+        registeredTools: registeredRequestedTools,
+        message: complete
+          ? `registered requested tools: ${registeredRequestedTools.join(", ")}`
+          : registeredRequestedTools.length > 0
+            ? `partial registration: ${registeredRequestedTools.join(", ")}`
             : `imported ${lazyModule.label} but none of the requested tools registered`,
       };
       records.push(record);
       state.lazyImportRecords.push(record);
-      state.loadedBundles.add(`${bundle.id}:${lazyModule.specifier}`);
-      if (requestedTools.every((tool) => nowKnown.has(tool))) break;
+      if (complete) {
+        state.loadedBundles.add(moduleKey);
+        break;
+      }
     } catch (error) {
       const record = {
         bundle: bundle.id,
         specifier: lazyModule.specifier,
+        profile: profileId,
         ok: false,
+        registeredTools: [],
         message: error instanceof Error ? error.message : String(error),
       };
       records.push(record);
@@ -950,7 +997,8 @@ function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
     (bundle) => bundle.id,
   );
   const activeLeases = describeLeases(state);
-  const eagerRegistrationDrift = findEagerRegistrationDrift(pi, state);
+  const doctorReport = buildDoctorReport(pi, state);
+  const eagerRegistrationDrift = doctorReport.eagerRegistrationDrift;
   const recentLazyImports = state.lazyImportRecords.slice(-5);
 
   return [
@@ -962,7 +1010,15 @@ function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
     `- registered catalog tools (${registeredCatalogTools.length}): ${registeredCatalogTools.join(", ") || "none"}`,
     `- not currently registered (${unavailableCatalogTools.length}): ${unavailableCatalogTools.join(", ") || "none"}`,
     `- active leases (${activeLeases.length}): ${activeLeases.join("; ") || "none"}`,
+    `- baseline health: ${
+      doctorReport.missingAlwaysActiveRegistrations.length === 0 &&
+      doctorReport.inactiveAlwaysActiveTools.length === 0
+        ? "ok"
+        : "needs attention"
+    }`,
     `- eager registration drift (${eagerRegistrationDrift.length}): ${eagerRegistrationDrift.join(", ") || "none"}`,
+    `- unleased active catalog tools (${doctorReport.unleasedActiveCatalogTools.length}): ${doctorReport.unleasedActiveCatalogTools.join(", ") || "none"}`,
+    `- partial lazy imports (${doctorReport.partialLazyImports.length}): ${doctorReport.partialLazyImports.join("; ") || "none"}`,
     `- recent lazy imports (${recentLazyImports.length}): ${
       recentLazyImports
         .map((record) => `${record.bundle}:${record.ok ? "ok" : "failed"}`)
@@ -976,6 +1032,9 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
   const state = createToolboxState();
 
   pi.on("session_start", () => {
+    state.leases.clear();
+    state.loadedBundles.clear();
+    state.lazyImportRecords = [];
     applyMinimalStartupProfile(pi);
   });
 
@@ -1017,12 +1076,14 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           bundles: CATALOG.map((bundle) => bundle.id),
           leases: describeLeases(state),
           eagerRegistrationDrift: findEagerRegistrationDrift(pi, state),
+          unleasedActiveCatalogTools: findUnleasedActiveCatalogTools(pi, state),
+          partialLazyImports: findPartialLazyImportRecords(state),
         });
       }
 
       if (action === "doctor") {
         const report = buildDoctorReport(pi, state);
-        return textResult(formatDoctor(pi, state), report);
+        return textResult(formatDoctor(report), report);
       }
 
       if (action === "search") {
@@ -1051,9 +1112,10 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           });
         }
 
-        if (plan.requiresAcknowledgement && !params.riskAcknowledged) {
+        const riskJustification = params.riskJustification?.trim() ?? "";
+        if (plan.requiresAcknowledgement && (!params.riskAcknowledged || !riskJustification)) {
           return textResult(
-            `Refusing to activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"} (${plan.risks.join(", ")}) without riskAcknowledged=true and explicit user intent.`,
+            `Refusing to activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"} (${plan.risks.join(", ")}) without riskAcknowledged=true, riskJustification, and explicit user intent.`,
             { ok: false, risks: plan.risks, source: plan.source },
           );
         }

@@ -304,7 +304,8 @@ toolbox({
   tools?: string[],
   ttlTurns?: number,
   pin?: boolean,
-  riskAcknowledged?: boolean
+  riskAcknowledged?: boolean,
+  riskJustification?: string
 })
 ```
 
@@ -853,12 +854,14 @@ The first implementation must document the exact rollback commands after the pac
 - `toolbox({ action: "search" })` does not import heavy package modules
 - read-only bundle activation registers and activates expected profile tools
 - lazy import does not leave out-of-profile owner tools active when host registration auto-activates tools
-- explicit `tools: [...]` activation is governed by reverse catalog risk lookup and cannot bypass mutating/orchestrator/external-mutation gates; non-catalog explicit tools require acknowledgement
+- explicit `tools: [...]` activation is governed by reverse catalog risk lookup and cannot bypass mutating/orchestrator/external-mutation gates; non-catalog explicit tools require acknowledgement plus `riskJustification`
 - explicit missing-tool activation fails closed instead of reporting a no-op success
+- lazy imports are accepted at requested-tool completeness granularity, not merely because one requested tool registered
+- profile-sensitive owner bundles are re-invoked per profile so later mutating activation can upgrade read-profile registrations when the owner supports it
 - deactivation removes tools from active list except protected always-active tools
 - TTL expiration removes tools after expected turns
 - mutating and orchestrator-gated profile activation requires explicit user intent or policy pin
-- failed or incomplete lazy import leaves no newly active tools behind, including when the host auto-activates partially registered owner tools
+- failed or incomplete lazy import leaves no newly active tools behind, including when the host auto-activates partially registered owner tools; partial registered-tool residue is surfaced by doctor/status and requires `/reload` for full cleanup
 - pinned activation restores on reload/resume only when expected
 
 ### Package parity checks

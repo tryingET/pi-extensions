@@ -260,6 +260,21 @@ test("toolbox treats non-catalog explicit tools as risk-acknowledged only", asyn
   assert.equal(harness.activeTools.includes("non_catalog_tool"), false);
 });
 
+test("toolbox requires risk justification with acknowledgement", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+  });
+
+  assert.match(result.content[0].text, /without riskAcknowledged=true, riskJustification/);
+  assert.equal(result.details.ok, false);
+  assert.equal(harness.activeTools.includes("vault_insert"), false);
+});
+
 test("toolbox fails closed for missing explicit tools", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
@@ -268,6 +283,7 @@ test("toolbox fails closed for missing explicit tools", async () => {
     action: "activate",
     tools: ["does_not_exist"],
     riskAcknowledged: true,
+    riskJustification: "test missing explicit tool fail-closed behavior",
   });
 
   assert.match(result.content[0].text, /Cannot activate explicit-tools\/requested/);
@@ -351,6 +367,7 @@ test("toolbox lazily imports little-helpers peer-spawn tools before activation",
     bundle: "peer-spawn",
     profile: "default",
     riskAcknowledged: true,
+    riskJustification: "test peer-spawn gated activation",
   });
 
   assert.match(result.content[0].text, /Activated tools: fork_peer_spawn/);
@@ -369,6 +386,7 @@ test("toolbox deactivation preserves always-active tools", async () => {
     action: "activate",
     tools: ["vault_insert"],
     riskAcknowledged: true,
+    riskJustification: "test explicit mutating deactivation path",
   });
   const result = await executeToolbox(toolbox, {
     action: "deactivate",
@@ -402,6 +420,26 @@ test("toolbox deactivation preserves always-active tools", async () => {
   );
 });
 
+test("toolbox session_start clears stale leases and lazy import records", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test session start lease clearing",
+  });
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+
+  await harness.runEvent("session_start");
+  const status = await executeToolbox(toolbox, { action: "status" });
+
+  assert.equal(harness.activeTools.includes("vault_insert"), false);
+  assert.match(status.content[0].text, /active leases \(0\): none/);
+  assert.match(status.content[0].text, /recent lazy imports \(0\): none/);
+});
+
 test("toolbox TTL expires unpinned activations on later turns", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
@@ -411,6 +449,7 @@ test("toolbox TTL expires unpinned activations on later turns", async () => {
     tools: ["vault_insert"],
     ttlTurns: 1,
     riskAcknowledged: true,
+    riskJustification: "test explicit mutating ttl expiration",
   });
   assert.equal(harness.activeTools.includes("vault_insert"), true);
 
@@ -483,6 +522,78 @@ test("toolbox activation does not keep owner auto-activated tools outside the re
   }
 });
 
+test("toolbox re-invokes lazy owner bundles for profile upgrades", async () => {
+  const callKey = `__toolbox_profile_calls_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const moduleSource = `export default function(pi, context) {
+    globalThis[${JSON.stringify(callKey)}] = globalThis[${JSON.stringify(callKey)}] || [];
+    globalThis[${JSON.stringify(callKey)}].push(context.profile);
+    pi.registerTool({
+      name: context.profile === "mutating" ? "lazy_upgrade_write" : "lazy_upgrade_read",
+      label: "Lazy Upgrade Tool",
+      description: "Registered by profile-specific lazy toolbox import",
+      parameters: { type: "object", additionalProperties: false, properties: {} },
+      async execute() { return { content: [{ type: "text", text: "ok" }], details: {} }; }
+    });
+  }`;
+  const bundle = {
+    id: "lazy-upgrade-test",
+    title: "Lazy upgrade test bundle",
+    description: "Test-only profile upgrade lazy import bundle",
+    ownerPackage: "test",
+    ownerSemantics: "test-only",
+    keywords: ["lazy-upgrade-test"],
+    lazyModules: [
+      {
+        specifier: `data:text/javascript,${encodeURIComponent(moduleSource)}`,
+        label: "test module",
+      },
+    ],
+    profiles: [
+      {
+        id: "read",
+        description: "Read profile",
+        tools: ["lazy_upgrade_read"],
+        risk: "read",
+        defaultTtlTurns: 2,
+        requiresExplicitUserIntent: false,
+      },
+      {
+        id: "mutating",
+        description: "Mutating profile",
+        tools: ["lazy_upgrade_write"],
+        risk: "mutating",
+        defaultTtlTurns: 2,
+        requiresExplicitUserIntent: true,
+      },
+    ],
+  };
+  CATALOG.push(bundle);
+
+  try {
+    const harness = createHarness();
+    const toolbox = harness.tools.get("toolbox");
+
+    await executeToolbox(toolbox, {
+      action: "activate",
+      bundle: "lazy-upgrade-test",
+      profile: "read",
+    });
+    await executeToolbox(toolbox, {
+      action: "activate",
+      bundle: "lazy-upgrade-test",
+      profile: "mutating",
+      riskAcknowledged: true,
+      riskJustification: "test profile upgrade invocation",
+    });
+
+    assert.deepEqual(globalThis[callKey], ["read", "mutating"]);
+    assert.equal(harness.activeTools.includes("lazy_upgrade_write"), true);
+  } finally {
+    CATALOG.splice(CATALOG.indexOf(bundle), 1);
+    delete globalThis[callKey];
+  }
+});
+
 test("toolbox activation restores pre-import active tools when lazy import is incomplete", async () => {
   const moduleSource = `export default function(pi) {
     for (const name of ["lazy_partial_registered", "lazy_partial_extra"]) {
@@ -535,6 +646,13 @@ test("toolbox activation restores pre-import active tools when lazy import is in
     assert.equal(result.details.ok, false);
     assert.deepEqual(result.details.missing, ["lazy_partial_missing"]);
     assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+
+    const doctor = await executeToolbox(toolbox, { action: "doctor" });
+    assert.match(doctor.content[0].text, /partial lazy imports \(1\): lazy-partial-test\/default/);
+    assert.equal(doctor.details.ok, false);
+    assert.deepEqual(doctor.details.partialLazyImports, [
+      "lazy-partial-test/default: lazy_partial_registered (partial registration: lazy_partial_registered)",
+    ]);
   } finally {
     CATALOG.splice(CATALOG.indexOf(bundle), 1);
   }
