@@ -1512,7 +1512,7 @@ export async function executeAutoresearchSetup(
     wroteBenchmarkScript,
     wroteChecksScript,
     run: null,
-    status: buildAutoresearchRuntimeStatus(cwd),
+    status: buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true }),
     nextToolCall: formatSetupNextToolCall(cwd, plannedConfig, "baseline"),
   };
 }
@@ -2679,7 +2679,7 @@ export function buildAutoresearchRuntimeStatus(
     ? loadReceiptLog(cwd)
     : { entries: [], invalidLineCount: 0 };
   return buildAutoresearchRuntimeStatusFromEntries(cwd, paths, entries, invalidLineCount, {
-    persistSnapshot: options.persistSnapshot ?? true,
+    persistSnapshot: options.persistSnapshot ?? false,
   });
 }
 
@@ -3214,7 +3214,7 @@ export function buildAutoresearchCandidateBindPlan(
     exactNextCalls,
     plannedCommands,
     boundaryWarnings: [...AUTORESEARCH_CANDIDATE_BIND_BOUNDARY_WARNINGS],
-    status: buildAutoresearchRuntimeStatus(cwd),
+    status: buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false }),
   };
 }
 
@@ -4483,7 +4483,7 @@ export async function executeAutoresearchRun(
     primaryMetricName: metricName,
     primaryMetric,
     decisionSummary,
-    status: buildAutoresearchRuntimeStatus(cwd),
+    status: buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true }),
   };
 }
 
@@ -4645,7 +4645,7 @@ export async function executeAutoresearchLoop(
     }
   }
 
-  const status = buildAutoresearchRuntimeStatus(cwd);
+  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
   const elapsedSeconds = (Date.now() - startedAt) / 1000;
   const peerAssist = buildAutoresearchPeerAssistPlan(
     buildLoopPeerAssistInput(input, cwd, goal, peerMode),
@@ -6783,17 +6783,40 @@ function buildAutoresearchCandidateBindNextCalls(input: {
   candidateSource: AutoresearchCandidateBindingSource;
   inspection: AutoresearchCandidateBindInspection;
 }): string[] {
-  const candidateWorktree = input.inspection.isGitWorktree
-    ? input.inspection.candidateWorktree
-    : "<worktree>";
-  const candidateBranch = input.inspection.branch ?? "<branch>";
-  const candidateBaseRef = input.inspection.baseRef ?? "<base-ref>";
-  const files =
-    input.inspection.filesChanged.length > 0 ? input.inspection.filesChanged : ["<file>"];
-  return [
-    `${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, description: ${JSON.stringify(input.description)}, candidateSource: ${JSON.stringify(input.candidateSource)}, candidateWorktree: ${JSON.stringify(candidateWorktree)}, candidateBranch: ${JSON.stringify(candidateBranch)}, candidateBaseRef: ${JSON.stringify(candidateBaseRef)}, candidateDiffSummary: ${JSON.stringify(input.inspection.diffSummary)}, candidateFilesChanged: ${JSON.stringify(files)} })`,
-    `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, action: "status" })`,
+  const decisionStatusCall = `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, action: "status" })`;
+  if (input.inspection.readiness !== "ready") {
+    const reviewFields = [
+      `cwd: ${JSON.stringify(input.cwd)}`,
+      `action: "plan_run"`,
+      `candidateSource: ${JSON.stringify(input.candidateSource)}`,
+      `candidateWorktree: ${JSON.stringify(input.inspection.candidateWorktree)}`,
+      `description: ${JSON.stringify(input.description)}`,
+    ];
+    if (input.inspection.branch) {
+      reviewFields.push(`candidateBranch: ${JSON.stringify(input.inspection.branch)}`);
+    }
+    if (input.inspection.baseRef) {
+      reviewFields.push(`candidateBaseRef: ${JSON.stringify(input.inspection.baseRef)}`);
+    }
+    return [
+      `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ ${reviewFields.join(", ")} })`,
+      decisionStatusCall,
+    ];
+  }
+
+  const runFields = [
+    `cwd: ${JSON.stringify(input.cwd)}`,
+    `description: ${JSON.stringify(input.description)}`,
+    `candidateSource: ${JSON.stringify(input.candidateSource)}`,
+    `candidateWorktree: ${JSON.stringify(input.inspection.candidateWorktree)}`,
+    `candidateBaseRef: ${JSON.stringify(input.inspection.baseRef)}`,
+    `candidateDiffSummary: ${JSON.stringify(input.inspection.diffSummary)}`,
+    `candidateFilesChanged: ${JSON.stringify(input.inspection.filesChanged)}`,
   ];
+  if (input.inspection.branch) {
+    runFields.splice(4, 0, `candidateBranch: ${JSON.stringify(input.inspection.branch)}`);
+  }
+  return [`${AUTORESEARCH_RUN_TOOL_NAME}({ ${runFields.join(", ")} })`, decisionStatusCall];
 }
 
 function buildAutoresearchCandidateBindCommandPlan(input: {

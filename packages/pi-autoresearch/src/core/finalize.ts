@@ -1015,7 +1015,7 @@ export function materializeAutoresearchFinalizationPlan(
         ),
       ),
     );
-    const status = buildAutoresearchRuntimeStatus(cwd);
+    const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
 
     writeAutoresearchFinalizationPlan(cwd, {
       ...plan,

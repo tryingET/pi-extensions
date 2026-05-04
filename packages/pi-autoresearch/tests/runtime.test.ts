@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -453,6 +461,22 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     false,
   );
 });
+
+test("buildAutoresearchRuntimeStatus only persists snapshots when explicitly requested", () =>
+  withTempDir((cwd) => {
+    const runtimeSnapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);
+
+    const readOnlyStatus = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(readOnlyStatus.runtimeSnapshot.reuse, "missing");
+    assert.equal(existsSync(runtimeSnapshotPath), false);
+
+    const persistedStatus = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+    assert.equal(persistedStatus.runtimeSnapshot.reuse, "missing");
+    assert.equal(existsSync(runtimeSnapshotPath), true);
+
+    const reusedStatus = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(reusedStatus.runtimeSnapshot.reuse, "reused");
+  }));
 
 test("status builder summarizes best metric and confidence from appended receipts", () =>
   withTempDir((cwd) => {
@@ -1403,12 +1427,14 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
       { cwd, stdio: "ignore" },
     );
 
+    const runtimeSnapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);
     const plan = buildAutoresearchCandidateBindPlan({
       cwd,
       candidateWorktree: cwd,
       candidateBaseRef: "HEAD~1",
     });
 
+    assert.equal(existsSync(runtimeSnapshotPath), false);
     assert.equal(plan.inspection.exists, true);
     assert.equal(plan.inspection.isGitWorktree, true);
     assert.equal(plan.inspection.sameRepository, true);
@@ -1425,9 +1451,10 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
     assert.ok(dirtyPlan.inspection.filesChanged.includes("src/dirty.txt"));
     assert.ok(dirtyPlan.inspection.filesChanged.includes("src/value.txt"));
     assert.equal(dirtyPlan.inspection.readiness, "needs_review");
-    assert.match(plan.exactNextCalls[0] ?? "", /autoresearch_runtime_run/);
+    assert.match(plan.exactNextCalls[0] ?? "", /autoresearch_candidate_bind/);
     assert.match(plan.exactNextCalls[0] ?? "", /candidateWorktree/);
     assert.match(plan.exactNextCalls[0] ?? "", /candidateBaseRef/);
+    assert.doesNotMatch(plan.exactNextCalls.join("\n"), /<base-ref>|<branch>|<file>/);
     assert.match(plan.plannedCommands.join("\n"), /diff --stat/);
     assert.match(formatAutoresearchCandidateBindPlan(plan), /CANDIDATE BIND PLAN/);
     assert.match(formatAutoresearchCandidateBindPlan(plan), /intake readiness: needs_review/);
@@ -1458,6 +1485,7 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
         { cwd },
       );
     assert.ok(result);
+    assert.equal(existsSync(runtimeSnapshotPath), false);
     assert.match(result.content[0]?.text ?? "", /PI-AUTORESEARCH CANDIDATE BIND PLAN/);
     assert.match(result.content[0]?.text ?? "", /candidate\/bind/);
   });

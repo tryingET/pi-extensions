@@ -16,6 +16,7 @@ system4d:
 - Prefer coherent, task-complete changes; avoid unrelated churn.
 - Keep this package scoped to the local experiment runtime seam.
 - Treat local receipt files as projections, not canonical campaign truth.
+- Keep plan/status/inspect surfaces non-mutating by default; snapshot/projection persistence must be an explicit apply/run/finalize/control choice and covered by clean-worktree regression tests.
 
 ## Package constraints
 

@@ -2936,7 +2936,7 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   }
   const candidateMeasure = parseAutoresearchCandidateMeasureCommand(raw, cwd);
   if (candidateMeasure) {
-    return buildAutoresearchCandidateMeasureEditorCall(cwd, candidateMeasure.candidateWorktree);
+    return buildAutoresearchCandidateBindEditorCall(cwd, candidateMeasure.candidateWorktree);
   }
   const candidateBind = parseAutoresearchCandidateBindCommand(raw, cwd);
   if (candidateBind) {
@@ -3459,12 +3459,7 @@ async function maybeRegisterAutoresearchLiveTrigger(): Promise<{ unregister: () 
         }) => {
           const cwd = context?.cwd ?? process.cwd();
           const candidateWorktree = parsed?.candidateWorktree ?? cwd;
-          const mode = parsed?.mode ?? "bind";
-          api?.setText?.(
-            mode === "measure"
-              ? buildAutoresearchCandidateMeasureEditorCall(cwd, candidateWorktree)
-              : buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree),
-          );
+          api?.setText?.(buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree));
         },
         onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
           api?.notify?.("No autoresearch candidate-bind actions are available.", "warning");
