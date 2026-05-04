@@ -17,9 +17,8 @@ system4d:
 
 Use:
 
-- [product-posture.md](./product-posture.md)
-
-for current product promise, maturity, trust gates, boundaries, strategic line, and next product bets.
+- [vision.md](./vision.md) for the package north star / final end-state direction
+- [product-posture.md](./product-posture.md) for current product promise, maturity, trust gates, boundaries, strategic line, and next product bets
 
 ## Why this file remains
 
@@ -34,4 +33,4 @@ The manifest-campaign supervision follow-on above this package is tracked outsid
 
 ## Rule for new work
 
-Do not add new status truth here. Update `product-posture.md` or a narrower status/ADR/evidence note instead.
+Do not add new status truth here. Update `vision.md` for north-star direction, `product-posture.md` for current posture, or a narrower status/ADR/evidence note instead.

@@ -22,6 +22,12 @@ system4d:
 
 # Product posture — `@tryinget/pi-autoresearch`
 
+## Vision relation
+
+The package north star / final end-state direction lives in [vision.md](./vision.md).
+
+This document is the current posture bridge from that vision into maturity, trust gates, boundaries, strategic line, and next product bets. Do not use this posture file as a competing live task queue or as the only statement of the long-term destination.
+
 ## Product promise
 
 `pi-autoresearch` turns bounded candidate changes into trustworthy empirical evidence and reviewable handoff packets.
@@ -47,7 +53,7 @@ When I have a candidate change, I want to measure it under an explicit contract,
 
 - maturity: `supervised dogfood proven / internal alpha`
 - target control plane: landed
-- current strategic line: measurement trust, operator clarity, and self-hosting proof quality before new surfaces
+- current strategic line: measurement trust, operator clarity, threshold-style success semantics, and self-hosting evidence overwatch before broader autonomy
 - release posture: package checks pass and the canonical dogfood loop has now been exercised against the package itself; product posture remains pre-public until metric-readiness UX and threshold-style success semantics are clearer
 
 ## Product success criteria
@@ -125,7 +131,8 @@ Prioritize:
 2. operator posture clarity, especially when success is threshold-satisfied rather than metric-improving;
 3. metric readiness, threshold-style success semantics, and baseline-drift protection;
 4. keep the canonical dogfood playbook and workflow-contract benchmark current with actual tool schemas;
-5. one external adapter proof only after a real consumer needs it.
+5. add a narrow orchestrator-side self-hosting supervision/evidence observer above the package seam;
+6. one external adapter proof only after a real consumer needs it.
 
 ## Next product bets
 
@@ -234,12 +241,24 @@ Also add first-class posture for threshold-style metrics where the success condi
 
 Pick exactly one adapter target after demand is concrete. Until then, keep adapters external and packet contracts stable.
 
+### Bet 6 — Self-hosting evidence overwatch — next external slice
+
+The self-hosting dogfood proof exposed a real above-seam observability gap: `pi-society-orchestrator` can currently observe ordinary runtime campaigns and manifest-driven campaigns, but it does not yet observe the self-hosting artifact family.
+
+The next truthful external slice is a narrow orchestrator-owned surface such as:
+
+```text
+autoresearch_self_hosting_supervision({ action: "observe" | "record_evidence", cwd, ... })
+```
+
+This slice should read exact package-local self-hosting artifacts from an explicit `cwd`, verify contract/evaluator-lock/promotion/rollback posture, and optionally project deduped evidence only from exact verified task context. It must not run candidates, mutate evaluator locks, classify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or complete AK tasks by default.
+
 ## Ownership map
 
 | Concern | Owner |
 |---|---|
 | Local experiment runtime, receipts, empirical interpretation, closeout packets | `packages/pi-autoresearch` |
-| Manifest-campaign one-shot supervision and evidence-only AK projection above the package seam | `packages/pi-society-orchestrator` |
+| Runtime and manifest-campaign observation/evidence-only projection above the package seam; proposed self-hosting observation follow-on | `packages/pi-society-orchestrator` |
 | Visible peer launch and candidate worktree creation | `packages/pi-little-helpers` / peer tooling |
 | Peer/intercom communication | `packages/pi-peer-messaging` |
 | Durable task truth and evidence lifecycle | AK / evidence owner surfaces |
@@ -250,6 +269,7 @@ Pick exactly one adapter target after demand is concrete. Until then, keep adapt
 
 ## Read map
 
+- Vision / end-state anchor: `packages/pi-autoresearch/docs/project/vision.md`
 - Product posture: `packages/pi-autoresearch/docs/project/product-posture.md`
 - Package public surface: `packages/pi-autoresearch/README.md`
 - Dogfood playbook: `packages/pi-autoresearch/docs/project/dogfood-playbook.md`

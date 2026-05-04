@@ -18,6 +18,7 @@ Monorepo package for the governed `pi-autoresearch` capability in Pi.
 - Release component key: `pi-autoresearch`
 - Extension entry: `extensions/pi-autoresearch.ts`
 - Current phase: `supervised_dogfood_internal_alpha`
+- Vision / end-state anchor: [docs/project/vision.md](./docs/project/vision.md)
 - Product posture anchor: [docs/project/product-posture.md](./docs/project/product-posture.md)
 - Canonical dogfood playbook: [docs/project/dogfood-playbook.md](./docs/project/dogfood-playbook.md)
 - Benchmark matrix runbook: [docs/project/benchmark-matrix-runbook.md](./docs/project/benchmark-matrix-runbook.md)
@@ -36,6 +37,7 @@ This package is the local runtime home for the future `pi-autoresearch` experime
 
 The package started as a small shell and still preserves the recognizable `/autoresearch` operator surface while avoiding a premature re-import of the upstream monolith.
 The current boundary is now more specific: the package is the runtime owner for the executable experiment-loop machine, while AK and Prompt Vault remain separate durable-truth owners.
+The long-term destination is captured in [docs/project/vision.md](./docs/project/vision.md): autonomous in execution, governed in authority.
 
 ## Current public surface
 
