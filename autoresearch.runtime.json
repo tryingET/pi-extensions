@@ -1,0 +1,42 @@
+{
+  "type": "runtime_snapshot",
+  "version": 1,
+  "phase": "bounded_runtime_kernel",
+  "cwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+  "updatedAt": 1777857941839,
+  "segmentKey": null,
+  "runtimeKey": "da8efc1a154edf2ee8f42f8f",
+  "projectionSource": "receipt_fallback",
+  "machine": {
+    "state": "segment_unconfigured",
+    "resumeState": null,
+    "blockedReason": null,
+    "completionReason": null
+  },
+  "segment": {
+    "name": null,
+    "metricName": null,
+    "metricUnit": "",
+    "direction": null,
+    "benchmarkCommand": null,
+    "checksCommand": null,
+    "runCount": 0,
+    "successfulRunCount": 0,
+    "baselineMetric": null,
+    "bestMetric": null,
+    "lastRunStatus": null,
+    "lastRunMetric": null
+  },
+  "decision": {
+    "availability": "available_not_yet_used",
+    "lastPostRunDecision": null
+  },
+  "control": {
+    "kind": "none",
+    "allowedActions": [
+      "stop"
+    ],
+    "reason": "runtime has no configured campaign segment yet",
+    "selectedAt": null
+  }
+}
