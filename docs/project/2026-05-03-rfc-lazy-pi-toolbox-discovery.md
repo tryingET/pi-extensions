@@ -27,16 +27,18 @@ Implemented checkpoint:
 - template-based `pi-toolbox-discovery` package exists
 - `/toolbox` command and model-callable `toolbox` broker exist
 - minimal active startup set is enforced on `session_start`
-- catalog search/explain/activate/deactivate/status flows exist
+- catalog search/explain/activate/deactivate/status/doctor flows exist
 - activation TTLs expire unpinned tools on later turns
 - bundle/profile activation fails closed when requested profile tools remain unavailable after lazy import
 - `vault`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, and `peer-spawn` are lazy-ready production bundles through package-owned toolbox-bundle exports
+- current local Pi settings disable converted heavy extension entries while preserving foundational/cognitive tools and lightweight status/footer UX
+- live doctor/status checks report eager registration drift when settings or worktree entries bypass the lazy broker
 
 Still pending for the full target architecture:
 
-- package-owned `src/toolbox-bundle.ts` style exports for each heavy package
+- package-owned `src/toolbox-bundle.ts` style exports for any remaining heavy packages not yet covered
 - startup-load measurement before/after disabling eager heavy packages
-- settings-default switch that disables converted heavy extensions by default
+- durable/default settings rollout beyond the current local cutover
 - persistent pinned activation/session restore policy
 
 This RFC revises the initial architecture sketch after review findings identified required fixes around:
@@ -241,6 +243,52 @@ Reasons:
 - a standalone package makes the architecture explicit, testable, and removable
 - package-owner boundaries remain clearer when toolbox behavior is not mixed into an existing domain package
 
+## Lean startup contract
+
+The current lean startup contract is:
+
+| Class | Startup posture | Rationale |
+|---|---|---|
+| Built-in file/process tools | Always active: `read`, `bash`, `edit`, `write` | Basic coding-agent operation. |
+| Foundational self/operator tools | Always active: `self`, `interview`, `dispatch_subagent`, `intercom` | Introspection, structured operator input, bounded subagent dispatch, and peer messaging are control-plane affordances, not heavy domain bundles. |
+| Prompt Vault cognitive read tools | Always active: `vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check` | Agents need awareness of reusable procedures/templates and dispatch posture without first remembering a discovery indirection. |
+| Toolbox broker | Always active: `toolbox` | The small discovery/activation surface for lazy bundles. |
+| Prompt Vault diagnostics/mutations | Registered but inactive by default while the vault package remains loaded for the cognitive baseline | Available through explicit activation/risk gates when needed. |
+| Heavy domain bundles | Not registered at startup when settings can disable their extension entrypoints | Registered only through package-owned toolbox bundles on demand. |
+| Lightweight operator/status extensions | May stay loaded when they do not register heavy model-callable tools | Preserves operator UX such as the orchestrator footer without reintroducing tool-surface load. |
+
+Healthy live baseline after `/reload` should look roughly like:
+
+```text
+active tools (13): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, toolbox
+registered tools (~25): built-ins, Prompt Vault read/diagnostic/mutating registrations, self/interview/dispatch_subagent/intercom/toolbox
+eager registration drift (0): none
+```
+
+Use `toolbox({ action: "doctor" })` as the evaluative guard. A healthy lean session reports:
+
+```text
+toolbox doctor
+- verdict: pass
+- foundational baseline: ok
+- eager registration drift (0): none
+- unleased active catalog tools (0): none
+```
+
+A failing doctor usually means one of:
+
+- a package or worktree entry in Pi settings is loading a heavy extension eagerly;
+- a catalog tool was activated outside the toolbox lease/TTL path;
+- an always-active foundational/cognitive tool is missing or inactive;
+- an owner bundle auto-activated out-of-profile tools during lazy import.
+
+Recovery order:
+
+1. keep the package installed, but disable heavy extension entries in Pi settings (`"extensions": []` or explicit `-entrypoint` filters);
+2. preserve split lightweight entries that own status/footer/operator UX, for example `pi-society-orchestrator/extensions/runtime-footer.ts`;
+3. `/reload`;
+4. run `toolbox({ action: "doctor" })` and expect `verdict: pass`.
+
 ## Toolbox tool surface
 
 ### First-slice tool shape
@@ -249,7 +297,7 @@ Start with one multiplexed tool:
 
 ```ts
 toolbox({
-  action: "search" | "activate" | "deactivate" | "status" | "explain",
+  action: "search" | "activate" | "deactivate" | "status" | "doctor" | "explain",
   query?: string,
   bundle?: string,
   profile?: string,
@@ -265,6 +313,7 @@ Reason:
 - one toolbox broker plus the foundational `self` and `interview` tools keeps startup surface intentionally small
 - action enum keeps the schema bounded
 - `status` makes current activation posture visible
+- `doctor` makes startup health evaluative rather than merely descriptive
 - `explain` lets the model/user inspect why a bundle exists without importing it
 
 A later review may split this into:
@@ -799,12 +848,14 @@ The first implementation must document the exact rollback commands after the pac
 
 ### Runtime checks
 
-- default active custom tool count is at or below 3 in minimal profile: `self`, `interview`, and `toolbox`
+- default active tool count matches the current lean baseline: built-ins plus `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools, and `toolbox`
+- `toolbox({ action: "doctor" })` passes immediately after a clean `/reload`
 - `toolbox({ action: "search" })` does not import heavy package modules
-- read-only bundle activation registers and activates expected tools
-- deactivation removes tools from active list
+- read-only bundle activation registers and activates expected profile tools
+- lazy import does not leave out-of-profile owner tools active when host registration auto-activates tools
+- deactivation removes tools from active list except protected always-active tools
 - TTL expiration removes tools after expected turns
-- mutating profile activation requires explicit user intent or policy pin
+- mutating and orchestrator-gated profile activation requires explicit user intent or policy pin
 - failed lazy import leaves no newly active tools behind
 - pinned activation restores on reload/resume only when expected
 
@@ -833,10 +884,11 @@ After implementation begins, add package-specific tests under `packages/pi-toolb
 
 This RFC succeeds if later implementation reaches a state where:
 
-- ordinary Pi sessions start with built-in tools plus only `self`, `interview`, and one custom toolbox broker
+- ordinary Pi sessions start with built-in tools plus the explicitly justified always-active baseline: `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools, and `toolbox`
+- `toolbox({ action: "doctor" })` reports a passing lean startup posture after `/reload`
 - capability discovery works without importing heavyweight package modules
-- at least vault, ontology, and DesignMD bundles can activate lazily
-- mutating/governed tools are not activated by accident
+- at least vault, ontology, DesignMD, orchestrator, autoresearch, and peer-spawn bundles can activate lazily through package-owned exports
+- mutating/governed/orchestrator-gated tools are not activated by accident
 - package-owner boundaries are visible in catalog and code
 - current eager behavior has a documented rollback path
 - validation proves both active-tool reduction and startup-load reduction

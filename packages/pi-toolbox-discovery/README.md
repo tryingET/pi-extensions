@@ -32,6 +32,32 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 
 The package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` via `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` via `@tryinget/pi-little-helpers/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 
+## Lean startup contract
+
+After a clean `/reload`, the expected healthy baseline is:
+
+```text
+active tools (13): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, toolbox
+eager registration drift (0): none
+```
+
+Use the model-callable doctor when validating settings or package changes:
+
+```ts
+toolbox({ action: "doctor" })
+```
+
+Expected healthy signals:
+
+```text
+verdict: pass
+foundational baseline: ok
+eager registration drift (0): none
+unleased active catalog tools (0): none
+```
+
+If doctor fails, first check Pi settings for package entries that load heavy extension entrypoints eagerly or duplicate worktree package entries. Keep owner packages installed for lazy import, but disable heavy extension entries by default. Preserve lightweight operator/status entries separately when they do not register heavy model-callable tools.
+
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`
 - Release config mode: `component`
