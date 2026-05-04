@@ -406,6 +406,21 @@ test("toolbox lazily imports orchestrator read tools before activation", async (
   assert.equal(harness.activeTools.includes("ontology_context"), true);
 });
 
+test("toolbox catalog includes orchestrator self-hosting supervision in gated profile", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "plan",
+    bundle: "orchestrator",
+    profile: "orchestrator-gated",
+  });
+
+  assert.match(result.content[0].text, /autoresearch_self_hosting_supervision/);
+  assert.equal(result.details.ok, true);
+  assert.equal(harness.activeTools.includes("autoresearch_self_hosting_supervision"), false);
+});
+
 test("toolbox lazily imports little-helpers peer-spawn tools before activation", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");

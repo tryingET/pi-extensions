@@ -311,6 +311,7 @@ export const CATALOG: ToolboxBundle[] = [
           "ts_quality_release_workflow",
           "autoresearch_live_supervision",
           "autoresearch_manifest_campaign_supervision",
+          "autoresearch_self_hosting_supervision",
         ],
         risk: "orchestrator-gated",
         defaultTtlTurns: 2,
