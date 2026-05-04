@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "aaf69c9dcc12fd18ee4b12eac5d9be1c8f2a5adb"
+created_at: "2026-05-04T02:19:40Z"
+intent: "Expose the pi-society-orchestrator package-owned toolbox bundle for lazy activation."
+files:
+  - "packages/pi-society-orchestrator/package.json"
+  - "packages/pi-society-orchestrator/src/toolboxBundle.ts"
+  - "packages/pi-society-orchestrator/tests/toolbox-bundle.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-push"
+    status: "pending"
+group:
+  index: 3
+  total: 5
+  rationale: "Orchestrator tools need package-owned lazy registration instead of toolbox-owned reimplementation."
