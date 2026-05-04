@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "94f5c99faa0c2b6058928cf712feb0e9200f8e53"
-created_at: "2026-05-04T02:18:53Z"
+created_at: "2026-05-04T02:23:16Z"
 intent: "Clarify repo prompt metadata and timeout-aware commit provenance guidance."
 files:
   - ".pi/prompts/commit.md"
@@ -14,7 +14,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-push"
-    status: "pending"
+    status: "pass"
 group:
   index: 2
   total: 5
