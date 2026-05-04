@@ -269,8 +269,18 @@ export const CATALOG: ToolboxBundle[] = [
       "Bounded pi-autoresearch setup, run, loop, supervision, candidate, and campaign-control surfaces.",
     ownerPackage: "packages/pi-autoresearch",
     ownerSemantics:
-      "pi-autoresearch owns bounded experiment runtime behavior; toolbox only activates the owning package tools.",
+      "pi-autoresearch owns bounded experiment runtime behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing experiment behavior.",
     keywords: ["autoresearch", "experiment", "benchmark", "campaign", "self-hosting", "llamacpp"],
+    lazyModules: [
+      {
+        specifier: "@tryinget/pi-autoresearch/toolbox-bundle",
+        label: "published package-owned toolbox bundle",
+      },
+      {
+        specifier: new URL("../../pi-autoresearch/src/toolboxBundle.ts", import.meta.url).href,
+        label: "monorepo sibling package-owned toolbox bundle",
+      },
+    ],
     profiles: [
       {
         id: "read",
