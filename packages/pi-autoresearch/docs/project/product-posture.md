@@ -45,10 +45,10 @@ When I have a candidate change, I want to measure it under an explicit contract,
 
 ## Current product maturity
 
-- maturity: `supervised dogfood / internal alpha`
+- maturity: `supervised dogfood proven / internal alpha`
 - target control plane: landed
-- current strategic line: measurement trust and operator clarity before new surfaces
-- release posture: package checks pass, but product posture is still pre-public until the canonical dogfood playbook is exercised against real campaigns and metric-readiness UX is clearer
+- current strategic line: measurement trust, operator clarity, and self-hosting proof quality before new surfaces
+- release posture: package checks pass and the canonical dogfood loop has now been exercised against the package itself; product posture remains pre-public until metric-readiness UX and threshold-style success semantics are clearer
 
 ## Product success criteria
 
@@ -87,6 +87,8 @@ The package currently owns:
 
 Adjacent external proof now exists in `pi-society-orchestrator`: one-shot exact-manifest observation plus idempotent evidence-only AK projection from verified task context above the package seam. That proof is product-relevant boundary evidence, not a new ownership claim for this package.
 
+Latest package-local dogfood proof also exists: `self-hosting-dogfood-workflow-001` used the accepted supervised self-hosting shape — stable controller, separate candidate worktree, snapshot-owned evaluator suites, applicability classification, explicit operator approval, and external controller rotation. The candidate was classified `default_promotion_candidate`, rotated only after `operator_review`, reloaded, and then verified from the committed main package path. This proves the self-hosting seam can work under supervision; it does not weaken the non-goal against package-local self-promotion.
+
 ## Product non-goals
 
 `pi-autoresearch` must not become:
@@ -119,10 +121,10 @@ The manifest-campaign follow-on above this package is now proven externally in `
 
 Prioritize:
 
-1. dogfood and harden the new `/autoresearch <objective>` + `autoresearch_campaign_start` front door;
-2. operator posture clarity;
-3. metric readiness and baseline-drift protection;
-4. one canonical dogfood playbook;
+1. harden the dogfooded `/autoresearch <objective>` + `autoresearch_campaign_start` front door around the issues real traversal exposed;
+2. operator posture clarity, especially when success is threshold-satisfied rather than metric-improving;
+3. metric readiness, threshold-style success semantics, and baseline-drift protection;
+4. keep the canonical dogfood playbook and workflow-contract benchmark current with actual tool schemas;
 5. one external adapter proof only after a real consumer needs it.
 
 ## Next product bets
@@ -193,7 +195,7 @@ A first slash-command confirmation affordance is also landed: `/autoresearch nex
 
 A first optional interaction-picker affordance is now also landed: `$$ autoresearch candidate`, `$$ ar candidate`, and `$$ autoresearch keep|discard|rewind` open a candidate-decision picker when `@tryinget/pi-interaction` / `@tryinget/pi-trigger-adapter` is loaded. It offers status/keep/discard/rewind planning choices, decorates direct/recommended choices where runtime receipts make that possible, and inserts the exact `autoresearch_candidate_decision({ ... })` call selected by the operator. A deterministic non-slash `$$ autoresearch ...` input fallback also exists so PTX's `$$ /template` namespace does not steal candidate-decision inputs. The picker/fallback still applies no worktree or durable owner-surface mutation.
 
-Next product work: dogfood this front door, candidate bind planner, and candidate decision workbench against real campaigns, then add richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
+Dogfood status: the front door and self-hosting surfaces have now been exercised against `pi-autoresearch` itself. The run found and fixed stale playbook action wording, unsafe/misleading next-call generation around `reconfigure: true`, evaluator-snapshot brittleness, and live package-rotation dependency hydration. Next product work is to keep that proof executable, improve threshold-style success posture, and add richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 
@@ -204,7 +206,7 @@ Runtime status and closeout packets now include an `empiricalPosture` object wit
 - a compact summary sentence;
 - a recommended next action.
 
-The remaining product work is to dogfood the wording against real campaigns and keep it concise enough for operators to trust at a glance.
+The remaining product work is to handle non-duration and threshold-style campaigns more truthfully. The self-hosting dogfood pass showed that `unresolved_dogfood_blockers=0` can be a success condition even when the generic empirical classifier calls the candidate `neutral` against an already-zero baseline.
 
 ### Bet 3 — Canonical dogfood playbook — documentation landed
 
@@ -214,9 +216,9 @@ The canonical supervised operator flow now lives in [dogfood-playbook.md](./dogf
 setup -> baseline samples -> calibration -> candidate lane/binding -> ordinary run -> closeout -> evidence/learning promotion
 ```
 
-The next product work is to dogfood that playbook against real campaigns and tighten wording where operators still overclaim noisy or under-bound results.
+The playbook has now been dogfooded against a real package-local campaign. The next product work is to keep its examples synchronized with tool schemas and to distinguish ordinary metric-improvement campaigns from workflow-traversal and self-hosting campaigns.
 
-### Bet 4 — Metric readiness policy
+### Bet 4 — Metric readiness and threshold success policy
 
 Make duration metrics report whether they are:
 
@@ -225,6 +227,8 @@ Make duration metrics report whether they are:
 - baseline-drift-suspect;
 - candidate-ready;
 - review-ready.
+
+Also add first-class posture for threshold-style metrics where the success condition is reaching or preserving a target such as `unresolved_dogfood_blockers=0`, rather than producing a further numeric improvement from baseline.
 
 ### Bet 5 — Consumer-driven adapter proof
 
