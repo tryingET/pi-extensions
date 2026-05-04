@@ -3330,22 +3330,87 @@ function clearAutoresearchWidget(ctx: AutoresearchWidgetContext): void {
 
 function formatAutoresearchWidgetLines(cwd: string, width: number): string[] {
   const status = buildAutoresearchRuntimeStatus(cwd);
+  const closeout = buildAutoresearchSegmentCloseout(cwd);
   const segment = status.currentSegment;
-  const runCount = segment.runCount;
-  const successful = segment.successfulRunCount;
   const metricName = segment.metricName ?? "metric";
   const unit = segment.metricUnit ?? "";
-  const best = segment.bestMetric === null ? "n/a" : `${segment.bestMetric}${unit}`;
-  const confidence = segment.confidence === null ? "n/a" : `${segment.confidence.toFixed(2)}×`;
-  const ready = status.empiricalPosture.promotionReady ? "ready" : "not-ready";
-  const line = `🔬 autoresearch ${status.runtimeProjection.state} │ ${runCount} runs/${successful} ok │ ★ ${metricName}: ${best} │ conf ${confidence} │ ${status.empiricalPosture.classification}/${ready}`;
-  return [truncatePlainLine(line, Math.max(20, width))];
+  const best = formatAutoresearchTuiMetric(segment.bestMetric, unit);
+  const kept = closeout.runs.filter((run) => run.status === "keep").length;
+  const candidates = closeout.runs.filter((run) => run.status === "candidate").length;
+  const failed = closeout.runs.filter(
+    (run) => run.status === "crash" || run.status === "checks_failed",
+  ).length;
+  const confidence =
+    segment.confidence === null ? "conf —" : `conf ${segment.confidence.toFixed(1)}×`;
+  const improvement = formatAutoresearchTuiImprovement(
+    segment.baselineMetric,
+    segment.bestMetric,
+    segment.direction,
+  );
+  const readiness = status.empiricalPosture.promotionReady ? "ready" : "not-ready";
+  const essential = [
+    "🔬 autoresearch",
+    `${segment.runCount} runs/${segment.successfulRunCount} ok`,
+    `${kept} kept`,
+    candidates > 0 ? `${candidates} candidate` : "",
+    failed > 0 ? `${failed} failed` : "",
+    `★ ${metricName}: ${best}`,
+    improvement !== "—" ? improvement : "",
+    confidence,
+    `${status.empiricalPosture.classification}/${readiness}`,
+  ].filter(Boolean);
+  const hint =
+    width >= 96
+      ? "ctrl+shift+t expand • ctrl+shift+f fullscreen"
+      : "overlay: /autoresearch overlay";
+  return [truncatePlainLine(joinAutoresearchTuiParts(essential, hint, width), Math.max(20, width))];
 }
 
 function truncatePlainLine(line: string, width: number): string {
   if (line.length <= width) return line;
   if (width <= 1) return line.slice(0, Math.max(0, width));
   return `${line.slice(0, Math.max(0, width - 1))}…`;
+}
+
+function joinAutoresearchTuiParts(leftParts: string[], rightHint: string, width: number): string {
+  const left = leftParts.join(" │ ");
+  if (width < 80) return left;
+  const gap = width - left.length - rightHint.length;
+  if (gap < 3) return left;
+  return `${left}${" ".repeat(gap)}${rightHint}`;
+}
+
+function formatAutoresearchTuiMetric(value: number | null, unit: string): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  const formatted =
+    Math.abs(value) >= 100
+      ? value.toFixed(0)
+      : Number.isInteger(value)
+        ? String(value)
+        : value.toFixed(2);
+  return `${formatted}${unit}`;
+}
+
+function formatAutoresearchTuiImprovement(
+  baseline: number | null,
+  best: number | null,
+  direction: string | null,
+): string {
+  if (
+    baseline === null ||
+    best === null ||
+    baseline === 0 ||
+    !Number.isFinite(baseline) ||
+    !Number.isFinite(best)
+  ) {
+    return "—";
+  }
+  const raw = ((best - baseline) / baseline) * 100;
+  const improved =
+    direction === "lower" ? best < baseline : direction === "higher" ? best > baseline : false;
+  const sign = raw > 0 ? "+" : "";
+  const arrow = improved ? "↗" : raw === 0 ? "→" : "↘";
+  return `${arrow} ${sign}${raw.toFixed(1)}%`;
 }
 
 async function exportAutoresearchDashboardToBrowser(
@@ -3495,12 +3560,13 @@ function createAutoresearchDashboardOverlay(
 
 function formatAutoresearchOverlayLines(cwd: string, width: number, offset: number): string[] {
   const innerWidth = Math.max(20, width - 2);
-  const body = buildAutoresearchOverlayBody(cwd);
+  const body = buildAutoresearchOverlayBody(cwd, innerWidth);
   const visibleBody = body.slice(offset, offset + 22);
+
   const lines = [
     borderLine("┌", "─", "┐", innerWidth),
     borderedLine("🔬 pi-autoresearch live dashboard", innerWidth),
-    borderedLine("q/Esc close • j/k scroll • updates every 2s • read-only", innerWidth),
+    borderedLine("q/Esc close • j/k scroll • ctrl+shift+t widget • read-only", innerWidth),
     borderLine("├", "─", "┤", innerWidth),
     ...visibleBody.map((line) => borderedLine(line, innerWidth)),
     borderLine("└", "─", "┘", innerWidth),
@@ -3508,44 +3574,82 @@ function formatAutoresearchOverlayLines(cwd: string, width: number, offset: numb
   return lines.map((line) => truncatePlainLine(line, width));
 }
 
-function buildAutoresearchOverlayBody(cwd: string): string[] {
+function buildAutoresearchOverlayBody(cwd: string, width: number): string[] {
   const status = buildAutoresearchRuntimeStatus(cwd);
   const closeout = buildAutoresearchSegmentCloseout(cwd);
   const segment = status.currentSegment;
   const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
-  const recentRuns = closeout.runs.slice(-12);
-  const runRows =
+  const metricName = segment.metricName ?? "metric";
+  const unit = segment.metricUnit ?? "";
+  const baseline = formatAutoresearchTuiMetric(segment.baselineMetric, unit);
+  const best = formatAutoresearchTuiMetric(segment.bestMetric, unit);
+  const improvement = formatAutoresearchTuiImprovement(
+    segment.baselineMetric,
+    segment.bestMetric,
+    segment.direction,
+  );
+  const confidence = segment.confidence === null ? "—" : `${segment.confidence.toFixed(1)}×`;
+  const recentRuns = closeout.runs.slice(-10).reverse();
+  const tableRows =
     recentRuns.length > 0
-      ? recentRuns.map(
-          (run) =>
-            `#${run.iteration ?? "-"} ${run.status}/${run.runKind} metric=${run.metric}${closeout.metricUnit} decision=${run.empiricalDecisionClass} :: ${run.description}`,
-        )
-      : ["(no runs recorded yet)"];
+      ? recentRuns.map((run) => formatAutoresearchOverlayRunRow(run, metricName, unit, width))
+      : ["  (no runs recorded yet)"];
 
   return [
     `cwd: ${cwd}`,
-    `machine: ${status.runtimeProjection.state} • control: ${status.control.kind} • actions: ${status.control.allowedActions.join(", ") || "none"}`,
-    `posture: ${status.empiricalPosture.classification} • ready=${status.empiricalPosture.promotionReady ? "yes" : "no"}`,
-    `next: ${status.empiricalPosture.recommendedNextAction}`,
+    `machine: ${status.runtimeProjection.state}  control: ${status.control.kind}  posture: ${status.empiricalPosture.classification}`,
+    `promotion: ${status.empiricalPosture.promotionReady ? "ready" : "not ready"}  next: ${status.empiricalPosture.recommendedNextAction}`,
     "",
-    `campaign: ${segment.name ?? "unconfigured"}`,
-    `metric: ${segment.metricName ?? "(unset)"} ${segment.direction ?? ""} ${segment.metricUnit ? `(${segment.metricUnit})` : ""}`,
-    `best: ${segment.bestMetric ?? "n/a"}${segment.metricUnit} • baseline: ${segment.baselineMetric ?? "n/a"}${segment.metricUnit} • confidence: ${segment.confidence ?? "n/a"}`,
-    `benchmark: ${segment.benchmarkCommand ?? "(unset)"}`,
-    `checks: ${segment.checksCommand ?? "(none)"}`,
+    `Baseline → Best: ${baseline} → ${best}`,
+    `Improvement: ${improvement}  Runs: ${segment.runCount} total / ${segment.successfulRunCount} ok  Confidence: ${confidence}`,
+    `Metric: ★ ${metricName} ${segment.direction ?? ""} ${unit ? `(${unit})` : ""}`,
+    `Benchmark: ${segment.benchmarkCommand ?? "(unset)"}`,
+    `Checks: ${segment.checksCommand ?? "(none)"}`,
     "",
-    "Recent runs",
-    ...runRows,
+    "Metric trajectory / recent runs",
+    formatAutoresearchOverlayRunHeader(metricName, width),
+    `  ${"─".repeat(Math.max(0, Math.min(width - 4, 96)))}`,
+    ...tableRows,
     "",
     "Candidate decision",
     `candidate: ${candidateDecision.candidate?.label ?? "no candidate bound yet"}`,
-    `decision: ${candidateDecision.recommendedDecision} • checks=${candidateDecision.empirical.checksStatus}`,
+    `decision: ${candidateDecision.recommendedDecision}  checks=${candidateDecision.empirical.checksStatus}`,
     `next surface: ${candidateDecision.exactNextCalls[0] ?? `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "status" })`}`,
     "",
     "Candidate policy",
     "mode=worktree • keep=preserve_branch • discard=suggest_cleanup • rewind=reset_worktree_to_base",
-    "Replay Fabric observes history; ASC rewind is live session recovery; promotion remains external.",
+    "Replay Fabric observes history; ASC rewind is live session recovery; durable promotion remains external.",
+    "Browser export has the upstream-style card/chart/table view: /autoresearch export",
   ];
+}
+
+function formatAutoresearchOverlayRunHeader(metricName: string, width: number): string {
+  const metric = truncatePlainLine(`★ ${metricName}`, width >= 100 ? 22 : 14);
+  return `  ${"#".padEnd(4)}${"status".padEnd(17)}${metric.padEnd(width >= 100 ? 24 : 16)}${"decision".padEnd(24)}description`;
+}
+
+function formatAutoresearchOverlayRunRow(
+  run: {
+    iteration: number | null;
+    status: string;
+    runKind: string;
+    metric: number;
+    empiricalDecisionClass: string;
+    description: string;
+  },
+  _metricName: string,
+  unit: string,
+  width: number,
+): string {
+  const metricWidth = width >= 100 ? 24 : 16;
+  const idx = String(run.iteration ?? "-").padEnd(4);
+  const status = truncatePlainLine(`${run.status}/${run.runKind}`, 16).padEnd(17);
+  const metric = formatAutoresearchTuiMetric(run.metric, unit).padEnd(metricWidth);
+  const decision = truncatePlainLine(run.empiricalDecisionClass, 23).padEnd(24);
+  return truncatePlainLine(
+    `  ${idx}${status}${metric}${decision}${run.description}`,
+    Math.max(20, width - 2),
+  );
 }
 
 function borderedLine(text: string, innerWidth: number): string {
