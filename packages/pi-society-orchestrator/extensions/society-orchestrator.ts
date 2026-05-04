@@ -35,6 +35,7 @@
  *   ontology_context               — Get relevant ontology
  *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions
  *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
+ *   autoresearch_self_hosting_supervision — Observe one self-hosting campaign artifact set and optionally record bounded AK evidence
  *   ts_quality_release_workflow    — Coordinate ts-quality local release prep through GitHub Release trusted publishing
  *   loop_execute                   — Execute structured loops
  *   workflow_execute               — Execute chain/parallel workflow compositions
@@ -56,6 +57,13 @@ import {
   AutoresearchManifestCampaignSupervisor,
   type AutoresearchManifestCampaignTaskAnchor,
 } from "../src/runtime/autoresearch-manifest-campaign-supervision.ts";
+import {
+  type AutoresearchSelfHostingEvidenceResult,
+  type AutoresearchSelfHostingObservation,
+  type AutoresearchSelfHostingSupervisionAction,
+  AutoresearchSelfHostingSupervisor,
+  type AutoresearchSelfHostingTaskAnchor,
+} from "../src/runtime/autoresearch-self-hosting-supervision.ts";
 import {
   type AutoresearchLivePollResult,
   type AutoresearchLiveStartResult,
@@ -137,6 +145,7 @@ function writeEvidence(entry: EvidenceEntry, signal?: AbortSignal, cwd?: string)
 export interface SocietyOrchestratorExtensionOptions {
   autoresearchLiveRunner?: AutoresearchLiveSupervisionRunner;
   manifestCampaignSupervisor?: AutoresearchManifestCampaignSupervisor;
+  selfHostingSupervisor?: AutoresearchSelfHostingSupervisor;
   tsQualityReleaseWorkflowRunner?: TsQualityReleaseWorkflowRunner;
 }
 
@@ -167,6 +176,18 @@ type AutoresearchManifestCampaignSupervisionToolDetails = {
   task?: AutoresearchManifestCampaignTaskAnchor;
   evidenceAction?: AutoresearchManifestCampaignEvidenceResult["action"];
   evidenceVia?: Exclude<AutoresearchManifestCampaignEvidenceResult["evidence"], undefined>["via"];
+  existingEvidenceId?: number;
+  nextStep?: string;
+  error?: string;
+};
+
+type AutoresearchSelfHostingSupervisionToolDetails = {
+  ok: boolean;
+  action: AutoresearchSelfHostingSupervisionAction;
+  observation?: AutoresearchSelfHostingObservation;
+  task?: AutoresearchSelfHostingTaskAnchor;
+  evidenceAction?: AutoresearchSelfHostingEvidenceResult["action"];
+  evidenceVia?: Exclude<AutoresearchSelfHostingEvidenceResult["evidence"], undefined>["via"];
   existingEvidenceId?: number;
   nextStep?: string;
   error?: string;
@@ -400,6 +421,66 @@ function createAutoresearchManifestCampaignToolResult(
   };
 }
 
+function formatAutoresearchSelfHostingObservationReport(input: {
+  action: AutoresearchSelfHostingSupervisionAction;
+  observation: AutoresearchSelfHostingObservation;
+  nextStep: string;
+  extraLines?: string[];
+}) {
+  const { action, observation, nextStep, extraLines = [] } = input;
+  const lines = [
+    `Autoresearch self-hosting supervision — ${action}`,
+    `CWD: ${observation.cwd}`,
+    `Observed at: ${formatAutoresearchLiveTimestamp(observation.observedAt)}`,
+    `Campaign: ${observation.campaignId}`,
+    `Execution model: ${observation.executionModel}`,
+    `Controller ref: ${observation.controller.ref}`,
+    `Candidate worktree: ${observation.candidate.worktreePath}`,
+    `Candidate branch: ${observation.candidate.branchName}`,
+    `Evaluator manifest hash: ${observation.evaluator.manifestHash}`,
+    `Evaluator suites: ${observation.evaluator.suiteIds.join(", ") || "-"}`,
+    `Promotion posture: ${observation.promotionPosture}`,
+    `Promotion record: ${observation.promotionRecordPath}`,
+    `Projection key: ${observation.projectionKey}`,
+  ];
+
+  if (extraLines.length > 0) {
+    lines.push("", ...extraLines);
+  }
+
+  lines.push(`Next step: ${nextStep}`);
+  return lines.join("\n");
+}
+
+function formatAutoresearchSelfHostingEvidenceReport(
+  result: AutoresearchSelfHostingEvidenceResult,
+) {
+  const extraLines = [
+    `Evidence action: ${result.action}`,
+    `Evidence via: ${result.evidence?.via ?? "-"}`,
+    `Task repo: ${result.task?.repo ?? "-"}`,
+    `Existing evidence id: ${result.existingEvidenceId ?? "-"}`,
+    `Blocking error: ${result.error ?? "-"}`,
+  ];
+
+  return formatAutoresearchSelfHostingObservationReport({
+    action: "record_evidence",
+    observation: result.observation,
+    nextStep: result.nextStep,
+    extraLines,
+  });
+}
+
+function createAutoresearchSelfHostingToolResult(
+  text: string,
+  details: AutoresearchSelfHostingSupervisionToolDetails,
+) {
+  return {
+    content: [{ type: "text" as const, text }],
+    details,
+  };
+}
+
 function buildWorkflowExecuteInvocation(objective?: string): string {
   const trimmedObjective = objective?.trim();
   const request = trimmedObjective
@@ -499,6 +580,12 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   const manifestCampaignSupervisor =
     options.manifestCampaignSupervisor ||
     new AutoresearchManifestCampaignSupervisor({
+      akPath: AGENT_KERNEL,
+      societyDb: SOCIETY_DB,
+    });
+  const selfHostingSupervisor =
+    options.selfHostingSupervisor ||
+    new AutoresearchSelfHostingSupervisor({
       akPath: AGENT_KERNEL,
       societyDb: SOCIETY_DB,
     });
@@ -1385,6 +1472,139 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             "dim",
             ` ${details.observation?.controlResult.control.autonomy.projection.overallState || "-"}`,
           ),
+        0,
+        0,
+      );
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: autoresearch_self_hosting_supervision
+  // ===========================================================================
+
+  registerCompatTool(pi, {
+    name: "autoresearch_self_hosting_supervision",
+    label: "Autoresearch Self-Hosting Supervision",
+    description:
+      "Observe one pi-autoresearch self-hosting artifact set and optionally record bounded AK evidence above the package seam.",
+    promptSnippet:
+      "Observe one exact pi-autoresearch self-hosting campaign through the orchestrator and optionally record bounded AK evidence from verified task context, without running candidates or approving promotion.",
+    promptGuidelines: [
+      "Use autoresearch_self_hosting_supervision when the caller wants above-seam observation of autoresearch.self-hosting.json, its evaluator lock, and its promotion/rollback record.",
+      "Use action=observe for read-only contract/evaluator/promotion posture; it must not run candidates, mutate evaluator locks, approve promotion, rotate controllers, roll back controllers, spawn peers, or complete tasks.",
+      "Use action=record_evidence only when the caller already has an exact taskId; this surface stays evidence-only and does not reclassify applicability independently of pi-autoresearch.",
+      "If a peer report or package-local receipt influenced the observation, verify and summarize the controller-accepted artifact state before recording evidence; raw intercom delivery and local receipts are not durable authority.",
+    ],
+    parameters: Type.Object({
+      action: Type.Optional(Type.Union([Type.Literal("observe"), Type.Literal("record_evidence")])),
+      taskId: Type.Optional(Type.Number({ description: "Exact AK task id anchor", minimum: 1 })),
+      cwd: Type.String({
+        description: "Exact package cwd containing autoresearch.self-hosting.json",
+      }),
+    }),
+    async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
+      const request = params as {
+        action?: AutoresearchSelfHostingSupervisionAction;
+        taskId?: number;
+        cwd?: string;
+      };
+      const action = request.action || "observe";
+      const cwd = request.cwd;
+
+      try {
+        if (!cwd) {
+          throw new Error("autoresearch_self_hosting_supervision requires an exact cwd.");
+        }
+        if (action === "record_evidence" && request.taskId === undefined) {
+          throw new Error("record_evidence requires an exact taskId.");
+        }
+
+        if (action === "observe") {
+          const observation = selfHostingSupervisor.observe({
+            cwd,
+            taskId: request.taskId,
+          });
+          return createAutoresearchSelfHostingToolResult(
+            formatAutoresearchSelfHostingObservationReport({
+              action,
+              observation,
+              nextStep: observation.nextStep,
+            }),
+            {
+              ok: true,
+              action,
+              observation,
+              nextStep: observation.nextStep,
+            },
+          );
+        }
+
+        const result = await selfHostingSupervisor.recordEvidence({
+          cwd,
+          taskId: request.taskId,
+          signal,
+        });
+        return createAutoresearchSelfHostingToolResult(
+          formatAutoresearchSelfHostingEvidenceReport(result),
+          {
+            ok: result.ok,
+            action,
+            observation: result.observation,
+            task: result.task,
+            evidenceAction: result.action,
+            evidenceVia: result.evidence?.via,
+            existingEvidenceId: result.existingEvidenceId,
+            nextStep: result.nextStep,
+            error: result.error,
+          },
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return createAutoresearchSelfHostingToolResult(
+          `autoresearch_self_hosting_supervision failed: ${message}`,
+          {
+            ok: false,
+            action,
+            error: message,
+          },
+        );
+      }
+    },
+    renderCall(args, theme) {
+      const a = args as {
+        action?: AutoresearchSelfHostingSupervisionAction;
+        taskId?: number;
+        cwd?: string;
+      };
+      const action = a.action || "observe";
+      const target = a.taskId !== undefined ? `#${a.taskId} ${a.cwd || "(cwd)"}` : a.cwd || "(cwd)";
+      return new Text(
+        theme.fg("toolTitle", theme.bold("autoresearch_self_hosting_supervision ")) +
+          theme.fg("accent", action) +
+          theme.fg("dim", " — ") +
+          theme.fg("muted", target),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, theme) {
+      const details = result.details as AutoresearchSelfHostingSupervisionToolDetails | undefined;
+      if (!details) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text : "", 0, 0);
+      }
+
+      const action = details.evidenceAction || details.action;
+      const color =
+        details.ok === false
+          ? "error"
+          : action === "recorded" || action === "already-projected"
+            ? "success"
+            : "accent";
+      const icon = details.ok === false ? "✗" : action === "recorded" ? "✓" : "•";
+      return new Text(
+        theme.fg(color, `${icon} ${details.action}`) +
+          theme.fg("dim", ` ${details.observation?.promotionPosture || "-"}`),
         0,
         0,
       );

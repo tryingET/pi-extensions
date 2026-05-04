@@ -28,6 +28,10 @@ const allowedAutoresearchConsumers = [
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
   {
+    file: "src/runtime/autoresearch-self-hosting-supervision.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
+  {
     file: "src/runtime/autoresearch-supervisor-runner.ts",
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },

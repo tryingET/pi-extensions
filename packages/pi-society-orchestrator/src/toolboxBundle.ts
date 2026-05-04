@@ -42,6 +42,11 @@ const PROFILE_TOOLS: Record<string, ToolboxRegisteredToolSummary[]> = {
       profile: "orchestrator-gated",
       risk: "orchestrator-gated",
     },
+    {
+      name: "autoresearch_self_hosting_supervision",
+      profile: "orchestrator-gated",
+      risk: "orchestrator-gated",
+    },
   ],
 };
 

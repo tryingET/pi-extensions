@@ -125,6 +125,7 @@ Primary tools and commands exposed by the imported extension include:
 - `vault_execute_template` (Prompt Vault dispatch bridge that executes known loop-bound templates through `loop_execute` and fails closed for workflow-grade/loop templates without an execution binding)
 - `workflow_execute` (explicit chain/parallel workflow composition over the ASC-backed subagent executor, with optional bounded worktree isolation for eligible parallel groups)
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
+- `autoresearch_self_hosting_supervision` (one-shot self-hosting artifact observation + evidence-only AK projection for `pi-autoresearch` supervised self-hosting campaigns)
 - `ts_quality_release_workflow` (Pi Society wrapper around the `ts-quality` local release-prep leaves and GitHub Release-triggered npm Trusted Publishing path)
 - `/cognitive` (registered by `extensions/runtime-footer.ts` so cognitive-tool discovery survives lazy model-tool startup)
 - `/agents-team` (registered by `extensions/runtime-footer.ts`; session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
@@ -169,6 +170,11 @@ Primary tools and commands exposed by the imported extension include:
   - status: [pi-autoresearch manifest campaign supervision status](docs/project/pi-autoresearch-manifest-campaign-supervision-status.md)
   - tool: `autoresearch_manifest_campaign_supervision`
   - current truth: reuse package-derived manifest campaign AK-binding truth for exact-anchor evidence-only writes, keep the surface one-shot, and do not widen this concern into live polling or task lifecycle mutation without a separate explicit decision.
+- Supervised self-hosting `pi-autoresearch` campaigns now have a narrow orchestrator-side observation/evidence surface:
+  - contract: [pi-autoresearch self-hosting supervision contract](docs/project/pi-autoresearch-self-hosting-supervision-contract.md)
+  - package vision anchor: [pi-autoresearch vision](../pi-autoresearch/docs/project/vision.md)
+  - tool: `autoresearch_self_hosting_supervision`
+  - current truth: read exact `autoresearch.self-hosting.json`, evaluator lock, and promotion/rollback record artifacts from an explicit package cwd; verify evaluator snapshot hashes; optionally record deduped exact-task AK evidence; do not run candidates, mutate evaluator locks, reclassify applicability, approve promotion, rotate/rollback controllers, spawn peers, or complete tasks.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Package-owned KES activation
