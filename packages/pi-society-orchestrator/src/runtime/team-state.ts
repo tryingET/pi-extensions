@@ -73,6 +73,12 @@ export function createSessionTeamStore(
   };
 }
 
+const GLOBAL_SESSION_TEAM_STORE = createSessionTeamStore();
+
+export function getGlobalSessionTeamStore(): SessionTeamStore {
+  return GLOBAL_SESSION_TEAM_STORE;
+}
+
 function getSessionCarrier(ctx: TeamScopedContext | undefined): object | null {
   if (!ctx || typeof ctx.sessionManager !== "object" || ctx.sessionManager === null) {
     return null;

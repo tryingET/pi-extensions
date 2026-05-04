@@ -699,6 +699,8 @@ Implementation status: partially started. The toolbox can lazy-import owner modu
 
 Once critical bundles exist, update default/local settings to disable heavyweight eager extensions by default and load them through toolbox bundles instead.
 
+Important exception: packages that combine lightweight operator UX with heavyweight model-callable tools need split entrypoints. `pi-society-orchestrator` now keeps `extensions/runtime-footer.ts` as an always-on footer/status entry while `extensions/society-orchestrator.ts` remains lazy for orchestration model tools. Prompt Vault read retrieval is also kept as a cognitive baseline.
+
 Example target shape:
 
 ```json
@@ -709,6 +711,11 @@ Example target shape:
       "source": "../../ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client",
       "extensions": [],
       "prompts": []
+    },
+    {
+      "source": "../../ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator",
+      "extensions": ["-extensions/society-orchestrator.ts", "+extensions/runtime-footer.ts"],
+      "prompts": ["-prompts/implementation-planning.md", "-prompts/security-review.md"]
     }
   ]
 }

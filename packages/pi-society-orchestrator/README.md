@@ -108,9 +108,10 @@ Imported files were mapped into the package scaffold like this:
 - package folder: `packages/pi-society-orchestrator`
 - npm package name: `pi-society-orchestrator`
 - release component: `pi-society-orchestrator`
-- primary extension entry: `extensions/society-orchestrator.ts`
+- lightweight status/footer entry: `extensions/runtime-footer.ts`
+- primary model-tool entry: `extensions/society-orchestrator.ts`
 
-The runtime extension surface still uses the existing `society-orchestrator` identity where that avoids unnecessary command/session churn.
+The runtime footer/status surface can be loaded by itself for lean startup. The full `society-orchestrator` entry still invokes the status surface when loaded directly, preserving existing package behavior while letting local settings disable the heavy model-tool entry and keep only the footer.
 
 ## Tool surface
 
@@ -125,11 +126,11 @@ Primary tools and commands exposed by the imported extension include:
 - `workflow_execute` (explicit chain/parallel workflow composition over the ASC-backed subagent executor, with optional bounded worktree isolation for eligible parallel groups)
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
 - `ts_quality_release_workflow` (Pi Society wrapper around the `ts-quality` local release-prep leaves and GitHub Release-triggered npm Trusted Publishing path)
-- `/cognitive`
-- `/agents-team` (session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
-- `/runtime-status` (editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, live DB/vault status, a lower-plane telemetry summary, and the latest failing boundary-event preview)
-- `/runtime-boundary-telemetry` (editor-backed inspector for session-local lower-plane command telemetry across sqlite3/ak/rocs and other orchestrator boundary calls)
-- `/evidence` (recent evidence preview via `ak evidence search`)
+- `/cognitive` (registered by `extensions/runtime-footer.ts` so cognitive-tool discovery survives lazy model-tool startup)
+- `/agents-team` (registered by `extensions/runtime-footer.ts`; session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
+- `/runtime-status` (registered by `extensions/runtime-footer.ts`; editor-backed inspector for the shared runtime-truth surface, including routing, footer/status contract, live DB/vault status, a lower-plane telemetry summary, and the latest failing boundary-event preview)
+- `/runtime-boundary-telemetry` (registered by `extensions/runtime-footer.ts`; editor-backed inspector for session-local lower-plane command telemetry across sqlite3/ak/rocs and other orchestrator boundary calls)
+- `/evidence` (recent evidence preview via `ak evidence search`; full model-tool entry)
 - `/ontology <query>`
 - `/workflow [objective]` (seed a thin `workflow_execute(...)` wrapper call into the editor)
 - `/workflows` (show workflow wrapper usage/examples)
@@ -140,6 +141,7 @@ Primary tools and commands exposed by the imported extension include:
 
 - Runtime hardening is in place for agent/team routing, shared execution/evidence policy, timeout-bound supervised lower-plane calls, `rocs-cli`-backed ontology resolution, and a dedicated society runtime helper for the residual read-side boundary.
 - Operator-visible runtime truth now has a shared package-local surface in `src/runtime/status-semantics.ts`; `/runtime-status`, `session_start`, footer/statusline wording, routing-selection notices, and installed-package smoke assertions now derive from that shared contract instead of scattered literals.
+- The status/footer implementation lives in `extensions/runtime-footer.ts`, a lightweight always-on entry that can be enabled while `extensions/society-orchestrator.ts` is disabled for lazy model-tool startup. The full entry imports the footer entry when loaded directly so existing package behavior remains compatible.
 - `/runtime-status` now also includes a concise summary of session-local lower-plane boundary telemetry plus the latest failing boundary-event preview, while `/runtime-boundary-telemetry` remains the detailed inspector.
 - The detailed boundary summary now aligns its core field names with `pi-vault-client` telemetry where that is semantically truthful: `total_calls`, `success_count`, `failure_count`, `retained_events`, `average_latency_ms`, `max_latency_ms`, `command_mix`, and `latest_failure`.
 - The session footer now uses prioritized slots: model + `orchestrator→ASC` render when width allows, a compact current-context slot (`ctx 20k`) appears when context usage is known, a compact session-token summary (`↑input ↺cache ↓output`) appears once the session has usage, `DB`/`Vault` health badges remain optional, and narrow widths drop badges first, then the session-token summary, then the context slot, then the seam, before sacrificing routing visibility.

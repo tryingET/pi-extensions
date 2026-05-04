@@ -48,6 +48,7 @@
     "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
   },
   "files": [
+    "extensions/runtime-footer.ts",
     "extensions/society-orchestrator.ts",
     "src",
     "prompts",
@@ -57,6 +58,7 @@
   ],
   "pi": {
     "extensions": [
+      "./extensions/runtime-footer.ts",
       "./extensions/society-orchestrator.ts"
     ],
     "prompts": [

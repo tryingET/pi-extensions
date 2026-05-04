@@ -17,7 +17,10 @@ system4d:
 The canonical operator-visible runtime-truth surface lives in:
 - [`src/runtime/status-semantics.ts`](../../src/runtime/status-semantics.ts)
 
-That module owns the shared descriptor and snapshot/report helpers for:
+The lightweight always-on Pi extension that renders this surface lives in:
+- [`extensions/runtime-footer.ts`](../../extensions/runtime-footer.ts)
+
+That module owns the footer/status commands and imports the shared descriptor/snapshot helpers for:
 - orchestration owner vs execution owner
 - the `orchestrator→ASC` seam label
 - routing label and current routing scope
@@ -39,12 +42,12 @@ That module owns the shared descriptor and snapshot/report helpers for:
 
 These surfaces should derive from the shared runtime-truth surface instead of carrying independent literals:
 
-1. `/runtime-status`
+1. `/runtime-status` from `extensions/runtime-footer.ts`
    - opens an editor-backed report with the runtime truth, live routing state, DB/vault status, and footer contract
-2. `session_start`
+2. `session_start` from `extensions/runtime-footer.ts`
    - announces DB/vault status plus the current routing scope
    - advertises `/agents-team` as a routing selector and `/runtime-status` as the direct inspector
-3. footer
+3. footer from `extensions/runtime-footer.ts`
    - primary left slots: `<model> · orchestrator→ASC`
    - optional context slot: `ctx <tokens>` when current context usage is known
    - optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage
@@ -70,7 +73,8 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
 
 If you change operator-visible runtime wording in this package, update all of:
 - `src/runtime/status-semantics.ts`
-- `extensions/society-orchestrator.ts`
+- `extensions/runtime-footer.ts`
+- `extensions/society-orchestrator.ts` when full-extension compatibility wiring changes
 - `tests/runtime-shared-paths.test.mjs`
 - `scripts/release-smoke.mjs` when installed-package wording assertions change
 - this document and `README.md` when the human-facing contract changes
