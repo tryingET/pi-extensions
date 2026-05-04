@@ -14,7 +14,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run check"
-    status: "fail"
+    status: "timeout"
 group:
   index: 1
   total: 4
