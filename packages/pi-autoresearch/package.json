@@ -4,7 +4,8 @@
   "description": "Pi extension package for the governed pi-autoresearch bounded experiment runtime.",
   "type": "module",
   "exports": {
-    "./toolbox-bundle": "./src/toolboxBundle.ts"
+    "./toolbox-bundle": "./src/toolboxBundle.ts",
+    "./src/runtime.ts": "./src/runtime.ts"
   },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
