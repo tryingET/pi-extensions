@@ -1,5 +1,9 @@
 ---
+summary: "Repo-local commit workflow with explicit-path staging, provenance notes, and timeout-aware gates."
 description: Create commit groups with explicit-path staging and TS lane quality gates
+read_when:
+  - "Creating commits in the pi-extensions monorepo."
+  - "Attaching commit provenance notes or interpreting validation gate outcomes."
 system4d:
   container: "Repo-local commit workflow prompt."
   compass: "Ship coherent commits with deterministic validation gates."
@@ -41,13 +45,13 @@ Mandatory workflow:
      - `intent`
      - exact `files`
      - `validation.fast_gate` using `npm run quality:pre-commit` with its result
-     - `validation.full_gate` using `npm run quality:pre-push` with `status: pending` until the final gate finishes
+     - `validation.full_gate` using `npm run quality:pre-push` with `status: pending` until the final gate finishes; use `timeout` rather than `fail` when the harness limit expires before a test assertion or command failure is observed
      - optional short `group.rationale`
      - optional `links.task_ids`, `links.evidence_ids`, and `links.diary` only when they are explicit and real
 8. After the final commit is created, run once:
    - `npm run quality:pre-push`
 9. If the pre-push gate fails, stop and fix before any push.
-10. Rewrite each created commit note with `~/ai-society/core/agent-scripts/scripts/git-note-provenance.sh` so `validation.full_gate` records the final gate command and result.
+10. Rewrite each created commit note with `~/ai-society/core/agent-scripts/scripts/git-note-provenance.sh` so `validation.full_gate` records the final gate command and result (`pass`, `fail`, or `timeout`).
 11. Keep the final success report concise: list commit `sha` + subject and whether provenance notes were attached. Detailed successful-commit metadata belongs in the git note, not the chat response.
 
 Output:

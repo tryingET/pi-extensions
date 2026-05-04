@@ -1,5 +1,9 @@
 ---
+summary: "Repo-local deep-dive prompt for pi-extensions package ownership, routing, and extension runtime behavior."
 description: Deep-dive pi-extensions monorepo ownership, package selection, or extension runtime behavior
+read_when:
+  - "Deep-diving pi-extensions package ownership or extension runtime behavior."
+  - "Choosing a pi-extensions package before implementation."
 ---
 Work inside `/home/tryinget/ai-society/softwareco/owned/pi-extensions`.
 
