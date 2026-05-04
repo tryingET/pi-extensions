@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "a796374ad9be44b2af5dd6ee1efc9992608df024"
-created_at: "2026-05-04T01:25:34Z"
+created_at: "2026-05-04T01:28:34Z"
 intent: "Record ontology authority receipt mode projection."
 files:
   - "ontology/dist/authority-receipt.json"
@@ -14,7 +14,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run check"
-    status: "pending"
+    status: "fail"
 group:
   index: 1
   total: 4
