@@ -162,6 +162,56 @@ test("toolbox status allows Prompt Vault inactive registrations as cognitive bas
   assert.deepEqual(result.details.eagerRegistrationDrift, []);
 });
 
+test("toolbox doctor passes for the lean startup baseline", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, { action: "doctor" });
+
+  assert.match(result.content[0].text, /toolbox doctor/);
+  assert.match(result.content[0].text, /verdict: pass/);
+  assert.match(result.content[0].text, /foundational baseline: ok/);
+  assert.match(result.content[0].text, /eager registration drift \(0\): none/);
+  assert.equal(result.details.ok, true);
+  assert.deepEqual(result.details.recommendations, [
+    "Lean startup profile is healthy; activate lazy bundles only when the task needs them.",
+  ]);
+});
+
+test("toolbox doctor fails on eager lazy-bundle registration drift", async () => {
+  const harness = createHarness({
+    registeredTools: ["autoresearch_runtime_status", "autoresearch_runtime_run"],
+  });
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, { action: "doctor" });
+
+  assert.match(result.content[0].text, /verdict: fail/);
+  assert.match(
+    result.content[0].text,
+    /eager registration drift \(2\): autoresearch_runtime_run, autoresearch_runtime_status/,
+  );
+  assert.match(result.content[0].text, /duplicate\/settings suspects \(1\): autoresearch:/);
+  assert.equal(result.details.ok, false);
+  assert.deepEqual(result.details.eagerRegistrationDrift, [
+    "autoresearch_runtime_run",
+    "autoresearch_runtime_status",
+  ]);
+  assert.match(result.details.duplicateOrSettingsSuspects[0], /packages\/pi-autoresearch/);
+});
+
+test("toolbox doctor fails when active catalog tools have no explicit lease", async () => {
+  const harness = createHarness({ registeredTools: ["ontology_inspect"] });
+  harness.setActiveTools([...ALWAYS_ACTIVE_TOOLS, "ontology_inspect"]);
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, { action: "doctor" });
+
+  assert.match(result.content[0].text, /verdict: fail/);
+  assert.match(result.content[0].text, /unleased active catalog tools \(1\): ontology_inspect/);
+  assert.deepEqual(result.details.unleasedActiveCatalogTools, ["ontology_inspect"]);
+});
+
 test("toolbox refuses risky activation without acknowledgement", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");

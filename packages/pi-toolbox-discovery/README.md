@@ -16,7 +16,7 @@ Lazy custom-tool discovery and activation broker for Pi sessions.
 The package registers:
 
 - `/toolbox` — human-visible status command
-- `toolbox` — model-callable discovery/activation tool
+- `toolbox` — model-callable discovery/activation/doctor tool
 
 The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
@@ -27,6 +27,7 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - fails closed for bundle/profile activation if requested profile tools remain unavailable after lazy import
 - reports eager registration drift when catalog tools from lazy bundles are already registered without an active lease or lazy-import record, which catches settings drift such as duplicate worktree package entries
+- provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, active leases, eager registration drift, unleased active catalog tools, and duplicate/settings suspects
 
 The package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` via `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` via `@tryinget/pi-little-helpers/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 

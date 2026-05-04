@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-type ToolboxAction = "search" | "activate" | "deactivate" | "status" | "explain";
+type ToolboxAction = "search" | "activate" | "deactivate" | "status" | "doctor" | "explain";
 type ToolboxRisk =
   | "safe"
   | "read"
@@ -422,7 +422,7 @@ const TOOLBOX_PARAMETERS = {
   properties: {
     action: {
       type: "string",
-      enum: ["search", "activate", "deactivate", "status", "explain"],
+      enum: ["search", "activate", "deactivate", "status", "doctor", "explain"],
       description: "Toolbox operation to perform. Defaults to status.",
     },
     query: { type: "string", description: "Search text for action=search." },
@@ -680,6 +680,132 @@ function findEagerRegistrationDrift(pi: ExtensionAPI, state: ToolboxState): stri
   return [...drift].sort();
 }
 
+function getCatalogToolNames(): Set<string> {
+  return new Set(CATALOG.flatMap((bundle) => bundle.profiles.flatMap((profile) => profile.tools)));
+}
+
+function findUnleasedActiveCatalogTools(pi: ExtensionAPI, state: ToolboxState): string[] {
+  const catalogTools = getCatalogToolNames();
+  return pi
+    .getActiveTools()
+    .filter(
+      (tool) =>
+        catalogTools.has(tool) && !ALWAYS_ACTIVE_TOOLS.includes(tool) && !state.leases.has(tool),
+    )
+    .sort();
+}
+
+function groupToolsByBundle(tools: string[]): string[] {
+  const index = buildCatalogToolBundleIndex();
+  const grouped = new Map<string, string[]>();
+
+  for (const tool of tools) {
+    const bundleIds = index.get(tool) ?? new Set<string>(["unknown"]);
+    for (const bundleId of bundleIds) {
+      const bundleTools = grouped.get(bundleId) ?? [];
+      bundleTools.push(tool);
+      grouped.set(bundleId, bundleTools);
+    }
+  }
+
+  return [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([bundleId, bundleTools]) => `${bundleId}: ${bundleTools.sort().join(", ")}`);
+}
+
+function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
+  const active = pi.getActiveTools();
+  const registeredTools = pi.getAllTools().map((tool) => tool.name);
+  const registered = new Set(registeredTools);
+  const activeSet = new Set(active);
+  const activeLeases = describeLeases(state);
+  const missingAlwaysActiveRegistrations = ALWAYS_ACTIVE_TOOLS.filter(
+    (tool) => !registered.has(tool),
+  );
+  const inactiveAlwaysActiveTools = ALWAYS_ACTIVE_TOOLS.filter(
+    (tool) => registered.has(tool) && !activeSet.has(tool),
+  );
+  const eagerRegistrationDrift = findEagerRegistrationDrift(pi, state);
+  const unleasedActiveCatalogTools = findUnleasedActiveCatalogTools(pi, state);
+  const duplicateOrSettingsSuspects = groupToolsByBundle(eagerRegistrationDrift).map((group) => {
+    const bundleId = group.split(":", 1)[0] ?? "unknown";
+    const bundle = CATALOG.find((candidate) => candidate.id === bundleId);
+    const owner = bundle?.ownerPackage ?? "unknown owner package";
+    return `${group} — check ${owner} settings for eager extensions or duplicate package/worktree entries`;
+  });
+  const problems: string[] = [];
+  const recommendations: string[] = [];
+
+  if (missingAlwaysActiveRegistrations.length > 0) {
+    problems.push(
+      `missing registered baseline tools: ${missingAlwaysActiveRegistrations.join(", ")}`,
+    );
+    recommendations.push(
+      "Load the owner packages for missing foundational/cognitive tools before relying on the lean startup profile.",
+    );
+  }
+  if (inactiveAlwaysActiveTools.length > 0) {
+    problems.push(`inactive baseline tools: ${inactiveAlwaysActiveTools.join(", ")}`);
+    recommendations.push(
+      "Run /reload or allow toolbox session_start to re-apply the always-active baseline.",
+    );
+  }
+  if (eagerRegistrationDrift.length > 0) {
+    problems.push(`lazy-bundle tools registered eagerly: ${eagerRegistrationDrift.join(", ")}`);
+    recommendations.push(
+      "Keep the owning package installed but disable its heavy extension entry in Pi settings; activate tools through toolbox when needed.",
+    );
+  }
+  if (unleasedActiveCatalogTools.length > 0) {
+    problems.push(`catalog tools active without a lease: ${unleasedActiveCatalogTools.join(", ")}`);
+    recommendations.push(
+      "Deactivate unneeded catalog tools or reactivate them through toolbox so TTL/pin state is explicit.",
+    );
+  }
+  if (recommendations.length === 0) {
+    recommendations.push(
+      "Lean startup profile is healthy; activate lazy bundles only when the task needs them.",
+    );
+  }
+
+  return {
+    ok: problems.length === 0,
+    activeTools: active,
+    registeredTools,
+    activeLeases,
+    missingAlwaysActiveRegistrations,
+    inactiveAlwaysActiveTools,
+    eagerRegistrationDrift,
+    unleasedActiveCatalogTools,
+    duplicateOrSettingsSuspects,
+    recommendations,
+    problems,
+  };
+}
+
+function formatDoctor(pi: ExtensionAPI, state: ToolboxState): string {
+  const report = buildDoctorReport(pi, state);
+  return [
+    "toolbox doctor",
+    `- verdict: ${report.ok ? "pass" : "fail"}`,
+    `- active tools (${report.activeTools.length}): ${report.activeTools.join(", ") || "none"}`,
+    `- registered tools (${report.registeredTools.length}): ${report.registeredTools.join(", ") || "none"}`,
+    `- foundational baseline: ${
+      report.missingAlwaysActiveRegistrations.length === 0 &&
+      report.inactiveAlwaysActiveTools.length === 0
+        ? "ok"
+        : "needs attention"
+    }`,
+    `- missing baseline registrations (${report.missingAlwaysActiveRegistrations.length}): ${report.missingAlwaysActiveRegistrations.join(", ") || "none"}`,
+    `- inactive baseline tools (${report.inactiveAlwaysActiveTools.length}): ${report.inactiveAlwaysActiveTools.join(", ") || "none"}`,
+    `- active leases (${report.activeLeases.length}): ${report.activeLeases.join("; ") || "none"}`,
+    `- eager registration drift (${report.eagerRegistrationDrift.length}): ${report.eagerRegistrationDrift.join(", ") || "none"}`,
+    `- unleased active catalog tools (${report.unleasedActiveCatalogTools.length}): ${report.unleasedActiveCatalogTools.join(", ") || "none"}`,
+    `- duplicate/settings suspects (${report.duplicateOrSettingsSuspects.length}): ${report.duplicateOrSettingsSuspects.join("; ") || "none"}`,
+    `- recommendations: ${report.recommendations.join(" ")}`,
+  ].join("\n");
+}
+
 function getLazyRegistrationFunction(
   moduleValue: unknown,
 ):
@@ -824,6 +950,11 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           leases: describeLeases(state),
           eagerRegistrationDrift: findEagerRegistrationDrift(pi, state),
         });
+      }
+
+      if (action === "doctor") {
+        const report = buildDoctorReport(pi, state);
+        return textResult(formatDoctor(pi, state), report);
       }
 
       if (action === "search") {
