@@ -231,8 +231,19 @@ export const CATALOG: ToolboxBundle[] = [
       "Society diagnostics, evidence, cognitive dispatch, workflow, and loop execution surfaces.",
     ownerPackage: "packages/pi-society-orchestrator",
     ownerSemantics:
-      "pi-society-orchestrator owns orchestration behavior; toolbox only activates the owning package tools.",
+      "pi-society-orchestrator owns orchestration behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing orchestration behavior.",
     keywords: ["society", "orchestrator", "workflow", "loop", "evidence", "cognitive dispatch"],
+    lazyModules: [
+      {
+        specifier: "pi-society-orchestrator/toolbox-bundle",
+        label: "published package-owned toolbox bundle",
+      },
+      {
+        specifier: new URL("../../pi-society-orchestrator/src/toolboxBundle.ts", import.meta.url)
+          .href,
+        label: "monorepo sibling package-owned toolbox bundle",
+      },
+    ],
     profiles: [
       {
         id: "read",

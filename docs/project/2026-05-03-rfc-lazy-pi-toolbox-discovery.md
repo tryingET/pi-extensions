@@ -30,7 +30,7 @@ Implemented checkpoint:
 - catalog search/explain/activate/deactivate/status flows exist
 - activation TTLs expire unpinned tools on later turns
 - bundle/profile activation fails closed when requested profile tools remain unavailable after lazy import
-- `vault`, `ontology`, `designmd`, and `autoresearch` are the first lazy-ready production bundles through package-owned toolbox-bundle exports
+- `vault`, `ontology`, `designmd`, `autoresearch`, and `orchestrator` are the first lazy-ready production bundles through package-owned toolbox-bundle exports
 
 Still pending for the full target architecture:
 
@@ -668,7 +668,7 @@ Initial target order:
 
 Each package conversion must prove schema/behavior parity for the activated tools.
 
-Implementation status: partially started. The toolbox can lazy-import owner modules, with `vault` wired through `pi-vault-client/toolbox-bundle`, `ontology` wired through `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` wired through `@tryinget/pi-designmd-foundry/toolbox-bundle`, and `autoresearch` wired through `@tryinget/pi-autoresearch/toolbox-bundle` as the first production proofs. Broader package-owned bundle exports remain pending for the other heavy packages.
+Implementation status: partially started. The toolbox can lazy-import owner modules, with `vault` wired through `pi-vault-client/toolbox-bundle`, `ontology` wired through `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` wired through `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` wired through `@tryinget/pi-autoresearch/toolbox-bundle`, and `orchestrator` wired through `pi-society-orchestrator/toolbox-bundle` as the first production proofs. Broader package-owned bundle exports remain pending for the other heavy packages.
 
 ### Phase 4 — settings default switch
 

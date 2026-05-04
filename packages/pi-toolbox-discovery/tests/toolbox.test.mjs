@@ -202,7 +202,7 @@ test("toolbox lazily imports autoresearch read tools before activation", async (
   assert.equal(harness.activeTools.includes("autoresearch_llamacpp_campaign"), true);
 });
 
-test("toolbox fails closed when a bundle profile remains unavailable", async () => {
+test("toolbox lazily imports orchestrator read tools before activation", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
@@ -212,9 +212,26 @@ test("toolbox fails closed when a bundle profile remains unavailable", async () 
     profile: "read",
   });
 
-  assert.match(result.content[0].text, /Cannot activate orchestrator\/read/);
+  assert.match(result.content[0].text, /Activated tools: society_query/);
+  assert.match(result.content[0].text, /Lazy import attempts:/);
+  assert.equal(harness.activeTools.includes("society_query"), true);
+  assert.equal(harness.activeTools.includes("ontology_context"), true);
+});
+
+test("toolbox fails closed when a bundle profile remains unavailable", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    bundle: "peer-messaging",
+    profile: "default",
+    riskAcknowledged: true,
+  });
+
+  assert.match(result.content[0].text, /Cannot activate peer-messaging\/default/);
   assert.equal(result.details.ok, false);
-  assert.equal(harness.activeTools.includes("society_query"), false);
+  assert.equal(harness.activeTools.includes("intercom"), false);
 });
 
 test("toolbox deactivation preserves always-active tools", async () => {
