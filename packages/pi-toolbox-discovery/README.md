@@ -16,12 +16,12 @@ Lazy custom-tool discovery and activation broker for Pi sessions.
 The package registers:
 
 - `/toolbox` — human-visible status command
-- `toolbox` — model-callable discovery/activation/doctor tool
+- `toolbox` — model-callable discovery/planning/activation/doctor tool
 
 The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
 - enforces the minimal active tool set on `session_start`
-- searches/explains catalog metadata without importing owner packages
+- searches/explains catalog metadata and plans activation without importing owner packages
 - plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
 - activates bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement plus `riskJustification`
 - lazily imports owner modules for lazy-ready bundles when tools are not already registered

@@ -1,6 +1,13 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-type ToolboxAction = "search" | "activate" | "deactivate" | "status" | "doctor" | "explain";
+type ToolboxAction =
+  | "search"
+  | "activate"
+  | "deactivate"
+  | "status"
+  | "doctor"
+  | "plan"
+  | "explain";
 type ToolboxRisk =
   | "safe"
   | "read"
@@ -441,7 +448,7 @@ const TOOLBOX_PARAMETERS = {
   properties: {
     action: {
       type: "string",
-      enum: ["search", "activate", "deactivate", "status", "doctor", "explain"],
+      enum: ["search", "activate", "deactivate", "status", "doctor", "plan", "explain"],
       description: "Toolbox operation to perform. Defaults to status.",
     },
     query: { type: "string", description: "Search text for action=search." },
@@ -881,6 +888,27 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
   };
 }
 
+function formatActivationPlan(plan: ActivationPlan, pi: ExtensionAPI): string {
+  const knownToolNames = getKnownToolNames(pi);
+  const registeredTools = plan.requestedTools.filter((tool) => knownToolNames.has(tool));
+  const missingTools = plan.requestedTools.filter((tool) => !knownToolNames.has(tool));
+  const lazyModules = plan.bundle?.lazyModules?.map((module) => module.specifier) ?? [];
+
+  return [
+    "toolbox activation plan",
+    `- source: ${plan.source}`,
+    `- target: ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"}`,
+    `- requested tools (${plan.requestedTools.length}): ${plan.requestedTools.join(", ") || "none"}`,
+    `- registered now (${registeredTools.length}): ${registeredTools.join(", ") || "none"}`,
+    `- missing now (${missingTools.length}): ${missingTools.join(", ") || "none"}`,
+    `- risks: ${plan.risks.join(", ") || "none"}`,
+    `- acknowledgement required: ${plan.requiresAcknowledgement ? "yes" : "no"}`,
+    `- lazy modules (${lazyModules.length}): ${lazyModules.join(", ") || "none"}`,
+    `- mutates active tools: no`,
+    `- imports owner modules: no`,
+  ].join("\n");
+}
+
 function formatDoctor(report: ReturnType<typeof buildDoctorReport>): string {
   return [
     "toolbox doctor",
@@ -1084,6 +1112,17 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
       if (action === "doctor") {
         const report = buildDoctorReport(pi, state);
         return textResult(formatDoctor(report), report);
+      }
+
+      if (action === "plan") {
+        const plan = planActivation(params);
+        if (plan.errors.length > 0) {
+          return textResult(`Cannot plan activation: ${plan.errors.join("; ")}`, {
+            ok: false,
+            errors: plan.errors,
+          });
+        }
+        return textResult(formatActivationPlan(plan, pi), { ok: true, plan });
       }
 
       if (action === "search") {

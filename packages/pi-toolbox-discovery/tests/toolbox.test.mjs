@@ -215,6 +215,54 @@ test("toolbox doctor fails when active catalog tools have no explicit lease", as
   assert.deepEqual(result.details.unleasedActiveCatalogTools, ["ontology_inspect"]);
 });
 
+test("toolbox plan reports risk without importing owner modules", async () => {
+  const moduleSource = `throw new Error("plan should not import this module");`;
+  const bundle = {
+    id: "plan-test",
+    title: "Plan test bundle",
+    description: "Test-only plan bundle",
+    ownerPackage: "test",
+    ownerSemantics: "test-only",
+    keywords: ["plan-test"],
+    lazyModules: [
+      {
+        specifier: `data:text/javascript,${encodeURIComponent(moduleSource)}`,
+        label: "test module",
+      },
+    ],
+    profiles: [
+      {
+        id: "mutating",
+        description: "Mutating profile",
+        tools: ["plan_test_tool"],
+        risk: "mutating",
+        defaultTtlTurns: 2,
+        requiresExplicitUserIntent: true,
+      },
+    ],
+  };
+  CATALOG.push(bundle);
+
+  try {
+    const harness = createHarness();
+    const toolbox = harness.tools.get("toolbox");
+
+    const result = await executeToolbox(toolbox, {
+      action: "plan",
+      bundle: "plan-test",
+      profile: "mutating",
+    });
+
+    assert.match(result.content[0].text, /toolbox activation plan/);
+    assert.match(result.content[0].text, /risks: mutating/);
+    assert.match(result.content[0].text, /imports owner modules: no/);
+    assert.equal(result.details.ok, true);
+    assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+  } finally {
+    CATALOG.splice(CATALOG.indexOf(bundle), 1);
+  }
+});
+
 test("toolbox refuses risky activation without acknowledgement", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");

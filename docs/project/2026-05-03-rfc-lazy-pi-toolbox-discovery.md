@@ -27,7 +27,7 @@ Implemented checkpoint:
 - template-based `pi-toolbox-discovery` package exists
 - `/toolbox` command and model-callable `toolbox` broker exist
 - minimal active startup set is enforced on `session_start`
-- catalog search/explain/activate/deactivate/status/doctor flows exist
+- catalog search/explain/plan/activate/deactivate/status/doctor flows exist
 - activation TTLs expire unpinned tools on later turns
 - bundle/profile activation fails closed when requested profile tools remain unavailable after lazy import
 - `vault`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, and `peer-spawn` are lazy-ready production bundles through package-owned toolbox-bundle exports
@@ -297,7 +297,7 @@ Start with one multiplexed tool:
 
 ```ts
 toolbox({
-  action: "search" | "activate" | "deactivate" | "status" | "doctor" | "explain",
+  action: "search" | "activate" | "deactivate" | "status" | "doctor" | "plan" | "explain",
   query?: string,
   bundle?: string,
   profile?: string,
@@ -315,6 +315,7 @@ Reason:
 - action enum keeps the schema bounded
 - `status` makes current activation posture visible
 - `doctor` makes startup health evaluative rather than merely descriptive
+- `plan` exposes requested tools, risk posture, current registration state, and lazy module candidates without importing owner modules or mutating active tools
 - `explain` lets the model/user inspect why a bundle exists without importing it
 
 A later review may split this into:
@@ -851,7 +852,7 @@ The first implementation must document the exact rollback commands after the pac
 
 - default active tool count matches the current lean baseline: built-ins plus `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools, and `toolbox`
 - `toolbox({ action: "doctor" })` passes immediately after a clean `/reload`
-- `toolbox({ action: "search" })` does not import heavy package modules
+- `toolbox({ action: "search" })` and `toolbox({ action: "plan" })` do not import heavy package modules
 - read-only bundle activation registers and activates expected profile tools
 - lazy import does not leave out-of-profile owner tools active when host registration auto-activates tools
 - explicit `tools: [...]` activation is governed by reverse catalog risk lookup and cannot bypass mutating/orchestrator/external-mutation gates; non-catalog explicit tools require acknowledgement plus `riskJustification`
