@@ -1076,6 +1076,7 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
   assert.equal(bindResult.action, "transform");
   assert.match(bindResult.text, /autoresearch_candidate_bind/);
   assert.match(bindResult.text, /candidateWorktree: "\/repo"/);
+  assert.doesNotMatch(bindResult.text, /<base-ref>/);
 
   const measureResult = (await inputHandler?.(
     { source: "user", text: "$$ autoresearch measure current" },
@@ -1273,7 +1274,7 @@ test("/autoresearch bind prepares a candidate-bind tool call", async () => {
   assert.match(editorTitle, /Bind autoresearch candidate/);
   assert.match(editorText, /autoresearch_candidate_bind/);
   assert.match(editorText, /candidateWorktree: "\/repo"/);
-  assert.match(editorText, /candidateBaseRef: "<base-ref>"/);
+  assert.doesNotMatch(editorText, /<base-ref>/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_candidate_bind/);
 });
@@ -1401,6 +1402,14 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
     assert.equal(plan.inspection.sameRepository, true);
     assert.equal(plan.inspection.branch, "candidate/bind");
     assert.deepEqual(plan.inspection.filesChanged, ["src/value.txt"]);
+    writeFileSync(path.join(cwd, "src/dirty.txt"), "dirty\n");
+    const dirtyPlan = buildAutoresearchCandidateBindPlan({
+      cwd,
+      candidateWorktree: cwd,
+      candidateBaseRef: "HEAD~1",
+    });
+    assert.ok(dirtyPlan.inspection.filesChanged.includes("src/dirty.txt"));
+    assert.ok(dirtyPlan.inspection.filesChanged.includes("src/value.txt"));
     assert.match(plan.exactNextCalls[0] ?? "", /autoresearch_runtime_run/);
     assert.match(plan.exactNextCalls[0] ?? "", /candidateWorktree/);
     assert.match(plan.exactNextCalls[0] ?? "", /candidateBaseRef/);
@@ -1417,7 +1426,8 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
     }).trim();
     assert.equal(inferredPlan.inspection.baseRef, expectedBase);
     assert.match(inferredPlan.inspection.baseRefSource ?? "", /merge-base/);
-    assert.deepEqual(inferredPlan.inspection.filesChanged, ["src/value.txt"]);
+    assert.ok(inferredPlan.inspection.filesChanged.includes("src/value.txt"));
+    assert.ok(inferredPlan.inspection.filesChanged.includes("src/dirty.txt"));
     assert.match(inferredPlan.inspection.warnings.join("\n"), /inferred/);
     assert.doesNotMatch(inferredPlan.inspection.warnings.join("\n"), /could not be inferred/);
 

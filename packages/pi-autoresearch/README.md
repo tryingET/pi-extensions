@@ -88,6 +88,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - infers a conservative base ref from `merge-base(HEAD, upstream|main|master)` when `candidateBaseRef` is omitted, while warning the operator to verify before destructive rewind planning
   - prepares the exact `autoresearch_runtime_run({ ... candidateWorktree, candidateBranch, candidateBaseRef, candidateDiffSummary, candidateFilesChanged ... })` call needed to bind and measure the candidate
   - defaults `candidateWorktree` to `cwd` so `/autoresearch bind current` supports the common current-worktree handoff
+  - slash and dollar bind shortcuts omit placeholder base refs so the planner can infer a reviewable base instead of treating `"<base-ref>"` as literal input
   - surfaces read-only git preflight commands and warnings when the worktree or base ref is missing
   - does not run benchmarks, merge, delete/reset worktrees, spawn peers, write AK/KES/evidence, or promote
 - `autoresearch_candidate_decision`

@@ -6669,7 +6669,7 @@ function inspectAutoresearchCandidateWorktree(input: {
   }
 
   const statusShort = isGitWorktree
-    ? splitNonEmptyLines(
+    ? splitNonEmptyStatusLines(
         runGitForCandidateBind(input.candidateWorktree, [
           "status",
           "--short",
@@ -6857,7 +6857,7 @@ function isAutoresearchLocalArtifactPath(file: string): boolean {
 }
 
 function parseGitStatusPath(line: string): string | null {
-  const raw = line.slice(3).trim();
+  const raw = line.length >= 3 ? line.slice(3).trim() : line.trim();
   if (!raw) return null;
   const renameMarker = " -> ";
   return raw.includes(renameMarker)
@@ -6870,6 +6870,10 @@ function splitNonEmptyLines(value: string): string[] {
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter(isNonEmptyString);
+}
+
+function splitNonEmptyStatusLines(value: string): string[] {
+  return value.split(/\r?\n/u).filter((line) => line.trim().length > 0);
 }
 
 function isNonEmptyString(value: string | null): value is string {

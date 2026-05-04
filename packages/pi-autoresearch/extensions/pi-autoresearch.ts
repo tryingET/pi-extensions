@@ -2996,7 +2996,7 @@ function parseAutoresearchCandidatePathCommand(
 }
 
 function buildAutoresearchCandidateBindEditorCall(cwd: string, candidateWorktree: string): string {
-  return `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: "plan_run",\n  candidateSource: "manual",\n  candidateWorktree: ${JSON.stringify(candidateWorktree)},\n  candidateBaseRef: "<base-ref>",\n  description: "Measure bound candidate"\n})`;
+  return `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: "plan_run",\n  candidateSource: "manual",\n  candidateWorktree: ${JSON.stringify(candidateWorktree)},\n  description: "Measure bound candidate"\n})`;
 }
 
 function buildAutoresearchCandidateMeasureEditorCall(
