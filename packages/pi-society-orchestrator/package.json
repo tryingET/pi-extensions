@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Cognitive-driven multi-agent orchestration for society.db, prompt-vault, and agent-kernel",
   "type": "module",
+  "exports": {
+    "./toolbox-bundle": "./src/toolboxBundle.ts"
+  },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
