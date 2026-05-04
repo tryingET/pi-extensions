@@ -1083,7 +1083,7 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
     { cwd: "/repo" },
   )) as { action: string; text: string };
   assert.equal(measureResult.action, "transform");
-  assert.match(measureResult.text, /autoresearch_runtime_run/);
+  assert.match(measureResult.text, /autoresearch_candidate_bind/);
   assert.match(measureResult.text, /candidateWorktree/);
 
   const nextResult = (await inputHandler?.(
@@ -1207,47 +1207,59 @@ test("/autoresearch measure prepares a candidate measurement run call", async ()
       ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "base"],
       { cwd, stdio: "ignore" },
     );
-    execFileSync("git", ["checkout", "-b", "candidate/measure"], { cwd, stdio: "ignore" });
-    writeFileSync(path.join(cwd, "value.txt"), "candidate\n");
-    execFileSync("git", ["add", "value.txt"], { cwd, stdio: "ignore" });
-    execFileSync(
-      "git",
-      [
-        "-c",
-        "user.name=Test",
-        "-c",
-        "user.email=test@example.invalid",
-        "commit",
-        "-m",
-        "candidate",
-      ],
-      { cwd, stdio: "ignore" },
-    );
+    const candidateDir = mkdtempSync(path.join(os.tmpdir(), "pi-autoresearch-candidate-"));
+    rmSync(candidateDir, { recursive: true, force: true });
+    try {
+      execFileSync("git", ["worktree", "add", "-b", "candidate/measure", candidateDir, "HEAD"], {
+        cwd,
+        stdio: "ignore",
+      });
+      writeFileSync(path.join(candidateDir, "value.txt"), "candidate\n");
+      execFileSync("git", ["add", "value.txt"], { cwd: candidateDir, stdio: "ignore" });
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=Test",
+          "-c",
+          "user.email=test@example.invalid",
+          "commit",
+          "-m",
+          "candidate",
+        ],
+        { cwd: candidateDir, stdio: "ignore" },
+      );
 
-    let editorTitle = "";
-    let editorText = "";
-    const notifications: Array<{ message: string; level?: string }> = [];
+      let editorTitle = "";
+      let editorText = "";
+      const notifications: Array<{ message: string; level?: string }> = [];
 
-    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("measure current", {
-      cwd,
-      hasUI: true,
-      ui: {
-        async editor(title: string, text: string) {
-          editorTitle = title;
-          editorText = text;
+      await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler(`measure ${candidateDir}`, {
+        cwd,
+        hasUI: true,
+        ui: {
+          async editor(title: string, text: string) {
+            editorTitle = title;
+            editorText = text;
+          },
+          notify(message: string, level?: string) {
+            notifications.push({ message, level });
+          },
         },
-        notify(message: string, level?: string) {
-          notifications.push({ message, level });
-        },
-      },
-    });
+      });
 
-    assert.match(editorTitle, /Measure autoresearch candidate/);
-    assert.match(editorText, /autoresearch_runtime_run/);
-    assert.match(editorText, /candidateWorktree/);
-    assert.match(editorText, /candidateFilesChanged: \["value.txt"\]/);
-    assert.equal(notifications.length, 1);
-    assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_runtime_run/);
+      assert.match(editorTitle, /Measure autoresearch candidate/);
+      assert.match(editorText, /autoresearch_runtime_run/);
+      assert.match(editorText, /candidateWorktree/);
+      assert.match(editorText, /candidateFilesChanged: \["value.txt"\]/);
+      assert.equal(notifications.length, 1);
+      assert.match(notifications[0]?.message ?? "", /Prepared candidate measurement/);
+    } finally {
+      execFileSync("git", ["worktree", "remove", "--force", candidateDir], {
+        cwd,
+        stdio: "ignore",
+      });
+    }
   });
 });
 

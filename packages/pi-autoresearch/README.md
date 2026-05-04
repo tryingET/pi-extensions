@@ -46,7 +46,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate decision summary, candidate policy, and next legal surfaces
   - with `next` or `candidate next`, inspects current candidate posture and prepares the recommended reviewable next call: bind when no candidate exists, plan keep/discard/rewind when evidence points there, or the next runtime/finalize call when more samples/rebaseline/finalize is needed
   - with `bind` or `bind current`, prepares a reviewable `autoresearch_candidate_bind({ ... })` call to inspect a candidate worktree and prepare the exact measurement run call
-  - with `measure` or `measure current`, inspects the candidate worktree and prepares the exact reviewable `autoresearch_runtime_run({ ...candidate metadata... })` measurement call without executing it
+  - with `measure` or `measure current`, inspects the candidate worktree and prepares the exact reviewable `autoresearch_runtime_run({ ...candidate metadata... })` measurement call only when candidate intake readiness is `ready`; otherwise it falls back to the `autoresearch_candidate_bind({ ... })` intake review call
   - with `candidate`, `decision`, `keep`, `discard`, or `rewind`, prepares a reviewable `autoresearch_candidate_decision({ ... })` call for status or plan-only lifecycle decisions
   - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
   - with `export`, writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session; `export off` stops the refresher
@@ -63,7 +63,7 @@ The current boundary is now more specific: the package is the runtime owner for 
 - `$$ autoresearch bind|measure [current|<worktree>]` / `$$ ar bind|measure [current|<worktree>]`
   - when the optional interaction runtime is loaded, opens a candidate-bind/measure picker that inserts either the exact `autoresearch_candidate_bind({ ... })` inspection call or the exact `autoresearch_runtime_run({ ...candidate metadata... })` measurement call selected by the operator
   - also has a deterministic input fallback so candidate intake/measurement does not get mistaken for a campaign objective
-  - remains review-first; the bind path is read-only/plan-only, and the measure path only prepares the run call for review rather than executing it automatically
+  - remains review-first; the bind path is read-only/plan-only, and the measure path only prepares the run call for review rather than executing it automatically when intake readiness is `ready`
 - `$$ autoresearch candidate` / `$$ ar candidate` and `$$ autoresearch keep|discard|rewind`
   - when the optional interaction runtime is loaded, opens a candidate-decision picker for status, keep, discard, or rewind planning
   - decorates direct and currently recommended choices when runtime receipts make that possible

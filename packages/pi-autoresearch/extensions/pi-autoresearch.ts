@@ -2871,7 +2871,7 @@ async function openAutoresearchShell(
       buildAutoresearchCandidateMeasureEditorCall(ctx.cwd, candidateMeasure.candidateWorktree),
     );
     ctx.ui.notify(
-      "Prepared autoresearch_runtime_run candidate measurement call. Review benchmark/check settings before execution.",
+      "Prepared candidate measurement or intake-review call. Review readiness, benchmark/check settings, and metadata before execution.",
       "info",
     );
     return;
@@ -3010,6 +3010,9 @@ function buildAutoresearchCandidateMeasureEditorCall(
     candidateWorktree,
     description: "Measure bound candidate",
   });
+  if (plan.inspection.readiness !== "ready") {
+    return buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
+  }
   return plan.exactNextCalls[0] ?? buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
 }
 
