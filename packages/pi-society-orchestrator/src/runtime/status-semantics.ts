@@ -309,7 +309,10 @@ export function joinRuntimeFooterSlotText(
   return slots.map((slot) => selectRuntimeFooterSlotText(slot, compactModel)).join(" · ");
 }
 
-export function buildRuntimeFooterSlots(snapshot: RuntimeTruthSnapshot): {
+export function buildRuntimeFooterSlots(
+  snapshot: RuntimeTruthSnapshot,
+  extraLeftSlots: RuntimeFooterSlot[] = [],
+): {
   left: RuntimeFooterSlot[];
   right: RuntimeFooterSlot[];
 } {
@@ -357,6 +360,7 @@ export function buildRuntimeFooterSlots(snapshot: RuntimeTruthSnapshot): {
         full: snapshot.vault.available ? "Vault✓" : "Vault✗",
         optional: true,
       },
+      ...extraLeftSlots,
     ],
     right: [
       {
@@ -371,8 +375,9 @@ export function buildRuntimeFooterSlots(snapshot: RuntimeTruthSnapshot): {
 export function fitRuntimeFooterLayout(
   snapshot: RuntimeTruthSnapshot,
   width: number,
+  extraLeftSlots: RuntimeFooterSlot[] = [],
 ): RuntimeFooterLayout {
-  const { left, right } = buildRuntimeFooterSlots(snapshot);
+  const { left, right } = buildRuntimeFooterSlots(snapshot, extraLeftSlots);
   const fittedLeft = [...left];
   let compactModel = false;
   const rightWidth = visibleWidth(joinRuntimeFooterSlotText(right));
@@ -468,7 +473,7 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
     `- footer left: \`${formatRuntimeFooterLeft(snapshot)}\``,
     "- footer optional context slot: `ctx <tokens>` when current context usage is known",
     "- footer optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage",
-    "- footer optional slots: `DB✓|DB✗ · Vault✓|Vault✗` when width allows",
+    "- footer optional slots: `DB✓|DB✗ · Vault✓|Vault✗` when width allows; selected lightweight extension status may appear after those slots on wider terminals",
     `- footer right: \`${routing}\``,
     `- operator-visible status should present orchestrator as the coordination plane while ASC owns execution/runtime behavior`,
   ].join("\n");

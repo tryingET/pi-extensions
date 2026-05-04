@@ -699,7 +699,7 @@ Implementation status: partially started. The toolbox can lazy-import owner modu
 
 Once critical bundles exist, update default/local settings to disable heavyweight eager extensions by default and load them through toolbox bundles instead.
 
-Important exception: packages that combine lightweight operator UX with heavyweight model-callable tools need split entrypoints. `pi-society-orchestrator` now keeps `extensions/runtime-footer.ts` as an always-on footer/status entry while `extensions/society-orchestrator.ts` remains lazy for orchestration model tools. Prompt Vault read retrieval is also kept as a cognitive baseline.
+Important exception: packages that combine lightweight operator UX with heavyweight model-callable tools need split entrypoints. `pi-society-orchestrator` now keeps `extensions/runtime-footer.ts` as an always-on footer/status entry while `extensions/society-orchestrator.ts` remains lazy for orchestration model tools. That lightweight footer may consume Pi's existing extension-status map for allowlisted secondary indicators (`asc-rewind`, `society-context`, `stash`) without re-enabling their heavyweight model-callable surfaces. Prompt Vault read retrieval is also kept as a cognitive baseline.
 
 Example target shape:
 

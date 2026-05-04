@@ -237,8 +237,56 @@ function renderFooterSlotText(
     .join(separator);
 }
 
-function renderRuntimeFooterLine(width: number, theme: FooterTheme, snapshot: RuntimeSnapshot) {
-  const layout = fitRuntimeFooterLayout(snapshot, width);
+function sanitizeStatusText(text: string): string {
+  const escapeChar = String.fromCharCode(27);
+  return text
+    .replace(new RegExp(`${escapeChar}\\[[0-9;]*m`, "g"), "")
+    .replace(/[\r\n\t]/g, " ")
+    .replace(/ +/g, " ")
+    .trim();
+}
+
+function compactExtensionStatus(key: string, text: string): string | undefined {
+  const sanitized = sanitizeStatusText(text);
+  if (!sanitized) return undefined;
+
+  if (key === "asc-rewind") {
+    const match = sanitized.match(/(\d+) rewind points? \/ (\d+) snapshots?/);
+    return match ? `rw ${match[1]}/${match[2]}` : sanitized.replace(/^◆\s*/, "rw ");
+  }
+  if (key === "stash") {
+    return sanitized.replace(/^stash:\s*/, "stash ");
+  }
+  if (key === "society-context") {
+    return sanitized;
+  }
+  return undefined;
+}
+
+function buildExtensionStatusSlots(statuses: ReadonlyMap<string, string>): RuntimeFooterSlot[] {
+  const slots: RuntimeFooterSlot[] = [];
+  for (const key of ["asc-rewind", "society-context", "stash"]) {
+    const status = statuses.get(key);
+    const compact = status ? compactExtensionStatus(key, status) : undefined;
+    if (compact) {
+      slots.push({
+        id: `status-${key}`,
+        tone: "dim",
+        full: compact,
+        optional: true,
+      });
+    }
+  }
+  return slots;
+}
+
+function renderRuntimeFooterLine(
+  width: number,
+  theme: FooterTheme,
+  snapshot: RuntimeSnapshot,
+  extraLeftSlots: RuntimeFooterSlot[] = [],
+) {
+  const layout = fitRuntimeFooterLayout(snapshot, width, extraLeftSlots);
   const rightPlain = joinRuntimeFooterSlotText(layout.right);
   const rightText = renderFooterSlotText(theme, layout.right);
   const rightWidth = visibleWidth(rightPlain);
@@ -366,7 +414,7 @@ export default function runtimeFooterExtension(pi: ExtensionAPI) {
       isBoundaryFailure(toolsResult) ? "warning" : "info",
     );
 
-    ctx.ui.setFooter((tui, theme, _footerData) => ({
+    ctx.ui.setFooter((tui, theme, footerData) => ({
       dispose: () => {
         footerHealthState.disposed = true;
       },
@@ -374,7 +422,9 @@ export default function runtimeFooterExtension(pi: ExtensionAPI) {
       render(width: number): string[] {
         refreshFooterHealth(footerHealthState, ctx.cwd, tui);
         const footerSnapshot = buildRuntimeSnapshot(ctx, footerHealthState.latestToolsResult);
-        return [renderRuntimeFooterLine(width, theme, footerSnapshot)];
+        const extensionStatuses = footerData?.getExtensionStatuses?.() ?? new Map<string, string>();
+        const extensionStatusSlots = buildExtensionStatusSlots(extensionStatuses);
+        return [renderRuntimeFooterLine(width, theme, footerSnapshot, extensionStatusSlots)];
       },
     }));
   });

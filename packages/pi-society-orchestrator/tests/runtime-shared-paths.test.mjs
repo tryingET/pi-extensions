@@ -1440,6 +1440,73 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
   assert.doesNotMatch(narrowRendered, /Vault(?:✓|✗)/);
 });
 
+test("session_start footer composes selected lightweight extension statuses when width allows", async () => {
+  const events = new Map();
+  extension({
+    registerTool() {},
+    registerCommand() {},
+    on(name, handler) {
+      events.set(name, handler);
+    },
+  });
+
+  const sessionStart = events.get("session_start");
+  assert.ok(sessionStart, "expected session_start handler to register");
+
+  let footerFactory;
+  await sessionStart(
+    {},
+    {
+      hasUI: true,
+      cwd: process.cwd(),
+      model: { id: "test-model" },
+      sessionManager: createSessionUsageManager(),
+      getContextUsage() {
+        return createContextUsage();
+      },
+      ui: {
+        notify() {},
+        setFooter(factory) {
+          footerFactory = factory;
+        },
+      },
+    },
+  );
+
+  assert.ok(footerFactory, "expected session_start to register a footer");
+  const footer = footerFactory(
+    undefined,
+    {
+      fg(_color, text) {
+        return text;
+      },
+    },
+    {
+      getExtensionStatuses() {
+        return new Map([
+          ["asc-rewind", "◆ 2 rewind points / 2 snapshots"],
+          ["society-context", "Society ctx✓"],
+          ["stash", "stash: 34"],
+          ["unrelated-status", "idle"],
+        ]);
+      },
+    },
+  );
+
+  const rendered = footer.render(200)[0];
+  assert.match(rendered, /rw 2\/2/);
+  assert.match(rendered, /Society ctx✓/);
+  assert.match(rendered, /stash 34/);
+  assert.doesNotMatch(rendered, /◆ 2 rewind points/);
+  assert.doesNotMatch(rendered, /idle/);
+
+  const compactRendered = footer.render(80)[0];
+  assert.match(compactRendered, /Routing: all agents/);
+  assert.doesNotMatch(compactRendered, /rw 2\/2/);
+  assert.doesNotMatch(compactRendered, /Society ctx✓/);
+  assert.doesNotMatch(compactRendered, /stash 34/);
+});
+
 test("session_start footer refreshes vault health after startup drift", async () => {
   const previousVaultDir = process.env.VAULT_DIR;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
