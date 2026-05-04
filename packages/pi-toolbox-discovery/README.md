@@ -24,6 +24,7 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - searches/explains catalog metadata without importing owner packages
 - activates bundle profiles only after risk gates pass
 - lazily imports owner modules for lazy-ready bundles when tools are not already registered
+- restores the pre-import active-tool set before adding requested profile tools, so owner packages that auto-activate newly registered tools cannot leak out-of-profile tools into the active set
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - fails closed for bundle/profile activation if requested profile tools remain unavailable after lazy import
 - reports eager registration drift when catalog tools from lazy bundles are already registered without an active lease or lazy-import record, which catches settings drift such as duplicate worktree package entries

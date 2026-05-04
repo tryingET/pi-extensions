@@ -42,6 +42,9 @@ function createHarness(options = {}) {
     registerTool(definition) {
       tools.set(definition.name, definition);
       allToolNames.add(definition.name);
+      if (options.autoActivateRegisteredTools) {
+        activeTools = [...new Set([...activeTools, definition.name])];
+      }
     },
     getActiveTools() {
       return [...activeTools];
@@ -357,6 +360,70 @@ test("toolbox TTL expires unpinned activations on later turns", async () => {
   await harness.runEvent("turn_start");
 
   assert.equal(harness.activeTools.includes("vault_insert"), false);
+});
+
+test("toolbox activation does not keep owner auto-activated tools outside the requested profile", async () => {
+  const moduleSource = `export default function(pi) {
+    for (const name of ["lazy_profile_read", "lazy_profile_mutating"]) {
+      pi.registerTool({
+        name,
+        label: name,
+        description: "Registered by a lazy toolbox import",
+        parameters: { type: "object", additionalProperties: false, properties: {} },
+        async execute() { return { content: [{ type: "text", text: "ok" }], details: {} }; }
+      });
+    }
+  }`;
+  const bundle = {
+    id: "lazy-profile-test",
+    title: "Lazy profile test bundle",
+    description: "Test-only lazy import bundle with extra registered tools",
+    ownerPackage: "test",
+    ownerSemantics: "test-only",
+    keywords: ["lazy-profile-test"],
+    lazyModules: [
+      {
+        specifier: `data:text/javascript,${encodeURIComponent(moduleSource)}`,
+        label: "test module",
+      },
+    ],
+    profiles: [
+      {
+        id: "read",
+        description: "Read profile",
+        tools: ["lazy_profile_read"],
+        risk: "read",
+        defaultTtlTurns: 2,
+        requiresExplicitUserIntent: false,
+      },
+      {
+        id: "mutating",
+        description: "Mutating profile",
+        tools: ["lazy_profile_mutating"],
+        risk: "mutating",
+        defaultTtlTurns: 2,
+        requiresExplicitUserIntent: true,
+      },
+    ],
+  };
+  CATALOG.push(bundle);
+
+  try {
+    const harness = createHarness({ autoActivateRegisteredTools: true });
+    const toolbox = harness.tools.get("toolbox");
+
+    const result = await executeToolbox(toolbox, {
+      action: "activate",
+      bundle: "lazy-profile-test",
+      profile: "read",
+    });
+
+    assert.match(result.content[0].text, /Activated tools: lazy_profile_read/);
+    assert.equal(harness.activeTools.includes("lazy_profile_read"), true);
+    assert.equal(harness.activeTools.includes("lazy_profile_mutating"), false);
+  } finally {
+    CATALOG.splice(CATALOG.indexOf(bundle), 1);
+  }
 });
 
 test("toolbox can lazily import an owner bundle before activation", async () => {

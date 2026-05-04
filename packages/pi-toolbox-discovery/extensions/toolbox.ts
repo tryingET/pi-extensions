@@ -994,6 +994,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           );
         }
 
+        const activeBeforeLazyImport = pi.getActiveTools();
         const lazyImport = await tryLazyImportBundle(
           pi,
           state,
@@ -1023,7 +1024,9 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           );
         }
 
-        const nextActive = [...new Set([...pi.getActiveTools(), ...availableTools])];
+        const nextActive = [...new Set([...activeBeforeLazyImport, ...availableTools])].filter(
+          (tool) => knownToolNames.has(tool),
+        );
         pi.setActiveTools(nextActive);
         const leases = recordLeases(state, availableTools, params, resolved);
         const ttl = boundedTtlTurns(params.ttlTurns, resolved.profile);
