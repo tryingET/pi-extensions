@@ -76,6 +76,10 @@ const ALWAYS_ACTIVE_TOOLS = [
   "interview",
   "dispatch_subagent",
   "intercom",
+  "vault_query",
+  "vault_retrieve",
+  "vault_vocabulary",
+  "vault_dispatch_check",
   "toolbox",
 ];
 
@@ -756,7 +760,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
     description:
       "Discover, explain, activate, deactivate, or inspect pi-extension tool bundles while keeping heavyweight package tools off by default.",
     promptSnippet:
-      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, and intercom active by default.",
+      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, and Prompt Vault read tools active by default.",
     promptGuidelines: [
       "Use toolbox to discover domain-specific Pi tools before assuming a heavyweight custom tool is active.",
       "Do not activate mutating, external-mutation, or orchestrator-gated profiles without explicit user intent.",

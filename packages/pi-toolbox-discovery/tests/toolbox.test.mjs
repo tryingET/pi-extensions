@@ -12,6 +12,10 @@ const ALWAYS_ACTIVE_TOOLS = [
   "interview",
   "dispatch_subagent",
   "intercom",
+  "vault_query",
+  "vault_retrieve",
+  "vault_vocabulary",
+  "vault_dispatch_check",
   "toolbox",
 ];
 
@@ -19,12 +23,7 @@ function createHarness() {
   const commands = new Map();
   const tools = new Map();
   const handlers = new Map();
-  const allToolNames = new Set([
-    ...ALWAYS_ACTIVE_TOOLS,
-    "vault_query",
-    "vault_retrieve",
-    "vault_insert",
-  ]);
+  const allToolNames = new Set([...ALWAYS_ACTIVE_TOOLS, "vault_insert"]);
   let activeTools = [...ALWAYS_ACTIVE_TOOLS];
 
   const pi = {
@@ -111,22 +110,24 @@ test("toolbox search returns catalog entries without changing active tools", asy
   assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
 });
 
-test("toolbox lazily imports missing read-profile tools before activation", async () => {
+test("Prompt Vault read tools are part of the cognitive always-active set", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
   const result = await executeToolbox(toolbox, {
-    action: "activate",
+    action: "deactivate",
     bundle: "vault",
     profile: "read",
   });
 
-  assert.match(result.content[0].text, /Activated tools: vault_query, vault_retrieve/);
-  assert.match(result.content[0].text, /Lazy import attempts:/);
-  assert.ok(harness.activeTools.includes("vault_query"));
-  assert.ok(harness.activeTools.includes("vault_retrieve"));
-  assert.ok(harness.activeTools.includes("vault_vocabulary"));
-  assert.ok(harness.activeTools.includes("vault_dispatch_check"));
+  assert.equal(harness.activeTools.includes("vault_query"), true);
+  assert.equal(harness.activeTools.includes("vault_retrieve"), true);
+  assert.equal(harness.activeTools.includes("vault_vocabulary"), true);
+  assert.equal(harness.activeTools.includes("vault_dispatch_check"), true);
+  assert.match(
+    result.content[0].text,
+    /Protected always-active tools retained: vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check/,
+  );
 });
 
 test("toolbox refuses risky activation without acknowledgement", async () => {
@@ -231,21 +232,36 @@ test("toolbox deactivation preserves always-active tools", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
-  await executeToolbox(toolbox, { action: "activate", tools: ["vault_query"] });
+  await executeToolbox(toolbox, { action: "activate", tools: ["vault_insert"] });
   const result = await executeToolbox(toolbox, {
     action: "deactivate",
-    tools: ["self", "interview", "dispatch_subagent", "intercom", "toolbox", "vault_query"],
+    tools: [
+      "self",
+      "interview",
+      "dispatch_subagent",
+      "intercom",
+      "vault_query",
+      "vault_retrieve",
+      "vault_vocabulary",
+      "vault_dispatch_check",
+      "toolbox",
+      "vault_insert",
+    ],
   });
 
-  assert.equal(harness.activeTools.includes("vault_query"), false);
+  assert.equal(harness.activeTools.includes("vault_insert"), false);
   assert.equal(harness.activeTools.includes("self"), true);
   assert.equal(harness.activeTools.includes("interview"), true);
   assert.equal(harness.activeTools.includes("dispatch_subagent"), true);
   assert.equal(harness.activeTools.includes("intercom"), true);
+  assert.equal(harness.activeTools.includes("vault_query"), true);
+  assert.equal(harness.activeTools.includes("vault_retrieve"), true);
+  assert.equal(harness.activeTools.includes("vault_vocabulary"), true);
+  assert.equal(harness.activeTools.includes("vault_dispatch_check"), true);
   assert.equal(harness.activeTools.includes("toolbox"), true);
   assert.match(
     result.content[0].text,
-    /Protected always-active tools retained: self, interview, dispatch_subagent, intercom, toolbox/,
+    /Protected always-active tools retained: self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, toolbox/,
   );
 });
 
@@ -253,12 +269,12 @@ test("toolbox TTL expires unpinned activations on later turns", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
-  await executeToolbox(toolbox, { action: "activate", tools: ["vault_query"], ttlTurns: 1 });
-  assert.equal(harness.activeTools.includes("vault_query"), true);
+  await executeToolbox(toolbox, { action: "activate", tools: ["vault_insert"], ttlTurns: 1 });
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
 
   await harness.runEvent("turn_start");
 
-  assert.equal(harness.activeTools.includes("vault_query"), false);
+  assert.equal(harness.activeTools.includes("vault_insert"), false);
 });
 
 test("toolbox can lazily import an owner bundle before activation", async () => {

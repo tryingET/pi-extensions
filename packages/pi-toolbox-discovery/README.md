@@ -18,7 +18,7 @@ The package registers:
 - `/toolbox` — human-visible status command
 - `toolbox` — model-callable discovery/activation tool
 
-The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools remain latent until explicitly activated. Current behavior:
+The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
 - enforces the minimal active tool set on `session_start`
 - searches/explains catalog metadata without importing owner packages

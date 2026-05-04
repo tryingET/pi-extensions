@@ -16,7 +16,7 @@ system4d:
 
 ## Decision in one sentence
 
-Create a new **`pi-toolbox-discovery`** package from the pi-extensions package template as an always-on but small broker: it discovers capability bundles from a catalog, lazily imports package-owned tool bundles only when needed, activates bounded tool profiles for the current session, keeps `self`, `interview`, `dispatch_subagent`, and `intercom` always active as foundational operator/control-plane tools, and keeps heavyweight package extensions disabled by default once their lazy exports exist.
+Create a new **`pi-toolbox-discovery`** package from the pi-extensions package template as an always-on but small broker: it discovers capability bundles from a catalog, lazily imports package-owned tool bundles only when needed, activates bounded tool profiles for the current session, keeps `self`, `interview`, `dispatch_subagent`, `intercom`, and Prompt Vault read tools always active as foundational operator/control-plane/cognitive tools, and keeps heavyweight package extensions disabled by default once their lazy exports exist.
 
 ## Status
 
@@ -105,7 +105,7 @@ Current pi-extensions evidence:
 
 - `pi-vault-client`, `pi-autoresearch`, `pi-society-orchestrator`, `pi-ontology-workflows`, `pi-designmd-foundry`, and selected `pi-little-helpers` surfaces expose useful task-specific tools; `pi-peer-messaging`/`intercom` and `pi-autonomous-session-control`/`dispatch_subagent` are now treated as foundational always-active exceptions
 - many of those tools are governance-heavy or domain-specific, and should not be model-visible for ordinary file/code work
-- some packages already contain clear family boundaries that can become activation bundles, for example vault, ontology, design, autoresearch, orchestrator, and visible peer-spawn support; peer messaging/intercom and dispatch_subagent are now classified as always-active foundational surfaces
+- some packages already contain clear family boundaries that can become activation bundles, for example vault, ontology, design, autoresearch, orchestrator, and visible peer-spawn support; peer messaging/intercom, dispatch_subagent, and Prompt Vault read retrieval are now classified as always-active foundational surfaces
 
 ## Evidence limits
 
@@ -182,15 +182,19 @@ self
 interview
 dispatch_subagent
 intercom
+vault_query
+vault_retrieve
+vault_vocabulary
+vault_dispatch_check
 toolbox
 ```
 
-The default always-active custom tools should be limited to `self`, `interview`, `dispatch_subagent`, `intercom`, and `toolbox`.
+The default always-active custom tools should be limited to `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), and `toolbox`.
 
 Optional local profiles may keep additional tools active, but those profiles must be explicit. Examples:
 
-- `minimal`: built-ins + `self` + `interview` + `dispatch_subagent` + `intercom` + `toolbox`
-- `coding`: built-ins + `self` + `interview` + `dispatch_subagent` + `intercom` + `toolbox`
+- `minimal`: built-ins + `self` + `interview` + `dispatch_subagent` + `intercom` + Prompt Vault read tools + `toolbox`
+- `coding`: built-ins + `self` + `interview` + `dispatch_subagent` + `intercom` + Prompt Vault read tools + `toolbox`
 - `ai-society-control-plane`: built-ins + the same always-active set, with suggested but not auto-active society bundles
 - `design`: built-ins + the same always-active set, with suggested but not auto-active DesignMD bundle
 
@@ -217,6 +221,14 @@ Yes.
 Yes.
 
 `intercom` is the communication primitive for same-machine peer sessions. It should remain always active when `pi-peer-messaging` is registered. Visible peer-spawn tools are different: they launch sessions/worktrees and remain explicit/lazy under the `peer-spawn` bundle.
+
+### Answer: should Prompt Vault read tools be always active?
+
+Yes.
+
+Prompt Vault read/retrieval is part of the agent's cognitive affordance layer, not just a domain-specific heavy package. Keep `vault_query`, `vault_retrieve`, `vault_vocabulary`, and `vault_dispatch_check` always active so agents can discover and apply reusable procedures/templates without first remembering an indirection step. Keep Prompt Vault diagnostics, replay, mutation, rating, and evaluation tools lazy and risk-gated.
+
+This means the startup-load cutover must not fully hide Prompt Vault retrieval. Either keep the current Prompt Vault extension loaded while only the active tool subset is exposed, or split a lightweight read-only Prompt Vault extension before disabling the heavier diagnostic/mutating surfaces.
 
 ### Answer: what owns the toolbox?
 
@@ -597,7 +609,7 @@ At startup, Pi loads:
 - `pi-toolbox-discovery`
 - lightweight UI/status extensions that do not add model-callable tool clutter
 
-The model sees only `self`, `interview`, `dispatch_subagent`, `intercom`, and `toolbox` as always-active custom tools; `toolbox` is the only custom discovery/activation broker.
+The model sees only `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools, and `toolbox` as always-active custom tools; `toolbox` is the only custom discovery/activation broker.
 
 ### Layer 2 — cheap catalog discovery
 
@@ -648,7 +660,7 @@ Implement `pi-toolbox-discovery` with toolbox status and activation of already-r
 At session start, set active tools to:
 
 ```text
-read,bash,edit,write,self,interview,dispatch_subagent,intercom,toolbox
+read,bash,edit,write,self,interview,dispatch_subagent,intercom,vault_query,vault_retrieve,vault_vocabulary,vault_dispatch_check,toolbox
 ```
 
 This reduces model-visible tool schemas but does not yet reduce heavy package load.
@@ -681,7 +693,7 @@ Initial target order:
 
 Each package conversion must prove schema/behavior parity for the activated tools.
 
-Implementation status: partially started. The toolbox can lazy-import owner modules, with `vault` wired through `pi-vault-client/toolbox-bundle`, `ontology` wired through `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` wired through `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` wired through `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` wired through `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` wired through `@tryinget/pi-little-helpers/toolbox-bundle` as production proofs. `pi-peer-messaging`/`intercom` and `dispatch_subagent` are deliberately outside the lazy migration path because they are always-active foundational tools.
+Implementation status: partially started. The toolbox can lazy-import owner modules, with `vault` wired through `pi-vault-client/toolbox-bundle`, `ontology` wired through `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` wired through `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` wired through `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` wired through `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` wired through `@tryinget/pi-little-helpers/toolbox-bundle` as production proofs. `pi-peer-messaging`/`intercom`, `dispatch_subagent`, and Prompt Vault read tools are deliberately outside the lazy migration path because they are always-active foundational/cognitive tools; Prompt Vault diagnostics and mutating tools remain lazy.
 
 ### Phase 4 — settings default switch
 
