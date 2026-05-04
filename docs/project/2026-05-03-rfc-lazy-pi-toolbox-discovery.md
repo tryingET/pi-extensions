@@ -853,6 +853,8 @@ The first implementation must document the exact rollback commands after the pac
 - `toolbox({ action: "search" })` does not import heavy package modules
 - read-only bundle activation registers and activates expected profile tools
 - lazy import does not leave out-of-profile owner tools active when host registration auto-activates tools
+- explicit `tools: [...]` activation is governed by reverse catalog risk lookup and cannot bypass mutating/orchestrator/external-mutation gates; non-catalog explicit tools require acknowledgement
+- explicit missing-tool activation fails closed instead of reporting a no-op success
 - deactivation removes tools from active list except protected always-active tools
 - TTL expiration removes tools after expected turns
 - mutating and orchestrator-gated profile activation requires explicit user intent or policy pin
@@ -888,7 +890,7 @@ This RFC succeeds if later implementation reaches a state where:
 - `toolbox({ action: "doctor" })` reports a passing lean startup posture after `/reload`
 - capability discovery works without importing heavyweight package modules
 - at least vault, ontology, DesignMD, orchestrator, autoresearch, and peer-spawn bundles can activate lazily through package-owned exports
-- mutating/governed/orchestrator-gated tools are not activated by accident
+- mutating/governed/orchestrator-gated tools are not activated by accident, including through explicit `tools: [...]` requests
 - package-owner boundaries are visible in catalog and code
 - current eager behavior has a documented rollback path
 - validation proves both active-tool reduction and startup-load reduction

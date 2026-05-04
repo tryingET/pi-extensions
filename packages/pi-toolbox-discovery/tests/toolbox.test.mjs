@@ -230,6 +230,54 @@ test("toolbox refuses risky activation without acknowledgement", async () => {
   assert.equal(harness.activeTools.includes("vault_insert"), false);
 });
 
+test("toolbox refuses explicit risky tool activation without acknowledgement", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+  });
+
+  assert.match(result.content[0].text, /Refusing to activate explicit-tools\/requested/);
+  assert.match(result.content[0].text, /mutating/);
+  assert.equal(result.details.ok, false);
+  assert.equal(harness.activeTools.includes("vault_insert"), false);
+});
+
+test("toolbox treats non-catalog explicit tools as risk-acknowledged only", async () => {
+  const harness = createHarness({ registeredTools: ["non_catalog_tool"] });
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["non_catalog_tool"],
+  });
+
+  assert.match(result.content[0].text, /Refusing to activate explicit-tools\/requested/);
+  assert.match(result.content[0].text, /external-mutation/);
+  assert.equal(result.details.ok, false);
+  assert.equal(harness.activeTools.includes("non_catalog_tool"), false);
+});
+
+test("toolbox fails closed for missing explicit tools", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["does_not_exist"],
+    riskAcknowledged: true,
+  });
+
+  assert.match(result.content[0].text, /Cannot activate explicit-tools\/requested/);
+  assert.match(result.content[0].text, /does_not_exist/);
+  assert.match(result.content[0].text, /Explicit tool activation does not lazy-import bundles/);
+  assert.equal(result.details.ok, false);
+  assert.deepEqual(result.details.missing, ["does_not_exist"]);
+  assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+});
+
 test("toolbox lazily imports ontology read tools before activation", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
@@ -317,7 +365,11 @@ test("toolbox deactivation preserves always-active tools", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
-  await executeToolbox(toolbox, { action: "activate", tools: ["vault_insert"] });
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+  });
   const result = await executeToolbox(toolbox, {
     action: "deactivate",
     tools: [
@@ -354,7 +406,12 @@ test("toolbox TTL expires unpinned activations on later turns", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
-  await executeToolbox(toolbox, { action: "activate", tools: ["vault_insert"], ttlTurns: 1 });
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    ttlTurns: 1,
+    riskAcknowledged: true,
+  });
   assert.equal(harness.activeTools.includes("vault_insert"), true);
 
   await harness.runEvent("turn_start");

@@ -67,6 +67,21 @@ interface ToolboxParams {
   riskAcknowledged?: boolean;
 }
 
+interface ToolCatalogMatch {
+  bundle: ToolboxBundle;
+  profile: ToolboxProfile;
+}
+
+interface ActivationPlan {
+  bundle?: ToolboxBundle;
+  profile?: ToolboxProfile;
+  source: "bundle-profile" | "explicit-tools";
+  requestedTools: string[];
+  risks: ToolboxRisk[];
+  requiresAcknowledgement: boolean;
+  errors: string[];
+}
+
 const ALWAYS_ACTIVE_TOOLS = [
   "read",
   "bash",
@@ -518,21 +533,63 @@ function activationRiskRequiresAcknowledgement(profile: ToolboxProfile): boolean
   );
 }
 
-function resolveRequestedTools(params: ToolboxParams): {
-  bundle?: ToolboxBundle;
-  profile?: ToolboxProfile;
-  requestedTools: string[];
-  errors: string[];
-} {
+function riskRequiresAcknowledgement(risk: ToolboxRisk): boolean {
+  return ["mutating", "external-mutation", "orchestrator-gated"].includes(risk);
+}
+
+function getToolCatalogMatches(tool: string): ToolCatalogMatch[] {
+  const matches: ToolCatalogMatch[] = [];
+  for (const bundle of CATALOG) {
+    for (const profile of bundle.profiles) {
+      if (profile.tools.includes(tool)) {
+        matches.push({ bundle, profile });
+      }
+    }
+  }
+  return matches;
+}
+
+function sortRisks(risks: Iterable<ToolboxRisk>): ToolboxRisk[] {
+  const order: Record<ToolboxRisk, number> = {
+    safe: 0,
+    read: 1,
+    diagnostic: 2,
+    mutating: 3,
+    "orchestrator-gated": 4,
+    "external-mutation": 5,
+  };
+  return [...new Set(risks)].sort((left, right) => order[left] - order[right]);
+}
+
+function planActivation(params: ToolboxParams): ActivationPlan {
   const explicitTools = params.tools?.map((tool) => tool.trim()).filter(Boolean) ?? [];
   if (explicitTools.length > 0) {
-    return { requestedTools: [...new Set(explicitTools)], errors: [] };
+    const requestedTools = [...new Set(explicitTools)];
+    const risks = sortRisks(
+      requestedTools.flatMap((tool) => {
+        if (ALWAYS_ACTIVE_TOOLS.includes(tool)) return ["safe" as const];
+        const matches = getToolCatalogMatches(tool);
+        return matches.length > 0
+          ? matches.map((match) => match.profile.risk)
+          : ["external-mutation" as const];
+      }),
+    );
+    return {
+      source: "explicit-tools",
+      requestedTools,
+      risks,
+      requiresAcknowledgement: risks.some(riskRequiresAcknowledgement),
+      errors: [],
+    };
   }
 
   const bundle = findBundle(params.bundle);
   if (!bundle) {
     return {
+      source: "bundle-profile",
       requestedTools: [],
+      risks: [],
+      requiresAcknowledgement: false,
       errors: params.bundle
         ? [`Unknown toolbox bundle: ${params.bundle}`]
         : ["Provide either tools or bundle."],
@@ -543,12 +600,23 @@ function resolveRequestedTools(params: ToolboxParams): {
   if (!profile) {
     return {
       bundle,
+      source: "bundle-profile",
       requestedTools: [],
+      risks: [],
+      requiresAcknowledgement: false,
       errors: [`Unknown profile ${params.profile} for bundle ${bundle.id}.`],
     };
   }
 
-  return { bundle, profile, requestedTools: [...new Set(profile.tools)], errors: [] };
+  return {
+    bundle,
+    profile,
+    source: "bundle-profile",
+    requestedTools: [...new Set(profile.tools)],
+    risks: [profile.risk],
+    requiresAcknowledgement: activationRiskRequiresAcknowledgement(profile),
+    errors: [],
+  };
 }
 
 function createToolboxState(): ToolboxState {
@@ -975,22 +1043,18 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
       }
 
       if (action === "activate") {
-        const resolved = resolveRequestedTools(params);
-        if (resolved.errors.length > 0) {
-          return textResult(`Cannot activate tools: ${resolved.errors.join("; ")}`, {
+        const plan = planActivation(params);
+        if (plan.errors.length > 0) {
+          return textResult(`Cannot activate tools: ${plan.errors.join("; ")}`, {
             ok: false,
-            errors: resolved.errors,
+            errors: plan.errors,
           });
         }
 
-        if (
-          resolved.profile &&
-          activationRiskRequiresAcknowledgement(resolved.profile) &&
-          !params.riskAcknowledged
-        ) {
+        if (plan.requiresAcknowledgement && !params.riskAcknowledged) {
           return textResult(
-            `Refusing to activate ${resolved.bundle?.id ?? "requested"}/${resolved.profile.id} (${resolved.profile.risk}) without riskAcknowledged=true and explicit user intent.`,
-            { ok: false, risk: resolved.profile.risk },
+            `Refusing to activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"} (${plan.risks.join(", ")}) without riskAcknowledged=true and explicit user intent.`,
+            { ok: false, risks: plan.risks, source: plan.source },
           );
         }
 
@@ -998,21 +1062,21 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
         const lazyImport = await tryLazyImportBundle(
           pi,
           state,
-          resolved.bundle,
-          resolved.profile,
-          resolved.requestedTools,
+          plan.bundle,
+          plan.profile,
+          plan.requestedTools,
         );
         const knownToolNames = getKnownToolNames(pi);
-        const availableTools = resolved.requestedTools.filter((tool) => knownToolNames.has(tool));
-        const missingTools = resolved.requestedTools.filter((tool) => !knownToolNames.has(tool));
+        const availableTools = plan.requestedTools.filter((tool) => knownToolNames.has(tool));
+        const missingTools = plan.requestedTools.filter((tool) => !knownToolNames.has(tool));
         const restoredPreImportActive = activeBeforeLazyImport.filter((tool) =>
           knownToolNames.has(tool),
         );
-        if (resolved.bundle && missingTools.length > 0) {
+        if (missingTools.length > 0) {
           pi.setActiveTools(restoredPreImportActive);
           return textResult(
             [
-              `Cannot activate ${resolved.bundle.id}/${resolved.profile?.id ?? "default"}: missing registered tools after lazy import: ${missingTools.join(", ")}`,
+              `Cannot activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"}: missing registered tools after lazy import: ${missingTools.join(", ")}`,
               lazyImport.attempted
                 ? `Lazy import attempts: ${
                     lazyImport.records
@@ -1022,7 +1086,9 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
                       )
                       .join("; ") || "none"
                   }`
-                : "No lazy import module is declared for this bundle.",
+                : plan.source === "explicit-tools"
+                  ? "Explicit tool activation does not lazy-import bundles; activate by bundle/profile for latent tools."
+                  : "No lazy import module is declared for this bundle.",
               "Restored active tools to the pre-import baseline.",
             ].join("\n"),
             {
@@ -1030,14 +1096,16 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
               missing: missingTools,
               lazyImport,
               activeTools: restoredPreImportActive,
+              source: plan.source,
+              risks: plan.risks,
             },
           );
         }
 
         const nextActive = [...new Set([...restoredPreImportActive, ...availableTools])];
         pi.setActiveTools(nextActive);
-        const leases = recordLeases(state, availableTools, params, resolved);
-        const ttl = boundedTtlTurns(params.ttlTurns, resolved.profile);
+        const leases = recordLeases(state, availableTools, params, plan);
+        const ttl = boundedTtlTurns(params.ttlTurns, plan.profile);
 
         const text = [
           `Activated tools: ${availableTools.join(", ") || "none"}`,
@@ -1051,12 +1119,9 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
                   .join("; ") || "none"
               }`
             : undefined,
-          missingTools.length > 0
-            ? `Not registered in this session after lazy import: ${missingTools.join(", ")}.`
-            : undefined,
-          resolved.profile
-            ? `Profile: ${resolved.bundle?.id}/${resolved.profile.id}; risk=${resolved.profile.risk}; ttlTurns=${ttl}; pin=${params.pin === true}`
-            : undefined,
+          plan.profile
+            ? `Profile: ${plan.bundle?.id}/${plan.profile.id}; risk=${plan.profile.risk}; ttlTurns=${ttl}; pin=${params.pin === true}`
+            : `Source: explicit-tools; risks=${plan.risks.join(", ") || "none"}; ttlTurns=${ttl}; pin=${params.pin === true}`,
         ]
           .filter(Boolean)
           .join("\n");
@@ -1066,22 +1131,24 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           activated: availableTools,
           missing: missingTools,
           activeTools: nextActive,
-          bundle: resolved.bundle?.id,
-          profile: resolved.profile?.id,
+          bundle: plan.bundle?.id,
+          profile: plan.profile?.id,
+          source: plan.source,
+          risks: plan.risks,
           leases,
           lazyImport,
         });
       }
 
       if (action === "deactivate") {
-        const resolved = resolveRequestedTools(params);
-        if (resolved.errors.length > 0) {
-          return textResult(`Cannot deactivate tools: ${resolved.errors.join("; ")}`, {
+        const plan = planActivation(params);
+        if (plan.errors.length > 0) {
+          return textResult(`Cannot deactivate tools: ${plan.errors.join("; ")}`, {
             ok: false,
-            errors: resolved.errors,
+            errors: plan.errors,
           });
         }
-        const remove = new Set(resolved.requestedTools);
+        const remove = new Set(plan.requestedTools);
         for (const tool of remove) {
           state.leases.delete(tool);
         }
@@ -1089,7 +1156,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           .getActiveTools()
           .filter((tool) => !remove.has(tool) || ALWAYS_ACTIVE_TOOLS.includes(tool));
         pi.setActiveTools(nextActive);
-        const protectedTools = resolved.requestedTools.filter((tool) =>
+        const protectedTools = plan.requestedTools.filter((tool) =>
           ALWAYS_ACTIVE_TOOLS.includes(tool),
         );
         return textResult(

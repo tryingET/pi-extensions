@@ -22,11 +22,12 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 
 - enforces the minimal active tool set on `session_start`
 - searches/explains catalog metadata without importing owner packages
-- activates bundle profiles only after risk gates pass
+- plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
+- activates bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement
 - lazily imports owner modules for lazy-ready bundles when tools are not already registered
 - restores the pre-import active-tool set before adding requested profile tools, so owner packages that auto-activate newly registered tools cannot leak out-of-profile tools into the active set
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
-- fails closed for bundle/profile activation if requested profile tools remain unavailable after lazy import, and restores the pre-import active-tool baseline when a partial lazy import registered or auto-activated tools
+- fails closed for bundle/profile or explicit-tool activation if requested tools remain unavailable after lazy import, and restores the pre-import active-tool baseline when a partial lazy import registered or auto-activated tools
 - reports eager registration drift when catalog tools from lazy bundles are already registered without an active lease or lazy-import record, which catches settings drift such as duplicate worktree package entries
 - provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, active leases, eager registration drift, unleased active catalog tools, and duplicate/settings suspects
 
