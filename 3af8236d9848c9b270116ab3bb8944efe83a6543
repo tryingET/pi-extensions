@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3af8236d9848c9b270116ab3bb8944efe83a6543"
+created_at: "2026-05-04T02:19:58Z"
+intent: "Wire pi-toolbox-discovery to lazy-load the orchestrator package-owned toolbox bundle."
+files:
+  - "docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md"
+  - "packages/pi-toolbox-discovery/README.md"
+  - "packages/pi-toolbox-discovery/extensions/toolbox.ts"
+  - "packages/pi-toolbox-discovery/tests/toolbox.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-push"
+    status: "pending"
+group:
+  index: 4
+  total: 5
+  rationale: "Toolbox discovery now activates orchestrator read tools through the owning package bundle."
