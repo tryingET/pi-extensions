@@ -426,6 +426,63 @@ test("toolbox activation does not keep owner auto-activated tools outside the re
   }
 });
 
+test("toolbox activation restores pre-import active tools when lazy import is incomplete", async () => {
+  const moduleSource = `export default function(pi) {
+    for (const name of ["lazy_partial_registered", "lazy_partial_extra"]) {
+      pi.registerTool({
+        name,
+        label: name,
+        description: "Registered by a partial lazy toolbox import",
+        parameters: { type: "object", additionalProperties: false, properties: {} },
+        async execute() { return { content: [{ type: "text", text: "ok" }], details: {} }; }
+      });
+    }
+  }`;
+  const bundle = {
+    id: "lazy-partial-test",
+    title: "Lazy partial test bundle",
+    description: "Test-only incomplete lazy import bundle",
+    ownerPackage: "test",
+    ownerSemantics: "test-only",
+    keywords: ["lazy-partial-test"],
+    lazyModules: [
+      {
+        specifier: `data:text/javascript,${encodeURIComponent(moduleSource)}`,
+        label: "test module",
+      },
+    ],
+    profiles: [
+      {
+        id: "default",
+        description: "Default partial profile",
+        tools: ["lazy_partial_registered", "lazy_partial_missing"],
+        risk: "read",
+        defaultTtlTurns: 2,
+        requiresExplicitUserIntent: false,
+      },
+    ],
+  };
+  CATALOG.push(bundle);
+
+  try {
+    const harness = createHarness({ autoActivateRegisteredTools: true });
+    const toolbox = harness.tools.get("toolbox");
+
+    const result = await executeToolbox(toolbox, {
+      action: "activate",
+      bundle: "lazy-partial-test",
+    });
+
+    assert.match(result.content[0].text, /missing registered tools after lazy import/);
+    assert.match(result.content[0].text, /Restored active tools to the pre-import baseline/);
+    assert.equal(result.details.ok, false);
+    assert.deepEqual(result.details.missing, ["lazy_partial_missing"]);
+    assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+  } finally {
+    CATALOG.splice(CATALOG.indexOf(bundle), 1);
+  }
+});
+
 test("toolbox can lazily import an owner bundle before activation", async () => {
   const moduleSource = `export default function(pi) {
     pi.registerTool({

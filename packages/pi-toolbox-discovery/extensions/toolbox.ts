@@ -1005,7 +1005,11 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
         const knownToolNames = getKnownToolNames(pi);
         const availableTools = resolved.requestedTools.filter((tool) => knownToolNames.has(tool));
         const missingTools = resolved.requestedTools.filter((tool) => !knownToolNames.has(tool));
+        const restoredPreImportActive = activeBeforeLazyImport.filter((tool) =>
+          knownToolNames.has(tool),
+        );
         if (resolved.bundle && missingTools.length > 0) {
+          pi.setActiveTools(restoredPreImportActive);
           return textResult(
             [
               `Cannot activate ${resolved.bundle.id}/${resolved.profile?.id ?? "default"}: missing registered tools after lazy import: ${missingTools.join(", ")}`,
@@ -1019,14 +1023,18 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
                       .join("; ") || "none"
                   }`
                 : "No lazy import module is declared for this bundle.",
+              "Restored active tools to the pre-import baseline.",
             ].join("\n"),
-            { ok: false, missing: missingTools, lazyImport },
+            {
+              ok: false,
+              missing: missingTools,
+              lazyImport,
+              activeTools: restoredPreImportActive,
+            },
           );
         }
 
-        const nextActive = [...new Set([...activeBeforeLazyImport, ...availableTools])].filter(
-          (tool) => knownToolNames.has(tool),
-        );
+        const nextActive = [...new Set([...restoredPreImportActive, ...availableTools])];
         pi.setActiveTools(nextActive);
         const leases = recordLeases(state, availableTools, params, resolved);
         const ttl = boundedTtlTurns(params.ttlTurns, resolved.profile);

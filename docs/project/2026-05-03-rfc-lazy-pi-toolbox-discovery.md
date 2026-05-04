@@ -856,7 +856,7 @@ The first implementation must document the exact rollback commands after the pac
 - deactivation removes tools from active list except protected always-active tools
 - TTL expiration removes tools after expected turns
 - mutating and orchestrator-gated profile activation requires explicit user intent or policy pin
-- failed lazy import leaves no newly active tools behind
+- failed or incomplete lazy import leaves no newly active tools behind, including when the host auto-activates partially registered owner tools
 - pinned activation restores on reload/resume only when expected
 
 ### Package parity checks
