@@ -4,7 +4,10 @@ import test from "node:test";
 import { id, registerToolboxBundle, version } from "../src/toolboxBundle.ts";
 
 function createHarness() {
-  const tools = new Map<string, { name: string }>();
+  const tools = new Map<
+    string,
+    { name: string; execute?: (...args: unknown[]) => Promise<unknown> | unknown }
+  >();
   const commands = new Map<string, unknown>();
   const handlers = new Map<string, unknown[]>();
 
@@ -50,4 +53,46 @@ test("autoresearch toolbox bundle registers autoresearch tools and reports reque
   assert.equal(harness.tools.has("autoresearch_runtime_run"), true);
   assert.equal(harness.tools.has("autoresearch_llamacpp_campaign"), true);
   assert.equal(harness.commands.has("autoresearch"), true);
+});
+
+test("autoresearch read toolbox profile mechanically rejects mutating actions", async () => {
+  const harness = createHarness();
+
+  registerToolboxBundle(harness.pi as never, {
+    profile: "read",
+    requestedTools: ["autoresearch_runtime_control", "autoresearch_runtime_run"],
+  });
+
+  const controlTool = harness.tools.get("autoresearch_runtime_control");
+  const runTool = harness.tools.get("autoresearch_runtime_run");
+  assert.ok(controlTool?.execute);
+  assert.ok(runTool?.execute);
+
+  await assert.rejects(
+    () =>
+      Promise.resolve(
+        controlTool.execute?.(
+          "read-control-set",
+          { cwd: process.cwd(), action: "set", decision: "stop" },
+          undefined,
+          undefined,
+          { cwd: process.cwd() },
+        ),
+      ),
+    /read profile/,
+  );
+
+  await assert.rejects(
+    () =>
+      Promise.resolve(
+        runTool.execute?.(
+          "read-run",
+          { cwd: process.cwd(), description: "should not run from read profile" },
+          undefined,
+          undefined,
+          { cwd: process.cwd() },
+        ),
+      ),
+    /read profile/,
+  );
 });

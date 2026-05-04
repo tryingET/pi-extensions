@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-import registerAutoresearchExtension from "../extensions/pi-autoresearch.ts";
+import { registerPiAutoresearchExtension } from "../extensions/pi-autoresearch.ts";
 
 type ToolboxRisk = "diagnostic" | "mutating";
 
@@ -41,9 +41,11 @@ export function registerToolboxBundle(
   pi: ExtensionAPI,
   context: ToolboxBundleContext = { profile: "read" },
 ): ToolboxRegisteredToolSummary[] {
-  registerAutoresearchExtension(pi);
-
   const profile = context.profile || "read";
+  registerPiAutoresearchExtension(pi, {
+    effectProfile: profile === "read" ? "read" : "unrestricted",
+  });
+
   const summaries = PROFILE_TOOLS[profile] ?? Object.values(PROFILE_TOOLS).flat();
   const requested = new Set(context.requestedTools ?? []);
   if (requested.size === 0) return summaries;

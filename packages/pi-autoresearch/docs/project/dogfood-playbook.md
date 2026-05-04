@@ -105,7 +105,7 @@ Apply the setup, then run at least one baseline before any candidate binding:
 ```ts
 autoresearch_runtime_setup({
   cwd,
-  action: "apply_and_baseline",
+  action: "baseline",
   name: "<campaign-name>",
   metricName: "<metric>",
   metricUnit: "ms",

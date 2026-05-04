@@ -298,6 +298,12 @@ export function isAutoresearchSessionArtifactPath(filePath: string): boolean {
   return path.basename(filePath).startsWith("autoresearch.");
 }
 
+function isAutoresearchDirtyLocalArtifactPath(filePath: string): boolean {
+  const normalized = filePath.replaceAll("\\", "/").replace(/^\.\//u, "");
+  if (normalized.startsWith(".autoresearch/")) return true;
+  return !normalized.includes("/") && isAutoresearchSessionArtifactPath(normalized);
+}
+
 export function readAutoresearchIdeasBacklog(cwd: string): string[] {
   const ideasPath = path.join(path.resolve(cwd), "autoresearch.ideas.md");
   if (!existsSync(ideasPath)) {
@@ -1357,7 +1363,7 @@ function assertAutoresearchCleanWorktree(cwd: string): void {
     .split(/\r?\n/u)
     .map((line) => extractPorcelainPath(line))
     .filter((entry): entry is string => Boolean(entry))
-    .filter((entry) => !isAutoresearchSessionArtifactPath(entry));
+    .filter((entry) => !isAutoresearchDirtyLocalArtifactPath(entry));
   if (dirtyPaths.length > 0) {
     throw new Error(
       `Working tree is not clean; clean or stash intentionally before materializing finalization branches. Dirty paths: ${dirtyPaths.join(", ")}`,

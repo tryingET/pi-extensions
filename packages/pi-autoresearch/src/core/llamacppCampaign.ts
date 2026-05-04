@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME = "autoresearch_llamacpp_campaign";
@@ -28,6 +28,8 @@ export const AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_SURFACE_VERSION = 1 as const
 
 const GIT_COMMIT_RE = /^[0-9a-f]{7,40}$/i;
 const PYTHON_EXECUTABLE = "python3";
+const LLAMACPP_STAGE_COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
+const LLAMACPP_STAGE_COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 
 export type LlamacppCampaignStage = "41" | "42" | "43";
 export type LlamacppCampaignAction =
@@ -2693,13 +2695,44 @@ function resolvePathWithinRoot(rootDir: string, inputPath: string, label: string
 }
 
 function ensurePathWithinRoot(rootDir: string, targetPath: string, label: string): void {
-  const relative = path.relative(rootDir, targetPath);
+  const resolvedRoot = realpathForContainment(rootDir, label);
+  const resolvedTarget = realpathForContainment(targetPath, label);
+  const relative = path.relative(resolvedRoot, resolvedTarget);
   if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
     return;
   }
   throw new LlamacppCampaignManifestError(
     `${label} must stay within ${rootDir}, got ${targetPath}`,
   );
+}
+
+function realpathForContainment(targetPath: string, label: string): string {
+  let current = path.resolve(targetPath);
+  const missingSegments: string[] = [];
+  while (!existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      throw new LlamacppCampaignManifestError(
+        `${label} cannot resolve containment because no existing parent was found for ${targetPath}`,
+      );
+    }
+    missingSegments.unshift(path.basename(current));
+    current = parent;
+  }
+  const resolvedExisting = path.resolve(readRealpath(current));
+  return missingSegments.length === 0
+    ? resolvedExisting
+    : path.join(resolvedExisting, ...missingSegments);
+}
+
+function readRealpath(targetPath: string): string {
+  try {
+    return path.resolve(realpathSync(targetPath));
+  } catch (error) {
+    throw new LlamacppCampaignManifestError(
+      `unable to resolve real path for ${targetPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 function parseJsonObject(raw: string, filePath: string): Record<string, unknown> {
@@ -3203,6 +3236,8 @@ function runCommand(command: string[], cwd: string | null): ProcessCommandSummar
   const completed = spawnSync(executable, command.slice(1), {
     cwd: cwd ?? undefined,
     encoding: "utf8",
+    timeout: LLAMACPP_STAGE_COMMAND_TIMEOUT_MS,
+    maxBuffer: LLAMACPP_STAGE_COMMAND_MAX_BUFFER_BYTES,
   });
   const summary = {
     command,

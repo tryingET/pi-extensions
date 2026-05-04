@@ -113,6 +113,7 @@ const DEFAULT_BENCHMARK_TIMEOUT_SECONDS = 600;
 const DEFAULT_CHECKS_TIMEOUT_SECONDS = 300;
 const OUTPUT_TAIL_MAX_LINES = 20;
 const OUTPUT_TAIL_MAX_BYTES = 4 * 1024;
+const COMMAND_OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
 const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 
 export type MetricDirection = "lower" | "higher";
@@ -1727,6 +1728,7 @@ export async function executeAutoresearchCampaignStart(
       setupMode,
       canExecute: Boolean(benchmarkCommand),
       candidatePolicy,
+      reconfigure: input.reconfigure === true || autoplan.status.currentSegment.configured,
     }),
     warnings,
   };
@@ -1821,6 +1823,7 @@ function formatCampaignStartNextToolCall(input: {
   setupMode: AutoresearchCampaignStartSetupMode;
   canExecute: boolean;
   candidatePolicy: AutoresearchCandidateLifecyclePolicy;
+  reconfigure?: boolean;
 }): string {
   const candidatePolicy = JSON.stringify({
     mode: input.candidatePolicy.mode,
@@ -1830,7 +1833,9 @@ function formatCampaignStartNextToolCall(input: {
   });
   if (input.runMode === "plan_only") {
     const nextRunMode = input.canExecute ? "baseline" : "plan_only";
-    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(nextRunMode)}, maxIterations: ${input.maxIterations}, candidatePolicy: ${candidatePolicy} })`;
+    const reconfigureField =
+      input.reconfigure && nextRunMode === "baseline" ? ", reconfigure: true" : "";
+    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(nextRunMode)}, maxIterations: ${input.maxIterations}${reconfigureField}, candidatePolicy: ${candidatePolicy} })`;
   }
   if (input.runMode === "baseline") {
     return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: "bounded_loop", maxIterations: ${input.maxIterations}, candidatePolicy: ${candidatePolicy} })`;
@@ -4308,6 +4313,19 @@ export async function executeAutoresearchRun(
 
   const checksCommand = resolveChecksCommand(input.checksCommand, config.checksCommand, paths);
 
+  if (input.postureCommand?.trim()) {
+    await assertAutoresearchPostureReady({
+      cwd,
+      command: input.postureCommand,
+      timeoutSeconds: input.postureTimeoutSeconds ?? 15,
+      signal: input.signal,
+    });
+  }
+  ensureMachineReadyForBoundedRun(cwd, {
+    allowBootstrapConfig: createdConfig,
+    allowRebaselineReconfigure: input.reconfigure === true,
+  });
+
   if (createdConfig) {
     appendReceipt(cwd, config);
     appendLedgerEvent(
@@ -4317,16 +4335,6 @@ export async function executeAutoresearchRun(
         config.createdAt,
       ),
     );
-  }
-
-  ensureMachineReadyForBoundedRun(cwd);
-  if (input.postureCommand?.trim()) {
-    await assertAutoresearchPostureReady({
-      cwd,
-      command: input.postureCommand,
-      timeoutSeconds: input.postureTimeoutSeconds ?? 15,
-      signal: input.signal,
-    });
   }
   appendLedgerEvent(
     cwd,
@@ -5177,6 +5185,18 @@ function reconstructOriginalRunDescription(description: string): string {
     .replace(/ \(checks failed\)$/u, "");
 }
 
+function commandOutputBytes(stdout: string, stderr: string): number {
+  return Buffer.byteLength(stdout, "utf8") + Buffer.byteLength(stderr, "utf8");
+}
+
+function appendCommandOutputChunk(current: string, chunk: string): string {
+  const combined = `${current}${chunk}`;
+  if (Buffer.byteLength(combined, "utf8") <= COMMAND_OUTPUT_MAX_BYTES) {
+    return combined;
+  }
+  return combined.slice(-COMMAND_OUTPUT_MAX_BYTES);
+}
+
 async function runShellCommand(input: {
   command: string;
   cwd: string;
@@ -5198,6 +5218,7 @@ async function runShellCommand(input: {
     let stderr = "";
     let timedOut = false;
     let aborted = false;
+    let outputLimitExceeded = false;
     let settled = false;
     let killTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -5213,11 +5234,13 @@ async function runShellCommand(input: {
       killTree(child.pid, signal);
     };
 
-    const requestTermination = (mode: "timeout" | "abort") => {
+    const requestTermination = (mode: "timeout" | "abort" | "output_limit") => {
       if (mode === "timeout") {
         timedOut = true;
-      } else {
+      } else if (mode === "abort") {
         aborted = true;
+      } else {
+        outputLimitExceeded = true;
       }
       terminate("SIGTERM");
       killTimer = setTimeout(() => {
@@ -5233,6 +5256,9 @@ async function runShellCommand(input: {
         reject(new Error(`Command aborted: ${input.command}`));
         return;
       }
+      const boundedStderr = outputLimitExceeded
+        ? `${stderr}\nCommand output exceeded ${COMMAND_OUTPUT_MAX_BYTES} bytes and was terminated.`
+        : stderr;
       resolve({
         command: input.command,
         exitCode,
@@ -5240,8 +5266,8 @@ async function runShellCommand(input: {
         aborted,
         durationSeconds: (Date.now() - startedAt) / 1000,
         stdout,
-        stderr,
-        outputTail: tailText(joinOutput({ stdout, stderr })),
+        stderr: boundedStderr,
+        outputTail: tailText(joinOutput({ stdout, stderr: boundedStderr })),
       });
     };
 
@@ -5252,10 +5278,16 @@ async function runShellCommand(input: {
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
-      stdout += chunk;
+      stdout = appendCommandOutputChunk(stdout, chunk);
+      if (commandOutputBytes(stdout, stderr) > COMMAND_OUTPUT_MAX_BYTES) {
+        requestTermination("output_limit");
+      }
     });
     child.stderr?.on("data", (chunk: string) => {
-      stderr += chunk;
+      stderr = appendCommandOutputChunk(stderr, chunk);
+      if (commandOutputBytes(stdout, stderr) > COMMAND_OUTPUT_MAX_BYTES) {
+        requestTermination("output_limit");
+      }
     });
 
     child.on("error", (error) => {
@@ -5669,7 +5701,10 @@ function reconstructLedgerEntriesForRun(
   return entries;
 }
 
-function ensureMachineReadyForBoundedRun(cwd: string): void {
+function ensureMachineReadyForBoundedRun(
+  cwd: string,
+  options: { allowBootstrapConfig?: boolean; allowRebaselineReconfigure?: boolean } = {},
+): void {
   let status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
 
   if (status.control.kind === "continue") {
@@ -5683,6 +5718,10 @@ function ensureMachineReadyForBoundedRun(cwd: string): void {
     );
   }
 
+  if (status.control.kind === "rebaseline" && options.allowRebaselineReconfigure === true) {
+    return;
+  }
+
   if (
     status.control.kind === "rebaseline" ||
     status.control.kind === "finalize" ||
@@ -5694,6 +5733,12 @@ function ensureMachineReadyForBoundedRun(cwd: string): void {
   }
 
   if (!canCampaignMachineStartBoundedRun(status.runtimeProjection.state)) {
+    if (
+      options.allowBootstrapConfig === true &&
+      status.runtimeProjection.state === "segment_unconfigured"
+    ) {
+      return;
+    }
     throw new Error(
       `Cannot start a bounded autoresearch run while the machine is in state ${status.runtimeProjection.state}`,
     );

@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -1207,6 +1208,28 @@ test("execution binding fails closed when the receipt root escapes the workstati
   });
 });
 
+test("execution binding fails closed when workflow anchors escape through symlinks", async () => {
+  await withTempDir((cwd) => {
+    const sourceRepo = initSourceRepo(cwd);
+    const buildBins = initBuildBins(cwd);
+    const workstationRepo = initWorkstationRepo(cwd);
+    const outsideDir = path.join(cwd, "outside-workflow");
+    writeFile(path.join(outsideDir, "41.py"), stage41Stub());
+    symlinkSync(outsideDir, path.join(workstationRepo, "escaped-workflow"), "dir");
+    const manifestPath = writeManifest(cwd, sourceRepo, workstationRepo, buildBins);
+    const payload = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+      workflow: { stage41Script: string };
+    };
+    payload.workflow.stage41Script = "escaped-workflow/41.py";
+    writeFile(manifestPath, `${JSON.stringify(payload, null, 2)}\n`);
+
+    assert.throws(
+      () => executeLlamacppCampaignStage({ cwd, manifestPath, stage: "41", buildId: "A" }),
+      /must stay within/,
+    );
+  });
+});
+
 test("manifest validation rejects invalid cherry-pick provenance", async () => {
   await withTempDir((cwd) => {
     const sourceRepo = initSourceRepo(cwd);
@@ -1259,7 +1282,10 @@ test("extension registers the public llama.cpp campaign-control tool and enforce
       assert.match(statusText, /task bound: yes/);
       assert.match(statusText, /next step action: advance/);
       assert.match(statusText, /## Projection/);
+      assert.match(statusText, /path: \(not persisted\)/);
+      assert.match(statusText, /persistence: skipped/);
       assert.match(statusText, /overall state: planned_only/);
+      assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), false);
     });
 
     const advanceResult = await tool?.execute(
@@ -1284,7 +1310,7 @@ test("extension registers the public llama.cpp campaign-control tool and enforce
       projection: { updatedAt: number; status: { overallState: string } };
       control: { autonomy: { projection: { updatedAt: number; overallState: string } } };
     };
-    assert.equal(advanceDetails.projectionPath, resolveLlamacppCampaignProjectionPath(cwd));
+    assert.equal(advanceDetails.projectionPath, null);
     assert.equal(
       advanceDetails.control.autonomy.projection.updatedAt,
       advanceDetails.projection.updatedAt,
@@ -1293,6 +1319,22 @@ test("extension registers the public llama.cpp campaign-control tool and enforce
       advanceDetails.control.autonomy.projection.overallState,
       advanceDetails.projection.status.overallState,
     );
+
+    const persistedStatus = await tool?.execute(
+      "campaign-control-status-persist-1",
+      {
+        action: "status",
+        cwd,
+        manifestPath,
+        persistProjection: true,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    const persistedDetails = persistedStatus?.details as { projectionPath: string | null };
+    assert.equal(persistedDetails.projectionPath, resolveLlamacppCampaignProjectionPath(cwd));
+    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
 
     await assert.rejects(
       () =>
@@ -1340,8 +1382,9 @@ test("extension registers the llama.cpp campaign tool and executes advance_campa
     assert.match(text, /phase: stage41_wave/);
     assert.match(text, /build: A/);
     assert.match(text, /## Projection/);
+    assert.match(text, /path: \(not persisted\)/);
     assert.match(text, /overall state: planned_only/);
-    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
+    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), false);
   });
 });
 
@@ -1374,8 +1417,9 @@ test("extension registers the llama.cpp campaign tool and executes execute_stage
     assert.match(text, /stage: 41/);
     assert.match(text, /output receipt: .*A-stage41-validation\.json/);
     assert.match(text, /## Projection/);
+    assert.match(text, /path: \(not persisted\)/);
     assert.match(text, /overall state: planned_only/);
-    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
+    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), false);
   });
 });
 
@@ -1408,8 +1452,9 @@ test("extension registers the llama.cpp campaign tool and executes build_ak_bind
     assert.match(text, /milestone: planned/);
     assert.match(text, /projection key: task:1648\|manifest:/);
     assert.match(text, /## Projection/);
+    assert.match(text, /path: \(not persisted\)/);
     assert.match(text, /overall state: planned_only/);
-    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), true);
+    assert.equal(existsSync(resolveLlamacppCampaignProjectionPath(cwd)), false);
   });
 });
 

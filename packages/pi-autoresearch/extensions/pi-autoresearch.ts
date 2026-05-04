@@ -17,6 +17,7 @@ import {
   advanceLlamacppCampaign,
   buildLlamacppCampaignAkBinding,
   buildLlamacppCampaignAkBindingDetails,
+  buildLlamacppCampaignProjection,
   executeLlamacppCampaignControl,
   executeLlamacppCampaignStage,
   formatLlamacppCampaignControlResult,
@@ -447,6 +448,12 @@ const campaignSchema = Type.Object({
         "For action=prepare_fork, action=execute_stage, or action=advance_campaign. When true, apply the selected fork/stage/next-step action instead of only printing the plan.",
     }),
   ),
+  persistProjection: Type.Optional(
+    Type.Boolean({
+      description:
+        "When true, explicitly write the derived campaign projection artifact even for non-apply plan/status calls. Mutating profiles only.",
+    }),
+  ),
   taskId: Type.Optional(
     Type.Number({
       description:
@@ -483,6 +490,12 @@ const campaignControlSchema = Type.Object({
     Type.Boolean({
       description:
         "Only for action=advance. When true, apply exactly one truthful next step instead of only planning it.",
+    }),
+  ),
+  persistProjection: Type.Optional(
+    Type.Boolean({
+      description:
+        "When true, explicitly write the derived campaign projection artifact even for non-apply status/advance plans. Mutating profiles only.",
     }),
   ),
 });
@@ -1123,11 +1136,73 @@ const selfHostingSchema = Type.Object({
   ),
 });
 
+export type AutoresearchExtensionEffectProfile = "unrestricted" | "read";
+
 export interface PiAutoresearchExtensionOptions {
   createDecisionRuntime?: (
     ctx: ExtensionContext,
     signal: AbortSignal | undefined,
   ) => AutoresearchDecisionRuntime;
+  effectProfile?: AutoresearchExtensionEffectProfile;
+}
+
+function assertReadProfileAllowsAction(
+  options: PiAutoresearchExtensionOptions,
+  input: {
+    toolName: string;
+    action: string;
+    allowedActions: readonly string[];
+    apply?: boolean;
+    persistProjection?: boolean;
+  },
+): void {
+  if (options.effectProfile !== "read") return;
+  if (input.persistProjection === true) {
+    throw new Error(
+      `${input.toolName} action=${input.action} persistProjection=true is unavailable in the autoresearch read profile; activate the mutating profile for explicit projection writes.`,
+    );
+  }
+  if (input.apply === true) {
+    throw new Error(
+      `${input.toolName} action=${input.action} apply=true is unavailable in the autoresearch read profile; activate the mutating profile for local writes or execution.`,
+    );
+  }
+  if (!input.allowedActions.includes(input.action)) {
+    throw new Error(
+      `${input.toolName} action=${input.action} is unavailable in the autoresearch read profile; allowed read actions: ${input.allowedActions.join(", ")}.`,
+    );
+  }
+}
+
+function assertReadProfileRejectsTool(
+  options: PiAutoresearchExtensionOptions,
+  toolName: string,
+): void {
+  if (options.effectProfile !== "read") return;
+  throw new Error(
+    `${toolName} is unavailable in the autoresearch read profile; activate the mutating profile for local writes or execution.`,
+  );
+}
+
+function shouldPersistLlamacppProjection(input: {
+  apply?: boolean;
+  persistProjection?: boolean;
+}): boolean {
+  return input.apply === true || input.persistProjection === true;
+}
+
+function formatLlamacppProjectionLines(input: {
+  projectionPath: string | null;
+  projection: { manifest: { campaignId: string }; status: { overallState: string } };
+  persisted: boolean;
+}): string[] {
+  return [
+    "## Projection",
+    input.projectionPath ? `- path: ${input.projectionPath}` : "- path: (not persisted)",
+    `- persistence: ${input.persisted ? "persisted" : "skipped; pass persistProjection=true or apply=true for an explicit write"}`,
+    `- campaign: ${input.projection.manifest.campaignId}`,
+    `- overall state: ${input.projection.status.overallState}`,
+  ];
 }
 
 export function registerPiAutoresearchExtension(
@@ -1202,6 +1277,12 @@ export function registerPiAutoresearchExtension(
         candidateBaseRef?: string;
         description?: string;
       };
+      const action = request.action ?? "status";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
+        action,
+        allowedActions: ["status", "plan_run"],
+      });
       const result = buildAutoresearchCandidateBindPlan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -1237,6 +1318,12 @@ export function registerPiAutoresearchExtension(
           rewind?: "reset_worktree_to_base" | "recreate_worktree_from_base";
         };
       };
+      const action = request.action ?? "status";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
+        action,
+        allowedActions: ["status", "plan_keep", "plan_discard", "plan_rewind"],
+      });
       const result = buildAutoresearchCandidateDecisionWorkbench({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -1294,9 +1381,23 @@ export function registerPiAutoresearchExtension(
       };
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "status";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_STATUS_TOOL_NAME,
+        action,
+        allowedActions: [
+          "status",
+          "dashboard",
+          "closeout",
+          "ak_evidence",
+          "learning",
+          "candidate_result",
+          "adapter_contracts",
+          "validate_packet",
+        ],
+      });
 
       if (action === "dashboard") {
-        const status = buildAutoresearchRuntimeStatus(cwd);
+        const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
         return {
           content: [{ type: "text", text: formatAutoresearchDashboard(status) }],
           details: status,
@@ -1418,7 +1519,7 @@ export function registerPiAutoresearchExtension(
         };
       }
 
-      const status = buildAutoresearchRuntimeStatus(cwd);
+      const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
       return {
         content: [{ type: "text", text: formatAutoresearchStatusText(status) }],
         details: status,
@@ -1443,6 +1544,11 @@ export function registerPiAutoresearchExtension(
       };
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "status";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_CONTROL_TOOL_NAME,
+        action,
+        allowedActions: ["status"],
+      });
 
       if (action === "set") {
         if (!request.decision) {
@@ -1482,6 +1588,12 @@ export function registerPiAutoresearchExtension(
         cwd?: string;
         reason?: string;
       };
+      const action = request.action ?? "status";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_FINALIZE_TOOL_NAME,
+        action,
+        allowedActions: ["status"],
+      });
       const result = await executeAutoresearchFinalization({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -1544,6 +1656,7 @@ export function registerPiAutoresearchExtension(
         decisionDeadEndMemory?: string[];
       };
 
+      assertReadProfileRejectsTool(options, AUTORESEARCH_RUN_TOOL_NAME);
       const result = await executeAutoresearchRun({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         description: request.description,
@@ -1624,6 +1737,7 @@ export function registerPiAutoresearchExtension(
         dspxOutdir?: string;
         dspxBehaviorPath?: string;
       };
+      assertReadProfileRejectsTool(options, AUTORESEARCH_AUTOPLAN_TOOL_NAME);
       const result = buildAutoresearchAutoplan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         objective: request.objective,
@@ -1676,6 +1790,7 @@ export function registerPiAutoresearchExtension(
         timeoutSeconds?: number;
         checksTimeoutSeconds?: number;
       };
+      assertReadProfileRejectsTool(options, AUTORESEARCH_SETUP_TOOL_NAME);
       const result = await executeAutoresearchSetup({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -1765,6 +1880,7 @@ export function registerPiAutoresearchExtension(
           rewind?: "reset_worktree_to_base" | "recreate_worktree_from_base";
         };
       };
+      assertReadProfileRejectsTool(options, AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
       const result = await executeAutoresearchCampaignStart({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         objective: request.objective,
@@ -1836,6 +1952,11 @@ export function registerPiAutoresearchExtension(
         reportBack?: "intercom" | "manual" | "none";
         parentPeerTarget?: string;
       };
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
+        action: "plan",
+        allowedActions: ["plan"],
+      });
       const result = buildAutoresearchPeerAssistPlan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         lane: request.lane,
@@ -1899,6 +2020,7 @@ export function registerPiAutoresearchExtension(
         >;
         peerMode?: "off" | "plan" | "launch_scout" | "launch_candidate" | "launch_fork";
       };
+      assertReadProfileRejectsTool(options, AUTORESEARCH_LOOP_TOOL_NAME);
       const result = await executeAutoresearchLoop({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         goal: request.goal,
@@ -1978,6 +2100,7 @@ export function registerPiAutoresearchExtension(
       };
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "status";
+      assertReadProfileRejectsTool(options, AUTORESEARCH_SELF_HOSTING_TOOL_NAME);
 
       if (action === "prepare_candidate") {
         const result = prepareAutoresearchSelfHostingCandidateWorktree({
@@ -2282,9 +2405,17 @@ export function registerPiAutoresearchExtension(
         manifestPath: string;
         taskId?: number;
         apply?: boolean;
+        persistProjection?: boolean;
       };
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "status";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
+        action,
+        allowedActions: ["status"],
+        apply: request.apply,
+        persistProjection: request.persistProjection,
+      });
       const updatedAt = Date.now();
 
       if (action === "status" && request.apply === true) {
@@ -2308,25 +2439,30 @@ export function registerPiAutoresearchExtension(
               taskId: request.taskId,
               updatedAt,
             });
-      const projection = persistDerivedLlamacppCampaignProjection({
-        cwd,
-        projection: result.projection,
-      });
+      const persistProjection = shouldPersistLlamacppProjection(request);
+      const persistedProjection = persistProjection
+        ? persistDerivedLlamacppCampaignProjection({
+            cwd,
+            projection: result.projection,
+          })
+        : null;
+      const projection = persistedProjection?.projection ?? result.projection;
       const text = [
         formatLlamacppCampaignControlResult(result),
         "",
-        "## Projection",
-        `- path: ${projection.path}`,
-        `- campaign: ${projection.projection.manifest.campaignId}`,
-        `- overall state: ${projection.projection.status.overallState}`,
+        ...formatLlamacppProjectionLines({
+          projectionPath: persistedProjection?.path ?? null,
+          projection,
+          persisted: persistProjection,
+        }),
       ].join("\n");
 
       return {
         content: [{ type: "text", text }],
         details: {
           ...result,
-          projectionPath: projection.path,
-          projection: projection.projection,
+          projectionPath: persistedProjection?.path ?? null,
+          projection,
         },
       };
     },
@@ -2363,9 +2499,23 @@ export function registerPiAutoresearchExtension(
         buildId?: string;
         apply?: boolean;
         taskId?: number;
+        persistProjection?: boolean;
       };
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "plan_matrix";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
+        action,
+        allowedActions: [
+          "plan_matrix",
+          "prepare_fork",
+          "execute_stage",
+          "build_ak_binding",
+          "advance_campaign",
+        ],
+        apply: request.apply,
+        persistProjection: request.persistProjection,
+      });
       const updatedAt = Date.now();
       const result =
         action === "prepare_fork"
@@ -2416,26 +2566,37 @@ export function registerPiAutoresearchExtension(
                     cwd,
                     manifestPath: request.manifestPath,
                   });
-      const projection = persistLlamacppCampaignProjection({
-        cwd,
-        manifestPath: request.manifestPath,
-        updatedAt,
-      });
+      const persistProjection = shouldPersistLlamacppProjection(request);
+      const persistedProjection = persistProjection
+        ? persistLlamacppCampaignProjection({
+            cwd,
+            manifestPath: request.manifestPath,
+            updatedAt,
+          })
+        : null;
+      const projection =
+        persistedProjection?.projection ??
+        buildLlamacppCampaignProjection({
+          cwd,
+          manifestPath: request.manifestPath,
+          updatedAt,
+        });
       const text = [
         formatLlamacppCampaignResult(result),
         "",
-        "## Projection",
-        `- path: ${projection.path}`,
-        `- campaign: ${projection.projection.manifest.campaignId}`,
-        `- overall state: ${projection.projection.status.overallState}`,
+        ...formatLlamacppProjectionLines({
+          projectionPath: persistedProjection?.path ?? null,
+          projection,
+          persisted: persistProjection,
+        }),
       ].join("\n");
 
       return {
         content: [{ type: "text", text }],
         details: {
           ...result,
-          projectionPath: projection.path,
-          projection: projection.projection,
+          projectionPath: persistedProjection?.path ?? null,
+          projection,
         },
       };
     },

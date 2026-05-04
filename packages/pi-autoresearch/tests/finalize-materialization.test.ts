@@ -397,6 +397,11 @@ test("materializeAutoresearchFinalizationPlan rejects dirty non-session files be
   await withTempRepo((fixture) => {
     planAndApproveFinalization(fixture);
     writeText(fixture.cwd, "notes.txt", "dirty\n");
+    writeText(
+      fixture.cwd,
+      "src/autoresearch.policy.ts",
+      "dirty non-session artifact-shaped source\n",
+    );
 
     assert.throws(
       () =>

@@ -1619,6 +1619,31 @@ test("autoresearch_campaign_start provides a plan-only supervised front door", a
     assert.equal(details.autoplan.checksCommand, "npm run check");
     assert.match(details.nextToolCall, /autoresearch_campaign_start/);
     assert.equal(loadReceiptLog(cwd).entries.length, 0);
+
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "existing-speed",
+        metricName: "total_ms",
+        direction: "lower",
+        benchmarkCommand: "npm run bench",
+      }),
+    );
+    const configuredResult = await tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME)?.execute(
+      "call-campaign-start-plan-configured",
+      {
+        cwd,
+        objective: "reduce benchmark runtime with fresh segment",
+        runMode: "plan_only",
+        maxIterations: 4,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    const configuredDetails = configuredResult?.details as { nextToolCall: string };
+    assert.match(configuredDetails.nextToolCall, /runMode: "baseline"/);
+    assert.match(configuredDetails.nextToolCall, /reconfigure: true/);
   });
 });
 
@@ -2250,6 +2275,8 @@ test("autoresearch_runtime_run fails closed when posture gate blocks", async () 
         ),
       /posture gate blocked/,
     );
+    assert.equal(loadReceiptLog(cwd).entries.length, 0);
+    assert.equal(existsSync(path.join(cwd, "autoresearch.events.jsonl")), false);
   });
 });
 
