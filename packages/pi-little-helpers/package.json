@@ -48,11 +48,23 @@
     "extensions/sidequest.ts",
     "extensions/stash.ts",
     "lib/package-utils.ts",
+    "src/toolboxBundle.ts",
     "prompts",
     "examples",
     "policy/security-policy.json",
     "policy/stack-lane.json"
   ],
+  "exports": {
+    "./toolbox-bundle": "./src/toolboxBundle.ts",
+    "./extensions/code-block-picker.ts": "./extensions/code-block-picker.ts",
+    "./extensions/html-output-browser.ts": "./extensions/html-output-browser.ts",
+    "./extensions/package-update-notify.ts": "./extensions/package-update-notify.ts",
+    "./extensions/session-presence.ts": "./extensions/session-presence.ts",
+    "./extensions/sidequest.ts": "./extensions/sidequest.ts",
+    "./extensions/stash.ts": "./extensions/stash.ts",
+    "./lib/package-utils.ts": "./lib/package-utils.ts",
+    "./package.json": "./package.json"
+  },
   "pi": {
     "extensions": [
       "./extensions/code-block-picker.ts",

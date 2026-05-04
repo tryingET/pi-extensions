@@ -3,23 +3,29 @@ import test from "node:test";
 
 import toolboxDiscoveryExtension, { CATALOG } from "../extensions/toolbox.ts";
 
+const ALWAYS_ACTIVE_TOOLS = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "self",
+  "interview",
+  "dispatch_subagent",
+  "intercom",
+  "toolbox",
+];
+
 function createHarness() {
   const commands = new Map();
   const tools = new Map();
   const handlers = new Map();
   const allToolNames = new Set([
-    "read",
-    "bash",
-    "edit",
-    "write",
-    "self",
-    "interview",
-    "toolbox",
+    ...ALWAYS_ACTIVE_TOOLS,
     "vault_query",
     "vault_retrieve",
     "vault_insert",
   ]);
-  let activeTools = ["read", "bash", "edit", "write", "self", "interview", "toolbox"];
+  let activeTools = [...ALWAYS_ACTIVE_TOOLS];
 
   const pi = {
     on(event, handler) {
@@ -92,15 +98,7 @@ test("session start enforces the minimal always-active startup profile", async (
 
   await harness.runEvent("session_start");
 
-  assert.deepEqual(harness.activeTools, [
-    "read",
-    "bash",
-    "edit",
-    "write",
-    "self",
-    "interview",
-    "toolbox",
-  ]);
+  assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
 });
 
 test("toolbox search returns catalog entries without changing active tools", async () => {
@@ -110,15 +108,7 @@ test("toolbox search returns catalog entries without changing active tools", asy
   const result = await executeToolbox(toolbox, { action: "search", query: "vault" });
 
   assert.match(result.content[0].text, /vault: Prompt Vault tools/);
-  assert.deepEqual(harness.activeTools, [
-    "read",
-    "bash",
-    "edit",
-    "write",
-    "self",
-    "interview",
-    "toolbox",
-  ]);
+  assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
 });
 
 test("toolbox lazily imports missing read-profile tools before activation", async () => {
@@ -218,20 +208,23 @@ test("toolbox lazily imports orchestrator read tools before activation", async (
   assert.equal(harness.activeTools.includes("ontology_context"), true);
 });
 
-test("toolbox fails closed when a bundle profile remains unavailable", async () => {
+test("toolbox lazily imports little-helpers peer-spawn tools before activation", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
   const result = await executeToolbox(toolbox, {
     action: "activate",
-    bundle: "peer-messaging",
+    bundle: "peer-spawn",
     profile: "default",
     riskAcknowledged: true,
   });
 
-  assert.match(result.content[0].text, /Cannot activate peer-messaging\/default/);
-  assert.equal(result.details.ok, false);
-  assert.equal(harness.activeTools.includes("intercom"), false);
+  assert.match(result.content[0].text, /Activated tools: fork_peer_spawn/);
+  assert.match(result.content[0].text, /Lazy import attempts:/);
+  assert.equal(result.details.ok, true);
+  assert.equal(harness.activeTools.includes("fork_peer_spawn"), true);
+  assert.equal(harness.activeTools.includes("scout_peer_spawn"), true);
+  assert.equal(harness.activeTools.includes("candidate_peer_spawn"), true);
 });
 
 test("toolbox deactivation preserves always-active tools", async () => {
@@ -241,13 +234,19 @@ test("toolbox deactivation preserves always-active tools", async () => {
   await executeToolbox(toolbox, { action: "activate", tools: ["vault_query"] });
   const result = await executeToolbox(toolbox, {
     action: "deactivate",
-    tools: ["self", "interview", "vault_query"],
+    tools: ["self", "interview", "dispatch_subagent", "intercom", "toolbox", "vault_query"],
   });
 
   assert.equal(harness.activeTools.includes("vault_query"), false);
   assert.equal(harness.activeTools.includes("self"), true);
   assert.equal(harness.activeTools.includes("interview"), true);
-  assert.match(result.content[0].text, /Protected always-active tools retained: self, interview/);
+  assert.equal(harness.activeTools.includes("dispatch_subagent"), true);
+  assert.equal(harness.activeTools.includes("intercom"), true);
+  assert.equal(harness.activeTools.includes("toolbox"), true);
+  assert.match(
+    result.content[0].text,
+    /Protected always-active tools retained: self, interview, dispatch_subagent, intercom, toolbox/,
+  );
 });
 
 test("toolbox TTL expires unpinned activations on later turns", async () => {

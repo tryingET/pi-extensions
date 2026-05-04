@@ -67,7 +67,17 @@ interface ToolboxParams {
   riskAcknowledged?: boolean;
 }
 
-const ALWAYS_ACTIVE_TOOLS = ["read", "bash", "edit", "write", "self", "interview", "toolbox"];
+const ALWAYS_ACTIVE_TOOLS = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "self",
+  "interview",
+  "dispatch_subagent",
+  "intercom",
+  "toolbox",
+];
 
 const DEFAULT_TTL_TURNS = 4;
 const MAX_TTL_TURNS = 12;
@@ -328,18 +338,29 @@ export const CATALOG: ToolboxBundle[] = [
     ],
   },
   {
-    id: "peer-messaging",
-    title: "Peer messaging tools",
-    description: "Local Pi peer-session intercom and visible peer launch helpers.",
-    ownerPackage: "packages/pi-peer-messaging and packages/pi-little-helpers",
+    id: "peer-spawn",
+    title: "Visible peer-spawn tools",
+    description:
+      "pi-little-helpers sidequest tools for launching visible fork, scout, and candidate peer sessions. The intercom messaging primitive remains always-active through pi-peer-messaging.",
+    ownerPackage: "packages/pi-little-helpers",
     ownerSemantics:
-      "peer-messaging and little-helpers own peer communication/launch behavior; toolbox only activates the owning package tools.",
-    keywords: ["peer", "intercom", "sidequest", "candidate", "scout", "message"],
+      "pi-little-helpers owns visible peer launch behavior; pi-peer-messaging owns the always-active intercom communication primitive; toolbox only lazily imports and activates the sidequest peer-spawn tools.",
+    keywords: ["peer", "sidequest", "parallelquest", "candidate", "scout", "spawn"],
+    lazyModules: [
+      {
+        specifier: "@tryinget/pi-little-helpers/toolbox-bundle",
+        label: "published package-owned toolbox bundle",
+      },
+      {
+        specifier: new URL("../../pi-little-helpers/src/toolboxBundle.ts", import.meta.url).href,
+        label: "monorepo sibling package-owned toolbox bundle",
+      },
+    ],
     profiles: [
       {
         id: "default",
-        description: "Local peer messaging and visible peer spawn tools.",
-        tools: ["intercom", "fork_peer_spawn", "scout_peer_spawn", "candidate_peer_spawn"],
+        description: "Visible sidequest/scout/candidate peer-spawn tools.",
+        tools: ["fork_peer_spawn", "scout_peer_spawn", "candidate_peer_spawn"],
         risk: "orchestrator-gated",
         defaultTtlTurns: 2,
         requiresExplicitUserIntent: true,
@@ -348,20 +369,20 @@ export const CATALOG: ToolboxBundle[] = [
   },
   {
     id: "session-introspection",
-    title: "Session introspection tools",
+    title: "Always-active session introspection tools",
     description: "Foundational self-inspection and subagent dispatch surfaces.",
     ownerPackage: "packages/pi-autonomous-session-control",
     ownerSemantics:
-      "pi-autonomous-session-control owns self/subagent behavior; self remains always-active while dispatch_subagent is activated explicitly.",
+      "pi-autonomous-session-control owns self/subagent behavior; self and dispatch_subagent remain always-active foundational tools when their owner package is registered.",
     keywords: ["self", "subagent", "introspection", "progress", "loop"],
     profiles: [
       {
         id: "default",
-        description: "Self-inspection and explicit subagent dispatch.",
+        description: "Foundational self-inspection and subagent dispatch tools.",
         tools: ["self", "dispatch_subagent"],
-        risk: "orchestrator-gated",
-        defaultTtlTurns: 2,
-        requiresExplicitUserIntent: true,
+        risk: "safe",
+        defaultTtlTurns: 6,
+        requiresExplicitUserIntent: false,
       },
     ],
   },
@@ -398,7 +419,8 @@ const TOOLBOX_PARAMETERS = {
     query: { type: "string", description: "Search text for action=search." },
     bundle: {
       type: "string",
-      description: "Catalog bundle id such as vault, designmd, ontology, or autoresearch.",
+      description:
+        "Catalog bundle id such as vault, designmd, ontology, autoresearch, or peer-spawn.",
     },
     profile: {
       type: "string",
@@ -734,7 +756,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
     description:
       "Discover, explain, activate, deactivate, or inspect pi-extension tool bundles while keeping heavyweight package tools off by default.",
     promptSnippet:
-      "Discover and activate pi-extension capability bundles on demand; keep self and interview active by default.",
+      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, and intercom active by default.",
     promptGuidelines: [
       "Use toolbox to discover domain-specific Pi tools before assuming a heavyweight custom tool is active.",
       "Do not activate mutating, external-mutation, or orchestrator-gated profiles without explicit user intent.",

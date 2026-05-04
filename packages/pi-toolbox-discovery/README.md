@@ -18,7 +18,7 @@ The package registers:
 - `/toolbox` — human-visible status command
 - `toolbox` — model-callable discovery/activation tool
 
-The package keeps `self`, `interview`, and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools remain latent until explicitly activated. Current behavior:
+The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools remain latent until explicitly activated. Current behavior:
 
 - enforces the minimal active tool set on `session_start`
 - searches/explains catalog metadata without importing owner packages
@@ -27,7 +27,7 @@ The package keeps `self`, `interview`, and `toolbox` as foundational always-acti
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - fails closed for bundle/profile activation if requested profile tools remain unavailable after lazy import
 
-The first package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, and `orchestrator` via `pi-society-orchestrator/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
+The package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` via `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` via `@tryinget/pi-little-helpers/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`

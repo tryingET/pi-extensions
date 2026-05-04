@@ -16,7 +16,7 @@ system4d:
 
 ## Decision in one sentence
 
-Create a new **`pi-toolbox-discovery`** package from the pi-extensions package template as an always-on but small broker: it discovers capability bundles from a catalog, lazily imports package-owned tool bundles only when needed, activates bounded tool profiles for the current session, keeps `self` and `interview` always active as foundational operator tools, and keeps heavyweight package extensions disabled by default once their lazy exports exist.
+Create a new **`pi-toolbox-discovery`** package from the pi-extensions package template as an always-on but small broker: it discovers capability bundles from a catalog, lazily imports package-owned tool bundles only when needed, activates bounded tool profiles for the current session, keeps `self`, `interview`, `dispatch_subagent`, and `intercom` always active as foundational operator/control-plane tools, and keeps heavyweight package extensions disabled by default once their lazy exports exist.
 
 ## Status
 
@@ -30,7 +30,7 @@ Implemented checkpoint:
 - catalog search/explain/activate/deactivate/status flows exist
 - activation TTLs expire unpinned tools on later turns
 - bundle/profile activation fails closed when requested profile tools remain unavailable after lazy import
-- `vault`, `ontology`, `designmd`, `autoresearch`, and `orchestrator` are the first lazy-ready production bundles through package-owned toolbox-bundle exports
+- `vault`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, and `peer-spawn` are lazy-ready production bundles through package-owned toolbox-bundle exports
 
 Still pending for the full target architecture:
 
@@ -103,9 +103,9 @@ Pi already provides the primitives needed for this architecture:
 
 Current pi-extensions evidence:
 
-- `pi-vault-client`, `pi-autoresearch`, `pi-society-orchestrator`, `pi-ontology-workflows`, `pi-designmd-foundry`, `pi-peer-messaging`, `pi-autonomous-session-control`, and `pi-little-helpers` all expose useful but task-specific tools
+- `pi-vault-client`, `pi-autoresearch`, `pi-society-orchestrator`, `pi-ontology-workflows`, `pi-designmd-foundry`, and selected `pi-little-helpers` surfaces expose useful task-specific tools; `pi-peer-messaging`/`intercom` and `pi-autonomous-session-control`/`dispatch_subagent` are now treated as foundational always-active exceptions
 - many of those tools are governance-heavy or domain-specific, and should not be model-visible for ordinary file/code work
-- some packages already contain clear family boundaries that can become activation bundles, for example vault, ontology, design, autoresearch, orchestrator, peer messaging, and self/subagent support
+- some packages already contain clear family boundaries that can become activation bundles, for example vault, ontology, design, autoresearch, orchestrator, and visible peer-spawn support; peer messaging/intercom and dispatch_subagent are now classified as always-active foundational surfaces
 
 ## Evidence limits
 
@@ -180,17 +180,19 @@ edit
 write
 self
 interview
+dispatch_subagent
+intercom
 toolbox
 ```
 
-The default always-active custom tools should be limited to `self`, `interview`, and `toolbox`.
+The default always-active custom tools should be limited to `self`, `interview`, `dispatch_subagent`, `intercom`, and `toolbox`.
 
 Optional local profiles may keep additional tools active, but those profiles must be explicit. Examples:
 
-- `minimal`: built-ins + `self` + `interview` + `toolbox`
-- `coding`: built-ins + `self` + `interview` + `toolbox`
-- `ai-society-control-plane`: built-ins + `self` + `interview` + `toolbox`, with suggested but not auto-active society bundles
-- `design`: built-ins + `self` + `interview` + `toolbox`, with suggested but not auto-active DesignMD bundle
+- `minimal`: built-ins + `self` + `interview` + `dispatch_subagent` + `intercom` + `toolbox`
+- `coding`: built-ins + `self` + `interview` + `dispatch_subagent` + `intercom` + `toolbox`
+- `ai-society-control-plane`: built-ins + the same always-active set, with suggested but not auto-active society bundles
+- `design`: built-ins + the same always-active set, with suggested but not auto-active DesignMD bundle
 
 ### Answer: should `self` be always active?
 
@@ -203,6 +205,18 @@ Yes.
 Yes.
 
 Structured operator interaction is a foundational UX affordance, not a domain-heavy package capability. It should remain always active because the safest response to ambiguous requirements is often to gather structured input rather than guessing or activating a large capability family. The toolbox may still expose an `operator-interaction` bundle later for additional interaction tools, but the core `interview` tool remains in the minimal active set.
+
+### Answer: should `dispatch_subagent` be always active?
+
+Yes.
+
+`dispatch_subagent` is a foundational Pi control-plane affordance for bounded parallel investigation, review, and testing. It should remain available without first discovering a bundle, while its owner package (`pi-autonomous-session-control`) keeps the implementation and child-session semantics.
+
+### Answer: should `intercom` / `pi-peer-messaging` be always active?
+
+Yes.
+
+`intercom` is the communication primitive for same-machine peer sessions. It should remain always active when `pi-peer-messaging` is registered. Visible peer-spawn tools are different: they launch sessions/worktrees and remain explicit/lazy under the `peer-spawn` bundle.
 
 ### Answer: what owns the toolbox?
 
@@ -537,7 +551,7 @@ ontology-toolbox
 autoresearch-toolbox
 designmd-toolbox
 society-orchestrator-toolbox
-peer-messaging-toolbox
+peer-spawn-toolbox
 session-introspection-toolbox
 operator-interaction-toolbox
 ```
@@ -583,7 +597,7 @@ At startup, Pi loads:
 - `pi-toolbox-discovery`
 - lightweight UI/status extensions that do not add model-callable tool clutter
 
-The model sees only `self`, `interview`, and `toolbox` as always-active custom tools; `toolbox` is the only custom discovery/activation broker.
+The model sees only `self`, `interview`, `dispatch_subagent`, `intercom`, and `toolbox` as always-active custom tools; `toolbox` is the only custom discovery/activation broker.
 
 ### Layer 2 — cheap catalog discovery
 
@@ -634,7 +648,7 @@ Implement `pi-toolbox-discovery` with toolbox status and activation of already-r
 At session start, set active tools to:
 
 ```text
-read,bash,edit,write,self,interview,toolbox
+read,bash,edit,write,self,interview,dispatch_subagent,intercom,toolbox
 ```
 
 This reduces model-visible tool schemas but does not yet reduce heavy package load.
@@ -662,13 +676,12 @@ Initial target order:
 3. `pi-designmd-foundry`
 4. `pi-autoresearch`
 5. `pi-society-orchestrator`
-6. `pi-peer-messaging`
-7. `pi-autonomous-session-control`
-8. selected `pi-little-helpers` tools
+6. selected `pi-little-helpers` peer-spawn tools
+7. remaining heavy package tools, if any
 
 Each package conversion must prove schema/behavior parity for the activated tools.
 
-Implementation status: partially started. The toolbox can lazy-import owner modules, with `vault` wired through `pi-vault-client/toolbox-bundle`, `ontology` wired through `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` wired through `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` wired through `@tryinget/pi-autoresearch/toolbox-bundle`, and `orchestrator` wired through `pi-society-orchestrator/toolbox-bundle` as the first production proofs. Broader package-owned bundle exports remain pending for the other heavy packages.
+Implementation status: partially started. The toolbox can lazy-import owner modules, with `vault` wired through `pi-vault-client/toolbox-bundle`, `ontology` wired through `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` wired through `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` wired through `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` wired through `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` wired through `@tryinget/pi-little-helpers/toolbox-bundle` as production proofs. `pi-peer-messaging`/`intercom` and `dispatch_subagent` are deliberately outside the lazy migration path because they are always-active foundational tools.
 
 ### Phase 4 — settings default switch
 

@@ -51,6 +51,11 @@ git branch -D <branch>
 
 Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
 
+## Toolbox lazy bundle
+
+This package exports `@tryinget/pi-little-helpers/toolbox-bundle` for `pi-toolbox-discovery`.
+That bundle registers only the `sidequest` extension's visible peer-spawn tool family (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`) on demand; command/UI helpers such as `/codeblocks`, `/artifacts`, `/package-updates`, `/session-presence`, and `/stash` are not part of the model-callable lazy-tool coverage.
+
 ## Steve-specific session presence / hot restore coupling
 
 This package now includes a deliberately **Steve-specific** helper for exact Pi session restore.
