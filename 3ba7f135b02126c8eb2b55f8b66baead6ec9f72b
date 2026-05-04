@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3ba7f135b02126c8eb2b55f8b66baead6ec9f72b"
+created_at: "2026-05-04T02:20:29Z"
+intent: "Record current strict ontology authority receipt projections."
+files:
+  - "ontology/dist/authority-receipt.json"
+  - "ontology/dist/authority-receipt.validate.json"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-push"
+    status: "pending"
+group:
+  index: 5
+  total: 6
+  rationale: "Ontology validation receipts reflect strict ref-resolution mode in the current workspace."
