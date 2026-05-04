@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "858bcf059642c46d381993dc270900ab73fd7364"
+created_at: "2026-05-04T01:25:53Z"
+intent: "Capture package-local KES diary artifacts for the smoke-only transcendent loop."
+files:
+  - "packages/pi-society-orchestrator/diary/2026-04-28--complete-transcendent-transcendent-loop-completion-for-smoke-o.md"
+  - "packages/pi-society-orchestrator/diary/2026-04-28--phase-transcendent-diagnose-transcendent-diagnose-phase-for-smoke-on.md"
+  - "packages/pi-society-orchestrator/diary/2026-04-28--session-transcendent-transcendent-loop-start-for-smoke-only-v.md"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions run check"
+    status: "pending"
+group:
+  index: 3
+  total: 4
+  rationale: "Smoke-only transcendent loop emitted session, phase, and completion diary captures."
+links:
+  diary:
+    - "packages/pi-society-orchestrator/diary/2026-04-28--complete-transcendent-transcendent-loop-completion-for-smoke-o.md"
+    - "packages/pi-society-orchestrator/diary/2026-04-28--phase-transcendent-diagnose-transcendent-diagnose-phase-for-smoke-on.md"
+    - "packages/pi-society-orchestrator/diary/2026-04-28--session-transcendent-transcendent-loop-start-for-smoke-only-v.md"
