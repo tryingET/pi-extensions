@@ -1402,6 +1402,8 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
     assert.equal(plan.inspection.sameRepository, true);
     assert.equal(plan.inspection.branch, "candidate/bind");
     assert.deepEqual(plan.inspection.filesChanged, ["src/value.txt"]);
+    assert.equal(plan.inspection.readiness, "needs_review");
+    assert.match(plan.inspection.readinessReasons.join("\n"), /controller cwd/);
     writeFileSync(path.join(cwd, "src/dirty.txt"), "dirty\n");
     const dirtyPlan = buildAutoresearchCandidateBindPlan({
       cwd,
@@ -1410,11 +1412,13 @@ test("autoresearch_candidate_bind inspects a worktree and prepares the measureme
     });
     assert.ok(dirtyPlan.inspection.filesChanged.includes("src/dirty.txt"));
     assert.ok(dirtyPlan.inspection.filesChanged.includes("src/value.txt"));
+    assert.equal(dirtyPlan.inspection.readiness, "needs_review");
     assert.match(plan.exactNextCalls[0] ?? "", /autoresearch_runtime_run/);
     assert.match(plan.exactNextCalls[0] ?? "", /candidateWorktree/);
     assert.match(plan.exactNextCalls[0] ?? "", /candidateBaseRef/);
     assert.match(plan.plannedCommands.join("\n"), /diff --stat/);
     assert.match(formatAutoresearchCandidateBindPlan(plan), /CANDIDATE BIND PLAN/);
+    assert.match(formatAutoresearchCandidateBindPlan(plan), /intake readiness: needs_review/);
 
     const inferredPlan = buildAutoresearchCandidateBindPlan({
       cwd,

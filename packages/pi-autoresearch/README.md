@@ -87,6 +87,7 @@ The current boundary is now more specific: the package is the runtime owner for 
   - inspects a controller-verified candidate worktree/path, detects git worktree status, same-repository posture, branch/ref, HEAD, optional or inferred base-ref resolution, changed files, and a diff summary
   - infers a conservative base ref from `merge-base(HEAD, upstream|main|master)` when `candidateBaseRef` is omitted, while warning the operator to verify before destructive rewind planning
   - prepares the exact `autoresearch_runtime_run({ ... candidateWorktree, candidateBranch, candidateBaseRef, candidateDiffSummary, candidateFilesChanged ... })` call needed to bind and measure the candidate
+  - reports intake readiness as `ready`, `needs_review`, or `blocked`, with reasons when the candidate is on trunk, shares the controller cwd, lacks a resolved base, has no detected files, is broad, or is not a usable worktree
   - defaults `candidateWorktree` to `cwd` so `/autoresearch bind current` supports the common current-worktree handoff
   - slash and dollar bind shortcuts omit placeholder base refs so the planner can infer a reviewable base instead of treating `"<base-ref>"` as literal input
   - surfaces read-only git preflight commands and warnings when the worktree or base ref is missing

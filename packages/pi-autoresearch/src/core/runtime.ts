@@ -632,6 +632,7 @@ export interface AutoresearchCandidateDecisionWorkbench {
 }
 
 export type AutoresearchCandidateBindAction = "status" | "plan_run";
+export type AutoresearchCandidateBindReadiness = "ready" | "needs_review" | "blocked";
 
 export interface BuildAutoresearchCandidateBindInput {
   cwd: string;
@@ -657,6 +658,8 @@ export interface AutoresearchCandidateBindInspection {
   statusShort: string[];
   filesChanged: string[];
   diffSummary: string;
+  readiness: AutoresearchCandidateBindReadiness;
+  readinessReasons: string[];
   warnings: string[];
 }
 
@@ -3239,6 +3242,8 @@ export function formatAutoresearchCandidateBindPlan(result: AutoresearchCandidat
     `- base resolved: ${result.inspection.baseResolved ? "yes" : "no"}`,
     `- files changed: ${formatTargetFiles(result.inspection.filesChanged)}`,
     `- diff summary: ${result.inspection.diffSummary}`,
+    `- intake readiness: ${result.inspection.readiness}`,
+    `- readiness reasons: ${result.inspection.readinessReasons.length > 0 ? result.inspection.readinessReasons.join("; ") : "none"}`,
     "",
     "## Read-only inspection commands",
     ...result.plannedCommands.map((command) => `- ${command}`),
@@ -6596,6 +6601,8 @@ function inspectAutoresearchCandidateWorktree(input: {
       statusShort: [],
       filesChanged: [],
       diffSummary: "candidate worktree is unavailable",
+      readiness: "blocked",
+      readinessReasons: ["candidate worktree path does not exist"],
       warnings,
     };
   }
@@ -6694,6 +6701,17 @@ function inspectAutoresearchCandidateWorktree(input: {
         filesChanged,
       })
     : "candidate path is not a git worktree";
+  const branch = stringOrNull(input.candidateBranch) ?? detectedBranch;
+  const readiness = deriveAutoresearchCandidateBindReadiness({
+    cwd: input.cwd,
+    candidateWorktree: input.candidateWorktree,
+    exists,
+    isGitWorktree,
+    sameRepository,
+    branch,
+    baseResolved,
+    filesChanged,
+  });
 
   return {
     candidateWorktree: input.candidateWorktree,
@@ -6701,7 +6719,7 @@ function inspectAutoresearchCandidateWorktree(input: {
     isGitWorktree,
     sameRepository,
     repositoryRoot,
-    branch: stringOrNull(input.candidateBranch) ?? detectedBranch,
+    branch,
     head,
     baseRef,
     baseRefSource,
@@ -6709,8 +6727,54 @@ function inspectAutoresearchCandidateWorktree(input: {
     statusShort,
     filesChanged,
     diffSummary,
+    readiness: readiness.readiness,
+    readinessReasons: readiness.reasons,
     warnings,
   };
+}
+
+function deriveAutoresearchCandidateBindReadiness(input: {
+  cwd: string;
+  candidateWorktree: string;
+  exists: boolean;
+  isGitWorktree: boolean;
+  sameRepository: boolean | null;
+  branch: string | null;
+  baseResolved: boolean;
+  filesChanged: string[];
+}): { readiness: AutoresearchCandidateBindReadiness; reasons: string[] } {
+  const blockedReasons: string[] = [];
+  const reviewReasons: string[] = [];
+  if (!input.exists) blockedReasons.push("candidate worktree path does not exist");
+  if (!input.isGitWorktree) blockedReasons.push("candidate path is not a git worktree");
+  if (input.sameRepository === false) {
+    blockedReasons.push("candidate worktree is not in the same git repository as cwd");
+  }
+  if (blockedReasons.length > 0) return { readiness: "blocked", reasons: blockedReasons };
+
+  if (!input.baseResolved) {
+    reviewReasons.push("base ref is missing or unresolved; verify before measurement/rewind");
+  }
+  if (input.filesChanged.length === 0) {
+    reviewReasons.push("no candidate files were detected relative to the selected base/status");
+  }
+  if (input.branch === "main" || input.branch === "master") {
+    reviewReasons.push(
+      "candidate appears to be on a trunk branch; prefer an isolated candidate branch/worktree",
+    );
+  }
+  if (path.resolve(input.cwd) === path.resolve(input.candidateWorktree)) {
+    reviewReasons.push(
+      "candidate worktree is the controller cwd; prefer an isolated candidate worktree when possible",
+    );
+  }
+  if (input.filesChanged.length > 25) {
+    reviewReasons.push("candidate touches many files; verify scope before measurement");
+  }
+
+  return reviewReasons.length > 0
+    ? { readiness: "needs_review", reasons: reviewReasons }
+    : { readiness: "ready", reasons: [] };
 }
 
 function buildAutoresearchCandidateBindNextCalls(input: {
