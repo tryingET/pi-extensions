@@ -384,12 +384,12 @@ export const CATALOG: ToolboxBundle[] = [
     keywords: ["peer", "sidequest", "parallelquest", "candidate", "scout", "spawn"],
     lazyModules: [
       {
-        specifier: "@tryinget/pi-little-helpers/toolbox-bundle",
-        label: "published package-owned toolbox bundle",
-      },
-      {
         specifier: new URL("../../pi-little-helpers/src/toolboxBundle.ts", import.meta.url).href,
         label: "monorepo sibling package-owned toolbox bundle",
+      },
+      {
+        specifier: "@tryinget/pi-little-helpers/toolbox-bundle",
+        label: "published package-owned toolbox bundle",
       },
     ],
     profiles: [

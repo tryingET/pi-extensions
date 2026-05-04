@@ -435,6 +435,10 @@ test("toolbox lazily imports little-helpers peer-spawn tools before activation",
 
   assert.match(result.content[0].text, /Activated tools: fork_peer_spawn/);
   assert.match(result.content[0].text, /Lazy import attempts:/);
+  assert.doesNotMatch(
+    result.content[0].text,
+    /failed @tryinget\/pi-little-helpers\/toolbox-bundle/,
+  );
   assert.equal(result.details.ok, true);
   assert.equal(harness.activeTools.includes("fork_peer_spawn"), true);
   assert.equal(harness.activeTools.includes("scout_peer_spawn"), true);
