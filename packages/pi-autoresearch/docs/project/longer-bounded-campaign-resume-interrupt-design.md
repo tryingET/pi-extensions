@@ -106,13 +106,28 @@ A plan-only `resume_apply` proposal surface is now available through:
 autoresearch_runtime_status({ action: "resume_apply_plan", cwd })
 ```
 
-It emits `autoresearch.resume_apply_plan.v1`, requires explicit future budgets and operator confirmation, and states that no callable `resume_apply` executor exists yet. It is a review packet for the possible executor contract, not a run/apply action.
+It emits `autoresearch.resume_apply_plan.v1`, requires explicit budgets and operator confirmation, and names the only allowed executor path.
 
-The plan-only proposal is now surfaced in the operator dashboard, browser dashboard export, and runtime-control output. That keeps the possible future executor contract visible at the same gates where operators already inspect resume posture, while preserving `executionAuthorized=false`.
+The plan-only proposal is surfaced in the operator dashboard, browser dashboard export, and runtime-control output. That keeps the executor contract visible at the same gates where operators already inspect resume posture, while preserving `executionAuthorized=false` for the plan surface.
+
+The explicit foreground executor is now available through:
+
+```text
+autoresearch_runtime_resume_apply({
+  cwd,
+  segmentKey,
+  runtimeKey,
+  maxIterations,
+  maxWallClockMinutes,
+  operatorConfirmation: "RUN FOREGROUND RESUME"
+})
+```
+
+It rechecks the reusable resume plan immediately, requires exact segment/runtime keys, requires explicit budgets, requires the exact operator confirmation phrase, uses `peerMode="off"`, and runs only inside the foreground tool call. It still does not authorize hidden daemons, automatic restart, peer launch, candidate lifecycle mutation, package-local promotion, or direct external evidence/learning writes.
 
 Next implementation work, when justified:
 
-1. review/dogfood whether the surfaced plan-only proposal is actually useful to operators;
-2. only then consider `resume_apply` as an explicit foreground action.
+1. dogfood the foreground executor with operator-visible live output;
+2. only then consider broader UX around budget presets or reviewed campaign continuations.
 
 Do not add a scheduler or a multi-session daemon.

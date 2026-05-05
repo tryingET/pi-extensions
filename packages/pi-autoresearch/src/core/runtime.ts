@@ -80,6 +80,7 @@ export const AUTORESEARCH_CONTROL_TOOL_NAME = "autoresearch_runtime_control";
 export const AUTORESEARCH_FINALIZE_TOOL_NAME = "autoresearch_runtime_finalize";
 export const AUTORESEARCH_PEER_ASSIST_TOOL_NAME = "autoresearch_runtime_peer_assist";
 export const AUTORESEARCH_LOOP_TOOL_NAME = "autoresearch_runtime_loop";
+export const AUTORESEARCH_RESUME_APPLY_TOOL_NAME = "autoresearch_runtime_resume_apply";
 export const AUTORESEARCH_AUTOPLAN_TOOL_NAME = "autoresearch_runtime_autoplan";
 export const AUTORESEARCH_SETUP_TOOL_NAME = "autoresearch_runtime_setup";
 export const AUTORESEARCH_CAMPAIGN_START_TOOL_NAME = "autoresearch_campaign_start";
@@ -483,12 +484,38 @@ export interface AutoresearchResumeApplyPlan {
   action: "plan_only";
   planReady: boolean;
   executionAuthorized: false;
+  executorAvailable: boolean;
   resumePlan: AutoresearchResumePlan;
   requiredOperatorInputs: string[];
   preflightChecks: string[];
   futureExecutorContract: string;
   futureForegroundCall: string | null;
   blockedReasons: string[];
+  authorityWarnings: string[];
+}
+
+export interface ExecuteAutoresearchResumeApplyInput {
+  cwd: string;
+  segmentKey: string;
+  runtimeKey: string;
+  maxIterations: number;
+  maxWallClockMinutes: number;
+  operatorConfirmation: string;
+  description?: string;
+  timeoutSeconds?: number;
+  checksTimeoutSeconds?: number;
+  postureCommand?: string;
+  postureTimeoutSeconds?: number;
+  signal?: AbortSignal;
+  onProgress?: (event: AutoresearchLoopProgressEvent) => void;
+}
+
+export interface ExecuteAutoresearchResumeApplyResult {
+  cwd: string;
+  action: "resume_apply";
+  executionAuthorized: true;
+  applyPlan: AutoresearchResumeApplyPlan;
+  loopResult: ExecuteAutoresearchLoopResult;
   authorityWarnings: string[];
 }
 
@@ -3851,7 +3878,7 @@ code { color: #a5d6ff; }
     <div class="card-value ${resumeApplyPlan.planReady ? "warn" : "bad"}" style="font-size:18px">${resumeApplyPlan.planReady ? "proposal ready, execution not authorized" : "proposal blocked"}</div>
     <div class="card-copy">${escapeHtml(resumeApplyPlan.packetKind)} · execution authorized=${resumeApplyPlan.executionAuthorized ? "yes" : "no"} · blockers=${escapeHtml(resumeApplyPlanBlockers)}</div>
     <div class="card-copy"><code>${escapeHtml(resumeApplyPlan.futureForegroundCall ?? `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "resume_apply_plan" })`)}</code></div>
-    <div class="card-copy">Plan-only: no callable resume_apply executor exists; future_resume_apply is a proposal label only.</div>
+    <div class="card-copy">Plan-only: execution is not authorized here; use autoresearch_runtime_resume_apply only with exact foreground confirmation and explicit budgets.</div>
   </section>
 
   <div class="cards">
@@ -4148,9 +4175,9 @@ export function buildAutoresearchResumeApplyPlan(cwd: string): AutoresearchResum
   }
   const planReady = resumePlan.reusable && blockedReasons.length === 0;
   const futureExecutorContract =
-    "No callable resume_apply executor exists in this package yet. A future executor must run only in the foreground tool call, require explicit maxIterations and maxWallClockMinutes, re-check the same snapshot/runtime/control gates immediately before execution, consume no hidden background intent, and preserve external AK/KES/Prompt Vault/candidate authority seams.";
+    "A callable foreground resume executor exists as autoresearch_runtime_resume_apply. It must run only in the active tool call, require exact segmentKey/runtimeKey, explicit maxIterations, explicit maxWallClockMinutes, and operatorConfirmation=RUN FOREGROUND RESUME, then re-check the same snapshot/runtime/control gates immediately before execution while preserving external AK/KES/Prompt Vault/candidate authority seams.";
   const futureForegroundCall = planReady
-    ? `future_resume_apply({ cwd: ${JSON.stringify(resumePlan.cwd)}, segmentKey: ${JSON.stringify(resumePlan.segmentKey)}, runtimeKey: ${JSON.stringify(resumePlan.runtimeKey)}, maxIterations: <explicit>, maxWallClockMinutes: <explicit>, operatorConfirmation: "RUN FOREGROUND RESUME" })`
+    ? `${AUTORESEARCH_RESUME_APPLY_TOOL_NAME}({ cwd: ${JSON.stringify(resumePlan.cwd)}, segmentKey: ${JSON.stringify(resumePlan.segmentKey)}, runtimeKey: ${JSON.stringify(resumePlan.runtimeKey)}, maxIterations: <explicit>, maxWallClockMinutes: <explicit>, operatorConfirmation: "RUN FOREGROUND RESUME" })`
     : null;
 
   return {
@@ -4159,11 +4186,12 @@ export function buildAutoresearchResumeApplyPlan(cwd: string): AutoresearchResum
     action: "plan_only",
     planReady,
     executionAuthorized: false,
+    executorAvailable: true,
     resumePlan,
     requiredOperatorInputs: [
       "explicit maxIterations",
       "explicit maxWallClockMinutes",
-      "fresh operator confirmation immediately before any future foreground executor",
+      "fresh operator confirmation immediately before the foreground executor",
       "controller verification that no external AK/KES/notes/issue/candidate mutation is implied",
     ],
     preflightChecks: [
@@ -4177,8 +4205,8 @@ export function buildAutoresearchResumeApplyPlan(cwd: string): AutoresearchResum
     futureForegroundCall,
     blockedReasons,
     authorityWarnings: [
-      "resume_apply_plan is read-only and authorizes no benchmark run",
-      "future_resume_apply is a proposal label, not a registered callable tool",
+      "resume_apply_plan is read-only and authorizes no benchmark run by itself",
+      "autoresearch_runtime_resume_apply is the only callable executor and still requires exact explicit foreground confirmation",
       "no daemon, background restart, peer launch, candidate lifecycle mutation, package-local promotion, or external evidence/learning write is authorized",
     ],
   };
@@ -4188,15 +4216,16 @@ export function formatAutoresearchResumeApplyPlan(plan: AutoresearchResumeApplyP
   return [
     "# PI-AUTORESEARCH RESUME APPLY PLAN",
     "",
-    "Plan-only proposal for a possible future foreground resume executor. This surface does not run benchmarks, resume a loop, launch peers, mutate worktrees, or write external evidence.",
+    "Plan-only proposal for the explicit foreground resume executor. This surface itself does not run benchmarks, resume a loop, launch peers, mutate worktrees, or write external evidence.",
     "",
     `- packet kind: ${plan.packetKind}`,
     `- action: ${plan.action}`,
     `- cwd: ${plan.cwd}`,
     `- plan ready: ${plan.planReady ? "yes" : "no"}`,
     `- execution authorized: ${plan.executionAuthorized ? "yes" : "no"}`,
-    `- future foreground call: ${plan.futureForegroundCall ?? "(blocked or not implemented)"}`,
-    `- future executor contract: ${plan.futureExecutorContract}`,
+    `- executor available: ${plan.executorAvailable ? "yes" : "no"}`,
+    `- foreground apply call: ${plan.futureForegroundCall ?? "(blocked)"}`,
+    `- executor contract: ${plan.futureExecutorContract}`,
     "",
     "## Resume plan summary",
     ...formatAutoresearchResumePlanSummaryLines(plan.resumePlan),
@@ -4224,10 +4253,93 @@ function formatAutoresearchResumeApplyPlanSummaryLines(
     `- packet kind: ${plan.packetKind}`,
     `- plan ready: ${plan.planReady ? "yes" : "no"}`,
     `- execution authorized: ${plan.executionAuthorized ? "yes" : "no"}`,
-    `- future foreground call: ${plan.futureForegroundCall ?? "(blocked or not implemented)"}`,
+    `- executor available: ${plan.executorAvailable ? "yes" : "no"}`,
+    `- foreground apply call: ${plan.futureForegroundCall ?? "(blocked)"}`,
     `- blocked reasons: ${plan.blockedReasons.length > 0 ? plan.blockedReasons.join("; ") : "(none)"}`,
-    "- boundary: resume_apply_plan is read-only; future_resume_apply is a proposal label, not a registered callable tool.",
+    "- boundary: resume_apply_plan is read-only; only autoresearch_runtime_resume_apply may run, and only with exact foreground confirmation.",
   ];
+}
+
+export async function executeAutoresearchResumeApply(
+  input: ExecuteAutoresearchResumeApplyInput,
+): Promise<ExecuteAutoresearchResumeApplyResult> {
+  const cwd = path.resolve(input.cwd);
+  if (input.operatorConfirmation !== "RUN FOREGROUND RESUME") {
+    throw new Error('operatorConfirmation must exactly equal "RUN FOREGROUND RESUME"');
+  }
+  if (!Number.isInteger(input.maxIterations) || input.maxIterations < 1) {
+    throw new Error("maxIterations must be a positive integer");
+  }
+  if (!Number.isFinite(input.maxWallClockMinutes) || input.maxWallClockMinutes <= 0) {
+    throw new Error("maxWallClockMinutes must be a positive number");
+  }
+
+  const applyPlan = buildAutoresearchResumeApplyPlan(cwd);
+  if (!applyPlan.planReady) {
+    throw new Error(
+      `resume_apply is blocked: ${applyPlan.blockedReasons.join("; ") || "plan is not ready"}`,
+    );
+  }
+  if (applyPlan.resumePlan.segmentKey !== input.segmentKey) {
+    throw new Error("segmentKey does not match the current reusable resume plan");
+  }
+  if (applyPlan.resumePlan.runtimeKey !== input.runtimeKey) {
+    throw new Error("runtimeKey does not match the current reusable resume plan");
+  }
+
+  const loopResult = await executeAutoresearchLoop({
+    cwd,
+    goal: applyPlan.resumePlan.campaign ?? "resume-apply",
+    maxIterations: input.maxIterations,
+    maxWallClockMinutes: input.maxWallClockMinutes,
+    description:
+      input.description ??
+      `foreground resume for ${applyPlan.resumePlan.campaign ?? "current autoresearch campaign"}`,
+    timeoutSeconds: input.timeoutSeconds,
+    checksTimeoutSeconds: input.checksTimeoutSeconds,
+    postureCommand: input.postureCommand,
+    postureTimeoutSeconds: input.postureTimeoutSeconds,
+    peerMode: "off",
+    signal: input.signal,
+    onProgress: input.onProgress,
+  });
+
+  return {
+    cwd,
+    action: "resume_apply",
+    executionAuthorized: true,
+    applyPlan,
+    loopResult,
+    authorityWarnings: [
+      "resume_apply ran only inside this foreground tool call with explicit budgets and exact operator confirmation",
+      "no daemon, background restart, peer launch, candidate lifecycle mutation, package-local promotion, or external evidence/learning write was authorized",
+    ],
+  };
+}
+
+export function formatAutoresearchResumeApplyResult(
+  result: ExecuteAutoresearchResumeApplyResult,
+): string {
+  return [
+    "# PI-AUTORESEARCH RESUME APPLY",
+    "",
+    `- cwd: ${result.cwd}`,
+    `- action: ${result.action}`,
+    `- execution authorized: ${result.executionAuthorized ? "yes" : "no"}`,
+    `- completed iterations: ${result.loopResult.completedIterations}/${result.loopResult.requestedIterations}`,
+    `- stop reason: ${result.loopResult.stopReason}`,
+    `- elapsed: ${result.loopResult.elapsedSeconds.toFixed(2)}s`,
+    `- final machine state: ${result.loopResult.status.runtimeProjection.state}`,
+    "",
+    "## Applied plan",
+    ...formatAutoresearchResumeApplyPlanSummaryLines(result.applyPlan),
+    "",
+    "## Loop result",
+    ...formatAutoresearchLoopResult(result.loopResult).split("\n"),
+    "",
+    "## Authority warnings",
+    ...result.authorityWarnings.map((warning) => `- ${warning}`),
+  ].join("\n");
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
@@ -5932,6 +6044,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
       AUTORESEARCH_FINALIZE_TOOL_NAME,
       AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
       AUTORESEARCH_LOOP_TOOL_NAME,
+      AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
       AUTORESEARCH_AUTOPLAN_TOOL_NAME,
       AUTORESEARCH_SETUP_TOOL_NAME,
       AUTORESEARCH_SELF_HOSTING_TOOL_NAME,

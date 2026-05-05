@@ -38,6 +38,7 @@ import {
   AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
+  AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
@@ -56,6 +57,7 @@ import {
   buildAutoresearchSegmentCloseout,
   executeAutoresearchCampaignStart,
   executeAutoresearchLoop,
+  executeAutoresearchResumeApply,
   executeAutoresearchRun,
   executeAutoresearchSetup,
   exportAutoresearchDashboardHtml,
@@ -74,6 +76,7 @@ import {
   formatAutoresearchLoopResult,
   formatAutoresearchPeerAssistPlan,
   formatAutoresearchResumeApplyPlan,
+  formatAutoresearchResumeApplyResult,
   formatAutoresearchResumePlan,
   formatAutoresearchRunResult,
   formatAutoresearchSegmentCloseout,
@@ -1040,6 +1043,38 @@ const loopSchema = Type.Object({
     ),
   ),
   peerMode: Type.Optional(loopPeerModeSchema),
+});
+
+const resumeApplySchema = Type.Object({
+  cwd: Type.Optional(
+    Type.String({ description: "Optional cwd override for foreground resume apply." }),
+  ),
+  segmentKey: Type.String({ description: "Exact segmentKey from resume_apply_plan." }),
+  runtimeKey: Type.String({ description: "Exact runtimeKey from resume_apply_plan." }),
+  maxIterations: Type.Number({
+    description: "Required maximum iterations for this foreground resume apply.",
+    minimum: 1,
+  }),
+  maxWallClockMinutes: Type.Number({
+    description: "Required wall-clock budget in minutes.",
+    minimum: 0.01,
+  }),
+  operatorConfirmation: Type.String({
+    description: 'Must exactly equal "RUN FOREGROUND RESUME".',
+  }),
+  description: Type.Optional(Type.String({ description: "Initial resumed run description." })),
+  timeoutSeconds: Type.Optional(
+    Type.Number({ description: "Benchmark timeout seconds.", minimum: 1 }),
+  ),
+  checksTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "Checks timeout seconds.", minimum: 1 }),
+  ),
+  postureCommand: Type.Optional(
+    Type.String({ description: "Optional posture command required to pass before each run." }),
+  ),
+  postureTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "Posture command timeout seconds.", minimum: 1 }),
+  ),
 });
 
 const selfHostingActionSchema = Type.Union(
@@ -2082,6 +2117,51 @@ export function registerPiAutoresearchExtension(
       });
       return {
         content: [{ type: "text", text: formatAutoresearchLoopResult(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
+    label: "Autoresearch Runtime Resume Apply",
+    description:
+      "Run an explicit foreground pi-autoresearch resume using exact resume_apply_plan keys, required budgets, and exact operator confirmation.",
+    promptSnippet:
+      "Apply a reviewed resume plan only in the foreground; requires exact segment/runtime keys, maxIterations, maxWallClockMinutes, and operatorConfirmation.",
+    parameters: asPiToolParameters(resumeApplySchema),
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const request = params as {
+        cwd?: string;
+        segmentKey: string;
+        runtimeKey: string;
+        maxIterations: number;
+        maxWallClockMinutes: number;
+        operatorConfirmation: string;
+        description?: string;
+        timeoutSeconds?: number;
+        checksTimeoutSeconds?: number;
+        postureCommand?: string;
+        postureTimeoutSeconds?: number;
+      };
+      assertReadProfileRejectsTool(options, AUTORESEARCH_RESUME_APPLY_TOOL_NAME);
+      const result = await executeAutoresearchResumeApply({
+        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
+        segmentKey: request.segmentKey,
+        runtimeKey: request.runtimeKey,
+        maxIterations: request.maxIterations,
+        maxWallClockMinutes: request.maxWallClockMinutes,
+        operatorConfirmation: request.operatorConfirmation,
+        description: request.description,
+        timeoutSeconds: request.timeoutSeconds,
+        checksTimeoutSeconds: request.checksTimeoutSeconds,
+        postureCommand: request.postureCommand,
+        postureTimeoutSeconds: request.postureTimeoutSeconds,
+        signal,
+        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
+      });
+      return {
+        content: [{ type: "text", text: formatAutoresearchResumeApplyResult(result) }],
         details: result,
       };
     },

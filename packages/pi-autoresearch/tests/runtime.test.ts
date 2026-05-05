@@ -47,6 +47,7 @@ import {
   AUTORESEARCH_LOCAL_ARTIFACTS,
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
+  AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
@@ -64,6 +65,7 @@ import {
   buildAutoresearchSegmentCloseout,
   createConfigReceipt,
   createRunReceipt,
+  executeAutoresearchResumeApply,
   exportAutoresearchDashboardHtml,
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
@@ -73,6 +75,7 @@ import {
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchResumeApplyPlan,
+  formatAutoresearchResumeApplyResult,
   formatAutoresearchResumePlan,
   formatAutoresearchSegmentCloseout,
   formatAutoresearchStatusText,
@@ -466,6 +469,7 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     AUTORESEARCH_FINALIZE_TOOL_NAME,
     AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
     AUTORESEARCH_LOOP_TOOL_NAME,
+    AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
     AUTORESEARCH_AUTOPLAN_TOOL_NAME,
     AUTORESEARCH_SETUP_TOOL_NAME,
     AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
@@ -609,15 +613,89 @@ test("resume apply plan is plan-only and never authorizes execution", () =>
     const readyPlan = buildAutoresearchResumeApplyPlan(cwd);
     assert.equal(readyPlan.planReady, true);
     assert.equal(readyPlan.executionAuthorized, false);
-    assert.match(readyPlan.futureForegroundCall ?? "", /future_resume_apply/);
-    assert.match(readyPlan.futureExecutorContract, /No callable resume_apply executor exists/);
+    assert.equal(readyPlan.executorAvailable, true);
+    assert.match(readyPlan.futureForegroundCall ?? "", /autoresearch_runtime_resume_apply/);
+    assert.match(readyPlan.futureExecutorContract, /callable foreground resume executor exists/);
     assert.match(formatAutoresearchResumeApplyPlan(readyPlan), /Plan-only proposal/);
     assert.match(formatAutoresearchResumeApplyPlan(readyPlan), /execution authorized: no/);
     assert.match(
       formatAutoresearchResumeApplyPlan(readyPlan),
-      /future_resume_apply is a proposal label/,
+      /autoresearch_runtime_resume_apply is the only callable executor/,
     );
   }));
+
+test("resume apply executor requires exact keys, budgets, and foreground confirmation", async () => {
+  await withTempDir(async (cwd) => {
+    writeExecutable(
+      cwd,
+      "autoresearch.sh",
+      ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "METRIC total_ms=90"'].join("\n"),
+    );
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "resume-apply",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+    const plan = buildAutoresearchResumeApplyPlan(cwd);
+    assert.equal(plan.planReady, true);
+    assert.ok(plan.resumePlan.segmentKey);
+    assert.ok(plan.resumePlan.runtimeKey);
+
+    await assert.rejects(
+      executeAutoresearchResumeApply({
+        cwd,
+        segmentKey: plan.resumePlan.segmentKey,
+        runtimeKey: plan.resumePlan.runtimeKey,
+        maxIterations: 1,
+        maxWallClockMinutes: 1,
+        operatorConfirmation: "RUN",
+      }),
+      /operatorConfirmation must exactly equal/,
+    );
+    await assert.rejects(
+      executeAutoresearchResumeApply({
+        cwd,
+        segmentKey: "wrong",
+        runtimeKey: plan.resumePlan.runtimeKey,
+        maxIterations: 1,
+        maxWallClockMinutes: 1,
+        operatorConfirmation: "RUN FOREGROUND RESUME",
+      }),
+      /segmentKey does not match/,
+    );
+
+    const result = await executeAutoresearchResumeApply({
+      cwd,
+      segmentKey: plan.resumePlan.segmentKey,
+      runtimeKey: plan.resumePlan.runtimeKey,
+      maxIterations: 1,
+      maxWallClockMinutes: 1,
+      operatorConfirmation: "RUN FOREGROUND RESUME",
+    });
+    assert.equal(result.action, "resume_apply");
+    assert.equal(result.executionAuthorized, true);
+    assert.equal(result.loopResult.completedIterations, 1);
+    assert.equal(result.loopResult.peerMode, "off");
+    assert.match(formatAutoresearchResumeApplyResult(result), /PI-AUTORESEARCH RESUME APPLY/);
+    assert.match(formatAutoresearchResumeApplyResult(result), /foreground tool call/);
+  });
+});
 
 test("resume plan blocks stale snapshots and explicit operator gates", () =>
   withTempDir((cwd) => {
@@ -1355,6 +1433,7 @@ test("extension registers /autoresearch plus the supervised campaign front door 
   assert.equal(typeof tools.get(AUTORESEARCH_RUN_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_PEER_ASSIST_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute, "function");
+  assert.equal(typeof tools.get(AUTORESEARCH_RESUME_APPLY_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_AUTOPLAN_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_SETUP_TOOL_NAME)?.execute, "function");
   assert.equal(typeof tools.get(AUTORESEARCH_SELF_HOSTING_TOOL_NAME)?.execute, "function");
@@ -1435,7 +1514,7 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /Read-only: no benchmark run/);
     assert.match(html, /Resume apply plan-only proposal/);
     assert.match(html, /autoresearch\.resume_apply_plan\.v1/);
-    assert.match(html, /future_resume_apply is a proposal label only/);
+    assert.match(html, /autoresearch_runtime_resume_apply/);
     assert.match(html, /Browser export is read-only/);
   }));
 
