@@ -66,6 +66,7 @@ function createSnapshotInput(
       metricName: "total_ms",
       metricUnit: "ms",
       direction: "lower",
+      metricThreshold: null,
       benchmarkCommand: "bash autoresearch.sh",
       checksCommand: "bash autoresearch.checks.sh",
       runCount: 3,
@@ -153,6 +154,46 @@ test("resume loader falls back cleanly when no snapshot exists yet", () =>
     assert.equal(result.control.kind, "none");
     assert.deepEqual(result.control.allowedActions, ["continue", "stop"]);
     assert.equal(result.control.selectedAt, null);
+  }));
+
+test("resume loader reuses old snapshots without a metricThreshold field", () =>
+  withTempDir((cwd) => {
+    const current = createSnapshotInput(cwd);
+    persistAutoresearchRuntimeSnapshot({ cwd, current });
+    const snapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);
+    const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8")) as {
+      segment: { metricThreshold?: number | null };
+    };
+    delete snapshot.segment.metricThreshold;
+    writeFileSync(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+
+    const result = loadAutoresearchRuntimeControlState({ cwd, current });
+
+    assert.equal(result.snapshotStatus.reuse, "reused");
+    assert.equal(result.snapshot?.segment.metricThreshold, null);
+  }));
+
+test("resume loader rejects a saved snapshot when metricThreshold changes", () =>
+  withTempDir((cwd) => {
+    const saved = createSnapshotInput(cwd, {
+      segment: {
+        metricThreshold: 2,
+      },
+    });
+    persistAutoresearchRuntimeSnapshot({ cwd, current: saved });
+
+    const current = createSnapshotInput(cwd, {
+      segment: {
+        metricThreshold: 3,
+      },
+    });
+    const result = loadAutoresearchRuntimeControlState({ cwd, current });
+
+    assert.equal(result.snapshotStatus.reuse, "segment_mismatch");
+    assert.equal(
+      result.snapshotStatus.discardedReason,
+      "snapshot segment fingerprint no longer matches the configured segment",
+    );
   }));
 
 test("resume loader rejects a saved snapshot when the configured segment fingerprint changes", () =>

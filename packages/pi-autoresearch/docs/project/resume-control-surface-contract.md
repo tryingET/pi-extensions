@@ -192,6 +192,7 @@ interface AutoresearchRuntimeSnapshotV1 {
     metricName: string | null;
     metricUnit: string;
     direction: MetricDirection | null;
+    metricThreshold: number | null;
     benchmarkCommand: string | null;
     checksCommand: string | null;
     runCount: number;
@@ -213,7 +214,7 @@ interface AutoresearchRuntimeSnapshotV1 {
 
 #### `segmentKey`
 A deterministic fingerprint of the current configured segment.
-It should change when the benchmark/check/config contract changes materially.
+It should change when the benchmark/check/config contract changes materially, including an explicit non-null `metricThreshold`. Older snapshots without the field are interpreted as `null` for compatibility.
 
 #### `runtimeKey`
 A deterministic fingerprint of the current derived runtime posture.

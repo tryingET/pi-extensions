@@ -185,6 +185,7 @@ export interface AutoresearchConfigReceipt {
   metricName: string;
   metricUnit: string;
   direction: MetricDirection;
+  metricThreshold?: number;
   createdAt: number;
   benchmarkCommand?: string;
   checksCommand?: string | null;
@@ -312,6 +313,7 @@ export interface AutoresearchSegmentSummary {
   metricName: string | null;
   metricUnit: string;
   direction: MetricDirection | null;
+  metricThreshold: number | null;
   benchmarkCommand: string | null;
   checksCommand: string | null;
   runCount: number;
@@ -576,6 +578,7 @@ export interface ExecuteAutoresearchRunInput {
   metricName?: string;
   metricUnit?: string;
   direction?: MetricDirection;
+  metricThreshold?: number;
   benchmarkCommand?: string;
   checksCommand?: string | null;
   timeoutSeconds?: number;
@@ -757,6 +760,7 @@ export interface AutoresearchSetupConfigInput {
   metricName: string;
   metricUnit?: string;
   direction: MetricDirection;
+  metricThreshold?: number;
   benchmarkCommand?: string;
   checksCommand?: string | null;
 }
@@ -773,6 +777,7 @@ export interface BuildAutoresearchAutoplanInput {
   metricName?: string;
   metricUnit?: string;
   direction?: MetricDirection;
+  metricThreshold?: number;
   materializeDspxIntent?: boolean;
   dspxIntentPath?: string;
   dspxOutdir?: string;
@@ -784,6 +789,7 @@ export interface AutoresearchDspxAdvisoryProposal {
   metricName: string | null;
   metricUnit: string;
   direction: MetricDirection | null;
+  metricThreshold: number | null;
   benchmarkCommand: string | null;
   checksCommand: string | null;
   risks: string | null;
@@ -1006,6 +1012,7 @@ export interface ExecuteAutoresearchLoopInput {
   metricName?: string;
   metricUnit?: string;
   direction?: MetricDirection;
+  metricThreshold?: number;
   benchmarkCommand?: string;
   checksCommand?: string | null;
   timeoutSeconds?: number;
@@ -1130,9 +1137,11 @@ export function createConfigReceipt(input: {
   metricUnit?: string;
   direction: MetricDirection;
   createdAt?: number;
+  metricThreshold?: number;
   benchmarkCommand?: string;
   checksCommand?: string | null;
 }): AutoresearchConfigReceipt {
+  const metricThreshold = normalizeMetricThreshold(input.metricThreshold);
   return {
     type: "config",
     version: 1,
@@ -1140,6 +1149,7 @@ export function createConfigReceipt(input: {
     metricName: input.metricName,
     metricUnit: input.metricUnit ?? "",
     direction: input.direction,
+    ...(metricThreshold === undefined ? {} : { metricThreshold }),
     createdAt: input.createdAt ?? Date.now(),
     benchmarkCommand: input.benchmarkCommand,
     checksCommand: input.checksCommand ?? undefined,
@@ -1291,6 +1301,7 @@ export function buildAutoresearchAutoplan(
     metricName: metric.metricName,
     metricUnit: metric.metricUnit,
     direction: metric.direction,
+    metricThreshold: input.metricThreshold,
     benchmarkCommand: benchmarkCommand ?? undefined,
     checksCommand: checksCommand ?? undefined,
   });
@@ -1396,6 +1407,7 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
     `- confidence: ${result.confidence.toFixed(2)}`,
     `- campaign: ${result.config.name}`,
     `- metric: ${result.config.metricName} (${result.config.metricUnit || "unitless"}, ${result.config.direction} is better)`,
+    `- success threshold: ${formatMetricThresholdValue(result.config.metricThreshold ?? null, result.config.metricUnit)}`,
     `- benchmark command: ${result.benchmarkCommand ?? "(missing)"}`,
     `- checks command: ${result.checksCommand ?? "(none)"}`,
     `- current machine state: ${result.status.runtimeProjection.state}`,
@@ -1542,6 +1554,7 @@ export async function executeAutoresearchSetup(
       metricName: plannedConfig.metricName,
       metricUnit: plannedConfig.metricUnit,
       direction: plannedConfig.direction,
+      metricThreshold: plannedConfig.metricThreshold,
       benchmarkCommand: plannedConfig.benchmarkCommand,
       checksCommand: plannedConfig.checksCommand,
       reconfigure: input.reconfigure,
@@ -1605,6 +1618,7 @@ export function formatAutoresearchSetupResult(result: ExecuteAutoresearchSetupRe
     `- wrote checks script: ${result.wroteChecksScript ? "yes" : "no"}`,
     `- campaign: ${result.plannedConfig.name}`,
     `- metric: ${result.plannedConfig.metricName} (${result.plannedConfig.metricUnit || "unitless"}, ${result.plannedConfig.direction} is better)`,
+    `- success threshold: ${formatMetricThresholdValue(result.plannedConfig.metricThreshold ?? null, result.plannedConfig.metricUnit)}`,
     `- benchmark command: ${result.plannedConfig.benchmarkCommand ?? "(default/autodetect)"}`,
     `- checks command: ${result.plannedConfig.checksCommand ?? "(none)"}`,
     `- machine state: ${result.status.runtimeProjection.state}`,
@@ -1735,6 +1749,7 @@ export async function executeAutoresearchCampaignStart(
       metricName: autoplan.config.metricName,
       metricUnit: autoplan.config.metricUnit,
       direction: autoplan.config.direction,
+      metricThreshold: autoplan.config.metricThreshold,
       benchmarkCommand: benchmarkCommand ?? undefined,
       checksCommand: autoplan.checksCommand,
       description: input.description ?? `Baseline for ${objective}`,
@@ -1760,6 +1775,7 @@ export async function executeAutoresearchCampaignStart(
       metricName: autoplan.config.metricName,
       metricUnit: autoplan.config.metricUnit,
       direction: autoplan.config.direction,
+      metricThreshold: autoplan.config.metricThreshold,
       benchmarkCommand: benchmarkCommand ?? undefined,
       checksCommand: autoplan.checksCommand,
       timeoutSeconds: input.timeoutSeconds,
@@ -1850,6 +1866,7 @@ export function formatAutoresearchCampaignStartResult(
     `- run mode: ${result.runMode}`,
     `- campaign: ${result.autoplan.config.name}`,
     `- metric: ${result.autoplan.config.metricName} (${result.autoplan.config.metricUnit || "unitless"}, ${result.autoplan.config.direction} is better)`,
+    `- success threshold: ${formatMetricThresholdValue(result.autoplan.config.metricThreshold ?? null, result.autoplan.config.metricUnit)}`,
     `- benchmark command: ${result.autoplan.benchmarkCommand ?? "(missing)"}`,
     `- checks command: ${result.autoplan.checksCommand ?? "(none)"}`,
     `- machine state: ${result.status.runtimeProjection.state}`,
@@ -2342,7 +2359,11 @@ function formatAutoplanSetupToolCall(input: {
   const scriptFields = input.benchmarkScriptProposal
     ? `, benchmarkScript: ${JSON.stringify(input.benchmarkScriptProposal.benchmarkScript)}, allowOverwriteScripts: false`
     : "";
-  return `autoresearch_runtime_setup({ action: ${JSON.stringify(input.action)}, cwd: ${JSON.stringify(input.cwd)}, name: ${JSON.stringify(input.config.name)}, metricName: ${JSON.stringify(input.config.metricName)}, metricUnit: ${JSON.stringify(input.config.metricUnit)}, direction: ${JSON.stringify(input.config.direction)}, benchmarkCommand: ${JSON.stringify(input.benchmarkCommand)}, checksCommand: ${input.checksCommand === null ? "null" : JSON.stringify(input.checksCommand)}${scriptFields} })`;
+  const thresholdField =
+    input.config.metricThreshold === undefined
+      ? ""
+      : `, metricThreshold: ${JSON.stringify(input.config.metricThreshold)}`;
+  return `autoresearch_runtime_setup({ action: ${JSON.stringify(input.action)}, cwd: ${JSON.stringify(input.cwd)}, name: ${JSON.stringify(input.config.name)}, metricName: ${JSON.stringify(input.config.metricName)}, metricUnit: ${JSON.stringify(input.config.metricUnit)}, direction: ${JSON.stringify(input.config.direction)}${thresholdField}, benchmarkCommand: ${JSON.stringify(input.benchmarkCommand)}, checksCommand: ${input.checksCommand === null ? "null" : JSON.stringify(input.checksCommand)}${scriptFields} })`;
 }
 
 function buildDspxProgramGenPlan(input: {
@@ -2498,6 +2519,7 @@ function parseDspxAdvisoryProposal(
     metricName: stringOrNull(observed.metric_name),
     metricUnit: stringOrNull(observed.metric_unit) ?? "",
     direction: direction === "lower" || direction === "higher" ? direction : null,
+    metricThreshold: numberOrNull(observed.metric_threshold),
     benchmarkCommand: stringOrNull(observed.benchmark_command),
     checksCommand: stringOrNull(observed.checks_command),
     risks: stringOrNull(observed.risks),
@@ -2533,6 +2555,7 @@ function proposalToSetupToolCall(
       metricName: proposal.metricName,
       metricUnit: proposal.metricUnit,
       direction: proposal.direction,
+      metricThreshold: proposal.metricThreshold ?? undefined,
     }),
     action,
     benchmarkCommand:
@@ -2556,6 +2579,12 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function normalizeMetricThreshold(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  throw new Error("metricThreshold must be a finite number when present");
+}
+
 function renderDspxAutoresearchIntent(input: {
   objective: string;
   filesInScope: readonly string[];
@@ -2576,6 +2605,7 @@ function renderDspxAutoresearchIntent(input: {
     ["metric_name", "primary metric name"],
     ["metric_unit", "primary metric unit"],
     ["direction", "lower or higher"],
+    ["metric_threshold", "optional explicit success threshold for threshold-style metrics"],
     ["benchmark_command", "local command that prints METRIC name=value"],
     ["checks_command", "optional local safety command"],
     ["risks", "bounded setup risks"],
@@ -2742,7 +2772,11 @@ function formatSetupNextToolCall(
   config: AutoresearchConfigReceipt,
   action: AutoresearchSetupAction,
 ): string {
-  return `autoresearch_runtime_setup({ action: ${JSON.stringify(action)}, cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(config.name)}, metricName: ${JSON.stringify(config.metricName)}, metricUnit: ${JSON.stringify(config.metricUnit)}, direction: ${JSON.stringify(config.direction)}, benchmarkCommand: ${JSON.stringify(config.benchmarkCommand ?? "bash autoresearch.sh")}, checksCommand: ${config.checksCommand === undefined ? "undefined" : JSON.stringify(config.checksCommand)} })`;
+  const thresholdField =
+    config.metricThreshold === undefined
+      ? ""
+      : `, metricThreshold: ${JSON.stringify(config.metricThreshold)}`;
+  return `autoresearch_runtime_setup({ action: ${JSON.stringify(action)}, cwd: ${JSON.stringify(cwd)}, name: ${JSON.stringify(config.name)}, metricName: ${JSON.stringify(config.metricName)}, metricUnit: ${JSON.stringify(config.metricUnit)}, direction: ${JSON.stringify(config.direction)}${thresholdField}, benchmarkCommand: ${JSON.stringify(config.benchmarkCommand ?? "bash autoresearch.sh")}, checksCommand: ${config.checksCommand === undefined ? "undefined" : JSON.stringify(config.checksCommand)} })`;
 }
 
 function normalizeOptionalString(value: string | null | undefined): string | null {
@@ -3657,6 +3691,7 @@ export function formatAutoresearchDashboard(
     "## Metric contract",
     `- campaign: ${segment.name ?? "(not configured)"}`,
     `- primary metric: ${metricLine}`,
+    `- success threshold: ${formatMetricThresholdValue(segment.metricThreshold, segment.metricUnit)}`,
     `- benchmark command: ${segment.benchmarkCommand ?? "(unset)"}`,
     `- checks command: ${segment.checksCommand ?? "(none)"}`,
     `- runs: ${runLine}`,
@@ -3884,6 +3919,7 @@ code { color: #a5d6ff; }
   <div class="cards">
     <section class="card"><div class="card-label">Campaign</div><div class="card-value" style="font-size:16px">${escapeHtml(segment.name ?? "unconfigured")}</div></section>
     <section class="card"><div class="card-label">Metric</div><div class="card-value" style="font-size:16px">★ ${escapeHtml(metricName)} ${escapeHtml(direction ?? "")} ${metricUnit ? `(${escapeHtml(metricUnit)})` : ""}</div></section>
+    <section class="card"><div class="card-label">Success threshold</div><div class="card-value" style="font-size:16px">${escapeHtml(formatMetricThresholdValue(segment.metricThreshold, metricUnit))}</div></section>
     <section class="card"><div class="card-label">Benchmark</div><div class="card-value" style="font-size:14px"><code>${escapeHtml(segment.benchmarkCommand ?? "(unset)")}</code></div></section>
     <section class="card"><div class="card-label">Checks</div><div class="card-value" style="font-size:14px"><code>${escapeHtml(segment.checksCommand ?? "(none)")}</code></div></section>
   </div>
@@ -4347,6 +4383,7 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     ? [
         `- configured campaign: ${status.currentSegment.name ?? "(unnamed)"}`,
         `- primary metric: ${status.currentSegment.metricName ?? "(unset)"} (${status.currentSegment.metricUnit || "unitless"}, ${status.currentSegment.direction ?? "unset"} is better)`,
+        `- success threshold: ${formatMetricThresholdValue(status.currentSegment.metricThreshold, status.currentSegment.metricUnit)}`,
         `- benchmark command: ${status.currentSegment.benchmarkCommand ?? "(unset)"}`,
         `- checks command: ${status.currentSegment.checksCommand ?? "(none)"}`,
         `- current-segment runs: ${status.currentSegment.runCount} total / ${status.currentSegment.successfulRunCount} successful`,
@@ -5267,6 +5304,7 @@ export async function executeAutoresearchLoop(
         metricName: index === 0 ? input.metricName : undefined,
         metricUnit: index === 0 ? input.metricUnit : undefined,
         direction: index === 0 ? input.direction : undefined,
+        metricThreshold: index === 0 ? input.metricThreshold : undefined,
         benchmarkCommand: input.benchmarkCommand,
         checksCommand: input.checksCommand,
         timeoutSeconds: input.timeoutSeconds,
@@ -5803,6 +5841,7 @@ function createConfigFromInput(
     metricName,
     metricUnit: input.metricUnit ?? "",
     direction: input.direction ?? "lower",
+    metricThreshold: input.metricThreshold,
     benchmarkCommand,
     checksCommand,
   });
@@ -6151,6 +6190,7 @@ function createRuntimeSnapshotInput(
       metricName: currentSegment.metricName,
       metricUnit: currentSegment.metricUnit,
       direction: currentSegment.direction,
+      metricThreshold: currentSegment.metricThreshold,
       benchmarkCommand: currentSegment.benchmarkCommand,
       checksCommand: currentSegment.checksCommand,
       runCount: currentSegment.runCount,
@@ -6208,6 +6248,7 @@ function projectionMatchesCurrentSegment(
     projection.context.segment?.metricName === currentSegment.metricName &&
     projection.context.segment?.metricUnit === currentSegment.metricUnit &&
     projection.context.segment?.direction === currentSegment.direction &&
+    (projection.context.segment?.metricThreshold ?? null) === currentSegment.metricThreshold &&
     projection.context.segment?.benchmarkCommand === currentSegment.benchmarkCommand &&
     projection.context.segment?.checksCommand === currentSegment.checksCommand &&
     projection.context.runCount === currentSegment.runCount &&
@@ -6244,6 +6285,7 @@ function createFallbackMachineInput(
       metricName: currentSegment.metricName ?? "(unset)",
       metricUnit: currentSegment.metricUnit,
       direction: currentSegment.direction ?? "lower",
+      metricThreshold: currentSegment.metricThreshold,
       benchmarkCommand: currentSegment.benchmarkCommand ?? "",
       checksCommand: currentSegment.checksCommand,
     },
@@ -6456,6 +6498,7 @@ function createCampaignSegmentConfigFromReceipt(
     metricName: receipt.metricName,
     metricUnit: receipt.metricUnit,
     direction: receipt.direction,
+    ...(receipt.metricThreshold === undefined ? {} : { metricThreshold: receipt.metricThreshold }),
     benchmarkCommand: receipt.benchmarkCommand ?? "bash autoresearch.sh",
     checksCommand: receipt.checksCommand ?? null,
   };
@@ -6505,6 +6548,7 @@ function summarizeCurrentSegment(currentSegment: CurrentSegmentView): Autoresear
     metricName: currentSegment.config?.metricName ?? null,
     metricUnit: currentSegment.config?.metricUnit ?? "",
     direction: currentSegment.config?.direction ?? null,
+    metricThreshold: currentSegment.config?.metricThreshold ?? null,
     benchmarkCommand: currentSegment.config?.benchmarkCommand ?? null,
     checksCommand: currentSegment.config?.checksCommand ?? null,
     runCount: currentSegment.runs.length,
@@ -6717,6 +6761,7 @@ function parseConfigReceipt(value: Record<string, unknown>): AutoresearchConfigR
   if (typeof value.name !== "string" || typeof value.metricName !== "string") {
     throw new Error("Config receipt requires string name and metricName fields");
   }
+  const metricThreshold = normalizeMetricThreshold(value.metricThreshold);
   return {
     type: "config",
     version: 1,
@@ -6724,6 +6769,7 @@ function parseConfigReceipt(value: Record<string, unknown>): AutoresearchConfigR
     metricName: value.metricName,
     metricUnit: typeof value.metricUnit === "string" ? value.metricUnit : "",
     direction: value.direction,
+    ...(metricThreshold === undefined ? {} : { metricThreshold }),
     createdAt: coerceNumber(value.createdAt, "createdAt"),
     benchmarkCommand:
       typeof value.benchmarkCommand === "string" ? value.benchmarkCommand : undefined,
@@ -7180,12 +7226,14 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
     ? [
         `candidate binding reviewed: ${candidateLabel}`,
         `empirical posture reviewed: ${input.status.empiricalPosture.classification}; promotion ready=${input.status.empiricalPosture.promotionReady ? "yes" : "no"}`,
+        `metric threshold reviewed: ${describeMetricThresholdCaveat(input.status.currentSegment)}`,
         `planned command count reviewed: ${input.plannedCommands.length}`,
         "planned commands are copied/applied outside pi-autoresearch only after operator approval",
         "durable evidence, learning, merge, promotion, and rollback remain owner-routed external actions",
       ]
     : [
         "status inspection only; no lifecycle command is being planned",
+        `metric threshold posture: ${describeMetricThresholdCaveat(input.status.currentSegment)}`,
         "use keep/discard/rewind only after reviewing candidate binding and empirical posture",
       ];
 
@@ -7204,6 +7252,14 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
           ? "read the checklist, type or copy the exact confirmation phrase into the external review surface, then apply only the selected external commands"
           : "inspect status and choose keep/discard/rewind only if the candidate binding and empirical posture warrant it",
   };
+}
+
+function describeMetricThresholdCaveat(segment: AutoresearchSegmentSummary): string {
+  if (segment.metricThreshold === null) {
+    return "no explicit threshold set; zero-target blocker/failure metric-name inference may still apply";
+  }
+  const operator = segment.direction === "higher" ? ">=" : "<=";
+  return `explicit success threshold ${operator}${formatMetricValue(segment.metricThreshold, segment.metricUnit)}; external promotion still requires owner-routed review`;
 }
 
 function summarizeCandidateForDecision(
@@ -8125,10 +8181,10 @@ function classifyRunEmpiricalDecision(
   }
 
   if (runKind === "calibration") return "possible_noise";
-  if (isZeroThresholdMetric(config.metricName, config.metricUnit, config.direction)) {
-    const threshold = 0;
-    const baselineSatisfied = baselineMetric <= threshold;
-    const runSatisfied = run.metric <= threshold;
+  const threshold = resolveMetricThreshold(config);
+  if (threshold !== null) {
+    const baselineSatisfied = satisfiesMetricThreshold(baselineMetric, threshold, config.direction);
+    const runSatisfied = satisfiesMetricThreshold(run.metric, threshold, config.direction);
     if (runSatisfied && !baselineSatisfied) return "threshold_satisfied";
     if (runSatisfied && baselineSatisfied) return "threshold_preserved";
     if (!runSatisfied && baselineSatisfied) return "threshold_regressed";
@@ -8136,6 +8192,21 @@ function classifyRunEmpiricalDecision(
   if (isBetter(run.metric, baselineMetric, config.direction)) return "candidate_improvement";
   if (run.metric === baselineMetric) return "candidate_neutral";
   return "candidate_regression";
+}
+
+function resolveMetricThreshold(config: AutoresearchConfigReceipt): number | null {
+  if (typeof config.metricThreshold === "number" && Number.isFinite(config.metricThreshold)) {
+    return config.metricThreshold;
+  }
+  return isZeroThresholdMetric(config.metricName, config.metricUnit, config.direction) ? 0 : null;
+}
+
+function satisfiesMetricThreshold(
+  value: number,
+  threshold: number,
+  direction: MetricDirection,
+): boolean {
+  return direction === "lower" ? value <= threshold : value >= threshold;
 }
 
 function isZeroThresholdMetric(
@@ -8358,6 +8429,12 @@ function joinOutput(output: { stdout: string; stderr: string }): string {
 function formatMetricValue(value: number | null, unit: string): string {
   if (value === null) return "(n/a)";
   return `${value}${unit}`;
+}
+
+function formatMetricThresholdValue(value: number | null, unit: string): string {
+  return value === null
+    ? "(not set; zero-target blocker inference may apply)"
+    : formatMetricValue(value, unit);
 }
 
 function formatConfidenceValue(value: number | null): string {

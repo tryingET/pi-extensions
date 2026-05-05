@@ -269,11 +269,16 @@ function parseCampaignSegmentConfig(value: unknown): CampaignSegmentConfig {
     throw new Error("segment must be an object");
   }
 
+  const metricThreshold = parseOptionalNullableNumber(
+    value.metricThreshold,
+    "segment.metricThreshold",
+  );
   return {
     name: coerceString(value.name, "segment.name"),
     metricName: coerceString(value.metricName, "segment.metricName"),
     metricUnit: coerceString(value.metricUnit, "segment.metricUnit"),
     direction: parseMetricDirection(value.direction),
+    ...(metricThreshold === undefined ? {} : { metricThreshold }),
     benchmarkCommand: coerceString(value.benchmarkCommand, "segment.benchmarkCommand"),
     checksCommand: parseNullableString(value.checksCommand, "segment.checksCommand"),
   };

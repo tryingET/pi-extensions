@@ -8,6 +8,7 @@ export interface CampaignSegmentConfig {
   metricName: string;
   metricUnit: string;
   direction: MetricDirection;
+  metricThreshold?: number | null;
   benchmarkCommand: string;
   checksCommand: string | null;
 }

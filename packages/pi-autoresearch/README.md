@@ -115,7 +115,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - documents the adapter contract in `docs/project/adapter-contracts.md` so AK, Beads, KES, notes, issue trackers, or custom KMS integrations can be implemented as separate Pi extensions consuming stable packet shapes
   - surfaces receipt summaries, machine projection, event-ledger state, current one-shot Prompt Vault alignment, the current llama.cpp manifest-campaign projection state when one has been projected locally, a top-level empirical posture sentence with promotion readiness and recommended next action, and visible peer-lane recommendations for optional `scout_peer_spawn` / `candidate_peer_spawn` use without auto-spawning peers
 - `autoresearch_runtime_autoplan`
-  - explores the local repo/problem space from a bounded objective and proposes campaign setup: name, metric, direction, benchmark command, checks command, scope, risks, and exact next tool call
+  - explores the local repo/problem space from a bounded objective and proposes campaign setup: name, metric, optional explicit `metricThreshold`, direction, benchmark command, checks command, scope, risks, and exact next tool call
   - surfaces an explicit measurement contract for metric freshness, causal linkage, and optimization authority before any proposed setup call
   - avoids inferred duplicate benchmark/check execution when package scripts or generated `autoresearch.sh` wrappers resolve to the same command, while warning if an operator explicitly asks to run equivalent gates twice
   - reports noise-aware timing interpretation for duration metrics so one-off lower timings are not mistaken for meaningful improvements
@@ -125,7 +125,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - supports `planner: "dspx_program"` to return or materialize a local DSPx `program-gen` handoff intent for an `AutoresearchSetupPlanner` candidate while keeping Pi as the outer controller
   - when DSPx `behavior_results.json` exists, reads it as evidence-only advisory setup input and may summarize passed/total as an advisory-only score, but static behavior evidence cannot drive a baseline unless regenerated during the benchmark
 - `autoresearch_runtime_setup`
-  - plans, applies, or baselines a campaign/segment config without requiring a human slash-command wizard
+  - plans, applies, or baselines a campaign/segment config, including optional explicit `metricThreshold` targets for threshold-style success, without requiring a human slash-command wizard
   - can append a config receipt without running, or bootstrap a baseline run through the same bounded run machinery
   - can write explicit `autoresearch.sh` / `autoresearch.checks.sh` content when requested and refuses to overwrite existing scripts unless allowed
 - `autoresearch_runtime_run`

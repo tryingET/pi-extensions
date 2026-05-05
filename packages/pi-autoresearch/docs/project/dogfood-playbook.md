@@ -94,6 +94,7 @@ Review the returned setup for:
 
 - metric name and unit;
 - direction (`lower` or `higher`);
+- optional explicit `metricThreshold` when the success target is threshold-style rather than pure improvement;
 - benchmark command;
 - checks command;
 - metric-readiness warnings;
@@ -114,6 +115,7 @@ autoresearch_runtime_setup({
   metricName: "<metric>",
   metricUnit: "ms",
   direction: "lower",
+  metricThreshold: 0, // optional; use only when the success target is explicit
   benchmarkCommand: "bash autoresearch.sh",
   checksCommand: "npm run check",
   description: "Baseline before candidate changes",

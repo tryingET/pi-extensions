@@ -73,6 +73,7 @@ import {
   formatAutoresearchCandidateBindPlan,
   formatAutoresearchCandidateDecisionWorkbench,
   formatAutoresearchCandidateResultPacket,
+  formatAutoresearchDashboard,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchResumeApplyPlan,
   formatAutoresearchResumeApplyResult,
@@ -452,6 +453,25 @@ test("receipt helpers round-trip config and run entries", () => {
 
   assert.deepEqual(parseReceiptLine(serializeReceipt(config)), config);
   assert.deepEqual(parseReceiptLine(serializeReceipt(run)), run);
+});
+
+test("config receipt parser rejects malformed metricThreshold", () => {
+  assert.throws(
+    () =>
+      parseReceiptLine(
+        JSON.stringify({
+          type: "config",
+          version: 1,
+          name: "bad-threshold",
+          metricName: "review_findings",
+          metricUnit: "count",
+          direction: "lower",
+          metricThreshold: "2",
+          createdAt: 10,
+        }),
+      ),
+    /metricThreshold must be a finite number/,
+  );
 });
 
 test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () => {
@@ -1017,6 +1037,106 @@ test("status builder treats zero-blocker threshold metrics as first-class succes
       action: "status",
     });
     assert.equal(candidateDecision.recommendedDecision, "keep");
+  }));
+
+test("status builder uses explicit non-zero threshold targets", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "explicit-threshold",
+        metricName: "review_findings",
+        metricUnit: "count",
+        direction: "lower",
+        metricThreshold: 2,
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 5,
+        description: "baseline has too many findings",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 2,
+        description: "candidate reaches explicit threshold",
+        timestamp: 3,
+        experiment: {
+          candidate: {
+            source: "manual",
+            worktreePath: cwd,
+            branch: "candidate/explicit-threshold",
+            baseRef: "main",
+            diffSummary: "reduce review findings to the explicit threshold",
+            filesChanged: ["src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.metricThreshold, 2);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_satisfied");
+    assert.equal(status.empiricalPosture.classification, "threshold_satisfied");
+    assert.match(formatAutoresearchStatusText(status), /success threshold: 2count/);
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({
+      cwd,
+      action: "plan_keep",
+    });
+    assert.equal(candidateDecision.recommendedDecision, "keep");
+    assert.ok(
+      candidateDecision.confirmation.checklist.some((item) =>
+        item.includes("explicit success threshold <=2count"),
+      ),
+    );
+  }));
+
+test("status builder treats explicit higher-threshold targets as success", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "explicit-higher-threshold",
+        metricName: "setup_quality_score",
+        metricUnit: "pts",
+        direction: "higher",
+        metricThreshold: 90,
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 80,
+        description: "baseline below explicit score threshold",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 91,
+        description: "candidate reaches explicit score threshold",
+        timestamp: 3,
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_satisfied");
+    assert.equal(status.empiricalPosture.classification, "threshold_satisfied");
+    assert.match(formatAutoresearchDashboard(status), /success threshold: 90pts/);
   }));
 
 test("status builder treats preserved zero-blocker thresholds as review-ready evidence", () =>

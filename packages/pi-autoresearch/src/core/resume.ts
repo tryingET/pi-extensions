@@ -61,6 +61,7 @@ export interface AutoresearchRuntimeSnapshotInput {
     metricName: string | null;
     metricUnit: string;
     direction: MetricDirection | null;
+    metricThreshold: number | null;
     benchmarkCommand: string | null;
     checksCommand: string | null;
     runCount: number;
@@ -96,6 +97,7 @@ export interface AutoresearchRuntimeSnapshotV1 {
     metricName: string | null;
     metricUnit: string;
     direction: MetricDirection | null;
+    metricThreshold: number | null;
     benchmarkCommand: string | null;
     checksCommand: string | null;
     runCount: number;
@@ -148,6 +150,7 @@ export function createAutoresearchSegmentKey(
     metricName: segment.metricName,
     metricUnit: segment.metricUnit,
     direction: segment.direction,
+    ...(segment.metricThreshold === null ? {} : { metricThreshold: segment.metricThreshold }),
     benchmarkCommand: segment.benchmarkCommand,
     checksCommand: segment.checksCommand,
   });
@@ -519,6 +522,7 @@ function parseSnapshotSegment(value: unknown): AutoresearchRuntimeSnapshotV1["se
     metricName: parseNullableString(value.metricName, "segment.metricName"),
     metricUnit: coerceString(value.metricUnit, "segment.metricUnit"),
     direction: parseMetricDirection(value.direction),
+    metricThreshold: parseOptionalNullableNumber(value.metricThreshold, "segment.metricThreshold"),
     benchmarkCommand: parseNullableString(value.benchmarkCommand, "segment.benchmarkCommand"),
     checksCommand: parseNullableString(value.checksCommand, "segment.checksCommand"),
     runCount: coerceNumber(value.runCount, "segment.runCount"),
@@ -856,6 +860,13 @@ function parseNullableString(value: unknown, field: string): string | null {
 
 function parseNullableNumber(value: unknown, field: string): number | null {
   if (value === null) {
+    return null;
+  }
+  return coerceNumber(value, field);
+}
+
+function parseOptionalNullableNumber(value: unknown, field: string): number | null {
+  if (value === undefined || value === null) {
     return null;
   }
   return coerceNumber(value, field);

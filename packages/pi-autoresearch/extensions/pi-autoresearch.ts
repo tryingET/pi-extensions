@@ -602,6 +602,12 @@ const runSchema = Type.Object({
     Type.String({ description: "Primary metric unit (defaults to empty string)." }),
   ),
   direction: Type.Optional(directionSchema),
+  metricThreshold: Type.Optional(
+    Type.Number({
+      description:
+        "Optional explicit success threshold. Lower metrics satisfy value<=threshold; higher metrics satisfy value>=threshold. Does not authorize external promotion.",
+    }),
+  ),
   benchmarkCommand: Type.Optional(
     Type.String({
       description:
@@ -725,6 +731,11 @@ const autoplanSchema = Type.Object({
   metricName: Type.Optional(Type.String({ description: "Optional primary metric name override." })),
   metricUnit: Type.Optional(Type.String({ description: "Optional primary metric unit override." })),
   direction: Type.Optional(directionSchema),
+  metricThreshold: Type.Optional(
+    Type.Number({
+      description: "Optional explicit success threshold for threshold-style metrics.",
+    }),
+  ),
   materializeDspxIntent: Type.Optional(
     Type.Boolean({
       description: "When planner=dspx_program, write the local DSPx intent artifact.",
@@ -756,6 +767,9 @@ const setupSchema = Type.Object({
   metricName: Type.String({ description: "Primary metric name parsed from METRIC name=value." }),
   metricUnit: Type.Optional(Type.String({ description: "Metric unit." })),
   direction: directionSchema,
+  metricThreshold: Type.Optional(
+    Type.Number({ description: "Optional explicit success threshold for this metric contract." }),
+  ),
   benchmarkCommand: Type.Optional(Type.String({ description: "Benchmark command." })),
   checksCommand: Type.Optional(nullableStringSchema),
   reconfigure: Type.Optional(
@@ -917,6 +931,11 @@ const campaignStartSchema = Type.Object({
   metricName: Type.Optional(Type.String({ description: "Optional primary metric name override." })),
   metricUnit: Type.Optional(Type.String({ description: "Optional primary metric unit override." })),
   direction: Type.Optional(directionSchema),
+  metricThreshold: Type.Optional(
+    Type.Number({
+      description: "Optional explicit success threshold for threshold-style metrics.",
+    }),
+  ),
   materializeDspxIntent: Type.Optional(
     Type.Boolean({
       description: "When planner=dspx_program, write the local DSPx intent artifact.",
@@ -999,6 +1018,9 @@ const loopSchema = Type.Object({
   metricName: Type.Optional(Type.String({ description: "Metric name when bootstrapping." })),
   metricUnit: Type.Optional(Type.String({ description: "Metric unit." })),
   direction: Type.Optional(directionSchema),
+  metricThreshold: Type.Optional(
+    Type.Number({ description: "Optional explicit success threshold when bootstrapping." }),
+  ),
   benchmarkCommand: Type.Optional(Type.String({ description: "Benchmark command override." })),
   checksCommand: Type.Optional(nullableStringSchema),
   timeoutSeconds: Type.Optional(
@@ -1701,6 +1723,7 @@ export function registerPiAutoresearchExtension(
         metricName?: string;
         metricUnit?: string;
         direction?: "lower" | "higher";
+        metricThreshold?: number;
         benchmarkCommand?: string;
         checksCommand?: string | null;
         timeoutSeconds?: number;
@@ -1742,6 +1765,7 @@ export function registerPiAutoresearchExtension(
         metricName: request.metricName,
         metricUnit: request.metricUnit,
         direction: request.direction,
+        metricThreshold: request.metricThreshold,
         benchmarkCommand: request.benchmarkCommand,
         checksCommand: request.checksCommand,
         timeoutSeconds: request.timeoutSeconds,
@@ -1793,6 +1817,7 @@ export function registerPiAutoresearchExtension(
         metricName?: string;
         metricUnit?: string;
         direction?: "lower" | "higher";
+        metricThreshold?: number;
         materializeDspxIntent?: boolean;
         dspxIntentPath?: string;
         dspxOutdir?: string;
@@ -1811,6 +1836,7 @@ export function registerPiAutoresearchExtension(
         metricName: request.metricName,
         metricUnit: request.metricUnit,
         direction: request.direction,
+        metricThreshold: request.metricThreshold,
         materializeDspxIntent: request.materializeDspxIntent,
         dspxIntentPath: request.dspxIntentPath,
         dspxOutdir: request.dspxOutdir,
@@ -1839,6 +1865,7 @@ export function registerPiAutoresearchExtension(
         metricName: string;
         metricUnit?: string;
         direction: "lower" | "higher";
+        metricThreshold?: number;
         benchmarkCommand?: string;
         checksCommand?: string | null;
         reconfigure?: boolean;
@@ -1859,6 +1886,7 @@ export function registerPiAutoresearchExtension(
         metricName: request.metricName,
         metricUnit: request.metricUnit,
         direction: request.direction,
+        metricThreshold: request.metricThreshold,
         benchmarkCommand: request.benchmarkCommand,
         checksCommand: request.checksCommand,
         reconfigure: request.reconfigure,
@@ -1904,6 +1932,7 @@ export function registerPiAutoresearchExtension(
         metricName?: string;
         metricUnit?: string;
         direction?: "lower" | "higher";
+        metricThreshold?: number;
         materializeDspxIntent?: boolean;
         dspxIntentPath?: string;
         dspxOutdir?: string;
@@ -1958,6 +1987,7 @@ export function registerPiAutoresearchExtension(
         metricName: request.metricName,
         metricUnit: request.metricUnit,
         direction: request.direction,
+        metricThreshold: request.metricThreshold,
         materializeDspxIntent: request.materializeDspxIntent,
         dspxIntentPath: request.dspxIntentPath,
         dspxOutdir: request.dspxOutdir,
@@ -2054,6 +2084,7 @@ export function registerPiAutoresearchExtension(
         metricName?: string;
         metricUnit?: string;
         direction?: "lower" | "higher";
+        metricThreshold?: number;
         benchmarkCommand?: string;
         checksCommand?: string | null;
         timeoutSeconds?: number;
@@ -2092,6 +2123,7 @@ export function registerPiAutoresearchExtension(
         metricName: request.metricName,
         metricUnit: request.metricUnit,
         direction: request.direction,
+        metricThreshold: request.metricThreshold,
         benchmarkCommand: request.benchmarkCommand,
         checksCommand: request.checksCommand,
         timeoutSeconds: request.timeoutSeconds,
@@ -3779,6 +3811,7 @@ function buildAutoresearchOverlayBody(cwd: string, width: number): string[] {
     `Baseline → Best: ${baseline} → ${best}`,
     `Improvement: ${improvement}  Runs: ${segment.runCount} total / ${segment.successfulRunCount} ok  Confidence: ${confidence}`,
     `Metric: ★ ${metricName} ${segment.direction ?? ""} ${unit ? `(${unit})` : ""}`,
+    `Success threshold: ${formatAutoresearchOverlayThreshold(segment.metricThreshold, unit)}`,
     `Benchmark: ${segment.benchmarkCommand ?? "(unset)"}`,
     `Checks: ${segment.checksCommand ?? "(none)"}`,
     "",
@@ -3797,6 +3830,10 @@ function buildAutoresearchOverlayBody(cwd: string, width: number): string[] {
     "Replay Fabric observes history; ASC rewind is live session recovery; durable promotion remains external.",
     "Browser export has the upstream-style card/chart/table view: /autoresearch export",
   ];
+}
+
+function formatAutoresearchOverlayThreshold(value: number | null, unit: string): string {
+  return value === null ? "not set; zero-target inference may apply" : `${value}${unit}`;
 }
 
 function formatAutoresearchOverlayRunHeader(metricName: string, width: number): string {

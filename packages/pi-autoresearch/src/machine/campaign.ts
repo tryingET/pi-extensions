@@ -632,11 +632,13 @@ function createInitialContext(input: CampaignMachineInput | undefined): Campaign
 }
 
 function normalizeSegment(segment: CampaignSegmentConfig): CampaignSegmentConfig {
+  const metricThreshold = normalizeMetric(segment.metricThreshold);
   return {
     name: segment.name,
     metricName: segment.metricName,
     metricUnit: segment.metricUnit,
     direction: segment.direction,
+    ...(metricThreshold === null ? {} : { metricThreshold }),
     benchmarkCommand: segment.benchmarkCommand,
     checksCommand: segment.checksCommand,
   };

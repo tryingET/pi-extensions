@@ -43,6 +43,23 @@ test("ledger entries round-trip through serialization and parsing", () => {
   assert.deepEqual(parseLedgerLine(serializeLedgerEntry(entry)), entry);
 });
 
+test("ledger entries round-trip explicit metricThreshold", () => {
+  const entry = createLedgerEventEntry(
+    campaignEvents.configureSegment({
+      name: "quality-threshold",
+      metricName: "setup_quality_score",
+      metricUnit: "pts",
+      direction: "higher",
+      metricThreshold: 90,
+      benchmarkCommand: "bash autoresearch.sh",
+      checksCommand: null,
+    }),
+    10,
+  );
+
+  assert.deepEqual(parseLedgerLine(serializeLedgerEntry(entry)), entry);
+});
+
 test("ledger loader counts invalid lines while preserving valid events", async () => {
   await withTempDir((cwd) => {
     appendLedgerEvent(

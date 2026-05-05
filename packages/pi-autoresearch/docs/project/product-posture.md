@@ -78,7 +78,7 @@ The package currently owns:
 - bounded runtime status, setup, run, loop, control, and finalization surfaces;
 - XState campaign machine plus append-only local event ledger;
 - Prompt Vault decision bridge for setup, next-hypothesis, and finalize decisions;
-- measurement-contract checks, calibration semantics, duplicate benchmark/check detection, and baseline-drift-aware duration interpretation;
+- measurement-contract checks, explicit optional `metricThreshold` targets, calibration semantics, duplicate benchmark/check detection, and baseline-drift-aware duration interpretation;
 - operator-facing empirical posture classification with promotion-readiness and recommended-next-action text;
 - hypothesis/result lineage and controller-verified candidate binding metadata;
 - adapter-ready packet family:
@@ -213,7 +213,7 @@ Runtime status and closeout packets now include an `empiricalPosture` object wit
 - a compact summary sentence;
 - a recommended next action.
 
-The first threshold-style success slice is now landed for zero-target blocker/failure/error-style metrics such as `unresolved_dogfood_blockers`: a candidate can be `threshold_satisfied`, `threshold_preserved`, or `threshold_regressed` instead of being forced into generic improvement/neutral/regression posture. Remaining work is to make threshold targets configurable beyond zero-target blocker metrics and to expose richer metric-readiness explanation in the confirmation UI.
+The first threshold-style success slices are now landed. Zero-target blocker/failure/error-style metrics such as `unresolved_dogfood_blockers` still infer a threshold of zero, and setup/run/loop/campaign-start surfaces now also accept an explicit optional `metricThreshold`. Lower-is-better metrics satisfy the target with `value <= metricThreshold`; higher-is-better metrics satisfy it with `value >= metricThreshold`. A candidate can be `threshold_satisfied`, `threshold_preserved`, or `threshold_regressed` instead of being forced into generic improvement/neutral/regression posture. The candidate-decision checklist now surfaces the threshold caveat before keep/discard/rewind planning. Remaining work is to make metric-readiness explanations richer in confirmation UI without weakening duration/noise gates.
 
 ### Bet 3 — Canonical dogfood playbook — documentation landed
 
@@ -229,13 +229,13 @@ The playbook has now been dogfooded against a real package-local campaign. The n
 
 Duration metrics already report whether they are under-sampled, calibration-only, baseline-drift-suspect, candidate-ready, or review-ready.
 
-A first threshold-style posture slice is now landed for zero-target blocker/failure/error-style metrics where lower is better. These can now classify as:
+Threshold-style posture is now landed for both inferred and explicit targets. Zero-target blocker/failure/error-style metrics where lower is better still infer `0` from the metric name. For other threshold-style metrics, the measurement contract can set `metricThreshold`; lower metrics satisfy `value <= metricThreshold`, and higher metrics satisfy `value >= metricThreshold`. These can now classify as:
 
-- `threshold_satisfied` — the candidate reaches the zero-target success threshold from a non-satisfied baseline;
-- `threshold_preserved` — the candidate preserves an already-satisfied zero-target success threshold;
-- `threshold_regressed` — the candidate breaks an already-satisfied zero-target success threshold.
+- `threshold_satisfied` — the candidate reaches the success threshold from a non-satisfied baseline;
+- `threshold_preserved` — the candidate preserves an already-satisfied success threshold;
+- `threshold_regressed` — the candidate breaks an already-satisfied success threshold.
 
-Remaining product work: make threshold targets explicit/configurable in the measurement contract instead of relying only on metric-name inference, and surface threshold caveats in candidate confirmation affordances.
+The status/dashboard/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. Remaining product work: make broader metric-readiness explanations clearer in confirmation UI without letting explicit thresholds bypass duration/noise gates.
 
 ### Bet 5 — Consumer-driven adapter proof — first dry-run notes consumer landed
 
