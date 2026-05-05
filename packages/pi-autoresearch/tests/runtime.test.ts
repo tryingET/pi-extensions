@@ -58,6 +58,7 @@ import {
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchHelpText,
   buildAutoresearchKnowledgeExportPacket,
+  buildAutoresearchResumeApplyPlan,
   buildAutoresearchResumePlan,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
@@ -71,6 +72,7 @@ import {
   formatAutoresearchCandidateDecisionWorkbench,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchKnowledgeExportPacket,
+  formatAutoresearchResumeApplyPlan,
   formatAutoresearchResumePlan,
   formatAutoresearchSegmentCloseout,
   formatAutoresearchStatusText,
@@ -570,6 +572,51 @@ test("resume plan is read-only and requires a reusable runtime snapshot", () =>
     assert.equal(reusablePlan.blockingReasons.length, 0);
     assert.match(reusablePlan.wouldRun ?? "", /autoresearch_runtime_loop/);
     assert.match(formatAutoresearchResumePlan(reusablePlan), /resume_plan\.v1/);
+  }));
+
+test("resume apply plan is plan-only and never authorizes execution", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "resume-apply-plan",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+
+    const missingSnapshotPlan = buildAutoresearchResumeApplyPlan(cwd);
+    assert.equal(missingSnapshotPlan.packetKind, "autoresearch.resume_apply_plan.v1");
+    assert.equal(missingSnapshotPlan.action, "plan_only");
+    assert.equal(missingSnapshotPlan.executionAuthorized, false);
+    assert.equal(missingSnapshotPlan.planReady, false);
+    assert.equal(missingSnapshotPlan.futureForegroundCall, null);
+    assert.match(missingSnapshotPlan.blockedReasons.join("\n"), /resume_plan is not reusable/);
+
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+    const readyPlan = buildAutoresearchResumeApplyPlan(cwd);
+    assert.equal(readyPlan.planReady, true);
+    assert.equal(readyPlan.executionAuthorized, false);
+    assert.match(readyPlan.futureForegroundCall ?? "", /future_resume_apply/);
+    assert.match(readyPlan.futureExecutorContract, /No callable resume_apply executor exists/);
+    assert.match(formatAutoresearchResumeApplyPlan(readyPlan), /Plan-only proposal/);
+    assert.match(formatAutoresearchResumeApplyPlan(readyPlan), /execution authorized: no/);
+    assert.match(
+      formatAutoresearchResumeApplyPlan(readyPlan),
+      /future_resume_apply is a proposal label/,
+    );
   }));
 
 test("resume plan blocks stale snapshots and explicit operator gates", () =>
@@ -1819,6 +1866,8 @@ test("autoresearch_runtime_status can render the compact dashboard", async () =>
     assert.match(output, /Resume plan/);
     assert.match(output, /autoresearch\.resume_plan\.v1/);
     assert.match(output, /resume_plan" \}\)/);
+    assert.match(output, /resume apply plan-only proposal/);
+    assert.match(output, /resume_apply_plan" \}\)/);
     assert.match(output, /Next legal surfaces/);
   });
 });
@@ -3365,6 +3414,28 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.equal(
       (resumePlan?.details as { packetKind?: string }).packetKind,
       "autoresearch.resume_plan.v1",
+    );
+
+    const resumeApplyPlan = await tool?.execute(
+      "call-4d3",
+      {
+        cwd,
+        action: "resume_apply_plan",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(resumeApplyPlan);
+    assert.match(resumeApplyPlan?.content[0]?.text ?? "", /PI-AUTORESEARCH RESUME APPLY PLAN/);
+    assert.match(resumeApplyPlan?.content[0]?.text ?? "", /Plan-only proposal/);
+    assert.equal(
+      (resumeApplyPlan?.details as { packetKind?: string }).packetKind,
+      "autoresearch.resume_apply_plan.v1",
+    );
+    assert.equal(
+      (resumeApplyPlan?.details as { executionAuthorized?: boolean }).executionAuthorized,
+      false,
     );
 
     const validation = await tool?.execute(

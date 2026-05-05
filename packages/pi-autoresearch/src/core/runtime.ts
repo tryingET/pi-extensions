@@ -477,6 +477,21 @@ export interface AutoresearchResumePlan {
   authorityWarnings: string[];
 }
 
+export interface AutoresearchResumeApplyPlan {
+  packetKind: "autoresearch.resume_apply_plan.v1";
+  cwd: string;
+  action: "plan_only";
+  planReady: boolean;
+  executionAuthorized: false;
+  resumePlan: AutoresearchResumePlan;
+  requiredOperatorInputs: string[];
+  preflightChecks: string[];
+  futureExecutorContract: string;
+  futureForegroundCall: string | null;
+  blockedReasons: string[];
+  authorityWarnings: string[];
+}
+
 export interface AutoresearchRuntimeStatus {
   phase: typeof AUTORESEARCH_PHASE;
   cwd?: string;
@@ -3639,6 +3654,7 @@ export function formatAutoresearchDashboard(
     `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     `- resume plan: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "resume_plan" })`,
+    `- resume apply plan-only proposal: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "resume_apply_plan" })`,
     `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "closeout" })`,
     `- candidate bind: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, candidateWorktree: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "plan_run" })`,
     `- candidate decision: ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
@@ -4102,6 +4118,85 @@ function formatAutoresearchResumePlanSummaryLines(plan: AutoresearchResumePlan):
     `- blocking reasons: ${plan.blockingReasons.length > 0 ? plan.blockingReasons.join("; ") : "(none)"}`,
     "- boundary: resume_plan is read-only; no benchmark run, resume_apply, daemon, peer launch, candidate mutation, or external evidence/learning write is authorized.",
   ];
+}
+
+export function buildAutoresearchResumeApplyPlan(cwd: string): AutoresearchResumeApplyPlan {
+  const resumePlan = buildAutoresearchResumePlan(cwd);
+  const blockedReasons = [...resumePlan.blockingReasons];
+  if (!resumePlan.reusable) {
+    blockedReasons.unshift(
+      "resume_plan is not reusable; inspect and resolve resume-plan blockers first",
+    );
+  }
+  const planReady = resumePlan.reusable && blockedReasons.length === 0;
+  const futureExecutorContract =
+    "No callable resume_apply executor exists in this package yet. A future executor must run only in the foreground tool call, require explicit maxIterations and maxWallClockMinutes, re-check the same snapshot/runtime/control gates immediately before execution, consume no hidden background intent, and preserve external AK/KES/Prompt Vault/candidate authority seams.";
+  const futureForegroundCall = planReady
+    ? `future_resume_apply({ cwd: ${JSON.stringify(resumePlan.cwd)}, segmentKey: ${JSON.stringify(resumePlan.segmentKey)}, runtimeKey: ${JSON.stringify(resumePlan.runtimeKey)}, maxIterations: <explicit>, maxWallClockMinutes: <explicit>, operatorConfirmation: "RUN FOREGROUND RESUME" })`
+    : null;
+
+  return {
+    packetKind: "autoresearch.resume_apply_plan.v1",
+    cwd: resumePlan.cwd,
+    action: "plan_only",
+    planReady,
+    executionAuthorized: false,
+    resumePlan,
+    requiredOperatorInputs: [
+      "explicit maxIterations",
+      "explicit maxWallClockMinutes",
+      "fresh operator confirmation immediately before any future foreground executor",
+      "controller verification that no external AK/KES/notes/issue/candidate mutation is implied",
+    ],
+    preflightChecks: [
+      "rebuild resume_plan and require snapshotReuse=reused",
+      "require machineState=ready",
+      "require no awaiting_operator, stop, rebaseline, or finalize control gate",
+      "require explicit foreground budgets before any run",
+      "stop if Prompt Vault, checks, or posture gates request blocked/rebaseline/finalize",
+    ],
+    futureExecutorContract,
+    futureForegroundCall,
+    blockedReasons,
+    authorityWarnings: [
+      "resume_apply_plan is read-only and authorizes no benchmark run",
+      "future_resume_apply is a proposal label, not a registered callable tool",
+      "no daemon, background restart, peer launch, candidate lifecycle mutation, package-local promotion, or external evidence/learning write is authorized",
+    ],
+  };
+}
+
+export function formatAutoresearchResumeApplyPlan(plan: AutoresearchResumeApplyPlan): string {
+  return [
+    "# PI-AUTORESEARCH RESUME APPLY PLAN",
+    "",
+    "Plan-only proposal for a possible future foreground resume executor. This surface does not run benchmarks, resume a loop, launch peers, mutate worktrees, or write external evidence.",
+    "",
+    `- packet kind: ${plan.packetKind}`,
+    `- action: ${plan.action}`,
+    `- cwd: ${plan.cwd}`,
+    `- plan ready: ${plan.planReady ? "yes" : "no"}`,
+    `- execution authorized: ${plan.executionAuthorized ? "yes" : "no"}`,
+    `- future foreground call: ${plan.futureForegroundCall ?? "(blocked or not implemented)"}`,
+    `- future executor contract: ${plan.futureExecutorContract}`,
+    "",
+    "## Resume plan summary",
+    ...formatAutoresearchResumePlanSummaryLines(plan.resumePlan),
+    "",
+    "## Required operator inputs",
+    ...plan.requiredOperatorInputs.map((input) => `- ${input}`),
+    "",
+    "## Preflight checks",
+    ...plan.preflightChecks.map((check) => `- ${check}`),
+    "",
+    "## Blocked reasons",
+    ...(plan.blockedReasons.length > 0
+      ? plan.blockedReasons.map((reason) => `- ${reason}`)
+      : ["- (none)"]),
+    "",
+    "## Authority warnings",
+    ...plan.authorityWarnings.map((warning) => `- ${warning}`),
+  ].join("\n");
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {

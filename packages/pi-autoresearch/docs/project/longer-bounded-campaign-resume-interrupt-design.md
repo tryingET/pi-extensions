@@ -100,9 +100,17 @@ The follow-up surfacing slice is also landed: the read-only operator dashboard, 
 
 The gate regression slice is landed too. Tests now cover stale runtime snapshots, explicit `continue`, `stop`, `rebaseline`, and `finalize` controls, plus awaiting-operator `rebaseline_needed` and `finalize_candidate` states. These tests preserve the rule that only a ready machine with a reused snapshot and no blocking control gate can produce a reusable foreground plan.
 
+A plan-only `resume_apply` proposal surface is now available through:
+
+```text
+autoresearch_runtime_status({ action: "resume_apply_plan", cwd })
+```
+
+It emits `autoresearch.resume_apply_plan.v1`, requires explicit future budgets and operator confirmation, and states that no callable `resume_apply` executor exists yet. It is a review packet for the possible executor contract, not a run/apply action.
+
 Next implementation work, when justified:
 
-1. consider whether a plan-only `resume_apply` proposal is useful, still without running it;
+1. review/dogfood whether the plan-only proposal is actually useful to operators;
 2. only then consider `resume_apply` as an explicit foreground action.
 
 Do not add a scheduler or a multi-session daemon.

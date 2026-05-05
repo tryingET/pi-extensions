@@ -300,7 +300,7 @@ The design keeps longer campaigns as reviewed foreground continuations:
 bounded loop segment -> stop reason -> resume plan -> explicit operator control -> next foreground segment
 ```
 
-The resume plan reports snapshot reuse, segment/runtime keys, machine/control state, blocking reasons, authority warnings, and the explicit foreground loop call shape that would be reviewed next. The dashboard, browser export, and runtime-control output now surface the same read-only resume-plan summary so operators can see continuation posture before requesting the full packet. Regression coverage now proves stale snapshots, `stop`, `rebaseline`, `finalize`, and awaiting-operator gates stay blocked while reviewed `continue` from a ready reused snapshot can produce a reusable foreground plan. It does not run benchmarks or resume a loop. Hidden daemons, automatic restart after Pi/session exit, unbounded resume, direct external writes, peer auto-launch, candidate lifecycle mutation, and package-local promotion remain forbidden. A future `resume_apply` path should only land after the read-only plan has proven useful.
+The resume plan reports snapshot reuse, segment/runtime keys, machine/control state, blocking reasons, authority warnings, and the explicit foreground loop call shape that would be reviewed next. The dashboard, browser export, and runtime-control output now surface the same read-only resume-plan summary so operators can see continuation posture before requesting the full packet. Regression coverage now proves stale snapshots, `stop`, `rebaseline`, `finalize`, and awaiting-operator gates stay blocked while reviewed `continue` from a ready reused snapshot can produce a reusable foreground plan. A separate plan-only proposal is available through `autoresearch_runtime_status({ action: "resume_apply_plan", cwd })`; it emits `autoresearch.resume_apply_plan.v1`, requires future explicit budgets/confirmation, and states that no callable executor exists yet. These surfaces do not run benchmarks or resume a loop. Hidden daemons, automatic restart after Pi/session exit, unbounded resume, direct external writes, peer auto-launch, candidate lifecycle mutation, and package-local promotion remain forbidden. A future `resume_apply` path should only land after the read-only plan has proven useful.
 
 ### Bet 9 — Remaining big-picture product gaps
 
@@ -309,7 +309,7 @@ The next gaps are deliberately bigger than one package-local patch:
 1. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
 2. land real orchestrator execution bindings for governed Prompt Vault setup/next/finalize paths when that owner surface is ready;
 3. make the visible-candidate handoff more ergonomic across peer tooling and candidate binding without changing ownership;
-4. consider explicit foreground `resume_apply` only after the dashboard/control-visible resume-plan surface has proven useful enough to justify a separate plan-only proposal slice.
+4. review whether the `resume_apply_plan` proposal is useful enough before considering any explicit foreground `resume_apply` executor.
 
 ## Ownership map
 

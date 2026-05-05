@@ -50,6 +50,7 @@ import {
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchKnowledgeExportPacket,
   buildAutoresearchPeerAssistPlan,
+  buildAutoresearchResumeApplyPlan,
   buildAutoresearchResumePlan,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
@@ -72,6 +73,7 @@ import {
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchLoopResult,
   formatAutoresearchPeerAssistPlan,
+  formatAutoresearchResumeApplyPlan,
   formatAutoresearchResumePlan,
   formatAutoresearchRunResult,
   formatAutoresearchSegmentCloseout,
@@ -299,6 +301,7 @@ const statusActionSchema = Type.Union(
     Type.Literal("learning"),
     Type.Literal("candidate_result"),
     Type.Literal("resume_plan"),
+    Type.Literal("resume_apply_plan"),
     Type.Literal("adapter_contracts"),
     Type.Literal("validate_packet"),
   ],
@@ -1359,6 +1362,7 @@ export function registerPiAutoresearchExtension(
           | "learning"
           | "candidate_result"
           | "resume_plan"
+          | "resume_apply_plan"
           | "adapter_contracts"
           | "validate_packet";
         cwd?: string;
@@ -1396,6 +1400,7 @@ export function registerPiAutoresearchExtension(
           "learning",
           "candidate_result",
           "resume_plan",
+          "resume_apply_plan",
           "adapter_contracts",
           "validate_packet",
         ],
@@ -1505,6 +1510,14 @@ export function registerPiAutoresearchExtension(
         const result = buildAutoresearchResumePlan(cwd);
         return {
           content: [{ type: "text", text: formatAutoresearchResumePlan(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "resume_apply_plan") {
+        const result = buildAutoresearchResumeApplyPlan(cwd);
+        return {
+          content: [{ type: "text", text: formatAutoresearchResumeApplyPlan(result) }],
           details: result,
         };
       }
