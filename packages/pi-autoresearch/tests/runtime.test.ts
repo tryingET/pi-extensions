@@ -608,6 +608,31 @@ test("foreground resume dogfood script preserves reviewed executor boundaries", 
   }
 });
 
+test("candidate handoff dogfood script preserves visible-candidate boundaries", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const output = execFileSync(
+    process.execPath,
+    ["scripts/dogfood-candidate-handoff-contract.mjs"],
+    {
+      cwd: packageRoot,
+      encoding: "utf8",
+      env: { ...process.env, DOGFOOD_CONTRACT_STRICT: "1" },
+    },
+  );
+
+  assert.match(output, /CONTRACT ok candidate-bind-ready/u);
+  assert.match(output, /CONTRACT ok candidate-decision-plan-only/u);
+  assert.match(output, /METRIC unresolved_candidate_handoff_blockers=0/u);
+  assert.match(output, /"decision": "threshold_satisfied"/u);
+  assert.match(output, /"keep": "keep"/u);
+  assert.match(output, /"discardCommandKinds": \[/u);
+  assert.match(output, /"remove_worktree"/u);
+  assert.match(output, /"delete_branch"/u);
+  assert.match(output, /"rewindCommandKinds": \[/u);
+  assert.match(output, /"reset_to_base"/u);
+  assert.match(output, /"lifecycleStateUnchanged": true/u);
+});
+
 test("buildAutoresearchRuntimeStatus only persists snapshots when explicitly requested", () =>
   withTempDir((cwd) => {
     const runtimeSnapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);

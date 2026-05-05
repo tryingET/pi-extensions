@@ -206,6 +206,14 @@ autoresearch_runtime_run({
 
 Never treat raw peer/intercom output as evidence. Verify the diff, changed files, and candidate claim first.
 
+Executable dogfood coverage for this handoff lives in:
+
+```bash
+DOGFOOD_CONTRACT_STRICT=1 node scripts/dogfood-candidate-handoff-contract.mjs
+```
+
+That contract creates an isolated controller repo plus candidate worktree, exercises `autoresearch_candidate_bind` readiness, measures the candidate with verified metadata, builds `autoresearch.candidate_result.v1`, and checks that keep/discard/rewind outputs remain plan-only without changing lifecycle state. It must emit `METRIC unresolved_candidate_handoff_blockers=0` before claiming the visible-candidate handoff is clean.
+
 ### 5. Read empirical posture, not just run success
 
 After each run, inspect status:
