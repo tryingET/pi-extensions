@@ -286,14 +286,26 @@ autoresearch_self_hosting_supervision({ action: "observe" | "record_evidence", c
 
 It reads exact package-local self-hosting artifacts from an explicit `cwd`, verifies contract/evaluator-lock/promotion/rollback posture, and can project deduped AK evidence only from exact verified task context. It must not run candidates, mutate evaluator locks, classify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or complete AK tasks by default.
 
-### Bet 8 — Remaining big-picture product gaps
+### Bet 8 — Longer bounded campaigns — design boundary landed
+
+The longer-campaign boundary is now explicit in [longer-bounded-campaign-resume-interrupt-design.md](./longer-bounded-campaign-resume-interrupt-design.md).
+
+The design keeps longer campaigns as reviewed foreground continuations:
+
+```text
+bounded loop segment -> stop reason -> resume plan -> explicit operator control -> next foreground segment
+```
+
+It forbids hidden daemons, automatic restart after Pi/session exit, unbounded resume, direct external writes, peer auto-launch, candidate lifecycle mutation, and package-local promotion. The first future implementation slice should be a read-only resume-plan builder rendered in status/dashboard/control output before any `resume_apply` path exists.
+
+### Bet 9 — Remaining big-picture product gaps
 
 The next gaps are deliberately bigger than one package-local patch:
 
 1. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
 2. land real orchestrator execution bindings for governed Prompt Vault setup/next/finalize paths when that owner surface is ready;
 3. make the visible-candidate handoff more ergonomic across peer tooling and candidate binding without changing ownership;
-4. longer bounded campaigns with explicit budgets, resume/interrupt semantics, and orchestrator coordination, without daemonizing or self-ratifying autonomy.
+4. implement the first read-only longer-campaign resume-plan surface, then consider explicit foreground `resume_apply` only after review gates are proven.
 
 ## Ownership map
 
