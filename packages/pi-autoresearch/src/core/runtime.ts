@@ -130,6 +130,9 @@ export type AutoresearchEmpiricalDecisionClass =
   | "candidate_improvement"
   | "candidate_regression"
   | "candidate_neutral"
+  | "threshold_satisfied"
+  | "threshold_preserved"
+  | "threshold_regressed"
   | "baseline_drift";
 export type MetricMap = Record<string, number>;
 
@@ -288,6 +291,9 @@ export type AutoresearchEmpiricalPostureClassification =
   | "candidate_review_ready"
   | "candidate_regression"
   | "candidate_neutral"
+  | "threshold_satisfied"
+  | "threshold_preserved"
+  | "threshold_regressed"
   | "checks_failed"
   | "measurement_invalid"
   | "inconclusive";
@@ -3697,8 +3703,8 @@ tbody td { border-bottom: 1px solid #222a33; padding: 10px; vertical-align: top;
 .metric-cell { color: #fff; }
 .status, .decision { padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block; background: rgba(88,166,255,.12); color: var(--accent); }
 .status.baseline, .decision.baseline { color: var(--muted); background: rgba(139,148,158,.12); }
-.status.keep, .status.candidate, .decision.candidate_improvement, .decision.default_promotion_candidate { color: var(--good); background: rgba(63,185,80,.15); }
-.status.discard, .decision.candidate_regression { color: #ff9b95; background: rgba(248,81,73,.15); }
+.status.keep, .status.candidate, .decision.candidate_improvement, .decision.threshold_satisfied, .decision.threshold_preserved, .decision.default_promotion_candidate { color: var(--good); background: rgba(63,185,80,.15); }
+.status.discard, .decision.candidate_regression, .decision.threshold_regressed { color: #ff9b95; background: rgba(248,81,73,.15); }
 .status.crash, .status.blocked { color: var(--bad); background: rgba(248,81,73,.25); }
 .status.checks_failed, .decision.candidate_neutral { color: var(--warn); background: rgba(210,153,34,.18); }
 .best-row { background: rgba(63,185,80,.08); }
@@ -6204,6 +6210,35 @@ function buildAutoresearchEmpiricalPosture(
     };
   }
 
+  if (segment.empiricalDecisionClass === "threshold_satisfied") {
+    return {
+      classification: "threshold_satisfied",
+      summary: `candidate satisfies the primary threshold-style success condition`,
+      promotionReady: true,
+      recommendedNextAction:
+        "generate closeout and promote threshold-satisfied evidence through the owning review/evidence surface",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "threshold_preserved") {
+    return {
+      classification: "threshold_preserved",
+      summary: `candidate preserves the primary threshold-style success condition`,
+      promotionReady: true,
+      recommendedNextAction:
+        "generate closeout and promote threshold-preserved evidence through the owning review/evidence surface",
+    };
+  }
+
+  if (segment.empiricalDecisionClass === "threshold_regressed") {
+    return {
+      classification: "threshold_regressed",
+      summary: `candidate regressed the primary threshold-style success condition`,
+      promotionReady: false,
+      recommendedNextAction: "discard or revise the candidate before another measured run",
+    };
+  }
+
   if (segment.empiricalDecisionClass === "candidate_regression") {
     return {
       classification: "candidate_regression",
@@ -6647,8 +6682,11 @@ function renderAutoresearchAkEvidenceResult(closeout: AutoresearchSegmentCloseou
 function recommendSegmentCloseoutAction(decisionClass: AutoresearchEmpiricalDecisionClass): string {
   switch (decisionClass) {
     case "candidate_improvement":
+    case "threshold_satisfied":
+    case "threshold_preserved":
       return "verify or finalize the candidate through explicit review/evidence promotion";
     case "candidate_regression":
+    case "threshold_regressed":
     case "checks_failed":
     case "measurement_invalid":
       return "discard the candidate or diagnose the measurement/check failure before another optimization run";
@@ -6724,13 +6762,18 @@ function chooseAutoresearchCandidateLifecycleDecision(input: {
   if (posture === "baseline_drift_suspected" || decision === "baseline_drift") return "rebaseline";
   if (
     decision === "candidate_regression" ||
+    decision === "threshold_regressed" ||
     decision === "checks_failed" ||
     decision === "measurement_invalid"
   ) {
     return "discard";
   }
   if (decision === "candidate_neutral") return "rewind";
-  if (decision === "candidate_improvement") {
+  if (
+    decision === "candidate_improvement" ||
+    decision === "threshold_satisfied" ||
+    decision === "threshold_preserved"
+  ) {
     return input.status.empiricalPosture.promotionReady ? "keep" : "collect_more_samples";
   }
   if (posture === "candidate_review_ready") return "keep";
@@ -7530,6 +7573,9 @@ function isAutoresearchEmpiricalDecisionClass(
     value === "candidate_improvement" ||
     value === "candidate_regression" ||
     value === "candidate_neutral" ||
+    value === "threshold_satisfied" ||
+    value === "threshold_preserved" ||
+    value === "threshold_regressed" ||
     value === "baseline_drift"
   );
 }
@@ -7593,9 +7639,29 @@ function classifyRunEmpiricalDecision(
   }
 
   if (runKind === "calibration") return "possible_noise";
+  if (isZeroThresholdMetric(config.metricName, config.metricUnit, config.direction)) {
+    const threshold = 0;
+    const baselineSatisfied = baselineMetric <= threshold;
+    const runSatisfied = run.metric <= threshold;
+    if (runSatisfied && !baselineSatisfied) return "threshold_satisfied";
+    if (runSatisfied && baselineSatisfied) return "threshold_preserved";
+    if (!runSatisfied && baselineSatisfied) return "threshold_regressed";
+  }
   if (isBetter(run.metric, baselineMetric, config.direction)) return "candidate_improvement";
   if (run.metric === baselineMetric) return "candidate_neutral";
   return "candidate_regression";
+}
+
+function isZeroThresholdMetric(
+  metricName: string,
+  metricUnit: string,
+  direction: MetricDirection,
+): boolean {
+  if (direction !== "lower") return false;
+  if (/^(?:ms|s|sec|secs|seconds|milliseconds)$/iu.test(metricUnit)) return false;
+  return /(?:^|[_:-])(?:blockers?|failures?|violations?|errors?|unresolved|remaining|regressions?)(?:$|[_:-])/iu.test(
+    metricName,
+  );
 }
 
 function interpretMetricNoise(

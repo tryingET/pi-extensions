@@ -53,8 +53,8 @@ When I have a candidate change, I want to measure it under an explicit contract,
 
 - maturity: `supervised dogfood proven / internal alpha`
 - target control plane: landed
-- current strategic line: measurement trust, operator clarity, threshold-style success semantics, and self-hosting evidence overwatch before broader autonomy
-- release posture: package checks pass and the canonical dogfood loop has now been exercised against the package itself; product posture remains pre-public until metric-readiness UX and threshold-style success semantics are clearer
+- current strategic line: measurement trust, operator clarity, threshold-style success semantics, confirmation UX, and consumer-driven external proof before broader autonomy
+- release posture: package checks pass and the canonical dogfood loop has now been exercised against the package itself; product posture remains pre-public until metric-readiness UX, confirmation affordances, and at least one non-AK consumer adapter proof are clearer
 
 ## Product success criteria
 
@@ -213,7 +213,7 @@ Runtime status and closeout packets now include an `empiricalPosture` object wit
 - a compact summary sentence;
 - a recommended next action.
 
-The remaining product work is to handle non-duration and threshold-style campaigns more truthfully. The self-hosting dogfood pass showed that `unresolved_dogfood_blockers=0` can be a success condition even when the generic empirical classifier calls the candidate `neutral` against an already-zero baseline.
+The first threshold-style success slice is now landed for zero-target blocker/failure/error-style metrics such as `unresolved_dogfood_blockers`: a candidate can be `threshold_satisfied`, `threshold_preserved`, or `threshold_regressed` instead of being forced into generic improvement/neutral/regression posture. Remaining work is to make threshold targets configurable beyond zero-target blocker metrics and to expose richer metric-readiness explanation in the confirmation UI.
 
 ### Bet 3 — Canonical dogfood playbook — documentation landed
 
@@ -225,33 +225,41 @@ setup -> baseline samples -> calibration -> candidate lane/binding -> ordinary r
 
 The playbook has now been dogfooded against a real package-local campaign. The next product work is to keep its examples synchronized with tool schemas and to distinguish ordinary metric-improvement campaigns from workflow-traversal and self-hosting campaigns.
 
-### Bet 4 — Metric readiness and threshold success policy
+### Bet 4 — Metric readiness and threshold success policy — first threshold slice landed
 
-Make duration metrics report whether they are:
+Duration metrics already report whether they are under-sampled, calibration-only, baseline-drift-suspect, candidate-ready, or review-ready.
 
-- under-sampled;
-- calibration-only;
-- baseline-drift-suspect;
-- candidate-ready;
-- review-ready.
+A first threshold-style posture slice is now landed for zero-target blocker/failure/error-style metrics where lower is better. These can now classify as:
 
-Also add first-class posture for threshold-style metrics where the success condition is reaching or preserving a target such as `unresolved_dogfood_blockers=0`, rather than producing a further numeric improvement from baseline.
+- `threshold_satisfied` — the candidate reaches the zero-target success threshold from a non-satisfied baseline;
+- `threshold_preserved` — the candidate preserves an already-satisfied zero-target success threshold;
+- `threshold_regressed` — the candidate breaks an already-satisfied zero-target success threshold.
+
+Remaining product work: make threshold targets explicit/configurable in the measurement contract instead of relying only on metric-name inference, and surface threshold caveats in candidate confirmation affordances.
 
 ### Bet 5 — Consumer-driven adapter proof
 
 Pick exactly one adapter target after demand is concrete. Until then, keep adapters external and packet contracts stable.
 
-### Bet 6 — Self-hosting evidence overwatch — next external slice
+### Bet 6 — Self-hosting evidence overwatch — landed first slice
 
-The self-hosting dogfood proof exposed a real above-seam observability gap: `pi-society-orchestrator` can currently observe ordinary runtime campaigns and manifest-driven campaigns, but it does not yet observe the self-hosting artifact family.
-
-The next truthful external slice is a narrow orchestrator-owned surface such as:
+The self-hosting dogfood proof exposed a real above-seam observability gap, and the first orchestrator-owned observer is now landed:
 
 ```text
 autoresearch_self_hosting_supervision({ action: "observe" | "record_evidence", cwd, ... })
 ```
 
-This slice should read exact package-local self-hosting artifacts from an explicit `cwd`, verify contract/evaluator-lock/promotion/rollback posture, and optionally project deduped evidence only from exact verified task context. It must not run candidates, mutate evaluator locks, classify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or complete AK tasks by default.
+It reads exact package-local self-hosting artifacts from an explicit `cwd`, verifies contract/evaluator-lock/promotion/rollback posture, and can project deduped AK evidence only from exact verified task context. It must not run candidates, mutate evaluator locks, classify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or complete AK tasks by default.
+
+### Bet 7 — Remaining big-picture product gaps
+
+The next gaps are deliberately bigger than one package-local patch:
+
+1. richer form-style confirmation for keep/discard/rewind/finalize decisions;
+2. exactly one concrete non-AK consumer adapter proof when a real owner surface is selected;
+3. smoother lawful Prompt Vault execution binding for setup/next/finalize paths that currently stop when no executable binding exists;
+4. a clearer visible-candidate production seam with peer/helper tooling while `pi-autoresearch` remains the measurement owner;
+5. longer bounded campaigns with explicit budgets, resume/interrupt semantics, and orchestrator coordination, without daemonizing or self-ratifying autonomy.
 
 ## Ownership map
 

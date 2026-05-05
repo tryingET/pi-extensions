@@ -544,6 +544,110 @@ test("status builder summarizes best metric and confidence from appended receipt
     assert.ok((status.currentSegment.confidence ?? 0) > 0);
   }));
 
+test("status builder treats zero-blocker threshold metrics as first-class success", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "self-hosting-threshold",
+        metricName: "unresolved_dogfood_blockers",
+        metricUnit: "count",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 1,
+        description: "baseline with one blocker",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 0,
+        description: "candidate clears the blocker threshold",
+        timestamp: 3,
+        experiment: {
+          hypothesisId: "H-threshold-001",
+          hypothesis: "A bounded self-hosting candidate clears unresolved blockers.",
+          interventionSummary: "evaluate threshold-style success",
+          expectedPrimaryEffect: "unresolved_dogfood_blockers reaches zero",
+          targetFiles: ["src/core/runtime.ts"],
+          risk: "threshold success is not an improvement-style duration metric",
+          candidate: {
+            source: "manual",
+            worktreePath: "/tmp/candidate-threshold",
+            branch: "candidate/threshold",
+            baseRef: "main",
+            diffSummary: "clear unresolved dogfood blocker",
+            filesChanged: ["src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_satisfied");
+    assert.equal(status.empiricalPosture.classification, "threshold_satisfied");
+    assert.equal(status.empiricalPosture.promotionReady, true);
+    assert.match(formatAutoresearchStatusText(status), /empirical posture: threshold_satisfied/);
+
+    const closeout = buildAutoresearchSegmentCloseout(cwd);
+    assert.equal(closeout.empiricalDecisionClass, "threshold_satisfied");
+    assert.equal(closeout.empiricalPosture.promotionReady, true);
+    assert.match(formatAutoresearchSegmentCloseout(closeout), /threshold-satisfied evidence/);
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({
+      cwd,
+      action: "status",
+    });
+    assert.equal(candidateDecision.recommendedDecision, "keep");
+  }));
+
+test("status builder treats preserved zero-blocker thresholds as review-ready evidence", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "self-hosting-threshold-preserved",
+        metricName: "unresolved_dogfood_blockers",
+        metricUnit: "count",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 0,
+        description: "baseline already satisfies threshold",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 0,
+        description: "candidate preserves the zero-blocker threshold",
+        timestamp: 3,
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_preserved");
+    assert.equal(status.empiricalPosture.classification, "threshold_preserved");
+    assert.equal(status.empiricalPosture.promotionReady, true);
+  }));
+
 test("segment closeout summarizes empirical decisions and candidate bindings", () =>
   withTempDir((cwd) => {
     appendReceipt(
