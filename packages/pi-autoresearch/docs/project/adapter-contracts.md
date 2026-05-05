@@ -142,6 +142,14 @@ Adapter examples:
 - `pi-autoresearch-obsidian-adapter`: write a note to an operator-selected vault path.
 - `pi-autoresearch-kms-http-adapter`: POST the packet to a company-owned KMS endpoint after explicit operator approval.
 
+First non-AK consumer proof:
+
+```bash
+node examples/learning-notes-adapter-consumer.mjs --packet /path/to/autoresearch.learning.v1.json
+```
+
+This example consumes `autoresearch.learning.v1`, validates the notes target shape, confines the planned destination to `docs/learnings/`, and emits an `autoresearch.notes_adapter_dry_run.v1` receipt. It is deliberately dry-run only: it does not write files, promote learning, or make `pi-autoresearch` the notes/KES owner.
+
 ### `autoresearch.ak_evidence.v1` / `autoresearch:segment_closeout`
 
 Produced by:

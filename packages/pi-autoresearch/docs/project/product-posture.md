@@ -237,9 +237,17 @@ A first threshold-style posture slice is now landed for zero-target blocker/fail
 
 Remaining product work: make threshold targets explicit/configurable in the measurement contract instead of relying only on metric-name inference, and surface threshold caveats in candidate confirmation affordances.
 
-### Bet 5 — Consumer-driven adapter proof
+### Bet 5 — Consumer-driven adapter proof — first dry-run notes consumer landed
 
-Pick exactly one adapter target after demand is concrete. Until then, keep adapters external and packet contracts stable.
+The first non-AK consumer proof is a dry-run repo-notes adapter example:
+
+```text
+examples/learning-notes-adapter-consumer.mjs
+```
+
+It consumes `autoresearch.learning.v1`, validates that the packet targets notes, confines the planned destination to `docs/learnings/`, and emits an `autoresearch.notes_adapter_dry_run.v1` receipt without writing files. This proves the packet contract can support a non-AK consumer while keeping durable learning persistence external to `pi-autoresearch`.
+
+Remaining work: replace the example with, or route it through, a real owner package when a concrete KES/notes/KMS adapter is selected for production use.
 
 ### Bet 6 — Self-hosting evidence overwatch — landed first slice
 
@@ -256,7 +264,7 @@ It reads exact package-local self-hosting artifacts from an explicit `cwd`, veri
 The next gaps are deliberately bigger than one package-local patch:
 
 1. richer form-style confirmation for keep/discard/rewind/finalize decisions;
-2. exactly one concrete non-AK consumer adapter proof when a real owner surface is selected;
+2. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
 3. smoother lawful Prompt Vault execution binding for setup/next/finalize paths that currently stop when no executable binding exists;
 4. a clearer visible-candidate production seam with peer/helper tooling while `pi-autoresearch` remains the measurement owner;
 5. longer bounded campaigns with explicit budgets, resume/interrupt semantics, and orchestrator coordination, without daemonizing or self-ratifying autonomy.

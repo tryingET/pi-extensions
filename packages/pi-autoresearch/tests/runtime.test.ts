@@ -784,6 +784,26 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.match(learning.markdown, /## What was learned/);
     assert.match(formatAutoresearchKnowledgeExportPacket(learning), /KNOWLEDGE EXPORT PACKET/);
 
+    const packetPath = path.join(cwd, "learning-packet.json");
+    writeFileSync(packetPath, `${JSON.stringify(learning)}\n`, "utf8");
+    const notesAdapterOutput = execFileSync(
+      process.execPath,
+      ["examples/learning-notes-adapter-consumer.mjs", "--packet", packetPath],
+      { cwd: path.resolve(import.meta.dirname, ".."), encoding: "utf8" },
+    );
+    const notesAdapterReceipt = JSON.parse(notesAdapterOutput) as {
+      kind: string;
+      status: string;
+      apply: boolean;
+      target: string;
+      destinationPath: string;
+    };
+    assert.equal(notesAdapterReceipt.kind, "autoresearch.notes_adapter_dry_run.v1");
+    assert.equal(notesAdapterReceipt.status, "planned");
+    assert.equal(notesAdapterReceipt.apply, false);
+    assert.equal(notesAdapterReceipt.target, "repo_notes");
+    assert.match(notesAdapterReceipt.destinationPath, /^docs\/learnings\//);
+
     const catalog = buildAutoresearchAdapterContractCatalog();
     assert.equal(catalog.packetKind, "autoresearch.adapter_contracts.v1");
     assert.equal(catalog.adapterContractVersion, 1);
