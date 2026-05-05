@@ -96,10 +96,11 @@ autoresearch_runtime_status({ action: "resume_plan", cwd })
 
 It builds a resume plan from current status/snapshot/control and reports whether the current segment is reusable, why it is blocked, and what explicit foreground loop call shape would be reviewed next. It does not run benchmarks or resume a loop.
 
+The follow-up surfacing slice is also landed: the read-only operator dashboard, browser dashboard export, and `autoresearch_runtime_control` status/set output now include a resume-plan summary. Control output shows whether a saved segment is reusable before and after explicit decisions such as `stop`, and the dashboard exposes the exact `action: "resume_plan"` read surface before any resume executor exists.
+
 Next implementation work, when justified:
 
-1. render the resume plan more prominently in dashboard/control output;
-2. add deeper tests for stop control, rebaseline/finalize gates, stale snapshot, and valid continue;
-3. only then consider `resume_apply` as an explicit foreground action.
+1. add deeper tests for rebaseline/finalize gates, stale snapshot, and valid continue across more runtime states;
+2. only then consider `resume_apply` as an explicit foreground action.
 
 Do not add a scheduler or a multi-session daemon.

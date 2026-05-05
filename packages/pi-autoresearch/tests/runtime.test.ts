@@ -1189,6 +1189,9 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(result.fileUrl, /^file:/);
     assert.match(html, /pi-autoresearch live dashboard/);
     assert.match(html, /Auto-refreshes every 2s/);
+    assert.match(html, /Resume plan/);
+    assert.match(html, /autoresearch\.resume_plan\.v1/);
+    assert.match(html, /Read-only: no benchmark run/);
     assert.match(html, /Browser export is read-only/);
   }));
 
@@ -1622,7 +1625,71 @@ test("autoresearch_runtime_status can render the compact dashboard", async () =>
     );
     assert.match(output, /Candidate decision/);
     assert.match(output, /no candidate bound yet/);
+    assert.match(output, /Resume plan/);
+    assert.match(output, /autoresearch\.resume_plan\.v1/);
+    assert.match(output, /resume_plan" \}\)/);
     assert.match(output, /Next legal surfaces/);
+  });
+});
+
+test("autoresearch_runtime_control surfaces the read-only resume plan", async () => {
+  await withTempDir(async (cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "control-resume-plan",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_CONTROL_TOOL_NAME);
+    assert.ok(tool);
+
+    await tool?.execute("call-control-prime", { cwd, action: "status" }, undefined, undefined, {
+      cwd,
+    });
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+
+    const statusResult = await tool?.execute(
+      "call-control-status",
+      { cwd, action: "status" },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    const statusText = statusResult?.content[0]?.text ?? "";
+    assert.match(statusText, /PI-AUTORESEARCH CONTROL/);
+    assert.match(statusText, /## Resume plan/);
+    assert.match(statusText, /reusable: yes/);
+    assert.match(statusText, /autoresearch_runtime_loop/);
+
+    const stopResult = await tool?.execute(
+      "call-control-stop",
+      { cwd, action: "set", decision: "stop", reason: "hold before longer campaign" },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    const stopText = stopResult?.content[0]?.text ?? "";
+    assert.match(stopText, /## Resume plan/);
+    assert.match(stopText, /reusable: no/);
+    assert.match(stopText, /operator control state is stop/);
+    assert.match(stopText, /no benchmark run, resume_apply, daemon/);
   });
 });
 

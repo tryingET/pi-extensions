@@ -3589,6 +3589,10 @@ export function formatAutoresearchDashboard(
         buildAutoresearchCandidateDecisionWorkbench({ cwd: status.cwd, candidatePolicy }),
       )
     : "- candidate: (unavailable without cwd)\n- next surface: provide cwd to autoresearch_candidate_decision";
+  const resumePlan = status.cwd ? buildAutoresearchResumePlanFromStatus(status.cwd, status) : null;
+  const resumePlanLines = resumePlan
+    ? formatAutoresearchResumePlanSummaryLines(resumePlan)
+    : ["- resume plan: (unavailable without cwd)"];
 
   return [
     "# PI-AUTORESEARCH DASHBOARD",
@@ -3628,9 +3632,13 @@ export function formatAutoresearchDashboard(
     "## Candidate decision",
     candidateDecision,
     "",
+    "## Resume plan",
+    ...resumePlanLines,
+    "",
     "## Next legal surfaces",
     `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
+    `- resume plan: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "resume_plan" })`,
     `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "closeout" })`,
     `- candidate bind: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, candidateWorktree: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "plan_run" })`,
     `- candidate decision: ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
@@ -3649,6 +3657,9 @@ function renderAutoresearchDashboardHtml(
   const segment = status.currentSegment;
   const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd: closeout.cwd });
   const candidateDecisionLabel = candidateDecision.candidate?.label ?? "no candidate bound yet";
+  const resumePlan = buildAutoresearchResumePlanFromStatus(closeout.cwd, status);
+  const resumePlanBlockers =
+    resumePlan.blockingReasons.length > 0 ? resumePlan.blockingReasons.join("; ") : "none";
   const generatedAt = new Date().toLocaleString();
   const metricUnit = closeout.metricUnit || segment.metricUnit || "";
   const metricName = closeout.metricName ?? segment.metricName ?? "metric";
@@ -3799,6 +3810,14 @@ code { color: #a5d6ff; }
     <div class="card-value" style="font-size:18px">${escapeHtml(candidateDecision.recommendedDecision)}</div>
     <div class="card-copy">${escapeHtml(candidateDecisionLabel)} — ${escapeHtml(candidateDecision.recommendationReason)}</div>
     <div class="card-copy"><code>${escapeHtml(candidateDecision.exactNextCalls[0] ?? `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "status" })`)}</code></div>
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Resume plan</div>
+    <div class="card-value ${resumePlan.reusable ? "good" : "warn"}" style="font-size:18px">${resumePlan.reusable ? "reusable foreground plan" : "blocked until reviewed"}</div>
+    <div class="card-copy">${escapeHtml(resumePlan.packetKind)} · snapshot=${escapeHtml(resumePlan.snapshotReuse)} · control=${escapeHtml(resumePlan.controlState)} · blockers=${escapeHtml(resumePlanBlockers)}</div>
+    <div class="card-copy"><code>${escapeHtml(resumePlan.wouldRun ?? `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "resume_plan" })`)}</code></div>
+    <div class="card-copy">Read-only: no benchmark run, resume_apply, daemon, peer launch, candidate mutation, or external evidence/learning write.</div>
   </section>
 
   <div class="cards">
@@ -3989,6 +4008,14 @@ function escapeHtml(value: string): string {
 
 export function buildAutoresearchResumePlan(cwd: string): AutoresearchResumePlan {
   const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+  return buildAutoresearchResumePlanFromStatus(path.resolve(cwd), status);
+}
+
+function buildAutoresearchResumePlanFromStatus(
+  cwd: string,
+  status: AutoresearchRuntimeStatus,
+): AutoresearchResumePlan {
+  const resolvedCwd = path.resolve(cwd);
   const blockingReasons: string[] = [];
   if (!status.currentSegment.configured) {
     blockingReasons.push("no configured segment exists to resume");
@@ -4011,7 +4038,7 @@ export function buildAutoresearchResumePlan(cwd: string): AutoresearchResumePlan
   const goal = status.currentSegment.name ?? "<campaign-goal>";
   return {
     packetKind: "autoresearch.resume_plan.v1",
-    cwd: path.resolve(cwd),
+    cwd: resolvedCwd,
     campaign: status.currentSegment.name,
     segmentKey: status.runtimeSnapshot.segmentKey,
     runtimeKey: status.runtimeSnapshot.runtimeKey,
@@ -4023,7 +4050,7 @@ export function buildAutoresearchResumePlan(cwd: string): AutoresearchResumePlan
     lastStopReason: status.control.reason ?? status.runtimeProjection.blockedReason ?? "(none)",
     remainingBudget: "operator_required",
     wouldRun: reusable
-      ? `autoresearch_runtime_loop({ cwd: ${JSON.stringify(path.resolve(cwd))}, goal: ${JSON.stringify(goal)}, maxIterations: <explicit>, maxWallClockMinutes: <explicit> })`
+      ? `autoresearch_runtime_loop({ cwd: ${JSON.stringify(resolvedCwd)}, goal: ${JSON.stringify(goal)}, maxIterations: <explicit>, maxWallClockMinutes: <explicit> })`
       : null,
     blockingReasons,
     authorityWarnings: [
@@ -4062,6 +4089,19 @@ export function formatAutoresearchResumePlan(plan: AutoresearchResumePlan): stri
     "## Authority warnings",
     ...plan.authorityWarnings.map((warning) => `- ${warning}`),
   ].join("\n");
+}
+
+function formatAutoresearchResumePlanSummaryLines(plan: AutoresearchResumePlan): string[] {
+  return [
+    `- packet kind: ${plan.packetKind}`,
+    `- reusable: ${plan.reusable ? "yes" : "no"}`,
+    `- snapshot reuse: ${plan.snapshotReuse}`,
+    `- machine/control: ${plan.machineState} / ${plan.controlState}`,
+    `- last stop/control reason: ${plan.lastStopReason}`,
+    `- would run: ${plan.wouldRun ?? "(blocked)"}`,
+    `- blocking reasons: ${plan.blockingReasons.length > 0 ? plan.blockingReasons.join("; ") : "(none)"}`,
+    "- boundary: resume_plan is read-only; no benchmark run, resume_apply, daemon, peer launch, candidate mutation, or external evidence/learning write is authorized.",
+  ];
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
@@ -4644,6 +4684,7 @@ export function formatAutoresearchControlResult(
   result: InspectAutoresearchRuntimeControlResult | SetAutoresearchRuntimeControlResult,
 ): string {
   const actionLine = "decision" in result ? `- action: set ${result.decision}` : "- action: status";
+  const resumePlan = buildAutoresearchResumePlanFromStatus(result.cwd, result.status);
 
   return [
     "# PI-AUTORESEARCH CONTROL",
@@ -4660,6 +4701,9 @@ export function formatAutoresearchControlResult(
     `- control reason: ${result.status.control.reason ?? "(none)"}`,
     `- control selected at: ${formatTimestamp(result.status.control.selectedAt)}`,
     `- next step: ${result.nextStep}`,
+    "",
+    "## Resume plan",
+    ...formatAutoresearchResumePlanSummaryLines(resumePlan),
   ].join("\n");
 }
 
