@@ -566,6 +566,20 @@ test("product posture and dogfood playbook expose orchestrator supervision hando
   );
 });
 
+test("dogfood workflow contract benchmark is current and strict-clean", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const output = execFileSync(process.execPath, ["scripts/dogfood-workflow-contract.mjs"], {
+    cwd: packageRoot,
+    encoding: "utf8",
+    env: { ...process.env, DOGFOOD_CONTRACT_STRICT: "1" },
+  });
+
+  assert.match(output, /CONTRACT ok posture-prioritizes-operator-clarity/u);
+  assert.match(output, /CONTRACT ok orchestrator-supervision-handoff/u);
+  assert.match(output, /CONTRACT ok resume-foreground-executor-contract/u);
+  assert.match(output, /METRIC unresolved_dogfood_blockers=0/u);
+});
+
 test("buildAutoresearchRuntimeStatus only persists snapshots when explicitly requested", () =>
   withTempDir((cwd) => {
     const runtimeSnapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);
@@ -712,6 +726,28 @@ test("resume apply executor requires exact keys, budgets, and foreground confirm
         operatorConfirmation: "RUN",
       }),
       /operatorConfirmation must exactly equal/,
+    );
+    await assert.rejects(
+      executeAutoresearchResumeApply({
+        cwd,
+        segmentKey: plan.resumePlan.segmentKey,
+        runtimeKey: plan.resumePlan.runtimeKey,
+        maxIterations: 0,
+        maxWallClockMinutes: 1,
+        operatorConfirmation: "RUN FOREGROUND RESUME",
+      }),
+      /maxIterations must be a positive integer/,
+    );
+    await assert.rejects(
+      executeAutoresearchResumeApply({
+        cwd,
+        segmentKey: plan.resumePlan.segmentKey,
+        runtimeKey: plan.resumePlan.runtimeKey,
+        maxIterations: 1,
+        maxWallClockMinutes: 0,
+        operatorConfirmation: "RUN FOREGROUND RESUME",
+      }),
+      /maxWallClockMinutes must be a positive number/,
     );
     await assert.rejects(
       executeAutoresearchResumeApply({

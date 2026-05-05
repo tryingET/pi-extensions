@@ -20,6 +20,7 @@ const files = {
   contract: readRelative("docs/project/dogfood-workflow-campaign-contract.md"),
   playbook: readRelative("docs/project/dogfood-playbook.md"),
   posture: readRelative("docs/project/product-posture.md"),
+  resumeDesign: readRelative("docs/project/longer-bounded-campaign-resume-interrupt-design.md"),
   runtime: readRelative("src/core/runtime.ts"),
   runtimeTest: readRelative("tests/runtime.test.ts"),
   toolboxBundle: readRelative("src/toolboxBundle.ts"),
@@ -48,8 +49,25 @@ const checks = [
   {
     id: "posture-prioritizes-operator-clarity",
     description:
-      "product posture keeps operator clarity and metric readiness on the strategic line",
-    ok: includesAll(files.posture, ["measurement trust and operator clarity", "metric readiness"]),
+      "product posture keeps measurement trust, operator clarity, and metric readiness on the strategic line",
+    ok: includesAll(files.posture, ["measurement trust", "operator clarity", "metric readiness"]),
+  },
+  {
+    id: "orchestrator-supervision-handoff",
+    description:
+      "product posture and dogfood playbook expose the landed orchestrator supervision handoff seams",
+    ok:
+      includesAll(files.posture, [
+        "autoresearch_live_supervision",
+        "autoresearch_manifest_campaign_supervision",
+        "autoresearch_self_hosting_supervision",
+      ]) &&
+      includesAll(files.playbook, [
+        "autoresearch_live_supervision",
+        "autoresearch_manifest_campaign_supervision",
+        "autoresearch_self_hosting_supervision",
+        "orchestrator/AK/KES/issue adapter promotion happens explicitly outside pi-autoresearch",
+      ]),
   },
   {
     id: "plan-next-call-reconfigure",
@@ -72,6 +90,46 @@ const checks = [
       "reconfigure: true",
       'runMode: "baseline"',
     ]),
+  },
+  {
+    id: "resume-foreground-executor-contract",
+    description:
+      "resume apply remains an explicit foreground executor with exact keys, budgets, confirmation, and peer launch off",
+    ok:
+      includesAll(files.resumeDesign, [
+        "autoresearch_runtime_resume_apply",
+        'operatorConfirmation: "RUN FOREGROUND RESUME"',
+        'peerMode="off"',
+        "runs only inside the foreground tool call",
+        "candidate lifecycle mutation",
+        "package-local promotion",
+        "external evidence/learning writes",
+      ]) &&
+      includesAll(files.runtime, [
+        "AUTORESEARCH_RESUME_APPLY_TOOL_NAME",
+        "operatorConfirmation=RUN FOREGROUND RESUME",
+        'input.operatorConfirmation !== "RUN FOREGROUND RESUME"',
+        "!Number.isInteger(input.maxIterations)",
+        "maxIterations must be a positive integer",
+        "!Number.isFinite(input.maxWallClockMinutes)",
+        "maxWallClockMinutes must be a positive number",
+        'peerMode: "off"',
+        "candidate lifecycle mutation",
+        "package-local promotion",
+        "external evidence/learning write",
+      ]) &&
+      includesAll(files.extension, [
+        "Run an explicit foreground pi-autoresearch resume",
+        "Exact segmentKey from resume_apply_plan.",
+        "Exact runtimeKey from resume_apply_plan.",
+        'Must exactly equal "RUN FOREGROUND RESUME".',
+      ]) &&
+      includesAll(files.runtimeTest, [
+        'operatorConfirmation: "RUN FOREGROUND RESUME"',
+        "maxIterations must be a positive integer",
+        "maxWallClockMinutes must be a positive number",
+        'assert.equal(result.loopResult.peerMode, "off")',
+      ]),
   },
   {
     id: "read-profile-effect-boundary",

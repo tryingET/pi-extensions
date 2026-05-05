@@ -65,7 +65,9 @@ Run:
 node scripts/dogfood-workflow-contract.mjs
 ```
 
-The script emits the primary metric and contract lines for known executable checks. When a new dogfood blocker is found, either:
+The script emits the primary metric and contract lines for known executable checks. It currently guards the primary metric declaration, current setup-action examples, product-posture strategic-line wording, orchestrator supervision handoff seams, campaign-start reconfigure next-call safety, resume foreground-executor boundaries, read-profile effect boundaries, and read-profile mutating rejection hooks.
+
+When a new dogfood blocker is found, either:
 
 1. fix it and add/update an executable contract check, or
 2. explicitly defer it with an owner and rationale in the campaign closeout.
