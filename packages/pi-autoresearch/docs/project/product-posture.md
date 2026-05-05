@@ -202,7 +202,7 @@ A first slash-command confirmation affordance is also landed: `/autoresearch nex
 
 A first optional interaction-picker affordance is now also landed: `$$ autoresearch candidate`, `$$ ar candidate`, and `$$ autoresearch keep|discard|rewind` open a candidate-decision picker when `@tryinget/pi-interaction` / `@tryinget/pi-trigger-adapter` is loaded. It offers status/keep/discard/rewind planning choices, decorates direct/recommended choices where runtime receipts make that possible, and inserts the exact `autoresearch_candidate_decision({ ... })` call selected by the operator. A deterministic non-slash `$$ autoresearch ...` input fallback also exists so PTX's `$$ /template` namespace does not steal candidate-decision inputs. The picker/fallback still applies no worktree or durable owner-surface mutation.
 
-Dogfood status: the front door and self-hosting surfaces have now been exercised against `pi-autoresearch` itself. The run found and fixed stale playbook action wording, unsafe/misleading next-call generation around `reconfigure: true`, evaluator-snapshot brittleness, and live package-rotation dependency hydration. Next product work is to keep that proof executable and continue dogfooding the reviewed resume/candidate-decision UX against real candidate handoffs.
+Dogfood status: the front door, self-hosting surfaces, and explicit foreground resume executor have now been exercised against `pi-autoresearch` itself. The runs found and fixed stale playbook action wording, unsafe/misleading next-call generation around `reconfigure: true`, evaluator-snapshot brittleness, live package-rotation dependency hydration, and stale workflow-contract checks. `scripts/dogfood-foreground-resume-contract.mjs` now proves the reviewed resume path can inspect `resume_apply_plan`, apply exactly one foreground segment with exact keys/budgets/confirmation, keep peer launch off, and preserve the zero-blocker threshold. Next product work is to keep that proof executable and continue dogfooding candidate-decision UX against real candidate handoffs.
 
 ### Bet 2 — Operator posture sentence — landed first slice
 
@@ -312,7 +312,7 @@ The next gaps are deliberately bigger than one package-local patch:
 1. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
 2. land real orchestrator execution bindings for governed Prompt Vault setup/next/finalize paths when that owner surface is ready;
 3. make the visible-candidate handoff more ergonomic across peer tooling and candidate binding without changing ownership;
-4. dogfood the explicit foreground resume executor and `/autoresearch resume` review enough to decide whether budget presets or broader reviewed campaign-continuation UX are warranted.
+4. dogfood `/autoresearch resume` in the live Pi UI after reload, then decide whether budget presets or broader reviewed campaign-continuation UX are warranted.
 
 ## Ownership map
 

@@ -127,9 +127,17 @@ It rechecks the reusable resume plan immediately, requires exact segment/runtime
 
 Operator review affordances are also available: `/autoresearch resume` and `$$ autoresearch resume` prepare an editor review with the current `resume_apply_plan`, exact segment/runtime keys when reusable, and the foreground apply call skeleton. The editor output remains non-mutating and requires the operator to replace explicit budgets before execution.
 
+Dogfood status: the foreground executor has now been exercised against `pi-autoresearch` itself through strict `scripts/dogfood-foreground-resume-contract.mjs`. By default the script uses the package root and appends ignored local projection receipts; tests set `PI_AUTORESEARCH_DOGFOOD_CWD` to a temporary directory to avoid package-root mutation. The script creates a fresh baseline using the executable workflow contract, inspects `resume_apply_plan`, applies exactly one foreground resume with exact segment/runtime keys, `maxIterations`, `maxWallClockMinutes`, and `operatorConfirmation: "RUN FOREGROUND RESUME"`, and emits:
+
+```text
+METRIC unresolved_foreground_resume_blockers=0
+```
+
+The dogfood result proved the reviewed executor path can run one more bounded foreground segment with `peerMode="off"`, explicit authority warnings, and threshold-preserved posture. That is enough evidence not to add budget presets yet; explicit budgets remain the safer UX until repeated operator runs show a real preset need.
+
 Next implementation work, when justified:
 
 1. dogfood the slash/editor review in the live Pi UI after reload;
-2. only then consider broader UX around budget presets or reviewed campaign continuations.
+2. consider budget presets only after repeated reviewed resume runs show the manual budget fields are the bottleneck.
 
 Do not add a scheduler or a multi-session daemon.

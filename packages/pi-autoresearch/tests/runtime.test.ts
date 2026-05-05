@@ -580,6 +580,34 @@ test("dogfood workflow contract benchmark is current and strict-clean", () => {
   assert.match(output, /METRIC unresolved_dogfood_blockers=0/u);
 });
 
+test("foreground resume dogfood script preserves reviewed executor boundaries", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const dogfoodCwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-resume-dogfood-"));
+  try {
+    const output = execFileSync(
+      process.execPath,
+      ["scripts/dogfood-foreground-resume-contract.mjs"],
+      {
+        cwd: packageRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DOGFOOD_CONTRACT_STRICT: "1",
+          PI_AUTORESEARCH_DOGFOOD_CWD: dogfoodCwd,
+        },
+      },
+    );
+
+    assert.match(output, /CONTRACT ok foreground-resume-apply/u);
+    assert.match(output, /CONTRACT ok foreground-resume-peer-boundary/u);
+    assert.match(output, /METRIC unresolved_foreground_resume_blockers=0/u);
+    assert.match(output, /"peerMode": "off"/u);
+    assert.match(output, /"finalPosture": "threshold_preserved"/u);
+  } finally {
+    rmSync(dogfoodCwd, { recursive: true, force: true });
+  }
+});
+
 test("buildAutoresearchRuntimeStatus only persists snapshots when explicitly requested", () =>
   withTempDir((cwd) => {
     const runtimeSnapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);
