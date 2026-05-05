@@ -3119,6 +3119,18 @@ async function openAutoresearchShell(
     return;
   }
 
+  if (parseAutoresearchResumeCommand(normalizedArgs)) {
+    await ctx.ui.editor(
+      "Review foreground autoresearch resume",
+      buildAutoresearchResumeApplyEditorCall(ctx.cwd),
+    );
+    ctx.ui.notify(
+      "Prepared foreground resume review. Confirm exact keys, budgets, and operator phrase before execution.",
+      "info",
+    );
+    return;
+  }
+
   if (parseAutoresearchCandidateNextCommand(normalizedArgs)) {
     await ctx.ui.editor(
       "Next autoresearch candidate action",
@@ -3198,6 +3210,9 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   if (!match) return null;
   const raw = String(match[1] ?? "").trim();
   if (!raw) return "$$ autoresearch <objective>";
+  if (parseAutoresearchResumeCommand(raw)) {
+    return buildAutoresearchResumeApplyEditorCall(cwd);
+  }
   if (parseAutoresearchCandidateNextCommand(raw)) {
     return buildAutoresearchCandidateNextEditorCall(cwd);
   }
@@ -3214,6 +3229,40 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
     return buildAutoresearchCandidateDecisionEditorCall(cwd, candidateDecisionAction);
   }
   return buildAutoresearchCampaignStartEditorCall(cwd, raw);
+}
+
+function parseAutoresearchResumeCommand(value: string): boolean {
+  switch (value.trim().toLowerCase()) {
+    case "resume":
+    case "resume apply":
+    case "resume_apply":
+    case "foreground resume":
+    case "apply resume":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function buildAutoresearchResumeApplyEditorCall(cwd: string): string {
+  const plan = buildAutoresearchResumeApplyPlan(cwd);
+  const exactCall =
+    plan.futureForegroundCall ??
+    `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "resume_apply_plan" })`;
+  return [
+    "# PI-AUTORESEARCH RESUME APPLY REVIEW",
+    "",
+    "Review this foreground continuation before execution. This editor output does not run benchmarks, resume a loop, spawn peers, mutate candidates, or write external evidence.",
+    "",
+    formatAutoresearchResumeApplyPlan(plan),
+    "",
+    "## Exact foreground call to review",
+    "```ts",
+    exactCall,
+    "```",
+    "",
+    'Replace `<explicit>` budgets before execution. Keep `operatorConfirmation: "RUN FOREGROUND RESUME"` only when you intentionally approve the foreground call.',
+  ].join("\n");
 }
 
 function parseAutoresearchCandidateNextCommand(value: string): boolean {

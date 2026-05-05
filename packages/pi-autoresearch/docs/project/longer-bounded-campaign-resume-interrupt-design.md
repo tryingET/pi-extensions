@@ -125,9 +125,11 @@ autoresearch_runtime_resume_apply({
 
 It rechecks the reusable resume plan immediately, requires exact segment/runtime keys, requires explicit budgets, requires the exact operator confirmation phrase, uses `peerMode="off"`, and runs only inside the foreground tool call. It still does not authorize hidden daemons, automatic restart, peer launch, candidate lifecycle mutation, package-local promotion, or direct external evidence/learning writes.
 
+Operator review affordances are also available: `/autoresearch resume` and `$$ autoresearch resume` prepare an editor review with the current `resume_apply_plan`, exact segment/runtime keys when reusable, and the foreground apply call skeleton. The editor output remains non-mutating and requires the operator to replace explicit budgets before execution.
+
 Next implementation work, when justified:
 
-1. dogfood the foreground executor with operator-visible live output;
+1. dogfood the slash/editor review in the live Pi UI after reload;
 2. only then consider broader UX around budget presets or reviewed campaign continuations.
 
 Do not add a scheduler or a multi-session daemon.

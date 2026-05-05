@@ -1500,6 +1500,60 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
 });
 
+test("/autoresearch resume prepares a foreground resume review", async () => {
+  await withTempDir(async (cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "slash-resume",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+
+    const { commands } = registerHarness();
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("resume", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /foreground autoresearch resume/i);
+    assert.match(editorText, /PI-AUTORESEARCH RESUME APPLY REVIEW/);
+    assert.match(editorText, /autoresearch\.resume_apply_plan\.v1/);
+    assert.match(editorText, /autoresearch_runtime_resume_apply/);
+    assert.match(editorText, /operatorConfirmation: "RUN FOREGROUND RESUME"/);
+    assert.match(editorText, /Replace `<explicit>` budgets/);
+    assert.equal(notifications.length, 1);
+    assert.match(notifications[0]?.message ?? "", /Prepared foreground resume review/);
+  });
+});
+
 test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =>
   withTempDir((cwd) => {
     const result = exportAutoresearchDashboardHtml({ cwd });
@@ -1667,6 +1721,14 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
   )) as { action: string; text: string };
   assert.equal(nextResult.action, "transform");
   assert.match(nextResult.text, /autoresearch_candidate_bind/);
+
+  const resumeResult = (await inputHandler?.(
+    { source: "user", text: "$$ autoresearch resume" },
+    { cwd: "/repo" },
+  )) as { action: string; text: string };
+  assert.equal(resumeResult.action, "transform");
+  assert.match(resumeResult.text, /PI-AUTORESEARCH RESUME APPLY REVIEW/);
+  assert.match(resumeResult.text, /resume_apply_plan/);
 
   const campaignResult = (await inputHandler?.(
     { source: "user", text: "$$ ar optimize startup" },
