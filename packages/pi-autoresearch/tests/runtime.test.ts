@@ -1115,6 +1115,59 @@ test("status builder uses explicit non-zero threshold targets", () =>
     );
   }));
 
+test("status builder blocks explicit threshold misses from generic promotion-ready improvement", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "explicit-threshold-not-met",
+        metricName: "review_findings",
+        metricUnit: "count",
+        direction: "lower",
+        metricThreshold: 2,
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 10,
+        description: "baseline misses explicit threshold",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 5,
+        description: "candidate improves but still misses explicit threshold",
+        timestamp: 3,
+        experiment: {
+          candidate: {
+            source: "manual",
+            worktreePath: cwd,
+            branch: "candidate/partial-threshold",
+            baseRef: "main",
+            diffSummary: "reduce findings without reaching target",
+            filesChanged: ["src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_not_met");
+    assert.equal(status.empiricalPosture.classification, "threshold_not_met");
+    assert.equal(status.empiricalPosture.promotionReady, false);
+    assert.match(formatAutoresearchStatusText(status), /empirical decision: threshold_not_met/);
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.recommendedDecision, "collect_more_samples");
+  }));
+
 test("status builder treats explicit higher-threshold targets as success", () =>
   withTempDir((cwd) => {
     appendReceipt(
@@ -1159,6 +1212,69 @@ test("status builder treats explicit higher-threshold targets as success", () =>
       formatAutoresearchCandidateDecisionDashboardSummary(candidateDecision),
       /metric readiness: threshold_ready/,
     );
+  }));
+
+test("duration explicit threshold misses stay non-promotion-ready after noise gates pass", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "duration-threshold-not-met",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        metricThreshold: 80,
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline misses duration threshold",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 97,
+        description: "candidate sample inside timing noise",
+        timestamp: 3,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 85,
+        description: "candidate improves beyond noise but misses explicit threshold",
+        timestamp: 4,
+        experiment: {
+          candidate: {
+            source: "manual",
+            worktreePath: cwd,
+            branch: "candidate/duration-partial-threshold",
+            baseRef: "main",
+            diffSummary: "reduce total_ms without reaching target",
+            filesChanged: ["src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.metricInterpretation?.verdict, "meaningful_improvement");
+    assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_not_met");
+    assert.equal(status.empiricalPosture.classification, "threshold_not_met");
+    assert.equal(status.empiricalPosture.promotionReady, false);
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.recommendedDecision, "collect_more_samples");
+    assert.equal(candidateDecision.metricReadiness?.classification, "duration_review_ready");
   }));
 
 test("candidate metric readiness reports unconfigured segments", () =>
@@ -1566,8 +1682,10 @@ test("duration candidates are baseline_drift when calibration explains the basel
         metricName: "total_ms",
         metricUnit: "ms",
         direction: "lower",
+        metricThreshold: 8000,
         createdAt: 1,
         benchmarkCommand: "bash autoresearch.sh",
+        checksCommand: "npm run check",
       }),
     );
     appendReceipt(
@@ -1650,6 +1768,17 @@ test("duration candidates are baseline_drift when calibration explains the basel
       formatAutoresearchCandidateDecisionDashboardSummary(candidateDecision),
       /metric readiness: duration_baseline_drift/,
     );
+    const rebaselineCall = candidateDecision.exactNextCalls.find((call) =>
+      call.includes("Rebaseline before candidate decision"),
+    );
+    assert.ok(rebaselineCall);
+    assert.match(rebaselineCall, /name: "widget-speed-baseline-drift"/);
+    assert.match(rebaselineCall, /metricName: "total_ms"/);
+    assert.match(rebaselineCall, /metricUnit: "ms"/);
+    assert.match(rebaselineCall, /direction: "lower"/);
+    assert.match(rebaselineCall, /metricThreshold: 8000/);
+    assert.match(rebaselineCall, /benchmarkCommand: "bash autoresearch\.sh"/);
+    assert.match(rebaselineCall, /checksCommand: "npm run check"/);
   }));
 
 test("buildAutoresearchRuntimeStatus surfaces the current llama.cpp campaign projection", () =>

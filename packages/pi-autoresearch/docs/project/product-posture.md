@@ -233,9 +233,10 @@ Threshold-style posture is now landed for both inferred and explicit targets. Ze
 
 - `threshold_satisfied` — the candidate reaches the success threshold from a non-satisfied baseline;
 - `threshold_preserved` — the candidate preserves an already-satisfied success threshold;
-- `threshold_regressed` — the candidate breaks an already-satisfied success threshold.
+- `threshold_regressed` — the candidate breaks an already-satisfied success threshold;
+- `threshold_not_met` — the candidate may have moved but has not satisfied the explicit threshold, so it is not promotion-ready.
 
-The status/dashboard/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. The candidate-decision workbench now also summarizes metric readiness for threshold, duration-under-sampled, duration-baseline-drift, duration-review-ready, and generic non-duration metrics without letting explicit thresholds bypass duration/noise gates.
+The status/dashboard/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. The empirical classifier now keeps explicit threshold misses out of generic promotion-ready improvement, including duration metrics after duration/noise gates pass. The candidate-decision workbench also summarizes metric readiness for threshold, duration-under-sampled, duration-baseline-drift, duration-review-ready, and generic non-duration metrics without letting explicit thresholds bypass duration/noise gates.
 
 ### Bet 5 — Consumer-driven adapter proof — first dry-run notes consumer landed
 
