@@ -71,6 +71,7 @@ import {
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
   formatAutoresearchCandidateBindPlan,
+  formatAutoresearchCandidateDecisionDashboardSummary,
   formatAutoresearchCandidateDecisionWorkbench,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchDashboard,
@@ -1093,9 +1094,23 @@ test("status builder uses explicit non-zero threshold targets", () =>
       action: "plan_keep",
     });
     assert.equal(candidateDecision.recommendedDecision, "keep");
+    assert.equal(candidateDecision.metricReadiness?.classification, "threshold_ready");
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(candidateDecision),
+      /Metric readiness review/,
+    );
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(candidateDecision),
+      /threshold metric target <=2count/,
+    );
     assert.ok(
       candidateDecision.confirmation.checklist.some((item) =>
         item.includes("explicit success threshold <=2count"),
+      ),
+    );
+    assert.ok(
+      candidateDecision.confirmation.checklist.some((item) =>
+        item.includes("metric readiness reviewed: threshold_ready"),
       ),
     );
   }));
@@ -1137,6 +1152,120 @@ test("status builder treats explicit higher-threshold targets as success", () =>
     assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_satisfied");
     assert.equal(status.empiricalPosture.classification, "threshold_satisfied");
     assert.match(formatAutoresearchDashboard(status), /success threshold: 90pts/);
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.metricReadiness?.classification, "threshold_ready");
+    assert.match(
+      formatAutoresearchCandidateDecisionDashboardSummary(candidateDecision),
+      /metric readiness: threshold_ready/,
+    );
+  }));
+
+test("candidate metric readiness reports unconfigured segments", () =>
+  withTempDir((cwd) => {
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.metricReadiness?.classification, "unconfigured");
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(candidateDecision),
+      /no metric contract is configured yet/,
+    );
+  }));
+
+test("candidate metric readiness keeps duration thresholds behind duration gates", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "duration-explicit-threshold",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        metricThreshold: 80,
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline duration",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 75,
+        description: "candidate reaches threshold but is under-sampled",
+        timestamp: 3,
+        experiment: {
+          candidate: {
+            source: "manual",
+            worktreePath: cwd,
+            branch: "candidate/duration-threshold",
+            baseRef: "main",
+            diffSummary: "reduce total_ms",
+            filesChanged: ["src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const status = buildAutoresearchRuntimeStatus(cwd);
+    assert.equal(status.currentSegment.empiricalDecisionClass, "insufficient_samples");
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({
+      cwd,
+      action: "plan_keep",
+    });
+    assert.equal(candidateDecision.metricReadiness?.classification, "duration_under_sampled");
+    assert.ok(
+      candidateDecision.confirmation.blockedReasons.some((reason) =>
+        reason.includes("metric readiness: duration metric is under-sampled"),
+      ),
+    );
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(candidateDecision),
+      /threshold target <=80ms reviewed after duration\/noise gates/,
+    );
+  }));
+
+test("candidate metric readiness reports generic non-threshold metrics", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "generic-review-metric",
+        metricName: "review_quality_delta",
+        metricUnit: "score",
+        direction: "higher",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 3,
+        description: "baseline quality",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 4,
+        description: "candidate raises quality",
+        timestamp: 3,
+      }),
+    );
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.metricReadiness?.classification, "generic_review");
   }));
 
 test("status builder treats preserved zero-blocker thresholds as review-ready evidence", () =>
@@ -1175,6 +1304,9 @@ test("status builder treats preserved zero-blocker thresholds as review-ready ev
     assert.equal(status.currentSegment.empiricalDecisionClass, "threshold_preserved");
     assert.equal(status.empiricalPosture.classification, "threshold_preserved");
     assert.equal(status.empiricalPosture.promotionReady, true);
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.metricReadiness?.classification, "threshold_ready");
   }));
 
 test("segment closeout summarizes empirical decisions and candidate bindings", () =>
@@ -1420,6 +1552,9 @@ test("calibration runs inform timing noise without competing as best candidate",
       formatAutoresearchStatusText(status),
       /last run: candidate \(calibration\) @ 91ms/,
     );
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.metricReadiness?.classification, "duration_review_ready");
   }));
 
 test("duration candidates are baseline_drift when calibration explains the baseline gap", () =>
@@ -1504,6 +1639,17 @@ test("duration candidates are baseline_drift when calibration explains the basel
     const candidateResult = buildAutoresearchCandidateResultPacket(cwd);
     assert.equal(candidateResult.empiricalDecisionClass, "baseline_drift");
     assert.equal(candidateResult.candidate?.branch, "candidate/drift");
+
+    const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+    assert.equal(candidateDecision.metricReadiness?.classification, "duration_baseline_drift");
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(candidateDecision),
+      /Metric readiness blockers/,
+    );
+    assert.match(
+      formatAutoresearchCandidateDecisionDashboardSummary(candidateDecision),
+      /metric readiness: duration_baseline_drift/,
+    );
   }));
 
 test("buildAutoresearchRuntimeStatus surfaces the current llama.cpp campaign projection", () =>

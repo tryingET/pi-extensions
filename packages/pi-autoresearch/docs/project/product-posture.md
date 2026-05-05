@@ -213,7 +213,7 @@ Runtime status and closeout packets now include an `empiricalPosture` object wit
 - a compact summary sentence;
 - a recommended next action.
 
-The first threshold-style success slices are now landed. Zero-target blocker/failure/error-style metrics such as `unresolved_dogfood_blockers` still infer a threshold of zero, and setup/run/loop/campaign-start surfaces now also accept an explicit optional `metricThreshold`. Lower-is-better metrics satisfy the target with `value <= metricThreshold`; higher-is-better metrics satisfy it with `value >= metricThreshold`. A candidate can be `threshold_satisfied`, `threshold_preserved`, or `threshold_regressed` instead of being forced into generic improvement/neutral/regression posture. The candidate-decision checklist now surfaces the threshold caveat before keep/discard/rewind planning. Remaining work is to make metric-readiness explanations richer in confirmation UI without weakening duration/noise gates.
+The first threshold-style success slices are now landed. Zero-target blocker/failure/error-style metrics such as `unresolved_dogfood_blockers` still infer a threshold of zero, and setup/run/loop/campaign-start surfaces now also accept an explicit optional `metricThreshold`. Lower-is-better metrics satisfy the target with `value <= metricThreshold`; higher-is-better metrics satisfy it with `value >= metricThreshold`. A candidate can be `threshold_satisfied`, `threshold_preserved`, or `threshold_regressed` instead of being forced into generic improvement/neutral/regression posture. The candidate-decision workbench now includes a metric-readiness review section and confirmation checklist item so threshold, duration under-sampling, and baseline-drift caveats stay visible before keep/discard/rewind planning.
 
 ### Bet 3 — Canonical dogfood playbook — documentation landed
 
@@ -235,7 +235,7 @@ Threshold-style posture is now landed for both inferred and explicit targets. Ze
 - `threshold_preserved` — the candidate preserves an already-satisfied success threshold;
 - `threshold_regressed` — the candidate breaks an already-satisfied success threshold.
 
-The status/dashboard/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. Remaining product work: make broader metric-readiness explanations clearer in confirmation UI without letting explicit thresholds bypass duration/noise gates.
+The status/dashboard/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. The candidate-decision workbench now also summarizes metric readiness for threshold, duration-under-sampled, duration-baseline-drift, duration-review-ready, and generic non-duration metrics without letting explicit thresholds bypass duration/noise gates.
 
 ### Bet 5 — Consumer-driven adapter proof — first dry-run notes consumer landed
 

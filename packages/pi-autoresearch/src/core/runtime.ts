@@ -687,6 +687,21 @@ export interface AutoresearchCandidateDecisionConfirmation {
   nextHumanAction: string;
 }
 
+export type AutoresearchMetricReadinessClassification =
+  | "unconfigured"
+  | "threshold_ready"
+  | "duration_under_sampled"
+  | "duration_baseline_drift"
+  | "duration_review_ready"
+  | "generic_review";
+
+export interface AutoresearchMetricReadinessReview {
+  classification: AutoresearchMetricReadinessClassification;
+  summary: string;
+  checklist: string[];
+  blockedReasons: string[];
+}
+
 export interface AutoresearchCandidateDecisionWorkbench {
   cwd: string;
   action: AutoresearchCandidateDecisionAction;
@@ -701,6 +716,7 @@ export interface AutoresearchCandidateDecisionWorkbench {
     checksStatus: string;
     baselineDriftRisk: string;
   };
+  metricReadiness?: AutoresearchMetricReadinessReview;
   recommendedDecision: AutoresearchCandidateLifecycleDecision;
   recommendationReason: string;
   confirmation: AutoresearchCandidateDecisionConfirmation;
@@ -3185,6 +3201,7 @@ export function buildAutoresearchCandidateDecisionWorkbench(
     candidate,
     status,
   });
+  const metricReadiness = buildAutoresearchMetricReadinessReview(status);
   const plannedCommands = buildAutoresearchCandidateDecisionCommandPlan({
     cwd,
     action,
@@ -3196,6 +3213,7 @@ export function buildAutoresearchCandidateDecisionWorkbench(
     decision: recommendedDecision,
     candidate,
     status,
+    metricReadiness,
     plannedCommands,
   });
 
@@ -3213,6 +3231,7 @@ export function buildAutoresearchCandidateDecisionWorkbench(
       checksStatus,
       baselineDriftRisk,
     },
+    metricReadiness,
     recommendedDecision,
     recommendationReason,
     confirmation,
@@ -3242,6 +3261,9 @@ export function formatAutoresearchCandidateDecisionWorkbench(
       ? result.plannedCommands.map((command) => `- ${command}`)
       : ["- (none; no worktree mutation is planned for this action)"];
 
+  const metricReadiness =
+    result.metricReadiness ?? buildAutoresearchMetricReadinessReview(result.status);
+
   return [
     "# PI-AUTORESEARCH CANDIDATE DECISION WORKBENCH",
     "",
@@ -3263,6 +3285,18 @@ export function formatAutoresearchCandidateDecisionWorkbench(
     `- confidence/noise: ${result.empirical.confidenceNoiseInterpretation}`,
     `- checks status: ${result.empirical.checksStatus}`,
     `- baseline drift risk: ${result.empirical.baselineDriftRisk}`,
+    "",
+    "## Metric readiness review",
+    `- classification: ${metricReadiness.classification}`,
+    `- summary: ${metricReadiness.summary}`,
+    ...metricReadiness.checklist.map((item) => `- [ ] ${item}`),
+    ...(metricReadiness.blockedReasons.length > 0
+      ? [
+          "",
+          "### Metric readiness blockers",
+          ...metricReadiness.blockedReasons.map((reason) => `- ${reason}`),
+        ]
+      : []),
     "",
     "## Candidate lifecycle policy",
     `- mode: ${result.candidatePolicy.mode}`,
@@ -3300,6 +3334,8 @@ export function formatAutoresearchCandidateDecisionDashboardSummary(
   result: AutoresearchCandidateDecisionWorkbench,
 ): string {
   const candidateLabel = result.candidate?.label ?? "no candidate bound yet";
+  const metricReadiness =
+    result.metricReadiness ?? buildAutoresearchMetricReadinessReview(result.status);
   const nextCall =
     result.exactNextCalls[0] ??
     `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(result.cwd)}, action: "status" })`;
@@ -3314,6 +3350,7 @@ export function formatAutoresearchCandidateDecisionDashboardSummary(
     `- reason: ${result.recommendationReason}`,
     `- empirical posture: ${result.empirical.classification}; promotion ready: ${result.empirical.promotionReady ? "yes" : "no"}`,
     `- checks: ${result.empirical.checksStatus}; baseline drift risk: ${result.empirical.baselineDriftRisk}`,
+    `- metric readiness: ${metricReadiness.classification}; ${metricReadiness.summary}`,
     ...bindHint,
     `- next surface: ${nextCall}`,
   ].join("\n");
@@ -7193,6 +7230,7 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
   decision: AutoresearchCandidateLifecycleDecision;
   candidate: AutoresearchCandidateDecisionSummary | null;
   status: AutoresearchRuntimeStatus;
+  metricReadiness: AutoresearchMetricReadinessReview;
   plannedCommands: readonly string[];
 }): AutoresearchCandidateDecisionConfirmation {
   const required = input.action !== "status";
@@ -7221,12 +7259,18 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
       `recommended decision is ${input.decision}; collect more evidence or rebaseline before applying lifecycle commands`,
     );
   }
+  if (input.action === "plan_keep") {
+    blockedReasons.push(
+      ...input.metricReadiness.blockedReasons.map((reason) => `metric readiness: ${reason}`),
+    );
+  }
 
   const checklist = required
     ? [
         `candidate binding reviewed: ${candidateLabel}`,
         `empirical posture reviewed: ${input.status.empiricalPosture.classification}; promotion ready=${input.status.empiricalPosture.promotionReady ? "yes" : "no"}`,
         `metric threshold reviewed: ${describeMetricThresholdCaveat(input.status.currentSegment)}`,
+        `metric readiness reviewed: ${input.metricReadiness.classification}; ${input.metricReadiness.summary}`,
         `planned command count reviewed: ${input.plannedCommands.length}`,
         "planned commands are copied/applied outside pi-autoresearch only after operator approval",
         "durable evidence, learning, merge, promotion, and rollback remain owner-routed external actions",
@@ -7234,6 +7278,7 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
     : [
         "status inspection only; no lifecycle command is being planned",
         `metric threshold posture: ${describeMetricThresholdCaveat(input.status.currentSegment)}`,
+        `metric readiness posture: ${input.metricReadiness.classification}; ${input.metricReadiness.summary}`,
         "use keep/discard/rewind only after reviewing candidate binding and empirical posture",
       ];
 
@@ -7251,6 +7296,97 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
         : required
           ? "read the checklist, type or copy the exact confirmation phrase into the external review surface, then apply only the selected external commands"
           : "inspect status and choose keep/discard/rewind only if the candidate binding and empirical posture warrant it",
+  };
+}
+
+function buildAutoresearchMetricReadinessReview(
+  status: AutoresearchRuntimeStatus,
+): AutoresearchMetricReadinessReview {
+  const segment = status.currentSegment;
+  if (!segment.configured || !segment.metricName || !segment.direction) {
+    return {
+      classification: "unconfigured",
+      summary: "no metric contract is configured yet",
+      checklist: ["configure a fresh metric contract before making candidate lifecycle decisions"],
+      blockedReasons: [
+        "candidate decision cannot assess metric readiness without a configured segment",
+      ],
+    };
+  }
+
+  const thresholdTarget =
+    segment.metricThreshold ??
+    (isZeroThresholdMetric(segment.metricName, segment.metricUnit, segment.direction) ? 0 : null);
+  const thresholdReviewNote =
+    thresholdTarget === null
+      ? null
+      : `threshold target ${segment.direction === "higher" ? ">=" : "<="}${formatMetricValue(thresholdTarget, segment.metricUnit)} reviewed after duration/noise gates`;
+
+  if (isDurationMetric(segment.metricName, segment.metricUnit)) {
+    const interpretation = segment.metricInterpretation;
+    if (!interpretation || interpretation.sampleCount < 3) {
+      return {
+        classification: "duration_under_sampled",
+        summary:
+          "duration metric has fewer than three successful samples; avoid treating one timing delta as a candidate win",
+        checklist: [
+          ...(thresholdReviewNote ? [thresholdReviewNote] : []),
+          "collect baseline/calibration/candidate samples before promotion",
+          "confirm candidate binding is ordinary, not calibration-only",
+          "do not use keep/finalize as promotion authority while under-sampled",
+        ],
+        blockedReasons: ["duration metric is under-sampled for promotion-ready interpretation"],
+      };
+    }
+    if (interpretation.verdict === "baseline_drift") {
+      return {
+        classification: "duration_baseline_drift",
+        summary: "duration evidence is explainable by baseline/calibration drift",
+        checklist: [
+          ...(thresholdReviewNote ? [thresholdReviewNote] : []),
+          "rebaseline or collect calibration before keep/finalize",
+          "confirm the candidate effect is not workstation drift",
+        ],
+        blockedReasons: ["baseline drift suspected for the current duration metric"],
+      };
+    }
+    return {
+      classification: "duration_review_ready",
+      summary: `duration metric has ${interpretation.sampleCount} samples; timing interpretation=${interpretation.verdict}`,
+      checklist: [
+        ...(thresholdReviewNote ? [thresholdReviewNote] : []),
+        `noise band reviewed: ±${formatMetricValue(roundMetric(interpretation.noiseBand), segment.metricUnit)}`,
+        `latest delta reviewed: ${formatSignedMetric(interpretation.latestDelta, segment.metricUnit)}`,
+        "candidate lifecycle action remains external and review-gated",
+      ],
+      blockedReasons: [],
+    };
+  }
+
+  if (thresholdTarget !== null) {
+    const operator = segment.direction === "higher" ? ">=" : "<=";
+    return {
+      classification: "threshold_ready",
+      summary: `threshold metric target ${operator}${formatMetricValue(thresholdTarget, segment.metricUnit)}; success is evidence posture, not promotion authority`,
+      checklist: [
+        `threshold target reviewed: ${operator}${formatMetricValue(thresholdTarget, segment.metricUnit)}`,
+        "candidate result compared against baseline and threshold classification",
+        "external promotion still requires owner-routed evidence or review",
+      ],
+      blockedReasons: [],
+    };
+  }
+
+  return {
+    classification: "generic_review",
+    summary:
+      "non-duration metric; review freshness, causal linkage, checks, and candidate binding before acting",
+    checklist: [
+      "metric was generated fresh by the benchmark command",
+      "metric movement is causally linked to the candidate",
+      "checks and candidate binding were reviewed",
+    ],
+    blockedReasons: [],
   };
 }
 
