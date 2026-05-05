@@ -57,6 +57,10 @@ Do not treat retrieved workflow-template prose as execution. Either use the owne
 
 `pi-autoresearch` owns the local experiment runtime, receipts, empirical interpretation, and reviewable packets; external systems own candidate creation, durable task/evidence state, learning persistence, and promotion.
 
+## Local projection artifacts
+
+Self-hosting and promotion receipts such as `autoresearch.self-hosting.json` and `autoresearch.self-hosting.promotion.json` are local projection artifacts. Keep them untracked unless a later owner-routed packet explicitly promotes their contents into AK, KES, an issue, or another durable surface.
+
 ## Preflight: decide whether a campaign is lawful
 
 Start only when all of these are true:

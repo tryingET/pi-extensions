@@ -7,3 +7,5 @@ dist/
 autoresearch.runtime.json
 autoresearch.jsonl
 autoresearch.events.jsonl
+autoresearch.self-hosting.json
+autoresearch.self-hosting.promotion.json
