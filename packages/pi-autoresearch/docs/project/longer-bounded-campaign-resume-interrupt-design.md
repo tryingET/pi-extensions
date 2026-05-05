@@ -108,9 +108,11 @@ autoresearch_runtime_status({ action: "resume_apply_plan", cwd })
 
 It emits `autoresearch.resume_apply_plan.v1`, requires explicit future budgets and operator confirmation, and states that no callable `resume_apply` executor exists yet. It is a review packet for the possible executor contract, not a run/apply action.
 
+The plan-only proposal is now surfaced in the operator dashboard, browser dashboard export, and runtime-control output. That keeps the possible future executor contract visible at the same gates where operators already inspect resume posture, while preserving `executionAuthorized=false`.
+
 Next implementation work, when justified:
 
-1. review/dogfood whether the plan-only proposal is actually useful to operators;
+1. review/dogfood whether the surfaced plan-only proposal is actually useful to operators;
 2. only then consider `resume_apply` as an explicit foreground action.
 
 Do not add a scheduler or a multi-session daemon.

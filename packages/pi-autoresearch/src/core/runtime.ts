@@ -3608,6 +3608,10 @@ export function formatAutoresearchDashboard(
   const resumePlanLines = resumePlan
     ? formatAutoresearchResumePlanSummaryLines(resumePlan)
     : ["- resume plan: (unavailable without cwd)"];
+  const resumeApplyPlan = status.cwd ? buildAutoresearchResumeApplyPlan(status.cwd) : null;
+  const resumeApplyPlanLines = resumeApplyPlan
+    ? formatAutoresearchResumeApplyPlanSummaryLines(resumeApplyPlan)
+    : ["- resume apply plan: (unavailable without cwd)"];
 
   return [
     "# PI-AUTORESEARCH DASHBOARD",
@@ -3650,6 +3654,9 @@ export function formatAutoresearchDashboard(
     "## Resume plan",
     ...resumePlanLines,
     "",
+    "## Resume apply plan-only proposal",
+    ...resumeApplyPlanLines,
+    "",
     "## Next legal surfaces",
     `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
@@ -3676,6 +3683,9 @@ function renderAutoresearchDashboardHtml(
   const resumePlan = buildAutoresearchResumePlanFromStatus(closeout.cwd, status);
   const resumePlanBlockers =
     resumePlan.blockingReasons.length > 0 ? resumePlan.blockingReasons.join("; ") : "none";
+  const resumeApplyPlan = buildAutoresearchResumeApplyPlan(closeout.cwd);
+  const resumeApplyPlanBlockers =
+    resumeApplyPlan.blockedReasons.length > 0 ? resumeApplyPlan.blockedReasons.join("; ") : "none";
   const generatedAt = new Date().toLocaleString();
   const metricUnit = closeout.metricUnit || segment.metricUnit || "";
   const metricName = closeout.metricName ?? segment.metricName ?? "metric";
@@ -3834,6 +3844,14 @@ code { color: #a5d6ff; }
     <div class="card-copy">${escapeHtml(resumePlan.packetKind)} · snapshot=${escapeHtml(resumePlan.snapshotReuse)} · control=${escapeHtml(resumePlan.controlState)} · blockers=${escapeHtml(resumePlanBlockers)}</div>
     <div class="card-copy"><code>${escapeHtml(resumePlan.wouldRun ?? `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "resume_plan" })`)}</code></div>
     <div class="card-copy">Read-only: no benchmark run, resume_apply, daemon, peer launch, candidate mutation, or external evidence/learning write.</div>
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Resume apply plan-only proposal</div>
+    <div class="card-value ${resumeApplyPlan.planReady ? "warn" : "bad"}" style="font-size:18px">${resumeApplyPlan.planReady ? "proposal ready, execution not authorized" : "proposal blocked"}</div>
+    <div class="card-copy">${escapeHtml(resumeApplyPlan.packetKind)} · execution authorized=${resumeApplyPlan.executionAuthorized ? "yes" : "no"} · blockers=${escapeHtml(resumeApplyPlanBlockers)}</div>
+    <div class="card-copy"><code>${escapeHtml(resumeApplyPlan.futureForegroundCall ?? `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "resume_apply_plan" })`)}</code></div>
+    <div class="card-copy">Plan-only: no callable resume_apply executor exists; future_resume_apply is a proposal label only.</div>
   </section>
 
   <div class="cards">
@@ -4197,6 +4215,19 @@ export function formatAutoresearchResumeApplyPlan(plan: AutoresearchResumeApplyP
     "## Authority warnings",
     ...plan.authorityWarnings.map((warning) => `- ${warning}`),
   ].join("\n");
+}
+
+function formatAutoresearchResumeApplyPlanSummaryLines(
+  plan: AutoresearchResumeApplyPlan,
+): string[] {
+  return [
+    `- packet kind: ${plan.packetKind}`,
+    `- plan ready: ${plan.planReady ? "yes" : "no"}`,
+    `- execution authorized: ${plan.executionAuthorized ? "yes" : "no"}`,
+    `- future foreground call: ${plan.futureForegroundCall ?? "(blocked or not implemented)"}`,
+    `- blocked reasons: ${plan.blockedReasons.length > 0 ? plan.blockedReasons.join("; ") : "(none)"}`,
+    "- boundary: resume_apply_plan is read-only; future_resume_apply is a proposal label, not a registered callable tool.",
+  ];
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
@@ -4780,6 +4811,7 @@ export function formatAutoresearchControlResult(
 ): string {
   const actionLine = "decision" in result ? `- action: set ${result.decision}` : "- action: status";
   const resumePlan = buildAutoresearchResumePlanFromStatus(result.cwd, result.status);
+  const resumeApplyPlan = buildAutoresearchResumeApplyPlan(result.cwd);
 
   return [
     "# PI-AUTORESEARCH CONTROL",
@@ -4799,6 +4831,9 @@ export function formatAutoresearchControlResult(
     "",
     "## Resume plan",
     ...formatAutoresearchResumePlanSummaryLines(resumePlan),
+    "",
+    "## Resume apply plan-only proposal",
+    ...formatAutoresearchResumeApplyPlanSummaryLines(resumeApplyPlan),
   ].join("\n");
 }
 

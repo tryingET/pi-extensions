@@ -1413,6 +1413,9 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(editorTitle, /Pi-autoresearch dashboard/);
   assert.match(editorText, /PI-AUTORESEARCH DASHBOARD/);
   assert.match(editorText, /Candidate lifecycle policy/);
+  assert.match(editorText, /Resume apply plan-only proposal/);
+  assert.match(editorText, /autoresearch\.resume_apply_plan\.v1/);
+  assert.match(editorText, /execution authorized: no/);
   assert.match(editorText, /Next legal surfaces/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
@@ -1430,6 +1433,9 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /Resume plan/);
     assert.match(html, /autoresearch\.resume_plan\.v1/);
     assert.match(html, /Read-only: no benchmark run/);
+    assert.match(html, /Resume apply plan-only proposal/);
+    assert.match(html, /autoresearch\.resume_apply_plan\.v1/);
+    assert.match(html, /future_resume_apply is a proposal label only/);
     assert.match(html, /Browser export is read-only/);
   }));
 
@@ -1866,7 +1872,9 @@ test("autoresearch_runtime_status can render the compact dashboard", async () =>
     assert.match(output, /Resume plan/);
     assert.match(output, /autoresearch\.resume_plan\.v1/);
     assert.match(output, /resume_plan" \}\)/);
-    assert.match(output, /resume apply plan-only proposal/);
+    assert.match(output, /Resume apply plan-only proposal/);
+    assert.match(output, /autoresearch\.resume_apply_plan\.v1/);
+    assert.match(output, /execution authorized: no/);
     assert.match(output, /resume_apply_plan" \}\)/);
     assert.match(output, /Next legal surfaces/);
   });
@@ -1917,6 +1925,9 @@ test("autoresearch_runtime_control surfaces the read-only resume plan", async ()
     assert.match(statusText, /## Resume plan/);
     assert.match(statusText, /reusable: yes/);
     assert.match(statusText, /autoresearch_runtime_loop/);
+    assert.match(statusText, /## Resume apply plan-only proposal/);
+    assert.match(statusText, /autoresearch\.resume_apply_plan\.v1/);
+    assert.match(statusText, /execution authorized: no/);
 
     const stopResult = await tool?.execute(
       "call-control-stop",
@@ -1930,6 +1941,9 @@ test("autoresearch_runtime_control surfaces the read-only resume plan", async ()
     assert.match(stopText, /reusable: no/);
     assert.match(stopText, /operator control state is stop/);
     assert.match(stopText, /no benchmark run, resume_apply, daemon/);
+    assert.match(stopText, /## Resume apply plan-only proposal/);
+    assert.match(stopText, /plan ready: no/);
+    assert.match(stopText, /resume_plan is not reusable/);
   });
 });
 
