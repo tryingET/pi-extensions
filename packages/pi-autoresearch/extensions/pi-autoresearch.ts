@@ -147,6 +147,10 @@ type AutoresearchCandidateDecisionTriggerParsedInput = {
   directAction: AutoresearchCandidateDecisionTriggerAction | null;
 };
 
+type AutoresearchCandidateDecisionReviewParsedInput = {
+  directAction: AutoresearchCandidateDecisionTriggerAction | null;
+};
+
 type AutoresearchCandidateBindTriggerMode = "bind" | "measure";
 
 type AutoresearchCandidateBindTriggerParsedInput = {
@@ -199,6 +203,8 @@ type AutoresearchOverlayComponent = {
   invalidate(): void;
   dispose?: () => void;
 };
+
+type AutoresearchCandidateDecisionReviewComponent = AutoresearchOverlayComponent;
 
 type AutoresearchBrowserOpenCommand = {
   command: string;
@@ -3201,6 +3207,15 @@ async function openAutoresearchShell(
     return;
   }
 
+  const candidateDecisionReview = parseAutoresearchCandidateDecisionReviewCommand(normalizedArgs);
+  if (candidateDecisionReview) {
+    await openAutoresearchCandidateDecisionReview(
+      ctx as AutoresearchWidgetContext,
+      candidateDecisionReview,
+    );
+    return;
+  }
+
   const candidateDecisionAction = parseAutoresearchCandidateDecisionCommand(normalizedArgs);
   if (candidateDecisionAction) {
     await ctx.ui.editor(
@@ -3390,6 +3405,30 @@ function selectAutoresearchActionableNextCall(calls: string[]): string {
   );
 }
 
+function parseAutoresearchCandidateDecisionReviewCommand(
+  value: string,
+): AutoresearchCandidateDecisionReviewParsedInput | null {
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "review" ||
+    normalized === "candidate review" ||
+    normalized === "decision review" ||
+    normalized === "confirm" ||
+    normalized === "candidate confirm"
+  ) {
+    return { directAction: null };
+  }
+  for (const prefix of ["review ", "candidate review ", "decision review ", "confirm "]) {
+    if (normalized.startsWith(prefix)) {
+      const directAction = parseAutoresearchCandidateDecisionCommand(
+        normalized.slice(prefix.length),
+      );
+      return directAction ? { directAction } : null;
+    }
+  }
+  return null;
+}
+
 function parseAutoresearchCandidateDecisionCommand(
   value: string,
 ): "status" | "plan_keep" | "plan_discard" | "plan_rewind" | null {
@@ -3419,6 +3458,65 @@ function parseAutoresearchCandidateDecisionCommand(
   }
 }
 
+async function openAutoresearchCandidateDecisionReview(
+  ctx: AutoresearchWidgetContext,
+  parsed: AutoresearchCandidateDecisionReviewParsedInput,
+): Promise<void> {
+  const candidates = buildAutoresearchCandidateDecisionTriggerCandidates({
+    cwd: ctx.cwd,
+    directAction: parsed.directAction,
+  });
+  const fallbackAction = candidates[0]?.action ?? parsed.directAction ?? "status";
+  if (!ctx.hasUI || typeof ctx.ui.custom !== "function") {
+    await ctx.ui.editor?.(
+      "Review autoresearch candidate decision",
+      buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, fallbackAction),
+    );
+    ctx.ui.notify?.(
+      "Candidate decision review overlay unavailable; opened the plan-only confirmation in the editor.",
+      "warning",
+    );
+    return;
+  }
+
+  const selectedAction = await ctx.ui.custom<AutoresearchCandidateDecisionTriggerAction | null>(
+    (tui, _theme, _keybindings, done) =>
+      createAutoresearchCandidateDecisionReviewOverlay({
+        cwd: ctx.cwd,
+        candidates,
+        tui,
+        done,
+      }),
+    {
+      overlay: true,
+      overlayOptions: {
+        anchor: "center",
+        width: "82%",
+        maxHeight: "75%",
+        margin: 1,
+        visible: (termWidth: number, termHeight: number) => termWidth >= 70 && termHeight >= 16,
+      },
+    },
+  );
+
+  if (!selectedAction) {
+    ctx.ui.notify?.(
+      "Canceled autoresearch candidate decision review; no action was applied.",
+      "info",
+    );
+    return;
+  }
+
+  await ctx.ui.editor?.(
+    "Review autoresearch candidate decision",
+    buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, selectedAction),
+  );
+  ctx.ui.notify?.(
+    `Prepared autoresearch_candidate_decision ${selectedAction} confirmation. Review the checklist before any external worktree action.`,
+    "info",
+  );
+}
+
 function buildAutoresearchCandidateDecisionEditorCall(
   cwd: string,
   action: "status" | "plan_keep" | "plan_discard" | "plan_rewind",
@@ -3445,6 +3543,100 @@ function buildAutoresearchCandidateDecisionEditorCall(
     toolCall,
     "```",
   ].join("\n");
+}
+
+function createAutoresearchCandidateDecisionReviewOverlay(input: {
+  cwd: string;
+  candidates: readonly AutoresearchCandidateDecisionTriggerCandidate[];
+  tui: AutoresearchWidgetTui;
+  done: (result: AutoresearchCandidateDecisionTriggerAction | null) => void;
+}): AutoresearchCandidateDecisionReviewComponent {
+  const candidates = input.candidates.length > 0 ? [...input.candidates] : [];
+  let selectedIndex = 0;
+  let closed = false;
+  const close = (result: AutoresearchCandidateDecisionTriggerAction | null) => {
+    if (closed) return;
+    closed = true;
+    input.done(result);
+  };
+  const move = (delta: number) => {
+    if (candidates.length === 0) return;
+    selectedIndex = (selectedIndex + delta + candidates.length) % candidates.length;
+    input.tui.requestRender?.();
+  };
+
+  return {
+    render(width: number): string[] {
+      return formatAutoresearchCandidateDecisionReviewOverlayLines({
+        cwd: input.cwd,
+        candidates,
+        selectedIndex,
+        width: Math.max(40, width),
+      });
+    },
+    handleInput(data: string): void {
+      if (data === "q" || data === "Q" || data === "\u001b" || data === "\u0003") {
+        close(null);
+        return;
+      }
+      if (data === "j" || data === "\u001b[B") {
+        move(1);
+        return;
+      }
+      if (data === "k" || data === "\u001b[A") {
+        move(-1);
+        return;
+      }
+      const digit = /^[1-4]$/u.exec(data)?.[0];
+      if (digit) {
+        const index = Number(digit) - 1;
+        if (candidates[index]) {
+          selectedIndex = index;
+          close(candidates[index].action);
+        }
+        return;
+      }
+      if (data === "\r" || data === "\n") {
+        close(candidates[selectedIndex]?.action ?? null);
+      }
+    },
+    invalidate(): void {},
+  };
+}
+
+function formatAutoresearchCandidateDecisionReviewOverlayLines(input: {
+  cwd: string;
+  candidates: readonly AutoresearchCandidateDecisionTriggerCandidate[];
+  selectedIndex: number;
+  width: number;
+}): string[] {
+  const innerWidth = Math.max(20, input.width - 2);
+  const rows = input.candidates.map((candidate, index) => {
+    const pointer = index === input.selectedIndex ? "▶" : " ";
+    const number = `${index + 1}.`;
+    const badges = [
+      candidate.detail.includes("direct") ? "direct" : null,
+      candidate.detail.includes("recommended") ? "recommended" : null,
+    ].filter(Boolean);
+    const label = badges.length > 0 ? `${candidate.label} [${badges.join(", ")}]` : candidate.label;
+    const line = `${pointer} ${number} ${label} — ${candidate.detail}`;
+    return borderedLine(truncatePlainLine(line, innerWidth), innerWidth);
+  });
+  const body = [
+    borderLine("┌", "─", "┐", innerWidth),
+    borderedLine("🔬 Review autoresearch candidate decision", innerWidth),
+    borderedLine("read-only selector • Enter choose • 1-4 quick choose • q/Esc cancel", innerWidth),
+    borderLine("├", "─", "┤", innerWidth),
+    borderedLine(`cwd: ${input.cwd}`, innerWidth),
+    borderedLine(
+      "No worktree, AK/KES/evidence, peer, merge, or promotion action is applied here.",
+      innerWidth,
+    ),
+    borderLine("├", "─", "┤", innerWidth),
+    ...rows,
+    borderLine("└", "─", "┘", innerWidth),
+  ];
+  return body.map((line) => truncatePlainLine(line, input.width));
 }
 
 function buildAutoresearchCandidateDecisionTriggerCandidates(input: {

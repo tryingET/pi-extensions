@@ -1620,6 +1620,79 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
 });
 
+test("/autoresearch review opens a candidate decision overlay before editor confirmation", async () => {
+  const { commands } = registerHarness();
+  let overlayText = "";
+  let editorTitle = "";
+  let editorText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("review keep", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor(title: string, text: string) {
+        editorTitle = title;
+        editorText = text;
+      },
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+      async custom<T>(factory: (...args: unknown[]) => unknown, options?: unknown): Promise<T> {
+        assert.deepEqual((options as { overlay?: boolean }).overlay, true);
+        let result: unknown = null;
+        const component = factory({ requestRender() {} }, {}, {}, (value: unknown) => {
+          result = value;
+        }) as {
+          render(width: number): string[];
+          handleInput(data: string): void;
+        };
+        overlayText = component.render(110).join("\n");
+        component.handleInput("\r");
+        return result as T;
+      },
+    },
+  });
+
+  assert.match(overlayText, /Review autoresearch candidate decision/);
+  assert.match(overlayText, /read-only selector/);
+  assert.match(overlayText, /Plan keep/);
+  assert.match(overlayText, /direct/);
+  assert.match(editorTitle, /candidate decision/i);
+  assert.match(editorText, /PI-AUTORESEARCH CANDIDATE DECISION CONFIRMATION/);
+  assert.match(editorText, /action: "plan_keep"/);
+  assert.match(editorText, /plan-only/);
+  assert.equal(notifications.length, 1);
+  assert.match(
+    notifications[0]?.message ?? "",
+    /Prepared autoresearch_candidate_decision plan_keep/,
+  );
+});
+
+test("/autoresearch review falls back to editor when overlay is unavailable", async () => {
+  const { commands } = registerHarness();
+  let editorText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("review", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor(_title: string, text: string) {
+        editorText = text;
+      },
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(editorText, /PI-AUTORESEARCH CANDIDATE DECISION CONFIRMATION/);
+  assert.match(editorText, /autoresearch_candidate_decision/);
+  assert.equal(notifications[0]?.level, "warning");
+  assert.match(notifications[0]?.message ?? "", /overlay unavailable/);
+});
+
 test("/autoresearch resume prepares a foreground resume review", async () => {
   await withTempDir(async (cwd) => {
     appendReceipt(

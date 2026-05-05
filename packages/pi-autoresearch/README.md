@@ -50,6 +50,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - with `bind` or `bind current`, prepares a reviewable `autoresearch_candidate_bind({ ... })` call to inspect a candidate worktree and prepare the exact measurement run call
   - with `measure` or `measure current`, inspects the candidate worktree and prepares the exact reviewable `autoresearch_runtime_run({ ...candidate metadata... })` measurement call only when candidate intake readiness is `ready`; otherwise it falls back to the `autoresearch_candidate_bind({ ... })` intake review call
   - with `candidate`, `decision`, `keep`, `discard`, or `rewind`, prepares a reviewable `autoresearch_candidate_decision({ ... })` call for status or plan-only lifecycle decisions
+  - with `review` or `review keep|discard|rewind`, opens a read-only candidate-decision overlay selector before the editor checklist when TUI overlays are available, and falls back to the editor otherwise
   - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
   - with `export`, writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session; `export off` stops the refresher
   - with `widget on|off`, shows or hides the persistent above-editor status widget for the current session
