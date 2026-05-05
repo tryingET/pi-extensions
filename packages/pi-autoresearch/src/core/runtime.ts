@@ -4427,6 +4427,10 @@ export function formatAutoresearchDecisionResult(
         `- status: ${outcome.status}`,
         `- blocking reason: ${outcome.blockingReason}`,
         `- failure stage: ${outcome.failureStage}`,
+        `- lawful owner route: ${outcome.lawfulOwnerRoute}`,
+        `- missing binding action: ${outcome.missingBindingAction}`,
+        "- recovery steps:",
+        ...outcome.recoverySteps.map((step) => `  - ${step}`),
         `- machine state: ${result.status.runtimeProjection.state}`,
       ].join("\n");
     }
@@ -4459,6 +4463,10 @@ export function formatAutoresearchDecisionResult(
       `- status: ${outcome.status}`,
       `- blocking reason: ${outcome.blockingReason}`,
       `- failure stage: ${outcome.failureStage}`,
+      `- lawful owner route: ${outcome.lawfulOwnerRoute}`,
+      `- missing binding action: ${outcome.missingBindingAction}`,
+      "- recovery steps:",
+      ...outcome.recoverySteps.map((step) => `  - ${step}`),
       `- machine state: ${result.status.runtimeProjection.state}`,
     ].join("\n");
   }

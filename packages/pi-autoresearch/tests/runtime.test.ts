@@ -22,6 +22,7 @@ import {
   AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
   AUTORESEARCH_SETUP_TEMPLATE_NAME,
   type AutoresearchDecisionRuntime,
+  createAutoresearchDecisionRuntime,
   type FinalizeDecisionOutcome,
   type NextHypothesisDecisionOutcome,
   type SetupDecisionOutcome,
@@ -330,6 +331,55 @@ function createDecisionRuntimeStub(
     },
   };
 }
+
+test("Prompt Vault decision errors include lawful owner-route recovery guidance", async () => {
+  const runtime = createAutoresearchDecisionRuntime({
+    loadPromptPlaneRuntime: async () => ({
+      async prepareSelection() {
+        return {
+          ok: true,
+          status: "ready",
+          selection_mode: "exact",
+          template: {
+            name: AUTORESEARCH_SETUP_TEMPLATE_NAME,
+            artifact_kind: "procedure",
+            control_mode: "router",
+            formalization_level: "structured",
+            owner_company: "softwareco",
+            visibility_companies: ["softwareco"],
+          },
+          prepared_text: "prepared setup prompt",
+        };
+      },
+    }),
+  });
+
+  const outcome = await runtime.runSetup(
+    {
+      optimizationObjective: "Smooth lawful Prompt Vault binding failures.",
+      repoContext: ["pi-autoresearch"],
+      filesInScope: ["packages/pi-autoresearch/src/core/decisions.ts"],
+      offLimits: [],
+      benchmarkSurfaces: ["npm run check"],
+      existingArtifacts: [],
+      hardConstraints: ["do not interpret Prompt Vault prose manually"],
+    },
+    { cwd: "/repo" },
+  );
+
+  assert.equal(outcome.status, "blocked");
+  assert.equal("failureStage" in outcome ? outcome.failureStage : null, "executor");
+  assert.match("blockingReason" in outcome ? outcome.blockingReason : "", /No decision executor/);
+  assert.match(
+    "lawfulOwnerRoute" in outcome ? outcome.lawfulOwnerRoute : "",
+    /autoresearch_runtime_status/,
+  );
+  assert.match(
+    "missingBindingAction" in outcome ? outcome.missingBindingAction : "",
+    /Do not interpret Prompt Vault prose manually/,
+  );
+  assert.ok("recoverySteps" in outcome && outcome.recoverySteps.length >= 3);
+});
 
 test("parseMetricLines extracts structured METRIC entries and ignores unrelated lines", () => {
   const metrics = parseMetricLines(

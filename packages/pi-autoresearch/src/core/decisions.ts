@@ -146,6 +146,9 @@ export interface AutoresearchDecisionError<
   status: "blocked";
   failureStage: AutoresearchDecisionFailureStage;
   blockingReason: string;
+  lawfulOwnerRoute: string;
+  missingBindingAction: string;
+  recoverySteps: string[];
   rawOutput?: string;
 }
 
@@ -580,7 +583,7 @@ async function runDecisionStep<
       input.kind,
       input.templateName,
       "executor",
-      "No decision executor configured for pi-autoresearch Prompt Vault decisions.",
+      `No decision executor configured for ${input.templateName}; use the lawful owner route or land an orchestrator execution binding before treating this Prompt Vault template as executed.`,
     );
   }
 
@@ -758,14 +761,47 @@ function createDecisionError<
   blockingReason: string,
   rawOutput?: string,
 ): AutoresearchDecisionError<Kind, TemplateName> {
+  const guidance = getDecisionBindingGuidance(templateName);
   return {
     kind,
     templateName,
     status: "blocked",
     failureStage,
     blockingReason,
+    lawfulOwnerRoute: guidance.lawfulOwnerRoute,
+    missingBindingAction: guidance.missingBindingAction,
+    recoverySteps: guidance.recoverySteps,
     rawOutput,
   };
+}
+
+function getDecisionBindingGuidance(templateName: AutoresearchDecisionTemplateName): {
+  lawfulOwnerRoute: string;
+  missingBindingAction: string;
+  recoverySteps: string[];
+} {
+  const route = getLawfulOwnerRoute(templateName);
+  return {
+    lawfulOwnerRoute: route,
+    missingBindingAction:
+      "Do not interpret Prompt Vault prose manually; either use the package-owned owner route or first land an explicit orchestrator execution binding for this template.",
+    recoverySteps: [
+      `Use ${route} for the current run when the package-owned surface is sufficient.`,
+      "If governed Prompt Vault execution is required, route through the prompt-plane/orchestrator owner and add the missing executable binding as its own bounded slice.",
+      "After the binding lands, rerun the same pi-autoresearch decision action and preserve this blocked result as process evidence rather than execution evidence.",
+    ],
+  };
+}
+
+function getLawfulOwnerRoute(templateName: AutoresearchDecisionTemplateName): string {
+  switch (templateName) {
+    case AUTORESEARCH_SETUP_TEMPLATE_NAME:
+      return 'autoresearch_runtime_status({ action: "setup", ... }) or autoresearch_campaign_start({ setupMode: "prompt_vault_setup", ... })';
+    case AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME:
+      return "autoresearch_runtime_run({ liveDecision: { ... } }) or autoresearch_runtime_loop({ decisionGoal: ... })";
+    case AUTORESEARCH_FINALIZE_TEMPLATE_NAME:
+      return 'autoresearch_runtime_status({ action: "finalize", ... }) or autoresearch_runtime_finalize(...)';
+  }
 }
 
 function buildPacketDocument(
