@@ -3236,7 +3236,28 @@ function buildAutoresearchCandidateDecisionEditorCall(
   cwd: string,
   action: "status" | "plan_keep" | "plan_discard" | "plan_rewind",
 ): string {
-  return `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: ${JSON.stringify(action)},\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
+  const toolCall = `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: ${JSON.stringify(action)},\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
+  let review =
+    "Candidate decision review unavailable; send the exact tool call below to build a fresh plan.";
+  try {
+    review = formatAutoresearchCandidateDecisionWorkbench(
+      buildAutoresearchCandidateDecisionWorkbench({ cwd, action }),
+    );
+  } catch (error) {
+    review = `Candidate decision review unavailable: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  return [
+    "# PI-AUTORESEARCH CANDIDATE DECISION CONFIRMATION",
+    "",
+    "Review this checklist before applying any external worktree, merge, evidence, promotion, or rollback action. The tool call remains plan-only.",
+    "",
+    review,
+    "",
+    "## Exact plan-only tool call",
+    "```ts",
+    toolCall,
+    "```",
+  ].join("\n");
 }
 
 function buildAutoresearchCandidateDecisionTriggerCandidates(input: {

@@ -751,6 +751,7 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.equal(candidateDecision.candidate?.branch, "candidate/closeout");
     assert.equal(candidateDecision.recommendedDecision, "collect_more_samples");
     assert.equal(candidateDecision.empirical.checksStatus, "not run");
+    assert.equal(candidateDecision.confirmation.required, false);
     assert.match(candidateDecision.exactNextCalls.join("\n"), /candidate_result/);
     assert.match(
       formatAutoresearchCandidateDecisionWorkbench(candidateDecision),
@@ -763,6 +764,13 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
       candidatePolicy: { discard: "delete_worktree_after_confirm" },
     });
     assert.equal(discardPlan.recommendedDecision, "discard");
+    assert.equal(discardPlan.confirmation.required, true);
+    assert.equal(discardPlan.confirmation.riskLevel, "destructive_external");
+    assert.match(discardPlan.confirmation.exactConfirmationPhrase, /confirm autoresearch discard/);
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(discardPlan),
+      /Confirmation checklist/,
+    );
     assert.match(discardPlan.plannedCommands.join("\n"), /worktree remove/);
     assert.match(discardPlan.plannedCommands.join("\n"), /plan only/);
 
@@ -1440,6 +1448,8 @@ test("/autoresearch keep/discard/rewind prepare candidate-decision tool calls", 
   });
 
   assert.match(editorTitle, /candidate decision/);
+  assert.match(editorText, /CANDIDATE DECISION CONFIRMATION/);
+  assert.match(editorText, /Confirmation checklist/);
   assert.match(editorText, /autoresearch_candidate_decision/);
   assert.match(editorText, /action: "plan_rewind"/);
   assert.match(editorText, /candidatePolicy/);

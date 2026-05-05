@@ -615,6 +615,15 @@ export interface AutoresearchCandidateDecisionSummary {
   label: string;
 }
 
+export interface AutoresearchCandidateDecisionConfirmation {
+  required: boolean;
+  riskLevel: "none" | "review_gate" | "destructive_external";
+  exactConfirmationPhrase: string;
+  checklist: string[];
+  blockedReasons: string[];
+  nextHumanAction: string;
+}
+
 export interface AutoresearchCandidateDecisionWorkbench {
   cwd: string;
   action: AutoresearchCandidateDecisionAction;
@@ -631,6 +640,7 @@ export interface AutoresearchCandidateDecisionWorkbench {
   };
   recommendedDecision: AutoresearchCandidateLifecycleDecision;
   recommendationReason: string;
+  confirmation: AutoresearchCandidateDecisionConfirmation;
   exactNextCalls: string[];
   plannedCommands: string[];
   boundaryWarnings: string[];
@@ -3087,6 +3097,13 @@ export function buildAutoresearchCandidateDecisionWorkbench(
     candidatePolicy,
     candidate,
   });
+  const confirmation = buildAutoresearchCandidateDecisionConfirmation({
+    action,
+    decision: recommendedDecision,
+    candidate,
+    status,
+    plannedCommands,
+  });
 
   return {
     cwd,
@@ -3104,6 +3121,7 @@ export function buildAutoresearchCandidateDecisionWorkbench(
     },
     recommendedDecision,
     recommendationReason,
+    confirmation,
     exactNextCalls,
     plannedCommands,
     boundaryWarnings: [...AUTORESEARCH_CANDIDATE_DECISION_BOUNDARY_WARNINGS],
@@ -3158,6 +3176,20 @@ export function formatAutoresearchCandidateDecisionWorkbench(
     `- discard: ${result.candidatePolicy.discard}`,
     `- rewind: ${result.candidatePolicy.rewind}`,
     `- authority: ${result.candidatePolicy.authority}`,
+    "",
+    "## Confirmation checklist",
+    `- confirmation required: ${result.confirmation.required ? "yes" : "no"}`,
+    `- risk level: ${result.confirmation.riskLevel}`,
+    `- exact confirmation phrase: ${result.confirmation.exactConfirmationPhrase}`,
+    `- next human action: ${result.confirmation.nextHumanAction}`,
+    ...result.confirmation.checklist.map((item) => `- [ ] ${item}`),
+    ...(result.confirmation.blockedReasons.length > 0
+      ? [
+          "",
+          "### Confirmation blockers",
+          ...result.confirmation.blockedReasons.map((reason) => `- ${reason}`),
+        ]
+      : []),
     "",
     "## Exact next calls",
     ...result.exactNextCalls.map((call) => `- ${call}`),
@@ -6719,6 +6751,70 @@ const AUTORESEARCH_CANDIDATE_BIND_BOUNDARY_WARNINGS = [
   "worktree lifecycle remains the keep/discard/rewind primitive; bind does not merge, delete, reset, or promote",
   "durable promotion and evidence writes remain external owner-surface actions after explicit review",
 ] as const;
+
+function buildAutoresearchCandidateDecisionConfirmation(input: {
+  action: AutoresearchCandidateDecisionAction;
+  decision: AutoresearchCandidateLifecycleDecision;
+  candidate: AutoresearchCandidateDecisionSummary | null;
+  status: AutoresearchRuntimeStatus;
+  plannedCommands: readonly string[];
+}): AutoresearchCandidateDecisionConfirmation {
+  const required = input.action !== "status";
+  const lifecycleVerb = input.action.replace(/^plan_/u, "");
+  const candidateLabel = input.candidate?.label ?? "unbound-candidate";
+  const riskLevel: AutoresearchCandidateDecisionConfirmation["riskLevel"] = !required
+    ? "none"
+    : input.action === "plan_keep"
+      ? "review_gate"
+      : "destructive_external";
+  const blockedReasons: string[] = [];
+  if (required && !input.candidate) {
+    blockedReasons.push("no controller-verified candidate is bound in the current segment");
+  }
+  if (input.action === "plan_keep" && !input.status.empiricalPosture.promotionReady) {
+    blockedReasons.push("requested keep, but empirical posture is not promotion-ready");
+  }
+  if (
+    required &&
+    input.decision !== "keep" &&
+    input.decision !== "discard" &&
+    input.decision !== "rewind" &&
+    input.decision !== "finalize"
+  ) {
+    blockedReasons.push(
+      `recommended decision is ${input.decision}; collect more evidence or rebaseline before applying lifecycle commands`,
+    );
+  }
+
+  const checklist = required
+    ? [
+        `candidate binding reviewed: ${candidateLabel}`,
+        `empirical posture reviewed: ${input.status.empiricalPosture.classification}; promotion ready=${input.status.empiricalPosture.promotionReady ? "yes" : "no"}`,
+        `planned command count reviewed: ${input.plannedCommands.length}`,
+        "planned commands are copied/applied outside pi-autoresearch only after operator approval",
+        "durable evidence, learning, merge, promotion, and rollback remain owner-routed external actions",
+      ]
+    : [
+        "status inspection only; no lifecycle command is being planned",
+        "use keep/discard/rewind only after reviewing candidate binding and empirical posture",
+      ];
+
+  return {
+    required,
+    riskLevel,
+    exactConfirmationPhrase: required
+      ? `confirm autoresearch ${lifecycleVerb} ${candidateLabel}`
+      : "(none; status inspection only)",
+    checklist,
+    blockedReasons,
+    nextHumanAction:
+      blockedReasons.length > 0
+        ? "resolve confirmation blockers before applying any external lifecycle command"
+        : required
+          ? "read the checklist, type or copy the exact confirmation phrase into the external review surface, then apply only the selected external commands"
+          : "inspect status and choose keep/discard/rewind only if the candidate binding and empirical posture warrant it",
+  };
+}
 
 function summarizeCandidateForDecision(
   binding: AutoresearchCandidateBinding | null,
