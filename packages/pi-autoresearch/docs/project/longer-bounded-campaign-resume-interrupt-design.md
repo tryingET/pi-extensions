@@ -98,9 +98,11 @@ It builds a resume plan from current status/snapshot/control and reports whether
 
 The follow-up surfacing slice is also landed: the read-only operator dashboard, browser dashboard export, and `autoresearch_runtime_control` status/set output now include a resume-plan summary. Control output shows whether a saved segment is reusable before and after explicit decisions such as `stop`, and the dashboard exposes the exact `action: "resume_plan"` read surface before any resume executor exists.
 
+The gate regression slice is landed too. Tests now cover stale runtime snapshots, explicit `continue`, `stop`, `rebaseline`, and `finalize` controls, plus awaiting-operator `rebaseline_needed` and `finalize_candidate` states. These tests preserve the rule that only a ready machine with a reused snapshot and no blocking control gate can produce a reusable foreground plan.
+
 Next implementation work, when justified:
 
-1. add deeper tests for rebaseline/finalize gates, stale snapshot, and valid continue across more runtime states;
+1. consider whether a plan-only `resume_apply` proposal is useful, still without running it;
 2. only then consider `resume_apply` as an explicit foreground action.
 
 Do not add a scheduler or a multi-session daemon.

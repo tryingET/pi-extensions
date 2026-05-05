@@ -78,6 +78,7 @@ import {
   parseMetricLines,
   parseReceiptLine,
   serializeReceipt,
+  setAutoresearchRuntimeControl,
   validateAutoresearchAdapterPacket,
 } from "../src/core/runtime.ts";
 import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "../src/core/selfHosting.ts";
@@ -569,6 +570,196 @@ test("resume plan is read-only and requires a reusable runtime snapshot", () =>
     assert.equal(reusablePlan.blockingReasons.length, 0);
     assert.match(reusablePlan.wouldRun ?? "", /autoresearch_runtime_loop/);
     assert.match(formatAutoresearchResumePlan(reusablePlan), /resume_plan\.v1/);
+  }));
+
+test("resume plan blocks stale snapshots and explicit operator gates", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "resume-gates",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 90,
+        description: "new run after saved snapshot",
+        timestamp: 3,
+      }),
+    );
+    const stalePlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(stalePlan.reusable, false);
+    assert.equal(stalePlan.snapshotReuse, "runtime_mismatch");
+    assert.match(stalePlan.blockingReasons.join("\n"), /runtime snapshot is not reusable/);
+
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+    setAutoresearchRuntimeControl({
+      cwd,
+      decision: "continue",
+      reason: "reviewed foreground continuation",
+      selectedAt: 4,
+    });
+    const continuePlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(continuePlan.reusable, true);
+    assert.equal(continuePlan.controlState, "continue");
+    assert.match(continuePlan.wouldRun ?? "", /maxIterations: <explicit>/);
+
+    setAutoresearchRuntimeControl({
+      cwd,
+      decision: "stop",
+      reason: "operator interrupt",
+      selectedAt: 5,
+    });
+    const stopPlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(stopPlan.reusable, false);
+    assert.equal(stopPlan.controlState, "stop");
+    assert.match(stopPlan.blockingReasons.join("\n"), /operator control state is stop/);
+  }));
+
+test("resume plan blocks rebaseline and finalize control gates", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "resume-decision-gates",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 120,
+        description: "candidate requiring rebaseline",
+        timestamp: 2,
+        decision: {
+          kind: "next_hypothesis",
+          templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+          status: "rebaseline_needed",
+          mappedDecision: "rebaseline",
+          blockingReason: null,
+          failureStage: null,
+          stateRead: "The baseline moved.",
+          nextHypothesis: "Rebaseline before another candidate run.",
+          targetFiles: ["packages/pi-autoresearch/src/core/runtime.ts"],
+          expectedPrimaryEffect: "The resume plan must block ordinary continuation.",
+          timestamp: 2,
+        },
+      }),
+    );
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+    const awaitingRebaselinePlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(awaitingRebaselinePlan.reusable, false);
+    assert.equal(awaitingRebaselinePlan.machineState, "rebaseline_needed");
+    assert.equal(awaitingRebaselinePlan.controlState, "awaiting_operator");
+    assert.match(
+      awaitingRebaselinePlan.blockingReasons.join("\n"),
+      /machine state is rebaseline_needed/,
+    );
+    assert.match(
+      awaitingRebaselinePlan.blockingReasons.join("\n"),
+      /awaiting explicit operator control/,
+    );
+
+    setAutoresearchRuntimeControl({
+      cwd,
+      decision: "rebaseline",
+      reason: "accept rebaseline gate",
+      selectedAt: 3,
+    });
+    const selectedRebaselinePlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(selectedRebaselinePlan.reusable, false);
+    assert.equal(selectedRebaselinePlan.controlState, "rebaseline");
+    assert.match(
+      selectedRebaselinePlan.blockingReasons.join("\n"),
+      /operator control state is rebaseline/,
+    );
+  }));
+
+test("resume plan blocks finalize gates before any resume executor", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "resume-finalize-gate",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 80,
+        description: "candidate ready to finalize",
+        timestamp: 2,
+        decision: {
+          kind: "next_hypothesis",
+          templateName: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+          status: "finalize_candidate",
+          mappedDecision: "finalize",
+          blockingReason: null,
+          failureStage: null,
+          stateRead: "The segment is stable.",
+          nextHypothesis: "Prepare finalization instead of another run.",
+          targetFiles: ["packages/pi-autoresearch/src/core/runtime.ts"],
+          expectedPrimaryEffect: "The resume plan must block ordinary continuation.",
+          timestamp: 2,
+        },
+      }),
+    );
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+    const awaitingFinalizePlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(awaitingFinalizePlan.reusable, false);
+    assert.equal(awaitingFinalizePlan.machineState, "finalize_candidate");
+    assert.equal(awaitingFinalizePlan.controlState, "awaiting_operator");
+    assert.match(
+      awaitingFinalizePlan.blockingReasons.join("\n"),
+      /machine state is finalize_candidate/,
+    );
+    assert.match(
+      awaitingFinalizePlan.blockingReasons.join("\n"),
+      /awaiting explicit operator control/,
+    );
+
+    setAutoresearchRuntimeControl({
+      cwd,
+      decision: "finalize",
+      reason: "accept finalization gate",
+      selectedAt: 3,
+    });
+    const selectedFinalizePlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(selectedFinalizePlan.reusable, false);
+    assert.equal(selectedFinalizePlan.controlState, "finalize");
+    assert.match(
+      selectedFinalizePlan.blockingReasons.join("\n"),
+      /operator control state is finalize/,
+    );
   }));
 
 test("status builder summarizes best metric and confidence from appended receipts", () =>
