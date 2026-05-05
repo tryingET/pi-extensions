@@ -286,9 +286,13 @@ autoresearch_self_hosting_supervision({ action: "observe" | "record_evidence", c
 
 It reads exact package-local self-hosting artifacts from an explicit `cwd`, verifies contract/evaluator-lock/promotion/rollback posture, and can project deduped AK evidence only from exact verified task context. It must not run candidates, mutate evaluator locks, classify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or complete AK tasks by default.
 
-### Bet 8 — Longer bounded campaigns — design boundary landed
+### Bet 8 — Longer bounded campaigns — read-only resume-plan slice landed
 
-The longer-campaign boundary is now explicit in [longer-bounded-campaign-resume-interrupt-design.md](./longer-bounded-campaign-resume-interrupt-design.md).
+The longer-campaign boundary is explicit in [longer-bounded-campaign-resume-interrupt-design.md](./longer-bounded-campaign-resume-interrupt-design.md), and the first read-only implementation slice is now available through:
+
+```text
+autoresearch_runtime_status({ action: "resume_plan", cwd })
+```
 
 The design keeps longer campaigns as reviewed foreground continuations:
 
@@ -296,7 +300,7 @@ The design keeps longer campaigns as reviewed foreground continuations:
 bounded loop segment -> stop reason -> resume plan -> explicit operator control -> next foreground segment
 ```
 
-It forbids hidden daemons, automatic restart after Pi/session exit, unbounded resume, direct external writes, peer auto-launch, candidate lifecycle mutation, and package-local promotion. The first future implementation slice should be a read-only resume-plan builder rendered in status/dashboard/control output before any `resume_apply` path exists.
+The resume plan reports snapshot reuse, segment/runtime keys, machine/control state, blocking reasons, authority warnings, and the explicit foreground loop call shape that would be reviewed next. It does not run benchmarks or resume a loop. Hidden daemons, automatic restart after Pi/session exit, unbounded resume, direct external writes, peer auto-launch, candidate lifecycle mutation, and package-local promotion remain forbidden. A future `resume_apply` path should only land after the read-only plan has proven useful.
 
 ### Bet 9 — Remaining big-picture product gaps
 
@@ -305,7 +309,7 @@ The next gaps are deliberately bigger than one package-local patch:
 1. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
 2. land real orchestrator execution bindings for governed Prompt Vault setup/next/finalize paths when that owner surface is ready;
 3. make the visible-candidate handoff more ergonomic across peer tooling and candidate binding without changing ownership;
-4. implement the first read-only longer-campaign resume-plan surface, then consider explicit foreground `resume_apply` only after review gates are proven.
+4. consider explicit foreground `resume_apply` only after the read-only resume-plan surface has proven useful and review gates are tested.
 
 ## Ownership map
 

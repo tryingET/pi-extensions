@@ -58,6 +58,7 @@ import {
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchHelpText,
   buildAutoresearchKnowledgeExportPacket,
+  buildAutoresearchResumePlan,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
   createConfigReceipt,
@@ -70,6 +71,7 @@ import {
   formatAutoresearchCandidateDecisionWorkbench,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchKnowledgeExportPacket,
+  formatAutoresearchResumePlan,
   formatAutoresearchSegmentCloseout,
   formatAutoresearchStatusText,
   loadReceiptLog,
@@ -526,6 +528,47 @@ test("buildAutoresearchRuntimeStatus only persists snapshots when explicitly req
 
     const reusedStatus = buildAutoresearchRuntimeStatus(cwd);
     assert.equal(reusedStatus.runtimeSnapshot.reuse, "reused");
+  }));
+
+test("resume plan is read-only and requires a reusable runtime snapshot", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "resume-plan",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline",
+        timestamp: 2,
+      }),
+    );
+
+    const missingSnapshotPlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(missingSnapshotPlan.packetKind, "autoresearch.resume_plan.v1");
+    assert.equal(missingSnapshotPlan.reusable, false);
+    assert.match(
+      missingSnapshotPlan.blockingReasons.join("\n"),
+      /runtime snapshot is not reusable/,
+    );
+    assert.match(formatAutoresearchResumePlan(missingSnapshotPlan), /Read-only/);
+
+    buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+    const reusablePlan = buildAutoresearchResumePlan(cwd);
+    assert.equal(reusablePlan.reusable, true);
+    assert.equal(reusablePlan.snapshotReuse, "reused");
+    assert.equal(reusablePlan.blockingReasons.length, 0);
+    assert.match(reusablePlan.wouldRun ?? "", /autoresearch_runtime_loop/);
+    assert.match(formatAutoresearchResumePlan(reusablePlan), /resume_plan\.v1/);
   }));
 
 test("status builder summarizes best metric and confidence from appended receipts", () =>
@@ -3048,6 +3091,23 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(contracts);
     assert.match(contracts?.content[0]?.text ?? "", /ADAPTER CONTRACT CATALOG/);
     assert.match(contracts?.content[0]?.text ?? "", /autoresearch\.closeout\.v1/);
+
+    const resumePlan = await tool?.execute(
+      "call-4d2",
+      {
+        cwd,
+        action: "resume_plan",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(resumePlan);
+    assert.match(resumePlan?.content[0]?.text ?? "", /PI-AUTORESEARCH RESUME PLAN/);
+    assert.equal(
+      (resumePlan?.details as { packetKind?: string }).packetKind,
+      "autoresearch.resume_plan.v1",
+    );
 
     const validation = await tool?.execute(
       "call-4e",

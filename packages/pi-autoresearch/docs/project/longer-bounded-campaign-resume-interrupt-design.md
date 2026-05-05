@@ -86,13 +86,20 @@ A stopped campaign may remain resumable only when the stop reason is compatible 
 - infer promotion authority from package-local success;
 - turn loop continuation into an unbounded background process.
 
-## First implementation slice when ready
+## First implementation slice status
 
-The first code slice should be small:
+The first code slice is now landed as a read-only status action:
 
-1. add a read-only resume-plan builder from current status/snapshot/control;
-2. render it in status/dashboard/control output;
-3. add tests for stale snapshot, stop control, rebaseline/finalize gates, and valid continue;
-4. only then consider `resume_apply` as an explicit foreground action.
+```text
+autoresearch_runtime_status({ action: "resume_plan", cwd })
+```
 
-Do not start by adding a scheduler or a multi-session daemon.
+It builds a resume plan from current status/snapshot/control and reports whether the current segment is reusable, why it is blocked, and what explicit foreground loop call shape would be reviewed next. It does not run benchmarks or resume a loop.
+
+Next implementation work, when justified:
+
+1. render the resume plan more prominently in dashboard/control output;
+2. add deeper tests for stop control, rebaseline/finalize gates, stale snapshot, and valid continue;
+3. only then consider `resume_apply` as an explicit foreground action.
+
+Do not add a scheduler or a multi-session daemon.

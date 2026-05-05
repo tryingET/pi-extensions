@@ -459,6 +459,24 @@ export interface AutoresearchDashboardExportResult {
   status: AutoresearchRuntimeStatus;
 }
 
+export interface AutoresearchResumePlan {
+  packetKind: "autoresearch.resume_plan.v1";
+  cwd: string;
+  campaign: string | null;
+  segmentKey: string | null;
+  runtimeKey: string | null;
+  snapshotReuse: string;
+  reusable: boolean;
+  machineState: string;
+  controlState: string;
+  allowedControlActions: string[];
+  lastStopReason: string;
+  remainingBudget: "operator_required";
+  wouldRun: string | null;
+  blockingReasons: string[];
+  authorityWarnings: string[];
+}
+
 export interface AutoresearchRuntimeStatus {
   phase: typeof AUTORESEARCH_PHASE;
   cwd?: string;
@@ -3967,6 +3985,83 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+export function buildAutoresearchResumePlan(cwd: string): AutoresearchResumePlan {
+  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+  const blockingReasons: string[] = [];
+  if (!status.currentSegment.configured) {
+    blockingReasons.push("no configured segment exists to resume");
+  }
+  if (status.runtimeSnapshot.reuse !== "reused") {
+    blockingReasons.push(`runtime snapshot is not reusable: ${status.runtimeSnapshot.reuse}`);
+  }
+  if (status.runtimeProjection.state !== "ready") {
+    blockingReasons.push(`machine state is ${status.runtimeProjection.state}, not ready`);
+  }
+  if (status.control.kind === "awaiting_operator") {
+    blockingReasons.push(
+      `awaiting explicit operator control: ${formatAllowedActions(status.control.allowedActions)}`,
+    );
+  }
+  if (["stop", "rebaseline", "finalize"].includes(status.control.kind)) {
+    blockingReasons.push(`operator control state is ${status.control.kind}`);
+  }
+  const reusable = blockingReasons.length === 0;
+  const goal = status.currentSegment.name ?? "<campaign-goal>";
+  return {
+    packetKind: "autoresearch.resume_plan.v1",
+    cwd: path.resolve(cwd),
+    campaign: status.currentSegment.name,
+    segmentKey: status.runtimeSnapshot.segmentKey,
+    runtimeKey: status.runtimeSnapshot.runtimeKey,
+    snapshotReuse: status.runtimeSnapshot.reuse,
+    reusable,
+    machineState: status.runtimeProjection.state,
+    controlState: status.control.kind,
+    allowedControlActions: [...status.control.allowedActions],
+    lastStopReason: status.control.reason ?? status.runtimeProjection.blockedReason ?? "(none)",
+    remainingBudget: "operator_required",
+    wouldRun: reusable
+      ? `autoresearch_runtime_loop({ cwd: ${JSON.stringify(path.resolve(cwd))}, goal: ${JSON.stringify(goal)}, maxIterations: <explicit>, maxWallClockMinutes: <explicit> })`
+      : null,
+    blockingReasons,
+    authorityWarnings: [
+      "resume_plan is read-only and does not run benchmarks",
+      "resume_apply must be a foreground operator-approved action if implemented later",
+      "no hidden daemon, background restart, peer launch, candidate lifecycle mutation, or external evidence/learning write is authorized",
+    ],
+  };
+}
+
+export function formatAutoresearchResumePlan(plan: AutoresearchResumePlan): string {
+  return [
+    "# PI-AUTORESEARCH RESUME PLAN",
+    "",
+    "Read-only longer-campaign continuation plan. It does not run benchmarks, resume a loop, launch peers, mutate worktrees, or write external evidence.",
+    "",
+    `- packet kind: ${plan.packetKind}`,
+    `- cwd: ${plan.cwd}`,
+    `- campaign: ${plan.campaign ?? "(none)"}`,
+    `- segment key: ${plan.segmentKey ?? "(none)"}`,
+    `- runtime key: ${plan.runtimeKey ?? "(none)"}`,
+    `- snapshot reuse: ${plan.snapshotReuse}`,
+    `- reusable: ${plan.reusable ? "yes" : "no"}`,
+    `- machine state: ${plan.machineState}`,
+    `- control state: ${plan.controlState}`,
+    `- allowed control actions: ${plan.allowedControlActions.join(", ") || "(none)"}`,
+    `- last stop/control reason: ${plan.lastStopReason}`,
+    `- remaining budget: ${plan.remainingBudget}`,
+    `- would run: ${plan.wouldRun ?? "(blocked)"}`,
+    "",
+    "## Blocking reasons",
+    ...(plan.blockingReasons.length > 0
+      ? plan.blockingReasons.map((reason) => `- ${reason}`)
+      : ["- (none)"]),
+    "",
+    "## Authority warnings",
+    ...plan.authorityWarnings.map((warning) => `- ${warning}`),
+  ].join("\n");
 }
 
 export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus): string {
