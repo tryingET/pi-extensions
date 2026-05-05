@@ -249,7 +249,34 @@ It consumes `autoresearch.learning.v1`, validates that the packet targets notes,
 
 Remaining work: replace the example with, or route it through, a real owner package when a concrete KES/notes/KMS adapter is selected for production use.
 
-### Bet 6 — Self-hosting evidence overwatch — landed first slice
+### Bet 6 — Visible-candidate production seam — clarified
+
+`pi-autoresearch` measures and interprets visible candidates; it does not create peer lanes or own candidate worktree lifecycle.
+
+The intended handoff is:
+
+```text
+operator/controller objective
+-> peer/helper tooling creates a visible candidate worktree/ref
+-> controller verifies diff, base ref, changed files, and claim
+-> pi-autoresearch binds candidate metadata and measures it
+-> candidate decision workbench plans keep/discard/rewind/finalize
+-> operator/external owner applies worktree, merge, evidence, promotion, or cleanup actions
+```
+
+Current owner split:
+
+| Step | Owner | Boundary |
+|---|---|---|
+| visible peer launch / isolated worktree creation | `pi-little-helpers` / peer tooling | returns launch/worktree facts only; no promotion authority |
+| peer messages | intercom / peer messaging | communication only; not evidence until controller verifies |
+| candidate binding and measurement | `pi-autoresearch` | records verified metadata and empirical receipts; does not launch peers |
+| lifecycle planning | `pi-autoresearch` candidate decision workbench | plans keep/discard/rewind/finalize with confirmation checklist; no worktree mutation |
+| merge/delete/reset/promotion/evidence | operator / target owner surface | explicit external action with owner receipts |
+
+This keeps candidate production visible without making `pi-autoresearch` an automatic peer spawner or candidate authority.
+
+### Bet 7 — Self-hosting evidence overwatch — landed first slice
 
 The self-hosting dogfood proof exposed a real above-seam observability gap, and the first orchestrator-owned observer is now landed:
 
@@ -259,15 +286,14 @@ autoresearch_self_hosting_supervision({ action: "observe" | "record_evidence", c
 
 It reads exact package-local self-hosting artifacts from an explicit `cwd`, verifies contract/evaluator-lock/promotion/rollback posture, and can project deduped AK evidence only from exact verified task context. It must not run candidates, mutate evaluator locks, classify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or complete AK tasks by default.
 
-### Bet 7 — Remaining big-picture product gaps
+### Bet 8 — Remaining big-picture product gaps
 
 The next gaps are deliberately bigger than one package-local patch:
 
-1. richer form-style confirmation for keep/discard/rewind/finalize decisions;
-2. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
-3. smoother lawful Prompt Vault execution binding for setup/next/finalize paths that currently stop when no executable binding exists;
-4. a clearer visible-candidate production seam with peer/helper tooling while `pi-autoresearch` remains the measurement owner;
-5. longer bounded campaigns with explicit budgets, resume/interrupt semantics, and orchestrator coordination, without daemonizing or self-ratifying autonomy.
+1. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
+2. land real orchestrator execution bindings for governed Prompt Vault setup/next/finalize paths when that owner surface is ready;
+3. make the visible-candidate handoff more ergonomic across peer tooling and candidate binding without changing ownership;
+4. longer bounded campaigns with explicit budgets, resume/interrupt semantics, and orchestrator coordination, without daemonizing or self-ratifying autonomy.
 
 ## Ownership map
 

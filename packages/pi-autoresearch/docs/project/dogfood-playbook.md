@@ -148,6 +148,16 @@ Interpretation rule:
 
 Candidate work may come from a human edit, a controller-supplied patch, or a visible peer worktree. `pi-autoresearch` does not spawn peers or promote their work.
 
+Visible-candidate handoff contract:
+
+| Step | Owner | What becomes input to `pi-autoresearch` |
+|---|---|---|
+| create candidate worktree/ref | peer/helper tooling such as `candidate_peer_spawn` | path, branch/ref, base ref, files changed |
+| report candidate claim | peer/intercom | communication only; verify before use |
+| verify candidate facts | controller/operator | diff summary, changed files, expected effect, caveats |
+| measure candidate | `pi-autoresearch` | ordinary run with candidate metadata |
+| keep/discard/rewind/finalize | operator/external owner | apply only after candidate decision workbench confirmation |
+
 When a visible candidate lane produced the change, bind only controller-verified facts:
 
 ```ts
