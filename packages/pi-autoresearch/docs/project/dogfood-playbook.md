@@ -57,6 +57,8 @@ Do not treat retrieved workflow-template prose as execution. Either use the owne
 
 `pi-autoresearch` owns the local experiment runtime, receipts, empirical interpretation, and reviewable packets; external systems own candidate creation, durable task/evidence state, learning persistence, and promotion.
 
+`pi-society-orchestrator` already owns the above-seam supervision routes for this loop: `autoresearch_live_supervision` for exact `taskId` + `cwd` live runtime observation/lifecycle gating, `autoresearch_manifest_campaign_supervision` for manifest-campaign evidence projection, and `autoresearch_self_hosting_supervision` for supervised self-hosting artifact observation/evidence projection. Use those routes when the next step is durable AK evidence or verified lifecycle observation; do not recreate those writes inside `pi-autoresearch`.
+
 ## Local projection artifacts
 
 Self-hosting and promotion receipts such as `autoresearch.self-hosting.json` and `autoresearch.self-hosting.promotion.json` are local projection artifacts. Keep them untracked unless a later owner-routed packet explicitly promotes their contents into AK, KES, an issue, or another durable surface.
@@ -75,6 +77,26 @@ Start only when all of these are true:
 If the benchmark is a generic command such as `npm test`, add a wrapper only when it can emit a fresh, causal metric. Do not let static artifacts or stale logs drive optimization.
 
 ## Canonical tool flow
+
+### Optional above-seam supervision before longer runs
+
+When a dogfood segment is tied to an exact AK task and may need external evidence/lifecycle observation, start or inspect the orchestrator-owned live supervision seam instead of inventing package-local promotion:
+
+```ts
+autoresearch_live_supervision({
+  action: "observe", // or "start" for bounded polling, then "status"/"stop"
+  taskId: 1234,
+  cwd,
+})
+```
+
+Rules:
+
+- `taskId` and `cwd` must be exact;
+- `observe` is one-shot and does not keep a background session;
+- `start` creates a bounded orchestrator session with explicit polling policy, not a hidden `pi-autoresearch` daemon;
+- milestone evidence and any task completion remain orchestrator/AK lifecycle actions behind verified gates;
+- candidate execution, candidate lifecycle mutation, learning promotion, and owner-surface writes remain outside `pi-autoresearch`.
 
 ### 1. Autoplan the measurement contract
 
@@ -228,13 +250,43 @@ Review the closeout for:
 
 `pi-autoresearch` packets are non-mutating. Promotion is a separate explicit owner-surface action.
 
-For AK-shaped evidence, request a packet and then use the suggested external call only after verifying the exact task id:
+For ordinary runtime AK evidence, prefer the orchestrator-owned live supervision route when an exact task anchor exists:
+
+```ts
+autoresearch_live_supervision({
+  action: "observe", // or "start" for bounded polling, then "status"/"stop"
+  taskId: 1234,
+  cwd,
+})
+```
+
+For package-local packet review without writing durable evidence, request the AK-shaped packet and use the suggested external call only after verifying the exact task id:
 
 ```ts
 autoresearch_runtime_status({
   cwd,
   action: "ak_evidence",
   akTaskId: 1234,
+})
+```
+
+For manifest-driven llama.cpp campaigns, use the orchestrator-owned manifest route when projecting exact-anchor evidence:
+
+```ts
+autoresearch_manifest_campaign_supervision({
+  action: "observe", // or "record_evidence" with an exact verified taskId
+  manifestPath: "<absolute-or-repo-relative-manifest>",
+  taskId: 1234,
+})
+```
+
+For supervised self-hosting campaigns, use the orchestrator-owned self-hosting route when projecting exact-anchor evidence:
+
+```ts
+autoresearch_self_hosting_supervision({
+  action: "observe", // or "record_evidence" with an exact verified taskId
+  cwd,
+  taskId: 1234,
 })
 ```
 
@@ -294,9 +346,9 @@ A minimal truthful run usually has this shape:
 3. calibration samples establish timing noise if needed
 4. candidate diff is bound with verified files changed
 5. ordinary run records candidate measurement and checks result
-6. status says candidate_review_ready or explains why not
+6. status says candidate_review_ready / threshold_satisfied / threshold_preserved, or explains why not
 7. closeout packet summarizes evidence and caveats
-8. AK/KES/issue adapter promotion happens explicitly outside pi-autoresearch
+8. orchestrator/AK/KES/issue adapter promotion happens explicitly outside pi-autoresearch
 ```
 
 That is the dogfood loop to preserve. New capabilities should make this loop clearer and harder to overclaim, not broader by default.

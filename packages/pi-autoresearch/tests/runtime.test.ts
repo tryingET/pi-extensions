@@ -542,6 +542,30 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   );
 });
 
+test("product posture and dogfood playbook expose orchestrator supervision handoff seams", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const productPosture = readFileSync(
+    path.join(packageRoot, "docs/project/product-posture.md"),
+    "utf8",
+  );
+  const dogfoodPlaybook = readFileSync(
+    path.join(packageRoot, "docs/project/dogfood-playbook.md"),
+    "utf8",
+  );
+  for (const toolName of [
+    "autoresearch_live_supervision",
+    "autoresearch_manifest_campaign_supervision",
+    "autoresearch_self_hosting_supervision",
+  ]) {
+    assert.match(productPosture, new RegExp(toolName, "u"));
+    assert.match(dogfoodPlaybook, new RegExp(toolName, "u"));
+  }
+  assert.match(
+    dogfoodPlaybook,
+    /orchestrator\/AK\/KES\/issue adapter promotion happens explicitly outside pi-autoresearch/u,
+  );
+});
+
 test("buildAutoresearchRuntimeStatus only persists snapshots when explicitly requested", () =>
   withTempDir((cwd) => {
     const runtimeSnapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);
