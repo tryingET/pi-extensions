@@ -92,6 +92,7 @@ export function createCampaignMachineInputFromRuntimeStatus(
         metricName: status.currentSegment.metricName ?? "(unset)",
         metricUnit: status.currentSegment.metricUnit,
         direction: status.currentSegment.direction ?? "lower",
+        metricThreshold: status.currentSegment.metricThreshold,
         benchmarkCommand: status.currentSegment.benchmarkCommand ?? "",
         checksCommand: status.currentSegment.checksCommand,
       }

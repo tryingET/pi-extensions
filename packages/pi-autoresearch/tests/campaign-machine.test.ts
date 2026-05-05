@@ -195,6 +195,7 @@ test("campaign machine input builder maps bounded runtime status into a configur
         metricName: "total_ms",
         metricUnit: "ms",
         direction: "lower",
+        metricThreshold: 120,
         createdAt: 1,
         benchmarkCommand: "bash autoresearch.sh",
         checksCommand: "bash autoresearch.checks.sh",
@@ -221,6 +222,7 @@ test("campaign machine input builder maps bounded runtime status into a configur
       metricName: "total_ms",
       metricUnit: "ms",
       direction: "lower",
+      metricThreshold: 120,
       benchmarkCommand: "bash autoresearch.sh",
       checksCommand: "bash autoresearch.checks.sh",
     });

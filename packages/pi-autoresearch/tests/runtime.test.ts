@@ -1168,6 +1168,64 @@ test("status builder blocks explicit threshold misses from generic promotion-rea
     assert.equal(candidateDecision.recommendedDecision, "collect_more_samples");
   }));
 
+test("explicit threshold misses still discard directional regressions", async () => {
+  for (const scenario of [
+    { direction: "lower" as const, threshold: 2, baseline: 5, candidate: 8 },
+    { direction: "higher" as const, threshold: 90, baseline: 80, candidate: 70 },
+  ]) {
+    await withTempDir((cwd) => {
+      appendReceipt(
+        cwd,
+        createConfigReceipt({
+          name: `explicit-threshold-regression-${scenario.direction}`,
+          metricName: "review_score",
+          metricUnit: "count",
+          direction: scenario.direction,
+          metricThreshold: scenario.threshold,
+          createdAt: 1,
+          benchmarkCommand: "bash autoresearch.sh",
+        }),
+      );
+      appendReceipt(
+        cwd,
+        createRunReceipt({
+          status: "baseline",
+          metric: scenario.baseline,
+          description: "baseline misses explicit threshold",
+          timestamp: 2,
+        }),
+      );
+      appendReceipt(
+        cwd,
+        createRunReceipt({
+          status: "candidate",
+          metric: scenario.candidate,
+          description: "candidate regresses while still missing explicit threshold",
+          timestamp: 3,
+          experiment: {
+            candidate: {
+              source: "manual",
+              worktreePath: cwd,
+              branch: `candidate/threshold-regression-${scenario.direction}`,
+              baseRef: "main",
+              diffSummary: "regress threshold metric",
+              filesChanged: ["src/core/runtime.ts"],
+            },
+          },
+        }),
+      );
+
+      const status = buildAutoresearchRuntimeStatus(cwd);
+      assert.equal(status.currentSegment.empiricalDecisionClass, "candidate_regression");
+      assert.equal(status.empiricalPosture.classification, "candidate_regression");
+      assert.equal(status.empiricalPosture.promotionReady, false);
+
+      const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+      assert.equal(candidateDecision.recommendedDecision, "discard");
+    });
+  }
+});
+
 test("status builder treats explicit higher-threshold targets as success", () =>
   withTempDir((cwd) => {
     appendReceipt(
@@ -1682,7 +1740,7 @@ test("duration candidates are baseline_drift when calibration explains the basel
         metricName: "total_ms",
         metricUnit: "ms",
         direction: "lower",
-        metricThreshold: 8000,
+        metricThreshold: 0,
         createdAt: 1,
         benchmarkCommand: "bash autoresearch.sh",
         checksCommand: "npm run check",
@@ -1776,7 +1834,7 @@ test("duration candidates are baseline_drift when calibration explains the basel
     assert.match(rebaselineCall, /metricName: "total_ms"/);
     assert.match(rebaselineCall, /metricUnit: "ms"/);
     assert.match(rebaselineCall, /direction: "lower"/);
-    assert.match(rebaselineCall, /metricThreshold: 8000/);
+    assert.match(rebaselineCall, /metricThreshold: 0/);
     assert.match(rebaselineCall, /benchmarkCommand: "bash autoresearch\.sh"/);
     assert.match(rebaselineCall, /checksCommand: "npm run check"/);
   }));

@@ -8393,7 +8393,9 @@ function classifyMetricThresholdDecision(
   if (runSatisfied && !baselineSatisfied) return "threshold_satisfied";
   if (runSatisfied && baselineSatisfied) return "threshold_preserved";
   if (!runSatisfied && baselineSatisfied) return "threshold_regressed";
-  return "threshold_not_met";
+  return isBetter(runMetric, baselineMetric, direction) || runMetric === baselineMetric
+    ? "threshold_not_met"
+    : "candidate_regression";
 }
 
 function satisfiesMetricThreshold(
