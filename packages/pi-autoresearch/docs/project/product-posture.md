@@ -91,7 +91,7 @@ The package currently owns:
 - visible peer-lane planning without automatic peer launch;
 - bounded self-hosting and manifest-driven llama.cpp campaign helper/control seams.
 
-Adjacent external proof now exists in `pi-society-orchestrator`: one-shot exact-manifest observation plus idempotent evidence-only AK projection from verified task context above the package seam. That proof is product-relevant boundary evidence, not a new ownership claim for this package.
+Adjacent external proof now exists in `pi-society-orchestrator`: live runtime supervision for exact `taskId` + `cwd`, one-shot exact-manifest observation plus idempotent evidence-only AK projection, and supervised self-hosting observation/evidence projection from verified task context above the package seam. Those proofs are product-relevant boundary evidence, not new ownership claims for this package.
 
 Latest package-local dogfood proof also exists: `self-hosting-dogfood-workflow-001` used the accepted supervised self-hosting shape — stable controller, separate candidate worktree, snapshot-owned evaluator suites, applicability classification, explicit operator approval, and external controller rotation. The candidate was classified `default_promotion_candidate`, rotated only after `operator_review`, reloaded, and then verified from the committed main package path. This proves the self-hosting seam can work under supervision; it does not weaken the non-goal against package-local self-promotion.
 
@@ -131,7 +131,7 @@ Prioritize:
 2. operator posture clarity, especially when success is threshold-satisfied rather than metric-improving;
 3. metric readiness, threshold-style success semantics, and baseline-drift protection;
 4. keep the canonical dogfood playbook and workflow-contract benchmark current with actual tool schemas;
-5. add a narrow orchestrator-side self-hosting supervision/evidence observer above the package seam;
+5. keep orchestrator-side live/manifest/self-hosting supervision proofs aligned with real package artifacts and exact-task evidence boundaries;
 6. one external adapter proof only after a real consumer needs it.
 
 ## Next product bets
@@ -277,15 +277,17 @@ Current owner split:
 
 This keeps candidate production visible without making `pi-autoresearch` an automatic peer spawner or candidate authority.
 
-### Bet 7 — Self-hosting evidence overwatch — landed first slice
+### Bet 7 — Orchestrator evidence overwatch — landed slices
 
-The self-hosting dogfood proof exposed a real above-seam observability gap, and the first orchestrator-owned observer is now landed:
+The above-seam observability gap is no longer only a future gap. `pi-society-orchestrator` now carries three product-relevant supervision seams above `pi-autoresearch`:
 
 ```text
-autoresearch_self_hosting_supervision({ action: "observe" | "record_evidence", cwd, ... })
+autoresearch_live_supervision({ action: "observe" | "start" | "status" | "stop", taskId, cwd, ... })
+autoresearch_manifest_campaign_supervision({ action: "observe" | "record_evidence", manifestPath, taskId?, ... })
+autoresearch_self_hosting_supervision({ action: "observe" | "record_evidence", cwd, taskId?, ... })
 ```
 
-It reads exact package-local self-hosting artifacts from an explicit `cwd`, verifies contract/evaluator-lock/promotion/rollback posture, and can project deduped AK evidence only from exact verified task context. It must not run candidates, mutate evaluator locks, classify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or complete AK tasks by default.
+The live supervision seam observes one exact runtime `cwd` under one exact AK `taskId`, can poll within explicit session bounds, records package-derived milestone evidence, and may complete a task only through its verified completion lifecycle gate. The manifest and self-hosting seams remain one-shot evidence-only observers: they read exact package-local artifacts, verify package-derived projection/evaluator/promotion truth, and can project deduped AK evidence only from exact verified task context. None of these seams may run candidates, mutate evaluator locks, reclassify applicability independently, approve promotion, rotate or roll back the controller, spawn peers, or widen into hidden whole-campaign control.
 
 ### Bet 8 — Longer bounded campaigns — read-only resume-plan slice landed
 
@@ -317,7 +319,7 @@ The next gaps are deliberately bigger than one package-local patch:
 | Concern | Owner |
 |---|---|
 | Local experiment runtime, receipts, empirical interpretation, closeout packets | `packages/pi-autoresearch` |
-| Runtime and manifest-campaign observation/evidence-only projection above the package seam; proposed self-hosting observation follow-on | `packages/pi-society-orchestrator` |
+| Runtime live supervision, manifest-campaign observation/evidence-only projection, and self-hosting observation/evidence-only projection above the package seam | `packages/pi-society-orchestrator` |
 | Visible peer launch and candidate worktree creation | `packages/pi-little-helpers` / peer tooling |
 | Peer/intercom communication | `packages/pi-peer-messaging` |
 | Durable task truth and evidence lifecycle | AK / evidence owner surfaces |
