@@ -2782,6 +2782,74 @@ test("/autoresearch with an objective prepares the campaign-start tool call", as
   assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_campaign_start/);
 });
 
+test("/autoresearch run executes the bounded first-entrypoint campaign", async () => {
+  await withTempDir(async (cwd) => {
+    writeExecutable(cwd, "autoresearch.sh", '#!/usr/bin/env bash\necho "METRIC total_ms=7"\n');
+    writeExecutable(cwd, "autoresearch.checks.sh", "#!/usr/bin/env bash\nexit 0\n");
+    const { commands } = registerHarness();
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("run optimize startup", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /Autoresearch campaign result/);
+    assert.match(editorText, /PI-AUTORESEARCH CAMPAIGN START/);
+    assert.match(editorText, /run mode: bounded_loop/);
+    assert.match(editorText, /completed iterations: 3\/3/);
+    assert.match(editorText, /machine state: ready/);
+    assert.match(
+      readFileSync(path.join(cwd, "autoresearch.jsonl"), "utf8"),
+      /"status":"candidate"/,
+    );
+    assert.equal(notifications.length, 2);
+    assert.match(notifications[0]?.message ?? "", /Starting bounded foreground autoresearch run/);
+    assert.match(notifications[1]?.message ?? "", /Completed bounded foreground autoresearch run/);
+  });
+});
+
+test("/autoresearch run is unavailable in the read toolbox profile", async () => {
+  await withTempDir(async (cwd) => {
+    writeExecutable(cwd, "autoresearch.sh", '#!/usr/bin/env bash\necho "METRIC total_ms=7"\n');
+    const { commands } = registerHarness({ effectProfile: "read" });
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("run optimize startup", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /Autoresearch campaign blocked/);
+    assert.match(editorText, /unavailable in the autoresearch read profile/);
+    assert.equal(existsSync(path.join(cwd, "autoresearch.jsonl")), false);
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0]?.level, "warning");
+  });
+});
+
 test("autoresearch_runtime_status can render the compact dashboard", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();

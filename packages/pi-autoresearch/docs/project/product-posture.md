@@ -141,6 +141,7 @@ Prioritize:
 The first integrated product front door now exists in package-owned code:
 
 ```text
+/autoresearch run <objective> -> direct bounded foreground campaign
 /autoresearch <objective> -> reviewable autoresearch_campaign_start({ ... }) call
 ```
 
@@ -157,12 +158,13 @@ autoresearch_campaign_start({
 
 The initial version is intentionally conservative:
 
-- default slash-command behavior prepares a plan-only tool call for operator review;
+- `/autoresearch run|loop|go|start <objective>` is the explicit first-entrypoint path for "autoresearch should autoresearch": it starts a bounded foreground loop directly with a three-iteration/default 30-minute budget and planned-only peer lane, then stops on budget/gates;
+- default `/autoresearch <objective>` behavior remains conservative and prepares a plan-only tool call for operator review;
 - the optional `$$ autoresearch <objective>` / `$$ ar <objective>` pi-interaction picker lets the operator select plan-only, governed setup plan, baseline, or bounded-loop mode before the exact tool call is inserted;
 - the tool reports the measurement contract, scope, candidate lifecycle policy, warnings, status, and next exact call;
 - default candidate policy is explicit and worktree-first: keep preserves the candidate branch, discard suggests cleanup after receipt review, and rewind resets the candidate worktree to base;
 - Replay Fabric remains observer/history/recovery-clue projection and ASC rewind remains live Pi/session recovery, so neither becomes candidate accept/discard authority;
-- baseline and bounded-loop execution are explicit `runMode` choices;
+- baseline and bounded-loop execution are explicit `runMode` choices or the explicit `run|loop|go|start` first-entrypoint verb;
 - peer launch, commits, worktree deletion/merge, AK/KES/evidence writes, and durable promotion remain outside this front door.
 
 A compact read-only dashboard slice is now also landed:

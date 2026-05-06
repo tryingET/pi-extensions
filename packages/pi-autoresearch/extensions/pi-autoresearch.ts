@@ -1311,7 +1311,7 @@ export function registerPiAutoresearchExtension(
   pi.registerCommand(AUTORESEARCH_COMMAND_NAME, {
     description: "Open the pi-autoresearch bounded-runtime overview",
     handler: async (args, ctx) => {
-      await openAutoresearchShell(args, ctx, dashboardExportIntervals);
+      await openAutoresearchShell(args, ctx, dashboardExportIntervals, options);
     },
   });
 
@@ -3112,6 +3112,7 @@ async function openAutoresearchShell(
   args: string,
   ctx: ExtensionContext,
   dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
+  options: PiAutoresearchExtensionOptions,
 ): Promise<void> {
   if (!ctx.hasUI) return;
 
@@ -3160,6 +3161,12 @@ async function openAutoresearchShell(
 
   if (parseAutoresearchResumeCommand(normalizedArgs)) {
     await openAutoresearchResumeReview(ctx);
+    return;
+  }
+
+  const runObjective = parseAutoresearchRunObjectiveCommand(normalizedArgs);
+  if (runObjective) {
+    await executeAutoresearchFirstRun(runObjective, ctx, options);
     return;
   }
 
@@ -3287,6 +3294,69 @@ function parseAutoresearchResumeCommand(value: string): boolean {
     default:
       return false;
   }
+}
+
+function parseAutoresearchRunObjectiveCommand(value: string): string | null {
+  const match = /^(?:run|loop|go|start)\s+(.+)$/iu.exec(value.trim());
+  const objective = match?.[1]?.trim() ?? "";
+  return objective.length > 0 ? objective : null;
+}
+
+async function executeAutoresearchFirstRun(
+  objective: string,
+  ctx: ExtensionContext,
+  options: PiAutoresearchExtensionOptions,
+): Promise<void> {
+  let result: Awaited<ReturnType<typeof executeAutoresearchCampaignStart>>;
+  try {
+    assertReadProfileRejectsTool(options, AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
+    ctx.ui.notify(
+      "Starting bounded foreground autoresearch run. This stays local and stops on budget/gates.",
+      "info",
+    );
+    result = await executeAutoresearchCampaignStart({
+      cwd: ctx.cwd,
+      objective,
+      setupMode: "autoplan",
+      runMode: "bounded_loop",
+      maxIterations: 3,
+      maxWallClockMinutes: 30,
+      peerMode: "plan",
+      model: ctx.model?.id,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const planCall = buildAutoresearchCampaignStartEditorCall(ctx.cwd, objective);
+    await ctx.ui.editor(
+      "Autoresearch campaign blocked",
+      [
+        "# PI-AUTORESEARCH CAMPAIGN BLOCKED",
+        "",
+        `- objective: ${objective}`,
+        `- reason: ${message}`,
+        "",
+        "The first-entrypoint run did not execute. Review the fallback exact call below, usually by adding an explicit benchmarkCommand or running setup first.",
+        "",
+        "```ts",
+        planCall,
+        "```",
+      ].join("\n"),
+    );
+    ctx.ui.notify(
+      "Autoresearch run blocked before execution; opened fallback review call.",
+      "warning",
+    );
+    return;
+  }
+
+  await ctx.ui.editor(
+    "Autoresearch campaign result",
+    formatAutoresearchCampaignStartResult(result),
+  );
+  ctx.ui.notify(
+    "Completed bounded foreground autoresearch run. Review the final dashboard and next exact call.",
+    "info",
+  );
 }
 
 async function openAutoresearchResumeReview(ctx: ExtensionContext): Promise<void> {

@@ -54,8 +54,9 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
   - with `export`, writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session; `export off` stops the refresher
   - with `widget on|off`, shows or hides the persistent above-editor status widget for the current session
-  - with an objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
-  - keeps execution explicit: the slash command does not secretly run baselines, loops, peers, worktree mutations, commits, AK writes, or KES promotion
+  - with `run|loop|go|start <objective>`, executes the first bounded foreground autoresearch campaign directly (`runMode: "bounded_loop"`, three-iteration/default 30-minute budget, peer lane planned only) so the operator can give one explicit start instruction and step away until budget/gates stop it
+  - with any other objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
+  - keeps durable authority explicit: direct first-entrypoint runs stay bounded/local and still do not secretly spawn peers, commit, merge/delete worktrees, write AK/KES evidence, or promote candidates
 - `$$ autoresearch <objective>` / `$$ ar <objective>` when `@tryinget/pi-interaction` or `@tryinget/pi-trigger-adapter` is loaded
   - opens the pi-interaction picker for plan-only, governed setup plan, baseline, or bounded-loop campaign-start modes
   - replaces the editor text with the exact `autoresearch_campaign_start({ ... })` call selected by the operator
