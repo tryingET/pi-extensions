@@ -68,11 +68,11 @@ If doctor fails, first check Pi settings for package entries that load heavy ext
 
 When that happens, the activation is not proof that a peer tool is directly callable in the current adapter. Use one of these paths:
 
-1. run the human slash command (`/parallelquest` or `/scoutpeer`) in an interactive Pi session,
+1. run the current interactive visible-peer command documented by `pi-little-helpers` in a Pi TUI session,
 2. reload/start a fresh session whose initial tool schema includes the activated tools, or
 3. use a controller fallback such as `dispatch_subagent` only when isolated visible worktrees are not required.
 
-Do not treat `toolbox status` alone as evidence that a static-schema API adapter can call the newly active tool by name.
+Do not treat `toolbox status` alone as evidence that a static-schema API adapter can call the newly active tool by name, and do not hard-code historical slash-command names in adapter-facing guidance.
 
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`

@@ -57,7 +57,7 @@ When a peer-spawn surface fails, check the capability in this order:
 4. `extensions/sidequest.ts` imports the manifest and registers slash commands from it by default without eagerly registering the peer-spawn tools.
 5. `npm run check` passes in `packages/pi-little-helpers`.
 6. If toolbox activation retries a published-package fallback after local registration already succeeded, inspect `packages/pi-toolbox-discovery/extensions/toolbox.ts`; activation should skip lazy imports once all requested capability tools are registered.
-7. If toolbox status reports the peer-spawn tools active but an API session cannot call `candidate_peer_spawn`, check whether that adapter uses a static tool schema for the current turn/session. The runtime registry may be correct while the adapter schema still needs refresh, `/reload`, or a new session. Use `/parallelquest` / `/scoutpeer` in interactive Pi as the immediate workaround.
+7. If toolbox status reports the peer-spawn tools active but an API session cannot call `candidate_peer_spawn`, check whether that adapter uses a static tool schema for the current turn/session. The runtime registry may be correct while the adapter schema still needs refresh, `/reload`, or a new session. Use the current interactive visible-peer command documented by this package as the immediate workaround; do not hard-code historical slash-command names in adapter-facing docs.
 
 ## Boundary
 

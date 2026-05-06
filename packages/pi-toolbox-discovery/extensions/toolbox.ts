@@ -893,7 +893,7 @@ function activationCaveats(plan: ActivationPlan): string[] {
   if (plan.bundle?.id !== "peer-spawn") return [];
   return [
     "Peer-spawn activation updates Pi's runtime active-tool registry only; API adapters with a static tool schema may need a schema refresh, /reload, or a fresh session before fork_peer_spawn/scout_peer_spawn/candidate_peer_spawn become callable.",
-    "If an activated peer-spawn tool is still not callable, use the human slash command path (/parallelquest or /scoutpeer) or restart with the peer-spawn tools present in the initial tool schema.",
+    "If an activated peer-spawn tool is still not callable, use the current interactive visible-peer command documented by pi-little-helpers, or restart with the peer-spawn tools present in the initial tool schema.",
   ];
 }
 
