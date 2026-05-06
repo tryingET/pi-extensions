@@ -31,6 +31,14 @@ bounded objective -> explicit measurement contract -> baseline/calibration -> ca
 
 Use this playbook for one bounded local candidate at a time. It is deliberately not a hidden daemon, a whole-campaign runner, a peer spawner, or an AK/KES writer.
 
+Before claiming the current dogfood contract surface is clean, run the strict aggregate suite:
+
+```bash
+DOGFOOD_CONTRACT_STRICT=1 node scripts/dogfood-contract-suite.mjs
+```
+
+The current clean surface must emit `METRIC unresolved_autoresearch_dogfood_suite_blockers=0`. The suite runs the workflow-contract, foreground-resume, and visible-candidate handoff dogfood checks in one foreground command; it supplies suite-owned temporary paths for foreground resume receipts, foreground benchmark logs, and candidate handoff roots so inherited dogfood env vars cannot redirect durable artifacts.
+
 When the target is broader than one candidate patch — for example a command family, latency surface, or scenario/hypothesis sweep — use [benchmark-matrix-runbook.md](./benchmark-matrix-runbook.md) to define the campaign matrix, then use this playbook for each bounded candidate segment.
 
 ## Process gate: do not bypass missing Prompt Vault bindings

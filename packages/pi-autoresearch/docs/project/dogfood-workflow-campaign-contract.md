@@ -59,13 +59,19 @@ Examples:
 
 ## Executable benchmark
 
-Run:
+Run the workflow-contract benchmark directly when you are testing the workflow traversal contract alone:
 
 ```bash
 node scripts/dogfood-workflow-contract.mjs
 ```
 
-The script emits the primary metric and contract lines for known executable checks. It currently guards the primary metric declaration, current setup-action examples, product-posture strategic-line wording, orchestrator supervision handoff seams, campaign-start reconfigure next-call safety, resume foreground-executor boundaries, read-profile effect boundaries, and read-profile mutating rejection hooks.
+Run the aggregate suite when you need the current product dogfood proof set:
+
+```bash
+DOGFOOD_CONTRACT_STRICT=1 node scripts/dogfood-contract-suite.mjs
+```
+
+The workflow script emits the primary metric and contract lines for known executable checks. It currently guards the primary metric declaration, current setup-action examples, product-posture strategic-line wording, orchestrator supervision handoff seams, campaign-start reconfigure next-call safety, resume foreground-executor boundaries, read-profile effect boundaries, and read-profile mutating rejection hooks. The aggregate suite additionally runs the foreground-resume and visible-candidate handoff contracts and emits `METRIC unresolved_autoresearch_dogfood_suite_blockers=<number>`.
 
 When a new dogfood blocker is found, either:
 

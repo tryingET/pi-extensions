@@ -10,7 +10,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runtimeUrl = pathToFileURL(path.join(packageRoot, "src/runtime.ts")).href;
 const workflowContractPath = path.join(packageRoot, "scripts/dogfood-workflow-contract.mjs");
-const benchmarkLog = "/tmp/pi-autoresearch-foreground-resume-contract-benchmark.log";
+const benchmarkLog = process.env.PI_AUTORESEARCH_FOREGROUND_RESUME_BENCHMARK_LOG
+  ? path.resolve(process.env.PI_AUTORESEARCH_FOREGROUND_RESUME_BENCHMARK_LOG)
+  : "/tmp/pi-autoresearch-foreground-resume-contract-benchmark.log";
 
 function shellQuote(value) {
   return `'${value.replaceAll("'", `'"'"'`)}'`;

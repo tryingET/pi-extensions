@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -631,6 +632,39 @@ test("candidate handoff dogfood script preserves visible-candidate boundaries", 
   assert.match(output, /"rewindCommandKinds": \[/u);
   assert.match(output, /"reset_to_base"/u);
   assert.match(output, /"lifecycleStateUnchanged": true/u);
+});
+
+test("dogfood contract suite runs all current strict autoresearch contracts", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const hostileRoot = mkdtempSync(path.join(os.tmpdir(), "autoresearch-suite-hostile-env-"));
+  const hostileCandidateRoot = path.join(hostileRoot, "candidate-root");
+  const hostileResumeCwd = path.join(hostileRoot, "resume-cwd");
+  const hostileBenchmarkLog = path.join(hostileRoot, "foreground-resume-benchmark.log");
+
+  try {
+    const output = execFileSync(process.execPath, ["scripts/dogfood-contract-suite.mjs"], {
+      cwd: packageRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        DOGFOOD_CONTRACT_STRICT: "1",
+        PI_AUTORESEARCH_CANDIDATE_DOGFOOD_ROOT: hostileCandidateRoot,
+        PI_AUTORESEARCH_DOGFOOD_CWD: hostileResumeCwd,
+        PI_AUTORESEARCH_FOREGROUND_RESUME_BENCHMARK_LOG: hostileBenchmarkLog,
+      },
+    });
+
+    assert.match(output, /CONTRACT ok workflow-contract/u);
+    assert.match(output, /CONTRACT ok foreground-resume-contract/u);
+    assert.match(output, /CONTRACT ok candidate-handoff-contract/u);
+    assert.match(output, /METRIC unresolved_autoresearch_dogfood_suite_blockers=0/u);
+    assert.equal(existsSync(hostileCandidateRoot), false);
+    assert.equal(existsSync(hostileResumeCwd), false);
+    assert.equal(existsSync(hostileBenchmarkLog), false);
+    assert.deepEqual(readdirSync(hostileRoot), []);
+  } finally {
+    rmSync(hostileRoot, { recursive: true, force: true });
+  }
 });
 
 test("buildAutoresearchRuntimeStatus only persists snapshots when explicitly requested", () =>
