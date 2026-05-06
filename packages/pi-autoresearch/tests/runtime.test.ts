@@ -8,6 +8,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -672,6 +673,30 @@ test("dogfood contract suite counts child execution failures as blockers", () =>
   );
 
   assert.match(output, /suite-failure-aggregation-ok/u);
+});
+
+test("dogfood contract suite treats symlink invocation as CLI execution", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const linkRoot = mkdtempSync(path.join(os.tmpdir(), "autoresearch-suite-symlink-"));
+  const suiteLink = path.join(linkRoot, "dogfood-contract-suite.mjs");
+
+  try {
+    symlinkSync(path.join(packageRoot, "scripts/dogfood-contract-suite.mjs"), suiteLink);
+    for (const args of [[suiteLink], ["--preserve-symlinks-main", suiteLink]]) {
+      const output = execFileSync(process.execPath, args, {
+        cwd: packageRoot,
+        encoding: "utf8",
+        env: { ...process.env, DOGFOOD_CONTRACT_STRICT: "1" },
+      });
+
+      assert.match(output, /CONTRACT ok workflow-contract/u);
+      assert.match(output, /CONTRACT ok foreground-resume-contract/u);
+      assert.match(output, /CONTRACT ok candidate-handoff-contract/u);
+      assert.match(output, /METRIC unresolved_autoresearch_dogfood_suite_blockers=0/u);
+    }
+  } finally {
+    rmSync(linkRoot, { recursive: true, force: true });
+  }
 });
 
 test("dogfood contract suite runs all current strict autoresearch contracts", () => {

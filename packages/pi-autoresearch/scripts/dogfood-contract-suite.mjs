@@ -3,12 +3,13 @@
 // Runs the current strict product dogfood contracts in one foreground command. Child contracts get
 // suite-owned temporary paths so known dogfood artifact env vars cannot redirect durable artifacts.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const scriptPath = realpathSync(fileURLToPath(import.meta.url));
+const packageRoot = path.resolve(path.dirname(scriptPath), "..");
 const strictDefault = process.env.DOGFOOD_CONTRACT_STRICT ?? "1";
 const controlledEnvNames = [
   "PI_AUTORESEARCH_CANDIDATE_DOGFOOD_ROOT",
@@ -175,5 +176,15 @@ function main() {
   }
 }
 
-const entryPoint = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
-if (entryPoint === import.meta.url) main();
+export function isMainModule(moduleUrl, argvPath = process.argv[1]) {
+  if (!argvPath) return false;
+  try {
+    const modulePath = realpathSync(fileURLToPath(moduleUrl));
+    const entryPath = realpathSync(path.resolve(argvPath));
+    return pathToFileURL(entryPath).href === pathToFileURL(modulePath).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule(import.meta.url)) main();
