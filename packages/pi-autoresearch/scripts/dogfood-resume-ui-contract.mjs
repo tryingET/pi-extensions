@@ -34,6 +34,7 @@ const eventHandlers = new Map();
 const toolInvocations = [];
 let editorTitle = "";
 let editorText = "";
+let composerText = "";
 const notifications = [];
 
 try {
@@ -84,6 +85,10 @@ try {
         async editor(title, text) {
           editorTitle = String(title ?? "");
           editorText = String(text ?? "");
+          return editorText;
+        },
+        setEditorText(text) {
+          composerText = String(text ?? "");
         },
         notify(message, level) {
           notifications.push({ message: String(message ?? ""), level: String(level ?? "") });
@@ -141,7 +146,13 @@ try {
   if (toolInvocations.length > 0) {
     blockers.push("unexpected_tool_invocations:" + toolInvocations.join(","));
   }
-  if (notifications.length !== 1 || !/Prepared foreground resume review/u.test(notifications[0]?.message ?? "")) {
+  if (composerText !== editorText) {
+    blockers.push("submitted_review_not_transferred_to_message_editor");
+  }
+  if (
+    notifications.length !== 1 ||
+    !/Accepted foreground resume review into the message editor/u.test(notifications[0]?.message ?? "")
+  ) {
     blockers.push("missing_resume_review_notification");
   }
 } catch (error) {
@@ -176,6 +187,7 @@ console.log(
       editorHasBudgetPlaceholders: editorText.includes(
         "Replace " + String.fromCharCode(96) + "<explicit>" + String.fromCharCode(96) + " budgets",
       ),
+      composerTextMatchesEditorText: composerText === editorText,
       toolInvocationCount: toolInvocations.length,
       toolInvocations,
       notificationCount: notifications.length,

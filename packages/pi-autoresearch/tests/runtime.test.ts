@@ -113,9 +113,10 @@ type CommandContext = {
   cwd: string;
   hasUI: boolean;
   ui: {
-    editor(title: string, text: string): Promise<void>;
+    editor(title: string, text: string): Promise<string | undefined> | string | undefined;
     notify(message: string, level?: string): void;
     setWidget?(id: string, widget: unknown, options?: unknown): void;
+    setEditorText?(text: string): void;
     custom?<T>(factory: (...args: unknown[]) => unknown, options?: unknown): Promise<T>;
   };
 };
@@ -2298,6 +2299,7 @@ test("/autoresearch resume prepares a foreground resume review", async () => {
     const { commands } = registerHarness();
     let editorTitle = "";
     let editorText = "";
+    let composerText = "";
     const notifications: Array<{ message: string; level?: string }> = [];
 
     await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("resume", {
@@ -2307,6 +2309,10 @@ test("/autoresearch resume prepares a foreground resume review", async () => {
         async editor(title: string, text: string) {
           editorTitle = title;
           editorText = text;
+          return text;
+        },
+        setEditorText(text: string) {
+          composerText = text;
         },
         notify(message: string, level?: string) {
           notifications.push({ message, level });
@@ -2320,8 +2326,12 @@ test("/autoresearch resume prepares a foreground resume review", async () => {
     assert.match(editorText, /autoresearch_runtime_resume_apply/);
     assert.match(editorText, /operatorConfirmation: "RUN FOREGROUND RESUME"/);
     assert.match(editorText, /Replace `<explicit>` budgets/);
+    assert.equal(composerText, editorText);
     assert.equal(notifications.length, 1);
-    assert.match(notifications[0]?.message ?? "", /Prepared foreground resume review/);
+    assert.match(
+      notifications[0]?.message ?? "",
+      /Accepted foreground resume review into the message editor/,
+    );
   });
 });
 

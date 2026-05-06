@@ -3159,14 +3159,7 @@ async function openAutoresearchShell(
   }
 
   if (parseAutoresearchResumeCommand(normalizedArgs)) {
-    await ctx.ui.editor(
-      "Review foreground autoresearch resume",
-      buildAutoresearchResumeApplyEditorCall(ctx.cwd),
-    );
-    ctx.ui.notify(
-      "Prepared foreground resume review. Confirm exact keys, budgets, and operator phrase before execution.",
-      "info",
-    );
+    await openAutoresearchResumeReview(ctx);
     return;
   }
 
@@ -3294,6 +3287,21 @@ function parseAutoresearchResumeCommand(value: string): boolean {
     default:
       return false;
   }
+}
+
+async function openAutoresearchResumeReview(ctx: ExtensionContext): Promise<void> {
+  const reviewText = buildAutoresearchResumeApplyEditorCall(ctx.cwd);
+  const editedText = await ctx.ui.editor("Review foreground autoresearch resume", reviewText);
+  if (typeof editedText !== "string") {
+    ctx.ui.notify("Canceled foreground resume review. No resume call was submitted.", "warning");
+    return;
+  }
+
+  ctx.ui.setEditorText(editedText);
+  ctx.ui.notify(
+    "Accepted foreground resume review into the message editor. Press Enter again to submit it, or edit first.",
+    "info",
+  );
 }
 
 function buildAutoresearchResumeApplyEditorCall(cwd: string): string {
