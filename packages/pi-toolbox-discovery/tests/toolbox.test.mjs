@@ -445,6 +445,35 @@ test("toolbox lazily imports little-helpers peer-spawn tools before activation",
   assert.equal(harness.activeTools.includes("candidate_peer_spawn"), true);
 });
 
+test("toolbox does not retry fallback lazy imports after capability tools are registered", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  await executeToolbox(toolbox, {
+    action: "activate",
+    bundle: "peer-spawn",
+    profile: "default",
+    riskAcknowledged: true,
+    riskJustification: "test peer-spawn gated activation",
+  });
+  await executeToolbox(toolbox, {
+    action: "deactivate",
+    tools: ["fork_peer_spawn", "scout_peer_spawn", "candidate_peer_spawn"],
+  });
+  const secondActivation = await executeToolbox(toolbox, {
+    action: "activate",
+    bundle: "peer-spawn",
+    profile: "default",
+    riskAcknowledged: true,
+    riskJustification: "test peer-spawn gated activation rerun",
+  });
+  const status = await executeToolbox(toolbox, { action: "status" });
+
+  assert.match(secondActivation.content[0].text, /Activated tools: fork_peer_spawn/);
+  assert.doesNotMatch(secondActivation.content[0].text, /Lazy import attempts:/);
+  assert.doesNotMatch(status.content[0].text, /peer-spawn:failed/);
+});
+
 test("toolbox deactivation preserves always-active tools", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");

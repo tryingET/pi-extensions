@@ -4,6 +4,17 @@ import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
+import {
+  LITTLE_HELPERS_CAPABILITY_MANIFEST,
+  LITTLE_HELPERS_COMMAND_NAMES,
+  LITTLE_HELPERS_PEER_TOOL_NAMES,
+} from "../src/capabilityManifest.ts";
+
+export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
+
+const [SIDEQUEST_COMMAND, SCOUTPEER_COMMAND, PARALLELQUEST_COMMAND] = LITTLE_HELPERS_COMMAND_NAMES;
+const [FORK_PEER_SPAWN_TOOL, SCOUT_PEER_SPAWN_TOOL, CANDIDATE_PEER_SPAWN_TOOL] =
+  LITTLE_HELPERS_PEER_TOOL_NAMES;
 
 const DEFAULT_PI_BIN = process.env.PI_SIDEQUEST_PI_BIN || "pi";
 const GHOSTTY_PROBE_TIMEOUT_MS = 4000;
@@ -60,6 +71,8 @@ type SidequestOptions = {
   pathExists?: (path: string) => boolean;
   currentSessionGhosttyBin?: string;
   processId?: number;
+  registerCommands?: boolean;
+  registerTools?: boolean;
 };
 
 type SidequestContext = {
@@ -1280,6 +1293,9 @@ function peerLaunchResultMessage({
 
 export function createSidequestExtension(options: SidequestOptions = {}) {
   return function sidequestExtension(pi: ExtensionAPI) {
+    const registerCommands = options.registerCommands ?? true;
+    const registerTools = options.registerTools ?? false;
+
     async function runForkPeerCommand(
       args: string | undefined,
       ctx: PiCommandContext,
@@ -1773,45 +1789,50 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       );
     }
 
-    pi.registerCommand("sidequest", {
-      description: "Fork the current Pi session into a visible Ghostty peer",
-      handler: (args, ctx) => runForkPeerCommand(args, ctx, "sidequest", "Sidequest"),
-    });
+    if (registerCommands) {
+      pi.registerCommand(SIDEQUEST_COMMAND, {
+        description: "Fork the current Pi session into a visible Ghostty peer",
+        handler: (args, ctx) => runForkPeerCommand(args, ctx, SIDEQUEST_COMMAND, "Sidequest"),
+      });
 
-    pi.registerCommand("scoutpeer", {
-      description: "Launch a clean visible read-only scout/review peer in the current workspace",
-      handler: runScoutPeerCommand,
-    });
+      pi.registerCommand(SCOUTPEER_COMMAND, {
+        description: "Launch a clean visible read-only scout/review peer in the current workspace",
+        handler: runScoutPeerCommand,
+      });
 
-    pi.registerCommand("parallelquest", {
-      description: "Launch a clean visible candidate peer in an isolated git worktree",
-      handler: (args, ctx) => runCandidatePeerCommand(args, ctx, "parallelquest", "Parallelquest"),
-    });
+      pi.registerCommand(PARALLELQUEST_COMMAND, {
+        description: "Launch a clean visible candidate peer in an isolated git worktree",
+        handler: (args, ctx) =>
+          runCandidatePeerCommand(args, ctx, PARALLELQUEST_COMMAND, "Parallelquest"),
+      });
+    }
+
+    if (!registerTools) return;
 
     pi.registerTool({
-      name: "fork_peer_spawn",
+      name: FORK_PEER_SPAWN_TOOL,
       label: "Fork Peer Spawn",
       description: "Launch a visible forked-context peer Pi session.",
       promptSnippet:
         "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /sidequest for controller-spawned use.",
       parameters: forkPeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeForkPeerSpawn("fork_peer_spawn", params, ctx),
+        executeForkPeerSpawn(FORK_PEER_SPAWN_TOOL, params, ctx),
     });
 
     pi.registerTool({
-      name: "scout_peer_spawn",
+      name: SCOUT_PEER_SPAWN_TOOL,
       label: "Scout Peer Spawn",
       description: "Launch a clean visible read-only scout/review peer Pi session.",
       promptSnippet:
         "Use to launch a clean visible scout/review peer in the same workspace. It does not inherit the controller conversation and returns launch facts only.",
       parameters: scoutPeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeScoutPeerSpawn("scout_peer_spawn", params, ctx),
+        executeScoutPeerSpawn(SCOUT_PEER_SPAWN_TOOL, params, ctx),
     });
 
     pi.registerTool({
-      name: "candidate_peer_spawn",
+      name: CANDIDATE_PEER_SPAWN_TOOL,
       label: "Candidate Peer Spawn",
       description:
         "Launch a clean visible candidate peer Pi session in an isolated git worktree for bounded mutation.",
@@ -1819,7 +1840,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         "Use to create an isolated git worktree and launch a clean visible candidate peer for bounded mutation. It does not merge, push, open PRs, mutate AK, or claim promotion.",
       parameters: candidatePeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeCandidatePeerSpawn("candidate_peer_spawn", params, ctx),
+        executeCandidatePeerSpawn(CANDIDATE_PEER_SPAWN_TOOL, params, ctx),
     });
   };
 }

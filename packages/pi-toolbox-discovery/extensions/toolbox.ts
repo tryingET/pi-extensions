@@ -958,10 +958,10 @@ async function tryLazyImportBundle(
   const moduleKeys = bundle.lazyModules.map(
     (lazyModule) => `${bundle.id}:${profileId}:${lazyModule.specifier}`,
   );
-  if (
-    requestedTools.every((tool) => getKnownToolNames(pi).has(tool)) &&
-    moduleKeys.every((key) => state.loadedBundles.has(key))
-  ) {
+  if (requestedTools.every((tool) => getKnownToolNames(pi).has(tool))) {
+    for (const key of moduleKeys) {
+      state.loadedBundles.add(key);
+    }
     return { attempted: false, records: [] };
   }
 

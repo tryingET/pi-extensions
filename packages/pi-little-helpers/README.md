@@ -32,7 +32,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 
 ## Visible peer tools
 
-The `sidequest` extension also registers LLM-callable visible peer tools:
+The `sidequest` extension owns the visible peer capability. Slash commands are registered by the extension, while model-callable peer tools are registered lazily through the toolbox bundle. Both projections are governed by one capability manifest in [`src/capabilityManifest.ts`](src/capabilityManifest.ts); see [Visible peer capability contract](docs/project/2026-05-05-visible-peer-capability-contract.md) when debugging registration or package-export drift:
 
 | Tool | Purpose | Mutation boundary |
 |---|---|---|

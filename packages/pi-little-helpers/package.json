@@ -48,6 +48,7 @@
     "extensions/sidequest.ts",
     "extensions/stash.ts",
     "lib/package-utils.ts",
+    "src/capabilityManifest.ts",
     "src/toolboxBundle.ts",
     "prompts",
     "examples",
@@ -55,6 +56,7 @@
     "policy/stack-lane.json"
   ],
   "exports": {
+    "./capability-manifest": "./src/capabilityManifest.ts",
     "./toolbox-bundle": "./src/toolboxBundle.ts",
     "./extensions/code-block-picker.ts": "./extensions/code-block-picker.ts",
     "./extensions/html-output-browser.ts": "./extensions/html-output-browser.ts",

@@ -1,0 +1,63 @@
+export const LITTLE_HELPERS_CAPABILITY_ID = "pi-little-helpers.visible-peer-spawn";
+
+export const LITTLE_HELPERS_COMMAND_NAMES = ["sidequest", "scoutpeer", "parallelquest"] as const;
+export const LITTLE_HELPERS_PEER_TOOL_NAMES = [
+  "fork_peer_spawn",
+  "scout_peer_spawn",
+  "candidate_peer_spawn",
+] as const;
+
+export const LITTLE_HELPERS_TOOLBOX_EXPORTS = [
+  {
+    mode: "monorepo-sibling",
+    specifier: "packages/pi-little-helpers/src/toolboxBundle.ts",
+  },
+  {
+    mode: "published-package",
+    specifier: "@tryinget/pi-little-helpers/toolbox-bundle",
+  },
+] as const;
+
+export const LITTLE_HELPERS_CAPABILITY_MANIFEST = {
+  schemaVersion: 1,
+  id: LITTLE_HELPERS_CAPABILITY_ID,
+  ownerPackage: "@tryinget/pi-little-helpers",
+  title: "Visible peer spawn",
+  description:
+    "Fork, scout, and candidate peer launch surfaces exposed as slash commands and model-callable tools from one capability contract.",
+  commands: LITTLE_HELPERS_COMMAND_NAMES,
+  tools: LITTLE_HELPERS_PEER_TOOL_NAMES,
+  toolboxExports: LITTLE_HELPERS_TOOLBOX_EXPORTS,
+} as const;
+
+export type LittleHelpersCommandName = (typeof LITTLE_HELPERS_COMMAND_NAMES)[number];
+export type LittleHelpersPeerToolName = (typeof LITTLE_HELPERS_PEER_TOOL_NAMES)[number];
+
+export interface CapabilityRegistrationSnapshot {
+  commands: string[];
+  tools: string[];
+}
+
+export interface CapabilityRegistrationCheck {
+  ok: boolean;
+  capabilityId: typeof LITTLE_HELPERS_CAPABILITY_ID;
+  missingCommands: LittleHelpersCommandName[];
+  missingTools: LittleHelpersPeerToolName[];
+}
+
+export function checkLittleHelpersCapabilityRegistration(
+  snapshot: CapabilityRegistrationSnapshot,
+): CapabilityRegistrationCheck {
+  const commandSet = new Set(snapshot.commands);
+  const toolSet = new Set(snapshot.tools);
+  const missingCommands = LITTLE_HELPERS_COMMAND_NAMES.filter(
+    (command) => !commandSet.has(command),
+  );
+  const missingTools = LITTLE_HELPERS_PEER_TOOL_NAMES.filter((tool) => !toolSet.has(tool));
+  return {
+    ok: missingCommands.length === 0 && missingTools.length === 0,
+    capabilityId: LITTLE_HELPERS_CAPABILITY_ID,
+    missingCommands,
+    missingTools,
+  };
+}

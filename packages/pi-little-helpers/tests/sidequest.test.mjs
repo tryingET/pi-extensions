@@ -152,6 +152,7 @@ test("sidequest opens a new Ghostty window when the current Ghostty session lack
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -212,6 +213,7 @@ test("sidequest uses the Ghostty sidequest wrapper to open a same-window tab eve
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -266,6 +268,7 @@ test("sidequest retries a new Ghostty window when live same-window tab attach fa
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -311,6 +314,7 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -348,6 +352,7 @@ test("sidequest refuses to launch when the current Pi session has not been saved
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -369,7 +374,7 @@ test("sidequest refuses to launch when the current Pi session has not been saved
   assert.match(harness.notifications[0].message, /needs a saved Pi session/i);
 });
 
-test("quest tools register as LLM-callable tools while manual sidequest stays registered", () => {
+test("sidequest defaults to slash commands without eager peer-spawn tools", () => {
   const extension = createSidequestExtension();
   const { commands, tools } = registerExtension(extension);
 
@@ -378,6 +383,16 @@ test("quest tools register as LLM-callable tools while manual sidequest stays re
   assert.ok(commands.has("scoutpeer"));
   assert.equal(commands.has("candidatepeer"), false);
   assert.ok(commands.has("parallelquest"));
+  assert.equal(tools.has("fork_peer_spawn"), false);
+  assert.equal(tools.has("scout_peer_spawn"), false);
+  assert.equal(tools.has("candidate_peer_spawn"), false);
+});
+
+test("sidequest can register LLM-callable tools for toolbox activation", () => {
+  const extension = createSidequestExtension({ registerTools: true });
+  const { commands, tools } = registerExtension(extension);
+
+  assert.ok(commands.has("sidequest"));
   assert.ok(tools.has("fork_peer_spawn"));
   assert.equal(tools.has("sidequest_spawn"), false);
   assert.ok(tools.has("scout_peer_spawn"));
@@ -397,6 +412,7 @@ test("fork_peer_spawn launches a forked-context peer", async () => {
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -437,6 +453,7 @@ test("scout_peer_spawn launches a clean session even when the controller session
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -479,6 +496,7 @@ test("scout_peer_spawn rejects a blank objective before probing Ghostty", async 
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -512,6 +530,7 @@ test("scout_peer_spawn requires exact parentPeerTarget for default intercom repo
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -550,6 +569,7 @@ test("scout_peer_spawn uses the same Ghostty window fallback launch path and ret
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -649,6 +669,7 @@ test("scout_peer_spawn reportBack none makes intercom disabled explicit", async 
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -700,6 +721,7 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
   });
 
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -842,6 +864,7 @@ test("/parallelquest launches a human candidate peer worktree", async () => {
   await withTempDir(async (stateHome) => {
     const execStub = createCandidatePeerExecStub();
     const extension = createSidequestExtension({
+      registerTools: true,
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -885,6 +908,7 @@ test("/parallelquest launches a human candidate peer worktree", async () => {
 test("candidate_peer_spawn rejects a blank objective before git or Ghostty", async () => {
   const execStub = createCandidatePeerExecStub();
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -916,6 +940,7 @@ test("candidate_peer_spawn reportBack none makes intercom disabled explicit", as
   await withTempDir(async (stateHome) => {
     const execStub = createCandidatePeerExecStub({ dirty: "" });
     const extension = createSidequestExtension({
+      registerTools: true,
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -966,6 +991,7 @@ test("candidate_peer_spawn reportBack none makes intercom disabled explicit", as
 test("candidate_peer_spawn requires exact parentPeerTarget for default intercom report-back", async () => {
   const execStub = createCandidatePeerExecStub();
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -997,6 +1023,7 @@ test("candidate_peer_spawn fails closed when requireCleanParent sees dirty paren
   await withTempDir(async (stateHome) => {
     const execStub = createCandidatePeerExecStub({ dirty: " M src/file.ts\n" });
     const extension = createSidequestExtension({
+      registerTools: true,
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -1036,6 +1063,7 @@ test("candidate_peer_spawn fails closed when requireCleanParent sees dirty paren
 test("candidate_peer_spawn rejects worktree paths inside the parent checkout", async () => {
   const execStub = createCandidatePeerExecStub();
   const extension = createSidequestExtension({
+    registerTools: true,
     env: {
       TERM_PROGRAM: "ghostty",
       GHOSTTY_BIN_DIR: "/usr/bin",
@@ -1070,6 +1098,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
   await withTempDir(async (stateHome) => {
     const execStub = createCandidatePeerExecStub({ dirty: " M pending-parent-change.ts\n" });
     const extension = createSidequestExtension({
+      registerTools: true,
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
