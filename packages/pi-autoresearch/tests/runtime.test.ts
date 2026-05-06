@@ -634,6 +634,46 @@ test("candidate handoff dogfood script preserves visible-candidate boundaries", 
   assert.match(output, /"lifecycleStateUnchanged": true/u);
 });
 
+test("dogfood contract suite counts child execution failures as blockers", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const output = execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `
+        const { aggregateSuiteResults, blockerCount, parseMetric } = await import("./scripts/dogfood-contract-suite.mjs");
+        const cases = [
+          ["clean", blockerCount({ exitCode: 0, signalFailure: null, metric: 0 }), 0],
+          ["metric_zero_nonzero_exit", blockerCount({ exitCode: 1, signalFailure: null, metric: 0 }), 1],
+          ["missing_metric", blockerCount({ exitCode: 0, signalFailure: null, metric: null }), 1],
+          ["negative_metric", blockerCount({ exitCode: 0, signalFailure: null, metric: -1 }), 1],
+          ["signal_failure", blockerCount({ exitCode: 1, signalFailure: "signal:SIGTERM", metric: 0 }), 1],
+        ];
+        for (const [name, actual, expected] of cases) {
+          if (actual !== expected) {
+            throw new Error(name + ": expected " + expected + ", got " + actual);
+          }
+        }
+        if (parseMetric("METRIC unresolved_example=0\\n", "unresolved_example") !== 0) {
+          throw new Error("expected metric parser to read zero metric");
+        }
+        const aggregate = aggregateSuiteResults([
+          { ok: true, blockers: 0 },
+          { ok: false, blockers: 0 },
+        ]);
+        if (aggregate.unresolved !== 0 || aggregate.hasFailures !== true) {
+          throw new Error("expected aggregate to preserve child failure even with zero blockers");
+        }
+        console.log("suite-failure-aggregation-ok");
+      `,
+    ],
+    { cwd: packageRoot, encoding: "utf8" },
+  );
+
+  assert.match(output, /suite-failure-aggregation-ok/u);
+});
+
 test("dogfood contract suite runs all current strict autoresearch contracts", () => {
   const packageRoot = path.resolve(import.meta.dirname, "..");
   const hostileRoot = mkdtempSync(path.join(os.tmpdir(), "autoresearch-suite-hostile-env-"));

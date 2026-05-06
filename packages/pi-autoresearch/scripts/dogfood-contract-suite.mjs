@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const strictDefault = process.env.DOGFOOD_CONTRACT_STRICT ?? "1";
@@ -54,7 +54,7 @@ const contracts = [
   },
 ];
 
-function parseMetric(output, metricName) {
+export function parseMetric(output, metricName) {
   const pattern = new RegExp(`^METRIC\\s+${metricName}=(-?\\d+(?:\\.\\d+)?)\\s*$`, "mu");
   const match = output.match(pattern);
   if (!match) return null;
@@ -76,7 +76,7 @@ function prepareTempEnv(contract) {
   return { env, cleanupPaths };
 }
 
-function blockerCount({ exitCode, signalFailure, metric }) {
+export function blockerCount({ exitCode, signalFailure, metric }) {
   const metricBlockers = metric === null || metric < 0 ? 1 : metric;
   const executionBlockers = exitCode === 0 && !signalFailure ? 0 : 1;
   return Math.max(metricBlockers, executionBlockers);
@@ -112,45 +112,68 @@ function runContract(contract) {
   }
 }
 
-const results = contracts.map(runContract);
-const unresolved = results.reduce((sum, result) => sum + result.blockers, 0);
-const hasFailures = results.some((result) => !result.ok);
-for (const result of results) {
-  console.log(
-    `CONTRACT ${result.ok ? "ok" : "fail"} ${result.id}: ${result.script} ${result.metricName}=${
-      result.metric ?? "missing"
-    } exit=${result.exitCode}${result.signal ? ` signal=${result.signal}` : ""}`,
-  );
+export function aggregateSuiteResults(results) {
+  const unresolved = results.reduce((sum, result) => sum + result.blockers, 0);
+  const hasFailures = results.some((result) => !result.ok);
+  return { unresolved, hasFailures };
 }
 
-console.log(`METRIC unresolved_autoresearch_dogfood_suite_blockers=${unresolved}`);
-console.log(
-  JSON.stringify(
-    {
-      unresolved,
-      hasFailures,
-      results: results.map((result) => ({
-        id: result.id,
-        script: result.script,
-        ok: result.ok,
-        exitCode: result.exitCode,
-        signal: result.signal,
-        metricName: result.metricName,
-        metric: result.metric,
-        blockers: result.blockers,
-      })),
-    },
-    null,
-    2,
-  ),
-);
+export function runSuite() {
+  const results = contracts.map(runContract);
+  return { results, ...aggregateSuiteResults(results) };
+}
 
-if (process.env.DOGFOOD_CONTRACT_VERBOSE === "1") {
+function printSuiteResult({ results, unresolved, hasFailures }) {
   for (const result of results) {
-    console.log(`\n## ${result.id} output\n${result.output.trimEnd()}`);
+    console.log(
+      `CONTRACT ${result.ok ? "ok" : "fail"} ${result.id}: ${result.script} ${
+        result.metricName
+      }=${result.metric ?? "missing"} exit=${result.exitCode}${
+        result.signal ? ` signal=${result.signal}` : ""
+      }`,
+    );
+  }
+
+  console.log(`METRIC unresolved_autoresearch_dogfood_suite_blockers=${unresolved}`);
+  console.log(
+    JSON.stringify(
+      {
+        unresolved,
+        hasFailures,
+        results: results.map((result) => ({
+          id: result.id,
+          script: result.script,
+          ok: result.ok,
+          exitCode: result.exitCode,
+          signal: result.signal,
+          metricName: result.metricName,
+          metric: result.metric,
+          blockers: result.blockers,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
+
+  if (process.env.DOGFOOD_CONTRACT_VERBOSE === "1") {
+    for (const result of results) {
+      console.log(`\n## ${result.id} output\n${result.output.trimEnd()}`);
+    }
   }
 }
 
-if (process.env.DOGFOOD_CONTRACT_STRICT !== "0" && (unresolved > 0 || hasFailures)) {
-  process.exitCode = 1;
+function main() {
+  const suiteResult = runSuite();
+  printSuiteResult(suiteResult);
+
+  if (
+    process.env.DOGFOOD_CONTRACT_STRICT !== "0" &&
+    (suiteResult.unresolved > 0 || suiteResult.hasFailures)
+  ) {
+    process.exitCode = 1;
+  }
 }
+
+const entryPoint = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
+if (entryPoint === import.meta.url) main();
