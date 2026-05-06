@@ -106,6 +106,9 @@ const ALWAYS_ACTIVE_TOOLS = [
   "vault_retrieve",
   "vault_vocabulary",
   "vault_dispatch_check",
+  "fork_peer_spawn",
+  "scout_peer_spawn",
+  "candidate_peer_spawn",
   "toolbox",
 ];
 
@@ -115,6 +118,7 @@ const ALLOWED_EAGER_REGISTERED_BUNDLE_IDS = new Set([
   "vault",
   "session-introspection",
   "operator-interaction",
+  "peer-spawn",
 ]);
 
 export const CATALOG: ToolboxBundle[] = [
@@ -658,11 +662,11 @@ function boundedTtlTurns(
   return Math.max(1, Math.min(MAX_TTL_TURNS, candidate));
 }
 
-function applyMinimalStartupProfile(pi: ExtensionAPI): string[] {
+function applyStandardStartupProfile(pi: ExtensionAPI): string[] {
   const registered = getKnownToolNames(pi);
-  const minimal = ALWAYS_ACTIVE_TOOLS.filter((tool) => registered.has(tool));
-  pi.setActiveTools(minimal);
-  return minimal;
+  const standard = ALWAYS_ACTIVE_TOOLS.filter((tool) => registered.has(tool));
+  pi.setActiveTools(standard);
+  return standard;
 }
 
 function recordLeases(
@@ -840,7 +844,7 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
       `missing registered baseline tools: ${missingAlwaysActiveRegistrations.join(", ")}`,
     );
     recommendations.push(
-      "Load the owner packages for missing foundational/cognitive tools before relying on the lean startup profile.",
+      "Load the owner packages for missing foundational/cognitive tools before relying on the standard startup profile.",
     );
   }
   if (inactiveAlwaysActiveTools.length > 0) {
@@ -869,7 +873,7 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
   }
   if (recommendations.length === 0) {
     recommendations.push(
-      "Lean startup profile is healthy; activate lazy bundles only when the task needs them.",
+      "Standard startup profile is healthy; activate latent bundles only when the task needs them.",
     );
   }
 
@@ -1063,7 +1067,7 @@ function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
         .map((record) => `${record.bundle}:${record.ok ? "ok" : "failed"}`)
         .join(", ") || "none"
     }`,
-    "- startup profile: minimal active set is enforced on session_start when these tools are registered.",
+    "- startup profile: standard active set is enforced on session_start when these tools are registered.",
   ].join("\n");
 }
 
@@ -1074,7 +1078,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
     state.leases.clear();
     state.loadedBundles.clear();
     state.lazyImportRecords = [];
-    applyMinimalStartupProfile(pi);
+    applyStandardStartupProfile(pi);
   });
 
   pi.on("turn_start", () => {
@@ -1097,9 +1101,9 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
     name: "toolbox",
     label: "Toolbox Discovery",
     description:
-      "Discover, explain, activate, deactivate, or inspect pi-extension tool bundles while keeping heavyweight package tools off by default.",
+      "Discover, explain, activate, deactivate, or inspect pi-extension tool bundles while keeping heavyweight package tools off by default except standard peer-spawn tools.",
     promptSnippet:
-      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, and Prompt Vault read tools active by default.",
+      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, Prompt Vault read tools, and peer-spawn tools active by default.",
     promptGuidelines: [
       "Use toolbox to discover domain-specific Pi tools before assuming a heavyweight custom tool is active.",
       "Do not activate mutating, external-mutation, or orchestrator-gated profiles without explicit user intent.",

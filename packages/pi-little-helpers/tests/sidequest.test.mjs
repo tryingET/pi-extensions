@@ -374,7 +374,7 @@ test("sidequest refuses to launch when the current Pi session has not been saved
   assert.match(harness.notifications[0].message, /needs a saved Pi session/i);
 });
 
-test("sidequest defaults to slash commands without eager peer-spawn tools", () => {
+test("sidequest defaults to slash commands and standard peer-spawn tools", () => {
   const extension = createSidequestExtension();
   const { commands, tools } = registerExtension(extension);
 
@@ -383,16 +383,16 @@ test("sidequest defaults to slash commands without eager peer-spawn tools", () =
   assert.ok(commands.has("scoutpeer"));
   assert.equal(commands.has("candidatepeer"), false);
   assert.ok(commands.has("parallelquest"));
-  assert.equal(tools.has("fork_peer_spawn"), false);
-  assert.equal(tools.has("scout_peer_spawn"), false);
-  assert.equal(tools.has("candidate_peer_spawn"), false);
+  assert.ok(tools.has("fork_peer_spawn"));
+  assert.ok(tools.has("scout_peer_spawn"));
+  assert.ok(tools.has("candidate_peer_spawn"));
 });
 
-test("sidequest can register LLM-callable tools for toolbox activation", () => {
-  const extension = createSidequestExtension({ registerTools: true });
+test("sidequest can suppress commands while registering toolbox peer tools", () => {
+  const extension = createSidequestExtension({ registerCommands: false, registerTools: true });
   const { commands, tools } = registerExtension(extension);
 
-  assert.ok(commands.has("sidequest"));
+  assert.equal(commands.has("sidequest"), false);
   assert.ok(tools.has("fork_peer_spawn"));
   assert.equal(tools.has("sidequest_spawn"), false);
   assert.ok(tools.has("scout_peer_spawn"));

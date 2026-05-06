@@ -1294,7 +1294,7 @@ function peerLaunchResultMessage({
 export function createSidequestExtension(options: SidequestOptions = {}) {
   return function sidequestExtension(pi: ExtensionAPI) {
     const registerCommands = options.registerCommands ?? true;
-    const registerTools = options.registerTools ?? false;
+    const registerTools = options.registerTools ?? true;
 
     async function runForkPeerCommand(
       args: string | undefined,

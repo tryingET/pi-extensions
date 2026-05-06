@@ -8,7 +8,7 @@ system4d:
   container: "Capability contract for pi-little-helpers visible peer-spawn surfaces."
   compass: "Keep slash commands, model-callable tools, package exports, and toolbox activation aligned."
   engine: "Update manifest -> register from manifest -> verify package and toolbox tests."
-  fog: "Main risk is treating a successful lazy import as proof that every projection stayed aligned."
+  fog: "Main risk is treating runtime activation as proof that a static API schema exposes the same tools."
 ---
 
 # Visible peer capability contract
@@ -24,7 +24,7 @@ The source of truth is `src/capabilityManifest.ts`:
 LITTLE_HELPERS_CAPABILITY_MANIFEST
 ```
 
-The sidequest extension imports this manifest and registers slash commands from its command array by default. The toolbox lazy bundle exports the same manifest and registers only the model-callable tools from its tool array on demand. Tests assert that the manifest, slash-command projection, and toolbox-tool projection stay aligned without making peer-spawn tools eager startup registrations.
+The sidequest extension imports this manifest and registers slash commands plus model-callable peer-spawn tools by default. The toolbox bundle exports the same manifest and can register only the model-callable tools from its tool array for compatibility/lazy-registration paths. Tests assert that the manifest, slash-command projection, standard tool projection, and toolbox-tool projection stay aligned so static-schema API sessions can include peer-spawn tools in their initial callable namespace.
 
 ## Why this exists
 
@@ -54,7 +54,7 @@ When a peer-spawn surface fails, check the capability in this order:
    - `./capability-manifest`
    - `./toolbox-bundle`
 3. `src/toolboxBundle.ts` exports `PEER_SPAWN_CAPABILITY_MANIFEST` and delegates tool registration to `createSidequestExtension({ registerCommands: false, registerTools: true })`.
-4. `extensions/sidequest.ts` imports the manifest and registers slash commands from it by default without eagerly registering the peer-spawn tools.
+4. `extensions/sidequest.ts` imports the manifest and registers slash commands plus peer-spawn tools from it by default.
 5. `npm run check` passes in `packages/pi-little-helpers`.
 6. If toolbox activation retries a published-package fallback after local registration already succeeded, inspect `packages/pi-toolbox-discovery/extensions/toolbox.ts`; activation should skip lazy imports once all requested capability tools are registered.
 7. If toolbox status reports the peer-spawn tools active but an API session cannot call `candidate_peer_spawn`, check whether that adapter uses a static tool schema for the current turn/session. The runtime registry may be correct while the adapter schema still needs refresh, `/reload`, or a new session. Use the current interactive visible-peer command documented by this package as the immediate workaround; do not hard-code historical slash-command names in adapter-facing docs.

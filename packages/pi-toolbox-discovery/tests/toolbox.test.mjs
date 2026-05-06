@@ -16,6 +16,9 @@ const ALWAYS_ACTIVE_TOOLS = [
   "vault_retrieve",
   "vault_vocabulary",
   "vault_dispatch_check",
+  "fork_peer_spawn",
+  "scout_peer_spawn",
+  "candidate_peer_spawn",
   "toolbox",
 ];
 
@@ -89,7 +92,7 @@ test("toolbox registers a command and model-callable discovery tool", () => {
   assert.equal(typeof harness.tools.get("toolbox")?.execute, "function");
 });
 
-test("session start enforces the minimal always-active startup profile", async () => {
+test("session start enforces the standard always-active startup profile", async () => {
   const harness = createHarness();
   harness.setActiveTools([
     "read",
@@ -165,7 +168,7 @@ test("toolbox status allows Prompt Vault inactive registrations as cognitive bas
   assert.deepEqual(result.details.eagerRegistrationDrift, []);
 });
 
-test("toolbox doctor passes for the lean startup baseline", async () => {
+test("toolbox doctor passes for the standard startup baseline", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
@@ -177,7 +180,7 @@ test("toolbox doctor passes for the lean startup baseline", async () => {
   assert.match(result.content[0].text, /eager registration drift \(0\): none/);
   assert.equal(result.details.ok, true);
   assert.deepEqual(result.details.recommendations, [
-    "Lean startup profile is healthy; activate lazy bundles only when the task needs them.",
+    "Standard startup profile is healthy; activate latent bundles only when the task needs them.",
   ]);
 });
 
@@ -439,7 +442,7 @@ test("toolbox catalog includes orchestrator self-hosting supervision in gated pr
   assert.equal(harness.activeTools.includes("autoresearch_self_hosting_supervision"), false);
 });
 
-test("toolbox lazily imports little-helpers peer-spawn tools before activation", async () => {
+test("toolbox keeps standard little-helpers peer-spawn tools active", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
 
@@ -452,11 +455,8 @@ test("toolbox lazily imports little-helpers peer-spawn tools before activation",
   });
 
   assert.match(result.content[0].text, /Activated tools: fork_peer_spawn/);
-  assert.match(result.content[0].text, /Lazy import attempts:/);
-  assert.doesNotMatch(
-    result.content[0].text,
-    /failed @tryinget\/pi-little-helpers\/toolbox-bundle/,
-  );
+  assert.doesNotMatch(result.content[0].text, /Lazy import attempts:/);
+  assert.equal(result.details.lazyImport.attempted, false);
   assert.match(
     result.content[0].text,
     /Caveat: Peer-spawn activation updates Pi's runtime active-tool registry only/,
