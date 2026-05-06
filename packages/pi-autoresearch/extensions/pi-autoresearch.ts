@@ -947,6 +947,15 @@ const campaignStartSchema = Type.Object({
       description: "When planner=dspx_program, write the local DSPx intent artifact.",
     }),
   ),
+  runDspxProgramGen: Type.Optional(
+    Type.Boolean({
+      description:
+        "When planner=dspx_program, run the bounded local DSPx program-gen command and use its behavior_results.json as the campaign plan.",
+    }),
+  ),
+  dspxProgramGenTimeoutSeconds: Type.Optional(
+    Type.Number({ description: "DSPx program-gen timeout seconds.", minimum: 1 }),
+  ),
   dspxIntentPath: Type.Optional(
     Type.String({ description: "Optional repo-relative or absolute DSPx intent path." }),
   ),
@@ -1941,6 +1950,8 @@ export function registerPiAutoresearchExtension(
         direction?: "lower" | "higher";
         metricThreshold?: number;
         materializeDspxIntent?: boolean;
+        runDspxProgramGen?: boolean;
+        dspxProgramGenTimeoutSeconds?: number;
         dspxIntentPath?: string;
         dspxOutdir?: string;
         dspxBehaviorPath?: string;
@@ -1996,6 +2007,8 @@ export function registerPiAutoresearchExtension(
         direction: request.direction,
         metricThreshold: request.metricThreshold,
         materializeDspxIntent: request.materializeDspxIntent,
+        runDspxProgramGen: request.runDspxProgramGen,
+        dspxProgramGenTimeoutSeconds: request.dspxProgramGenTimeoutSeconds,
         dspxIntentPath: request.dspxIntentPath,
         dspxOutdir: request.dspxOutdir,
         dspxBehaviorPath: request.dspxBehaviorPath,

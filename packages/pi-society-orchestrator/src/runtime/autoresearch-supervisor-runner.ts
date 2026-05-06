@@ -132,6 +132,8 @@ export interface AutoresearchLiveStartCampaignRequest extends AutoresearchLiveSu
   direction?: "lower" | "higher";
   planner?: AutoresearchAutoplanPlanner;
   materializeDspxIntent?: boolean;
+  runDspxProgramGen?: boolean;
+  dspxProgramGenTimeoutSeconds?: number;
   dspxIntentPath?: string;
   dspxOutdir?: string;
   dspxBehaviorPath?: string;
@@ -395,6 +397,8 @@ export class AutoresearchLiveSupervisionRunner {
       direction: input.direction,
       planner: input.planner,
       materializeDspxIntent: input.materializeDspxIntent,
+      runDspxProgramGen: input.runDspxProgramGen,
+      dspxProgramGenTimeoutSeconds: input.dspxProgramGenTimeoutSeconds,
       dspxIntentPath: input.dspxIntentPath,
       dspxOutdir: input.dspxOutdir,
       dspxBehaviorPath: input.dspxBehaviorPath,

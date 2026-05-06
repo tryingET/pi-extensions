@@ -125,7 +125,10 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - supports calibration runs that update timing/noise interpretation without competing as candidate improvements; calibration-only faster samples are surfaced as `calibration_signal`, not candidate wins
   - when a generic benchmark command such as `npm test` would not emit `METRIC <name>=<value>`, proposes a conservative local `autoresearch.sh` script only when its measurement contract is fresh, causal to the current run, and allowed to drive optimization
   - supports `planner: "dspx_program"` to return or materialize a local DSPx `program-gen` handoff intent for an `AutoresearchSetupPlanner` candidate while keeping Pi as the outer controller
-  - when DSPx `behavior_results.json` exists, reads it as evidence-only advisory setup input and may summarize passed/total as an advisory-only score, but static behavior evidence cannot drive a baseline unless regenerated during the benchmark
+  - when DSPx `behavior_results.json` exists, reads it as advisory setup input; static behavior evidence remains advisory unless a bounded campaign-start path explicitly runs DSPx program-gen in the current call
+- `autoresearch_campaign_start`
+  - can run bounded local DSPx `program-gen` with `planner: "dspx_program"`, `runDspxProgramGen: true`, and optional `dspxProgramGenTimeoutSeconds`, then use the generated `behavior_results.json` proposal as the campaign setup plan before baseline/bounded-loop execution
+  - still keeps Pi / pi-autoresearch as the outer controller: DSPx proposes the program-shaped setup, while pi-autoresearch owns setup application, receipts, bounded runs, peer gates, and stop conditions
 - `autoresearch_runtime_setup`
   - plans, applies, or baselines a campaign/segment config, including optional explicit `metricThreshold` targets for threshold-style success, without requiring a human slash-command wizard
   - can append a config receipt without running, or bootstrap a baseline run through the same bounded run machinery

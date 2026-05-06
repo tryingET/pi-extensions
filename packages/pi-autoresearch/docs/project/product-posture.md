@@ -178,6 +178,8 @@ The dashboard summarizes current posture, metric contract, confidence/noise inte
 
 A first live-progress slice is now landed for bounded loops: `autoresearch_runtime_loop` and `autoresearch_campaign_start({ runMode: "bounded_loop" })` stream compact live progress cards during execution and return a final dashboard in the result. This gives an operator a truthful "start a bounded run, step away, and come back to final posture" path inside the active tool call.
 
+A bounded DSPx planning slice is now landed for the campaign front door: `autoresearch_campaign_start({ planner: "dspx_program", runDspxProgramGen: true, ... })` materializes the DSPx intent, runs local DSPx `program-gen` with a timeout, reads the generated `behavior_results.json`, and uses that proposal as the campaign setup plan before baseline or bounded-loop execution. DSPx owns the program-shaped setup proposal; pi-autoresearch remains the outer controller for setup application, receipts, bounded runs, peer gates, and stop conditions.
+
 A first persistent widget slice is also landed: session start registers an above-editor status widget unless `PI_AUTORESEARCH_WIDGET=0` is set, and `/autoresearch widget on|off` controls it for the current session. The widget is read-only and shows machine state, run counts, best metric, confidence, empirical posture, and promotion readiness.
 
 A first fullscreen/overlay slice is also landed: `/autoresearch overlay` and `/autoresearch fullscreen` open a read-only live TUI dashboard overlay with periodic refresh, compact posture, metric contract, recent-run table, candidate decision summary, and candidate policy summary. It closes with `q`/Escape and supports simple keyboard scrolling.

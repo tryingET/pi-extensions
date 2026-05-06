@@ -31,7 +31,7 @@ If AK still shows only the reassessment slice and no new implementation task, st
 ### Autoresearch overwatch start-under-supervision is now landed history
 - `autoresearch_live_supervision` includes `action=start_campaign` for exact `taskId` + exact `cwd` + non-empty `objective`.
 - The action delegates bounded campaign startup to `pi-autoresearch` through its public runtime seam with `setupMode=autoplan`, `runMode=bounded_loop`, default `maxIterations=3`, default `maxWallClockMinutes=30`, and `peerMode=plan`, then starts normal live supervision.
-- `start_campaign` can pass `planner=dspx_program`, `materializeDspxIntent`, and DSPx intent/outdir/behavior paths through to `pi-autoresearch`, which materializes a local DSPx program-gen handoff when `planner=dspx_program` and materialization is requested. Orchestrator does not synthesize or apply DSPy programs itself.
+- `start_campaign` can pass `planner=dspx_program`, `runDspxProgramGen`, `materializeDspxIntent`, and DSPx intent/outdir/behavior paths through to `pi-autoresearch`, which can materialize and run a bounded local DSPx program-gen handoff and use the generated `behavior_results.json` as the campaign setup plan. Orchestrator does not synthesize or apply DSPy programs itself.
 - This is an above-seam coordination surface only: it does not spawn peers, promote candidates, mutate direction, or write KES evidence. Live supervision may project verified AK milestones through its existing orchestrator-gated projector after runtime/ledger proof; direction changes remain explicit gated owner-surface work.
 - Package validation for this slice included `npm --prefix packages/pi-society-orchestrator run check` from the monorepo root.
 

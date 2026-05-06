@@ -3195,6 +3195,106 @@ test("autoresearch_campaign_start provides a plan-only supervised front door", a
   });
 });
 
+test("autoresearch_campaign_start can run DSPx program-gen and use its setup proposal", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-dspx-campaign",
+        scripts: { bench: "node bench.js", check: "node check.js" },
+      }),
+    );
+    writeFile(path.join(cwd, "src/index.ts"), "export const value = 1;\n");
+
+    const previousDspxHome = process.env.DSPX_HOME;
+    const shellInjectionSentinel = path.join(process.cwd(), "dspx-shell-injected");
+    rmSync(shellInjectionSentinel, { force: true });
+    const fakeDspxHome = path.join(cwd, "fake-$(touch dspx-shell-injected)-dspx");
+    const objective = "reduce runtime with dspx";
+    writeFile(
+      path.join(fakeDspxHome, "justfile"),
+      `dspx subcommand intentflag intent outdirflag outdir:\n    mkdir -p "{{outdir}}"\n    printf '%s\\n' '${JSON.stringify(
+        {
+          summary: { status: "passed", total: 1, passed: 1, failed: 0, error: 0 },
+          examples: [
+            {
+              index: 0,
+              status: "passed",
+              inputs: { objective },
+              observed_outputs: {
+                campaign_name: "dspx-campaign",
+                metric_name: "latency_ms",
+                metric_unit: "ms",
+                direction: "lower",
+                benchmark_command: "npm run dspx-bench",
+                checks_command: "npm run dspx-check",
+                risks: "watch generated planner assumptions",
+                next_action: "baseline",
+              },
+            },
+          ],
+        },
+      ).replaceAll("'", "'\\''")} ' > "{{outdir}}/behavior_results.json"\n`,
+    );
+    process.env.DSPX_HOME = fakeDspxHome;
+    try {
+      const result = await tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME)?.execute(
+        "call-campaign-start-dspx-run",
+        {
+          cwd,
+          objective,
+          runMode: "plan_only",
+          planner: "dspx_program",
+          runDspxProgramGen: true,
+          dspxProgramGenTimeoutSeconds: 10,
+          dspxIntentPath: ".autoresearch/dspx/intent.yaml",
+          dspxOutdir: ".autoresearch/dspx/generated/planner",
+        },
+        undefined,
+        undefined,
+        { cwd },
+      );
+
+      assert.ok(result);
+      const output = result.content[0]?.text ?? "";
+      assert.match(output, /DSPx program-gen run/);
+      const details = result.details as {
+        dspxProgramGenRun: { exitCode: number; timedOut: boolean };
+        autoplan: {
+          config: { name: string; metricName: string; direction: string };
+          benchmarkCommand: string;
+          checksCommand: string;
+          dspxProgramGen: { intentPath: string; materialized: boolean };
+          dspxAdvisory: { available: boolean; matchedObjective: boolean };
+        };
+      };
+      assert.equal(details.dspxProgramGenRun.exitCode, 0);
+      assert.equal(details.dspxProgramGenRun.timedOut, false);
+      assert.equal(details.autoplan.config.name, "dspx-campaign");
+      assert.equal(details.autoplan.config.metricName, "latency_ms");
+      assert.equal(details.autoplan.config.direction, "lower");
+      assert.equal(details.autoplan.benchmarkCommand, "npm run dspx-bench");
+      assert.equal(details.autoplan.checksCommand, "npm run dspx-check");
+      assert.equal(details.autoplan.dspxProgramGen.materialized, true);
+      assert.equal(details.autoplan.dspxAdvisory.available, true);
+      assert.equal(details.autoplan.dspxAdvisory.matchedObjective, true);
+      assert.match(
+        readFileSync(details.autoplan.dspxProgramGen.intentPath, "utf8"),
+        /AutoresearchSetupPlanner/,
+      );
+      assert.equal(existsSync(shellInjectionSentinel), false);
+    } finally {
+      if (previousDspxHome === undefined) {
+        delete process.env.DSPX_HOME;
+      } else {
+        process.env.DSPX_HOME = previousDspxHome;
+      }
+      rmSync(shellInjectionSentinel, { force: true });
+    }
+  });
+});
+
 test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent handoff", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();

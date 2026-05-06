@@ -484,6 +484,8 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
       objective: "materialize a DSPx planner handoff",
       planner: "dspx_program",
       materializeDspxIntent: true,
+      runDspxProgramGen: true,
+      dspxProgramGenTimeoutSeconds: 10,
       dspxIntentPath: ".autoresearch/dspx/intent.yaml",
       dspxOutdir: ".autoresearch/dspx/generated",
       dspxBehaviorPath: ".autoresearch/dspx/behavior_results.json",
@@ -496,13 +498,15 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
   assert.equal(campaignCalls.length, 1);
   assert.equal(campaignCalls[0].planner, "dspx_program");
   assert.equal(campaignCalls[0].materializeDspxIntent, true);
+  assert.equal(campaignCalls[0].runDspxProgramGen, true);
+  assert.equal(campaignCalls[0].dspxProgramGenTimeoutSeconds, 10);
   assert.equal(campaignCalls[0].dspxIntentPath, ".autoresearch/dspx/intent.yaml");
   assert.equal(campaignCalls[0].dspxOutdir, ".autoresearch/dspx/generated");
   assert.equal(campaignCalls[0].dspxBehaviorPath, ".autoresearch/dspx/behavior_results.json");
   assert.equal(campaignCalls[0].peerMode, "plan");
   assert.match(result.content[0].text, /Planner: dspx_program/);
   assert.match(result.content[0].text, /DSPx program-gen handoff/);
-  assert.match(result.content[0].text, /orchestrator does not synthesize or apply DSPy programs/);
+  assert.match(result.content[0].text, /orchestrator only requests the bounded owner seam/);
   assert.equal(scheduler.pendingCount(), 1);
 });
 

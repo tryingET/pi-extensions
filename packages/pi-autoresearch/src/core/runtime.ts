@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -836,7 +837,7 @@ export interface AutoresearchBenchmarkScriptProposal {
 }
 
 export interface AutoresearchDspxAdvisory {
-  authority: "evidence_only_non_authoritative";
+  authority: "evidence_only_non_authoritative" | "fresh_bounded_program_gen_proposal";
   behaviorPath: string;
   available: boolean;
   status: string | null;
@@ -846,6 +847,7 @@ export interface AutoresearchDspxAdvisory {
   error: number;
   matchedObjective: boolean;
   selectedExampleIndex: number | null;
+  selectedExampleStatus: string | null;
   proposal: AutoresearchDspxAdvisoryProposal | null;
   benchmarkScriptProposal: AutoresearchBenchmarkScriptProposal | null;
   warnings: string[];
@@ -857,6 +859,7 @@ export interface AutoresearchDspxProgramGenPlan {
   intentPath: string;
   outdir: string;
   command: string;
+  argv: string[];
   materialized: boolean;
   note: string;
 }
@@ -917,6 +920,8 @@ export interface ExecuteAutoresearchCampaignStartInput extends BuildAutoresearch
   runMode?: AutoresearchCampaignStartRunMode;
   maxIterations?: number;
   maxWallClockMinutes?: number;
+  runDspxProgramGen?: boolean;
+  dspxProgramGenTimeoutSeconds?: number;
   description?: string;
   allowOverwriteScripts?: boolean;
   reconfigure?: boolean;
@@ -950,6 +955,7 @@ export interface ExecuteAutoresearchCampaignStartResult {
   setupDecision: ExecuteAutoresearchSetupDecisionResult | null;
   setupResult: ExecuteAutoresearchSetupResult | null;
   loopResult: ExecuteAutoresearchLoopResult | null;
+  dspxProgramGenRun: CommandExecutionSummary | null;
   candidatePolicy: AutoresearchCandidateLifecyclePolicy;
   status: AutoresearchRuntimeStatus;
   nextToolCall: string;
@@ -1415,6 +1421,127 @@ export function buildAutoresearchAutoplan(
   };
 }
 
+function assertUsableFreshDspxProgramGenPlan(result: AutoresearchAutoplanResult): void {
+  const advisory = result.dspxAdvisory;
+  const proposal = advisory?.proposal;
+  if (!advisory?.available) {
+    throw new Error("DSPx program-gen completed but behavior_results.json is missing.");
+  }
+  if (advisory.status !== "passed") {
+    throw new Error(
+      `DSPx program-gen behavior status must be passed, received: ${advisory.status ?? "unknown"}.`,
+    );
+  }
+  if (!advisory.matchedObjective) {
+    throw new Error("DSPx program-gen behavior evidence did not contain an exact objective match.");
+  }
+  if (advisory.selectedExampleStatus !== "passed") {
+    throw new Error(
+      `DSPx program-gen selected example status must be passed, received: ${advisory.selectedExampleStatus ?? "unknown"}.`,
+    );
+  }
+  if (
+    advisory.total <= 0 ||
+    advisory.failed > 0 ||
+    advisory.error > 0 ||
+    advisory.passed !== advisory.total
+  ) {
+    throw new Error(
+      "DSPx program-gen summary counts must show all examples passed with no failures or errors.",
+    );
+  }
+  if (!proposal) {
+    throw new Error("DSPx program-gen behavior evidence did not include a setup proposal.");
+  }
+  if (
+    !proposal.campaignName ||
+    !proposal.metricName ||
+    !proposal.direction ||
+    !proposal.benchmarkCommand
+  ) {
+    throw new Error(
+      "DSPx program-gen setup proposal must include campaign_name, metric_name, direction, and benchmark_command.",
+    );
+  }
+  const blockingWarnings = advisory.warnings.filter((warning) =>
+    /does not contain an exact objective match|status is|summary counts|selected example status|no observable setup proposal|may not print|required METRIC|cannot drive a baseline|could not parse/u.test(
+      warning,
+    ),
+  );
+  if (blockingWarnings.length > 0) {
+    throw new Error(`DSPx program-gen setup proposal is blocked: ${blockingWarnings.join("; ")}`);
+  }
+}
+
+function applyDspxAdvisoryPlan(result: AutoresearchAutoplanResult): AutoresearchAutoplanResult {
+  const proposal = result.dspxAdvisory?.proposal;
+  if (!proposal) return result;
+
+  const metricName = proposal.metricName ?? result.config.metricName;
+  const metricUnit = proposal.metricUnit || result.config.metricUnit;
+  const direction = proposal.direction ?? result.config.direction;
+  const benchmarkCommand = proposal.benchmarkCommand ?? result.benchmarkCommand;
+  const checksCommand = proposal.checksCommand ?? result.checksCommand;
+  const config = createConfigReceipt({
+    name: proposal.campaignName ?? result.config.name,
+    metricName,
+    metricUnit,
+    direction,
+    metricThreshold: proposal.metricThreshold ?? result.config.metricThreshold,
+    benchmarkCommand: benchmarkCommand ?? undefined,
+    checksCommand: checksCommand ?? undefined,
+  });
+  const benchmarkMetricWarning = buildBenchmarkMetricContractWarning(benchmarkCommand, metricName);
+  const benchmarkScriptProposal =
+    result.dspxAdvisory?.benchmarkScriptProposal ??
+    buildMetricBenchmarkScriptProposal({
+      cwd: result.cwd,
+      benchmarkCommand,
+      metricName,
+      direction,
+      benchmarkMetricWarning,
+      benchmarkScriptPresent: result.benchmarkScriptPresent,
+      dspxBehaviorPath: result.dspxAdvisory?.behaviorPath ?? null,
+      dspxTotal: result.dspxAdvisory?.total ?? 0,
+    });
+  const measurementContract = buildAutoplanMeasurementContract({
+    benchmarkCommand,
+    metricName,
+    benchmarkMetricWarning,
+    benchmarkScriptProposal,
+  });
+  const scriptProposalCanDriveBaseline =
+    canBenchmarkScriptProposalDriveBaseline(benchmarkScriptProposal);
+  const nextAction: AutoresearchSetupAction =
+    benchmarkMetricWarning && !scriptProposalCanDriveBaseline ? "plan" : "baseline";
+  const nextToolCall = formatAutoplanSetupToolCall({
+    cwd: result.cwd,
+    config,
+    action: nextAction,
+    benchmarkCommand:
+      scriptProposalCanDriveBaseline && benchmarkScriptProposal
+        ? benchmarkScriptProposal.benchmarkCommand
+        : (benchmarkCommand ?? "<benchmark command required>"),
+    checksCommand,
+    benchmarkScriptProposal: scriptProposalCanDriveBaseline ? benchmarkScriptProposal : null,
+  });
+
+  return {
+    ...result,
+    config,
+    benchmarkCommand,
+    checksCommand,
+    measurementContract,
+    benchmarkScriptProposal,
+    confidence: Math.max(result.confidence, result.dspxAdvisory?.matchedObjective ? 0.86 : 0.62),
+    risks: result.dspxAdvisory?.warnings ?? result.risks,
+    nextToolCall,
+    dspxAdvisory: result.dspxAdvisory
+      ? { ...result.dspxAdvisory, authority: "fresh_bounded_program_gen_proposal" }
+      : result.dspxAdvisory,
+  };
+}
+
 export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanResult): string {
   return [
     "# PI-AUTORESEARCH AUTOPLAN",
@@ -1691,24 +1818,70 @@ export async function executeAutoresearchCampaignStart(
   const maxIterations = input.maxIterations ?? 3;
   if (maxIterations < 1) throw new Error("maxIterations must be at least 1");
   const candidatePolicy = normalizeAutoresearchCandidateLifecyclePolicy(input.candidatePolicy);
+  const shouldRunDspxProgramGen = input.runDspxProgramGen === true;
+  const shouldMaterializeDspxIntent =
+    input.materializeDspxIntent === true || shouldRunDspxProgramGen;
 
-  const autoplan = buildAutoresearchAutoplan({
-    cwd,
-    objective,
-    planner: input.planner,
-    filesInScope: input.filesInScope,
-    offLimits: input.offLimits,
-    constraints: input.constraints,
-    benchmarkCommand: input.benchmarkCommand,
-    checksCommand: input.checksCommand,
-    metricName: input.metricName,
-    metricUnit: input.metricUnit,
-    direction: input.direction,
-    materializeDspxIntent: input.materializeDspxIntent,
-    dspxIntentPath: input.dspxIntentPath,
-    dspxOutdir: input.dspxOutdir,
-    dspxBehaviorPath: input.dspxBehaviorPath,
-  });
+  const buildAutoplan = (dspxBehaviorPathOverride?: string) =>
+    buildAutoresearchAutoplan({
+      cwd,
+      objective,
+      planner: input.planner,
+      filesInScope: input.filesInScope,
+      offLimits: input.offLimits,
+      constraints: input.constraints,
+      benchmarkCommand: input.benchmarkCommand,
+      checksCommand: input.checksCommand,
+      metricName: input.metricName,
+      metricUnit: input.metricUnit,
+      direction: input.direction,
+      metricThreshold: input.metricThreshold,
+      materializeDspxIntent: shouldMaterializeDspxIntent,
+      dspxIntentPath: input.dspxIntentPath,
+      dspxOutdir: input.dspxOutdir,
+      dspxBehaviorPath: dspxBehaviorPathOverride ?? input.dspxBehaviorPath,
+    });
+
+  let autoplan = buildAutoplan();
+  let dspxProgramGenRun: CommandExecutionSummary | null = null;
+  if (shouldRunDspxProgramGen) {
+    if (input.planner !== "dspx_program" || !autoplan.dspxProgramGen) {
+      throw new Error("runDspxProgramGen requires planner=dspx_program.");
+    }
+    const behaviorPath = path.join(autoplan.dspxProgramGen.outdir, "behavior_results.json");
+    rmSync(behaviorPath, { force: true });
+    const dspxProgramGenTimeoutSeconds = input.dspxProgramGenTimeoutSeconds ?? 120;
+    if (
+      !Number.isFinite(dspxProgramGenTimeoutSeconds) ||
+      dspxProgramGenTimeoutSeconds < 1 ||
+      dspxProgramGenTimeoutSeconds > 600
+    ) {
+      throw new Error(
+        `dspxProgramGenTimeoutSeconds must be a finite number between 1 and 600, received: ${String(input.dspxProgramGenTimeoutSeconds)}`,
+      );
+    }
+    dspxProgramGenRun = await runProcessCommand({
+      command: autoplan.dspxProgramGen.command,
+      executable: autoplan.dspxProgramGen.argv[0] ?? "just",
+      args: autoplan.dspxProgramGen.argv.slice(1),
+      cwd: resolveDspxRepoPath(),
+      timeoutSeconds: dspxProgramGenTimeoutSeconds,
+      signal: input.signal,
+    });
+    if (dspxProgramGenRun.exitCode !== 0 || dspxProgramGenRun.timedOut) {
+      throw new Error(
+        `DSPx program-gen failed or timed out (exit=${String(dspxProgramGenRun.exitCode)}, timedOut=${String(dspxProgramGenRun.timedOut)}): ${dspxProgramGenRun.outputTail}`,
+      );
+    }
+    const dspxAutoplan = buildAutoplan(behaviorPath);
+    if (dspxAutoplan.dspxAdvisory?.behaviorPath !== behaviorPath) {
+      throw new Error(
+        "runDspxProgramGen must read behavior_results.json from the generated DSPx outdir.",
+      );
+    }
+    assertUsableFreshDspxProgramGenPlan(dspxAutoplan);
+    autoplan = applyDspxAdvisoryPlan(dspxAutoplan);
+  }
 
   const warnings = [...autoplan.risks];
   let setupDecision: ExecuteAutoresearchSetupDecisionResult | null = null;
@@ -1828,6 +2001,7 @@ export async function executeAutoresearchCampaignStart(
     setupDecision,
     setupResult,
     loopResult,
+    dspxProgramGenRun,
     candidatePolicy,
     status,
     nextToolCall: formatCampaignStartNextToolCall({
@@ -1854,6 +2028,16 @@ export function formatAutoresearchCampaignStartResult(
         `- status: ${result.setupDecision.outcome.status}`,
         `- template: ${result.setupDecision.outcome.templateName}`,
         `- kind: ${result.setupDecision.outcome.kind}`,
+      ]
+    : [];
+  const dspxProgramGenRunLines = result.dspxProgramGenRun
+    ? [
+        "",
+        "## DSPx program-gen run",
+        `- command: ${result.dspxProgramGenRun.command}`,
+        `- exit: ${String(result.dspxProgramGenRun.exitCode)}`,
+        `- timed out: ${result.dspxProgramGenRun.timedOut ? "yes" : "no"}`,
+        `- duration: ${result.dspxProgramGenRun.durationSeconds.toFixed(2)}s`,
       ]
     : [];
   const executionLines = result.loopResult
@@ -1913,6 +2097,7 @@ export function formatAutoresearchCampaignStartResult(
     `- replay-fabric role: ${result.candidatePolicy.replayFabricRole}`,
     `- ASC rewind role: ${result.candidatePolicy.ascRewindRole}`,
     ...setupDecisionLines,
+    ...dspxProgramGenRunLines,
     ...executionLines,
     "",
     "## Warnings / gates",
@@ -2413,9 +2598,10 @@ function buildDspxProgramGenPlan(input: {
     enabled: true,
     intentPath,
     outdir,
-    command: `cd ${JSON.stringify(resolveDspxRepoPath())} && just dspx program-gen --intent ${JSON.stringify(intentPath)} --outdir ${JSON.stringify(outdir)}`,
+    command: `just dspx program-gen --intent ${JSON.stringify(intentPath)} --outdir ${JSON.stringify(outdir)}`,
+    argv: ["just", "dspx", "program-gen", "--intent", intentPath, "--outdir", outdir],
     materialized: input.materialize,
-    note: "DSPx program-gen remains a local evidence/program-synthesis handoff; pi-autoresearch still owns setup application, bounded runs, receipts, and stop gates.",
+    note: "DSPx program-gen remains a local evidence/program-synthesis handoff unless runDspxProgramGen accepts a fresh bounded proposal; pi-autoresearch still owns setup application, bounded runs, receipts, and stop gates.",
   };
 }
 
@@ -2440,6 +2626,7 @@ function readDspxAutoplanAdvisory(input: {
     error: 0,
     matchedObjective: false,
     selectedExampleIndex: null,
+    selectedExampleStatus: null,
     proposal: null,
     benchmarkScriptProposal: null,
     warnings: ["DSPx behavior_results.json is not present yet; run the program-gen handoff first"],
@@ -2466,6 +2653,7 @@ function readDspxAutoplanAdvisory(input: {
     const selected = exact ?? records.find((record) => isRecord(record.observed_outputs)) ?? null;
     const observed =
       selected && isRecord(selected.observed_outputs) ? selected.observed_outputs : null;
+    const selectedStatus = selected ? stringOrNull(selected.status) : null;
     const proposal = observed ? parseDspxAdvisoryProposal(observed) : null;
     const status = stringOrNull(summary.status) ?? stringOrNull(payload.behavior_status);
     const total = numberOrZero(summary.total);
@@ -2498,6 +2686,12 @@ function readDspxAutoplanAdvisory(input: {
         "DSPx behavior evidence does not contain an exact objective match; treat proposal as stale or generic",
       );
     if (status && status !== "passed") warnings.push(`DSPx behavior evidence status is ${status}`);
+    if (status === "passed" && (total <= 0 || failed > 0 || error > 0 || passed !== total)) {
+      warnings.push("DSPx behavior evidence summary counts are inconsistent with passed status");
+    }
+    if (selectedStatus && selectedStatus !== "passed") {
+      warnings.push(`DSPx selected example status is ${selectedStatus}`);
+    }
     if (!proposal) warnings.push("DSPx behavior evidence has no observable setup proposal");
     if (metricWarning && !scriptProposalCanDriveBaseline) warnings.push(metricWarning);
     const measurementContractRisk = buildMeasurementContractRisk(benchmarkScriptProposal);
@@ -2514,6 +2708,7 @@ function readDspxAutoplanAdvisory(input: {
       error,
       matchedObjective: Boolean(exact),
       selectedExampleIndex: selected ? numberOrNull(selected.index) : null,
+      selectedExampleStatus: selectedStatus,
       proposal,
       benchmarkScriptProposal,
       warnings,
@@ -5956,19 +6151,42 @@ function appendCommandOutputChunk(current: string, chunk: string): string {
   return combined.slice(-COMMAND_OUTPUT_MAX_BYTES);
 }
 
+async function runProcessCommand(input: {
+  command: string;
+  executable: string;
+  args: string[];
+  cwd: string;
+  timeoutSeconds: number;
+  signal?: AbortSignal;
+}): Promise<CommandExecutionSummary> {
+  return await runSpawnedCommand({ ...input, shell: false });
+}
+
 async function runShellCommand(input: {
   command: string;
   cwd: string;
   timeoutSeconds: number;
   signal?: AbortSignal;
 }): Promise<CommandExecutionSummary> {
+  return await runSpawnedCommand({ ...input, executable: input.command, args: [], shell: true });
+}
+
+async function runSpawnedCommand(input: {
+  command: string;
+  executable: string;
+  args: string[];
+  cwd: string;
+  timeoutSeconds: number;
+  shell: boolean;
+  signal?: AbortSignal;
+}): Promise<CommandExecutionSummary> {
   input.signal?.throwIfAborted();
   const startedAt = Date.now();
 
   return await new Promise<CommandExecutionSummary>((resolve, reject) => {
-    const child = spawn(input.command, {
+    const child = spawn(input.executable, input.args, {
       cwd: input.cwd,
-      shell: true,
+      shell: input.shell,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
