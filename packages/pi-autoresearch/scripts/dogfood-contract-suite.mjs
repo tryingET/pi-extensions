@@ -15,6 +15,7 @@ const controlledEnvNames = [
   "PI_AUTORESEARCH_CANDIDATE_DOGFOOD_ROOT",
   "PI_AUTORESEARCH_DOGFOOD_CWD",
   "PI_AUTORESEARCH_FOREGROUND_RESUME_BENCHMARK_LOG",
+  "PI_AUTORESEARCH_RESUME_UI_DOGFOOD_CWD",
 ];
 
 const contracts = [
@@ -38,6 +39,18 @@ const contracts = [
         prefix: "autoresearch-suite-resume-log-",
         kind: "file",
         basename: "foreground-resume-benchmark.log",
+      },
+    ],
+  },
+  {
+    id: "resume-ui-contract",
+    script: "scripts/dogfood-resume-ui-contract.mjs",
+    metricName: "unresolved_resume_ui_blockers",
+    tempPaths: [
+      {
+        envName: "PI_AUTORESEARCH_RESUME_UI_DOGFOOD_CWD",
+        prefix: "autoresearch-suite-resume-ui-",
+        kind: "directory",
       },
     ],
   },

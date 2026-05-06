@@ -37,7 +37,7 @@ Before claiming the current dogfood contract surface is clean, run the strict ag
 DOGFOOD_CONTRACT_STRICT=1 node scripts/dogfood-contract-suite.mjs
 ```
 
-The current clean surface must emit `METRIC unresolved_autoresearch_dogfood_suite_blockers=0`. The suite runs the workflow-contract, foreground-resume, and visible-candidate handoff dogfood checks in one foreground command; it supplies suite-owned temporary paths for foreground resume receipts, foreground benchmark logs, and candidate handoff roots so inherited dogfood env vars cannot redirect durable artifacts.
+The current clean surface must emit `METRIC unresolved_autoresearch_dogfood_suite_blockers=0`. The suite runs the workflow-contract, foreground-resume executor, extension-command slash resume review, and visible-candidate handoff dogfood checks in one foreground command; it supplies suite-owned temporary paths for foreground resume receipts, foreground benchmark logs, slash resume review state, and candidate handoff roots so inherited dogfood env vars cannot redirect durable artifacts.
 
 When the target is broader than one candidate patch — for example a command family, latency surface, or scenario/hypothesis sweep — use [benchmark-matrix-runbook.md](./benchmark-matrix-runbook.md) to define the campaign matrix, then use this playbook for each bounded candidate segment.
 

@@ -635,6 +635,34 @@ test("candidate handoff dogfood script preserves visible-candidate boundaries", 
   assert.match(output, /"lifecycleStateUnchanged": true/u);
 });
 
+test("resume slash UI dogfood script preserves foreground review boundaries", () => {
+  const packageRoot = path.resolve(import.meta.dirname, "..");
+  const dogfoodCwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-resume-ui-dogfood-"));
+  try {
+    const output = execFileSync(process.execPath, ["scripts/dogfood-resume-ui-contract.mjs"], {
+      cwd: packageRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        DOGFOOD_CONTRACT_STRICT: "1",
+        PI_AUTORESEARCH_RESUME_UI_DOGFOOD_CWD: dogfoodCwd,
+      },
+    });
+
+    assert.match(output, /CONTRACT ok resume-slash-review/u);
+    assert.match(output, /CONTRACT ok resume-slash-boundary/u);
+    assert.match(output, /METRIC unresolved_resume_ui_blockers=0/u);
+    assert.match(output, /"editorHasResumeApplyPlan": true/u);
+    assert.match(output, /"editorHasExecutor": true/u);
+    assert.match(output, /"editorHasExactConfirmation": true/u);
+    assert.match(output, /"editorHasConcreteKeys": true/u);
+    assert.match(output, /"editorHasBudgetPlaceholders": true/u);
+    assert.match(output, /"toolInvocationCount": 0/u);
+  } finally {
+    rmSync(dogfoodCwd, { recursive: true, force: true });
+  }
+});
+
 test("dogfood contract suite counts child execution failures as blockers", () => {
   const packageRoot = path.resolve(import.meta.dirname, "..");
   const output = execFileSync(
@@ -691,6 +719,7 @@ test("dogfood contract suite treats symlink invocation as CLI execution", () => 
 
       assert.match(output, /CONTRACT ok workflow-contract/u);
       assert.match(output, /CONTRACT ok foreground-resume-contract/u);
+      assert.match(output, /CONTRACT ok resume-ui-contract/u);
       assert.match(output, /CONTRACT ok candidate-handoff-contract/u);
       assert.match(output, /METRIC unresolved_autoresearch_dogfood_suite_blockers=0/u);
     }
@@ -705,6 +734,7 @@ test("dogfood contract suite runs all current strict autoresearch contracts", ()
   const hostileCandidateRoot = path.join(hostileRoot, "candidate-root");
   const hostileResumeCwd = path.join(hostileRoot, "resume-cwd");
   const hostileBenchmarkLog = path.join(hostileRoot, "foreground-resume-benchmark.log");
+  const hostileResumeUiCwd = path.join(hostileRoot, "resume-ui-cwd");
 
   try {
     const output = execFileSync(process.execPath, ["scripts/dogfood-contract-suite.mjs"], {
@@ -716,16 +746,19 @@ test("dogfood contract suite runs all current strict autoresearch contracts", ()
         PI_AUTORESEARCH_CANDIDATE_DOGFOOD_ROOT: hostileCandidateRoot,
         PI_AUTORESEARCH_DOGFOOD_CWD: hostileResumeCwd,
         PI_AUTORESEARCH_FOREGROUND_RESUME_BENCHMARK_LOG: hostileBenchmarkLog,
+        PI_AUTORESEARCH_RESUME_UI_DOGFOOD_CWD: hostileResumeUiCwd,
       },
     });
 
     assert.match(output, /CONTRACT ok workflow-contract/u);
     assert.match(output, /CONTRACT ok foreground-resume-contract/u);
+    assert.match(output, /CONTRACT ok resume-ui-contract/u);
     assert.match(output, /CONTRACT ok candidate-handoff-contract/u);
     assert.match(output, /METRIC unresolved_autoresearch_dogfood_suite_blockers=0/u);
     assert.equal(existsSync(hostileCandidateRoot), false);
     assert.equal(existsSync(hostileResumeCwd), false);
     assert.equal(existsSync(hostileBenchmarkLog), false);
+    assert.equal(existsSync(hostileResumeUiCwd), false);
     assert.deepEqual(readdirSync(hostileRoot), []);
   } finally {
     rmSync(hostileRoot, { recursive: true, force: true });
