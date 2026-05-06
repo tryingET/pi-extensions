@@ -25,11 +25,6 @@ interface ToolboxProfile {
   requiresExplicitUserIntent: boolean;
 }
 
-interface ToolboxLazyModule {
-  specifier: string;
-  label: string;
-}
-
 interface ToolboxBundle {
   id: string;
   title: string;
@@ -38,7 +33,6 @@ interface ToolboxBundle {
   ownerSemantics: string;
   keywords: string[];
   profiles: ToolboxProfile[];
-  lazyModules?: ToolboxLazyModule[];
 }
 
 interface ActivationLease {
@@ -50,20 +44,9 @@ interface ActivationLease {
   riskJustification?: string;
 }
 
-interface LazyImportRecord {
-  bundle: string;
-  specifier: string;
-  profile: string;
-  ok: boolean;
-  registeredTools: string[];
-  message: string;
-}
-
 interface ToolboxState {
   turn: number;
   leases: Map<string, ActivationLease>;
-  loadedBundles: Set<string>;
-  lazyImportRecords: LazyImportRecord[];
 }
 
 interface ToolboxParams {
@@ -114,13 +97,6 @@ const ALWAYS_ACTIVE_TOOLS = [
 
 const DEFAULT_TTL_TURNS = 4;
 const MAX_TTL_TURNS = 12;
-const ALLOWED_EAGER_REGISTERED_BUNDLE_IDS = new Set([
-  "vault",
-  "session-introspection",
-  "operator-interaction",
-  "peer-spawn",
-]);
-
 export const CATALOG: ToolboxBundle[] = [
   {
     id: "vault",
@@ -129,18 +105,8 @@ export const CATALOG: ToolboxBundle[] = [
       "Prompt Vault query, retrieve, vocabulary, dispatch-check, mutation, execution, and feedback workflows.",
     ownerPackage: "packages/pi-vault-client",
     ownerSemantics:
-      "pi-vault-client owns Prompt Vault behavior; toolbox discovers, lazily imports the owner extension when available, and activates the owner tools without reimplementing Prompt Vault behavior.",
+      "pi-vault-client owns Prompt Vault behavior; toolbox discovers and activates already-registered owner tools without reimplementing Prompt Vault behavior; the owner extension must be loaded at startup for API-callable schemas.",
     keywords: ["prompt vault", "vault", "template", "prompt", "governed prompt"],
-    lazyModules: [
-      {
-        specifier: "pi-vault-client/toolbox-bundle",
-        label: "published package-owned toolbox bundle",
-      },
-      {
-        specifier: new URL("../../pi-vault-client/src/toolboxBundle.js", import.meta.url).href,
-        label: "monorepo sibling package-owned toolbox bundle",
-      },
-    ],
     profiles: [
       {
         id: "read",
@@ -180,19 +146,8 @@ export const CATALOG: ToolboxBundle[] = [
     description: "ROCS-backed ontology inspect, proposal, and governed change workflows.",
     ownerPackage: "packages/pi-ontology-workflows",
     ownerSemantics:
-      "pi-ontology-workflows owns ontology workflow behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing ontology behavior.",
+      "pi-ontology-workflows owns ontology workflow behavior; toolbox discovers and activates already-registered owner tools without reimplementing ontology behavior; the owner extension must be loaded at startup for API-callable schemas.",
     keywords: ["ontology", "rocs", "concept", "relation", "semantic"],
-    lazyModules: [
-      {
-        specifier: "@tryinget/pi-ontology-workflows/toolbox-bundle",
-        label: "published package-owned toolbox bundle",
-      },
-      {
-        specifier: new URL("../../pi-ontology-workflows/src/toolboxBundle.ts", import.meta.url)
-          .href,
-        label: "monorepo sibling package-owned toolbox bundle",
-      },
-    ],
     profiles: [
       {
         id: "read",
@@ -219,18 +174,8 @@ export const CATALOG: ToolboxBundle[] = [
       "DESIGN.md lint, export, Oat snapshot, OpenPencil, Penpot, palette, and session handoff workflows.",
     ownerPackage: "packages/pi-designmd-foundry",
     ownerSemantics:
-      "pi-designmd-foundry owns DesignMD tool behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing design behavior.",
+      "pi-designmd-foundry owns DesignMD tool behavior; toolbox discovers and activates already-registered owner tools without reimplementing design behavior; the owner extension must be loaded at startup for API-callable schemas.",
     keywords: ["design", "designmd", "css", "tokens", "penpot", "openpencil", "oat", "palette"],
-    lazyModules: [
-      {
-        specifier: "@tryinget/pi-designmd-foundry/toolbox-bundle",
-        label: "published package-owned toolbox bundle",
-      },
-      {
-        specifier: new URL("../../pi-designmd-foundry/src/toolboxBundle.ts", import.meta.url).href,
-        label: "monorepo sibling package-owned toolbox bundle",
-      },
-    ],
     profiles: [
       {
         id: "read",
@@ -280,19 +225,8 @@ export const CATALOG: ToolboxBundle[] = [
       "Society diagnostics, evidence, cognitive dispatch, workflow, and loop execution surfaces.",
     ownerPackage: "packages/pi-society-orchestrator",
     ownerSemantics:
-      "pi-society-orchestrator owns orchestration behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing orchestration behavior.",
+      "pi-society-orchestrator owns orchestration behavior; toolbox discovers and activates already-registered owner tools without reimplementing orchestration behavior; the owner extension must be loaded at startup for API-callable schemas.",
     keywords: ["society", "orchestrator", "workflow", "loop", "evidence", "cognitive dispatch"],
-    lazyModules: [
-      {
-        specifier: "pi-society-orchestrator/toolbox-bundle",
-        label: "published package-owned toolbox bundle",
-      },
-      {
-        specifier: new URL("../../pi-society-orchestrator/src/toolboxBundle.ts", import.meta.url)
-          .href,
-        label: "monorepo sibling package-owned toolbox bundle",
-      },
-    ],
     profiles: [
       {
         id: "read",
@@ -330,18 +264,8 @@ export const CATALOG: ToolboxBundle[] = [
       "Bounded pi-autoresearch setup, run, loop, supervision, candidate, and campaign-control surfaces.",
     ownerPackage: "packages/pi-autoresearch",
     ownerSemantics:
-      "pi-autoresearch owns bounded experiment runtime behavior; toolbox discovers, lazily imports the owner bundle when available, and activates the owner tools without reimplementing experiment behavior.",
+      "pi-autoresearch owns bounded experiment runtime behavior; toolbox discovers and activates already-registered owner tools without reimplementing experiment behavior; the owner extension must be loaded at startup for API-callable schemas.",
     keywords: ["autoresearch", "experiment", "benchmark", "campaign", "self-hosting", "llamacpp"],
-    lazyModules: [
-      {
-        specifier: "@tryinget/pi-autoresearch/toolbox-bundle",
-        label: "published package-owned toolbox bundle",
-      },
-      {
-        specifier: new URL("../../pi-autoresearch/src/toolboxBundle.ts", import.meta.url).href,
-        label: "monorepo sibling package-owned toolbox bundle",
-      },
-    ],
     profiles: [
       {
         id: "read",
@@ -362,13 +286,14 @@ export const CATALOG: ToolboxBundle[] = [
       {
         id: "mutating",
         description:
-          "Bounded autoresearch setup, run, loop, finalization, and self-hosting actions that can write receipts or local artifacts.",
+          "Bounded autoresearch setup, run, loop, foreground resume, finalization, and self-hosting actions that can write receipts or local artifacts.",
         tools: [
           "autoresearch_runtime_run",
           "autoresearch_runtime_autoplan",
           "autoresearch_runtime_setup",
           "autoresearch_campaign_start",
           "autoresearch_runtime_loop",
+          "autoresearch_runtime_resume_apply",
           "autoresearch_self_hosting_run",
         ],
         risk: "mutating",
@@ -384,18 +309,8 @@ export const CATALOG: ToolboxBundle[] = [
       "pi-little-helpers sidequest tools for launching visible fork, scout, and candidate peer sessions. The intercom messaging primitive remains always-active through pi-peer-messaging.",
     ownerPackage: "packages/pi-little-helpers",
     ownerSemantics:
-      "pi-little-helpers owns visible peer launch behavior; pi-peer-messaging owns the always-active intercom communication primitive; toolbox only lazily imports and activates the sidequest peer-spawn tools.",
+      "pi-little-helpers owns visible peer launch behavior; pi-peer-messaging owns the always-active intercom communication primitive; toolbox activates the already-registered sidequest peer-spawn tools.",
     keywords: ["peer", "sidequest", "parallelquest", "candidate", "scout", "spawn"],
-    lazyModules: [
-      {
-        specifier: new URL("../../pi-little-helpers/src/toolboxBundle.ts", import.meta.url).href,
-        label: "monorepo sibling package-owned toolbox bundle",
-      },
-      {
-        specifier: "@tryinget/pi-little-helpers/toolbox-bundle",
-        label: "published package-owned toolbox bundle",
-      },
-    ],
     profiles: [
       {
         id: "default",
@@ -644,8 +559,6 @@ function createToolboxState(): ToolboxState {
   return {
     turn: 0,
     leases: new Map(),
-    loadedBundles: new Set(),
-    lazyImportRecords: [],
   };
 }
 
@@ -745,36 +658,13 @@ function buildCatalogToolBundleIndex(): Map<string, Set<string>> {
   return index;
 }
 
-function findEagerRegistrationDrift(pi: ExtensionAPI, state: ToolboxState): string[] {
-  const active = new Set(pi.getActiveTools());
-  const registered = getKnownToolNames(pi);
-  const leased = new Set(state.leases.keys());
-  const acceptedLazyTools = new Set(
-    state.lazyImportRecords
-      .filter((record) => record.ok)
-      .flatMap((record) => record.registeredTools),
-  );
-  const catalogToolBundles = buildCatalogToolBundleIndex();
-  const drift = new Set<string>();
-
-  for (const [tool, bundleIds] of catalogToolBundles) {
-    if (!registered.has(tool) || active.has(tool) || leased.has(tool)) {
-      continue;
-    }
-    if ([...bundleIds].some((bundleId) => ALLOWED_EAGER_REGISTERED_BUNDLE_IDS.has(bundleId))) {
-      continue;
-    }
-    if (acceptedLazyTools.has(tool)) {
-      continue;
-    }
-    drift.add(tool);
-  }
-
-  return [...drift].sort();
-}
-
 function getCatalogToolNames(): Set<string> {
   return new Set(CATALOG.flatMap((bundle) => bundle.profiles.flatMap((profile) => profile.tools)));
+}
+
+function findMissingCatalogRegistrations(pi: ExtensionAPI): string[] {
+  const registered = getKnownToolNames(pi);
+  return [...getCatalogToolNames()].filter((tool) => !registered.has(tool)).sort();
 }
 
 function findUnleasedActiveCatalogTools(pi: ExtensionAPI, state: ToolboxState): string[] {
@@ -786,15 +676,6 @@ function findUnleasedActiveCatalogTools(pi: ExtensionAPI, state: ToolboxState): 
         catalogTools.has(tool) && !ALWAYS_ACTIVE_TOOLS.includes(tool) && !state.leases.has(tool),
     )
     .sort();
-}
-
-function findPartialLazyImportRecords(state: ToolboxState): string[] {
-  return state.lazyImportRecords
-    .filter((record) => !record.ok && record.registeredTools.length > 0)
-    .map(
-      (record) =>
-        `${record.bundle}/${record.profile}: ${record.registeredTools.join(", ")} (${record.message})`,
-    );
 }
 
 function groupToolsByBundle(tools: string[]): string[] {
@@ -827,15 +708,16 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
   const inactiveAlwaysActiveTools = ALWAYS_ACTIVE_TOOLS.filter(
     (tool) => registered.has(tool) && !activeSet.has(tool),
   );
-  const eagerRegistrationDrift = findEagerRegistrationDrift(pi, state);
+  const missingCatalogRegistrations = findMissingCatalogRegistrations(pi);
+  const missingCatalogRegistrationGroups = groupToolsByBundle(missingCatalogRegistrations).map(
+    (group) => {
+      const bundleId = group.split(":", 1)[0] ?? "unknown";
+      const bundle = CATALOG.find((candidate) => candidate.id === bundleId);
+      const owner = bundle?.ownerPackage ?? "unknown owner package";
+      return `${group} — enable/install ${owner} and /reload so Pi registers the tool schema at startup`;
+    },
+  );
   const unleasedActiveCatalogTools = findUnleasedActiveCatalogTools(pi, state);
-  const partialLazyImports = findPartialLazyImportRecords(state);
-  const duplicateOrSettingsSuspects = groupToolsByBundle(eagerRegistrationDrift).map((group) => {
-    const bundleId = group.split(":", 1)[0] ?? "unknown";
-    const bundle = CATALOG.find((candidate) => candidate.id === bundleId);
-    const owner = bundle?.ownerPackage ?? "unknown owner package";
-    return `${group} — check ${owner} settings for eager extensions or duplicate package/worktree entries`;
-  });
   const problems: string[] = [];
   const recommendations: string[] = [];
 
@@ -844,7 +726,7 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
       `missing registered baseline tools: ${missingAlwaysActiveRegistrations.join(", ")}`,
     );
     recommendations.push(
-      "Load the owner packages for missing foundational/cognitive tools before relying on the standard startup profile.",
+      "Enable/install the owner packages for missing foundational tools and /reload before relying on the standard startup profile.",
     );
   }
   if (inactiveAlwaysActiveTools.length > 0) {
@@ -853,10 +735,12 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
       "Run /reload or allow toolbox session_start to re-apply the always-active baseline.",
     );
   }
-  if (eagerRegistrationDrift.length > 0) {
-    problems.push(`lazy-bundle tools registered eagerly: ${eagerRegistrationDrift.join(", ")}`);
+  if (missingCatalogRegistrations.length > 0) {
+    problems.push(
+      `catalog tools not registered at startup: ${missingCatalogRegistrations.join(", ")}`,
+    );
     recommendations.push(
-      "Keep the owning package installed but disable its heavy extension entry in Pi settings; activate tools through toolbox when needed.",
+      "Toolbox cannot make missing tools API-callable mid-session; enable/install the owner extension and /reload so Pi loads the full tool schema once at startup.",
     );
   }
   if (unleasedActiveCatalogTools.length > 0) {
@@ -865,15 +749,9 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
       "Deactivate unneeded catalog tools or reactivate them through toolbox so TTL/pin state is explicit.",
     );
   }
-  if (partialLazyImports.length > 0) {
-    problems.push(`partial lazy imports left registered tools: ${partialLazyImports.join("; ")}`);
-    recommendations.push(
-      "Reload Pi before trusting registered-tool posture, then activate the owner bundle/profile again if needed.",
-    );
-  }
   if (recommendations.length === 0) {
     recommendations.push(
-      "Standard startup profile is healthy; activate latent bundles only when the task needs them.",
+      "Standard startup profile is healthy; activate registered latent tools only when the task needs them.",
     );
   }
 
@@ -884,30 +762,18 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
     activeLeases,
     missingAlwaysActiveRegistrations,
     inactiveAlwaysActiveTools,
-    eagerRegistrationDrift,
+    missingCatalogRegistrations,
+    missingCatalogRegistrationGroups,
     unleasedActiveCatalogTools,
-    partialLazyImports,
-    duplicateOrSettingsSuspects,
     recommendations,
     problems,
   };
-}
-
-function activationCaveats(plan: ActivationPlan): string[] {
-  if (plan.bundle?.id !== "peer-spawn") return [];
-  return [
-    "Peer-spawn activation updates Pi's runtime active-tool registry only; API adapters with a static tool schema may need a schema refresh, /reload, or a fresh session before fork_peer_spawn/scout_peer_spawn/candidate_peer_spawn become callable.",
-    "If an activated peer-spawn tool is still not callable, use the current interactive visible-peer command documented by pi-little-helpers, or restart with the peer-spawn tools present in the initial tool schema.",
-  ];
 }
 
 function formatActivationPlan(plan: ActivationPlan, pi: ExtensionAPI): string {
   const knownToolNames = getKnownToolNames(pi);
   const registeredTools = plan.requestedTools.filter((tool) => knownToolNames.has(tool));
   const missingTools = plan.requestedTools.filter((tool) => !knownToolNames.has(tool));
-  const lazyModules = plan.bundle?.lazyModules?.map((module) => module.specifier) ?? [];
-  const caveats = activationCaveats(plan);
-
   return [
     "toolbox activation plan",
     `- source: ${plan.source}`,
@@ -917,10 +783,8 @@ function formatActivationPlan(plan: ActivationPlan, pi: ExtensionAPI): string {
     `- missing now (${missingTools.length}): ${missingTools.join(", ") || "none"}`,
     `- risks: ${plan.risks.join(", ") || "none"}`,
     `- acknowledgement required: ${plan.requiresAcknowledgement ? "yes" : "no"}`,
-    `- lazy modules (${lazyModules.length}): ${lazyModules.join(", ") || "none"}`,
-    `- mutates active tools: no`,
-    `- imports owner modules: no`,
-    ...caveats.map((caveat) => `- caveat: ${caveat}`),
+    "- owner module imports: none; Pi must load/register tool schemas at startup",
+    "- activation effect: active-tool set only",
   ].join("\n");
 }
 
@@ -939,92 +803,11 @@ function formatDoctor(report: ReturnType<typeof buildDoctorReport>): string {
     `- missing baseline registrations (${report.missingAlwaysActiveRegistrations.length}): ${report.missingAlwaysActiveRegistrations.join(", ") || "none"}`,
     `- inactive baseline tools (${report.inactiveAlwaysActiveTools.length}): ${report.inactiveAlwaysActiveTools.join(", ") || "none"}`,
     `- active leases (${report.activeLeases.length}): ${report.activeLeases.join("; ") || "none"}`,
-    `- eager registration drift (${report.eagerRegistrationDrift.length}): ${report.eagerRegistrationDrift.join(", ") || "none"}`,
+    `- missing catalog registrations (${report.missingCatalogRegistrations.length}): ${report.missingCatalogRegistrations.join(", ") || "none"}`,
+    `- missing registration groups (${report.missingCatalogRegistrationGroups.length}): ${report.missingCatalogRegistrationGroups.join("; ") || "none"}`,
     `- unleased active catalog tools (${report.unleasedActiveCatalogTools.length}): ${report.unleasedActiveCatalogTools.join(", ") || "none"}`,
-    `- partial lazy imports (${report.partialLazyImports.length}): ${report.partialLazyImports.join("; ") || "none"}`,
-    `- duplicate/settings suspects (${report.duplicateOrSettingsSuspects.length}): ${report.duplicateOrSettingsSuspects.join("; ") || "none"}`,
     `- recommendations: ${report.recommendations.join(" ")}`,
   ].join("\n");
-}
-
-function getLazyRegistrationFunction(
-  moduleValue: unknown,
-):
-  | ((pi: ExtensionAPI, context: { profile: string; requestedTools: string[] }) => unknown)
-  | undefined {
-  if (!moduleValue || typeof moduleValue !== "object") return undefined;
-  const record = moduleValue as { default?: unknown; registerToolboxBundle?: unknown };
-  if (typeof record.registerToolboxBundle === "function") return record.registerToolboxBundle;
-  if (typeof record.default === "function") return record.default;
-  return undefined;
-}
-
-async function tryLazyImportBundle(
-  pi: ExtensionAPI,
-  state: ToolboxState,
-  bundle: ToolboxBundle | undefined,
-  profile: ToolboxProfile | undefined,
-  requestedTools: string[],
-): Promise<{ attempted: boolean; records: LazyImportRecord[] }> {
-  if (!bundle?.lazyModules?.length) return { attempted: false, records: [] };
-
-  const profileId = profile?.id ?? "default";
-  const moduleKeys = bundle.lazyModules.map(
-    (lazyModule) => `${bundle.id}:${profileId}:${lazyModule.specifier}`,
-  );
-  if (requestedTools.every((tool) => getKnownToolNames(pi).has(tool))) {
-    for (const key of moduleKeys) {
-      state.loadedBundles.add(key);
-    }
-    return { attempted: false, records: [] };
-  }
-
-  const records: LazyImportRecord[] = [];
-  for (const lazyModule of bundle.lazyModules) {
-    const moduleKey = `${bundle.id}:${profileId}:${lazyModule.specifier}`;
-    if (state.loadedBundles.has(moduleKey)) continue;
-    try {
-      const moduleValue = await import(lazyModule.specifier);
-      const register = getLazyRegistrationFunction(moduleValue);
-      if (register) {
-        await register(pi, { profile: profileId, requestedTools });
-      }
-      const nowKnown = getKnownToolNames(pi);
-      const registeredRequestedTools = requestedTools.filter((tool) => nowKnown.has(tool));
-      const complete = requestedTools.every((tool) => nowKnown.has(tool));
-      const record = {
-        bundle: bundle.id,
-        specifier: lazyModule.specifier,
-        profile: profileId,
-        ok: complete,
-        registeredTools: registeredRequestedTools,
-        message: complete
-          ? `registered requested tools: ${registeredRequestedTools.join(", ")}`
-          : registeredRequestedTools.length > 0
-            ? `partial registration: ${registeredRequestedTools.join(", ")}`
-            : `imported ${lazyModule.label} but none of the requested tools registered`,
-      };
-      records.push(record);
-      state.lazyImportRecords.push(record);
-      if (complete) {
-        state.loadedBundles.add(moduleKey);
-        break;
-      }
-    } catch (error) {
-      const record = {
-        bundle: bundle.id,
-        specifier: lazyModule.specifier,
-        profile: profileId,
-        ok: false,
-        registeredTools: [],
-        message: error instanceof Error ? error.message : String(error),
-      };
-      records.push(record);
-      state.lazyImportRecords.push(record);
-    }
-  }
-
-  return { attempted: true, records };
 }
 
 function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
@@ -1036,20 +819,14 @@ function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
   ];
   const registeredCatalogTools = latentCatalogTools.filter((tool) => registeredNames.has(tool));
   const unavailableCatalogTools = latentCatalogTools.filter((tool) => !registeredNames.has(tool));
-  const lazyReadyBundles = CATALOG.filter((bundle) => bundle.lazyModules?.length).map(
-    (bundle) => bundle.id,
-  );
   const activeLeases = describeLeases(state);
   const doctorReport = buildDoctorReport(pi, state);
-  const eagerRegistrationDrift = doctorReport.eagerRegistrationDrift;
-  const recentLazyImports = state.lazyImportRecords.slice(-5);
 
   return [
     "toolbox status",
     `- active tools (${active.length}): ${active.join(", ") || "none"}`,
     `- registered tools (${all.length}): ${all.map((tool) => tool.name).join(", ") || "none"}`,
     `- catalog bundles (${CATALOG.length}): ${CATALOG.map((bundle) => bundle.id).join(", ")}`,
-    `- lazy-import-ready bundles (${lazyReadyBundles.length}): ${lazyReadyBundles.join(", ") || "none"}`,
     `- registered catalog tools (${registeredCatalogTools.length}): ${registeredCatalogTools.join(", ") || "none"}`,
     `- not currently registered (${unavailableCatalogTools.length}): ${unavailableCatalogTools.join(", ") || "none"}`,
     `- active leases (${activeLeases.length}): ${activeLeases.join("; ") || "none"}`,
@@ -1059,14 +836,8 @@ function formatStatus(pi: ExtensionAPI, state: ToolboxState): string {
         ? "ok"
         : "needs attention"
     }`,
-    `- eager registration drift (${eagerRegistrationDrift.length}): ${eagerRegistrationDrift.join(", ") || "none"}`,
+    `- missing catalog registrations (${doctorReport.missingCatalogRegistrations.length}): ${doctorReport.missingCatalogRegistrations.join(", ") || "none"}`,
     `- unleased active catalog tools (${doctorReport.unleasedActiveCatalogTools.length}): ${doctorReport.unleasedActiveCatalogTools.join(", ") || "none"}`,
-    `- partial lazy imports (${doctorReport.partialLazyImports.length}): ${doctorReport.partialLazyImports.join("; ") || "none"}`,
-    `- recent lazy imports (${recentLazyImports.length}): ${
-      recentLazyImports
-        .map((record) => `${record.bundle}:${record.ok ? "ok" : "failed"}`)
-        .join(", ") || "none"
-    }`,
     "- startup profile: standard active set is enforced on session_start when these tools are registered.",
   ].join("\n");
 }
@@ -1076,8 +847,6 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
 
   pi.on("session_start", () => {
     state.leases.clear();
-    state.loadedBundles.clear();
-    state.lazyImportRecords = [];
     applyStandardStartupProfile(pi);
   });
 
@@ -1118,9 +887,8 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           activeTools: pi.getActiveTools(),
           bundles: CATALOG.map((bundle) => bundle.id),
           leases: describeLeases(state),
-          eagerRegistrationDrift: findEagerRegistrationDrift(pi, state),
+          missingCatalogRegistrations: findMissingCatalogRegistrations(pi),
           unleasedActiveCatalogTools: findUnleasedActiveCatalogTools(pi, state),
-          partialLazyImports: findPartialLazyImportRecords(state),
         });
       }
 
@@ -1174,72 +942,40 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           );
         }
 
-        const activeBeforeLazyImport = pi.getActiveTools();
-        const lazyImport = await tryLazyImportBundle(
-          pi,
-          state,
-          plan.bundle,
-          plan.profile,
-          plan.requestedTools,
-        );
+        const activeBeforeActivation = pi.getActiveTools();
         const knownToolNames = getKnownToolNames(pi);
         const availableTools = plan.requestedTools.filter((tool) => knownToolNames.has(tool));
         const missingTools = plan.requestedTools.filter((tool) => !knownToolNames.has(tool));
-        const restoredPreImportActive = activeBeforeLazyImport.filter((tool) =>
+        const currentActiveTools = activeBeforeActivation.filter((tool) =>
           knownToolNames.has(tool),
         );
         if (missingTools.length > 0) {
-          pi.setActiveTools(restoredPreImportActive);
           return textResult(
             [
-              `Cannot activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"}: missing registered tools after lazy import: ${missingTools.join(", ")}`,
-              lazyImport.attempted
-                ? `Lazy import attempts: ${
-                    lazyImport.records
-                      .map(
-                        (record) =>
-                          `${record.ok ? "ok" : "failed"} ${record.specifier}: ${record.message}`,
-                      )
-                      .join("; ") || "none"
-                  }`
-                : plan.source === "explicit-tools"
-                  ? "Explicit tool activation does not lazy-import bundles; activate by bundle/profile for latent tools."
-                  : "No lazy import module is declared for this bundle.",
-              "Restored active tools to the pre-import baseline.",
+              `Cannot activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"}: tools are not registered in this Pi session: ${missingTools.join(", ")}`,
+              "Pi loads/registers the tool schema once at startup; toolbox can only manage the active set of already-registered tools.",
+              "Enable/install the owning extension package and /reload or start a fresh session before activating these tools.",
             ].join("\n"),
             {
               ok: false,
               missing: missingTools,
-              lazyImport,
-              activeTools: restoredPreImportActive,
+              activeTools: currentActiveTools,
               source: plan.source,
               risks: plan.risks,
             },
           );
         }
 
-        const nextActive = [...new Set([...restoredPreImportActive, ...availableTools])];
+        const nextActive = [...new Set([...currentActiveTools, ...availableTools])];
         pi.setActiveTools(nextActive);
         const leases = recordLeases(state, availableTools, params, plan);
         const ttl = boundedTtlTurns(params.ttlTurns, plan.profile);
 
-        const caveats = activationCaveats(plan);
         const text = [
           `Activated tools: ${availableTools.join(", ") || "none"}`,
-          lazyImport.attempted
-            ? `Lazy import attempts: ${
-                lazyImport.records
-                  .map(
-                    (record) =>
-                      `${record.ok ? "ok" : "failed"} ${record.specifier}: ${record.message}`,
-                  )
-                  .join("; ") || "none"
-              }`
-            : undefined,
           plan.profile
             ? `Profile: ${plan.bundle?.id}/${plan.profile.id}; risk=${plan.profile.risk}; ttlTurns=${ttl}; pin=${params.pin === true}`
             : `Source: explicit-tools; risks=${plan.risks.join(", ") || "none"}; ttlTurns=${ttl}; pin=${params.pin === true}`,
-          ...caveats.map((caveat) => `Caveat: ${caveat}`),
         ]
           .filter(Boolean)
           .join("\n");
@@ -1254,8 +990,6 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           source: plan.source,
           risks: plan.risks,
           leases,
-          lazyImport,
-          caveats,
         });
       }
 

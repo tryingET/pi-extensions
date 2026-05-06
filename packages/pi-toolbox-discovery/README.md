@@ -11,30 +11,28 @@ system4d:
 
 # @tryinget/pi-toolbox-discovery
 
-Lazy custom-tool discovery and activation broker for Pi sessions.
+Custom-tool discovery and active-set broker for Pi sessions.
 
 The package registers:
 
 - `/toolbox` — human-visible status command
 - `toolbox` — model-callable discovery/planning/activation/doctor tool
 
+Pi loads/registers the available model-callable tool schema once at startup. `toolbox` does not make missing tools callable mid-session; it discovers the catalog, verifies which tools were registered by their owner extensions, and manages the active set with risk gates.
+
 The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
 - enforces the standard active tool set on `session_start`
 - searches/explains catalog metadata and plans activation without importing owner packages
 - plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
-- activates bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement plus `riskJustification`
-- lazily imports owner modules for lazy-ready bundles when tools are not already registered
-- restores the pre-import active-tool set before adding requested profile tools, so owner packages that auto-activate newly registered tools cannot leak out-of-profile tools into the active set
+- activates already-registered bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement plus `riskJustification`
+- fails closed when requested tools are not registered in the current Pi session, with instructions to enable/install the owner extension and `/reload`
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
-- fails closed for bundle/profile or explicit-tool activation if requested tools remain unavailable after lazy import, and restores the pre-import active-tool baseline when a partial lazy import registered or auto-activated tools
-- reports eager registration drift when catalog tools from lazy bundles are already registered without an active lease or accepted lazy-import record, which catches settings drift such as duplicate worktree package entries
-- reports partial lazy imports separately because registered tool definitions cannot be fully rolled back without `/reload`
-- clears lease/lazy-import bookkeeping on `session_start` before re-applying the standard active-tool baseline
-- provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, active leases, eager registration drift, unleased active catalog tools, partial lazy imports, and duplicate/settings suspects
-- warns on peer-spawn activation that runtime active-tool registration is not always the same as API-callable schema exposure in adapters with static tool lists
+- reports catalog registration gaps separately from active-set/lease problems
+- clears lease bookkeeping on `session_start` before re-applying the standard active-tool baseline
+- provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, catalog registration completeness, active leases, and unleased active catalog tools
 
-The package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, and `orchestrator` via `pi-society-orchestrator/toolbox-bundle`. `peer-spawn` via `@tryinget/pi-little-helpers/toolbox-bundle` is retained as a toolbox-compatible registration path, but the peer-spawn tools are standard startup tools when `pi-little-helpers` is installed; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
+The package-owned production bundles are `vault`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, and `peer-spawn`. Their tools must be registered by the owning package's normal Pi extension entry at startup; toolbox activation only changes the active set.
 
 ## Standard startup contract
 
@@ -42,7 +40,7 @@ After a clean `/reload`, the expected healthy baseline is:
 
 ```text
 active tools (16): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, fork_peer_spawn, scout_peer_spawn, candidate_peer_spawn, toolbox
-eager registration drift (0): none
+missing catalog registrations (0): none
 ```
 
 Use the model-callable doctor when validating settings or package changes:
@@ -56,23 +54,17 @@ Expected healthy signals:
 ```text
 verdict: pass
 foundational baseline: ok
-eager registration drift (0): none
+missing catalog registrations (0): none
 unleased active catalog tools (0): none
 ```
 
-If doctor fails, first check Pi settings for duplicate worktree package entries or package entries that load heavy extension entrypoints eagerly. Keep owner packages installed for lazy import, but disable heavy extension entries by default. Keep `pi-little-helpers` enabled when peer-spawn tools should be present in the initial API/tool schema. Preserve lightweight operator/status entries separately when they do not register heavy model-callable tools.
+If doctor reports missing catalog registrations, enable/install the owning package extension and `/reload` or start a fresh session. If doctor reports unleased active catalog tools, deactivate them or reactivate them through toolbox so TTL/pin state is explicit.
 
-## Dynamic tool-schema caveat
+## Tool registration invariant
 
-`fork_peer_spawn`, `scout_peer_spawn`, and `candidate_peer_spawn` are now part of the expected standard startup tool set when `pi-little-helpers` is installed. `toolbox({ action: "activate" })` still mutates Pi's runtime active-tool registry for latent tools. Some API adapters expose a static tool schema for the current turn/session and may not surface newly activated model-callable tools as direct function recipients even when `toolbox status` reports them active. The failure is most visible with `peer-spawn` in sessions that did not include those tools in the initial schema: activation can succeed but `candidate_peer_spawn` is still absent from the adapter's callable namespace.
+Pi loads/registers all available tools once. `toolbox({ action: "activate" })` can only choose from `pi.getAllTools()` and update the active set. A missing tool is not a recoverable activation problem; it is an installation/settings/startup problem.
 
-When that happens, the activation is not proof that a peer tool is directly callable in the current adapter. Use one of these paths:
-
-1. run the current interactive visible-peer command documented by `pi-little-helpers` in a Pi TUI session,
-2. reload/start a fresh session whose initial tool schema includes the activated tools, or
-3. use a controller fallback such as `dispatch_subagent` only when isolated visible worktrees are not required.
-
-Do not treat `toolbox status` alone as evidence that a static-schema API adapter can call the newly active tool by name, and do not hard-code historical slash-command names in adapter-facing guidance.
+For model-callable tools that should be cheap at startup, owner packages should register a lightweight tool schema and lazy-load heavy implementation inside `execute`, not register the tool itself late.
 
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`

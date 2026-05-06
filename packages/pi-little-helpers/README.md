@@ -32,7 +32,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 
 ## Visible peer tools
 
-The `sidequest` extension owns the visible peer capability. Slash commands and model-callable peer tools are registered by the extension as standard tooling; the toolbox bundle remains a compatibility/lazy-registration path for installs where the tools are not already present. Both projections are governed by one capability manifest in [`src/capabilityManifest.ts`](src/capabilityManifest.ts); see [Visible peer capability contract](docs/project/2026-05-05-visible-peer-capability-contract.md) when debugging registration or package-export drift:
+The `sidequest` extension owns the visible peer capability. Slash commands and model-callable peer tools are registered by the extension as standard tooling during Pi startup; the toolbox bundle exposes the same manifest for catalog/test alignment. Both projections are governed by one capability manifest in [`src/capabilityManifest.ts`](src/capabilityManifest.ts); see [Visible peer capability contract](docs/project/2026-05-05-visible-peer-capability-contract.md) when debugging registration or package-export drift:
 
 | Tool | Purpose | Mutation boundary |
 |---|---|---|
@@ -54,7 +54,7 @@ Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
 ## Toolbox bundle
 
 This package exports `@tryinget/pi-little-helpers/toolbox-bundle` for `pi-toolbox-discovery`.
-The sidequest extension now registers the visible peer-spawn tool family (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`) as standard model-callable tooling. The toolbox bundle registers the same tool family for compatibility/lazy-registration paths; command/UI helpers such as `/codeblocks`, `/artifacts`, `/package-updates`, `/session-presence`, and `/stash` are not part of the model-callable toolbox coverage.
+The sidequest extension registers the visible peer-spawn tool family (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`) as standard model-callable tooling at Pi startup. The toolbox bundle registers the same tool family only for package-owned test/catalog compatibility; command/UI helpers such as `/codeblocks`, `/artifacts`, `/package-updates`, `/session-presence`, and `/stash` are not part of the model-callable toolbox coverage.
 
 ## Steve-specific session presence / hot restore coupling
 
