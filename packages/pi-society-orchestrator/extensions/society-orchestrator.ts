@@ -33,7 +33,7 @@
  *   evidence_record                — Record evidence
  *   orchestrator_boundary_telemetry — Inspect lower-plane boundary telemetry
  *   ontology_context               — Get relevant ontology
- *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions
+ *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions and start bounded campaigns before attaching supervision
  *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
  *   autoresearch_self_hosting_supervision — Observe one self-hosting campaign artifact set and optionally record bounded AK evidence
  *   ts_quality_release_workflow    — Coordinate ts-quality local release prep through GitHub Release trusted publishing
@@ -66,6 +66,7 @@ import {
 } from "../src/runtime/autoresearch-self-hosting-supervision.ts";
 import {
   type AutoresearchLivePollResult,
+  type AutoresearchLiveStartCampaignResult,
   type AutoresearchLiveStartResult,
   type AutoresearchLiveStopResult,
   AutoresearchLiveSupervisionRunner,
@@ -149,7 +150,7 @@ export interface SocietyOrchestratorExtensionOptions {
   tsQualityReleaseWorkflowRunner?: TsQualityReleaseWorkflowRunner;
 }
 
-type AutoresearchLiveSupervisionAction = "status" | "observe" | "start" | "stop";
+type AutoresearchLiveSupervisionAction = "status" | "observe" | "start" | "start_campaign" | "stop";
 
 type AutoresearchManifestCampaignSupervisionAction = "observe" | "record_evidence";
 
@@ -165,6 +166,7 @@ type AutoresearchLiveSupervisionToolDetails = {
   lifecycle?: AutoresearchLivePollResult["lifecycle"];
   reused?: boolean;
   poll?: AutoresearchLiveStartResult["poll"];
+  campaign?: AutoresearchLiveStartCampaignResult["campaign"];
   stopped?: boolean;
   error?: string;
 };
@@ -291,6 +293,34 @@ function formatAutoresearchLiveStartReport(result: AutoresearchLiveStartResult):
     nextStep: result.poll?.nextStep || describeAutoresearchLiveNextStep(result.session),
     extraLines,
   });
+}
+
+function formatAutoresearchCampaignStartUnderSupervisionReport(
+  input: AutoresearchLiveStartCampaignResult,
+): string {
+  return [
+    "Autoresearch live supervision — start_campaign",
+    `Task: #${input.supervision.session.taskId}`,
+    `CWD: ${input.campaign.cwd}`,
+    `Objective: ${input.campaign.objective}`,
+    `Run mode: ${input.campaign.runMode}`,
+    `Max iterations: ${input.campaign.maxIterations}`,
+    `Runtime state: ${input.campaign.status.runtimeProjection.state}`,
+    `Supervision state: ${input.supervision.session.state}`,
+    `Supervision session: ${input.supervision.sessionKey}`,
+    `Next step: ${input.supervision.poll?.nextStep || describeAutoresearchLiveNextStep(input.supervision.session)}`,
+    "",
+    "Boundaries:",
+    "- Campaign execution is delegated to pi-autoresearch runtime semantics.",
+    "- Live supervision may project verified AK milestones through its existing orchestrator-gated projector; it does not write KES, change direction, spawn peers, or promote candidates.",
+    "- Direction changes remain proposals unless routed through AK/decision authority.",
+    "",
+    ...formatAutoresearchLivePollExtras(
+      input.supervision.poll ?? { observation: null, projector: null, lifecycle: null },
+    ),
+  ]
+    .filter((line, index, lines) => line.length > 0 || lines[index - 1]?.length !== 0)
+    .join("\n");
 }
 
 function formatAutoresearchLiveStopReport(result: AutoresearchLiveStopResult): string {
@@ -1130,14 +1160,17 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     name: "autoresearch_live_supervision",
     label: "Autoresearch Live Supervision",
     description:
-      "Inspect, start, one-shot observe, or stop live pi-autoresearch supervision sessions above the package runtime.",
+      "Inspect, start, one-shot observe, stop, or start one bounded pi-autoresearch campaign and then attach live supervision above the package runtime.",
     promptSnippet:
-      "Observe/start/status/stop a live pi-autoresearch supervision session through the orchestrator while keeping peer-assisted lanes communication-only.",
+      "Observe/start/status/stop a live pi-autoresearch supervision session, or start one bounded pi-autoresearch campaign and then attach supervision, while keeping peer-assisted lanes communication-only.",
     promptGuidelines: [
       "Use autoresearch_live_supervision for exact taskId + cwd supervision above the pi-autoresearch runtime.",
-      "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop.",
+      "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
+      "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop/start_campaign.",
       "Do not auto-spawn scout_peer_spawn, candidate_peer_spawn, or fork_peer_spawn from this surface; pi-autoresearch may recommend exact peer calls and the operator/controller chooses whether to launch them.",
-      "Treat PEER_ACK/PEER_FINAL or legacy QUEST_ACK/QUEST_FINAL intercom messages as communication only; record AK evidence only after controller verification through the owning evidence surface.",
+      "Do not change direction from this surface; emit direction proposals/gated next steps and route actual direction changes through AK/decision authority.",
+      "AK evidence/task-lifecycle projection may occur only from verified package runtime/ledger proof through the live supervisor/projector, not from raw peer messages or unverified campaign claims.",
+      "Treat PEER_ACK/PEER_FINAL or legacy QUEST_ACK/QUEST_FINAL intercom messages as communication only.",
     ],
     parameters: Type.Object({
       action: Type.Optional(
@@ -1145,13 +1178,42 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("status"),
           Type.Literal("observe"),
           Type.Literal("start"),
+          Type.Literal("start_campaign"),
           Type.Literal("stop"),
         ]),
       ),
       taskId: Type.Optional(Type.Number({ description: "Exact AK task id for the campaign" })),
       cwd: Type.Optional(Type.String({ description: "Exact campaign cwd" })),
+      objective: Type.Optional(
+        Type.String({ description: "Bounded optimization objective for action=start_campaign" }),
+      ),
+      maxIterations: Type.Optional(
+        Type.Number({
+          description:
+            "Bounded positive-integer campaign iteration budget for action=start_campaign",
+          minimum: 1,
+        }),
+      ),
+      maxWallClockMinutes: Type.Optional(
+        Type.Number({
+          description: "Bounded positive wall-clock budget for action=start_campaign",
+          minimum: 0,
+          exclusiveMinimum: 0,
+        }),
+      ),
+      benchmarkCommand: Type.Optional(
+        Type.String({ description: "Optional explicit pi-autoresearch benchmark command" }),
+      ),
+      checksCommand: Type.Optional(
+        Type.String({ description: "Optional explicit pi-autoresearch checks command" }),
+      ),
+      metricName: Type.Optional(Type.String({ description: "Optional explicit metric name" })),
+      metricUnit: Type.Optional(Type.String({ description: "Optional explicit metric unit" })),
+      direction: Type.Optional(Type.Union([Type.Literal("lower"), Type.Literal("higher")])),
       intervalSeconds: Type.Optional(
-        Type.Number({ description: "Polling interval in seconds for action=start|observe" }),
+        Type.Number({
+          description: "Polling interval in seconds for action=start|observe|start_campaign",
+        }),
       ),
     }),
     async execute(_toolCallId, params, signal) {
@@ -1159,11 +1221,27 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         action: requestedAction,
         taskId,
         cwd,
+        objective,
+        maxIterations,
+        maxWallClockMinutes,
+        benchmarkCommand,
+        checksCommand,
+        metricName,
+        metricUnit,
+        direction,
         intervalSeconds,
       } = params as {
         action?: AutoresearchLiveSupervisionAction;
         taskId?: number;
         cwd?: string;
+        objective?: string;
+        maxIterations?: number;
+        maxWallClockMinutes?: number;
+        benchmarkCommand?: string;
+        checksCommand?: string;
+        metricName?: string;
+        metricUnit?: string;
+        direction?: "lower" | "higher";
         intervalSeconds?: number;
       };
       const action = requestedAction || "status";
@@ -1265,6 +1343,41 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             nextStep: result.poll?.nextStep || describeAutoresearchLiveNextStep(result.session),
             poll: result.poll,
           });
+        }
+
+        if (action === "start_campaign") {
+          const campaignObjective = objective?.trim() ?? "";
+          if (campaignObjective.length === 0) {
+            throw new Error("start_campaign requires a non-empty objective.");
+          }
+          const result = await autoresearchLiveRunner.startCampaign({
+            ...identity,
+            objective: campaignObjective,
+            maxIterations,
+            maxWallClockMinutes,
+            benchmarkCommand,
+            checksCommand,
+            metricName,
+            metricUnit,
+            direction,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchCampaignStartUnderSupervisionReport(result),
+            {
+              ok: true,
+              action,
+              sessionKey: result.supervision.sessionKey,
+              session: result.supervision.session,
+              reused: result.supervision.reused,
+              nextStep:
+                result.supervision.poll?.nextStep ||
+                describeAutoresearchLiveNextStep(result.supervision.session),
+              poll: result.supervision.poll,
+              campaign: result.campaign,
+            },
+          );
         }
 
         const result = autoresearchLiveRunner.stop(identity);

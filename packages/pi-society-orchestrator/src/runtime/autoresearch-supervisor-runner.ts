@@ -5,6 +5,8 @@ import {
   type AutoresearchLedgerProjection,
   type AutoresearchRuntimeStatus,
   buildAutoresearchRuntimeStatus,
+  type ExecuteAutoresearchCampaignStartResult,
+  executeAutoresearchCampaignStart,
   type InspectAutoresearchFinalizationResult,
   inspectAutoresearchFinalization,
   loadAutoresearchLedger,
@@ -118,6 +120,22 @@ export interface AutoresearchLiveStartResult {
   poll: AutoresearchLivePollResult | null;
 }
 
+export interface AutoresearchLiveStartCampaignRequest extends AutoresearchLiveSupervisionRequest {
+  objective: string;
+  maxIterations?: number;
+  maxWallClockMinutes?: number;
+  benchmarkCommand?: string;
+  checksCommand?: string;
+  metricName?: string;
+  metricUnit?: string;
+  direction?: "lower" | "higher";
+}
+
+export interface AutoresearchLiveStartCampaignResult {
+  campaign: ExecuteAutoresearchCampaignStartResult;
+  supervision: AutoresearchLiveStartResult;
+}
+
 export interface AutoresearchLiveStopResult {
   sessionKey: string;
   session: AutoresearchLiveSupervisionSessionV1 | null;
@@ -153,6 +171,7 @@ export interface AutoresearchLiveSupervisionRunnerConfig {
   evaluateLifecycle?: (
     input: AutoresearchLiveLifecycleInput,
   ) => MaybePromise<AutoresearchLiveLifecycleOutcome>;
+  startCampaign?: typeof executeAutoresearchCampaignStart;
 }
 
 interface SessionIdentity {
@@ -220,6 +239,30 @@ export function resolveAutoresearchLiveSupervisionIdentity(
       cwd,
     }),
   };
+}
+
+function resolveStartCampaignPositiveIntegerBudget(
+  name: string,
+  value: number | undefined,
+  fallback: number,
+): number {
+  const resolved = value ?? fallback;
+  if (!Number.isInteger(resolved) || resolved < 1) {
+    throw new Error(`${name} must be a positive integer, received: ${String(value)}`);
+  }
+  return resolved;
+}
+
+function resolveStartCampaignPositiveNumberBudget(
+  name: string,
+  value: number | undefined,
+  fallback: number,
+): number {
+  const resolved = value ?? fallback;
+  if (!Number.isFinite(resolved) || resolved <= 0) {
+    throw new Error(`${name} must be a positive number, received: ${String(value)}`);
+  }
+  return resolved;
 }
 
 export async function readAutoresearchLiveObservation(
@@ -309,6 +352,46 @@ export class AutoresearchLiveSupervisionRunner {
       reused: false,
       poll,
     };
+  }
+
+  async startCampaign(
+    input: AutoresearchLiveStartCampaignRequest,
+  ): Promise<AutoresearchLiveStartCampaignResult> {
+    const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+    const campaignObjective = input.objective.trim();
+    if (campaignObjective.length === 0) {
+      throw new Error("start_campaign requires a non-empty objective.");
+    }
+
+    const maxIterations = resolveStartCampaignPositiveIntegerBudget(
+      "maxIterations",
+      input.maxIterations,
+      3,
+    );
+    const maxWallClockMinutes = resolveStartCampaignPositiveNumberBudget(
+      "maxWallClockMinutes",
+      input.maxWallClockMinutes,
+      30,
+    );
+
+    const campaign = await (this.config.startCampaign || executeAutoresearchCampaignStart)({
+      cwd: identity.cwd,
+      objective: campaignObjective,
+      setupMode: "autoplan",
+      runMode: "bounded_loop",
+      maxIterations,
+      maxWallClockMinutes,
+      peerMode: "plan",
+      benchmarkCommand: input.benchmarkCommand,
+      checksCommand: input.checksCommand,
+      metricName: input.metricName,
+      metricUnit: input.metricUnit,
+      direction: input.direction,
+      signal: input.signal,
+    });
+
+    const supervision = await this.start(input);
+    return { campaign, supervision };
   }
 
   stop(

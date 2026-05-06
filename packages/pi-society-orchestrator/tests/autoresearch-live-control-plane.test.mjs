@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import extension from "../extensions/society-orchestrator.ts";
@@ -180,7 +182,7 @@ function createProjectorResult({ action = "recorded", milestone = "decision-requ
   };
 }
 
-function registerAutoresearchLiveTool(runner) {
+function registerAutoresearchLiveTool(runner, options = {}) {
   const tools = new Map();
   extension(
     {
@@ -190,7 +192,7 @@ function registerAutoresearchLiveTool(runner) {
       registerCommand() {},
       on() {},
     },
-    { autoresearchLiveRunner: runner },
+    { autoresearchLiveRunner: runner, ...options },
   );
 
   const tool = tools.get("autoresearch_live_supervision");
@@ -200,6 +202,22 @@ function registerAutoresearchLiveTool(runner) {
 
 function createToolContext(cwd = process.cwd()) {
   return { cwd, model: undefined };
+}
+
+async function withTempDir(fn) {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-live-"));
+  try {
+    await fn(cwd);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+function writeExecutable(cwd, name, content) {
+  const target = path.join(cwd, name);
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, content, "utf8");
+  chmodSync(target, 0o755);
 }
 
 test("autoresearch_live_supervision lists active sessions and enforces exact identity pairing", async () => {
@@ -349,6 +367,170 @@ test("autoresearch_live_supervision start/status/stop manages a live running ses
   assert.equal(stopped.details.stopped, true);
   assert.match(stopped.content[0].text, /Stopped: yes/);
   assert.equal(scheduler.pendingCount(), 0);
+});
+
+test("autoresearch_live_supervision start_campaign delegates execution then supervises", async () => {
+  await withTempDir(async (cwd) => {
+    writeExecutable(cwd, "autoresearch.sh", '#!/usr/bin/env bash\necho "METRIC total_ms=7"\n');
+    writeExecutable(cwd, "autoresearch.checks.sh", "#!/usr/bin/env bash\nexit 0\n");
+    const scheduler = new FakeScheduler();
+    const runner = new AutoresearchLiveSupervisionRunner({
+      setTimeout: scheduler.setTimeout,
+      clearTimeout: scheduler.clearTimeout,
+      observeRuntime: async (observedCwd, options) => {
+        assert.equal(observedCwd, cwd);
+        assert.equal(options.persistSnapshot, false);
+        return createRuntimeStatus({ cwd: observedCwd });
+      },
+      loadLedger: async () => ({ entries: [], invalidLineCount: 0 }),
+      projectLedgerEntries: async () => ({
+        context: { blockedReason: null, completionReason: null },
+      }),
+      inspectFinalization: async ({ cwd: observedCwd, status }) =>
+        createFinalizationInspection(observedCwd, status, { plan: null }),
+      projectMilestone: async () => createProjectorResult({ milestone: "decision-required" }),
+      evaluateLifecycle: async () => ({
+        ok: true,
+        action: "none",
+        summary: "Milestone evidence was recorded.",
+      }),
+    });
+    const tool = registerAutoresearchLiveTool(runner);
+
+    const started = await tool.execute(
+      "tc-start-campaign",
+      {
+        action: "start_campaign",
+        taskId: 1546,
+        cwd,
+        objective: "optimize startup",
+        maxIterations: 2,
+        maxWallClockMinutes: 5,
+        benchmarkCommand: "bash autoresearch.sh",
+        checksCommand: "bash autoresearch.checks.sh",
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(started.details.ok, true);
+    assert.equal(started.details.action, "start_campaign");
+    assert.equal(started.details.campaign.runMode, "bounded_loop");
+    assert.equal(started.details.campaign.maxIterations, 2);
+    assert.equal(started.details.session.state, "running");
+    assert.match(started.content[0].text, /Campaign execution is delegated to pi-autoresearch/);
+    assert.match(started.content[0].text, /Direction changes remain proposals/);
+    assert.match(
+      readFileSync(path.join(cwd, "autoresearch.jsonl"), "utf8"),
+      /"status":"candidate"/,
+    );
+    assert.equal(scheduler.pendingCount(), 1);
+  });
+});
+
+test("AutoresearchLiveSupervisionRunner startCampaign pins bounded delegation defaults", async () => {
+  const cwd = "/tmp/delegated-campaign";
+  const scheduler = new FakeScheduler();
+  const campaignCalls = [];
+  const runner = new AutoresearchLiveSupervisionRunner({
+    setTimeout: scheduler.setTimeout,
+    clearTimeout: scheduler.clearTimeout,
+    startCampaign: async (input) => {
+      campaignCalls.push(input);
+      return {
+        cwd: path.resolve(cwd),
+        objective: input.objective,
+        setupMode: input.setupMode,
+        runMode: input.runMode,
+        maxIterations: input.maxIterations,
+        status: createRuntimeStatus({ cwd: path.resolve(cwd) }),
+      };
+    },
+    observeRuntime: async (observedCwd) => createRuntimeStatus({ cwd: observedCwd }),
+    loadLedger: async () => ({ entries: [], invalidLineCount: 0 }),
+    projectLedgerEntries: async () => ({
+      context: { blockedReason: null, completionReason: null },
+    }),
+    inspectFinalization: async ({ cwd: observedCwd, status }) =>
+      createFinalizationInspection(observedCwd, status, { plan: null }),
+    projectMilestone: async () => createProjectorResult({ milestone: "decision-required" }),
+    evaluateLifecycle: async () => ({ ok: true, action: "none", summary: "no mutation" }),
+  });
+
+  const result = await runner.startCampaign({
+    taskId: 1546,
+    cwd,
+    objective: "  trim delegated objective  ",
+  });
+
+  assert.equal(campaignCalls.length, 1);
+  assert.deepEqual(
+    {
+      cwd: campaignCalls[0].cwd,
+      objective: campaignCalls[0].objective,
+      setupMode: campaignCalls[0].setupMode,
+      runMode: campaignCalls[0].runMode,
+      maxIterations: campaignCalls[0].maxIterations,
+      maxWallClockMinutes: campaignCalls[0].maxWallClockMinutes,
+      peerMode: campaignCalls[0].peerMode,
+    },
+    {
+      cwd: path.resolve(cwd),
+      objective: "trim delegated objective",
+      setupMode: "autoplan",
+      runMode: "bounded_loop",
+      maxIterations: 3,
+      maxWallClockMinutes: 30,
+      peerMode: "plan",
+    },
+  );
+  assert.equal(result.supervision.session.state, "running");
+  assert.equal(scheduler.pendingCount(), 1);
+});
+
+test("AutoresearchLiveSupervisionRunner startCampaign rejects invalid budgets", async () => {
+  const runner = new AutoresearchLiveSupervisionRunner({
+    startCampaign: async () => {
+      throw new Error("startCampaign should not be called for invalid budgets");
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      runner.startCampaign({
+        taskId: 1546,
+        cwd: "/tmp/invalid-autoresearch-budget",
+        objective: "budget guard",
+        maxIterations: 0,
+      }),
+    /maxIterations must be a positive integer/,
+  );
+  await assert.rejects(
+    () =>
+      runner.startCampaign({
+        taskId: 1546,
+        cwd: "/tmp/invalid-autoresearch-budget",
+        objective: "budget guard",
+        maxWallClockMinutes: -1,
+      }),
+    /maxWallClockMinutes must be a positive number/,
+  );
+});
+
+test("autoresearch_live_supervision start_campaign requires exact objective", async () => {
+  const tool = registerAutoresearchLiveTool(new AutoresearchLiveSupervisionRunner());
+
+  const result = await tool.execute(
+    "tc-start-campaign-missing-objective",
+    { action: "start_campaign", taskId: 1546, cwd: "/tmp/missing-objective" },
+    undefined,
+    undefined,
+    createToolContext(),
+  );
+
+  assert.equal(result.details.ok, false);
+  assert.match(result.content[0].text, /requires a non-empty objective/);
 });
 
 test("autoresearch_live_supervision surfaces completed live polling truth after a scheduled follow-up tick", async () => {

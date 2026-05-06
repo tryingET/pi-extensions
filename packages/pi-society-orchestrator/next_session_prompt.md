@@ -1,5 +1,5 @@
 ---
-summary: "Package-local handoff for pi-society-orchestrator after the first KES packet and first TG3 hardening slice closed; the next session should reassess AK before opening any further loop-hardening follow-through."
+summary: "Package-local handoff for pi-society-orchestrator after KES/TG3 hardening and the bounded autoresearch start-under-supervision slice; reassess AK before opening further follow-through."
 read_when:
   - "Starting the next focused package-development session."
   - "You need the current package truth after tasks 1089-1108 completed."
@@ -27,6 +27,12 @@ The next move is to continue the AK-bound reassessment slice `task:1110` and det
 If AK still shows only the reassessment slice and no new implementation task, stop rather than synthesizing work from this handoff alone.
 
 ## What is now true
+
+### Autoresearch overwatch start-under-supervision is now landed history
+- `autoresearch_live_supervision` includes `action=start_campaign` for exact `taskId` + exact `cwd` + non-empty `objective`.
+- The action delegates bounded campaign startup to `pi-autoresearch` through its public runtime seam with `setupMode=autoplan`, `runMode=bounded_loop`, default `maxIterations=3`, default `maxWallClockMinutes=30`, and `peerMode=plan`, then starts normal live supervision.
+- This is an above-seam coordination surface only: it does not spawn peers, promote candidates, mutate direction, or write KES evidence. Live supervision may project verified AK milestones through its existing orchestrator-gated projector after runtime/ledger proof; direction changes remain explicit gated owner-surface work.
+- Package validation for this slice included `npm --prefix packages/pi-society-orchestrator run check` from the monorepo root.
 
 ### Lower-plane packet is landed history
 - the runtime-truth wave and prompt-plane cutover are already landed history in this package
@@ -99,6 +105,7 @@ npm run quality:pre-push
 ```
 
 ## Explicit deferrals currently in force
+- no widening `autoresearch_live_supervision start_campaign` into hidden daemons, fuzzy task lookup, peer auto-spawning, direct direction mutation, direct KES writes, or AK writes outside the existing verified runtime/ledger live-supervision projector
 - no reopening of the first KES packet unless real validation drift appears
 - no reopening of the first TG3 hardening slice unless real validation drift appears
 - no live-host `/reload` parity expansion in this pass; keep the current split between deterministic installed-package smoke and separate live-host evidence

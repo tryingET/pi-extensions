@@ -124,6 +124,7 @@ Primary tools and commands exposed by the imported extension include:
 - `loop_execute`
 - `vault_execute_template` (Prompt Vault dispatch bridge that executes known loop-bound templates through `loop_execute` and fails closed for workflow-grade/loop templates without an execution binding)
 - `workflow_execute` (explicit chain/parallel workflow composition over the ASC-backed subagent executor, with optional bounded worktree isolation for eligible parallel groups)
+- `autoresearch_live_supervision` (exact-task live `pi-autoresearch` status/observe/start/stop, plus `action=start_campaign` to delegate one bounded campaign start to `pi-autoresearch` and then supervise it)
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
 - `autoresearch_self_hosting_supervision` (one-shot self-hosting artifact observation + evidence-only AK projection for `pi-autoresearch` supervised self-hosting campaigns)
 - `ts_quality_release_workflow` (Pi Society wrapper around the `ts-quality` local release-prep leaves and GitHub Release-triggered npm Trusted Publishing path)
@@ -165,6 +166,9 @@ Primary tools and commands exposed by the imported extension include:
 - `ts-quality` release coordination now has a bounded orchestrator-side workflow surface:
   - tool: `ts_quality_release_workflow`
   - current truth: use action `plan` first; `prepare` wraps repo-local release file preparation; `commit_tag`, `push`, `create_github_release`, and `verify_public` keep the release chain explicit; `push` and `create_github_release` require `externalMutationApproved=true`; local `npm publish` stays forbidden because GitHub Release triggers npm Trusted Publishing/OIDC.
+- Live `pi-autoresearch` campaigns now have a bounded orchestrator-side start/supervise surface:
+  - tool: `autoresearch_live_supervision`
+  - current truth: `status`, `observe`, `start`, and `stop` remain exact `taskId` + `cwd` supervision controls; `start_campaign` additionally requires exact `taskId`, exact `cwd`, and a non-empty objective, delegates one `setupMode=autoplan`, `runMode=bounded_loop`, `peerMode=plan` campaign start to the `pi-autoresearch` public runtime seam, and then starts live supervision. Live supervision may project verified AK milestones through its existing orchestrator-gated projector after runtime/ledger proof; this surface does not spawn peers, promote candidates, mutate direction, or write KES evidence.
 - Manifest-driven `pi-autoresearch` campaigns now also have a bounded orchestrator-side observation/evidence surface:
   - contract: [pi-autoresearch manifest campaign supervision contract](docs/project/pi-autoresearch-manifest-campaign-supervision-contract.md)
   - status: [pi-autoresearch manifest campaign supervision status](docs/project/pi-autoresearch-manifest-campaign-supervision-status.md)
