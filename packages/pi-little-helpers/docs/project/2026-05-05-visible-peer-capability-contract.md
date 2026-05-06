@@ -36,7 +36,14 @@ but @tryinget/pi-little-helpers/toolbox-bundle package resolution failed
 and /sidequest was not reliably available
 ```
 
-That is not just a missing import. It means slash commands, toolbox lazy imports, package exports, and documentation can drift unless they share one capability membrane.
+A second failure mode is adapter/schema drift:
+
+```text
+toolbox reports fork_peer_spawn/scout_peer_spawn/candidate_peer_spawn active
+but the current API adapter exposes a static tool schema without those function recipients
+```
+
+That is not just a missing import. It means slash commands, toolbox lazy imports, package exports, adapter tool-schema refresh behavior, and documentation can drift unless they share one capability membrane.
 
 ## Debugging checklist
 
@@ -50,6 +57,7 @@ When a peer-spawn surface fails, check the capability in this order:
 4. `extensions/sidequest.ts` imports the manifest and registers slash commands from it by default without eagerly registering the peer-spawn tools.
 5. `npm run check` passes in `packages/pi-little-helpers`.
 6. If toolbox activation retries a published-package fallback after local registration already succeeded, inspect `packages/pi-toolbox-discovery/extensions/toolbox.ts`; activation should skip lazy imports once all requested capability tools are registered.
+7. If toolbox status reports the peer-spawn tools active but an API session cannot call `candidate_peer_spawn`, check whether that adapter uses a static tool schema for the current turn/session. The runtime registry may be correct while the adapter schema still needs refresh, `/reload`, or a new session. Use `/parallelquest` / `/scoutpeer` in interactive Pi as the immediate workaround.
 
 ## Boundary
 

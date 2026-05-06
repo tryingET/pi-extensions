@@ -889,11 +889,20 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
   };
 }
 
+function activationCaveats(plan: ActivationPlan): string[] {
+  if (plan.bundle?.id !== "peer-spawn") return [];
+  return [
+    "Peer-spawn activation updates Pi's runtime active-tool registry only; API adapters with a static tool schema may need a schema refresh, /reload, or a fresh session before fork_peer_spawn/scout_peer_spawn/candidate_peer_spawn become callable.",
+    "If an activated peer-spawn tool is still not callable, use the human slash command path (/parallelquest or /scoutpeer) or restart with the peer-spawn tools present in the initial tool schema.",
+  ];
+}
+
 function formatActivationPlan(plan: ActivationPlan, pi: ExtensionAPI): string {
   const knownToolNames = getKnownToolNames(pi);
   const registeredTools = plan.requestedTools.filter((tool) => knownToolNames.has(tool));
   const missingTools = plan.requestedTools.filter((tool) => !knownToolNames.has(tool));
   const lazyModules = plan.bundle?.lazyModules?.map((module) => module.specifier) ?? [];
+  const caveats = activationCaveats(plan);
 
   return [
     "toolbox activation plan",
@@ -907,6 +916,7 @@ function formatActivationPlan(plan: ActivationPlan, pi: ExtensionAPI): string {
     `- lazy modules (${lazyModules.length}): ${lazyModules.join(", ") || "none"}`,
     `- mutates active tools: no`,
     `- imports owner modules: no`,
+    ...caveats.map((caveat) => `- caveat: ${caveat}`),
   ].join("\n");
 }
 
@@ -1209,6 +1219,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
         const leases = recordLeases(state, availableTools, params, plan);
         const ttl = boundedTtlTurns(params.ttlTurns, plan.profile);
 
+        const caveats = activationCaveats(plan);
         const text = [
           `Activated tools: ${availableTools.join(", ") || "none"}`,
           lazyImport.attempted
@@ -1224,6 +1235,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           plan.profile
             ? `Profile: ${plan.bundle?.id}/${plan.profile.id}; risk=${plan.profile.risk}; ttlTurns=${ttl}; pin=${params.pin === true}`
             : `Source: explicit-tools; risks=${plan.risks.join(", ") || "none"}; ttlTurns=${ttl}; pin=${params.pin === true}`,
+          ...caveats.map((caveat) => `Caveat: ${caveat}`),
         ]
           .filter(Boolean)
           .join("\n");
@@ -1239,6 +1251,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           risks: plan.risks,
           leases,
           lazyImport,
+          caveats,
         });
       }
 

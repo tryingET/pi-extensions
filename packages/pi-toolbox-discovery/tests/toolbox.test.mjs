@@ -263,6 +263,24 @@ test("toolbox plan reports risk without importing owner modules", async () => {
   }
 });
 
+test("toolbox plan reports peer-spawn static-schema caveat", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+
+  const result = await executeToolbox(toolbox, {
+    action: "plan",
+    bundle: "peer-spawn",
+    profile: "default",
+  });
+
+  assert.match(result.content[0].text, /toolbox activation plan/);
+  assert.match(
+    result.content[0].text,
+    /caveat: Peer-spawn activation updates Pi's runtime active-tool registry only/,
+  );
+  assert.equal(result.details.ok, true);
+});
+
 test("toolbox refuses risky activation without acknowledgement", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
@@ -439,7 +457,15 @@ test("toolbox lazily imports little-helpers peer-spawn tools before activation",
     result.content[0].text,
     /failed @tryinget\/pi-little-helpers\/toolbox-bundle/,
   );
+  assert.match(
+    result.content[0].text,
+    /Caveat: Peer-spawn activation updates Pi's runtime active-tool registry only/,
+  );
   assert.equal(result.details.ok, true);
+  assert.deepEqual(result.details.caveats, [
+    "Peer-spawn activation updates Pi's runtime active-tool registry only; API adapters with a static tool schema may need a schema refresh, /reload, or a fresh session before fork_peer_spawn/scout_peer_spawn/candidate_peer_spawn become callable.",
+    "If an activated peer-spawn tool is still not callable, use the human slash command path (/parallelquest or /scoutpeer) or restart with the peer-spawn tools present in the initial tool schema.",
+  ]);
   assert.equal(harness.activeTools.includes("fork_peer_spawn"), true);
   assert.equal(harness.activeTools.includes("scout_peer_spawn"), true);
   assert.equal(harness.activeTools.includes("candidate_peer_spawn"), true);

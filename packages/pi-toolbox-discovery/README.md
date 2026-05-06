@@ -32,6 +32,7 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - reports partial lazy imports separately because registered tool definitions cannot be fully rolled back without `/reload`
 - clears lease/lazy-import bookkeeping on `session_start` before re-applying the lean active-tool baseline
 - provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, active leases, eager registration drift, unleased active catalog tools, partial lazy imports, and duplicate/settings suspects
+- warns on peer-spawn activation that runtime active-tool registration is not always the same as API-callable schema exposure in adapters with static tool lists
 
 The package-owned lazy-ready production bundles are `vault` via `pi-vault-client/toolbox-bundle`, `ontology` via `@tryinget/pi-ontology-workflows/toolbox-bundle`, `designmd` via `@tryinget/pi-designmd-foundry/toolbox-bundle`, `autoresearch` via `@tryinget/pi-autoresearch/toolbox-bundle`, `orchestrator` via `pi-society-orchestrator/toolbox-bundle`, and `peer-spawn` via `@tryinget/pi-little-helpers/toolbox-bundle`; broader package-owned lazy bundle exports remain governed by [`../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md`](../../docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md).
 
@@ -60,6 +61,18 @@ unleased active catalog tools (0): none
 ```
 
 If doctor fails, first check Pi settings for package entries that load heavy extension entrypoints eagerly or duplicate worktree package entries. Keep owner packages installed for lazy import, but disable heavy extension entries by default. Preserve lightweight operator/status entries separately when they do not register heavy model-callable tools.
+
+## Dynamic tool-schema caveat
+
+`toolbox({ action: "activate" })` mutates Pi's runtime active-tool registry. Some API adapters expose a static tool schema for the current turn/session and may not surface newly activated model-callable tools as direct function recipients even when `toolbox status` reports them active. This is most visible with `peer-spawn`, where activation can succeed but `candidate_peer_spawn` is still absent from the adapter's callable namespace.
+
+When that happens, the activation is not proof that a peer tool is directly callable in the current adapter. Use one of these paths:
+
+1. run the human slash command (`/parallelquest` or `/scoutpeer`) in an interactive Pi session,
+2. reload/start a fresh session whose initial tool schema includes the activated tools, or
+3. use a controller fallback such as `dispatch_subagent` only when isolated visible worktrees are not required.
+
+Do not treat `toolbox status` alone as evidence that a static-schema API adapter can call the newly active tool by name.
 
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`
