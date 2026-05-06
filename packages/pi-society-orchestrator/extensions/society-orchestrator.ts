@@ -298,20 +298,45 @@ function formatAutoresearchLiveStartReport(result: AutoresearchLiveStartResult):
 function formatAutoresearchCampaignStartUnderSupervisionReport(
   input: AutoresearchLiveStartCampaignResult,
 ): string {
+  const dspxProgramGen = input.campaign.autoplan.dspxProgramGen;
+  const dspxAdvisory = input.campaign.autoplan.dspxAdvisory;
   return [
     "Autoresearch live supervision — start_campaign",
     `Task: #${input.supervision.session.taskId}`,
     `CWD: ${input.campaign.cwd}`,
     `Objective: ${input.campaign.objective}`,
+    `Planner: ${input.campaign.autoplan.planner}`,
     `Run mode: ${input.campaign.runMode}`,
     `Max iterations: ${input.campaign.maxIterations}`,
     `Runtime state: ${input.campaign.status.runtimeProjection.state}`,
     `Supervision state: ${input.supervision.session.state}`,
     `Supervision session: ${input.supervision.sessionKey}`,
     `Next step: ${input.supervision.poll?.nextStep || describeAutoresearchLiveNextStep(input.supervision.session)}`,
+    ...(dspxProgramGen
+      ? [
+          "",
+          "DSPx program-gen handoff:",
+          `- intent: ${dspxProgramGen.intentPath}`,
+          `- outdir: ${dspxProgramGen.outdir}`,
+          `- materialized: ${dspxProgramGen.materialized ? "yes" : "no"}`,
+          `- command: ${dspxProgramGen.command}`,
+          `- note: ${dspxProgramGen.note}`,
+        ]
+      : []),
+    ...(dspxAdvisory
+      ? [
+          "",
+          "DSPx advisory:",
+          `- behavior: ${dspxAdvisory.behaviorPath}`,
+          `- available: ${dspxAdvisory.available ? "yes" : "no"}`,
+          `- status: ${dspxAdvisory.status ?? "unknown"}`,
+          `- matched objective: ${dspxAdvisory.matchedObjective ? "yes" : "no"}`,
+        ]
+      : []),
     "",
     "Boundaries:",
     "- Campaign execution is delegated to pi-autoresearch runtime semantics.",
+    "- DSPx program-gen is a local evidence/program-synthesis handoff owned by pi-autoresearch/DSPx; orchestrator does not synthesize or apply DSPy programs itself.",
     "- Live supervision may project verified AK milestones through its existing orchestrator-gated projector; it does not write KES, change direction, spawn peers, or promote candidates.",
     "- Direction changes remain proposals unless routed through AK/decision authority.",
     "",
@@ -1166,6 +1191,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     promptGuidelines: [
       "Use autoresearch_live_supervision for exact taskId + cwd supervision above the pi-autoresearch runtime.",
       "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
+      "For DSPx/DSPy planning, set planner=dspx_program and materializeDspxIntent=true; this only asks pi-autoresearch to materialize a DSPx program-gen intent/handoff, not to let orchestrator synthesize or apply a DSPy program itself.",
       "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop/start_campaign.",
       "Do not auto-spawn scout_peer_spawn, candidate_peer_spawn, or fork_peer_spawn from this surface; pi-autoresearch may recommend exact peer calls and the operator/controller chooses whether to launch them.",
       "Do not change direction from this surface; emit direction proposals/gated next steps and route actual direction changes through AK/decision authority.",
@@ -1210,6 +1236,24 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       metricName: Type.Optional(Type.String({ description: "Optional explicit metric name" })),
       metricUnit: Type.Optional(Type.String({ description: "Optional explicit metric unit" })),
       direction: Type.Optional(Type.Union([Type.Literal("lower"), Type.Literal("higher")])),
+      planner: Type.Optional(Type.Union([Type.Literal("heuristic"), Type.Literal("dspx_program")])),
+      materializeDspxIntent: Type.Optional(
+        Type.Boolean({
+          description:
+            "When planner=dspx_program, ask pi-autoresearch to write the local DSPx program-gen intent artifact.",
+        }),
+      ),
+      dspxIntentPath: Type.Optional(
+        Type.String({ description: "Optional repo-relative or absolute DSPx intent path." }),
+      ),
+      dspxOutdir: Type.Optional(
+        Type.String({
+          description: "Optional repo-relative or absolute DSPx program-gen output dir.",
+        }),
+      ),
+      dspxBehaviorPath: Type.Optional(
+        Type.String({ description: "Optional DSPx behavior_results.json advisory path." }),
+      ),
       intervalSeconds: Type.Optional(
         Type.Number({
           description: "Polling interval in seconds for action=start|observe|start_campaign",
@@ -1229,6 +1273,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         metricName,
         metricUnit,
         direction,
+        planner,
+        materializeDspxIntent,
+        dspxIntentPath,
+        dspxOutdir,
+        dspxBehaviorPath,
         intervalSeconds,
       } = params as {
         action?: AutoresearchLiveSupervisionAction;
@@ -1242,6 +1291,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         metricName?: string;
         metricUnit?: string;
         direction?: "lower" | "higher";
+        planner?: "heuristic" | "dspx_program";
+        materializeDspxIntent?: boolean;
+        dspxIntentPath?: string;
+        dspxOutdir?: string;
+        dspxBehaviorPath?: string;
         intervalSeconds?: number;
       };
       const action = requestedAction || "status";
@@ -1360,6 +1414,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             metricName,
             metricUnit,
             direction,
+            planner,
+            materializeDspxIntent,
+            dspxIntentPath,
+            dspxOutdir,
+            dspxBehaviorPath,
             intervalSeconds,
             signal,
           });

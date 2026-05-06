@@ -429,6 +429,83 @@ test("autoresearch_live_supervision start_campaign delegates execution then supe
   });
 });
 
+test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff options", async () => {
+  const cwd = "/tmp/delegated-dspx-campaign";
+  const scheduler = new FakeScheduler();
+  const campaignCalls = [];
+  const runner = new AutoresearchLiveSupervisionRunner({
+    setTimeout: scheduler.setTimeout,
+    clearTimeout: scheduler.clearTimeout,
+    startCampaign: async (input) => {
+      campaignCalls.push(input);
+      return {
+        cwd: path.resolve(cwd),
+        objective: input.objective,
+        setupMode: input.setupMode,
+        runMode: input.runMode,
+        maxIterations: input.maxIterations,
+        status: createRuntimeStatus({ cwd: path.resolve(cwd) }),
+        autoplan: {
+          planner: input.planner,
+          dspxProgramGen: {
+            intentPath: path.join(path.resolve(cwd), ".autoresearch/dspx/intent.yaml"),
+            outdir: path.join(path.resolve(cwd), ".autoresearch/dspx/generated"),
+            materialized: true,
+            command: "just dspx program-gen --intent .autoresearch/dspx/intent.yaml",
+            note: "DSPx handoff remains evidence-only.",
+          },
+          dspxAdvisory: {
+            behaviorPath: path.join(path.resolve(cwd), ".autoresearch/dspx/behavior_results.json"),
+            available: false,
+            status: null,
+            matchedObjective: false,
+          },
+        },
+      };
+    },
+    observeRuntime: async (observedCwd) => createRuntimeStatus({ cwd: observedCwd }),
+    loadLedger: async () => ({ entries: [], invalidLineCount: 0 }),
+    projectLedgerEntries: async () => ({
+      context: { blockedReason: null, completionReason: null },
+    }),
+    inspectFinalization: async ({ cwd: observedCwd, status }) =>
+      createFinalizationInspection(observedCwd, status, { plan: null }),
+    projectMilestone: async () => createProjectorResult({ milestone: "decision-required" }),
+    evaluateLifecycle: async () => ({ ok: true, action: "none", summary: "no mutation" }),
+  });
+  const tool = registerAutoresearchLiveTool(runner);
+
+  const result = await tool.execute(
+    "tc-start-campaign-dspx",
+    {
+      action: "start_campaign",
+      taskId: 1546,
+      cwd,
+      objective: "materialize a DSPx planner handoff",
+      planner: "dspx_program",
+      materializeDspxIntent: true,
+      dspxIntentPath: ".autoresearch/dspx/intent.yaml",
+      dspxOutdir: ".autoresearch/dspx/generated",
+      dspxBehaviorPath: ".autoresearch/dspx/behavior_results.json",
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(campaignCalls.length, 1);
+  assert.equal(campaignCalls[0].planner, "dspx_program");
+  assert.equal(campaignCalls[0].materializeDspxIntent, true);
+  assert.equal(campaignCalls[0].dspxIntentPath, ".autoresearch/dspx/intent.yaml");
+  assert.equal(campaignCalls[0].dspxOutdir, ".autoresearch/dspx/generated");
+  assert.equal(campaignCalls[0].dspxBehaviorPath, ".autoresearch/dspx/behavior_results.json");
+  assert.equal(campaignCalls[0].peerMode, "plan");
+  assert.match(result.content[0].text, /Planner: dspx_program/);
+  assert.match(result.content[0].text, /DSPx program-gen handoff/);
+  assert.match(result.content[0].text, /orchestrator does not synthesize or apply DSPy programs/);
+  assert.equal(scheduler.pendingCount(), 1);
+});
+
 test("AutoresearchLiveSupervisionRunner startCampaign pins bounded delegation defaults", async () => {
   const cwd = "/tmp/delegated-campaign";
   const scheduler = new FakeScheduler();

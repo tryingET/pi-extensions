@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import {
+  type AutoresearchAutoplanPlanner,
   type AutoresearchLedgerLoadResult,
   type AutoresearchLedgerProjection,
   type AutoresearchRuntimeStatus,
@@ -129,6 +130,11 @@ export interface AutoresearchLiveStartCampaignRequest extends AutoresearchLiveSu
   metricName?: string;
   metricUnit?: string;
   direction?: "lower" | "higher";
+  planner?: AutoresearchAutoplanPlanner;
+  materializeDspxIntent?: boolean;
+  dspxIntentPath?: string;
+  dspxOutdir?: string;
+  dspxBehaviorPath?: string;
 }
 
 export interface AutoresearchLiveStartCampaignResult {
@@ -387,6 +393,11 @@ export class AutoresearchLiveSupervisionRunner {
       metricName: input.metricName,
       metricUnit: input.metricUnit,
       direction: input.direction,
+      planner: input.planner,
+      materializeDspxIntent: input.materializeDspxIntent,
+      dspxIntentPath: input.dspxIntentPath,
+      dspxOutdir: input.dspxOutdir,
+      dspxBehaviorPath: input.dspxBehaviorPath,
       signal: input.signal,
     });
 
