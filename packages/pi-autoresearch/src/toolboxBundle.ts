@@ -30,6 +30,7 @@ const PROFILE_TOOLS: Record<string, ToolboxRegisteredToolSummary[]> = {
     { name: "autoresearch_runtime_setup", profile: "mutating", risk: "mutating" },
     { name: "autoresearch_campaign_start", profile: "mutating", risk: "mutating" },
     { name: "autoresearch_runtime_loop", profile: "mutating", risk: "mutating" },
+    { name: "autoresearch_runtime_resume_apply", profile: "mutating", risk: "mutating" },
     { name: "autoresearch_self_hosting_run", profile: "mutating", risk: "mutating" },
   ],
 };

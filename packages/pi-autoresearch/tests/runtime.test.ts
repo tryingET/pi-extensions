@@ -2606,7 +2606,7 @@ test("/autoresearch next prepares the current recommended candidate call", async
 
 test("/autoresearch measure prepares a candidate measurement run call", async () => {
   await withTempDir(async (cwd) => {
-    const { commands } = registerHarness();
+    const { commands, eventHandlers } = registerHarness();
     execFileSync("git", ["init"], { cwd, stdio: "ignore" });
     writeFileSync(path.join(cwd, "value.txt"), "base\n");
     execFileSync("git", ["add", "value.txt"], { cwd, stdio: "ignore" });
@@ -2662,6 +2662,16 @@ test("/autoresearch measure prepares a candidate measurement run call", async ()
       assert.match(editorText, /candidateFilesChanged: \["value.txt"\]/);
       assert.equal(notifications.length, 1);
       assert.match(notifications[0]?.message ?? "", /Prepared candidate measurement/);
+
+      const inputHandler = eventHandlers.get("input");
+      const fallbackResult = (await inputHandler?.(
+        { source: "user", text: `$$ autoresearch measure ${candidateDir}` },
+        { cwd },
+      )) as { action: string; text: string };
+      assert.equal(fallbackResult.action, "transform");
+      assert.match(fallbackResult.text, /autoresearch_runtime_run/);
+      assert.doesNotMatch(fallbackResult.text, /autoresearch_candidate_bind/);
+      assert.match(fallbackResult.text, /candidateFilesChanged: \["value.txt"\]/);
     } finally {
       execFileSync("git", ["worktree", "remove", "--force", candidateDir], {
         cwd,
@@ -4412,5 +4422,85 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(finalize);
     assert.match(finalize?.content[0]?.text ?? "", /kind: finalize/);
     assert.match(finalize?.content[0]?.text ?? "", /template: pi-autoresearch-finalize/);
+  });
+});
+
+test("$$ autoresearch measure picker applies measure mode for ready worktrees", async () => {
+  const pickers: Array<Record<string, unknown>> = [];
+  const triggerSurface = {
+    registerPickerInteraction(config: Record<string, unknown>) {
+      pickers.push(config);
+      return { unregister() {} };
+    },
+  };
+
+  await withTempDir(async (cwd) => {
+    execFileSync("git", ["init"], { cwd, stdio: "ignore" });
+    writeFileSync(path.join(cwd, "value.txt"), "base\n");
+    execFileSync("git", ["add", "value.txt"], { cwd, stdio: "ignore" });
+    execFileSync(
+      "git",
+      ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "base"],
+      { cwd, stdio: "ignore" },
+    );
+    const candidateDir = mkdtempSync(path.join(os.tmpdir(), "pi-autoresearch-picker-candidate-"));
+    rmSync(candidateDir, { recursive: true, force: true });
+    try {
+      execFileSync(
+        "git",
+        ["worktree", "add", "-b", "candidate/picker-measure", candidateDir, "HEAD"],
+        {
+          cwd,
+          stdio: "ignore",
+        },
+      );
+      writeFileSync(path.join(candidateDir, "value.txt"), "candidate\n");
+      execFileSync("git", ["add", "value.txt"], { cwd: candidateDir, stdio: "ignore" });
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=Test",
+          "-c",
+          "user.email=test@example.invalid",
+          "commit",
+          "-m",
+          "candidate",
+        ],
+        { cwd: candidateDir, stdio: "ignore" },
+      );
+
+      registerHarness({ triggerSurface } as PiAutoresearchExtensionOptions);
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        if (pickers.length > 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      const picker = pickers.find((entry) => entry.id === "autoresearch-candidate-bind-picker");
+      assert.ok(picker);
+
+      const parsed = (picker.parseInput as (match: unknown, context: unknown) => unknown)(
+        { groups: ["measure", candidateDir] },
+        { cwd },
+      );
+      let inserted = "";
+      (picker.applySelection as (input: unknown) => void)({
+        parsed,
+        context: { cwd },
+        api: {
+          setText(text: string) {
+            inserted = text;
+          },
+        },
+      });
+
+      assert.match(inserted, /autoresearch_runtime_run/);
+      assert.doesNotMatch(inserted, /autoresearch_candidate_bind/);
+      assert.match(inserted, /candidateFilesChanged: \["value.txt"\]/);
+    } finally {
+      execFileSync("git", ["worktree", "remove", "--force", candidateDir], {
+        cwd,
+        stdio: "ignore",
+      });
+    }
   });
 });

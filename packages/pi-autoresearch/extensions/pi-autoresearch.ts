@@ -1213,6 +1213,7 @@ export interface PiAutoresearchExtensionOptions {
     signal: AbortSignal | undefined,
   ) => AutoresearchDecisionRuntime;
   effectProfile?: AutoresearchExtensionEffectProfile;
+  triggerSurface?: AutoresearchTriggerSurface | null;
 }
 
 function assertReadProfileAllowsAction(
@@ -1282,7 +1283,7 @@ export function registerPiAutoresearchExtension(
   const dashboardExportIntervals = new Map<string, ReturnType<typeof setInterval>>();
   let sessionActive = true;
 
-  void maybeRegisterAutoresearchLiveTrigger().then((registration) => {
+  void maybeRegisterAutoresearchLiveTrigger(options.triggerSurface).then((registration) => {
     if (!sessionActive) {
       registration.unregister();
       return;
@@ -3265,7 +3266,11 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   }
   const candidateMeasure = parseAutoresearchCandidateMeasureCommand(raw, cwd);
   if (candidateMeasure) {
-    return buildAutoresearchCandidateBindEditorCall(cwd, candidateMeasure.candidateWorktree);
+    return buildAutoresearchCandidateBindOrMeasureEditorCall(
+      cwd,
+      candidateMeasure.candidateWorktree,
+      "measure",
+    );
   }
   const candidateBind = parseAutoresearchCandidateBindCommand(raw, cwd);
   if (candidateBind) {
@@ -3360,6 +3365,16 @@ function parseAutoresearchCandidatePathCommand(
 
 function buildAutoresearchCandidateBindEditorCall(cwd: string, candidateWorktree: string): string {
   return `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: "plan_run",\n  candidateSource: "manual",\n  candidateWorktree: ${JSON.stringify(candidateWorktree)},\n  description: "Measure bound candidate"\n})`;
+}
+
+function buildAutoresearchCandidateBindOrMeasureEditorCall(
+  cwd: string,
+  candidateWorktree: string,
+  mode: AutoresearchCandidateBindTriggerMode,
+): string {
+  return mode === "measure"
+    ? buildAutoresearchCandidateMeasureEditorCall(cwd, candidateWorktree)
+    : buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
 }
 
 function buildAutoresearchCandidateMeasureEditorCall(
@@ -4080,9 +4095,11 @@ async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurf
   }
 }
 
-async function maybeRegisterAutoresearchLiveTrigger(): Promise<{ unregister: () => void }> {
+async function maybeRegisterAutoresearchLiveTrigger(
+  explicitTriggerSurface?: AutoresearchTriggerSurface | null,
+): Promise<{ unregister: () => void }> {
   try {
-    const triggerSurface = await loadAutoresearchTriggerSurface();
+    const triggerSurface = explicitTriggerSurface ?? (await loadAutoresearchTriggerSurface());
     if (typeof triggerSurface?.registerPickerInteraction !== "function") {
       return { unregister: () => {} };
     }
@@ -4129,7 +4146,13 @@ async function maybeRegisterAutoresearchLiveTrigger(): Promise<{ unregister: () 
         }) => {
           const cwd = context?.cwd ?? process.cwd();
           const candidateWorktree = parsed?.candidateWorktree ?? cwd;
-          api?.setText?.(buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree));
+          api?.setText?.(
+            buildAutoresearchCandidateBindOrMeasureEditorCall(
+              cwd,
+              candidateWorktree,
+              parsed?.mode ?? "bind",
+            ),
+          );
         },
         onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
           api?.notify?.("No autoresearch candidate-bind actions are available.", "warning");

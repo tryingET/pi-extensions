@@ -55,6 +55,28 @@ test("autoresearch toolbox bundle registers autoresearch tools and reports reque
   assert.equal(harness.commands.has("autoresearch"), true);
 });
 
+test("autoresearch mutating toolbox profile includes foreground resume executor", () => {
+  const harness = createHarness();
+
+  const summaries = registerToolboxBundle(harness.pi as never, {
+    profile: "mutating",
+  });
+
+  assert.deepEqual(
+    summaries.map((summary) => summary.name),
+    [
+      "autoresearch_runtime_run",
+      "autoresearch_runtime_autoplan",
+      "autoresearch_runtime_setup",
+      "autoresearch_campaign_start",
+      "autoresearch_runtime_loop",
+      "autoresearch_runtime_resume_apply",
+      "autoresearch_self_hosting_run",
+    ],
+  );
+  assert.equal(harness.tools.has("autoresearch_runtime_resume_apply"), true);
+});
+
 test("autoresearch read toolbox profile mechanically rejects mutating actions", async () => {
   const harness = createHarness();
 
