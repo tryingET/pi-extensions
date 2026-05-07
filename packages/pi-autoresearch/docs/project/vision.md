@@ -34,6 +34,34 @@ autonomous in execution, governed in authority
 
 The end state is not a self-sovereign package that plans, edits, judges, promotes, records durable truth, and evolves itself in one closed loop. The end state is a powerful experiment runtime that remains interruptible, inspectable, reversible, and routed through the owner surfaces that hold durable truth.
 
+## Reference lineage
+
+The implementation reference for the operator experience is `softwareco/contrib/pi-autoresearch`.
+
+Keep its core product insight:
+
+```text
+try an idea -> measure it -> keep what works -> discard what does not -> continue with visible state
+```
+
+Preserve these reference qualities where they still fit this governed package:
+
+- a simple `/autoresearch <objective>` start surface;
+- session artifacts that let a fresh agent resume from local truth;
+- a benchmark script plus optional correctness backpressure checks;
+- a live widget/dashboard/export that makes progress visible without scraping logs;
+- noise-aware confidence / empirical posture so timing wins are not overclaimed;
+- finalize/closeout into reviewable evidence rather than one opaque mega-change.
+
+Deliberately do **not** copy these reference traits unchanged:
+
+- “repeat forever” unattended autonomy;
+- automatic commits as the core authority mechanism;
+- local session files as canonical institutional truth;
+- extension-local hook/plugin expansion as a substitute for owner-routed AK/KES/Prompt Vault/ROCS/DSPx surfaces.
+
+This package is the governed descendant: it should feel as direct and useful as the contrib loop while adding explicit budgets, measurement contracts, candidate binding, empirical decision classes, and external promotion seams.
+
 ## Desired end-state loop
 
 A mature auto-research campaign should be able to move through this loop under explicit budgets and gates:
@@ -61,10 +89,11 @@ In mature form, the package should help an operator or controller agent:
 6. distinguish operational success from empirical meaning;
 7. produce reviewable closeout, evidence, candidate-result, and learning packets;
 8. request governed setup / next-hypothesis / finalization decisions through Prompt Vault where useful;
-9. expose live status, dashboard, widget, overlay, and export surfaces without turning them into control authority;
-10. support supervised self-hosting under frozen evaluator truth and external promotion/rollback gates;
-11. hand evidence upward to orchestrator/AK/KES/other owner surfaces without directly owning their durable writes;
-12. stop cleanly when budgets, checks, posture gates, evaluator locks, or authority gates fail.
+9. use DSPx/DSPy as an inner program-shaped planning/evaluation runtime when that improves setup or hypothesis quality, while keeping `pi-autoresearch` as the outer bounded controller;
+10. expose live status, dashboard, widget, overlay, and export surfaces without turning them into control authority;
+11. support supervised self-hosting under frozen evaluator truth and external promotion/rollback gates;
+12. hand evidence upward to orchestrator/AK/KES/other owner surfaces without directly owning their durable writes;
+13. stop cleanly when budgets, checks, posture gates, evaluator locks, or authority gates fail.
 
 ## Authority architecture
 
@@ -77,7 +106,7 @@ The long-term product direction depends on keeping these owner seams visible.
 | Durable campaign/task/evidence truth and exact-task authority | AK / evidence owner surfaces |
 | Reusable setup, next-hypothesis, finalization, and other governed decision procedures | Prompt Vault |
 | Governed experiment semantics and controlled vocabulary | ROCS / ontology owner repos |
-| Empirical behavior analysis and program-generation advisory evidence | DSPx / Oracle surfaces |
+| DSPy planner/program materialization, local behavior evidence, and Oracle interpretation | DSPx / Oracle surfaces |
 | Learning persistence and activation | KES, notes, KMS, or selected learning adapters |
 | Operator approval, controller rotation, and promotion/rollback authorization | Operator / external controller authority |
 
@@ -94,9 +123,10 @@ The intended path to fuller auto-research is staged.
 5. **Visible candidate production** — peers or helper tooling may create candidate worktrees, but candidate launch, merge, discard, and cleanup remain explicit.
 6. **Bounded coordinated campaigns** — orchestrator-level flows may coordinate multiple package-local research steps under exact scope, budgets, and review gates.
 7. **Limited autonomous execution** — later campaigns may run longer bounded loops, but only with explicit budgets, posture gates, inspectable state, and interruptible operator control.
-8. **Institutional learning handoff** — accepted closeouts and learnings move through owner-routed KES/AK/notes/Prompt Vault/ontology processes instead of being absorbed into local runtime state.
+8. **DSPx/DSPy inner planning** — selected setup/hypothesis phases may materialize and run generated DSPy programs through DSPx, then validate the behavior output before local campaign use.
+9. **Institutional learning handoff** — accepted closeouts and learnings move through owner-routed KES/AK/notes/Prompt Vault/ontology processes instead of being absorbed into local runtime state.
 
-The ladder does not include hidden daemonized self-improvement, automatic whole-repo mutation, direct AK/KES writes from the package runtime, or package-local self-promotion.
+The ladder does not include hidden daemonized self-improvement, automatic whole-repo mutation, direct AK/KES writes from the package runtime, package-local self-promotion, or treating generated DSPy output as external promotion authority.
 
 ## Self-hosting destination
 
@@ -157,7 +187,8 @@ Future work remains in-bounds only if these invariants hold:
 9. self-hosting evaluator truth cannot be candidate-owned;
 10. local success never implies package-local promotion authority;
 11. hidden daemonized autonomy and unbounded resume loops remain out of scope;
-12. rollback remains explicit and reviewable.
+12. generated DSPy planner output can configure only the bounded local campaign after validation; it cannot promote, rank, or mutate external authority by itself;
+13. rollback remains explicit and reviewable.
 
 ## Relationship to current posture
 
