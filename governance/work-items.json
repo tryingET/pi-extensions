@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-04-09",
+  "updated_at": "2026-05-18",
   "owner": "@tryingET",
   "project_name": "pi-extensions",
   "milestones": [
@@ -605,43 +605,2510 @@
               "done": false
             }
           ],
-          "dod": "Task reaches done in society.db with evidence recorded."
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: TG2 KES activation is now the active root wave; keep the PufferLib exploration out of the ready queue until explicit reprioritization.\n- kind: manual"
         },
         {
           "id": "AK-TASK-1049",
           "title": "[WAVE-TG1] Rewire pi-society-orchestrator prompt-plane reads to the supported pi-vault-client seam",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "[WAVE-TG1] Rewire pi-society-orchestrator prompt-plane reads to the supported pi-vault-client seam (task #1049)",
-              "done": false
+              "done": true
             }
           ],
-          "dod": "Task reaches done in society.db with evidence recorded."
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
         },
         {
           "id": "AK-TASK-1050",
           "title": "[WAVE-TG1] Expose a supported non-UI pi-vault-client prompt-plane seam for orchestrator cognitive-tool consumers",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "[WAVE-TG1] Expose a supported non-UI pi-vault-client prompt-plane seam for orchestrator cognitive-tool consumers (task #1050)",
-              "done": false
+              "done": true
             }
           ],
-          "dod": "Task reaches done in society.db with evidence recorded."
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
         },
         {
           "id": "AK-TASK-1051",
           "title": "[WAVE-TG1] Prove the new prompt-plane seam with package checks, release smoke, and root validation",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "[WAVE-TG1] Prove the new prompt-plane seam with package checks, release smoke, and root validation (task #1051)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
+        },
+        {
+          "id": "AK-TASK-1089",
+          "title": "[WAVE-TG2] Define bounded KES crystallization contract and scaffolding in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[WAVE-TG2] Define bounded KES crystallization contract and scaffolding in pi-society-orchestrator (task #1089)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
+        },
+        {
+          "id": "AK-TASK-1090",
+          "title": "[WAVE-TG2] Wire loop execution to emit package-owned KES outputs in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[WAVE-TG2] Wire loop execution to emit package-owned KES outputs in pi-society-orchestrator (task #1090)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
+        },
+        {
+          "id": "AK-TASK-1091",
+          "title": "[WAVE-TG2] Prove KES outputs with package checks, release smoke, and root validation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[WAVE-TG2] Prove KES outputs with package checks, release smoke, and root validation (task #1091)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
+        },
+        {
+          "id": "AK-TASK-1107",
+          "title": "[WAVE-TG3] Fail closed on invalid package-owned KES roots in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[WAVE-TG3] Fail closed on invalid package-owned KES roots in pi-society-orchestrator (task #1107)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
+        },
+        {
+          "id": "AK-TASK-1108",
+          "title": "[WAVE-TG3] Strengthen installed-package KES proof to execute from the true installed package root",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[WAVE-TG3] Strengthen installed-package KES proof to execute from the true installed package root (task #1108)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-10"
+        },
+        {
+          "id": "AK-TASK-1110",
+          "title": "[WAVE-TG3] Bind the post-hardening empty-ready state into an AK-backed reassessment slice",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[WAVE-TG3] Bind the post-hardening empty-ready state into an AK-backed reassessment slice (task #1110)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-04"
+        },
+        {
+          "id": "AK-TASK-1359",
+          "title": "Assess pi-autoresearch incorporation into pi-extensions ecosystem",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Assess pi-autoresearch incorporation into pi-extensions ecosystem (task #1359)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1361",
+          "title": "Draft pi-autoresearch problem description and RFC",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Draft pi-autoresearch problem description and RFC (task #1361)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1362",
+          "title": "Propose pi-autoresearch ontology concept set",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Propose pi-autoresearch ontology concept set (task #1362)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1399",
+          "title": "Correct pi-autoresearch ontology topology and fix ontology-workflows layout support",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Correct pi-autoresearch ontology topology and fix ontology-workflows layout support (task #1399)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1400",
+          "title": "Add ontology bootstrap and manifest support to pi-ontology-workflows",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add ontology bootstrap and manifest support to pi-ontology-workflows (task #1400)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1401",
+          "title": "Add /ontology-bootstrap command and smooth bootstrap UX in pi-ontology-workflows",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add /ontology-bootstrap command and smooth bootstrap UX in pi-ontology-workflows (task #1401)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1408",
+          "title": "Design self-to-ontology candidate pipeline",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Design self-to-ontology candidate pipeline (task #1408)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1410",
+          "title": "[UMBRELLA] Land current pi-autoresearch ontology/workflow/docs foundation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Land current pi-autoresearch ontology/workflow/docs foundation (task #1410)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1411",
+          "title": "[UMBRELLA] Define prompt/control-plane and package foundation for pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Define prompt/control-plane and package foundation for pi-autoresearch (task #1411)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1412",
+          "title": "[UMBRELLA] Implement controlled self-to-ontology candidate pipeline",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Implement controlled self-to-ontology candidate pipeline (task #1412)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1413",
+          "title": "Land repo-local pi-autoresearch ontology seed in pi-extensions/ontology",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Land repo-local pi-autoresearch ontology seed in pi-extensions/ontology (task #1413)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1414",
+          "title": "Draft pi-autoresearch Prompt Vault template set and vocabulary gap note",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Draft pi-autoresearch Prompt Vault template set and vocabulary gap note (task #1414)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1415",
+          "title": "Add ontology proposal/check runtime to pi-ontology-workflows",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add ontology proposal/check runtime to pi-ontology-workflows (task #1415)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1416",
+          "title": "Land pi-ontology-workflows bootstrap/manifest/command UX improvements",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Land pi-ontology-workflows bootstrap/manifest/command UX improvements (task #1416)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1417",
+          "title": "Execute pi-autoresearch Prompt Vault rollout with evidence note",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Execute pi-autoresearch Prompt Vault rollout with evidence note (task #1417)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1418",
+          "title": "Extend self with ontology-candidate memory and query intents",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Extend self with ontology-candidate memory and query intents (task #1418)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1419",
+          "title": "Land pi-autoresearch design docs and session evidence docs",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Land pi-autoresearch design docs and session evidence docs (task #1419)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1420",
+          "title": "Scaffold packages/pi-autoresearch package shell",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Scaffold packages/pi-autoresearch package shell (task #1420)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1421",
+          "title": "Define repo-local ontology candidate artifact contract and staging root",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Define repo-local ontology candidate artifact contract and staging root (task #1421)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1422",
+          "title": "Implement bounded pi-autoresearch runtime kernel and receipts",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement bounded pi-autoresearch runtime kernel and receipts (task #1422)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1465",
+          "title": "[UMBRELLA] Re-anchor pi-autoresearch architecture to stack-map-aligned runtime/control-plane boundaries",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Re-anchor pi-autoresearch architecture to stack-map-aligned runtime/control-plane boundaries (task #1465)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1466",
+          "title": "Write pi-autoresearch architecture correction note for XState runtime + AK/PV split",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write pi-autoresearch architecture correction note for XState runtime + AK/PV split (task #1466)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1467",
+          "title": "Review KES stance and define federated learning boundaries for pi-extensions",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Review KES stance and define federated learning boundaries for pi-extensions (task #1467)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1468",
+          "title": "Refresh existing pi-autoresearch and self-to-ontology docs to match the revised architecture",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Refresh existing pi-autoresearch and self-to-ontology docs to match the revised architecture (task #1468)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1469",
+          "title": "[UMBRELLA] Implement pi-autoresearch XState domain runtime and event ledger",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Implement pi-autoresearch XState domain runtime and event ledger (task #1469)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1470",
+          "title": "Add XState campaign machine and event model to packages/pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add XState campaign machine and event model to packages/pi-autoresearch (task #1470)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1471",
+          "title": "Add append-only autoresearch event ledger for projector-friendly runtime truth",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add append-only autoresearch event ledger for projector-friendly runtime truth (task #1471)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1472",
+          "title": "Integrate pi-autoresearch runtime kernel and extension surfaces with the XState machine and event ledger",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Integrate pi-autoresearch runtime kernel and extension surfaces with the XState machine and event ledger (task #1472)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1473",
+          "title": "[UMBRELLA] Add orchestrator supervision and AK milestone projection for autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Add orchestrator supervision and AK milestone projection for autoresearch campaigns (task #1473)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1474",
+          "title": "Define autoresearch AK milestone projection contract",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Define autoresearch AK milestone projection contract (task #1474)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1475",
+          "title": "Add autoresearch supervisor machine to pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add autoresearch supervisor machine to pi-society-orchestrator (task #1475)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1476",
+          "title": "Implement autoresearch AK milestone projector in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement autoresearch AK milestone projector in pi-society-orchestrator (task #1476)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1477",
+          "title": "Run an end-to-end autoresearch proof with supervisor + AK projection evidence",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run an end-to-end autoresearch proof with supervisor + AK projection evidence (task #1477)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1478",
+          "title": "[UMBRELLA] Define broader federated learning and semantic-candidate substrate beyond KES",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Define broader federated learning and semantic-candidate substrate beyond KES (task #1478)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1479",
+          "title": "Define governance/ontology-candidates staging contract and rehome path",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Define governance/ontology-candidates staging contract and rehome path (task #1479)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1480",
+          "title": "Revise self ontology-candidate memory into semantic-pressure annotations",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Revise self ontology-candidate memory into semantic-pressure annotations (task #1480)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1526",
+          "title": "[UMBRELLA] Reach pi-autoresearch target control plane beyond the bounded runtime kernel",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Reach pi-autoresearch target control plane beyond the bounded runtime kernel (task #1526)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1527",
+          "title": "[UMBRELLA] Wire machine-invoked Prompt Vault decisions into pi-autoresearch runtime",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Wire machine-invoked Prompt Vault decisions into pi-autoresearch runtime (task #1527)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1528",
+          "title": "Write pi-autoresearch live Prompt Vault decision contract and target state",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write pi-autoresearch live Prompt Vault decision contract and target state (task #1528)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1529",
+          "title": "Implement pi-autoresearch decision runtime adapter for governed Prompt Vault templates",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement pi-autoresearch decision runtime adapter for governed Prompt Vault templates (task #1529)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1530",
+          "title": "Integrate machine-driven Prompt Vault decisions into pi-autoresearch runtime surfaces",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Integrate machine-driven Prompt Vault decisions into pi-autoresearch runtime surfaces (task #1530)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-16"
+        },
+        {
+          "id": "AK-TASK-1531",
+          "title": "Prove live pi-autoresearch Prompt Vault decision flow and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove live pi-autoresearch Prompt Vault decision flow and update current-vs-target (task #1531)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1532",
+          "title": "[UMBRELLA] Land pi-autoresearch resume/autonomy lifecycle and operator control surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Land pi-autoresearch resume/autonomy lifecycle and operator control surface (task #1532)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1533",
+          "title": "Write pi-autoresearch resume/control-surface contract and artifact model",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write pi-autoresearch resume/control-surface contract and artifact model (task #1533)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1534",
+          "title": "Implement pi-autoresearch resumable runtime snapshot and control-state loader",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement pi-autoresearch resumable runtime snapshot and control-state loader (task #1534)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1535",
+          "title": "Add pi-autoresearch operator control surface for continue/rebaseline/finalize/stop",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add pi-autoresearch operator control surface for continue/rebaseline/finalize/stop (task #1535)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1536",
+          "title": "Prove pi-autoresearch resume/control lifecycle and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove pi-autoresearch resume/control lifecycle and update current-vs-target (task #1536)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1537",
+          "title": "[UMBRELLA] Land safer pi-autoresearch finalization orchestration",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Land safer pi-autoresearch finalization orchestration (task #1537)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1538",
+          "title": "Write pi-autoresearch finalization orchestration contract and safety fences",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write pi-autoresearch finalization orchestration contract and safety fences (task #1538)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1539",
+          "title": "Implement pi-autoresearch finalization planner and grouped artifact runtime",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement pi-autoresearch finalization planner and grouped artifact runtime (task #1539)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1540",
+          "title": "Implement safe pi-autoresearch finalization materialization and branch workflow",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement safe pi-autoresearch finalization materialization and branch workflow (task #1540)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1541",
+          "title": "Prove safer pi-autoresearch finalization orchestration and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove safer pi-autoresearch finalization orchestration and update current-vs-target (task #1541)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1542",
+          "title": "[UMBRELLA] Land live pi-autoresearch supervision, polling, and AK lifecycle automation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Land live pi-autoresearch supervision, polling, and AK lifecycle automation (task #1542)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1543",
+          "title": "Write live pi-autoresearch supervision/polling and AK lifecycle automation contract",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write live pi-autoresearch supervision/polling and AK lifecycle automation contract (task #1543)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1544",
+          "title": "Implement orchestrator live pi-autoresearch supervisor runner and polling policy",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement orchestrator live pi-autoresearch supervisor runner and polling policy (task #1544)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-17"
+        },
+        {
+          "id": "AK-TASK-1545",
+          "title": "Implement bounded AK task lifecycle automation for pi-autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement bounded AK task lifecycle automation for pi-autoresearch campaigns (task #1545)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1546",
+          "title": "Add operator-facing supervision surface and prove live pi-autoresearch lifecycle automation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add operator-facing supervision surface and prove live pi-autoresearch lifecycle automation (task #1546)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1634",
+          "title": "[UMBRELLA] Land post-target manifest-driven llama.cpp benchmark campaign execution memory in pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Land post-target manifest-driven llama.cpp benchmark campaign execution memory in pi-autoresearch (task #1634)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1635",
+          "title": "[UMBRELLA] Bind manifest-driven llama.cpp campaigns to bounded 41/42/43 execution",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Bind manifest-driven llama.cpp campaigns to bounded 41/42/43 execution (task #1635)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1636",
+          "title": "Write manifest-driven 41/42/43 execution-binding contract and done-state",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write manifest-driven 41/42/43 execution-binding contract and done-state (task #1636)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1640",
+          "title": "Implement bounded manifest-driven 41/42/43 execution surface in pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement bounded manifest-driven 41/42/43 execution surface in pi-autoresearch (task #1640)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1642",
+          "title": "Prove manifest-driven 41/42/43 execution binding and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove manifest-driven 41/42/43 execution binding and update current-vs-target (task #1642)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1643",
+          "title": "[UMBRELLA] Project manifest-driven campaign receipts and runtime status",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Project manifest-driven campaign receipts and runtime status (task #1643)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1644",
+          "title": "Write manifest campaign receipt/projection contract and artifact model",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write manifest campaign receipt/projection contract and artifact model (task #1644)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1645",
+          "title": "Implement manifest campaign receipts plus runtime status/help integration",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement manifest campaign receipts plus runtime status/help integration (task #1645)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1646",
+          "title": "Prove manifest campaign projection surface and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove manifest campaign projection surface and update current-vs-target (task #1646)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1648",
+          "title": "[UMBRELLA] Bind manifest-driven llama.cpp campaigns to AK execution truth",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Bind manifest-driven llama.cpp campaigns to AK execution truth (task #1648)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1649",
+          "title": "Write AK binding contract and lifecycle shape for manifest-driven llama.cpp campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write AK binding contract and lifecycle shape for manifest-driven llama.cpp campaigns (task #1649)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1650",
+          "title": "Implement bounded AK projection/binding helpers for campaign manifests",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement bounded AK projection/binding helpers for campaign manifests (task #1650)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1651",
+          "title": "Prove AK-aware manifest campaign binding and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove AK-aware manifest campaign binding and update current-vs-target (task #1651)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1692",
+          "title": "[UMBRELLA] Land campaign-local autonomy for manifest-driven llama.cpp campaigns in pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Land campaign-local autonomy for manifest-driven llama.cpp campaigns in pi-autoresearch (task #1692)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1693",
+          "title": "Write campaign-local autonomy contract and lifecycle shape for manifest-driven llama.cpp campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write campaign-local autonomy contract and lifecycle shape for manifest-driven llama.cpp campaigns (task #1693)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1694",
+          "title": "Implement bounded campaign-local autonomy helpers for manifest-driven llama.cpp campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement bounded campaign-local autonomy helpers for manifest-driven llama.cpp campaigns (task #1694)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1695",
+          "title": "Prove campaign-local autonomy helpers and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove campaign-local autonomy helpers and update current-vs-target (task #1695)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1696",
+          "title": "[UMBRELLA] Expose a public campaign-control surface for manifest-driven pi-autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Expose a public campaign-control surface for manifest-driven pi-autoresearch campaigns (task #1696)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1697",
+          "title": "Write public campaign-control contract and consumer seam for manifest-driven pi-autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write public campaign-control contract and consumer seam for manifest-driven pi-autoresearch campaigns (task #1697)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1698",
+          "title": "Implement bounded public campaign-control surface in pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement bounded public campaign-control surface in pi-autoresearch (task #1698)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1699",
+          "title": "Prove public campaign-control surface and update current-vs-target",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove public campaign-control surface and update current-vs-target (task #1699)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1700",
+          "title": "[UMBRELLA] Land orchestrator-side supervision for manifest-driven pi-autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Land orchestrator-side supervision for manifest-driven pi-autoresearch campaigns (task #1700)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-1701",
+          "title": "Write orchestrator-side supervision and AK evidence policy for manifest-driven pi-autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Write orchestrator-side supervision and AK evidence policy for manifest-driven pi-autoresearch campaigns (task #1701)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1702",
+          "title": "Implement bounded orchestrator supervision surface for manifest-driven pi-autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement bounded orchestrator supervision surface for manifest-driven pi-autoresearch campaigns (task #1702)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1703",
+          "title": "Prove orchestrator-side manifest campaign supervision and update package truth",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove orchestrator-side manifest campaign supervision and update package truth (task #1703)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-1708",
+          "title": "Canonicalize pi-autoresearch public campaign-control snapshot and fix blocked-state semantics",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Canonicalize pi-autoresearch public campaign-control snapshot and fix blocked-state semantics (task #1708)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1709",
+          "title": "Decide exact AK task verification semantics for pi-autoresearch public control surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Decide exact AK task verification semantics for pi-autoresearch public control surface (task #1709)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1710",
+          "title": "Align pi-autoresearch docs with deferred AK task-verification follow-on",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align pi-autoresearch docs with deferred AK task-verification follow-on (task #1710)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-18"
+        },
+        {
+          "id": "AK-TASK-1782",
+          "title": "[DISCOVERABILITY][UMBRELLA] Harden pi-extensions runtime/control-plane discoverability for fresh-context routing",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[DISCOVERABILITY][UMBRELLA] Harden pi-extensions runtime/control-plane discoverability for fresh-context routing (task #1782)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-19"
+        },
+        {
+          "id": "AK-TASK-1783",
+          "title": "[DISCOVERABILITY][PI-EXTENSIONS] Write the coordination-plane route-adjudication packet for overloaded cross-repo cues",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[DISCOVERABILITY][PI-EXTENSIONS] Write the coordination-plane route-adjudication packet for overloaded cross-repo cues (task #1783)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-19"
+        },
+        {
+          "id": "AK-TASK-1784",
+          "title": "[DISCOVERABILITY][PI-EXTENSIONS] Implement executable route-fixture coverage without duplicating owner capability truth",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[DISCOVERABILITY][PI-EXTENSIONS] Implement executable route-fixture coverage without duplicating owner capability truth (task #1784)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-19"
+        },
+        {
+          "id": "AK-TASK-1785",
+          "title": "[DISCOVERABILITY][ASC] Add runtime discoverability harness coverage for exposed-tool provenance and cross-extension coherence",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[DISCOVERABILITY][ASC] Add runtime discoverability harness coverage for exposed-tool provenance and cross-extension coherence (task #1785)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-19"
+        },
+        {
+          "id": "AK-TASK-1786",
+          "title": "[DISCOVERABILITY][PI-EXTENSIONS] Classify repo-owned prompt exposure and decide whether generic prompts remain repo-local or move to a shared owner",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[DISCOVERABILITY][PI-EXTENSIONS] Classify repo-owned prompt exposure and decide whether generic prompts remain repo-local or move to a shared owner (task #1786)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-19"
+        },
+        {
+          "id": "AK-TASK-1806",
+          "title": "[UMBRELLA] Implement first bounded self-hosting slice for pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Implement first bounded self-hosting slice for pi-autoresearch (task #1806)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1807",
+          "title": "SH-1 — validate self-hosting contract and evaluator lock artifacts",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "SH-1 — validate self-hosting contract and evaluator lock artifacts (task #1807)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-22"
+        },
+        {
+          "id": "AK-TASK-1808",
+          "title": "SH-2 — implement controller/candidate execution isolation for self-hosting",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "SH-2 — implement controller/candidate execution isolation for self-hosting (task #1808)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-22"
+        },
+        {
+          "id": "AK-TASK-1809",
+          "title": "SH-3 — implement snapshot-owned evaluator entrypoints for self-hosting",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "SH-3 — implement snapshot-owned evaluator entrypoints for self-hosting (task #1809)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1810",
+          "title": "SH-4 — implement self-hosting applicability classification gates",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "SH-4 — implement self-hosting applicability classification gates (task #1810)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1811",
+          "title": "SH-5 — implement self-hosting promotion and rollback record",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "SH-5 — implement self-hosting promotion and rollback record (task #1811)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1813",
+          "title": "WF-1 — define workflow core contract for chain/parallel over ASC in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "WF-1 — define workflow core contract for chain/parallel over ASC in pi-society-orchestrator (task #1813)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1814",
+          "title": "WF-2 — implement thin workflow adapter over ASC public seam in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "WF-2 — implement thin workflow adapter over ASC public seam in pi-society-orchestrator (task #1814)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1815",
+          "title": "WF-3 — implement truthful chain/parallel aggregation over preserved ASC step truth",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "WF-3 — implement truthful chain/parallel aggregation over preserved ASC step truth (task #1815)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1816",
+          "title": "WF-4 — implement bounded worktree coordination for eligible parallel groups",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "WF-4 — implement bounded worktree coordination for eligible parallel groups (task #1816)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1817",
+          "title": "[UMBRELLA] Implement first bounded workflow-composition slice over ASC in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Implement first bounded workflow-composition slice over ASC in pi-society-orchestrator (task #1817)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1818",
+          "title": "[UMBRELLA] Implement first bounded peer-session messaging primitive slice",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Implement first bounded peer-session messaging primitive slice (task #1818)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1819",
+          "title": "PM-1 — scaffold separate peer-session messaging package and stable core contract",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "PM-1 — scaffold separate peer-session messaging package and stable core contract (task #1819)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1820",
+          "title": "PM-2 — implement same-machine broker/client runtime and peer presence",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "PM-2 — implement same-machine broker/client runtime and peer presence (task #1820)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1821",
+          "title": "PM-3 — implement fail-closed addressing and direct send/ask semantics",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "PM-3 — implement fail-closed addressing and direct send/ask semantics (task #1821)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1822",
+          "title": "PM-4 — add an intercom-compatible adapter over the stable core",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "PM-4 — add an intercom-compatible adapter over the stable core (task #1822)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1823",
+          "title": "PM-5 — add package docs, validation, and release-proofing",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "PM-5 — add package docs, validation, and release-proofing (task #1823)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1840",
+          "title": "Add pi-provenance package for Pi-owned assistant-message provenance capture",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add pi-provenance package for Pi-owned assistant-message provenance capture (task #1840)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-26"
+        },
+        {
+          "id": "AK-TASK-1841",
+          "title": "Keep pi-provenance background-only and remove command/prompt surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Keep pi-provenance background-only and remove command/prompt surface (task #1841)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-26"
+        },
+        {
+          "id": "AK-TASK-1842",
+          "title": "Design first pi-provenance consumer integration for governed review-lane evidence",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Design first pi-provenance consumer integration for governed review-lane evidence (task #1842)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-26"
+        },
+        {
+          "id": "AK-TASK-1843",
+          "title": "Implement ASC env overlay and orchestrator provenance passthrough seam",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement ASC env overlay and orchestrator provenance passthrough seam (task #1843)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-26"
+        },
+        {
+          "id": "AK-TASK-1844",
+          "title": "Implement orchestrator review-lane provenance sidecar integration",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement orchestrator review-lane provenance sidecar integration (task #1844)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-26"
+        },
+        {
+          "id": "AK-TASK-1845",
+          "title": "Add governed review-lane provenance workflow helper",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add governed review-lane provenance workflow helper (task #1845)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-26"
+        },
+        {
+          "id": "AK-TASK-1891",
+          "title": "[UMBRELLA] Beta visible-peer + pi-autoresearch integration so bounded runs can start",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[UMBRELLA] Beta visible-peer + pi-autoresearch integration so bounded runs can start (task #1891)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-28"
+        },
+        {
+          "id": "AK-TASK-1892",
+          "title": "[PEER-BETA] Harden peer ACK/FINAL protocol and add peer_status/peer_watch aliases",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[PEER-BETA] Harden peer ACK/FINAL protocol and add peer_status/peer_watch aliases (task #1892)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-28"
+        },
+        {
+          "id": "AK-TASK-1893",
+          "title": "[PEER-BETA] Freeze visible peer beta contract, aliases, and candidate worktree cleanup guidance",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[PEER-BETA] Freeze visible peer beta contract, aliases, and candidate worktree cleanup guidance (task #1893)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-28"
+        },
+        {
+          "id": "AK-TASK-1894",
+          "title": "[AUTORESEARCH-PEERS] Add peer-lane recommendations to pi-autoresearch without auto-spawning peers",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-PEERS] Add peer-lane recommendations to pi-autoresearch without auto-spawning peers (task #1894)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-28"
+        },
+        {
+          "id": "AK-TASK-1895",
+          "title": "[ORCH-AUTORESEARCH-PEERS] Keep orchestrator supervision aware of peer-assisted autoresearch boundaries",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[ORCH-AUTORESEARCH-PEERS] Keep orchestrator supervision aware of peer-assisted autoresearch boundaries (task #1895)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-28"
+        },
+        {
+          "id": "AK-TASK-1896",
+          "title": "[AUTORESEARCH-RUN-0] Bootstrap and execute first bounded pi-autoresearch run after peer-lane beta readiness",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-RUN-0] Bootstrap and execute first bounded pi-autoresearch run after peer-lane beta readiness (task #1896)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-28"
+        },
+        {
+          "id": "AK-TASK-1974",
+          "title": "[pi-little-helpers] Add artifact picker command and shortcut",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[pi-little-helpers] Add artifact picker command and shortcut (task #1974)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2015",
+          "title": "[AUTORESEARCH-DOGFOOD] Run one real candidate experiment through pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-DOGFOOD] Run one real candidate experiment through pi-autoresearch (task #2015)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2030",
+          "title": "[AUTORESEARCH-DOGFOOD] Integrate recovered peer duration-wrapper candidate",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-DOGFOOD] Integrate recovered peer duration-wrapper candidate (task #2030)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2031",
+          "title": "[AUTORESEARCH-MEASUREMENT] Make duration-metric decisions baseline-drift aware",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-MEASUREMENT] Make duration-metric decisions baseline-drift aware (task #2031)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2032",
+          "title": "[AUTORESEARCH-PRODUCT] Replace current-vs-target with product posture",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-PRODUCT] Replace current-vs-target with product posture (task #2032)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2040",
+          "title": "[AUTORESEARCH-POSTURE] Add operator-facing empirical posture summary",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-POSTURE] Add operator-facing empirical posture summary (task #2040)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2044",
+          "title": "[AUTORESEARCH-CLEANUP] Quiet llama.cpp test git branch chatter and prune stale worktree metadata",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-CLEANUP] Quiet llama.cpp test git branch chatter and prune stale worktree metadata (task #2044)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2052",
+          "title": "[AUTORESEARCH-DOGFOOD] Write canonical operator dogfood playbook",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[AUTORESEARCH-DOGFOOD] Write canonical operator dogfood playbook (task #2052)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-30"
+        },
+        {
+          "id": "AK-TASK-2117",
+          "title": "[TOOLBOX] Implement true lazy imports, TTL enforcement, and startup minimization after RFC review",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[TOOLBOX] Implement true lazy imports, TTL enforcement, and startup minimization after RFC review (task #2117)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-03"
+        },
+        {
+          "id": "AK-TASK-2123",
+          "title": "[TOOLBOX] Convert Prompt Vault to package-owned toolbox bundle export",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[TOOLBOX] Convert Prompt Vault to package-owned toolbox bundle export (task #2123)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-03"
+        },
+        {
+          "id": "AK-TASK-2124",
+          "title": "[TOOLBOX] Convert ontology workflows to package-owned toolbox bundle export",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[TOOLBOX] Convert ontology workflows to package-owned toolbox bundle export (task #2124)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-03"
+        },
+        {
+          "id": "AK-TASK-2125",
+          "title": "[TOOLBOX] Convert DesignMD Foundry to package-owned toolbox bundle export",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[TOOLBOX] Convert DesignMD Foundry to package-owned toolbox bundle export (task #2125)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-03"
+        },
+        {
+          "id": "AK-TASK-2137",
+          "title": "[TOOLBOX] Convert pi-autoresearch to package-owned toolbox bundle export",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[TOOLBOX] Convert pi-autoresearch to package-owned toolbox bundle export (task #2137)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-04"
+        },
+        {
+          "id": "AK-TASK-2142",
+          "title": "[TOOLBOX] Convert pi-society-orchestrator to package-owned toolbox bundle export",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[TOOLBOX] Convert pi-society-orchestrator to package-owned toolbox bundle export (task #2142)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-04"
+        },
+        {
+          "id": "AK-TASK-2143",
+          "title": "[TOOLBOX] Restore pi-autoresearch runtime subpath export for orchestrator compatibility",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[TOOLBOX] Restore pi-autoresearch runtime subpath export for orchestrator compatibility (task #2143)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-04"
+        },
+        {
+          "id": "AK-TASK-2184",
+          "title": "Harden toolbox lazy bundle side-effect rollback contract",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Harden toolbox lazy bundle side-effect rollback contract (task #2184)",
               "done": false
             }
           ],
-          "dod": "Task reaches done in society.db with evidence recorded."
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Deferred from toolbox atomic-completion: full rollback of lazy owner bundle registration/event/command side effects requires either a Pi host unregister/sandbox API or an owner-bundle contract decision. Current pass mitigated model-callable active-tool leakage and surfaces partial lazy imports in doctor/status, but registered side effects still require /reload for full cleanup. Owner: pi-extensions/toolbox + owner package maintainers. Trigger: host unregister/sandbox API lands or owner-bundle side-effect-free contract is approved. Deadline/review: 2026-05-18. Blast radius if forgotten: failed lazy imports can leave non-active registered commands/events until reload and confuse startup posture.\n- kind: until_event\n- trigger_ref: pi-toolbox-discovery lazy bundle side-effect contract\n- review_at: 2026-05-18"
+        },
+        {
+          "id": "AK-TASK-2200",
+          "title": "Dogfood pi-autoresearch self-hosting overwatch evidence projection",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood pi-autoresearch self-hosting overwatch evidence projection (task #2200)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-04"
+        },
+        {
+          "id": "AK-TASK-2203",
+          "title": "Align pi-autoresearch browser dashboard with contrib UI parity",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align pi-autoresearch browser dashboard with contrib UI parity (task #2203)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-04"
+        },
+        {
+          "id": "AK-TASK-2205",
+          "title": "Align pi-autoresearch TUI widget and overlay with contrib UI parity",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align pi-autoresearch TUI widget and overlay with contrib UI parity (task #2205)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-04"
+        },
+        {
+          "id": "AK-TASK-2223",
+          "title": "Ignore local pi-autoresearch self-hosting projection artifacts",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Ignore local pi-autoresearch self-hosting projection artifacts (task #2223)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2225",
+          "title": "Advance pi-autoresearch product-readiness gaps with autoresearch dogfood",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Advance pi-autoresearch product-readiness gaps with autoresearch dogfood (task #2225)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2228",
+          "title": "Add richer pi-autoresearch confirmation UX for candidate lifecycle decisions",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add richer pi-autoresearch confirmation UX for candidate lifecycle decisions (task #2228)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2229",
+          "title": "Select and prove one non-AK pi-autoresearch adapter consumer",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Select and prove one non-AK pi-autoresearch adapter consumer (task #2229)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2230",
+          "title": "Smooth lawful Prompt Vault execution binding for pi-autoresearch decisions",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Smooth lawful Prompt Vault execution binding for pi-autoresearch decisions (task #2230)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2231",
+          "title": "Clarify visible-candidate production seam for pi-autoresearch and peer tooling",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Clarify visible-candidate production seam for pi-autoresearch and peer tooling (task #2231)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2232",
+          "title": "Design longer bounded pi-autoresearch campaign resume and interrupt semantics",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Design longer bounded pi-autoresearch campaign resume and interrupt semantics (task #2232)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2241",
+          "title": "Implement read-only pi-autoresearch bounded resume plan surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement read-only pi-autoresearch bounded resume plan surface (task #2241)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2247",
+          "title": "Surface pi-autoresearch resume plan in dashboard/control outputs",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Surface pi-autoresearch resume plan in dashboard/control outputs (task #2247)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2254",
+          "title": "Harden pi-autoresearch resume-plan gate regressions",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden pi-autoresearch resume-plan gate regressions (task #2254)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2257",
+          "title": "Add plan-only pi-autoresearch resume-apply proposal surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add plan-only pi-autoresearch resume-apply proposal surface (task #2257)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2264",
+          "title": "Surface pi-autoresearch resume-apply plan proposal in operator outputs",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Surface pi-autoresearch resume-apply plan proposal in operator outputs (task #2264)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2276",
+          "title": "Add explicit foreground pi-autoresearch resume-apply executor",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add explicit foreground pi-autoresearch resume-apply executor (task #2276)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2312",
+          "title": "Add reviewed slash UX for pi-autoresearch foreground resume",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add reviewed slash UX for pi-autoresearch foreground resume (task #2312)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2326",
+          "title": "Add explicit metric threshold targets for pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add explicit metric threshold targets for pi-autoresearch (task #2326)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2338",
+          "title": "Add candidate decision review overlay for pi-autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add candidate decision review overlay for pi-autoresearch (task #2338)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2341",
+          "title": "Add metric-readiness review to autoresearch candidate decisions",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add metric-readiness review to autoresearch candidate decisions (task #2341)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2350",
+          "title": "Fix autoresearch metric contract continuation and threshold gating",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Fix autoresearch metric contract continuation and threshold gating (task #2350)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2355",
+          "title": "Atomic completion for autoresearch metric contract leftovers",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Atomic completion for autoresearch metric contract leftovers (task #2355)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2365",
+          "title": "Align autoresearch product posture with landed orchestrator supervision",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align autoresearch product posture with landed orchestrator supervision (task #2365)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2370",
+          "title": "Align autoresearch dogfood playbook with orchestrator supervision seams",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align autoresearch dogfood playbook with orchestrator supervision seams (task #2370)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2371",
+          "title": "Synchronize autoresearch dogfood workflow contract with supervision and resume seams",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Synchronize autoresearch dogfood workflow contract with supervision and resume seams (task #2371)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2379",
+          "title": "Dogfood autoresearch foreground resume executor",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood autoresearch foreground resume executor (task #2379)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2383",
+          "title": "Dogfood autoresearch visible candidate handoff",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood autoresearch visible candidate handoff (task #2383)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-05"
+        },
+        {
+          "id": "AK-TASK-2402",
+          "title": "Add autoresearch dogfood contract suite",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add autoresearch dogfood contract suite (task #2402)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2409",
+          "title": "Harden autoresearch dogfood suite failure aggregation regression coverage",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden autoresearch dogfood suite failure aggregation regression coverage (task #2409)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2414",
+          "title": "Fix autoresearch dogfood suite symlink CLI invocation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Fix autoresearch dogfood suite symlink CLI invocation (task #2414)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2420",
+          "title": "Dogfood autoresearch resume slash review surface in executable contract suite",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood autoresearch resume slash review surface in executable contract suite (task #2420)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2427",
+          "title": "Enable live pi-autoresearch extension for resume UI dogfood",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Enable live pi-autoresearch extension for resume UI dogfood (task #2427)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2429",
+          "title": "Live-dogfood /autoresearch resume after Pi reload",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Live-dogfood /autoresearch resume after Pi reload (task #2429)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2444",
+          "title": "Fix autoresearch operator-surface parity and resume executor toolbox activation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Fix autoresearch operator-surface parity and resume executor toolbox activation (task #2444)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2496",
+          "title": "Add explicit first-entrypoint autoresearch run mode",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add explicit first-entrypoint autoresearch run mode (task #2496)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2507",
+          "title": "Let orchestrator start bounded autoresearch under live supervision",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Let orchestrator start bounded autoresearch under live supervision (task #2507)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2514",
+          "title": "Live dogfood orchestrator start_campaign registration",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Live dogfood orchestrator start_campaign registration (task #2514)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2516",
+          "title": "Expose DSPx intent options through orchestrator start_campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Expose DSPx intent options through orchestrator start_campaign (task #2516)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2520",
+          "title": "Live dogfood orchestrator DSPx start_campaign params",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Live dogfood orchestrator DSPx start_campaign params (task #2520)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2529",
+          "title": "Run bounded DSPx program-gen for autoresearch campaign planning",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run bounded DSPx program-gen for autoresearch campaign planning (task #2529)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-06"
+        },
+        {
+          "id": "AK-TASK-2538",
+          "title": "Dogfood generated DSPx planner campaign start",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood generated DSPx planner campaign start (task #2538)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2546",
+          "title": "Clarify generated DSPy planner wording in autoresearch reports",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Clarify generated DSPy planner wording in autoresearch reports (task #2546)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2557",
+          "title": "Worthwhile autoresearch campaign: pi-autoresearch check latency",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Worthwhile autoresearch campaign: pi-autoresearch check latency (task #2557)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2571",
+          "title": "Align autoresearch/orchestrator visions with contrib lineage",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align autoresearch/orchestrator visions with contrib lineage (task #2571)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2575",
+          "title": "Clarify autoresearch and orchestrator vision boundaries for Oracle Postgres",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Clarify autoresearch and orchestrator vision boundaries for Oracle Postgres (task #2575)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2580",
+          "title": "Emit Oracle-ready evidence from autoresearch campaign closeout",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Emit Oracle-ready evidence from autoresearch campaign closeout (task #2580)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2582",
+          "title": "Report autoresearch Oracle-ready evidence from orchestrator supervision",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Report autoresearch Oracle-ready evidence from orchestrator supervision (task #2582)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2609",
+          "title": "Export autoresearch Oracle evidence packets for DSPx preflight handoff",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Export autoresearch Oracle evidence packets for DSPx preflight handoff (task #2609)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-07"
         }
       ]
     }
