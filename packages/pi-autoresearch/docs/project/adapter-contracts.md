@@ -78,6 +78,7 @@ Produced by:
 
 ```ts
 autoresearch_runtime_status({ action: "oracle_evidence", cwd })
+autoresearch_runtime_status({ action: "oracle_evidence_export", cwd, outPath })
 ```
 
 Purpose:
@@ -116,7 +117,7 @@ interface AutoresearchOracleEvidencePacketV1 {
 }
 ```
 
-This packet is deliberately one seam below DSPx publication. A DSPx-owned adapter may map it into DSPx `program-oracle` evidence artifacts and then run `dspx oracle program-evidence publish-preflight`, but `pi-autoresearch` itself does not call DSPx publication commands or mutate shared Oracle memory.
+This packet is deliberately one seam below DSPx publication. `action: "oracle_evidence_export"` writes the packet JSON locally (default `.autoresearch/oracle_evidence.json`) so the DSPx owner surface can run `dspx oracle autoresearch-evidence publish-preflight --packet <autoresearch_oracle_evidence.json> ...`. `pi-autoresearch` itself does not call DSPx publication commands, write Oracle Postgres, or mutate shared Oracle memory.
 
 ### `autoresearch.candidate_result.v1`
 

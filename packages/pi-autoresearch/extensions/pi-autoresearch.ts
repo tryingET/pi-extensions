@@ -75,6 +75,7 @@ import {
   formatAutoresearchDecisionResult,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchLoopResult,
+  formatAutoresearchOracleEvidenceExportResult,
   formatAutoresearchOracleEvidencePacket,
   formatAutoresearchPeerAssistPlan,
   formatAutoresearchResumeApplyPlan,
@@ -89,6 +90,7 @@ import {
   requestAutoresearchSetupDecision,
   setAutoresearchRuntimeControl,
   validateAutoresearchAdapterPacket,
+  writeAutoresearchOracleEvidencePacket,
 } from "../src/core/runtime.ts";
 import {
   AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
@@ -310,6 +312,7 @@ const statusActionSchema = Type.Union(
     Type.Literal("closeout"),
     Type.Literal("ak_evidence"),
     Type.Literal("oracle_evidence"),
+    Type.Literal("oracle_evidence_export"),
     Type.Literal("learning"),
     Type.Literal("candidate_result"),
     Type.Literal("resume_plan"),
@@ -326,6 +329,12 @@ const statusActionSchema = Type.Union(
 const statusSchema = Type.Object({
   action: Type.Optional(statusActionSchema),
   cwd: Type.Optional(Type.String({ description: "Optional cwd override for runtime reporting" })),
+  outPath: Type.Optional(
+    Type.String({
+      description:
+        "Optional output path for action=oracle_evidence_export. Relative paths resolve under cwd; default is .autoresearch/oracle_evidence.json.",
+    }),
+  ),
   optimizationObjective: Type.Optional(
     Type.String({
       description:
@@ -1422,9 +1431,9 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
+      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, export Oracle-ready evidence JSON for DSPx preflight, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, exact-task AK evidence packet, adapter-ready learning packet, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, local Oracle-ready evidence JSON export for DSPx preflight, exact-task AK evidence packet, adapter-ready learning packet, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
     parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
@@ -1436,6 +1445,7 @@ export function registerPiAutoresearchExtension(
           | "closeout"
           | "ak_evidence"
           | "oracle_evidence"
+          | "oracle_evidence_export"
           | "learning"
           | "candidate_result"
           | "resume_plan"
@@ -1443,6 +1453,7 @@ export function registerPiAutoresearchExtension(
           | "adapter_contracts"
           | "validate_packet";
         cwd?: string;
+        outPath?: string;
         packet?: unknown;
         optimizationObjective?: string;
         repoContext?: string[];
@@ -1475,6 +1486,7 @@ export function registerPiAutoresearchExtension(
           "closeout",
           "ak_evidence",
           "oracle_evidence",
+          "oracle_evidence_export",
           "learning",
           "candidate_result",
           "resume_plan",
@@ -1572,6 +1584,14 @@ export function registerPiAutoresearchExtension(
         const result = buildAutoresearchOracleEvidencePacket(cwd);
         return {
           content: [{ type: "text", text: formatAutoresearchOracleEvidencePacket(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "oracle_evidence_export") {
+        const result = writeAutoresearchOracleEvidencePacket({ cwd, outPath: request.outPath });
+        return {
+          content: [{ type: "text", text: formatAutoresearchOracleEvidenceExportResult(result) }],
           details: result,
         };
       }

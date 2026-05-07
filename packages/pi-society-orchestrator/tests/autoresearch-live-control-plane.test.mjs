@@ -426,6 +426,7 @@ test("autoresearch_live_supervision start_campaign delegates execution then supe
     );
     assert.match(started.content[0].text, /Campaign execution is delegated to pi-autoresearch/);
     assert.match(started.content[0].text, /Oracle-ready evidence: \d+ record\(s\)/);
+    assert.match(started.content[0].text, /dspx oracle autoresearch-evidence publish-preflight/);
     assert.match(started.content[0].text, /orchestrator does not write Oracle Postgres/);
     assert.match(started.content[0].text, /Direction changes remain proposals/);
     assert.match(

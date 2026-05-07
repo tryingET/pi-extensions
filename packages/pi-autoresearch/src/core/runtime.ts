@@ -89,6 +89,7 @@ export const AUTORESEARCH_CAMPAIGN_START_TOOL_NAME = "autoresearch_campaign_star
 export const AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME = "autoresearch_candidate_bind";
 export const AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME = "autoresearch_candidate_decision";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
+export const AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE = ".autoresearch/oracle_evidence.json";
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
@@ -100,6 +101,7 @@ export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.sh",
   "autoresearch.checks.sh",
   "autoresearch.ideas.md",
+  AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
 ] as const;
 
 export const AUTORESEARCH_DASHBOARD_EXPORT_FILE = ".autoresearch/autoresearch-dashboard.html";
@@ -434,6 +436,22 @@ export interface AutoresearchOracleEvidencePacket {
   publicationPreflight: AutoresearchOraclePublicationPreflightSummary;
   adapterBoundary: string;
   evidenceBoundary: string;
+  authorityBoundary: string;
+}
+
+export interface AutoresearchOracleEvidenceExportResult {
+  exportKind: "autoresearch.oracle_evidence_export.v1";
+  path: string;
+  packet: AutoresearchOracleEvidencePacket;
+  suggestedDspxPreflightCommand: string;
+  effect: {
+    localFileWritten: true;
+    sharedOracleMutated: false;
+    localCoordinatesDbMigrated: false;
+    canonicalAuthorityMutated: false;
+    akCalled: false;
+    kesWritten: false;
+  };
   authorityBoundary: string;
 }
 
@@ -3594,7 +3612,7 @@ function buildAutoresearchOraclePublicationPreflightSummary(
         ? "collect at least one bounded campaign run before preparing DSPx Oracle publication preflight"
         : "map this packet into DSPx-owned program-oracle evidence artifacts, then run DSPx publication preflight from the DSPx owner surface before any shared write",
     suggestedDspxPreflightCommandTemplate:
-      "dspx oracle program-evidence publish-preflight --manifest <dspx-owned-candidate-manifest.json> --target shared-postgres --publication-label retained --publisher-id <operator-or-session-id> --publisher-role operator --publisher-assertion <why-this-behavior-memory-should-be-retained> --redaction-status checked --retention-class retained_behavior_memory --out <program_oracle_publication_preflight.json> --json",
+      "dspx oracle autoresearch-evidence publish-preflight --packet <autoresearch_oracle_evidence.json> --target shared-postgres --publication-label retained --publisher-id <operator-or-session-id> --publisher-role operator --publisher-assertion <why-this-behavior-memory-should-be-retained> --redaction-status checked --retention-class retained_behavior_memory --out <autoresearch_oracle_publication_preflight.json> --json",
   };
 }
 
@@ -3638,6 +3656,78 @@ export function buildAutoresearchOracleEvidencePacket(
     authorityBoundary:
       "This packet is empirical behavior memory input only; it does not publish to Oracle Postgres, migrate local coordinates.db, write AK/KES, choose winners, or authorize promotion.",
   };
+}
+
+function resolveAutoresearchOracleEvidenceExportPath(cwd: string, outPath?: string): string {
+  const resolvedCwd = path.resolve(cwd);
+  const requestedPath = outPath?.trim() || AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE;
+  return path.isAbsolute(requestedPath)
+    ? path.resolve(requestedPath)
+    : path.resolve(resolvedCwd, requestedPath);
+}
+
+function buildDspxAutoresearchPreflightCommand(packetPath: string): string {
+  return [
+    "dspx oracle autoresearch-evidence publish-preflight",
+    `--packet ${JSON.stringify(packetPath)}`,
+    "--target shared-postgres",
+    "--publication-label retained",
+    "--publisher-id <operator-or-session-id>",
+    "--publisher-role operator",
+    "--publisher-assertion <why-this-behavior-memory-should-be-retained>",
+    "--redaction-status checked",
+    "--retention-class retained_behavior_memory",
+    "--out <autoresearch_oracle_publication_preflight.json>",
+    "--json",
+  ].join(" ");
+}
+
+export function writeAutoresearchOracleEvidencePacket(input: {
+  cwd: string;
+  outPath?: string;
+}): AutoresearchOracleEvidenceExportResult {
+  const packet = buildAutoresearchOracleEvidencePacket(input.cwd);
+  const outputPath = resolveAutoresearchOracleEvidenceExportPath(input.cwd, input.outPath);
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  return {
+    exportKind: "autoresearch.oracle_evidence_export.v1",
+    path: outputPath,
+    packet,
+    suggestedDspxPreflightCommand: buildDspxAutoresearchPreflightCommand(outputPath),
+    effect: {
+      localFileWritten: true,
+      sharedOracleMutated: false,
+      localCoordinatesDbMigrated: false,
+      canonicalAuthorityMutated: false,
+      akCalled: false,
+      kesWritten: false,
+    },
+    authorityBoundary:
+      "Local export only; DSPx owns publication preflight/shared Oracle writes, and AK/society.v2.db remains canonical authority.",
+  };
+}
+
+export function formatAutoresearchOracleEvidenceExportResult(
+  result: AutoresearchOracleEvidenceExportResult,
+): string {
+  return [
+    "# PI-AUTORESEARCH ORACLE EVIDENCE EXPORT",
+    "",
+    `- export kind: ${result.exportKind}`,
+    `- packet kind: ${result.packet.packetKind}`,
+    `- path: ${result.path}`,
+    `- records: ${result.packet.records.length}`,
+    `- shared Oracle mutated: ${result.effect.sharedOracleMutated ? "yes" : "no"}`,
+    `- local coordinates.db migrated: ${result.effect.localCoordinatesDbMigrated ? "yes" : "no"}`,
+    `- canonical authority mutated: ${result.effect.canonicalAuthorityMutated ? "yes" : "no"}`,
+    `- boundary: ${result.authorityBoundary}`,
+    "",
+    "## DSPx owner preflight",
+    "```bash",
+    result.suggestedDspxPreflightCommand,
+    "```",
+  ].join("\n");
 }
 
 export function formatAutoresearchOracleEvidencePacket(
