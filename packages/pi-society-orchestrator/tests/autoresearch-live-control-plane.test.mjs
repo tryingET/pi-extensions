@@ -419,7 +419,14 @@ test("autoresearch_live_supervision start_campaign delegates execution then supe
     assert.equal(started.details.campaign.runMode, "bounded_loop");
     assert.equal(started.details.campaign.maxIterations, 2);
     assert.equal(started.details.session.state, "running");
+    assert.ok(started.details.poll.observation.oracleEvidence.records.length > 0);
+    assert.equal(
+      started.details.poll.observation.oracleEvidence.publicationPreflight.sharedOracleMutated,
+      false,
+    );
     assert.match(started.content[0].text, /Campaign execution is delegated to pi-autoresearch/);
+    assert.match(started.content[0].text, /Oracle-ready evidence: \d+ record\(s\)/);
+    assert.match(started.content[0].text, /orchestrator does not write Oracle Postgres/);
     assert.match(started.content[0].text, /Direction changes remain proposals/);
     assert.match(
       readFileSync(path.join(cwd, "autoresearch.jsonl"), "utf8"),

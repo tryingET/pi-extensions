@@ -270,6 +270,12 @@ function formatAutoresearchLivePollExtras(
   if (poll.observation) {
     lines.push(`Observed runtime state: ${poll.observation.runtime.runtimeProjection.state}`);
     lines.push(`Observed finalization next step: ${poll.observation.finalization.nextStep}`);
+    lines.push(
+      `Oracle-ready evidence: ${poll.observation.oracleEvidence.records.length} record(s); preflight=${poll.observation.oracleEvidence.publicationPreflight.status}`,
+    );
+    lines.push(
+      "Oracle boundary: reported as DSPx empirical-memory handoff only; orchestrator does not write Oracle Postgres, migrate local coordinates.db, or make Oracle memory authoritative.",
+    );
   }
   if (poll.projector) {
     lines.push(`Projection outcome: ${poll.projector.action}`);
@@ -357,7 +363,8 @@ function formatAutoresearchCampaignStartUnderSupervisionReport(
     "Boundaries:",
     "- Campaign execution is delegated to pi-autoresearch runtime semantics.",
     "- DSPx program-gen materializes and runs the DSPy planner assembly inside the pi-autoresearch/DSPx owner seam; orchestrator only requests that bounded seam and supervises the result.",
-    "- Live supervision may project verified AK milestones through its existing orchestrator-gated projector; it does not write KES, change direction, spawn peers, or promote candidates.",
+    "- Live supervision may report pi-autoresearch Oracle-ready evidence refs; DSPx owns publication preflight/shared Oracle writes, and Oracle memory remains empirical rather than authoritative.",
+    "- Live supervision may project verified AK milestones through its existing orchestrator-gated projector; it does not write KES, write Oracle Postgres, change direction, spawn peers, or promote candidates.",
     "- Direction changes remain proposals unless routed through AK/decision authority.",
     "",
     ...formatAutoresearchLivePollExtras(

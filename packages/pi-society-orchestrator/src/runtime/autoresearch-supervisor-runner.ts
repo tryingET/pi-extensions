@@ -4,7 +4,9 @@ import {
   type AutoresearchAutoplanPlanner,
   type AutoresearchLedgerLoadResult,
   type AutoresearchLedgerProjection,
+  type AutoresearchOracleEvidencePacket,
   type AutoresearchRuntimeStatus,
+  buildAutoresearchOracleEvidencePacket,
   buildAutoresearchRuntimeStatus,
   type ExecuteAutoresearchCampaignStartResult,
   executeAutoresearchCampaignStart,
@@ -87,6 +89,7 @@ export interface AutoresearchLiveObservation {
   ledgerLoad: AutoresearchLedgerLoadResult;
   ledger: AutoresearchSupervisorLedgerLike;
   finalization: InspectAutoresearchFinalizationResult;
+  oracleEvidence: AutoresearchOracleEvidencePacket;
 }
 
 export interface AutoresearchLiveLifecycleInput {
@@ -169,6 +172,7 @@ export interface AutoresearchLiveSupervisionRunnerConfig {
     cwd: string;
     status: AutoresearchRuntimeStatus;
   }) => MaybePromise<InspectAutoresearchFinalizationResult>;
+  observeOracleEvidence?: (cwd: string) => MaybePromise<AutoresearchOracleEvidencePacket>;
   projectMilestone?: (input: {
     taskId: number;
     observation: AutoresearchLiveObservation;
@@ -277,7 +281,11 @@ export async function readAutoresearchLiveObservation(
   input: { cwd: string },
   config: Pick<
     AutoresearchLiveSupervisionRunnerConfig,
-    "observeRuntime" | "loadLedger" | "projectLedgerEntries" | "inspectFinalization"
+    | "observeRuntime"
+    | "loadLedger"
+    | "projectLedgerEntries"
+    | "inspectFinalization"
+    | "observeOracleEvidence"
   > = {},
 ): Promise<AutoresearchLiveObservation> {
   const cwd = path.resolve(input.cwd);
@@ -293,6 +301,9 @@ export async function readAutoresearchLiveObservation(
     cwd,
     status: runtime,
   });
+  const oracleEvidence = await (
+    config.observeOracleEvidence || buildAutoresearchOracleEvidencePacket
+  )(cwd);
 
   return {
     cwd,
@@ -300,6 +311,7 @@ export async function readAutoresearchLiveObservation(
     ledgerLoad,
     ledger,
     finalization,
+    oracleEvidence,
   };
 }
 
@@ -536,6 +548,7 @@ export class AutoresearchLiveSupervisionRunner {
           loadLedger: this.config.loadLedger,
           projectLedgerEntries: this.config.projectLedgerEntries,
           inspectFinalization: this.config.inspectFinalization,
+          observeOracleEvidence: this.config.observeOracleEvidence,
         },
       );
 
