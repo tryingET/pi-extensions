@@ -32,7 +32,7 @@ The guiding phrase is:
 autonomous in execution, governed in authority
 ```
 
-The end state is not a self-sovereign package that plans, edits, judges, promotes, records durable truth, and evolves itself in one closed loop. The end state is a powerful experiment runtime that remains interruptible, inspectable, reversible, and routed through the owner surfaces that hold durable truth.
+The end state is not a self-sovereign package that plans, edits, judges, promotes, records durable truth, and evolves itself in one closed loop. It is also not the portfolio research operating system or institutional cognition substrate for AI Society. The end state is a powerful experiment runtime that remains interruptible, inspectable, reversible, and routed through the owner surfaces that hold durable truth.
 
 ## Reference lineage
 
@@ -87,12 +87,12 @@ In mature form, the package should help an operator or controller agent:
 4. bind visible candidate worktrees or visible peer-produced candidates;
 5. execute benchmark/check/evaluator suites under bounded subprocess and posture gates;
 6. distinguish operational success from empirical meaning;
-7. produce reviewable closeout, evidence, candidate-result, and learning packets;
+7. produce reviewable closeout, evidence, candidate-result, learning, and Oracle-readable campaign packets;
 8. request governed setup / next-hypothesis / finalization decisions through Prompt Vault where useful;
 9. use DSPx/DSPy as an inner program-shaped planning/evaluation runtime when that improves setup or hypothesis quality, while keeping `pi-autoresearch` as the outer bounded controller;
 10. expose live status, dashboard, widget, overlay, and export surfaces without turning them into control authority;
 11. support supervised self-hosting under frozen evaluator truth and external promotion/rollback gates;
-12. hand evidence upward to orchestrator/AK/KES/other owner surfaces without directly owning their durable writes;
+12. hand evidence upward to orchestrator/AK/KES/DSPx Oracle/other owner surfaces without directly owning their durable writes;
 13. stop cleanly when budgets, checks, posture gates, evaluator locks, or authority gates fail.
 
 ## Authority architecture
@@ -106,11 +106,17 @@ The long-term product direction depends on keeping these owner seams visible.
 | Durable campaign/task/evidence truth and exact-task authority | AK / evidence owner surfaces |
 | Reusable setup, next-hypothesis, finalization, and other governed decision procedures | Prompt Vault |
 | Governed experiment semantics and controlled vocabulary | ROCS / ontology owner repos |
-| DSPy planner/program materialization, local behavior evidence, and Oracle interpretation | DSPx / Oracle surfaces |
+| DSPy planner/program materialization, local behavior evidence, Oracle interpretation, and shared empirical memory where explicitly published | DSPx / Oracle surfaces, including dedicated Oracle Postgres/pgvector where configured |
 | Learning persistence and activation | KES, notes, KMS, or selected learning adapters |
 | Operator approval, controller rotation, and promotion/rollback authorization | Operator / external controller authority |
 
 The package may emit packets that make external writes easy to review, dedupe, and apply. It must not quietly become the writer of every external truth surface.
+
+### Oracle memory boundary
+
+DSPx Oracle Postgres/pgvector is a shared empirical-memory substrate, not a second `society.v2.db`. `pi-autoresearch` may produce Oracle-readable campaign evidence and, when an explicit owner seam exists, request or prepare bounded publication/preflight packets. It must not treat Oracle memory as campaign authority, promotion authority, research-agenda authority, or canonical task/evidence truth.
+
+Local DSPx `coordinates.db` files remain scratch/cache indexes. Durable shared Oracle publication, when used, should re-index curated artifacts with provenance and non-authority labels through DSPx-owned mechanisms rather than copying local coordinate databases wholesale.
 
 ## Autonomy ladder
 
@@ -125,8 +131,13 @@ The intended path to fuller auto-research is staged.
 7. **Limited autonomous execution** — later campaigns may run longer bounded loops, but only with explicit budgets, posture gates, inspectable state, and interruptible operator control.
 8. **DSPx/DSPy inner planning** — selected setup/hypothesis phases may materialize and run generated DSPy programs through DSPx, then validate the behavior output before local campaign use.
 9. **Institutional learning handoff** — accepted closeouts and learnings move through owner-routed KES/AK/notes/Prompt Vault/ontology processes instead of being absorbed into local runtime state.
+10. **Portfolio-ready emission** — campaigns may emit lineage, metric-trust, closeout, and Oracle-readable evidence packets that higher stack layers can use for cross-campaign intelligence; the package does not own portfolio state or research-agenda allocation.
 
-The ladder does not include hidden daemonized self-improvement, automatic whole-repo mutation, direct AK/KES writes from the package runtime, package-local self-promotion, or treating generated DSPy output as external promotion authority.
+The ladder does not include hidden daemonized self-improvement, automatic whole-repo mutation, direct AK/KES/Oracle Postgres writes from the package runtime, package-local self-promotion, or treating generated DSPy output as external promotion authority.
+
+## Stack-level horizon contribution
+
+Longer-horizon v5/v6 ideas such as cross-campaign portfolio intelligence or an institutional research intelligence substrate belong in stack/convergence architecture, not as package-owned autonomy. `pi-autoresearch` contributes by producing bounded, provenance-rich, Oracle-readable experiment evidence that those higher layers can consume while AK remains authority and DSPx Oracle remains empirical memory. Use `~/ai-society/holdingco/governance-kernel/docs/core/definitions/ai-society-stack-map.md` and `~/ai-society/softwareco/owned/agent-kernel/docs/project/ai-society-convergence-architecture.md` for stack-level placement.
 
 ## Self-hosting destination
 
@@ -188,7 +199,9 @@ Future work remains in-bounds only if these invariants hold:
 10. local success never implies package-local promotion authority;
 11. hidden daemonized autonomy and unbounded resume loops remain out of scope;
 12. generated DSPy planner output can configure only the bounded local campaign after validation; it cannot promote, rank, or mutate external authority by itself;
-13. rollback remains explicit and reviewable.
+13. DSPx Oracle Postgres is empirical memory only, never package-local authority or a replacement for AK / `society.v2.db`;
+14. local `coordinates.db` indexes remain scratch/cache and are not migrated wholesale as truth;
+15. rollback remains explicit and reviewable.
 
 ## Relationship to current posture
 
