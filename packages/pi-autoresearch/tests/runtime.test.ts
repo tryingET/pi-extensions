@@ -3259,6 +3259,7 @@ test("autoresearch_campaign_start can run DSPx program-gen and use its setup pro
       assert.ok(result);
       const output = result.content[0]?.text ?? "";
       assert.match(output, /DSPx program-gen run/);
+      assert.match(output, /Generated DSPy planner output \(validated\)/);
       const details = result.details as {
         dspxProgramGenRun: { exitCode: number; timedOut: boolean };
         autoplan: {
@@ -3347,7 +3348,7 @@ test("autoresearch_runtime_autoplan infers setup and can materialize DSPx intent
     );
 
     assert.ok(result);
-    assert.match(result.content[0]?.text ?? "", /DSPx program-gen handoff/);
+    assert.match(result.content[0]?.text ?? "", /DSPx generated DSPy planner assembly/);
     const details = result.details as {
       config: { name: string; metricName: string; direction: string };
       benchmarkCommand: string;

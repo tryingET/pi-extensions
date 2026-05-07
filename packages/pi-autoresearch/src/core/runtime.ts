@@ -837,7 +837,7 @@ export interface AutoresearchBenchmarkScriptProposal {
 }
 
 export interface AutoresearchDspxAdvisory {
-  authority: "evidence_only_non_authoritative" | "fresh_bounded_program_gen_proposal";
+  authority: "evidence_only_non_authoritative" | "validated_generated_dspy_planner_output";
   behaviorPath: string;
   available: boolean;
   status: string | null;
@@ -1537,7 +1537,7 @@ function applyDspxAdvisoryPlan(result: AutoresearchAutoplanResult): Autoresearch
     risks: result.dspxAdvisory?.warnings ?? result.risks,
     nextToolCall,
     dspxAdvisory: result.dspxAdvisory
-      ? { ...result.dspxAdvisory, authority: "fresh_bounded_program_gen_proposal" }
+      ? { ...result.dspxAdvisory, authority: "validated_generated_dspy_planner_output" }
       : result.dspxAdvisory,
   };
 }
@@ -1597,7 +1597,7 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
     ...(result.dspxProgramGen
       ? [
           "",
-          "## DSPx program-gen handoff",
+          "## DSPx generated DSPy planner assembly",
           `- intent: ${result.dspxProgramGen.intentPath}`,
           `- outdir: ${result.dspxProgramGen.outdir}`,
           `- materialized: ${result.dspxProgramGen.materialized ? "yes" : "no"}`,
@@ -1608,26 +1608,32 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
     ...(result.dspxAdvisory
       ? [
           "",
-          "## DSPx advisory evidence",
-          `- authority: ${result.dspxAdvisory.authority}`,
+          result.dspxAdvisory.authority === "validated_generated_dspy_planner_output"
+            ? "## Generated DSPy planner output (validated)"
+            : "## DSPx advisory evidence",
+          `- authority: ${
+            result.dspxAdvisory.authority === "validated_generated_dspy_planner_output"
+              ? "validated generated DSPy planner output from a fresh bounded DSPx program-gen run"
+              : "evidence-only non-authoritative DSPx behavior artifact"
+          }`,
           `- behavior: ${result.dspxAdvisory.behaviorPath}`,
           `- available: ${result.dspxAdvisory.available ? "yes" : "no"}`,
           `- status: ${result.dspxAdvisory.status ?? "unknown"} (${result.dspxAdvisory.passed}/${result.dspxAdvisory.total} passed, failed=${result.dspxAdvisory.failed}, error=${result.dspxAdvisory.error})`,
           `- objective match: ${result.dspxAdvisory.matchedObjective ? "yes" : "no"}`,
           ...(result.dspxAdvisory.proposal
             ? [
-                `- proposed campaign: ${result.dspxAdvisory.proposal.campaignName ?? "(missing)"}`,
-                `- proposed metric: ${result.dspxAdvisory.proposal.metricName ?? "(missing)"} (${result.dspxAdvisory.proposal.metricUnit || "unitless"}, ${result.dspxAdvisory.proposal.direction ?? "unknown"} is better)`,
-                `- proposed benchmark: ${result.dspxAdvisory.proposal.benchmarkCommand ?? "(missing)"}`,
-                `- proposed checks: ${result.dspxAdvisory.proposal.checksCommand ?? "(none)"}`,
-                `- proposed next action: ${result.dspxAdvisory.proposal.nextAction ?? "(missing)"}`,
+                `- generated campaign plan: ${result.dspxAdvisory.proposal.campaignName ?? "(missing)"}`,
+                `- generated metric plan: ${result.dspxAdvisory.proposal.metricName ?? "(missing)"} (${result.dspxAdvisory.proposal.metricUnit || "unitless"}, ${result.dspxAdvisory.proposal.direction ?? "unknown"} is better)`,
+                `- generated benchmark plan: ${result.dspxAdvisory.proposal.benchmarkCommand ?? "(missing)"}`,
+                `- generated checks plan: ${result.dspxAdvisory.proposal.checksCommand ?? "(none)"}`,
+                `- generated next action: ${result.dspxAdvisory.proposal.nextAction ?? "(missing)"}`,
               ]
             : ["- proposal: (none)"]),
           ...(result.dspxAdvisory.benchmarkScriptProposal
             ? [
                 "",
                 canBenchmarkScriptProposalDriveBaseline(result.dspxAdvisory.benchmarkScriptProposal)
-                  ? "### DSPx advisory benchmark script proposal"
+                  ? "### Generated DSPy planner benchmark script proposal"
                   : "### DSPx advisory metric summary (not baseline authority)",
                 `- source: ${result.dspxAdvisory.benchmarkScriptProposal.source}`,
                 `- reason: ${result.dspxAdvisory.benchmarkScriptProposal.reason}`,
@@ -1640,7 +1646,13 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
               ]
             : []),
           ...(result.dspxAdvisory.nextToolCall
-            ? ["", "### DSPx advisory setup call", `\`${result.dspxAdvisory.nextToolCall}\``]
+            ? [
+                "",
+                result.dspxAdvisory.authority === "validated_generated_dspy_planner_output"
+                  ? "### Generated DSPy planner setup call"
+                  : "### DSPx advisory setup call",
+                `\`${result.dspxAdvisory.nextToolCall}\``,
+              ]
             : []),
           ...(result.dspxAdvisory.warnings.length > 0
             ? [
@@ -1650,7 +1662,9 @@ export function formatAutoresearchAutoplanResult(result: AutoresearchAutoplanRes
               ]
             : []),
           "",
-          "DSPx advisory output is evidence only; use autoresearch_runtime_setup to apply any setup.",
+          result.dspxAdvisory.authority === "validated_generated_dspy_planner_output"
+            ? "Generated DSPy planner output was validated and may drive this local campaign setup; pi-autoresearch still owns setup application, receipts, bounded runs, and stop gates."
+            : "DSPx advisory output is evidence only; use autoresearch_runtime_setup to apply any setup.",
         ]
       : []),
   ].join("\n");
@@ -2040,6 +2054,25 @@ export function formatAutoresearchCampaignStartResult(
         `- duration: ${result.dspxProgramGenRun.durationSeconds.toFixed(2)}s`,
       ]
     : [];
+  const dspxPlannerOutputLines =
+    result.autoplan.dspxAdvisory?.authority === "validated_generated_dspy_planner_output"
+      ? [
+          "",
+          "## Generated DSPy planner output (validated)",
+          `- behavior: ${result.autoplan.dspxAdvisory.behaviorPath}`,
+          `- status: ${result.autoplan.dspxAdvisory.status ?? "unknown"} (${result.autoplan.dspxAdvisory.passed}/${result.autoplan.dspxAdvisory.total} passed)`,
+          `- matched objective: ${result.autoplan.dspxAdvisory.matchedObjective ? "yes" : "no"}`,
+          ...(result.autoplan.dspxAdvisory.proposal
+            ? [
+                `- campaign plan: ${result.autoplan.dspxAdvisory.proposal.campaignName ?? "(missing)"}`,
+                `- metric plan: ${result.autoplan.dspxAdvisory.proposal.metricName ?? "(missing)"}`,
+                `- benchmark plan: ${result.autoplan.dspxAdvisory.proposal.benchmarkCommand ?? "(missing)"}`,
+                `- checks plan: ${result.autoplan.dspxAdvisory.proposal.checksCommand ?? "(none)"}`,
+              ]
+            : ["- campaign plan: (missing)"]),
+          "- boundary: generated DSPy planner output configures only this local pi-autoresearch campaign; pi-autoresearch still owns setup application, receipts, bounded runs, and stop gates.",
+        ]
+      : [];
   const executionLines = result.loopResult
     ? [
         "",
@@ -2098,6 +2131,7 @@ export function formatAutoresearchCampaignStartResult(
     `- ASC rewind role: ${result.candidatePolicy.ascRewindRole}`,
     ...setupDecisionLines,
     ...dspxProgramGenRunLines,
+    ...dspxPlannerOutputLines,
     ...executionLines,
     "",
     "## Warnings / gates",
@@ -2601,7 +2635,7 @@ function buildDspxProgramGenPlan(input: {
     command: `just dspx program-gen --intent ${JSON.stringify(intentPath)} --outdir ${JSON.stringify(outdir)}`,
     argv: ["just", "dspx", "program-gen", "--intent", intentPath, "--outdir", outdir],
     materialized: input.materialize,
-    note: "DSPx program-gen remains a local evidence/program-synthesis handoff unless runDspxProgramGen accepts a fresh bounded proposal; pi-autoresearch still owns setup application, bounded runs, receipts, and stop gates.",
+    note: "DSPx program-gen materializes a DSPy planner assembly; when runDspxProgramGen is enabled, pi-autoresearch validates the generated DSPy planner output before using it for local campaign setup, while retaining ownership of setup application, bounded runs, receipts, and stop gates.",
   };
 }
 
@@ -4912,7 +4946,7 @@ export function buildAutoresearchHelpText(status: AutoresearchRuntimeStatus): st
     "- use autoresearch_runtime_control to inspect or set continue / rebaseline / finalize / stop operator intent",
     "- use autoresearch_runtime_finalize to inspect, plan, approve, and materialize a bounded finalization workflow",
     "- use autoresearch_runtime_run to execute one bounded local run and optionally request a governed post-run next-hypothesis decision with decisionGoal; postureCommand can fail closed before benchmark execution",
-    `- use ${AUTORESEARCH_AUTOPLAN_TOOL_NAME} to inspect the repo/problem space and propose bounded campaign setup; planner=dspx_program can materialize a DSPx program-gen handoff intent`,
+    `- use ${AUTORESEARCH_AUTOPLAN_TOOL_NAME} to inspect the repo/problem space and propose bounded campaign setup; planner=dspx_program can materialize a DSPx-generated DSPy planner assembly`,
     `- use ${AUTORESEARCH_SETUP_TOOL_NAME} to plan/apply a config receipt or bootstrap a baseline run without needing a slash-command wizard`,
     `- use ${AUTORESEARCH_PEER_ASSIST_TOOL_NAME} to plan one canonical visible peer lane without launching it`,
     `- use ${AUTORESEARCH_LOOP_TOOL_NAME} to execute a bounded in-call loop with maxIterations, optional wall-clock/posture gates, live progress updates, and optional explicit peer-launch handoff`,

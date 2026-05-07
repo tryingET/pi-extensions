@@ -715,7 +715,7 @@ const autoplanPlannerSchema = Type.Union(
   [Type.Literal("heuristic"), Type.Literal("dspx_program")],
   {
     description:
-      "Planner backend. dspx_program materializes or returns a DSPx program-gen handoff intent; pi-autoresearch remains the outer controller.",
+      "Planner backend. dspx_program can materialize a DSPx-generated DSPy planner assembly; with runDspxProgramGen=true, pi-autoresearch validates the generated DSPy output before using it as the local campaign plan while remaining the outer controller.",
   },
 );
 
@@ -1816,7 +1816,7 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_AUTOPLAN_TOOL_NAME,
     label: "Autoresearch Runtime Autoplan",
     description:
-      "Explore the local repo/problem space and propose a bounded pi-autoresearch campaign setup, optionally with a DSPx program-gen handoff intent.",
+      "Explore the local repo/problem space and propose a bounded pi-autoresearch campaign setup, optionally with a DSPx-generated DSPy planner assembly.",
     promptSnippet:
       "Use before setup when campaign config, metric, benchmark, checks, or DSPx planner handoff should be inferred from the repo and objective.",
     parameters: asPiToolParameters(autoplanSchema),

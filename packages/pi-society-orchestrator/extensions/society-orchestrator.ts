@@ -316,7 +316,7 @@ function formatAutoresearchCampaignStartUnderSupervisionReport(
     ...(dspxProgramGen
       ? [
           "",
-          "DSPx program-gen handoff:",
+          "DSPx generated DSPy planner assembly:",
           `- intent: ${dspxProgramGen.intentPath}`,
           `- outdir: ${dspxProgramGen.outdir}`,
           `- materialized: ${dspxProgramGen.materialized ? "yes" : "no"}`,
@@ -336,17 +336,27 @@ function formatAutoresearchCampaignStartUnderSupervisionReport(
     ...(dspxAdvisory
       ? [
           "",
-          "DSPx advisory:",
+          dspxAdvisory.authority === "validated_generated_dspy_planner_output"
+            ? "Generated DSPy planner output:"
+            : "DSPx advisory:",
           `- behavior: ${dspxAdvisory.behaviorPath}`,
           `- available: ${dspxAdvisory.available ? "yes" : "no"}`,
           `- status: ${dspxAdvisory.status ?? "unknown"}`,
           `- matched objective: ${dspxAdvisory.matchedObjective ? "yes" : "no"}`,
+          ...(dspxAdvisory.proposal
+            ? [
+                `- campaign plan: ${dspxAdvisory.proposal.campaignName ?? "(missing)"}`,
+                `- metric plan: ${dspxAdvisory.proposal.metricName ?? "(missing)"}`,
+                `- benchmark plan: ${dspxAdvisory.proposal.benchmarkCommand ?? "(missing)"}`,
+                `- checks plan: ${dspxAdvisory.proposal.checksCommand ?? "(none)"}`,
+              ]
+            : []),
         ]
       : []),
     "",
     "Boundaries:",
     "- Campaign execution is delegated to pi-autoresearch runtime semantics.",
-    "- DSPx program-gen execution and behavior_results.json interpretation are owned by pi-autoresearch/DSPx; orchestrator only requests the bounded owner seam and supervises the result.",
+    "- DSPx program-gen materializes and runs the DSPy planner assembly inside the pi-autoresearch/DSPx owner seam; orchestrator only requests that bounded seam and supervises the result.",
     "- Live supervision may project verified AK milestones through its existing orchestrator-gated projector; it does not write KES, change direction, spawn peers, or promote candidates.",
     "- Direction changes remain proposals unless routed through AK/decision authority.",
     "",
@@ -1201,7 +1211,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     promptGuidelines: [
       "Use autoresearch_live_supervision for exact taskId + cwd supervision above the pi-autoresearch runtime.",
       "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
-      "For DSPx/DSPy planning, set planner=dspx_program and runDspxProgramGen=true; this asks pi-autoresearch to materialize and run the bounded DSPx program-gen handoff, then use behavior_results.json as the campaign plan. Orchestrator still does not synthesize or apply a DSPy program itself.",
+      "For DSPx/DSPy planning, set planner=dspx_program and runDspxProgramGen=true; this asks pi-autoresearch to materialize and run a bounded DSPx-generated DSPy planner assembly, then validate the generated DSPy output from behavior_results.json as the campaign plan. Orchestrator still does not synthesize or apply a DSPy program itself.",
       "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop/start_campaign.",
       "Do not auto-spawn scout_peer_spawn, candidate_peer_spawn, or fork_peer_spawn from this surface; pi-autoresearch may recommend exact peer calls and the operator/controller chooses whether to launch them.",
       "Do not change direction from this surface; emit direction proposals/gated next steps and route actual direction changes through AK/decision authority.",

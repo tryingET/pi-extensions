@@ -505,8 +505,8 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
   assert.equal(campaignCalls[0].dspxBehaviorPath, ".autoresearch/dspx/behavior_results.json");
   assert.equal(campaignCalls[0].peerMode, "plan");
   assert.match(result.content[0].text, /Planner: dspx_program/);
-  assert.match(result.content[0].text, /DSPx program-gen handoff/);
-  assert.match(result.content[0].text, /orchestrator only requests the bounded owner seam/);
+  assert.match(result.content[0].text, /DSPx generated DSPy planner assembly/);
+  assert.match(result.content[0].text, /orchestrator only requests that bounded seam/);
   assert.equal(scheduler.pendingCount(), 1);
 });
 
