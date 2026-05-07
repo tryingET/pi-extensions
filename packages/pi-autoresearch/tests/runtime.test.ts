@@ -3279,10 +3279,9 @@ test("autoresearch_campaign_start can run DSPx program-gen and use its setup pro
       assert.equal(details.autoplan.dspxProgramGen.materialized, true);
       assert.equal(details.autoplan.dspxAdvisory.available, true);
       assert.equal(details.autoplan.dspxAdvisory.matchedObjective, true);
-      assert.match(
-        readFileSync(details.autoplan.dspxProgramGen.intentPath, "utf8"),
-        /AutoresearchSetupPlanner/,
-      );
+      const intentText = readFileSync(details.autoplan.dspxProgramGen.intentPath, "utf8");
+      assert.match(intentText, /AutoresearchSetupPlanner/);
+      assert.match(intentText, /metric_threshold/);
       assert.equal(existsSync(shellInjectionSentinel), false);
     } finally {
       if (previousDspxHome === undefined) {

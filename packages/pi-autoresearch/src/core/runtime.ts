@@ -2885,6 +2885,7 @@ function renderDspxAutoresearchExamples(input: {
         metric_name: input.config.metricName,
         metric_unit: input.config.metricUnit,
         direction: input.config.direction,
+        metric_threshold: input.config.metricThreshold ?? "",
         benchmark_command: input.benchmarkCommand ?? "<benchmark command required>",
         checks_command: input.checksCommand ?? "",
         risks: "keep setup bounded; do not mutate authority or launch hidden loops",
@@ -2905,6 +2906,7 @@ function renderDspxAutoresearchExamples(input: {
         metric_name: "total_ms",
         metric_unit: "ms",
         direction: "lower",
+        metric_threshold: "",
         benchmark_command: "npm test",
         checks_command: "npm run check",
         risks:
@@ -2927,6 +2929,7 @@ function renderDspxAutoresearchExamples(input: {
         metric_name: "quality_score",
         metric_unit: "",
         direction: "higher",
+        metric_threshold: "",
         benchmark_command: "bash autoresearch.sh",
         checks_command: "npm run quality:ci",
         risks:
@@ -2947,6 +2950,7 @@ function renderDspxAutoresearchExamples(input: {
     `      metric_name: ${yamlQuote(example.outputs.metric_name)}`,
     `      metric_unit: ${yamlQuote(example.outputs.metric_unit)}`,
     `      direction: ${yamlQuote(example.outputs.direction)}`,
+    `      metric_threshold: ${yamlQuote(String(example.outputs.metric_threshold))}`,
     `      benchmark_command: ${yamlQuote(example.outputs.benchmark_command)}`,
     `      checks_command: ${yamlQuote(example.outputs.checks_command)}`,
     `      risks: ${yamlQuote(example.outputs.risks)}`,
