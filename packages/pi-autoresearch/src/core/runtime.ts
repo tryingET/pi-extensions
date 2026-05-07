@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   appendFileSync,
   chmodSync,
@@ -371,6 +372,71 @@ export interface AutoresearchAkEvidencePacket {
   evidenceBoundary: string;
 }
 
+export interface AutoresearchOracleEvidenceRecord {
+  recordKind: "autoresearch.campaign_run.oracle_evidence.v1";
+  recordId: string;
+  campaign: string | null;
+  metricName: string | null;
+  metricUnit: string;
+  direction: MetricDirection | null;
+  runStatus: RunStatus;
+  runKind: AutoresearchRunKind;
+  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
+  metric: number;
+  timestamp: number;
+  description: string;
+  checks: string;
+  hypothesisId: string | null;
+  hypothesis: string | null;
+  interventionSummary: string | null;
+  candidate: AutoresearchCandidateBinding | null;
+  oracleText: string;
+  sourceRefs: {
+    receiptPath: string;
+    closeoutPacketKind: "autoresearch.closeout.v1";
+    runIteration: number | null;
+    runTimestamp: number;
+  };
+  nonAuthority: true;
+}
+
+export interface AutoresearchOraclePublicationPreflightSummary {
+  status: "ready_for_dspx_owner_review" | "blocked_no_campaign_evidence";
+  target: "dspx_oracle_postgres_pgvector";
+  publicationLabel: "retained_behavior_memory_candidate";
+  sharedOracleMutated: false;
+  localCoordinatesDbMigrated: false;
+  canonicalAuthorityMutated: false;
+  blockedReasons: string[];
+  suggestedDspxOwnerAction: string;
+  suggestedDspxPreflightCommandTemplate: string;
+}
+
+export interface AutoresearchOracleEvidenceReadiness {
+  packetKind: "autoresearch.oracle_evidence.v1";
+  recordCount: number;
+  preflightStatus: AutoresearchOraclePublicationPreflightSummary["status"];
+  target: AutoresearchOraclePublicationPreflightSummary["target"];
+  authorityBoundary: string;
+}
+
+export interface AutoresearchOracleEvidencePacket {
+  packetKind: "autoresearch.oracle_evidence.v1";
+  adapterContractVersion: 1;
+  targetKinds: string[];
+  cwd: string;
+  campaign: string | null;
+  sourceArtifacts: {
+    closeoutPacketKind: "autoresearch.closeout.v1";
+    receiptPath: string;
+  };
+  records: AutoresearchOracleEvidenceRecord[];
+  publicationPreflight: AutoresearchOraclePublicationPreflightSummary;
+  adapterBoundary: string;
+  evidenceBoundary: string;
+  authorityBoundary: string;
+}
+
 export interface AutoresearchKnowledgeExportPacket {
   packetKind: "autoresearch.learning.v1";
   adapterContractVersion: 1;
@@ -453,6 +519,7 @@ export interface AutoresearchSegmentCloseout {
   runs: AutoresearchSegmentCloseoutRun[];
   candidateBindings: AutoresearchCandidateBinding[];
   recommendedAction: string;
+  oracleReadyEvidence: AutoresearchOracleEvidenceReadiness;
   adapterBoundary: string;
   evidenceBoundary: string;
 }
@@ -3078,13 +3145,38 @@ export function buildAutoresearchAdapterContractCatalog(): AutoresearchAdapterCo
           "runs",
           "candidateBindings",
           "recommendedAction",
+          "oracleReadyEvidence",
           "adapterBoundary",
         ],
         optionalFields: ["status", "timingInterpretation", "baselineMetric", "bestMetric"],
         summary:
-          "Structured package-local empirical segment summary for downstream evidence and learning adapters.",
+          "Structured package-local empirical segment summary for downstream evidence, learning, and Oracle-memory adapters.",
         boundary:
-          "Package-local empirical evidence only; adapters must explicitly promote to AK, Beads, KES, notes, or another target owner.",
+          "Package-local empirical evidence only; adapters must explicitly promote to AK, Beads, KES, notes, DSPx Oracle, or another target owner.",
+      },
+      {
+        packetKind: "autoresearch.oracle_evidence.v1",
+        adapterContractVersion: 1,
+        producerAction: 'autoresearch_runtime_status({ action: "oracle_evidence", cwd })',
+        targetKinds: ["dspx_oracle", "empirical_memory", "evidence", "adapter_source"],
+        requiredFields: [
+          "packetKind",
+          "adapterContractVersion",
+          "targetKinds",
+          "cwd",
+          "campaign",
+          "sourceArtifacts",
+          "records",
+          "publicationPreflight",
+          "adapterBoundary",
+          "evidenceBoundary",
+          "authorityBoundary",
+        ],
+        optionalFields: [],
+        summary:
+          "Oracle-readable campaign evidence packet for DSPx-owned publication preflight without shared Oracle writes.",
+        boundary:
+          "Non-mutating empirical-memory handoff only; DSPx owns publication preflight/shared writes and AK/society.v2.db remains canonical authority.",
       },
       {
         packetKind: "autoresearch.ak_evidence.v1",
@@ -3211,6 +3303,30 @@ export function validateAutoresearchAdapterPacket(
 
   if (packetKind === "autoresearch.closeout.v1") {
     validateCloseoutPacketFields(packet, "", addIssue);
+  } else if (packetKind === "autoresearch.oracle_evidence.v1") {
+    validateStringField(packet, "cwd", addIssue);
+    validateArrayField(packet, "records", addIssue);
+    if (isRecord(packet.publicationPreflight) && !Array.isArray(packet.publicationPreflight)) {
+      if (packet.publicationPreflight.sharedOracleMutated !== false) {
+        addIssue("publicationPreflight.sharedOracleMutated", "sharedOracleMutated must be false");
+      }
+      if (packet.publicationPreflight.localCoordinatesDbMigrated !== false) {
+        addIssue(
+          "publicationPreflight.localCoordinatesDbMigrated",
+          "localCoordinatesDbMigrated must be false",
+        );
+      }
+      if (packet.publicationPreflight.canonicalAuthorityMutated !== false) {
+        addIssue(
+          "publicationPreflight.canonicalAuthorityMutated",
+          "canonicalAuthorityMutated must be false",
+        );
+      }
+    } else {
+      addIssue("publicationPreflight", "publicationPreflight must be an object");
+    }
+    validateStringField(packet, "evidenceBoundary", addIssue);
+    validateStringField(packet, "authorityBoundary", addIssue);
   } else if (packetKind === "autoresearch.ak_evidence.v1") {
     validatePositiveIntegerField(packet, "taskId", addIssue);
     if (packet.checkType !== "autoresearch:segment_closeout") {
@@ -3289,6 +3405,29 @@ function validateCloseoutPacketFields(
   validateArrayField(packet, "runs", addIssue, prefix);
   validateArrayField(packet, "candidateBindings", addIssue, prefix);
   validateStringField(packet, "recommendedAction", addIssue, prefix);
+  const oracleReadyEvidence = packet.oracleReadyEvidence;
+  if (!isRecord(oracleReadyEvidence) || Array.isArray(oracleReadyEvidence)) {
+    addIssue(`${prefix}oracleReadyEvidence`, "oracleReadyEvidence must be an object");
+  } else {
+    if (oracleReadyEvidence.packetKind !== "autoresearch.oracle_evidence.v1") {
+      addIssue(
+        `${prefix}oracleReadyEvidence.packetKind`,
+        'oracleReadyEvidence.packetKind must be "autoresearch.oracle_evidence.v1"',
+      );
+    }
+    validateNumberField(
+      oracleReadyEvidence,
+      "recordCount",
+      addIssue,
+      `${prefix}oracleReadyEvidence.`,
+    );
+    validateStringField(
+      oracleReadyEvidence,
+      "authorityBoundary",
+      addIssue,
+      `${prefix}oracleReadyEvidence.`,
+    );
+  }
   validateStringField(packet, "adapterBoundary", addIssue, prefix);
 }
 
@@ -3365,6 +3504,191 @@ function validateStringArrayField(
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     addIssue(`${prefix}${field}`, `${field} must be an array of strings`);
   }
+}
+
+function stableAutoresearchOracleRecordId(input: unknown): string {
+  return `autoresearch-run-${createHash("sha256").update(JSON.stringify(input)).digest("hex").slice(0, 16)}`;
+}
+
+function buildAutoresearchOracleText(input: {
+  closeout: AutoresearchSegmentCloseout;
+  run: AutoresearchSegmentCloseoutRun;
+}): string {
+  const { closeout, run } = input;
+  const candidateLabel =
+    run.experiment?.candidate?.branch ??
+    run.experiment?.candidate?.worktreePath ??
+    run.experiment?.candidate?.diffSummary ??
+    "no candidate binding";
+  return [
+    `autoresearch campaign=${closeout.campaign ?? "unnamed"}`,
+    `metric=${closeout.metricName ?? "unset"} ${closeout.metricUnit || "unitless"} direction=${closeout.direction ?? "unset"}`,
+    `run_status=${run.status} run_kind=${run.runKind} empirical_decision=${run.empiricalDecisionClass}`,
+    `metric_value=${String(run.metric)} checks=${run.checks}`,
+    `hypothesis=${run.experiment?.hypothesis ?? "none"}`,
+    `intervention=${run.experiment?.interventionSummary ?? "none"}`,
+    `candidate=${candidateLabel}`,
+    `description=${run.description}`,
+  ].join("\n");
+}
+
+function buildAutoresearchOracleEvidenceRecords(
+  closeout: AutoresearchSegmentCloseout,
+): AutoresearchOracleEvidenceRecord[] {
+  return closeout.runs.map((run) => {
+    const recordIdentity = {
+      cwd: closeout.cwd,
+      receiptPath: closeout.receiptPath,
+      campaign: closeout.campaign,
+      metricName: closeout.metricName,
+      iteration: run.iteration,
+      timestamp: run.timestamp,
+      description: run.description,
+      metric: run.metric,
+    };
+    return {
+      recordKind: "autoresearch.campaign_run.oracle_evidence.v1",
+      recordId: stableAutoresearchOracleRecordId(recordIdentity),
+      campaign: closeout.campaign,
+      metricName: closeout.metricName,
+      metricUnit: closeout.metricUnit,
+      direction: closeout.direction,
+      runStatus: run.status,
+      runKind: run.runKind,
+      empiricalDecisionClass: run.empiricalDecisionClass,
+      metric: run.metric,
+      timestamp: run.timestamp,
+      description: run.description,
+      checks: run.checks,
+      hypothesisId: run.experiment?.hypothesisId ?? null,
+      hypothesis: run.experiment?.hypothesis ?? null,
+      interventionSummary: run.experiment?.interventionSummary ?? null,
+      candidate: run.experiment?.candidate ?? null,
+      oracleText: buildAutoresearchOracleText({ closeout, run }),
+      sourceRefs: {
+        receiptPath: closeout.receiptPath,
+        closeoutPacketKind: "autoresearch.closeout.v1",
+        runIteration: run.iteration,
+        runTimestamp: run.timestamp,
+      },
+      nonAuthority: true,
+    };
+  });
+}
+
+function buildAutoresearchOraclePublicationPreflightSummary(
+  recordCount: number,
+): AutoresearchOraclePublicationPreflightSummary {
+  const blockedReasons = recordCount === 0 ? ["no campaign run receipts are available"] : [];
+  return {
+    status:
+      blockedReasons.length > 0 ? "blocked_no_campaign_evidence" : "ready_for_dspx_owner_review",
+    target: "dspx_oracle_postgres_pgvector",
+    publicationLabel: "retained_behavior_memory_candidate",
+    sharedOracleMutated: false,
+    localCoordinatesDbMigrated: false,
+    canonicalAuthorityMutated: false,
+    blockedReasons,
+    suggestedDspxOwnerAction:
+      recordCount === 0
+        ? "collect at least one bounded campaign run before preparing DSPx Oracle publication preflight"
+        : "map this packet into DSPx-owned program-oracle evidence artifacts, then run DSPx publication preflight from the DSPx owner surface before any shared write",
+    suggestedDspxPreflightCommandTemplate:
+      "dspx oracle program-evidence publish-preflight --manifest <dspx-owned-candidate-manifest.json> --target shared-postgres --publication-label retained --publisher-id <operator-or-session-id> --publisher-role operator --publisher-assertion <why-this-behavior-memory-should-be-retained> --redaction-status checked --retention-class retained_behavior_memory --out <program_oracle_publication_preflight.json> --json",
+  };
+}
+
+function summarizeAutoresearchOracleEvidenceReadiness(
+  closeout: Omit<AutoresearchSegmentCloseout, "oracleReadyEvidence">,
+): AutoresearchOracleEvidenceReadiness {
+  const recordCount = closeout.runs.length;
+  const preflight = buildAutoresearchOraclePublicationPreflightSummary(recordCount);
+  return {
+    packetKind: "autoresearch.oracle_evidence.v1",
+    recordCount,
+    preflightStatus: preflight.status,
+    target: preflight.target,
+    authorityBoundary:
+      "Oracle-ready evidence is empirical memory input only; DSPx owns publication preflight/shared Oracle writes and AK/society.v2.db remains canonical authority.",
+  };
+}
+
+export function buildAutoresearchOracleEvidencePacket(
+  cwd: string,
+): AutoresearchOracleEvidencePacket {
+  const closeout = buildAutoresearchSegmentCloseout(cwd);
+  const records = buildAutoresearchOracleEvidenceRecords(closeout);
+  const publicationPreflight = buildAutoresearchOraclePublicationPreflightSummary(records.length);
+  const boundary =
+    "Oracle evidence packet is non-mutating and adapter-ready; DSPx owns Oracle publication preflight/shared writes, local coordinates.db remains scratch/cache, and AK/society.v2.db remains canonical authority.";
+  return {
+    packetKind: "autoresearch.oracle_evidence.v1",
+    adapterContractVersion: 1,
+    targetKinds: ["dspx_oracle", "empirical_memory", "evidence", "adapter_source"],
+    cwd: closeout.cwd,
+    campaign: closeout.campaign,
+    sourceArtifacts: {
+      closeoutPacketKind: closeout.packetKind,
+      receiptPath: closeout.receiptPath,
+    },
+    records,
+    publicationPreflight,
+    adapterBoundary: boundary,
+    evidenceBoundary: boundary,
+    authorityBoundary:
+      "This packet is empirical behavior memory input only; it does not publish to Oracle Postgres, migrate local coordinates.db, write AK/KES, choose winners, or authorize promotion.",
+  };
+}
+
+export function formatAutoresearchOracleEvidencePacket(
+  packet: AutoresearchOracleEvidencePacket,
+): string {
+  const recordLines = packet.records.map((record) =>
+    [
+      `- record: ${record.recordId}`,
+      `  - status: ${record.runStatus}/${record.runKind}`,
+      `  - empirical decision: ${record.empiricalDecisionClass}`,
+      `  - metric: ${formatMetricValue(record.metric, record.metricUnit)}`,
+      `  - timestamp: ${record.timestamp}`,
+      `  - hypothesis: ${record.hypothesis ?? "(none)"}`,
+      `  - candidate: ${record.candidate?.branch ?? record.candidate?.worktreePath ?? "(none)"}`,
+      `  - non-authority: ${record.nonAuthority ? "yes" : "no"}`,
+    ].join("\n"),
+  );
+  return [
+    "# PI-AUTORESEARCH ORACLE-READY EVIDENCE",
+    "",
+    `- packet kind: ${packet.packetKind}`,
+    `- adapter contract version: ${packet.adapterContractVersion}`,
+    `- target kinds: ${packet.targetKinds.join(", ")}`,
+    `- cwd: ${packet.cwd}`,
+    `- campaign: ${packet.campaign ?? "(unnamed)"}`,
+    `- receipt log: ${packet.sourceArtifacts.receiptPath}`,
+    `- record count: ${packet.records.length}`,
+    `- preflight status: ${packet.publicationPreflight.status}`,
+    `- preflight target: ${packet.publicationPreflight.target}`,
+    `- shared Oracle mutated: ${packet.publicationPreflight.sharedOracleMutated ? "yes" : "no"}`,
+    `- local coordinates.db migrated: ${packet.publicationPreflight.localCoordinatesDbMigrated ? "yes" : "no"}`,
+    `- canonical authority mutated: ${packet.publicationPreflight.canonicalAuthorityMutated ? "yes" : "no"}`,
+    `- adapter boundary: ${packet.adapterBoundary}`,
+    `- authority boundary: ${packet.authorityBoundary}`,
+    "",
+    "## DSPx owner preflight handoff",
+    `- suggested action: ${packet.publicationPreflight.suggestedDspxOwnerAction}`,
+    "```bash",
+    packet.publicationPreflight.suggestedDspxPreflightCommandTemplate,
+    "```",
+    ...(packet.publicationPreflight.blockedReasons.length > 0
+      ? [
+          "",
+          "## Blocked reasons",
+          ...packet.publicationPreflight.blockedReasons.map((reason) => `- ${reason}`),
+        ]
+      : []),
+    "",
+    "## Oracle-readable records",
+    ...(recordLines.length > 0 ? recordLines : ["- (none)"]),
+  ].join("\n");
 }
 
 export function buildAutoresearchCandidateResultPacket(
@@ -3732,12 +4056,20 @@ export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegme
     .filter((binding): binding is AutoresearchCandidateBinding => Boolean(binding));
 
   const adapterBoundary =
-    "Segment closeout is package-local empirical evidence only; promote to AK evidence, KES learning, or another target through an explicit adapter or owner surface.";
+    "Segment closeout is package-local empirical evidence only; promote to AK evidence, KES learning, DSPx Oracle empirical memory, or another target through an explicit adapter or owner surface.";
 
-  return {
-    packetKind: "autoresearch.closeout.v1",
-    adapterContractVersion: 1,
-    targetKinds: ["adapter_source", "evidence", "learning", "task_system", "knowledge_base"],
+  const closeoutWithoutOracle = {
+    packetKind: "autoresearch.closeout.v1" as const,
+    adapterContractVersion: 1 as const,
+    targetKinds: [
+      "adapter_source",
+      "evidence",
+      "learning",
+      "task_system",
+      "knowledge_base",
+      "dspx_oracle",
+      "empirical_memory",
+    ],
     cwd: resolvedCwd,
     receiptPath: paths.jsonlPath,
     status,
@@ -3774,6 +4106,11 @@ export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegme
     recommendedAction: recommendSegmentCloseoutAction(status.currentSegment.empiricalDecisionClass),
     adapterBoundary,
     evidenceBoundary: adapterBoundary,
+  };
+
+  return {
+    ...closeoutWithoutOracle,
+    oracleReadyEvidence: summarizeAutoresearchOracleEvidenceReadiness(closeoutWithoutOracle),
   };
 }
 
@@ -4885,6 +5222,9 @@ export function formatAutoresearchSegmentCloseout(closeout: AutoresearchSegmentC
     `- empirical posture: ${formatEmpiricalPosture(closeout.empiricalPosture)}`,
     `- timing interpretation: ${formatMetricInterpretation(closeout.timingInterpretation, metricUnit)}`,
     `- recommended action: ${closeout.recommendedAction}`,
+    `- Oracle-ready evidence records: ${closeout.oracleReadyEvidence.recordCount}`,
+    `- Oracle preflight status: ${closeout.oracleReadyEvidence.preflightStatus}`,
+    `- Oracle target: ${closeout.oracleReadyEvidence.target}`,
     `- adapter boundary: ${closeout.adapterBoundary}`,
     `- evidence boundary: ${closeout.evidenceBoundary}`,
     "",
@@ -4893,6 +5233,12 @@ export function formatAutoresearchSegmentCloseout(closeout: AutoresearchSegmentC
     "",
     "## Candidate bindings",
     ...(candidateLines.length > 0 ? candidateLines : ["- (none)"]),
+    "",
+    "## Oracle-ready evidence boundary",
+    `- packet: ${closeout.oracleReadyEvidence.packetKind}`,
+    `- records: ${closeout.oracleReadyEvidence.recordCount}`,
+    `- preflight status: ${closeout.oracleReadyEvidence.preflightStatus}`,
+    `- boundary: ${closeout.oracleReadyEvidence.authorityBoundary}`,
   ].join("\n");
 }
 

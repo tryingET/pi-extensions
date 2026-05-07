@@ -61,6 +61,7 @@ import {
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchHelpText,
   buildAutoresearchKnowledgeExportPacket,
+  buildAutoresearchOracleEvidencePacket,
   buildAutoresearchResumeApplyPlan,
   buildAutoresearchResumePlan,
   buildAutoresearchRuntimeStatus,
@@ -78,6 +79,7 @@ import {
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchDashboard,
   formatAutoresearchKnowledgeExportPacket,
+  formatAutoresearchOracleEvidencePacket,
   formatAutoresearchResumeApplyPlan,
   formatAutoresearchResumeApplyResult,
   formatAutoresearchResumePlan,
@@ -1785,6 +1787,9 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.equal(closeout.campaign, "widget-speed-closeout");
     assert.equal(closeout.runCount, 2);
     assert.equal(closeout.candidateBindings.length, 1);
+    assert.equal(closeout.oracleReadyEvidence.recordCount, 2);
+    assert.equal(closeout.oracleReadyEvidence.preflightStatus, "ready_for_dspx_owner_review");
+    assert.equal(closeout.oracleReadyEvidence.target, "dspx_oracle_postgres_pgvector");
     assert.equal(closeout.empiricalPosture.classification, "under_sampled");
     assert.equal(closeout.empiricalPosture.promotionReady, false);
     assert.equal(closeout.candidateBindings[0]?.branch, "candidate/closeout");
@@ -1800,6 +1805,24 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     );
     assert.match(formatAutoresearchSegmentCloseout(closeout), /adapter boundary:/);
     assert.match(formatAutoresearchSegmentCloseout(closeout), /empirical posture: under_sampled/);
+    assert.match(formatAutoresearchSegmentCloseout(closeout), /Oracle-ready evidence records: 2/);
+
+    const oracleEvidence = buildAutoresearchOracleEvidencePacket(cwd);
+    assert.equal(oracleEvidence.packetKind, "autoresearch.oracle_evidence.v1");
+    assert.equal(oracleEvidence.adapterContractVersion, 1);
+    assert.ok(oracleEvidence.targetKinds.includes("dspx_oracle"));
+    assert.equal(oracleEvidence.records.length, 2);
+    assert.equal(oracleEvidence.records[1]?.hypothesisId, "H-closeout-001");
+    assert.equal(oracleEvidence.records[1]?.candidate?.branch, "candidate/closeout");
+    assert.equal(oracleEvidence.records[1]?.nonAuthority, true);
+    assert.equal(oracleEvidence.publicationPreflight.sharedOracleMutated, false);
+    assert.equal(oracleEvidence.publicationPreflight.localCoordinatesDbMigrated, false);
+    assert.equal(oracleEvidence.publicationPreflight.canonicalAuthorityMutated, false);
+    assert.match(formatAutoresearchOracleEvidencePacket(oracleEvidence), /ORACLE-READY EVIDENCE/);
+    assert.match(
+      formatAutoresearchOracleEvidencePacket(oracleEvidence),
+      /shared Oracle mutated: no/,
+    );
 
     const evidence = buildAutoresearchAkEvidencePacket({ cwd, taskId: 1234 });
     assert.equal(evidence.packetKind, "autoresearch.ak_evidence.v1");
@@ -1892,6 +1915,7 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
       catalog.entries.map((entry) => entry.packetKind),
       [
         "autoresearch.closeout.v1",
+        "autoresearch.oracle_evidence.v1",
         "autoresearch.ak_evidence.v1",
         "autoresearch.candidate_result.v1",
         "autoresearch.learning.v1",
@@ -1906,6 +1930,19 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
 
     const validCandidateResult = validateAutoresearchAdapterPacket(candidateResult);
     assert.equal(validCandidateResult.valid, true);
+
+    const validOracleEvidence = validateAutoresearchAdapterPacket(oracleEvidence);
+    assert.equal(validOracleEvidence.valid, true);
+
+    const invalidOracleEvidence = validateAutoresearchAdapterPacket({
+      ...oracleEvidence,
+      publicationPreflight: { ...oracleEvidence.publicationPreflight, sharedOracleMutated: true },
+    });
+    assert.equal(invalidOracleEvidence.valid, false);
+    assert.match(
+      formatAutoresearchAdapterPacketValidationResult(invalidOracleEvidence),
+      /sharedOracleMutated/,
+    );
 
     const invalidEvidence = validateAutoresearchAdapterPacket({ ...evidence, taskId: 0 });
     assert.equal(invalidEvidence.valid, false);
@@ -4451,6 +4488,23 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(closeout);
     assert.match(closeout?.content[0]?.text ?? "", /SEGMENT CLOSEOUT/);
     assert.match(closeout?.content[0]?.text ?? "", /evidence boundary:/);
+
+    const oracleEvidence = await tool?.execute(
+      "call-4a2",
+      {
+        cwd,
+        action: "oracle_evidence",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(oracleEvidence);
+    assert.match(oracleEvidence?.content[0]?.text ?? "", /ORACLE-READY EVIDENCE/);
+    assert.equal(
+      (oracleEvidence?.details as { packetKind?: string }).packetKind,
+      "autoresearch.oracle_evidence.v1",
+    );
 
     const akEvidence = await tool?.execute(
       "call-4b",

@@ -50,6 +50,7 @@ import {
   buildAutoresearchCandidateDecisionWorkbench,
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchKnowledgeExportPacket,
+  buildAutoresearchOracleEvidencePacket,
   buildAutoresearchPeerAssistPlan,
   buildAutoresearchResumeApplyPlan,
   buildAutoresearchResumePlan,
@@ -74,6 +75,7 @@ import {
   formatAutoresearchDecisionResult,
   formatAutoresearchKnowledgeExportPacket,
   formatAutoresearchLoopResult,
+  formatAutoresearchOracleEvidencePacket,
   formatAutoresearchPeerAssistPlan,
   formatAutoresearchResumeApplyPlan,
   formatAutoresearchResumeApplyResult,
@@ -307,6 +309,7 @@ const statusActionSchema = Type.Union(
     Type.Literal("finalize"),
     Type.Literal("closeout"),
     Type.Literal("ak_evidence"),
+    Type.Literal("oracle_evidence"),
     Type.Literal("learning"),
     Type.Literal("candidate_result"),
     Type.Literal("resume_plan"),
@@ -316,7 +319,7 @@ const statusActionSchema = Type.Union(
   ],
   {
     description:
-      "Inspect status, build package-local closeout/evidence/learning/candidate-result packets, list adapter packet contracts, validate an adapter packet structurally, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
+      "Inspect status, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, list adapter packet contracts, validate an adapter packet structurally, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface.",
   },
 );
 
@@ -1419,9 +1422,9 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/learning/candidate-result packets, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
+      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, exact-task AK evidence packet, adapter-ready learning packet, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, exact-task AK evidence packet, adapter-ready learning packet, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
     parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
@@ -1432,6 +1435,7 @@ export function registerPiAutoresearchExtension(
           | "finalize"
           | "closeout"
           | "ak_evidence"
+          | "oracle_evidence"
           | "learning"
           | "candidate_result"
           | "resume_plan"
@@ -1470,6 +1474,7 @@ export function registerPiAutoresearchExtension(
           "dashboard",
           "closeout",
           "ak_evidence",
+          "oracle_evidence",
           "learning",
           "candidate_result",
           "resume_plan",
@@ -1559,6 +1564,14 @@ export function registerPiAutoresearchExtension(
         const result = buildAutoresearchAkEvidencePacket({ cwd, taskId: request.akTaskId });
         return {
           content: [{ type: "text", text: formatAutoresearchAkEvidencePacket(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "oracle_evidence") {
+        const result = buildAutoresearchOracleEvidencePacket(cwd);
+        return {
+          content: [{ type: "text", text: formatAutoresearchOracleEvidencePacket(result) }],
           details: result,
         };
       }

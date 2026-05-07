@@ -27,13 +27,13 @@ system4d:
 The package owns **bounded empirical packet generation**:
 
 ```text
-run receipts -> segment closeout -> evidence/learning packets
+run receipts -> segment closeout -> evidence/oracle/learning packets
 ```
 
 Adapters own **external persistence and promotion**:
 
 ```text
-packet -> AK / Beads / KES / KMS / notes / issue tracker / custom DB
+packet -> AK / Beads / KES / KMS / notes / issue tracker / DSPx Oracle preflight / custom DB
 ```
 
 This contract lets downstream Pi extensions add their own task, evidence, or knowledge management systems without bloating `pi-autoresearch` or making it the owner of those systems.
@@ -48,6 +48,7 @@ This contract lets downstream Pi extensions add their own task, evidence, or kno
 | Visible candidate worktree creation | `candidate_peer_spawn` / peer tooling |
 | Canonical task state and task evidence | AK, Beads, or the selected task-system adapter |
 | Durable human learning | KES, KMS, notes, or the selected knowledge adapter |
+| Shared empirical memory | DSPx Oracle publication/preflight surfaces; dedicated Oracle Postgres/pgvector where explicitly published |
 | Ontology / semantic meaning | ROCS / ontology owner |
 | Prompt procedures | Prompt Vault |
 
@@ -70,6 +71,52 @@ autoresearch_runtime_status({ action: "validate_packet", packet })
 The validation result has packet kind `autoresearch.adapter_validation.v1`, reports the validated packet kind/version, and lists structural issues. This is intentionally not a target-authority check: adapters still own exact task ids, vault paths, endpoints, dry-run/apply posture, permissions, and persistence receipts.
 
 ## Current packet kinds
+
+### `autoresearch.oracle_evidence.v1`
+
+Produced by:
+
+```ts
+autoresearch_runtime_status({ action: "oracle_evidence", cwd })
+```
+
+Purpose:
+
+- emit run-level Oracle-readable empirical records from the current campaign closeout
+- provide a DSPx-owner preflight handoff for later curated publication
+- preserve the boundary that pi-autoresearch does not write Oracle Postgres, migrate local `coordinates.db`, write AK/KES, choose winners, or promote
+
+Current fields include:
+
+```ts
+interface AutoresearchOracleEvidencePacketV1 {
+  packetKind: "autoresearch.oracle_evidence.v1";
+  adapterContractVersion: 1;
+  targetKinds: Array<"dspx_oracle" | "empirical_memory" | "evidence" | "adapter_source" | string>;
+  cwd: string;
+  campaign: string | null;
+  sourceArtifacts: {
+    closeoutPacketKind: "autoresearch.closeout.v1";
+    receiptPath: string;
+  };
+  records: AutoresearchOracleEvidenceRecord[];
+  publicationPreflight: {
+    status: "ready_for_dspx_owner_review" | "blocked_no_campaign_evidence";
+    target: "dspx_oracle_postgres_pgvector";
+    sharedOracleMutated: false;
+    localCoordinatesDbMigrated: false;
+    canonicalAuthorityMutated: false;
+    blockedReasons: string[];
+    suggestedDspxOwnerAction: string;
+    suggestedDspxPreflightCommandTemplate: string;
+  };
+  adapterBoundary: string;
+  evidenceBoundary: string;
+  authorityBoundary: string;
+}
+```
+
+This packet is deliberately one seam below DSPx publication. A DSPx-owned adapter may map it into DSPx `program-oracle` evidence artifacts and then run `dspx oracle program-evidence publish-preflight`, but `pi-autoresearch` itself does not call DSPx publication commands or mutate shared Oracle memory.
 
 ### `autoresearch.candidate_result.v1`
 
@@ -212,7 +259,7 @@ Current fields include the adapter contract header directly so downstream system
 interface AutoresearchSegmentCloseout {
   packetKind: "autoresearch.closeout.v1";
   adapterContractVersion: 1;
-  targetKinds: Array<"adapter_source" | "evidence" | "learning" | "task_system" | "knowledge_base" | string>;
+  targetKinds: Array<"adapter_source" | "evidence" | "learning" | "task_system" | "knowledge_base" | "dspx_oracle" | "empirical_memory" | string>;
   cwd: string;
   receiptPath: string;
   campaign: string | null;
@@ -234,6 +281,13 @@ interface AutoresearchSegmentCloseout {
   runs: AutoresearchSegmentCloseoutRun[];
   candidateBindings: AutoresearchCandidateBinding[];
   recommendedAction: string;
+  oracleReadyEvidence: {
+    packetKind: "autoresearch.oracle_evidence.v1";
+    recordCount: number;
+    preflightStatus: "ready_for_dspx_owner_review" | "blocked_no_campaign_evidence";
+    target: "dspx_oracle_postgres_pgvector";
+    authorityBoundary: string;
+  };
   adapterBoundary: string;
   evidenceBoundary: string;
 }
@@ -292,7 +346,7 @@ The intended ecosystem is:
 
 ```text
 @tryinget/pi-autoresearch
-  emits: autoresearch.closeout.v1, autoresearch.learning.v1, autoresearch.ak_evidence.v1
+  emits: autoresearch.closeout.v1, autoresearch.oracle_evidence.v1, autoresearch.learning.v1, autoresearch.ak_evidence.v1
 
 third-party / local adapters
   consume packets and write to their own systems
@@ -317,4 +371,5 @@ For v1 packets:
 - no hidden external HTTP writes;
 - no automatic KES file writes;
 - no inference of task identity from campaign names;
-- no ontology updates from empirical packets.
+- no ontology updates from empirical packets;
+- no direct Oracle Postgres writes or local `coordinates.db` migration from `pi-autoresearch`.
