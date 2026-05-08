@@ -3122,6 +3122,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-08"
+        },
+        {
+          "id": "AK-TASK-2622",
+          "title": "Make autoresearch live observe read-only",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Make autoresearch live observe read-only (task #2622)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-08"
         }
       ]
     }
