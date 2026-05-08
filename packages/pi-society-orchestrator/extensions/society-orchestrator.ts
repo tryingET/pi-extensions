@@ -36,6 +36,7 @@
  *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions and start bounded campaigns before attaching supervision
  *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
  *   autoresearch_self_hosting_supervision — Observe one self-hosting campaign artifact set and optionally record bounded AK evidence
+ *   autoresearch_learning_kes_adapter — Plan/materialize package-owned KES candidates from autoresearch.learning.v1 packets
  *   ts_quality_release_workflow    — Coordinate ts-quality local release prep through GitHub Release trusted publishing
  *   loop_execute                   — Execute structured loops
  *   workflow_execute               — Execute chain/parallel workflow compositions
@@ -44,6 +45,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
@@ -51,6 +53,12 @@ import { registerLoopCommands, registerLoopTools } from "../src/loops/engine.ts"
 import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
 import { autoSelectAgent, resolveAgentForTeam } from "../src/runtime/agent-routing.ts";
 import { resolveAkPath } from "../src/runtime/ak.ts";
+import {
+  type AutoresearchLearningKesAdapterAction,
+  type AutoresearchLearningKesAdapterResult,
+  buildAutoresearchLearningKesAdapterResult,
+  loadAutoresearchLearningPacket,
+} from "../src/runtime/autoresearch-learning-kes-adapter.ts";
 import {
   type AutoresearchManifestCampaignEvidenceResult,
   type AutoresearchManifestCampaignObservation,
@@ -126,6 +134,7 @@ const DEFAULT_VAULT_DIR = path.join(
   "prompt-vault-db",
 );
 const AGENT_KERNEL = resolveAkPath({ cwd: process.cwd() });
+const ORCHESTRATOR_PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function resolveVaultDir() {
   return process.env.VAULT_DIR || DEFAULT_VAULT_DIR;
@@ -191,6 +200,14 @@ type AutoresearchSelfHostingSupervisionToolDetails = {
   evidenceAction?: AutoresearchSelfHostingEvidenceResult["action"];
   evidenceVia?: Exclude<AutoresearchSelfHostingEvidenceResult["evidence"], undefined>["via"];
   existingEvidenceId?: number;
+  nextStep?: string;
+  error?: string;
+};
+
+type AutoresearchLearningKesAdapterToolDetails = {
+  ok: boolean;
+  action: AutoresearchLearningKesAdapterAction;
+  result?: AutoresearchLearningKesAdapterResult;
   nextStep?: string;
   error?: string;
 };
@@ -562,6 +579,49 @@ function formatAutoresearchSelfHostingEvidenceReport(
 function createAutoresearchSelfHostingToolResult(
   text: string,
   details: AutoresearchSelfHostingSupervisionToolDetails,
+) {
+  return {
+    content: [{ type: "text" as const, text }],
+    details,
+  };
+}
+
+function formatAutoresearchLearningKesAdapterReport(
+  result: AutoresearchLearningKesAdapterResult,
+): string {
+  const lines = [
+    `Autoresearch learning KES adapter — ${result.action}`,
+    `Status: ${result.status}`,
+    `Package root: ${result.packageRoot}`,
+    `Source: ${result.source.packetKind}`,
+    `Title: ${result.source.title}`,
+    `Campaign: ${result.source.campaign ?? "-"}`,
+    `Suggested source path: ${result.source.suggestedPath}`,
+    `Empirical decision: ${result.source.empiricalDecisionClass ?? "-"}`,
+    `Promotion ready: ${result.source.promotionReady === null ? "-" : String(result.source.promotionReady)}`,
+    `KES diary plan: ${result.kesPlan.diary.relativePath}`,
+    `KES learning candidate: ${result.kesPlan.learningCandidate?.relativePath ?? "-"}`,
+    `Written artifacts: ${result.writtenArtifacts.join(", ") || "-"}`,
+    `pi-autoresearch mutated: ${result.effect.piAutoresearchMutated}`,
+    `AK called: ${result.effect.akCalled}`,
+    `External authority mutated: ${result.effect.externalAuthorityMutated}`,
+    `Promotion state changed: ${result.effect.promotionStateChanged}`,
+    `Boundary: ${result.boundary}`,
+  ];
+
+  lines.push(
+    `Next step: ${
+      result.action === "plan"
+        ? "Review the KES plan; rerun with action=materialize only if the package-owned candidate-only KES write is intended."
+        : "Review the candidate-only KES artifacts before any separate promotion step."
+    }`,
+  );
+  return lines.join("\n");
+}
+
+function createAutoresearchLearningKesAdapterToolResult(
+  text: string,
+  details: AutoresearchLearningKesAdapterToolDetails,
 ) {
   return {
     content: [{ type: "text" as const, text }],
@@ -1825,6 +1885,112 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       return new Text(
         theme.fg(color, `${icon} ${details.action}`) +
           theme.fg("dim", ` ${details.observation?.promotionPosture || "-"}`),
+        0,
+        0,
+      );
+    },
+  });
+
+  // ===========================================================================
+  // TOOL: autoresearch_learning_kes_adapter
+  // ===========================================================================
+
+  registerCompatTool(pi, {
+    name: "autoresearch_learning_kes_adapter",
+    label: "Autoresearch Learning KES Adapter",
+    description:
+      "Plan or explicitly materialize package-owned KES diary and candidate-only learning artifacts from an autoresearch.learning.v1 packet.",
+    promptSnippet:
+      "Consume an autoresearch.learning.v1 packet through the pi-society-orchestrator KES owner seam.",
+    promptGuidelines: [
+      "Use action=plan first to inspect the package-owned KES diary and candidate-learning paths without writing files.",
+      "Use action=materialize only when the caller explicitly wants pi-society-orchestrator to write candidate-only KES artifacts under its diary/ and docs/learnings/ roots.",
+      "Do not use this tool to mutate pi-autoresearch, AK, Prompt Vault, ROCS, Oracle/DSPx, or promotion state.",
+    ],
+    parameters: Type.Object({
+      action: Type.Optional(Type.Union([Type.Literal("plan"), Type.Literal("materialize")])),
+      packetPath: Type.String({
+        description:
+          "Path to an autoresearch.learning.v1 packet JSON file produced by pi-autoresearch.",
+      }),
+      packageRoot: Type.Optional(
+        Type.String({
+          description:
+            "Optional package-owned KES root. Defaults to the installed pi-society-orchestrator package root.",
+        }),
+      ),
+      sessionId: Type.Optional(
+        Type.String({ description: "Optional Pi/session identifier to include in KES metadata." }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      const request = params as {
+        action?: AutoresearchLearningKesAdapterAction;
+        packetPath: string;
+        packageRoot?: string;
+        sessionId?: string;
+      };
+      const action = request.action || "plan";
+
+      try {
+        if (!request.packetPath || request.packetPath.trim().length === 0) {
+          throw new Error("autoresearch_learning_kes_adapter requires packetPath.");
+        }
+        const packet = loadAutoresearchLearningPacket(request.packetPath);
+        const result = buildAutoresearchLearningKesAdapterResult({
+          packageRoot: request.packageRoot || ORCHESTRATOR_PACKAGE_ROOT,
+          packet,
+          action,
+          sessionId: request.sessionId,
+        });
+        return createAutoresearchLearningKesAdapterToolResult(
+          formatAutoresearchLearningKesAdapterReport(result),
+          {
+            ok: true,
+            action,
+            result,
+            nextStep:
+              action === "plan"
+                ? "Review the KES plan, then rerun with action=materialize only if candidate-only package-owned writes are intended."
+                : "Review the written KES candidate artifacts before any separate promotion step.",
+          },
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return createAutoresearchLearningKesAdapterToolResult(
+          `autoresearch_learning_kes_adapter failed: ${message}`,
+          {
+            ok: false,
+            action,
+            error: message,
+          },
+        );
+      }
+    },
+    renderCall(args, theme) {
+      const a = args as { action?: AutoresearchLearningKesAdapterAction; packetPath?: string };
+      const action = a.action || "plan";
+      return new Text(
+        theme.fg("toolTitle", theme.bold("autoresearch_learning_kes_adapter ")) +
+          theme.fg("accent", action) +
+          theme.fg("dim", " — ") +
+          theme.fg("muted", a.packetPath || "(packetPath)"),
+        0,
+        0,
+      );
+    },
+    renderResult(result, _options, theme) {
+      const details = result.details as AutoresearchLearningKesAdapterToolDetails | undefined;
+      if (!details) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text : "", 0, 0);
+      }
+      const icon = details.ok === false ? "✗" : details.action === "materialize" ? "✓" : "•";
+      const color =
+        details.ok === false ? "error" : details.action === "materialize" ? "success" : "accent";
+      return new Text(
+        theme.fg(color, `${icon} ${details.action}`) +
+          theme.fg("dim", ` ${details.result?.status || "failed"}`),
         0,
         0,
       );

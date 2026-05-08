@@ -242,17 +242,25 @@ Threshold-style posture is now landed for both inferred and explicit targets. Ze
 
 The status/dashboard/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. The empirical classifier now keeps explicit threshold misses out of generic promotion-ready improvement, including duration metrics after duration/noise gates pass. The candidate-decision workbench also summarizes metric readiness for threshold, duration-under-sampled, duration-baseline-drift, duration-review-ready, and generic non-duration metrics without letting explicit thresholds bypass duration/noise gates.
 
-### Bet 5 — Consumer-driven adapter proof — first dry-run notes consumer landed
+### Bet 5 — Consumer-driven adapter proof — owner-routed KES proof landed
 
-The first non-AK consumer proof is a dry-run repo-notes adapter example:
+The first non-AK consumer proof started as a dry-run repo-notes adapter example:
 
 ```text
 examples/learning-notes-adapter-consumer.mjs
 ```
 
-It consumes `autoresearch.learning.v1`, validates that the packet targets notes, confines the planned destination to `docs/learnings/`, and emits an `autoresearch.notes_adapter_dry_run.v1` receipt without writing files. This proves the packet contract can support a non-AK consumer while keeping durable learning persistence external to `pi-autoresearch`.
+It consumes `autoresearch.learning.v1`, validates that the packet targets notes, confines the planned destination to `docs/learnings/`, and emits an `autoresearch.notes_adapter_dry_run.v1` receipt without writing files. This proved the packet contract could support a non-AK consumer while keeping durable learning persistence external to `pi-autoresearch`.
 
-Remaining work: replace the example with, or route it through, a real owner package when a concrete KES/notes/KMS adapter is selected for production use.
+The productionized owner-routed proof now lives above the package seam in `pi-society-orchestrator`:
+
+```text
+autoresearch_learning_kes_adapter({ action: "plan" | "materialize", packetPath, packageRoot? })
+```
+
+It consumes the same `autoresearch.learning.v1` packet, validates the `kes` target and `docs/learnings/` suggested path, plans through `pi-society-orchestrator`'s package-owned KES contract, and materializes only explicit candidate-only KES diary/learning artifacts under that owner package. `pi-autoresearch` remains the non-mutating packet producer; it does not write KES, promote learning, mutate AK, or own the adapter platform.
+
+Remaining work: use this owner-routed KES seam in real closeout workflows and add other owner adapters only when a concrete notes/KMS owner is ready.
 
 ### Bet 6 — Visible-candidate production seam — clarified
 
@@ -313,7 +321,7 @@ The resume plan reports snapshot reuse, segment/runtime keys, machine/control st
 
 The next gaps are deliberately bigger than one package-local patch:
 
-1. productionize the dry-run non-AK adapter proof in a real owner package when a concrete KES/notes/KMS surface is selected;
+1. dogfood the owner-routed KES adapter proof against real closeout packets and keep it candidate-only until an explicit promotion owner says otherwise;
 2. land real orchestrator execution bindings for governed Prompt Vault setup/next/finalize paths when that owner surface is ready;
 3. improve visible-candidate handoff ergonomics across peer tooling and candidate binding only where the strict dogfood contract exposes repeated friction, without changing ownership;
 4. dogfood `/autoresearch resume` in the live Pi UI after reload, then decide whether budget presets or broader reviewed campaign-continuation UX are warranted.
@@ -323,7 +331,7 @@ The next gaps are deliberately bigger than one package-local patch:
 | Concern | Owner |
 |---|---|
 | Local experiment runtime, receipts, empirical interpretation, closeout packets | `packages/pi-autoresearch` |
-| Runtime live supervision, manifest-campaign observation/evidence-only projection, and self-hosting observation/evidence-only projection above the package seam | `packages/pi-society-orchestrator` |
+| Runtime live supervision, manifest-campaign observation/evidence-only projection, self-hosting observation/evidence-only projection, and owner-routed KES adapter proof above the package seam | `packages/pi-society-orchestrator` |
 | Visible peer launch and candidate worktree creation | `packages/pi-little-helpers` / peer tooling |
 | Peer/intercom communication | `packages/pi-peer-messaging` |
 | Durable task truth and evidence lifecycle | AK / evidence owner surfaces |

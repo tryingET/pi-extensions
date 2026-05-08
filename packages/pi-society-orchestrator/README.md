@@ -127,6 +127,7 @@ Primary tools and commands exposed by the imported extension include:
 - `autoresearch_live_supervision` (exact-task live `pi-autoresearch` status/observe/start/stop, plus `action=start_campaign` to delegate one bounded campaign start to `pi-autoresearch` and then supervise it)
 - `autoresearch_manifest_campaign_supervision` (one-shot exact-manifest observation + evidence-only AK projection for manifest-driven `pi-autoresearch` campaigns)
 - `autoresearch_self_hosting_supervision` (one-shot self-hosting artifact observation + evidence-only AK projection for `pi-autoresearch` supervised self-hosting campaigns)
+- `autoresearch_learning_kes_adapter` (owner-routed KES consumer for `autoresearch.learning.v1`; plans first, and only `action=materialize` writes candidate-only package-owned KES diary/learning artifacts)
 - `ts_quality_release_workflow` (Pi Society wrapper around the `ts-quality` local release-prep leaves and GitHub Release-triggered npm Trusted Publishing path)
 - `/cognitive` (registered by `extensions/runtime-footer.ts` so cognitive-tool discovery survives lazy model-tool startup)
 - `/agents-team` (registered by `extensions/runtime-footer.ts`; session-identity-scoped routing-scope selection for direct-dispatch and loop agents; the internal `full` team is now presented to operators as `all agents`, and incompatible loop/team combinations fail explicitly instead of silently swapping roles)
@@ -179,6 +180,10 @@ Primary tools and commands exposed by the imported extension include:
   - package vision anchor: [pi-autoresearch vision](../pi-autoresearch/docs/project/vision.md)
   - tool: `autoresearch_self_hosting_supervision`
   - current truth: read exact `autoresearch.self-hosting.json`, evaluator lock, and promotion/rollback record artifacts from an explicit package cwd; verify evaluator snapshot hashes; optionally record deduped exact-task AK evidence; do not run candidates, mutate evaluator locks, reclassify applicability, approve promotion, rotate/rollback controllers, spawn peers, or complete tasks.
+- `pi-autoresearch` learning packets now have a real owner-routed KES consumer proof:
+  - tool: `autoresearch_learning_kes_adapter`
+  - source packet: `autoresearch.learning.v1` from `pi-autoresearch`
+  - current truth: `action=plan` validates and previews package-owned KES diary plus candidate-learning drafts without writing; `action=materialize` explicitly writes only `pi-society-orchestrator` KES artifacts under `diary/` and `docs/learnings/`; neither action mutates `pi-autoresearch`, AK, Prompt Vault, ROCS, Oracle/DSPx, external authority, or promotion state.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Package-owned KES activation
@@ -189,7 +194,8 @@ The first bounded KES wave after the prompt-plane cutover is now complete throug
 - the only allowed artifact roots for that seam are `diary/` and `docs/learnings/`
 - learning outputs stay **candidate-only** until a later explicit promotion step says otherwise
 - loop execution consumes this seam: every run writes package-owned KES diary artifacts under `diary/`, and crystallization-oriented phases stage candidate-only learning artifacts under `docs/learnings/`
-- invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and structured `loop_execute` failure surface
+- `autoresearch_learning_kes_adapter` consumes `autoresearch.learning.v1` packets through this same owner seam and keeps learning outputs candidate-only
+- invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and structured failure surfaces
 - package checks, installed-package release smoke, and repo-root validation now prove that path strongly enough to treat the first KES packet and first TG3 hardening slice as landed truth
 - set `PI_ORCH_KES_ROOT` only when you intentionally need a different writable package-owned root during testing or smoke validation
 
