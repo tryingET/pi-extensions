@@ -3135,6 +3135,32 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-08"
+        },
+        {
+          "id": "AK-TASK-2629",
+          "title": "Materialize exact Pi wake-up participation carrier for FCOS-M48 steward continuity",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Materialize exact Pi wake-up participation carrier for FCOS-M48 steward continuity (task #2629)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-08"
+        },
+        {
+          "id": "AK-TASK-2631",
+          "title": "Add owner-routed KES adapter proof for autoresearch learning packets",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add owner-routed KES adapter proof for autoresearch learning packets (task #2631)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-08"
         }
       ]
     }
