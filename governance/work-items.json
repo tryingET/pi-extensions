@@ -3109,6 +3109,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-07"
+        },
+        {
+          "id": "AK-TASK-2621",
+          "title": "Harden autoresearch Oracle evidence export effect boundary",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden autoresearch Oracle evidence export effect boundary (task #2621)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-08"
         }
       ]
     }
