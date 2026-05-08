@@ -1828,19 +1828,26 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     );
     assert.match(
       oracleEvidence.publicationPreflight.suggestedDspxPreflightCommandTemplate,
-      /dspx oracle autoresearch-evidence publish-preflight/u,
+      /'dspx' 'oracle' 'autoresearch-evidence' 'publish-preflight'/u,
     );
 
     const exportedOracleEvidence = writeAutoresearchOracleEvidencePacket({ cwd });
     assert.equal(exportedOracleEvidence.exportKind, "autoresearch.oracle_evidence_export.v1");
     assert.equal(exportedOracleEvidence.packet.records.length, 2);
     assert.ok(exportedOracleEvidence.path.endsWith(AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE));
+    assert.equal(
+      exportedOracleEvidence.path,
+      path.join(cwd, AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE),
+    );
     assert.equal(exportedOracleEvidence.effect.sharedOracleMutated, false);
     assert.equal(exportedOracleEvidence.effect.localCoordinatesDbMigrated, false);
     assert.equal(exportedOracleEvidence.effect.canonicalAuthorityMutated, false);
     assert.match(
       exportedOracleEvidence.suggestedDspxPreflightCommand,
-      /dspx oracle autoresearch-evidence publish-preflight/u,
+      /'dspx' 'oracle' 'autoresearch-evidence' 'publish-preflight'/u,
+    );
+    assert.ok(
+      exportedOracleEvidence.suggestedDspxPreflightArgv.includes(exportedOracleEvidence.path),
     );
     assert.match(
       formatAutoresearchOracleEvidenceExportResult(exportedOracleEvidence),
@@ -1849,6 +1856,24 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     const exportedPayload = JSON.parse(readFileSync(exportedOracleEvidence.path, "utf8"));
     assert.equal(exportedPayload.packetKind, "autoresearch.oracle_evidence.v1");
     assert.equal(exportedPayload.records.length, 2);
+    assert.throws(
+      () => writeAutoresearchOracleEvidencePacket({ cwd }),
+      /already exists; pass overwrite=true/u,
+    );
+    assert.doesNotThrow(() => writeAutoresearchOracleEvidencePacket({ cwd, overwrite: true }));
+    assert.throws(
+      () => writeAutoresearchOracleEvidencePacket({ cwd, outPath: "/tmp/oracle.json" }),
+      /must be relative/u,
+    );
+    assert.throws(
+      () => writeAutoresearchOracleEvidencePacket({ cwd, outPath: "../oracle.json" }),
+      /must stay inside/u,
+    );
+    const weirdExport = writeAutoresearchOracleEvidencePacket({
+      cwd,
+      outPath: "safe-$(not-executed).json",
+    });
+    assert.match(weirdExport.suggestedDspxPreflightCommand, /'[^']*\$\(not-executed\)\.json'/u);
 
     const evidence = buildAutoresearchAkEvidencePacket({ cwd, taskId: 1234 });
     assert.equal(evidence.packetKind, "autoresearch.ak_evidence.v1");
@@ -4538,7 +4563,7 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
       {
         cwd,
         action: "oracle_evidence_export",
-        outPath: oracleExportPath,
+        outPath: "status-oracle-evidence.json",
       },
       undefined,
       undefined,
@@ -4548,7 +4573,7 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.match(oracleEvidenceExport?.content[0]?.text ?? "", /ORACLE EVIDENCE EXPORT/);
     assert.match(
       oracleEvidenceExport?.content[0]?.text ?? "",
-      /dspx oracle autoresearch-evidence publish-preflight/,
+      /'dspx' 'oracle' 'autoresearch-evidence' 'publish-preflight'/,
     );
     assert.equal(
       (oracleEvidenceExport?.details as { exportKind?: string }).exportKind,
@@ -4709,6 +4734,29 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.ok(finalize);
     assert.match(finalize?.content[0]?.text ?? "", /kind: finalize/);
     assert.match(finalize?.content[0]?.text ?? "", /template: pi-autoresearch-finalize/);
+  });
+});
+
+test("autoresearch_runtime_status read profile rejects Oracle evidence export writes", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness({ effectProfile: "read" });
+    const tool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
+    assert.ok(tool);
+
+    await assert.rejects(
+      () =>
+        Promise.resolve(
+          tool.execute(
+            "read-oracle-export",
+            { cwd, action: "oracle_evidence_export" },
+            undefined,
+            undefined,
+            { cwd },
+          ),
+        ),
+      /read profile/u,
+    );
+    assert.equal(existsSync(path.join(cwd, AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE)), false);
   });
 });
 

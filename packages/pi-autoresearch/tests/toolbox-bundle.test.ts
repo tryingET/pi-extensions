@@ -82,13 +82,33 @@ test("autoresearch read toolbox profile mechanically rejects mutating actions", 
 
   registerToolboxBundle(harness.pi as never, {
     profile: "read",
-    requestedTools: ["autoresearch_runtime_control", "autoresearch_runtime_run"],
+    requestedTools: [
+      "autoresearch_runtime_status",
+      "autoresearch_runtime_control",
+      "autoresearch_runtime_run",
+    ],
   });
 
+  const statusTool = harness.tools.get("autoresearch_runtime_status");
   const controlTool = harness.tools.get("autoresearch_runtime_control");
   const runTool = harness.tools.get("autoresearch_runtime_run");
+  assert.ok(statusTool?.execute);
   assert.ok(controlTool?.execute);
   assert.ok(runTool?.execute);
+
+  await assert.rejects(
+    () =>
+      Promise.resolve(
+        statusTool.execute?.(
+          "read-status-export",
+          { cwd: process.cwd(), action: "oracle_evidence_export" },
+          undefined,
+          undefined,
+          { cwd: process.cwd() },
+        ),
+      ),
+    /read profile/,
+  );
 
   await assert.rejects(
     () =>

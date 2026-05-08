@@ -274,10 +274,13 @@ function formatAutoresearchLivePollExtras(
       `Oracle-ready evidence: ${poll.observation.oracleEvidence.records.length} record(s); preflight=${poll.observation.oracleEvidence.publicationPreflight.status}`,
     );
     lines.push(
-      `DSPx preflight command: ${poll.observation.oracleEvidence.publicationPreflight.suggestedDspxPreflightCommandTemplate}`,
+      'Export first: autoresearch_runtime_status({ action: "oracle_evidence_export", cwd, overwrite: true })',
     );
     lines.push(
-      "Oracle boundary: reported as DSPx empirical-memory handoff only; export the packet from pi-autoresearch before DSPx preflight; orchestrator does not write Oracle Postgres, migrate local coordinates.db, or make Oracle memory authoritative.",
+      `DSPx preflight command template: ${poll.observation.oracleEvidence.publicationPreflight.suggestedDspxPreflightCommandTemplate}`,
+    );
+    lines.push(
+      "Oracle boundary: reported as DSPx empirical-memory handoff only; pi-autoresearch export is an explicit local file write, DSPx owns preflight/shared writes, and orchestrator does not write Oracle Postgres, migrate local coordinates.db, or make Oracle memory authoritative.",
     );
   }
   if (poll.projector) {

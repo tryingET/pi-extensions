@@ -332,7 +332,13 @@ const statusSchema = Type.Object({
   outPath: Type.Optional(
     Type.String({
       description:
-        "Optional output path for action=oracle_evidence_export. Relative paths resolve under cwd; default is .autoresearch/oracle_evidence.json.",
+        "Optional output path for action=oracle_evidence_export. Must be relative under cwd/.autoresearch; default is .autoresearch/oracle_evidence.json.",
+    }),
+  ),
+  overwrite: Type.Optional(
+    Type.Boolean({
+      description:
+        "Required as true for action=oracle_evidence_export when the target JSON file already exists.",
     }),
   ),
   optimizationObjective: Type.Optional(
@@ -1454,6 +1460,7 @@ export function registerPiAutoresearchExtension(
           | "validate_packet";
         cwd?: string;
         outPath?: string;
+        overwrite?: boolean;
         packet?: unknown;
         optimizationObjective?: string;
         repoContext?: string[];
@@ -1486,7 +1493,6 @@ export function registerPiAutoresearchExtension(
           "closeout",
           "ak_evidence",
           "oracle_evidence",
-          "oracle_evidence_export",
           "learning",
           "candidate_result",
           "resume_plan",
@@ -1589,7 +1595,11 @@ export function registerPiAutoresearchExtension(
       }
 
       if (action === "oracle_evidence_export") {
-        const result = writeAutoresearchOracleEvidencePacket({ cwd, outPath: request.outPath });
+        const result = writeAutoresearchOracleEvidencePacket({
+          cwd,
+          outPath: request.outPath,
+          overwrite: request.overwrite,
+        });
         return {
           content: [{ type: "text", text: formatAutoresearchOracleEvidenceExportResult(result) }],
           details: result,

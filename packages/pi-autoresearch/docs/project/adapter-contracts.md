@@ -117,7 +117,7 @@ interface AutoresearchOracleEvidencePacketV1 {
 }
 ```
 
-This packet is deliberately one seam below DSPx publication. `action: "oracle_evidence_export"` writes the packet JSON locally (default `.autoresearch/oracle_evidence.json`) so the DSPx owner surface can run `dspx oracle autoresearch-evidence publish-preflight --packet <autoresearch_oracle_evidence.json> ...`. `pi-autoresearch` itself does not call DSPx publication commands, write Oracle Postgres, or mutate shared Oracle memory.
+This packet is deliberately one seam below DSPx publication. `action: "oracle_evidence_export"` writes the packet JSON locally under `cwd/.autoresearch/` (default `.autoresearch/oracle_evidence.json`) so the DSPx owner surface can run `dspx oracle autoresearch-evidence publish-preflight --packet <exported-packet> ...`. The export action is a local write, is not available in read profile, rejects absolute/path-escape destinations, and requires `overwrite: true` when replacing an existing file. `pi-autoresearch` itself does not call DSPx publication commands, write Oracle Postgres, or mutate shared Oracle memory.
 
 ### `autoresearch.candidate_result.v1`
 

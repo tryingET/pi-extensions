@@ -444,6 +444,7 @@ export interface AutoresearchOracleEvidenceExportResult {
   path: string;
   packet: AutoresearchOracleEvidencePacket;
   suggestedDspxPreflightCommand: string;
+  suggestedDspxPreflightArgv: string[];
   effect: {
     localFileWritten: true;
     sharedOracleMutated: false;
@@ -3612,7 +3613,7 @@ function buildAutoresearchOraclePublicationPreflightSummary(
         ? "collect at least one bounded campaign run before preparing DSPx Oracle publication preflight"
         : "map this packet into DSPx-owned program-oracle evidence artifacts, then run DSPx publication preflight from the DSPx owner surface before any shared write",
     suggestedDspxPreflightCommandTemplate:
-      "dspx oracle autoresearch-evidence publish-preflight --packet <autoresearch_oracle_evidence.json> --target shared-postgres --publication-label retained --publisher-id <operator-or-session-id> --publisher-role operator --publisher-assertion <why-this-behavior-memory-should-be-retained> --redaction-status checked --retention-class retained_behavior_memory --out <autoresearch_oracle_publication_preflight.json> --json",
+      "'dspx' 'oracle' 'autoresearch-evidence' 'publish-preflight' '--packet' '<autoresearch_oracle_evidence.json>' '--target' 'shared-postgres' '--publication-label' 'retained' '--publisher-id' '<operator-or-session-id>' '--publisher-role' 'operator' '--publisher-assertion' '<why-this-behavior-memory-should-be-retained>' '--redaction-status' 'checked' '--retention-class' 'retained_behavior_memory' '--out' '<autoresearch_oracle_publication_preflight.json>' '--json'",
   };
 }
 
@@ -3658,43 +3659,96 @@ export function buildAutoresearchOracleEvidencePacket(
   };
 }
 
-function resolveAutoresearchOracleEvidenceExportPath(cwd: string, outPath?: string): string {
-  const resolvedCwd = path.resolve(cwd);
-  const requestedPath = outPath?.trim() || AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE;
-  return path.isAbsolute(requestedPath)
-    ? path.resolve(requestedPath)
-    : path.resolve(resolvedCwd, requestedPath);
+function assertPathInsideDirectory(input: {
+  candidate: string;
+  root: string;
+  label: string;
+}): void {
+  const relative = path.relative(input.root, input.candidate);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`${input.label} must stay inside ${input.root}: ${input.candidate}`);
+  }
 }
 
-function buildDspxAutoresearchPreflightCommand(packetPath: string): string {
+function resolveAutoresearchOracleEvidenceExportPath(cwd: string, outPath?: string): string {
+  const resolvedCwd = path.resolve(cwd);
+  const exportRoot = path.resolve(resolvedCwd, ".autoresearch");
+  const requestedPath = outPath?.trim() || AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE;
+  if (path.isAbsolute(requestedPath)) {
+    throw new Error(
+      "oracle evidence export outPath must be relative to cwd/.autoresearch, not absolute",
+    );
+  }
+  const relativePath = requestedPath.startsWith(".autoresearch/")
+    ? requestedPath.slice(".autoresearch/".length)
+    : requestedPath;
+  const outputPath = path.resolve(exportRoot, relativePath);
+  assertPathInsideDirectory({
+    candidate: outputPath,
+    root: exportRoot,
+    label: "oracle evidence export path",
+  });
+  return outputPath;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function buildDspxAutoresearchPreflightArgv(packetPath: string): string[] {
   return [
-    "dspx oracle autoresearch-evidence publish-preflight",
-    `--packet ${JSON.stringify(packetPath)}`,
-    "--target shared-postgres",
-    "--publication-label retained",
-    "--publisher-id <operator-or-session-id>",
-    "--publisher-role operator",
-    "--publisher-assertion <why-this-behavior-memory-should-be-retained>",
-    "--redaction-status checked",
-    "--retention-class retained_behavior_memory",
-    "--out <autoresearch_oracle_publication_preflight.json>",
+    "dspx",
+    "oracle",
+    "autoresearch-evidence",
+    "publish-preflight",
+    "--packet",
+    packetPath,
+    "--target",
+    "shared-postgres",
+    "--publication-label",
+    "retained",
+    "--publisher-id",
+    "<operator-or-session-id>",
+    "--publisher-role",
+    "operator",
+    "--publisher-assertion",
+    "<why-this-behavior-memory-should-be-retained>",
+    "--redaction-status",
+    "checked",
+    "--retention-class",
+    "retained_behavior_memory",
+    "--out",
+    "<autoresearch_oracle_publication_preflight.json>",
     "--json",
-  ].join(" ");
+  ];
+}
+
+function formatShellCommand(argv: readonly string[]): string {
+  return argv.map(shellQuote).join(" ");
 }
 
 export function writeAutoresearchOracleEvidencePacket(input: {
   cwd: string;
   outPath?: string;
+  overwrite?: boolean;
 }): AutoresearchOracleEvidenceExportResult {
   const packet = buildAutoresearchOracleEvidencePacket(input.cwd);
   const outputPath = resolveAutoresearchOracleEvidenceExportPath(input.cwd, input.outPath);
+  if (existsSync(outputPath) && input.overwrite !== true) {
+    throw new Error(
+      `oracle evidence export already exists; pass overwrite=true to replace it: ${outputPath}`,
+    );
+  }
   mkdirSync(path.dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
   return {
     exportKind: "autoresearch.oracle_evidence_export.v1",
     path: outputPath,
     packet,
-    suggestedDspxPreflightCommand: buildDspxAutoresearchPreflightCommand(outputPath),
+    suggestedDspxPreflightCommand: formatShellCommand(
+      buildDspxAutoresearchPreflightArgv(outputPath),
+    ),
+    suggestedDspxPreflightArgv: buildDspxAutoresearchPreflightArgv(outputPath),
     effect: {
       localFileWritten: true,
       sharedOracleMutated: false,
