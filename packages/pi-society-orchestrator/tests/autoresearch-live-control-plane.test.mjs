@@ -240,7 +240,7 @@ test("autoresearch_live_supervision lists active sessions and enforces exact ide
   assert.match(invalid.content[0].text, /requires taskId and cwd together/i);
 });
 
-test("autoresearch_live_supervision observe reports one-shot lifecycle completion without keeping a session", async () => {
+test("autoresearch_live_supervision observe reports read-only completion without keeping a session", async () => {
   const cwd = "/tmp/live-observe-complete";
   let observeCalls = 0;
   const runner = new AutoresearchLiveSupervisionRunner({
@@ -269,12 +269,12 @@ test("autoresearch_live_supervision observe reports one-shot lifecycle completio
     }),
     inspectFinalization: async ({ cwd: observedCwd, status }) =>
       createFinalizationInspection(observedCwd, status),
-    projectMilestone: async () => createProjectorResult({ milestone: "completed" }),
-    evaluateLifecycle: async ({ taskId }) => ({
-      ok: true,
-      action: "completed_task",
-      summary: `AK task ${taskId} completed after verified local finalization materialization.`,
-    }),
+    projectMilestone: async () => {
+      throw new Error("observe must not project milestones");
+    },
+    evaluateLifecycle: async () => {
+      throw new Error("observe must not evaluate lifecycle");
+    },
   });
   const tool = registerAutoresearchLiveTool(runner);
 
@@ -289,9 +289,10 @@ test("autoresearch_live_supervision observe reports one-shot lifecycle completio
   assert.equal(observed.details.ok, true);
   assert.equal(observed.details.action, "observe");
   assert.equal(observed.details.session.state, "completed");
-  assert.equal(observed.details.lifecycle.action, "completed_task");
+  assert.equal(observed.details.lifecycle, null);
+  assert.equal(observed.details.projector, null);
   assert.match(observed.content[0].text, /Observed runtime state: completed/);
-  assert.match(observed.content[0].text, /Lifecycle outcome: completed_task/);
+  assert.doesNotMatch(observed.content[0].text, /Lifecycle outcome:/);
   assert.equal(runner.getSession({ taskId: 1546, cwd }), null);
   assert.equal(observeCalls, 1);
 

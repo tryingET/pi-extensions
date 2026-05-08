@@ -301,8 +301,10 @@ test("concurrent start calls for the same key reuse one live session", async () 
   assert.equal(scheduler.pendingCount(), 1);
 });
 
-test("observe performs a one-shot poll without creating a background session", async () => {
+test("observe performs a read-only one-shot poll without creating a background session", async () => {
   const scheduler = new FakeScheduler();
+  let projectorCalls = 0;
+  let lifecycleCalls = 0;
   const runner = new AutoresearchLiveSupervisionRunner({
     setTimeout: scheduler.setTimeout,
     clearTimeout: scheduler.clearTimeout,
@@ -328,11 +330,22 @@ test("observe performs a one-shot poll without creating a background session", a
       context: { blockedReason: null, completionReason: null },
     }),
     inspectFinalization: async ({ cwd, status }) => createFinalizationInspection(cwd, status),
-    projectMilestone: async ({ observation }) => createNoopProjectorResult(observation.runtime),
+    projectMilestone: async ({ observation }) => {
+      projectorCalls += 1;
+      return createNoopProjectorResult(observation.runtime);
+    },
+    evaluateLifecycle: async () => {
+      lifecycleCalls += 1;
+      return { ok: true, action: "none", summary: "should not run" };
+    },
   });
 
   const result = await runner.observe({ taskId: 1544, cwd: "/tmp/observe-once" });
   assert.equal(result.session.state, "running");
+  assert.equal(result.projector, null);
+  assert.equal(result.lifecycle, null);
+  assert.equal(projectorCalls, 0);
+  assert.equal(lifecycleCalls, 0);
   assert.equal(scheduler.pendingCount(), 0);
   assert.equal(runner.getSession({ taskId: 1544, cwd: "/tmp/observe-once" }), null);
 });

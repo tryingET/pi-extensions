@@ -338,14 +338,14 @@ export class AutoresearchLiveSupervisionRunner {
   async observe(input: AutoresearchLiveSupervisionRequest): Promise<AutoresearchLivePollResult> {
     const identity = resolveAutoresearchLiveSupervisionIdentity(input);
     const existing = this.sessions.get(identity.sessionKey);
-
-    if (existing && existing.session.state === "running") {
-      return this.runPoll(existing, { signal: input.signal, reschedule: false });
-    }
-
-    const policy = resolveAutoresearchLiveSupervisionPolicy(input.intervalSeconds);
-    const record = this.createRecord(identity, policy, false);
-    return this.runPoll(record, { signal: input.signal, reschedule: false });
+    const policy =
+      existing?.session.policy ?? resolveAutoresearchLiveSupervisionPolicy(input.intervalSeconds);
+    return this.executeReadOnlyObservation({
+      identity,
+      policy,
+      previousSession: existing?.session ?? null,
+      signal: input.signal,
+    });
   }
 
   async start(input: AutoresearchLiveSupervisionRequest): Promise<AutoresearchLiveStartResult> {
@@ -532,6 +532,79 @@ export class AutoresearchLiveSupervisionRunner {
 
     record.inFlight = promise;
     return promise;
+  }
+
+  private async executeReadOnlyObservation(input: {
+    identity: SessionIdentity;
+    policy: AutoresearchLiveSupervisionPolicyV1;
+    previousSession: AutoresearchLiveSupervisionSessionV1 | null;
+    signal?: AbortSignal;
+  }): Promise<AutoresearchLivePollResult> {
+    try {
+      const observation = await readAutoresearchLiveObservation(
+        { cwd: input.identity.cwd },
+        {
+          observeRuntime: this.config.observeRuntime,
+          loadLedger: this.config.loadLedger,
+          projectLedgerEntries: this.config.projectLedgerEntries,
+          inspectFinalization: this.config.inspectFinalization,
+          observeOracleEvidence: this.config.observeOracleEvidence,
+        },
+      );
+      const previous = input.previousSession;
+      const state = deriveReadOnlyObservationState(observation);
+      const session: AutoresearchLiveSupervisionSessionV1 = {
+        type: AUTORESEARCH_LIVE_SUPERVISION_TYPE,
+        version: AUTORESEARCH_LIVE_SUPERVISION_VERSION,
+        taskId: input.identity.taskId,
+        cwd: input.identity.cwd,
+        policy: { ...input.policy },
+        state,
+        startedAt: previous?.startedAt ?? this.now(),
+        lastPolledAt: this.now(),
+        pollCount: (previous?.pollCount ?? 0) + 1,
+        lastRuntimeState: observation.runtime.runtimeProjection.state,
+        lastProjectionAction: null,
+        lastLifecycleAction: "none",
+        lastSummary:
+          "Read-only observation only; no milestone projection or lifecycle mutation was attempted.",
+        lastError: null,
+      };
+      return {
+        sessionKey: input.identity.sessionKey,
+        session,
+        observation,
+        projector: null,
+        lifecycle: null,
+        nextStep: describeAutoresearchLiveNextStep(session),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const session: AutoresearchLiveSupervisionSessionV1 = {
+        type: AUTORESEARCH_LIVE_SUPERVISION_TYPE,
+        version: AUTORESEARCH_LIVE_SUPERVISION_VERSION,
+        taskId: input.identity.taskId,
+        cwd: input.identity.cwd,
+        policy: { ...input.policy },
+        state: "blocked",
+        startedAt: input.previousSession?.startedAt ?? this.now(),
+        lastPolledAt: this.now(),
+        pollCount: (input.previousSession?.pollCount ?? 0) + 1,
+        lastRuntimeState: null,
+        lastProjectionAction: null,
+        lastLifecycleAction: "none",
+        lastSummary: message,
+        lastError: message,
+      };
+      return {
+        sessionKey: input.identity.sessionKey,
+        session,
+        observation: null,
+        projector: null,
+        lifecycle: null,
+        nextStep: describeAutoresearchLiveNextStep(session),
+      };
+    }
   }
 
   private async executePoll(
@@ -725,6 +798,15 @@ export class AutoresearchLiveSupervisionRunner {
   private resolveSocietyDbPath(): string {
     return this.config.societyDb || DEFAULT_SOCIETY_DB;
   }
+}
+
+function deriveReadOnlyObservationState(
+  observation: AutoresearchLiveObservation,
+): AutoresearchLiveSessionState {
+  const runtimeState = observation.runtime.runtimeProjection.state;
+  if (runtimeState === "completed") return "completed";
+  if (runtimeState === "blocked") return "blocked";
+  return "running";
 }
 
 function deriveSessionState(
