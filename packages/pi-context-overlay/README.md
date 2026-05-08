@@ -24,6 +24,8 @@ It does **not** belong in `packages/pi-interaction/` because it is not an intera
 - helps open context-related files in zellij
 - ships the `context-report` prompt
 
+For `FCOS-M48` steward-continuity work, this package is the exact Pi wake-up presentation carrier named by `../../docs/project/2026-05-08-fcos-m48-pi-wakeup-carrier.md`. That means it participates in wake-up/context presentation; it does not own canonical continuity state.
+
 So the right monorepo home is its own package seam:
 - package path: `packages/pi-context-overlay`
 - release component: `pi-context-overlay`

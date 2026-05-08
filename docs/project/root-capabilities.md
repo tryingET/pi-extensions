@@ -56,6 +56,8 @@ system4d:
   - `README.md`
   - `README.terse.md`
   - `docs/project/root-capabilities.md`
+  - `docs/project/2026-05-08-fcos-m48-pi-wakeup-carrier.md`
+    - exact Pi/host-runtime carrier boundary for FCOS-M48 steward-continuity wake-up participation; names `pi-context-overlay` as the presentation carrier and `pi-provenance` as the minimal runtime provenance helper without making Pi continuity-state authority
 - live inventory/audit helpers that those root docs should stay aligned with:
   - `scripts/release-components.mjs`
   - `scripts/tech-stack-review-surfaces.mjs`
