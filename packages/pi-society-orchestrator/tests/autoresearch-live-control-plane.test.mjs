@@ -488,6 +488,9 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
     evaluateLifecycle: async () => ({ ok: true, action: "none", summary: "no mutation" }),
   });
   const tool = registerAutoresearchLiveTool(runner);
+  assert.ok(tool.parameters.properties.filesInScope, "start_campaign schema exposes filesInScope");
+  assert.ok(tool.parameters.properties.offLimits, "start_campaign schema exposes offLimits");
+  assert.ok(tool.parameters.properties.constraints, "start_campaign schema exposes constraints");
 
   const result = await tool.execute(
     "tc-start-campaign-dspx",
@@ -505,6 +508,9 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
       dspxBehaviorPath: ".autoresearch/dspx/behavior_results.json",
       metricThreshold: 0,
       reconfigure: true,
+      filesInScope: ["packages/pi-autoresearch/src/core/runtime.ts"],
+      offLimits: ["packages/pi-autoresearch/autoresearch.runtime.json"],
+      constraints: ["bounded orchestrator seam only"],
     },
     undefined,
     undefined,
@@ -521,6 +527,11 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
   assert.equal(campaignCalls[0].dspxBehaviorPath, ".autoresearch/dspx/behavior_results.json");
   assert.equal(campaignCalls[0].metricThreshold, 0);
   assert.equal(campaignCalls[0].reconfigure, true);
+  assert.deepEqual(campaignCalls[0].filesInScope, ["packages/pi-autoresearch/src/core/runtime.ts"]);
+  assert.deepEqual(campaignCalls[0].offLimits, [
+    "packages/pi-autoresearch/autoresearch.runtime.json",
+  ]);
+  assert.deepEqual(campaignCalls[0].constraints, ["bounded orchestrator seam only"]);
   assert.equal(campaignCalls[0].peerMode, "plan");
   assert.match(result.content[0].text, /Planner: dspx_program/);
   assert.match(result.content[0].text, /DSPx generated DSPy planner assembly/);
@@ -574,6 +585,9 @@ test("AutoresearchLiveSupervisionRunner startCampaign pins bounded delegation de
       maxWallClockMinutes: campaignCalls[0].maxWallClockMinutes,
       metricThreshold: campaignCalls[0].metricThreshold,
       reconfigure: campaignCalls[0].reconfigure,
+      filesInScope: campaignCalls[0].filesInScope,
+      offLimits: campaignCalls[0].offLimits,
+      constraints: campaignCalls[0].constraints,
       peerMode: campaignCalls[0].peerMode,
     },
     {
@@ -585,6 +599,9 @@ test("AutoresearchLiveSupervisionRunner startCampaign pins bounded delegation de
       maxWallClockMinutes: 30,
       metricThreshold: undefined,
       reconfigure: undefined,
+      filesInScope: undefined,
+      offLimits: undefined,
+      constraints: undefined,
       peerMode: "plan",
     },
   );

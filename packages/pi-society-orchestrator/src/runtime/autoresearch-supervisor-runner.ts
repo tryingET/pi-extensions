@@ -135,6 +135,9 @@ export interface AutoresearchLiveStartCampaignRequest extends AutoresearchLiveSu
   direction?: "lower" | "higher";
   metricThreshold?: number;
   reconfigure?: boolean;
+  filesInScope?: readonly string[];
+  offLimits?: readonly string[];
+  constraints?: readonly string[];
   planner?: AutoresearchAutoplanPlanner;
   materializeDspxIntent?: boolean;
   runDspxProgramGen?: boolean;
@@ -411,6 +414,9 @@ export class AutoresearchLiveSupervisionRunner {
       direction: input.direction,
       metricThreshold: input.metricThreshold,
       reconfigure: input.reconfigure,
+      filesInScope: input.filesInScope,
+      offLimits: input.offLimits,
+      constraints: input.constraints,
       planner: input.planner,
       materializeDspxIntent: input.materializeDspxIntent,
       runDspxProgramGen: input.runDspxProgramGen,

@@ -1345,6 +1345,24 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             "When true, ask pi-autoresearch to append a fresh config segment for action=start_campaign instead of continuing the active segment.",
         }),
       ),
+      filesInScope: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Optional file/path scope forwarded to pi-autoresearch for action=start_campaign peer handoff planning.",
+        }),
+      ),
+      offLimits: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Optional off-limits file/path specs forwarded to pi-autoresearch for action=start_campaign peer handoff planning.",
+        }),
+      ),
+      constraints: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Optional hard constraints forwarded to pi-autoresearch for action=start_campaign peer handoff planning.",
+        }),
+      ),
       planner: Type.Optional(Type.Union([Type.Literal("heuristic"), Type.Literal("dspx_program")])),
 
       materializeDspxIntent: Type.Optional(
@@ -1394,6 +1412,9 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         direction,
         metricThreshold,
         reconfigure,
+        filesInScope,
+        offLimits,
+        constraints,
         planner,
         materializeDspxIntent,
         runDspxProgramGen,
@@ -1416,6 +1437,9 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         direction?: "lower" | "higher";
         metricThreshold?: number;
         reconfigure?: boolean;
+        filesInScope?: string[];
+        offLimits?: string[];
+        constraints?: string[];
         planner?: "heuristic" | "dspx_program";
         materializeDspxIntent?: boolean;
         runDspxProgramGen?: boolean;
@@ -1543,6 +1567,9 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             direction,
             metricThreshold,
             reconfigure,
+            filesInScope,
+            offLimits,
+            constraints,
             planner,
             materializeDspxIntent,
             runDspxProgramGen,
