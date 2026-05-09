@@ -1,0 +1,18 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: "Fix repeated UX friction in /autoresearch resume: stage only the exact foreground resume call in the message editor instead of the full review markdown"
+files:
+  - packages/pi-autoresearch/extensions/pi-autoresearch.ts
+  - packages/pi-autoresearch/scripts/dogfood-resume-ui-contract.mjs
+  - packages/pi-autoresearch/tests/runtime.test.ts
+validation:
+  fast_gate:
+    command: "npm run check --prefix packages/pi-autoresearch"
+    status: pass
+  full_gate:
+    command: "npm run check --prefix packages/pi-autoresearch"
+    status: pending
+group:
+  index: 1
+  total: 3
+  rationale: "Resume UX fix: extension behavior, dogfood contract, and unit test changes"
