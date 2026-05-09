@@ -3362,6 +3362,97 @@ test("autoresearch_campaign_start provides a plan-only supervised front door", a
   });
 });
 
+test("autoresearch_campaign_start fails closed before executing stale configured segments", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const campaignStartTool = tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
+    assert.ok(campaignStartTool);
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({
+        name: "demo-campaign-reconfigure",
+        scripts: { bench: "node bench.js" },
+      }),
+    );
+    writeFile(path.join(cwd, "src/index.ts"), "export const value = 1;\n");
+    writeFile(path.join(cwd, "bench.js"), "console.log('METRIC fresh_score=7');\n");
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "previous-campaign",
+        metricName: "stale_score",
+        metricUnit: "count",
+        direction: "higher",
+        benchmarkCommand: "node stale-bench.js",
+        checksCommand: null,
+      }),
+    );
+
+    for (const runMode of ["baseline", "bounded_loop"] as const) {
+      await assert.rejects(
+        () =>
+          campaignStartTool.execute(
+            `call-campaign-start-stale-${runMode}`,
+            {
+              cwd,
+              objective: "measure fresh campaign score",
+              runMode,
+              maxIterations: 1,
+              metricName: "fresh_score",
+              metricUnit: "count",
+              direction: "higher",
+              benchmarkCommand: "node bench.js",
+              checksCommand: null,
+              peerMode: "plan",
+            },
+            undefined,
+            undefined,
+            { cwd },
+          ),
+        /refused to execute against a stale active segment[\s\S]*reconfigure=true/,
+      );
+    }
+    assert.equal(loadReceiptLog(cwd).entries.length, 1);
+
+    const result = await campaignStartTool.execute(
+      "call-campaign-start-fresh-reconfigure",
+      {
+        cwd,
+        objective: "measure fresh campaign score",
+        runMode: "baseline",
+        maxIterations: 1,
+        metricName: "fresh_score",
+        metricUnit: "count",
+        direction: "higher",
+        benchmarkCommand: "node bench.js",
+        checksCommand: null,
+        reconfigure: true,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const details = result.details as {
+      setupResult: {
+        appliedConfig: boolean;
+        run: { primaryMetricName: string; primaryMetric: number };
+      };
+      status: {
+        currentSegment: { metricName: string; benchmarkCommand: string; runCount: number };
+      };
+    };
+    assert.equal(details.setupResult.appliedConfig, true);
+    assert.equal(details.setupResult.run.primaryMetricName, "fresh_score");
+    assert.equal(details.setupResult.run.primaryMetric, 7);
+    assert.equal(details.status.currentSegment.metricName, "fresh_score");
+    assert.equal(details.status.currentSegment.benchmarkCommand, "node bench.js");
+    assert.equal(details.status.currentSegment.runCount, 1);
+    assert.equal(loadReceiptLog(cwd).entries.length, 3);
+  });
+});
+
 test("autoresearch_campaign_start can run DSPx program-gen and use its setup proposal", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();

@@ -133,6 +133,8 @@ Review the returned setup for:
 
 Do not continue if autoplan cannot identify a fresh causal metric.
 
+If the runtime is already configured and the new objective proposes a different campaign, metric, benchmark, or checks contract, do not start direct `runMode: "baseline"` or `runMode: "bounded_loop"` without making the segment transition explicit. `autoresearch_campaign_start` now fails closed in that stale-segment case; retry the same call with `reconfigure: true` when you intentionally want a fresh segment, or use the lower-level runtime loop/run surfaces only when you are deliberately continuing the active segment.
+
 ### 2. Apply setup and collect baseline samples
 
 Apply the setup, then run at least one baseline before any candidate binding:

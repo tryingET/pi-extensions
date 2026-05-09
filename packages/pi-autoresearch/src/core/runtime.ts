@@ -2045,6 +2045,19 @@ export async function executeAutoresearchCampaignStart(
       "autoresearch_campaign_start cannot execute because no benchmark command is available; rerun with runMode=plan_only or pass benchmarkCommand.",
     );
   }
+  if (runMode !== "plan_only" && input.reconfigure !== true) {
+    assertCampaignStartWillNotUseStaleActiveSegment({
+      cwd,
+      objective,
+      runMode,
+      setupMode,
+      maxIterations,
+      currentSegment: autoplan.status.currentSegment,
+      requestedConfig: autoplan.config,
+      benchmarkCommand,
+      checksCommand: autoplan.checksCommand,
+    });
+  }
 
   let setupResult: ExecuteAutoresearchSetupResult | null = null;
   let loopResult: ExecuteAutoresearchLoopResult | null = null;
@@ -2255,6 +2268,82 @@ export function formatAutoresearchCampaignStartResult(
     "## Dashboard",
     formatAutoresearchDashboard(result.status, result.candidatePolicy),
   ].join("\n");
+}
+
+interface AutoresearchCampaignStartActiveSegmentMismatch {
+  field: string;
+  current: string;
+  requested: string;
+}
+
+function assertCampaignStartWillNotUseStaleActiveSegment(input: {
+  cwd: string;
+  objective: string;
+  runMode: AutoresearchCampaignStartRunMode;
+  setupMode: AutoresearchCampaignStartSetupMode;
+  maxIterations: number;
+  currentSegment: AutoresearchSegmentSummary;
+  requestedConfig: AutoresearchConfigReceipt;
+  benchmarkCommand: string | null | undefined;
+  checksCommand: string | null | undefined;
+}): void {
+  const mismatches = collectCampaignStartActiveSegmentMismatches(input);
+  if (mismatches.length === 0) return;
+
+  const mismatchLines = mismatches.map(
+    (mismatch) =>
+      `- ${mismatch.field}: active=${mismatch.current}; requested=${mismatch.requested}`,
+  );
+  throw new Error(
+    [
+      "autoresearch_campaign_start refused to execute against a stale active segment.",
+      `runMode=${input.runMode} would reuse the currently configured segment unless reconfigure=true is supplied.`,
+      "The requested objective/config differs from the active segment:",
+      ...mismatchLines,
+      "Retry the same autoresearch_campaign_start call with reconfigure=true to start a fresh segment, or use autoresearch_runtime_loop/autoresearch_runtime_run to continue the active segment intentionally.",
+      `requested call shape: autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(input.runMode)}, maxIterations: ${input.maxIterations}, reconfigure: true, ... })`,
+    ].join("\n"),
+  );
+}
+
+function collectCampaignStartActiveSegmentMismatches(input: {
+  currentSegment: AutoresearchSegmentSummary;
+  requestedConfig: AutoresearchConfigReceipt;
+  benchmarkCommand: string | null | undefined;
+  checksCommand: string | null | undefined;
+}): AutoresearchCampaignStartActiveSegmentMismatch[] {
+  const segment = input.currentSegment;
+  if (!segment.configured) return [];
+
+  const requestedBenchmarkCommand =
+    input.benchmarkCommand ?? input.requestedConfig.benchmarkCommand ?? null;
+  const requestedChecksCommand = input.checksCommand ?? input.requestedConfig.checksCommand ?? null;
+  const requestedMetricThreshold = input.requestedConfig.metricThreshold ?? null;
+  const checks: Array<[string, unknown, unknown]> = [
+    ["name", segment.name, input.requestedConfig.name],
+    ["metricName", segment.metricName, input.requestedConfig.metricName],
+    ["metricUnit", segment.metricUnit, input.requestedConfig.metricUnit],
+    ["direction", segment.direction, input.requestedConfig.direction],
+    ["metricThreshold", segment.metricThreshold, requestedMetricThreshold],
+    ["benchmarkCommand", segment.benchmarkCommand, requestedBenchmarkCommand],
+    ["checksCommand", segment.checksCommand, requestedChecksCommand],
+  ];
+
+  return checks.flatMap(([field, current, requested]) =>
+    current === requested
+      ? []
+      : [
+          {
+            field,
+            current: formatCampaignStartSegmentValue(current),
+            requested: formatCampaignStartSegmentValue(requested),
+          },
+        ],
+  );
+}
+
+function formatCampaignStartSegmentValue(value: unknown): string {
+  return value === undefined ? "null" : JSON.stringify(value);
 }
 
 function formatCampaignStartNextToolCall(input: {

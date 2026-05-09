@@ -995,7 +995,10 @@ const campaignStartSchema = Type.Object({
     Type.Boolean({ description: "Allow overwriting existing autoresearch scripts." }),
   ),
   reconfigure: Type.Optional(
-    Type.Boolean({ description: "Append a new config segment even if one is already configured." }),
+    Type.Boolean({
+      description:
+        "Append a new config segment even if one is already configured; direct campaign-start execution fails closed without this when the requested metric/benchmark differs from the active segment.",
+    }),
   ),
   timeoutSeconds: Type.Optional(
     Type.Number({ description: "Benchmark timeout seconds.", minimum: 1 }),
