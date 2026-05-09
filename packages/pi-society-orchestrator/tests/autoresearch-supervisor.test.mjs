@@ -291,6 +291,33 @@ test("supervisor fails closed on invalid ledger lines and rejected replay events
 
   assert.equal(rejected.state, "projection_blocked");
   assert.equal(rejected.projectionBlockedReason, "event ledger replay rejected 1 event(s)");
+
+  const monitoringWithHistoricalRejectedEvents = observeAutoresearchSupervisor(
+    createInput({
+      runtime: {
+        currentSegment: {
+          runCount: 1,
+          successfulRunCount: 1,
+          baselineMetric: 0,
+          bestMetric: 0,
+          lastRunStatus: "baseline",
+          lastRunMetric: 0,
+        },
+        runtimeProjection: {
+          state: "ready",
+          eventCount: 10,
+          replayedEventCount: 9,
+          rejectedEvents: [{ reason: "historical event rejected before current segment" }],
+        },
+      },
+    }),
+  );
+
+  assert.equal(monitoringWithHistoricalRejectedEvents.state, "monitoring");
+  assert.equal(monitoringWithHistoricalRejectedEvents.action, "wait");
+  assert.equal(monitoringWithHistoricalRejectedEvents.projectable, false);
+  assert.equal(monitoringWithHistoricalRejectedEvents.projectionBlockedReason, null);
+  assert.equal(monitoringWithHistoricalRejectedEvents.runtimeProjection.rejectedEventCount, 1);
 });
 
 test("supervisor fails closed when projectable milestones lack campaign identity or cwd", () => {

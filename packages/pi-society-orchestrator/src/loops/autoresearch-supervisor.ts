@@ -449,10 +449,14 @@ function getIntegrityFailure(
   if (runtime.runtimeProjection.invalidLedgerLines > 0) {
     return `event ledger has ${runtime.runtimeProjection.invalidLedgerLines} invalid line(s)`;
   }
-  if (rejectedEventCount > 0) {
+  const projectableContextRequired = requiresProjectableContext(
+    runtimeState,
+    runtime.currentSegment.runCount,
+  );
+  if (rejectedEventCount > 0 && projectableContextRequired) {
     return `event ledger replay rejected ${rejectedEventCount} event(s)`;
   }
-  if (!requiresProjectableContext(runtimeState, runtime.currentSegment.runCount)) {
+  if (!projectableContextRequired) {
     return null;
   }
   if (!runtime.cwd) {
