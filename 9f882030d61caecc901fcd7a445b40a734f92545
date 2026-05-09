@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9f882030d61caecc901fcd7a445b40a734f92545"
+created_at: "2026-05-09T19:27:43Z"
+intent: "Export pi-autoresearch candidate-result packets for candidate-wave aggregate review."
+files:
+  - "packages/pi-autoresearch/src/core/runtime.ts"
+  - "packages/pi-autoresearch/extensions/pi-autoresearch.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+  - "packages/pi-autoresearch/README.md"
+  - "packages/pi-autoresearch/docs/project/adapter-contracts.md"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "node --experimental-strip-types /tmp/dogfood-candidate-result-export-wave.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autoresearch run check && npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+links:
+  task_ids:
+    - 2674
