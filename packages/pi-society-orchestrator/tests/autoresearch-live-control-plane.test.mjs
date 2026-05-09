@@ -697,6 +697,18 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       3,
     );
     assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
+    assert.deepEqual(
+      result.details.candidateWaveReview.recommendation.ownerDecisionOptions.map(
+        (option) => option.optionId,
+      ),
+      ["plan_keep_recommended", "collect_more_samples", "plan_discard", "plan_rewind"],
+    );
+    assert.match(
+      result.details.candidateWaveReview.recommendation.ownerDecisionOptions[0].exactNextCalls.join(
+        "\n",
+      ),
+      /plan_keep/,
+    );
     const candidate02 = result.details.candidateWaveReview.lanes.find(
       (lane) => lane.laneId === "candidate-02",
     );
@@ -724,6 +736,9 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.match(result.content[0].text, /worktree=.*candidate-02/);
     assert.match(result.content[0].text, /caveat: candidate 02 improved more/);
     assert.match(result.content[0].text, /Packet discovery: explicit/);
+    assert.match(result.content[0].text, /Owner decision options/);
+    assert.match(result.content[0].text, /plan_keep_recommended/);
+    assert.match(result.content[0].text, /collect_more_samples/);
     assert.match(result.content[0].text, /candidate-result packets/);
     assert.match(result.content[0].text, /missing_packet guidance: verify\/export/);
     assert.match(result.content[0].text, /still running\/failed/);

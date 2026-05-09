@@ -478,6 +478,18 @@ function formatAutoresearchCandidateWaveReviewReport(
     "",
     `Recommendation: ${review.recommendation.posture}${review.recommendation.laneId ? ` — ${review.recommendation.laneId}` : ""}`,
     `Reason: ${review.recommendation.reason}`,
+    ...(review.recommendation.ownerDecisionOptions.length > 0
+      ? [
+          "",
+          "Owner decision options:",
+          ...review.recommendation.ownerDecisionOptions.flatMap((option) => [
+            `- ${option.optionId}: ${option.label}`,
+            `  posture: ${option.posture}`,
+            `  rationale: ${option.rationale}`,
+            ...option.exactNextCalls.map((call) => `  call: ${call}`),
+          ]),
+        ]
+      : []),
     ...(review.recommendation.exactNextCalls.length > 0
       ? [
           "",
