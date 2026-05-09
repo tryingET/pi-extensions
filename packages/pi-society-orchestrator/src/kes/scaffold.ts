@@ -58,8 +58,12 @@ export function resolveKesRoots(packageRoot: string): KesRoots {
 export function ensureKesRoots(packageRoot: string): KesRoots {
   const roots = resolveKesRoots(packageRoot);
   try {
+    assertNoSymlinkDirectoryPath(roots, roots.diaryDir);
     fs.mkdirSync(roots.diaryDir, { recursive: true });
+    assertNoSymlinkDirectoryPath(roots, roots.diaryDir);
+    assertNoSymlinkDirectoryPath(roots, roots.learningsDir);
     fs.mkdirSync(roots.learningsDir, { recursive: true });
+    assertNoSymlinkDirectoryPath(roots, roots.learningsDir);
   } catch (cause) {
     throw new KesMaterializationError({
       operation: "ensure_roots",
@@ -182,6 +186,7 @@ function stageAndCommitDrafts(drafts: KesArtifactDraft[], roots: KesRoots): void
     for (const draft of drafts) {
       activeDraft = draft;
       const finalPath = resolveBoundedArtifactPath(roots, draft.relativePath);
+      assertNoSymlinkPath(roots, finalPath);
       fs.mkdirSync(path.dirname(finalPath), { recursive: true });
       assertNoSymlinkPath(roots, finalPath);
       if (fs.existsSync(finalPath)) {
@@ -430,14 +435,35 @@ function resolveBoundedArtifactPath(roots: KesRoots, relativePath: string): stri
 }
 
 function assertNoSymlinkPath(roots: KesRoots, absolutePath: string): void {
+  assertNoSymlinkPathParts(roots, absolutePath, false);
+}
+
+function assertNoSymlinkDirectoryPath(roots: KesRoots, absolutePath: string): void {
+  assertNoSymlinkPathParts(roots, absolutePath, true);
+}
+
+function assertNoSymlinkPathParts(
+  roots: KesRoots,
+  absolutePath: string,
+  includeTarget: boolean,
+): void {
   const relativePath = path.relative(roots.packageRoot, absolutePath);
   const parts = relativePath.split(path.sep).filter(Boolean);
+  const partsToCheck = includeTarget ? parts : parts.slice(0, -1);
+  const cursors = [roots.packageRoot];
   let cursor = roots.packageRoot;
-  for (const part of parts.slice(0, -1)) {
+  for (const part of partsToCheck) {
     cursor = path.join(cursor, part);
-    if (fs.lstatSync(cursor).isSymbolicLink()) {
+    cursors.push(cursor);
+  }
+
+  for (const candidate of cursors) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+    if (fs.lstatSync(candidate).isSymbolicLink()) {
       throw new Error(
-        `KES artifact path must not traverse symlinks: ${path.relative(roots.packageRoot, cursor)}`,
+        `KES artifact path must not traverse symlinks: ${path.relative(roots.packageRoot, candidate) || "."}`,
       );
     }
   }

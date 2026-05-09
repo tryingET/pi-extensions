@@ -8,6 +8,7 @@ import {
   KES_CONTRACT_VERSION,
   KES_DIARY_DIR,
   KES_LEARNINGS_DIR,
+  KesMaterializationError,
   materializeKesArtifactPlan,
   resolveKesRoots,
 } from "../src/kes/index.ts";
@@ -149,5 +150,38 @@ test("materializeKesArtifactPlan creates scaffold directories and allocates uniq
     assert.equal(fs.existsSync(secondPlan.learningCandidate.absolutePath), true);
   } finally {
     fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("materializeKesArtifactPlan rejects nested symlink traversal before mkdir side effects", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-nested-symlink-"));
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-nested-outside-"));
+
+  try {
+    fs.mkdirSync(path.join(packageRoot, "diary"), { recursive: true });
+    fs.mkdirSync(path.join(packageRoot, "docs", "learnings"), { recursive: true });
+    fs.symlinkSync(outsideRoot, path.join(packageRoot, "docs", "learnings", "sub"), "dir");
+    const roots = resolveKesRoots(packageRoot);
+    const plan = {
+      version: KES_CONTRACT_VERSION,
+      roots,
+      diary: {
+        kind: "diary",
+        relativePath: path.join("docs", "learnings", "sub", "child", "evil.md"),
+        absolutePath: path.join(packageRoot, "docs", "learnings", "sub", "child", "evil.md"),
+        title: "KES Diary: symlink escape repro",
+        content: "should not write",
+        metadata: {},
+      },
+    };
+
+    assert.throws(
+      () => materializeKesArtifactPlan(plan),
+      (error) => error instanceof KesMaterializationError,
+    );
+    assert.deepEqual(fs.readdirSync(outsideRoot), []);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+    fs.rmSync(outsideRoot, { recursive: true, force: true });
   }
 });

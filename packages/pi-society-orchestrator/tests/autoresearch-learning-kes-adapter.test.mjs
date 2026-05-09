@@ -294,3 +294,28 @@ test("materialize rejects symlinked KES roots instead of writing outside the pac
     fs.rmSync(outsideRoot, { recursive: true, force: true });
   }
 });
+
+test("materialize rejects symlinked intermediate KES roots before mkdir escapes", () => {
+  const packageRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "pi-orch-autoresearch-kes-docs-symlink-"),
+  );
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-docs-out-"));
+  fs.symlinkSync(outsideRoot, path.join(packageRoot, "docs"), "dir");
+
+  try {
+    assert.throws(
+      () =>
+        buildAutoresearchLearningKesAdapterResult({
+          packageRoot,
+          packet: createLearningPacket(),
+          action: "materialize",
+          timestamp: new Date("2026-05-08T12:00:00Z"),
+        }),
+      /Package-owned KES artifacts could not be written/,
+    );
+    assert.deepEqual(fs.readdirSync(outsideRoot), []);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+    fs.rmSync(outsideRoot, { recursive: true, force: true });
+  }
+});
