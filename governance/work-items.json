@@ -3174,6 +3174,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-09"
+        },
+        {
+          "id": "AK-TASK-2636",
+          "title": "Close residual KES symlink mkdir escape",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Close residual KES symlink mkdir escape (task #2636)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-09"
         }
       ]
     }
