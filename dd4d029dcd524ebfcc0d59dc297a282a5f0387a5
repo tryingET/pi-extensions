@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "dd4d029dcd524ebfcc0d59dc297a282a5f0387a5"
+created_at: "2026-05-09T07:50:30Z"
+intent: "Add candidate-only KES diary and learning artifacts from the first real owner-routed autoresearch learning packet handoff"
+files:
+  - "packages/pi-society-orchestrator/diary/2026-05-09--validation-consume-autoresearch-learning-packet-aut.md"
+  - "packages/pi-society-orchestrator/docs/learnings/2026-05-09--learning-autoresearch-learning-foreground-resume-dogfood.md"
+validation:
+  fast_gate:
+    command: "npm run check --prefix packages/pi-society-orchestrator"
+    status: "pass"
+  full_gate:
+    command: "npm run check --prefix packages/pi-society-orchestrator"
+    status: "pending"
+group:
+  index: 3
+  total: 3
+  rationale: "KES candidate artifacts from owner-routed learning handoff dogfood"
