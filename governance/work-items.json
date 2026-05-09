@@ -3161,6 +3161,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-08"
+        },
+        {
+          "id": "AK-TASK-2634",
+          "title": "Harden autoresearch KES adapter public boundary",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden autoresearch KES adapter public boundary (task #2634)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-09"
         }
       ]
     }
