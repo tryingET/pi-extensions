@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "0165b61906e2336f986853fae244ec867bda243b"
+created_at: "2026-05-09T19:13:13Z"
+intent: "Make packet-backed autoresearch candidate-wave review preserve winner metadata and emit exact owner next calls for bind, decisions, and more samples."
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check; node --experimental-strip-types /tmp/dogfood-candidate-wave-packets.mjs; pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Follow-up candidate-wave review slice makes owner selection actionable without applying lifecycle mutations."
+links:
+  task_ids:
+    - 2674
