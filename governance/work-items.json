@@ -3187,6 +3187,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-09"
+        },
+        {
+          "id": "AK-TASK-2640",
+          "title": "Harden KES atomic write and root identity",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden KES atomic write and root identity (task #2640)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-09"
         }
       ]
     }
