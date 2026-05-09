@@ -16,6 +16,10 @@ import {
   validateLoopAgentsForTeam,
 } from "../src/runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommand, runAkCommandAsync } from "../src/runtime/ak.ts";
+import {
+  formatAkCloseFrameStatusSection,
+  readAkCloseFrameStatus,
+} from "../src/runtime/ak-close-frame-status.ts";
 import { resetBoundaryTelemetry } from "../src/runtime/boundaries.ts";
 import { finalizeExecutionEffects, recordEvidence } from "../src/runtime/evidence.ts";
 import { getExecutionStatus, isExecutionSuccess } from "../src/runtime/execution-status.ts";
@@ -1267,6 +1271,82 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
   assert.match(text, /footer right: `Routing: quality`/);
 });
 
+test("AK close-frame status reader uses read-only AK surfaces", async () => {
+  const calls = [];
+  const runAk = async ({ args, cwd }) => {
+    calls.push(args);
+    assert.equal(cwd, "/repo");
+
+    if (args[0] === "strategy" && args[1] === "list") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          nodes: [{ key: "SF4", state: "active" }],
+        }),
+        stderr: "",
+      };
+    }
+    if (args[0] === "wave" && args[1] === "list") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          nodes: [{ key: "IW8", parent_key: "SF4", state: "active" }],
+        }),
+        stderr: "",
+      };
+    }
+    if (args[0] === "strategy" && args[1] === "open-frame-status") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          active_execution_task: { status: "present", task_id: 2692, title: "Await next route" },
+          closeout_status: { closeout_ready: true, ready_for_operator_gate: true },
+          route_guidance: {
+            posture: "route_wait",
+            safe_commands: ["ak strategy open-frame-status --repo . SF4 -F json"],
+          },
+          route_wait_context: { generic_proceed_allowed: false },
+        }),
+        stderr: "",
+      };
+    }
+    if (args[0] === "strategy" && args[1] === "close-frame") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          apply_supported: false,
+          blockers: ["unsafe_execution_task_posture"],
+          non_actions: ["no_lifecycle_state_mutation", "no_source_owner_mutation"],
+        }),
+        stderr: "",
+      };
+    }
+    throw new Error(`unexpected ak args: ${args.join(" ")}`);
+  };
+
+  const snapshot = await readAkCloseFrameStatus({
+    cwd: "/repo",
+    societyDb: "/tmp/society.db",
+    akPath: "ak",
+    runAk,
+  });
+
+  assert.equal(snapshot.status, "available");
+  assert.equal(snapshot.strategicFrame, "SF4");
+  assert.equal(snapshot.implementationWave, "IW8");
+  assert.equal(snapshot.routePosture, "route_wait");
+  assert.equal(snapshot.genericProceedAllowed, false);
+  assert.equal(snapshot.closeFrameApplySupported, false);
+  assert.deepEqual(snapshot.closeFrameBlockers, ["unsafe_execution_task_posture"]);
+  assert.ok(calls.every((args) => !args.includes("--apply")));
+
+  const section = formatAkCloseFrameStatusSection(snapshot);
+  assert.match(section, /AK close-frame\/readiness/);
+  assert.match(section, /generic proceed allowed: false/);
+  assert.match(section, /close-frame apply supported: false/);
+  assert.match(section, /writes: none; Pi only displays AK readbacks/);
+});
+
 test("runtime-status command opens a runtime truth inspector", async () => {
   resetBoundaryTelemetry();
   const commands = new Map();
@@ -1327,6 +1407,8 @@ test("runtime-status command opens a runtime truth inspector", async () => {
   );
   assert.match(editors[0].text, /footer right: `Routing: all agents`/);
   assert.match(editors[0].text, /routing: `all agents` \[internal: `full`\]/);
+  assert.match(editors[0].text, /## AK close-frame\/readiness/);
+  assert.match(editors[0].text, /writes: none/);
   resetBoundaryTelemetry();
 });
 

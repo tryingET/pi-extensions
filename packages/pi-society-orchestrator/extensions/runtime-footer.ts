@@ -9,6 +9,10 @@ import {
   getAgentTeamDisplayLabel,
 } from "../src/runtime/agent-routing.ts";
 import {
+  formatAkCloseFrameStatusSection,
+  readAkCloseFrameStatus,
+} from "../src/runtime/ak-close-frame-status.ts";
+import {
   getBoundaryTelemetryStats,
   getLatestBoundaryTelemetryFailure,
   isBoundaryFailure,
@@ -379,7 +383,14 @@ export default function runtimeFooterExtension(pi: ExtensionAPI) {
 
       const toolsResult = await listCognitiveTools({ cwd: ctx.cwd });
       const snapshot = buildRuntimeSnapshot(ctx, toolsResult);
-      await ctx.ui.editor("Runtime Status", formatRuntimeStatusReport(snapshot));
+      const akCloseFrameStatus = await readAkCloseFrameStatus({
+        cwd: ctx.cwd,
+        societyDb: SOCIETY_DB,
+      });
+      await ctx.ui.editor(
+        "Runtime Status",
+        `${formatRuntimeStatusReport(snapshot)}\n\n${formatAkCloseFrameStatusSection(akCloseFrameStatus)}`,
+      );
     },
   });
 
