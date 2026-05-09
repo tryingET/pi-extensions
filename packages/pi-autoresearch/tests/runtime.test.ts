@@ -4102,7 +4102,7 @@ test("autoresearch_runtime_loop runs a bounded iteration budget and returns peer
     const details = result.details as {
       completedIterations: number;
       runs: Array<{ runReceipt: { status: string; metric: number } }>;
-      peerAssist: { lane: string; toolName: string };
+      peerAssist: { lane: string; toolName: string; objective: string; toolCall: string };
       peerLaunchHandoff: { status: string; toolName: string };
     };
     assert.equal(details.completedIterations, 2);
@@ -4110,6 +4110,9 @@ test("autoresearch_runtime_loop runs a bounded iteration budget and returns peer
     assert.equal(details.runs[1]?.runReceipt.status, "candidate");
     assert.equal(details.peerAssist.lane, "scout");
     assert.equal(details.peerAssist.toolName, "scout_peer_spawn");
+    assert.match(details.peerAssist.objective, /Review loop outcome/);
+    assert.match(details.peerAssist.objective, /recommend one bounded next controller action/);
+    assert.match(details.peerAssist.toolCall, /scout_peer_spawn/);
     assert.equal(details.peerLaunchHandoff.status, "handoff_required");
     assert.equal(details.peerLaunchHandoff.toolName, "scout_peer_spawn");
     assert.ok(updates.some((update) => update.details?.phase === "iteration_start"));
@@ -4120,6 +4123,56 @@ test("autoresearch_runtime_loop runs a bounded iteration budget and returns peer
     assert.ok(
       updates.some((update) => /PI-AUTORESEARCH DASHBOARD/.test(update.details?.dashboard ?? "")),
     );
+  });
+});
+
+test("autoresearch_runtime_loop auto candidate peer plan asks for a bounded patch", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    writeExecutable(cwd, "autoresearch.sh", '#!/usr/bin/env bash\necho "METRIC total_ms=100"\n');
+
+    const result = await tools.get(AUTORESEARCH_LOOP_TOOL_NAME)?.execute(
+      "call-loop-candidate-peer",
+      {
+        cwd,
+        goal: "reduce total_ms by simplifying the runner hot path",
+        maxIterations: 1,
+        name: "candidate-peer-loop",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        decisionFilesInScope: ["src/runner.ts"],
+        peerMode: "plan",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    assert.ok(result);
+    const details = result.details as {
+      peerAssist: { lane: string; toolName: string; objective: string; toolCall: string };
+      peerLaunchHandoff: { status: string; toolName: string; toolCall: string };
+    };
+    assert.equal(details.peerAssist.lane, "candidate");
+    assert.equal(details.peerAssist.toolName, "candidate_peer_spawn");
+    assert.match(details.peerAssist.objective, /Try one bounded candidate patch/);
+    assert.match(details.peerAssist.objective, /isolated worktree/);
+    assert.doesNotMatch(details.peerAssist.objective, /Review loop outcome/);
+    assert.doesNotMatch(
+      details.peerAssist.objective,
+      /recommend one bounded next controller action/,
+    );
+    assert.match(details.peerAssist.toolCall, /candidate_peer_spawn/);
+    assert.match(details.peerAssist.toolCall, /Try one bounded candidate patch/);
+    assert.match(details.peerAssist.toolCall, /filesInScope: \["src\/runner\.ts"\]/);
+    assert.doesNotMatch(details.peerAssist.toolCall, /Review loop outcome/);
+    assert.doesNotMatch(
+      details.peerAssist.toolCall,
+      /recommend one bounded next controller action/,
+    );
+    assert.equal(details.peerLaunchHandoff.status, "not_requested");
+    assert.equal(details.peerLaunchHandoff.toolName, "candidate_peer_spawn");
   });
 });
 

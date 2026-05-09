@@ -180,7 +180,7 @@ Interpretation rule:
 
 ### 4. Produce or bind a candidate explicitly
 
-Candidate work may come from a human edit, a controller-supplied patch, or a visible peer worktree. `pi-autoresearch` does not spawn peers or promote their work.
+Candidate work may come from a human edit, a controller-supplied patch, or a visible peer worktree. `pi-autoresearch` does not spawn peers or promote their work. When it prepares a candidate-lane handoff, the suggested `candidate_peer_spawn` objective must ask for one bounded candidate patch in an isolated worktree; scout/review handoffs remain diagnostic and recommendation-oriented.
 
 Visible-candidate handoff contract:
 

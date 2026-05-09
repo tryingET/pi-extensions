@@ -4514,7 +4514,7 @@ export function buildAutoresearchPeerAssistPlan(
   const baseObjective =
     input.objective?.trim() ||
     (lane === "candidate"
-      ? `Try one bounded candidate patch for ${status.currentSegment.name ?? "the current autoresearch campaign"}; report diff and check evidence only.`
+      ? `Try one bounded candidate patch for ${status.currentSegment.name ?? "the current autoresearch campaign"} in an isolated worktree; report diff and check evidence only.`
       : lane === "fork"
         ? `Continue this autoresearch context visibly for operator-guided exploration under ${cwd}.`
         : lane === "scout"
@@ -6423,15 +6423,33 @@ function buildLoopPeerAssistInput(
   peerMode: AutoresearchLoopPeerMode,
 ): BuildAutoresearchPeerAssistInput {
   const lane = peerModeToPeerAssistLane(peerMode);
+  const objective = buildLoopPeerAssistObjective(lane, cwd, goal);
   return {
     cwd,
     lane,
-    objective: `Review loop outcome for ${goal} and recommend one bounded next controller action.`,
+    ...(objective ? { objective } : {}),
     targetFiles: input.decisionFilesInScope,
     offLimits: input.decisionOffLimits,
     constraints: input.decisionConstraints,
     reportBack: "manual",
   };
+}
+
+function buildLoopPeerAssistObjective(
+  lane: AutoresearchPeerAssistLane | "auto",
+  cwd: string,
+  goal: string,
+): string | undefined {
+  if (lane === "candidate") {
+    return `Try one bounded candidate patch for ${goal} in an isolated worktree; report diff and check evidence only.`;
+  }
+  if (lane === "scout") {
+    return `Review loop outcome for ${goal} and recommend one bounded next controller action.`;
+  }
+  if (lane === "fork") {
+    return `Continue loop context for ${goal} visibly under ${cwd} for operator-guided exploration.`;
+  }
+  return undefined;
 }
 
 function peerModeToPeerAssistLane(
