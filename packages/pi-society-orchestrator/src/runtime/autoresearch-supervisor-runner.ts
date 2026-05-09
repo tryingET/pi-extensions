@@ -474,11 +474,31 @@ function stringArrayFrom(value: unknown): string[] {
     : [];
 }
 
+function laneIdFromCandidateResultPacketPath(resolvedPath: string): string {
+  const base = path.basename(resolvedPath);
+  return base.endsWith(".candidate-result.json")
+    ? base.slice(0, -".candidate-result.json".length)
+    : path.basename(resolvedPath, path.extname(resolvedPath));
+}
+
 function candidateResultInputFromPacketPath(
   cwd: string,
   packetPath: string,
 ): AutoresearchCandidateWaveResultInput {
   const resolvedPath = resolveCandidateResultPacketPath(cwd, packetPath);
+  if (!fs.existsSync(resolvedPath)) {
+    const laneId = laneIdFromCandidateResultPacketPath(resolvedPath);
+    return {
+      laneId,
+      objective: `Missing candidate-result packet for ${laneId}`,
+      status: "missing_packet",
+      checksStatus: "unknown",
+      sourcePacketPath: resolvedPath,
+      caveat:
+        "Candidate-result packet was not found. The lane may still be running, failed before export, or was not approved/launched.",
+    };
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
@@ -505,7 +525,7 @@ function candidateResultInputFromPacketPath(
   const laneId =
     optionalString(experiment?.hypothesisId) ??
     optionalString(candidate?.branch) ??
-    path.basename(resolvedPath, path.extname(resolvedPath));
+    laneIdFromCandidateResultPacketPath(resolvedPath);
 
   return {
     laneId,
@@ -668,6 +688,7 @@ export function reviewAutoresearchCandidateWave(
       : "Reject or rerun candidate lanes; no winner is selectable from the supplied results.",
     boundaries: [
       "This review compares supplied candidate-result summaries and/or exported pi-autoresearch candidate-result packets; it does not verify raw peer output by itself.",
+      "Missing candidate-result packet paths are surfaced as non-selectable missing_packet lanes so partial candidate waves remain reviewable.",
       "pi-autoresearch receipts and candidate-result packets remain the measurement source for each candidate.",
       "The recommendation is not promotion authority; owner approval and external promotion gates remain required.",
     ],

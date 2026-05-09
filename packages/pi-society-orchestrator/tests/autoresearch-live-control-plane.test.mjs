@@ -591,6 +591,12 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
   await withTempDir(async (cwd) => {
     const packetA = path.join(cwd, "candidate-01.json");
     const packetB = path.join(cwd, "candidate-02.json");
+    const missingPacket = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "candidate-03.candidate-result.json",
+    );
     writeFileSync(
       packetA,
       JSON.stringify({
@@ -677,7 +683,7 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
         cwd,
         objective: "choose from packetized candidate results",
         direction: "lower",
-        candidateResultPacketPaths: [packetA, packetB],
+        candidateResultPacketPaths: [packetA, packetB, missingPacket],
       },
       undefined,
       undefined,
@@ -693,6 +699,13 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.equal(candidate02.candidateBaseRef, "HEAD");
     assert.deepEqual(candidate02.candidateFilesChanged, ["src/b.ts"]);
     assert.equal(candidate02.sourcePacketPath, packetB);
+    const candidate03 = result.details.candidateWaveReview.lanes.find(
+      (lane) => lane.laneId === "candidate-03",
+    );
+    assert.equal(candidate03.status, "missing_packet");
+    assert.equal(candidate03.selectable, false);
+    assert.equal(candidate03.sourcePacketPath, missingPacket);
+    assert.match(candidate03.caveat, /packet was not found/);
     assert.match(
       result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
       /autoresearch_candidate_bind/,
@@ -702,6 +715,7 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       /candidate\/candidate-02/,
     );
     assert.match(result.content[0].text, /candidate-result packets/);
+    assert.match(result.content[0].text, /missing_packet/);
     assert.match(result.content[0].text, /Exact next calls/);
   });
 });
