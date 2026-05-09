@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "99483e17c6202a74b269069f1386b386eb80820e"
+created_at: "2026-05-09T15:41:47Z"
+intent: "Allow orchestrator live supervision to continue monitoring ready non-projectable campaigns despite historical rejected ledger events, while preserving fail-closed behavior for projectable milestones."
+files:
+  - "packages/pi-society-orchestrator/src/loops/autoresearch-supervisor.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-supervisor.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Live supervised campaign reached ready monitoring state but old rejected ledger events blocked non-projectable observation."
+links:
+  task_ids:
+    - 2674
