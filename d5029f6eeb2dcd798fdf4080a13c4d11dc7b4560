@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "d5029f6eeb2dcd798fdf4080a13c4d11dc7b4560"
+created_at: "2026-05-09T07:49:53Z"
+intent: "Expose autoresearch_learning_kes_adapter in the toolbox orchestrator-gated profile so the owner-routed KES adapter is discoverable through toolbox activation"
+files:
+  - "packages/pi-toolbox-discovery/extensions/toolbox.ts"
+  - "packages/pi-toolbox-discovery/tests/toolbox.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run check --prefix packages/pi-toolbox-discovery"
+    status: "pass"
+  full_gate:
+    command: "npm run check --prefix packages/pi-toolbox-discovery"
+    status: "pending"
+group:
+  index: 2
+  total: 3
+  rationale: "Toolbox catalog discoverability fix for the learning KES adapter"
