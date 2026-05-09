@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "1a8cd504017f9520e36f6c4a1d17c450e2c2bd2c"
+created_at: "2026-05-09T15:24:04Z"
+intent: "Fail closed before baseline/bounded_loop campaign-start can reuse a stale active segment; require explicit reconfigure=true or matching config."
+files:
+  - "packages/pi-autoresearch/src/core/runtime.ts"
+  - "packages/pi-autoresearch/extensions/pi-autoresearch.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+  - "packages/pi-autoresearch/docs/project/product-posture.md"
+  - "packages/pi-autoresearch/docs/project/dogfood-playbook.md"
+validation:
+  fast_gate:
+    command: "cd packages/pi-autoresearch && npm run check"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-autoresearch && npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 2
+  rationale: "Dogfood parity: direct campaign-start against already-configured runtime silently reused stale segment."
+links:
+  task_ids:
+    - 2674
