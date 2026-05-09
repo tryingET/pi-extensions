@@ -3423,10 +3423,41 @@ async function openAutoresearchResumeReview(ctx: ExtensionContext): Promise<void
     return;
   }
 
-  ctx.ui.setEditorText(editedText);
+  const editorCall = extractAutoresearchResumeEditorCall(editedText);
+  if (!editorCall) {
+    ctx.ui.notify(
+      "Canceled foreground resume review: could not find an autoresearch resume call in the edited text.",
+      "warning",
+    );
+    return;
+  }
+
+  ctx.ui.setEditorText(editorCall);
   ctx.ui.notify(
-    "Accepted foreground resume review into the message editor. Press Enter again to submit it, or edit first.",
+    "Accepted foreground resume call into the message editor. Replace any remaining <explicit> budgets, then press Enter to submit.",
     "info",
+  );
+}
+
+function extractAutoresearchResumeEditorCall(text: string): string | null {
+  const trimmed = text.trim();
+  if (isAutoresearchResumeEditorCall(trimmed)) return trimmed;
+
+  const exactCallSection = trimmed.split("## Exact foreground call to review", 2)[1] ?? trimmed;
+  const fencedCall = /```(?:ts|typescript)?\s*\n([\s\S]*?)\n```/u
+    .exec(exactCallSection)?.[1]
+    ?.trim();
+  if (fencedCall && isAutoresearchResumeEditorCall(fencedCall)) return fencedCall;
+
+  return null;
+}
+
+function isAutoresearchResumeEditorCall(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.startsWith(`${AUTORESEARCH_RESUME_APPLY_TOOL_NAME}(`) ||
+    (trimmed.startsWith(`${AUTORESEARCH_STATUS_TOOL_NAME}(`) &&
+      trimmed.includes('action: "resume_apply_plan"'))
   );
 }
 
@@ -4470,6 +4501,7 @@ function formatAutoresearchCommandNotification(
     "candidate bind: /autoresearch bind [current|<worktree>] -> autoresearch_candidate_bind",
     "candidate measure: /autoresearch measure [current|<worktree>] -> autoresearch_runtime_run candidate call",
     "candidate decision: /autoresearch candidate|keep|discard|rewind -> autoresearch_candidate_decision",
+    "resume: /autoresearch resume -> review, then stage only the exact foreground resume call",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
     "overlay: /autoresearch overlay",
     "browser: /autoresearch export|export off",

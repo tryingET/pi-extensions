@@ -2414,11 +2414,14 @@ test("/autoresearch resume prepares a foreground resume review", async () => {
     assert.match(editorText, /autoresearch_runtime_resume_apply/);
     assert.match(editorText, /operatorConfirmation: "RUN FOREGROUND RESUME"/);
     assert.match(editorText, /Replace `<explicit>` budgets/);
-    assert.equal(composerText, editorText);
+    assert.notEqual(composerText, editorText);
+    assert.match(composerText, /^autoresearch_runtime_resume_apply\(/);
+    assert.doesNotMatch(composerText, /PI-AUTORESEARCH RESUME APPLY REVIEW/);
+    assert.match(composerText, /operatorConfirmation: "RUN FOREGROUND RESUME"/);
     assert.equal(notifications.length, 1);
     assert.match(
       notifications[0]?.message ?? "",
-      /Accepted foreground resume review into the message editor/,
+      /Accepted foreground resume call into the message editor/,
     );
   });
 });

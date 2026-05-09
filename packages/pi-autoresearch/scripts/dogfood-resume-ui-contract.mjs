@@ -146,14 +146,23 @@ try {
   if (toolInvocations.length > 0) {
     blockers.push("unexpected_tool_invocations:" + toolInvocations.join(","));
   }
-  if (composerText !== editorText) {
-    blockers.push("submitted_review_not_transferred_to_message_editor");
+  if (composerText === editorText) {
+    blockers.push("full_resume_review_transferred_to_message_editor");
+  }
+  if (!composerText.startsWith("autoresearch_runtime_resume_apply(")) {
+    blockers.push("message_editor_missing_exact_resume_call");
+  }
+  if (/PI-AUTORESEARCH RESUME APPLY REVIEW/u.test(composerText)) {
+    blockers.push("message_editor_contains_review_markdown");
+  }
+  if (!composerText.includes('operatorConfirmation: "RUN FOREGROUND RESUME"')) {
+    blockers.push("message_editor_missing_exact_resume_confirmation");
   }
   if (
     notifications.length !== 1 ||
-    !/Accepted foreground resume review into the message editor/u.test(notifications[0]?.message ?? "")
+    !/Accepted foreground resume call into the message editor/u.test(notifications[0]?.message ?? "")
   ) {
-    blockers.push("missing_resume_review_notification");
+    blockers.push("missing_resume_call_notification");
   }
 } catch (error) {
   blockers.push("exception:" + (error instanceof Error ? error.message : String(error)));
@@ -188,6 +197,8 @@ console.log(
         "Replace " + String.fromCharCode(96) + "<explicit>" + String.fromCharCode(96) + " budgets",
       ),
       composerTextMatchesEditorText: composerText === editorText,
+      composerHasOnlyResumeCall: composerText.startsWith("autoresearch_runtime_resume_apply("),
+      composerHasReviewMarkdown: /PI-AUTORESEARCH RESUME APPLY REVIEW/u.test(composerText),
       toolInvocationCount: toolInvocations.length,
       toolInvocations,
       notificationCount: notifications.length,
