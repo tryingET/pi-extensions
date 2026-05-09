@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "b85ef78b70ee199f3415bcf461cdd19fdb4dd84f"
+created_at: "2026-05-09T17:29:08Z"
+intent: "Make pi-autoresearch candidate-lane peer handoffs ask for one bounded candidate patch instead of review/recommend wording."
+files:
+  - "packages/pi-autoresearch/src/core/runtime.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+  - "packages/pi-autoresearch/docs/project/product-posture.md"
+  - "packages/pi-autoresearch/docs/project/dogfood-playbook.md"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Dogfood found candidate peer lane generated review-only objective text despite recommending candidate_peer_spawn."
+links:
+  task_ids:
+    - 2674
