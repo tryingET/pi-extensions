@@ -46,6 +46,7 @@ import {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
+  AUTORESEARCH_LEARNING_EXPORT_FILE,
   AUTORESEARCH_LOCAL_ARTIFACTS,
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
@@ -80,6 +81,7 @@ import {
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchDashboard,
   formatAutoresearchKnowledgeExportPacket,
+  formatAutoresearchLearningExportResult,
   formatAutoresearchOracleEvidenceExportResult,
   formatAutoresearchOracleEvidencePacket,
   formatAutoresearchResumeApplyPlan,
@@ -93,6 +95,7 @@ import {
   serializeReceipt,
   setAutoresearchRuntimeControl,
   validateAutoresearchAdapterPacket,
+  writeAutoresearchKnowledgeExportPacket,
   writeAutoresearchOracleEvidencePacket,
 } from "../src/core/runtime.ts";
 import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "../src/core/selfHosting.ts";
@@ -1939,6 +1942,32 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.match(learning.markdown, /## What was learned/);
     assert.match(formatAutoresearchKnowledgeExportPacket(learning), /KNOWLEDGE EXPORT PACKET/);
 
+    const learningExport = writeAutoresearchKnowledgeExportPacket({ cwd });
+    assert.equal(learningExport.exportKind, "autoresearch.learning_export.v1");
+    assert.equal(learningExport.packet.packetKind, "autoresearch.learning.v1");
+    assert.equal(learningExport.path, path.join(cwd, AUTORESEARCH_LEARNING_EXPORT_FILE));
+    assert.equal(learningExport.effect.akCalled, false);
+    assert.equal(learningExport.effect.kesWritten, false);
+    assert.equal(learningExport.effect.externalAuthorityMutated, false);
+    assert.equal(learningExport.effect.promotionStateChanged, false);
+    assert.match(learningExport.suggestedKesAdapterCall, /autoresearch_learning_kes_adapter/);
+    assert.match(formatAutoresearchLearningExportResult(learningExport), /LEARNING EXPORT/);
+    const learningExportPayload = JSON.parse(readFileSync(learningExport.path, "utf8"));
+    assert.equal(learningExportPayload.packetKind, "autoresearch.learning.v1");
+    assert.throws(
+      () => writeAutoresearchKnowledgeExportPacket({ cwd }),
+      /already exists; pass overwrite=true/u,
+    );
+    assert.doesNotThrow(() => writeAutoresearchKnowledgeExportPacket({ cwd, overwrite: true }));
+    assert.throws(
+      () => writeAutoresearchKnowledgeExportPacket({ cwd, outPath: "/tmp/learning.json" }),
+      /must be relative/u,
+    );
+    assert.throws(
+      () => writeAutoresearchKnowledgeExportPacket({ cwd, outPath: "../learning.json" }),
+      /must stay inside/u,
+    );
+
     const packetPath = path.join(cwd, "learning-packet.json");
     writeFileSync(packetPath, `${JSON.stringify(learning)}\n`, "utf8");
     const notesAdapterOutput = execFileSync(
@@ -2282,6 +2311,9 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(editorText, /Resume apply plan-only proposal/);
   assert.match(editorText, /autoresearch\.resume_apply_plan\.v1/);
   assert.match(editorText, /execution authorized: no/);
+  assert.match(editorText, /Learning handoff/);
+  assert.match(editorText, /learning_export/);
+  assert.match(editorText, /autoresearch_learning_kes_adapter/);
   assert.match(editorText, /Next legal surfaces/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
@@ -2441,6 +2473,9 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /Resume apply plan-only proposal/);
     assert.match(html, /autoresearch\.resume_apply_plan\.v1/);
     assert.match(html, /autoresearch_runtime_resume_apply/);
+    assert.match(html, /Learning handoff/);
+    assert.match(html, /learning_export/);
+    assert.match(html, /autoresearch_learning_kes_adapter/);
     assert.match(html, /Browser export is read-only/);
   }));
 
@@ -2601,6 +2636,15 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
   assert.equal(resumeResult.action, "transform");
   assert.match(resumeResult.text, /PI-AUTORESEARCH RESUME APPLY REVIEW/);
   assert.match(resumeResult.text, /resume_apply_plan/);
+
+  const learningResult = (await inputHandler?.(
+    { source: "user", text: "$$ autoresearch learning" },
+    { cwd: "/repo" },
+  )) as { action: string; text: string };
+  assert.equal(learningResult.action, "transform");
+  assert.match(learningResult.text, /autoresearch_runtime_status/);
+  assert.match(learningResult.text, /action: "learning_export"/);
+  assert.doesNotMatch(learningResult.text, /autoresearch_campaign_start/);
 
   const campaignResult = (await inputHandler?.(
     { source: "user", text: "$$ ar optimize startup" },
@@ -2841,6 +2885,34 @@ test("/autoresearch keep/discard/rewind prepare candidate-decision tool calls", 
     notifications[0]?.message ?? "",
     /Prepared autoresearch_candidate_decision plan_rewind/,
   );
+});
+
+test("/autoresearch learning prepares a learning-export handoff call", async () => {
+  const { commands } = registerHarness();
+  let editorTitle = "";
+  let editorText = "";
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("learning", {
+    cwd: "/repo",
+    hasUI: true,
+    ui: {
+      async editor(title: string, text: string) {
+        editorTitle = title;
+        editorText = text;
+      },
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+
+  assert.match(editorTitle, /Export autoresearch learning packet/);
+  assert.match(editorText, /autoresearch_runtime_status/);
+  assert.match(editorText, /action: "learning_export"/);
+  assert.doesNotMatch(editorText, /autoresearch_campaign_start/);
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0]?.message ?? "", /Prepared autoresearch learning export/);
 });
 
 test("/autoresearch with an objective prepares the campaign-start tool call", async () => {
@@ -4619,6 +4691,32 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.match(learning?.content[0]?.text ?? "", /KNOWLEDGE EXPORT PACKET/);
     assert.match(learning?.content[0]?.text ?? "", /adapter boundary:/);
 
+    const learningExportPath = path.join(cwd, ".autoresearch", "status-learning.json");
+    const learningExport = await tool?.execute(
+      "call-4c1",
+      {
+        cwd,
+        action: "learning_export",
+        outPath: "status-learning.json",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(learningExport);
+    assert.match(learningExport?.content[0]?.text ?? "", /LEARNING EXPORT/);
+    assert.match(learningExport?.content[0]?.text ?? "", /autoresearch_learning_kes_adapter/);
+    assert.equal(
+      (learningExport?.details as { exportKind?: string }).exportKind,
+      "autoresearch.learning_export.v1",
+    );
+    const learningExportDetails = learningExport?.details as { path?: string };
+    assert.equal(learningExportDetails.path, learningExportPath);
+    assert.equal(
+      JSON.parse(readFileSync(learningExportPath, "utf8")).packetKind,
+      "autoresearch.learning.v1",
+    );
+
     const candidateResult = await tool?.execute(
       "call-4c2",
       {
@@ -4740,7 +4838,7 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
   });
 });
 
-test("autoresearch_runtime_status read profile rejects Oracle evidence export writes", async () => {
+test("autoresearch_runtime_status read profile rejects local packet export writes", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness({ effectProfile: "read" });
     const tool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
@@ -4759,7 +4857,21 @@ test("autoresearch_runtime_status read profile rejects Oracle evidence export wr
         ),
       /read profile/u,
     );
+    await assert.rejects(
+      () =>
+        Promise.resolve(
+          tool.execute(
+            "read-learning-export",
+            { cwd, action: "learning_export" },
+            undefined,
+            undefined,
+            { cwd },
+          ),
+        ),
+      /read profile/u,
+    );
     assert.equal(existsSync(path.join(cwd, AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE)), false);
+    assert.equal(existsSync(path.join(cwd, AUTORESEARCH_LEARNING_EXPORT_FILE)), false);
   });
 });
 

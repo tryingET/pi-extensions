@@ -74,6 +74,7 @@ import {
   formatAutoresearchDashboard,
   formatAutoresearchDecisionResult,
   formatAutoresearchKnowledgeExportPacket,
+  formatAutoresearchLearningExportResult,
   formatAutoresearchLoopResult,
   formatAutoresearchOracleEvidenceExportResult,
   formatAutoresearchOracleEvidencePacket,
@@ -90,6 +91,7 @@ import {
   requestAutoresearchSetupDecision,
   setAutoresearchRuntimeControl,
   validateAutoresearchAdapterPacket,
+  writeAutoresearchKnowledgeExportPacket,
   writeAutoresearchOracleEvidencePacket,
 } from "../src/core/runtime.ts";
 import {
@@ -314,6 +316,7 @@ const statusActionSchema = Type.Union(
     Type.Literal("oracle_evidence"),
     Type.Literal("oracle_evidence_export"),
     Type.Literal("learning"),
+    Type.Literal("learning_export"),
     Type.Literal("candidate_result"),
     Type.Literal("resume_plan"),
     Type.Literal("resume_apply_plan"),
@@ -332,13 +335,13 @@ const statusSchema = Type.Object({
   outPath: Type.Optional(
     Type.String({
       description:
-        "Optional output path for action=oracle_evidence_export. Must be relative under cwd/.autoresearch; default is .autoresearch/oracle_evidence.json.",
+        "Optional output path for action=oracle_evidence_export or action=learning_export. Must be relative under cwd/.autoresearch; defaults are .autoresearch/oracle_evidence.json and .autoresearch/learning.json.",
     }),
   ),
   overwrite: Type.Optional(
     Type.Boolean({
       description:
-        "Required as true for action=oracle_evidence_export when the target JSON file already exists.",
+        "Required as true for action=oracle_evidence_export or action=learning_export when the target JSON file already exists.",
     }),
   ),
   optimizationObjective: Type.Optional(
@@ -1437,9 +1440,9 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, export Oracle-ready evidence JSON for DSPx preflight, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
+      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, export Oracle-ready evidence JSON for DSPx preflight or learning JSON for owner-routed KES handoff, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, local Oracle-ready evidence JSON export for DSPx preflight, exact-task AK evidence packet, adapter-ready learning packet, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, local Oracle-ready evidence JSON export for DSPx preflight, exact-task AK evidence packet, adapter-ready learning packet, local learning JSON export for owner-routed KES handoff, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
     parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
@@ -1453,6 +1456,7 @@ export function registerPiAutoresearchExtension(
           | "oracle_evidence"
           | "oracle_evidence_export"
           | "learning"
+          | "learning_export"
           | "candidate_result"
           | "resume_plan"
           | "resume_apply_plan"
@@ -1610,6 +1614,18 @@ export function registerPiAutoresearchExtension(
         const result = buildAutoresearchKnowledgeExportPacket(cwd);
         return {
           content: [{ type: "text", text: formatAutoresearchKnowledgeExportPacket(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "learning_export") {
+        const result = writeAutoresearchKnowledgeExportPacket({
+          cwd,
+          outPath: request.outPath,
+          overwrite: request.overwrite,
+        });
+        return {
+          content: [{ type: "text", text: formatAutoresearchLearningExportResult(result) }],
           details: result,
         };
       }
@@ -3220,6 +3236,18 @@ async function openAutoresearchShell(
     return;
   }
 
+  if (parseAutoresearchLearningHandoffCommand(normalizedArgs)) {
+    await ctx.ui.editor(
+      "Export autoresearch learning packet",
+      buildAutoresearchLearningExportEditorCall(ctx.cwd),
+    );
+    ctx.ui.notify(
+      "Prepared autoresearch learning export call for review. Submit it to write the local packet, then use the returned KES adapter plan call.",
+      "info",
+    );
+    return;
+  }
+
   const runObjective = parseAutoresearchRunObjectiveCommand(normalizedArgs);
   if (runObjective) {
     await executeAutoresearchFirstRun(runObjective, ctx, options);
@@ -3317,6 +3345,9 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   if (parseAutoresearchResumeCommand(raw)) {
     return buildAutoresearchResumeApplyEditorCall(cwd);
   }
+  if (parseAutoresearchLearningHandoffCommand(raw)) {
+    return buildAutoresearchLearningExportEditorCall(cwd);
+  }
   if (parseAutoresearchCandidateNextCommand(raw)) {
     return buildAutoresearchCandidateNextEditorCall(cwd);
   }
@@ -3350,6 +3381,24 @@ function parseAutoresearchResumeCommand(value: string): boolean {
     default:
       return false;
   }
+}
+
+function parseAutoresearchLearningHandoffCommand(value: string): boolean {
+  switch (value.trim().toLowerCase()) {
+    case "learning":
+    case "learning export":
+    case "export learning":
+    case "learning handoff":
+    case "handoff learning":
+    case "kes handoff":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function buildAutoresearchLearningExportEditorCall(cwd: string): string {
+  return `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "learning_export" })`;
 }
 
 function parseAutoresearchRunObjectiveCommand(value: string): string | null {
@@ -4502,6 +4551,7 @@ function formatAutoresearchCommandNotification(
     "candidate measure: /autoresearch measure [current|<worktree>] -> autoresearch_runtime_run candidate call",
     "candidate decision: /autoresearch candidate|keep|discard|rewind -> autoresearch_candidate_decision",
     "resume: /autoresearch resume -> review, then stage only the exact foreground resume call",
+    "learning: /autoresearch learning -> export autoresearch.learning.v1 for owner-routed adapter handoff",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
     "overlay: /autoresearch overlay",
     "browser: /autoresearch export|export off",

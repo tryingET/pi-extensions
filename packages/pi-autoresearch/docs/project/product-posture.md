@@ -174,7 +174,7 @@ A compact read-only dashboard slice is now also landed:
 autoresearch_runtime_status({ action: "dashboard" })
 ```
 
-The dashboard summarizes current posture, metric contract, confidence/noise interpretation, candidate decision summary, candidate lifecycle policy, and next legal surfaces without running benchmarks or mutating worktrees.
+The dashboard summarizes current posture, metric contract, confidence/noise interpretation, candidate decision summary, candidate lifecycle policy, the learning export -> owner-routed KES adapter handoff, and next legal surfaces without running benchmarks or mutating worktrees.
 
 A first live-progress slice is now landed for bounded loops: `autoresearch_runtime_loop` and `autoresearch_campaign_start({ runMode: "bounded_loop" })` stream compact live progress cards during execution and return a final dashboard in the result. This gives an operator a truthful "start a bounded run, step away, and come back to final posture" path inside the active tool call.
 
@@ -260,7 +260,9 @@ autoresearch_learning_kes_adapter({ action: "plan" | "materialize", packetPath }
 
 It consumes the same `autoresearch.learning.v1` packet, validates the `kes` target and `docs/learnings/` suggested path, plans through `pi-society-orchestrator`'s package-owned KES contract, and materializes only explicit candidate-only KES diary/learning artifacts under that owner package. The public tool does not accept a caller-selected KES root; alternate roots are internal test harness configuration only. `pi-autoresearch` remains the non-mutating packet producer; it does not write KES, promote learning, mutate AK, or own the adapter platform.
 
-Remaining work: use this owner-routed KES seam in real closeout workflows and add other owner adapters only when a concrete notes/KMS owner is ready.
+`pi-autoresearch` now also provides `autoresearch_runtime_status({ action: "learning_export", ... })` as the first-class local packet export path for that owner-routed handoff. The export writes only under `cwd/.autoresearch/`, is overwrite-gated, is unavailable in the read profile, and returns an exact suggested `autoresearch_learning_kes_adapter({ action: "plan", packetPath })` call.
+
+Remaining work: add other owner adapters only when a concrete notes/KMS owner is ready.
 
 ### Bet 6 — Visible-candidate production seam — clarified
 

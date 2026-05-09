@@ -160,6 +160,7 @@ Produced by:
 
 ```ts
 autoresearch_runtime_status({ action: "learning", cwd })
+autoresearch_runtime_status({ action: "learning_export", cwd, outPath })
 ```
 
 Purpose:
@@ -185,6 +186,7 @@ interface AutoresearchLearningPacketV1 {
 
 Adapter examples:
 
+- `pi-society-orchestrator` `autoresearch_learning_kes_adapter`: consume an exported packet path through the KES owner seam and materialize candidate-only diary/learning artifacts under that package.
 - `pi-autoresearch-kes-adapter`: write `markdown` to repo-local `docs/learnings/` after checking local repo policy.
 - `pi-autoresearch-beads-adapter`: create or annotate a Beads item with `title`, `markdown`, and receipt references.
 - `pi-autoresearch-obsidian-adapter`: write a note to an operator-selected vault path.
@@ -197,6 +199,8 @@ node examples/learning-notes-adapter-consumer.mjs --packet /path/to/autoresearch
 ```
 
 This example consumes `autoresearch.learning.v1`, validates the notes target shape, confines the planned destination to `docs/learnings/`, and emits an `autoresearch.notes_adapter_dry_run.v1` receipt. It is deliberately dry-run only: it does not write files, promote learning, or make `pi-autoresearch` the notes/KES owner.
+
+`action: "learning_export"` writes the packet JSON locally under `cwd/.autoresearch/` (default `.autoresearch/learning.json`) and returns an exact suggested owner-routed KES adapter call. The export action is a local write, is not available in read profile, rejects absolute/path-escape destinations, and requires `overwrite: true` when replacing an existing file. `pi-autoresearch` itself does not write KES, mutate AK, call notes/KMS systems, or change promotion state.
 
 ### `autoresearch.ak_evidence.v1` / `autoresearch:segment_closeout`
 

@@ -90,6 +90,7 @@ export const AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME = "autoresearch_candidate_bin
 export const AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME = "autoresearch_candidate_decision";
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 export const AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE = ".autoresearch/oracle_evidence.json";
+export const AUTORESEARCH_LEARNING_EXPORT_FILE = ".autoresearch/learning.json";
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
@@ -102,6 +103,7 @@ export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.checks.sh",
   "autoresearch.ideas.md",
   AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
+  AUTORESEARCH_LEARNING_EXPORT_FILE,
 ] as const;
 
 export const AUTORESEARCH_DASHBOARD_EXPORT_FILE = ".autoresearch/autoresearch-dashboard.html";
@@ -465,6 +467,21 @@ export interface AutoresearchKnowledgeExportPacket {
   markdown: string;
   closeout: AutoresearchSegmentCloseout;
   adapterBoundary: string;
+}
+
+export interface AutoresearchLearningExportResult {
+  exportKind: "autoresearch.learning_export.v1";
+  path: string;
+  packet: AutoresearchKnowledgeExportPacket;
+  suggestedKesAdapterCall: string;
+  effect: {
+    localFileWritten: true;
+    akCalled: false;
+    kesWritten: false;
+    externalAuthorityMutated: false;
+    promotionStateChanged: false;
+  };
+  authorityBoundary: string;
 }
 
 export interface AutoresearchCandidateResultPacket {
@@ -3670,14 +3687,17 @@ function assertPathInsideDirectory(input: {
   }
 }
 
-function resolveAutoresearchOracleEvidenceExportPath(cwd: string, outPath?: string): string {
-  const resolvedCwd = path.resolve(cwd);
+function resolveAutoresearchPacketExportPath(input: {
+  cwd: string;
+  outPath?: string;
+  defaultPath: string;
+  label: string;
+}): string {
+  const resolvedCwd = path.resolve(input.cwd);
   const exportRoot = path.resolve(resolvedCwd, ".autoresearch");
-  const requestedPath = outPath?.trim() || AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE;
+  const requestedPath = input.outPath?.trim() || input.defaultPath;
   if (path.isAbsolute(requestedPath)) {
-    throw new Error(
-      "oracle evidence export outPath must be relative to cwd/.autoresearch, not absolute",
-    );
+    throw new Error(`${input.label} outPath must be relative to cwd/.autoresearch, not absolute`);
   }
   const relativePath = requestedPath.startsWith(".autoresearch/")
     ? requestedPath.slice(".autoresearch/".length)
@@ -3686,9 +3706,27 @@ function resolveAutoresearchOracleEvidenceExportPath(cwd: string, outPath?: stri
   assertPathInsideDirectory({
     candidate: outputPath,
     root: exportRoot,
-    label: "oracle evidence export path",
+    label: `${input.label} path`,
   });
   return outputPath;
+}
+
+function resolveAutoresearchOracleEvidenceExportPath(cwd: string, outPath?: string): string {
+  return resolveAutoresearchPacketExportPath({
+    cwd,
+    outPath,
+    defaultPath: AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
+    label: "oracle evidence export",
+  });
+}
+
+function resolveAutoresearchLearningExportPath(cwd: string, outPath?: string): string {
+  return resolveAutoresearchPacketExportPath({
+    cwd,
+    outPath,
+    defaultPath: AUTORESEARCH_LEARNING_EXPORT_FILE,
+    label: "learning export",
+  });
 }
 
 function shellQuote(value: string): string {
@@ -3780,6 +3818,60 @@ export function formatAutoresearchOracleEvidenceExportResult(
     "## DSPx owner preflight",
     "```bash",
     result.suggestedDspxPreflightCommand,
+    "```",
+  ].join("\n");
+}
+
+export function writeAutoresearchKnowledgeExportPacket(input: {
+  cwd: string;
+  outPath?: string;
+  overwrite?: boolean;
+}): AutoresearchLearningExportResult {
+  const packet = buildAutoresearchKnowledgeExportPacket(input.cwd);
+  const outputPath = resolveAutoresearchLearningExportPath(input.cwd, input.outPath);
+  if (existsSync(outputPath) && input.overwrite !== true) {
+    throw new Error(
+      `learning export already exists; pass overwrite=true to replace it: ${outputPath}`,
+    );
+  }
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  return {
+    exportKind: "autoresearch.learning_export.v1",
+    path: outputPath,
+    packet,
+    suggestedKesAdapterCall: `autoresearch_learning_kes_adapter({ action: "plan", packetPath: ${JSON.stringify(outputPath)} })`,
+    effect: {
+      localFileWritten: true,
+      akCalled: false,
+      kesWritten: false,
+      externalAuthorityMutated: false,
+      promotionStateChanged: false,
+    },
+    authorityBoundary:
+      "Local learning packet export only; KES/KMS/notes adapters own persistence, promotion, and external writes.",
+  };
+}
+
+export function formatAutoresearchLearningExportResult(
+  result: AutoresearchLearningExportResult,
+): string {
+  return [
+    "# PI-AUTORESEARCH LEARNING EXPORT",
+    "",
+    `- export kind: ${result.exportKind}`,
+    `- packet kind: ${result.packet.packetKind}`,
+    `- path: ${result.path}`,
+    `- target kinds: ${result.packet.targetKinds.join(", ")}`,
+    `- AK called: ${result.effect.akCalled ? "yes" : "no"}`,
+    `- KES written: ${result.effect.kesWritten ? "yes" : "no"}`,
+    `- external authority mutated: ${result.effect.externalAuthorityMutated ? "yes" : "no"}`,
+    `- promotion state changed: ${result.effect.promotionStateChanged ? "yes" : "no"}`,
+    `- boundary: ${result.authorityBoundary}`,
+    "",
+    "## Suggested owner-routed KES adapter call",
+    "```ts",
+    result.suggestedKesAdapterCall,
     "```",
   ].join("\n");
 }
@@ -4426,6 +4518,9 @@ export function formatAutoresearchDashboard(
   const resumeApplyPlanLines = resumeApplyPlan
     ? formatAutoresearchResumeApplyPlanSummaryLines(resumeApplyPlan)
     : ["- resume apply plan: (unavailable without cwd)"];
+  const learningExportCall = `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "learning_export" })`;
+  const learningKesAdapterCall =
+    'autoresearch_learning_kes_adapter({ action: "plan", packetPath: "<exported-learning-packet>" })';
 
   return [
     "# PI-AUTORESEARCH DASHBOARD",
@@ -4472,12 +4567,19 @@ export function formatAutoresearchDashboard(
     "## Resume apply plan-only proposal",
     ...resumeApplyPlanLines,
     "",
+    "## Learning handoff",
+    `- export learning packet: ${learningExportCall}`,
+    `- KES adapter plan: ${learningKesAdapterCall}`,
+    "- boundary: export is local only; KES/notes/KMS adapters own persistence and promotion.",
+    "",
     "## Next legal surfaces",
     `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     `- resume plan: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "resume_plan" })`,
     `- resume apply plan-only proposal: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "resume_apply_plan" })`,
     `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "closeout" })`,
+    `- learning export: ${learningExportCall}`,
+    `- learning KES adapter plan: ${learningKesAdapterCall}`,
     `- candidate bind: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, candidateWorktree: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "plan_run" })`,
     `- candidate decision: ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
     `- control gate: ${AUTORESEARCH_CONTROL_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
@@ -4501,6 +4603,9 @@ function renderAutoresearchDashboardHtml(
   const resumeApplyPlan = buildAutoresearchResumeApplyPlan(closeout.cwd);
   const resumeApplyPlanBlockers =
     resumeApplyPlan.blockedReasons.length > 0 ? resumeApplyPlan.blockedReasons.join("; ") : "none";
+  const learningExportCall = `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "learning_export" })`;
+  const learningKesAdapterCall =
+    'autoresearch_learning_kes_adapter({ action: "plan", packetPath: "<exported-learning-packet>" })';
   const generatedAt = new Date().toLocaleString();
   const metricUnit = closeout.metricUnit || segment.metricUnit || "";
   const metricName = closeout.metricName ?? segment.metricName ?? "metric";
@@ -4667,6 +4772,14 @@ code { color: #a5d6ff; }
     <div class="card-copy">${escapeHtml(resumeApplyPlan.packetKind)} · execution authorized=${resumeApplyPlan.executionAuthorized ? "yes" : "no"} · blockers=${escapeHtml(resumeApplyPlanBlockers)}</div>
     <div class="card-copy"><code>${escapeHtml(resumeApplyPlan.futureForegroundCall ?? `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "resume_apply_plan" })`)}</code></div>
     <div class="card-copy">Plan-only: execution is not authorized here; use autoresearch_runtime_resume_apply only with exact foreground confirmation and explicit budgets.</div>
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Learning handoff</div>
+    <div class="card-value" style="font-size:18px">export → owner adapter</div>
+    <div class="card-copy"><code>${escapeHtml(learningExportCall)}</code></div>
+    <div class="card-copy"><code>${escapeHtml(learningKesAdapterCall)}</code></div>
+    <div class="card-copy">Boundary: export is local only; KES/notes/KMS adapters own persistence and promotion.</div>
   </section>
 
   <div class="cards">
