@@ -1333,7 +1333,20 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       metricName: Type.Optional(Type.String({ description: "Optional explicit metric name" })),
       metricUnit: Type.Optional(Type.String({ description: "Optional explicit metric unit" })),
       direction: Type.Optional(Type.Union([Type.Literal("lower"), Type.Literal("higher")])),
+      metricThreshold: Type.Optional(
+        Type.Number({
+          description:
+            "Optional explicit metric success threshold forwarded to pi-autoresearch for action=start_campaign.",
+        }),
+      ),
+      reconfigure: Type.Optional(
+        Type.Boolean({
+          description:
+            "When true, ask pi-autoresearch to append a fresh config segment for action=start_campaign instead of continuing the active segment.",
+        }),
+      ),
       planner: Type.Optional(Type.Union([Type.Literal("heuristic"), Type.Literal("dspx_program")])),
+
       materializeDspxIntent: Type.Optional(
         Type.Boolean({
           description:
@@ -1379,6 +1392,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         metricName,
         metricUnit,
         direction,
+        metricThreshold,
+        reconfigure,
         planner,
         materializeDspxIntent,
         runDspxProgramGen,
@@ -1399,6 +1414,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         metricName?: string;
         metricUnit?: string;
         direction?: "lower" | "higher";
+        metricThreshold?: number;
+        reconfigure?: boolean;
         planner?: "heuristic" | "dspx_program";
         materializeDspxIntent?: boolean;
         runDspxProgramGen?: boolean;
@@ -1524,6 +1541,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             metricName,
             metricUnit,
             direction,
+            metricThreshold,
+            reconfigure,
             planner,
             materializeDspxIntent,
             runDspxProgramGen,

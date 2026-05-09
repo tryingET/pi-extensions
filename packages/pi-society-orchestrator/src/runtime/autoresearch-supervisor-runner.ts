@@ -133,6 +133,8 @@ export interface AutoresearchLiveStartCampaignRequest extends AutoresearchLiveSu
   metricName?: string;
   metricUnit?: string;
   direction?: "lower" | "higher";
+  metricThreshold?: number;
+  reconfigure?: boolean;
   planner?: AutoresearchAutoplanPlanner;
   materializeDspxIntent?: boolean;
   runDspxProgramGen?: boolean;
@@ -407,6 +409,8 @@ export class AutoresearchLiveSupervisionRunner {
       metricName: input.metricName,
       metricUnit: input.metricUnit,
       direction: input.direction,
+      metricThreshold: input.metricThreshold,
+      reconfigure: input.reconfigure,
       planner: input.planner,
       materializeDspxIntent: input.materializeDspxIntent,
       runDspxProgramGen: input.runDspxProgramGen,

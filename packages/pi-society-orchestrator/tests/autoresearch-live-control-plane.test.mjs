@@ -409,6 +409,8 @@ test("autoresearch_live_supervision start_campaign delegates execution then supe
         maxWallClockMinutes: 5,
         benchmarkCommand: "bash autoresearch.sh",
         checksCommand: "bash autoresearch.checks.sh",
+        metricThreshold: 0,
+        reconfigure: true,
       },
       undefined,
       undefined,
@@ -501,6 +503,8 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
       dspxIntentPath: ".autoresearch/dspx/intent.yaml",
       dspxOutdir: ".autoresearch/dspx/generated",
       dspxBehaviorPath: ".autoresearch/dspx/behavior_results.json",
+      metricThreshold: 0,
+      reconfigure: true,
     },
     undefined,
     undefined,
@@ -515,6 +519,8 @@ test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff
   assert.equal(campaignCalls[0].dspxIntentPath, ".autoresearch/dspx/intent.yaml");
   assert.equal(campaignCalls[0].dspxOutdir, ".autoresearch/dspx/generated");
   assert.equal(campaignCalls[0].dspxBehaviorPath, ".autoresearch/dspx/behavior_results.json");
+  assert.equal(campaignCalls[0].metricThreshold, 0);
+  assert.equal(campaignCalls[0].reconfigure, true);
   assert.equal(campaignCalls[0].peerMode, "plan");
   assert.match(result.content[0].text, /Planner: dspx_program/);
   assert.match(result.content[0].text, /DSPx generated DSPy planner assembly/);
@@ -566,6 +572,8 @@ test("AutoresearchLiveSupervisionRunner startCampaign pins bounded delegation de
       runMode: campaignCalls[0].runMode,
       maxIterations: campaignCalls[0].maxIterations,
       maxWallClockMinutes: campaignCalls[0].maxWallClockMinutes,
+      metricThreshold: campaignCalls[0].metricThreshold,
+      reconfigure: campaignCalls[0].reconfigure,
       peerMode: campaignCalls[0].peerMode,
     },
     {
@@ -575,6 +583,8 @@ test("AutoresearchLiveSupervisionRunner startCampaign pins bounded delegation de
       runMode: "bounded_loop",
       maxIterations: 3,
       maxWallClockMinutes: 30,
+      metricThreshold: undefined,
+      reconfigure: undefined,
       peerMode: "plan",
     },
   );
