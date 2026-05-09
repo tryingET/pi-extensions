@@ -746,11 +746,12 @@ export function planAutoresearchCandidateWave(
         candidateDiffSummary: `<${laneId}-controller-verified-diff-summary>`,
         candidateFilesChanged: [`<${laneId}-changed-files>`],
       });
+      const candidateResultPacketPath = `.autoresearch/candidate-wave/${laneId}.candidate-result.json`;
       const resultCall = formatToolCall("autoresearch_runtime_status", {
         cwd: identity.cwd,
-        action: "candidate_result",
+        action: "candidate_result_export",
+        outPath: candidateResultPacketPath,
       });
-      const candidateResultPacketPath = `.autoresearch/candidate-wave/${laneId}.candidate-result.json`;
       return {
         laneId,
         objective: laneObjective,
@@ -794,7 +795,7 @@ export function planAutoresearchCandidateWave(
       reviewInstructions: [
         "Launch only the lanes the owner/controller explicitly approves.",
         "After each PEER_FINAL, bind and measure the candidate through pi-autoresearch before comparing claims.",
-        "Save each candidate_result packet to the lane's candidateResultPacketPath, then run aggregateReviewCall for owner-visible comparison.",
+        "Run each lane's candidate_result_export call, then run aggregateReviewCall for owner-visible comparison.",
         "Use the dashboard/candidate decision surface to choose keep, discard, rewind, more samples, or finalize; do not auto-merge.",
       ],
     },

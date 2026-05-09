@@ -43,6 +43,7 @@ import {
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -78,6 +79,7 @@ import {
   formatAutoresearchCandidateBindPlan,
   formatAutoresearchCandidateDecisionDashboardSummary,
   formatAutoresearchCandidateDecisionWorkbench,
+  formatAutoresearchCandidateResultExportResult,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchDashboard,
   formatAutoresearchKnowledgeExportPacket,
@@ -95,6 +97,7 @@ import {
   serializeReceipt,
   setAutoresearchRuntimeControl,
   validateAutoresearchAdapterPacket,
+  writeAutoresearchCandidateResultPacket,
   writeAutoresearchKnowledgeExportPacket,
   writeAutoresearchOracleEvidencePacket,
 } from "../src/core/runtime.ts";
@@ -1900,6 +1903,39 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.match(
       formatAutoresearchCandidateResultPacket(candidateResult),
       /CANDIDATE RESULT PACKET/,
+    );
+
+    const candidateResultExport = writeAutoresearchCandidateResultPacket({ cwd });
+    assert.equal(candidateResultExport.exportKind, "autoresearch.candidate_result_export.v1");
+    assert.equal(candidateResultExport.packet.packetKind, "autoresearch.candidate_result.v1");
+    assert.equal(
+      candidateResultExport.path,
+      path.join(cwd, AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE),
+    );
+    assert.equal(candidateResultExport.effect.candidateLifecycleMutated, false);
+    assert.equal(candidateResultExport.effect.worktreeMutated, false);
+    assert.equal(candidateResultExport.effect.akCalled, false);
+    assert.equal(candidateResultExport.effect.kesWritten, false);
+    assert.equal(candidateResultExport.effect.promotionStateChanged, false);
+    assert.match(candidateResultExport.suggestedReviewCall, /review_candidate_wave/);
+    assert.match(
+      formatAutoresearchCandidateResultExportResult(candidateResultExport),
+      /CANDIDATE RESULT EXPORT/,
+    );
+    const candidateResultPayload = JSON.parse(readFileSync(candidateResultExport.path, "utf8"));
+    assert.equal(candidateResultPayload.packetKind, "autoresearch.candidate_result.v1");
+    assert.throws(
+      () => writeAutoresearchCandidateResultPacket({ cwd }),
+      /already exists; pass overwrite=true/u,
+    );
+    assert.doesNotThrow(() => writeAutoresearchCandidateResultPacket({ cwd, overwrite: true }));
+    assert.throws(
+      () => writeAutoresearchCandidateResultPacket({ cwd, outPath: "/tmp/candidate-result.json" }),
+      /must be relative/u,
+    );
+    assert.throws(
+      () => writeAutoresearchCandidateResultPacket({ cwd, outPath: "../candidate-result.json" }),
+      /must stay inside/u,
     );
 
     const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({
@@ -4880,6 +4916,36 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
     assert.match(
       candidateResult?.content[0]?.text ?? "",
       /packet kind: autoresearch\.candidate_result\.v1/,
+    );
+
+    const candidateResultExportPath = path.join(
+      cwd,
+      ".autoresearch",
+      "status-candidate-result.json",
+    );
+    const candidateResultExport = await tool?.execute(
+      "call-4c3",
+      {
+        cwd,
+        action: "candidate_result_export",
+        outPath: "status-candidate-result.json",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.ok(candidateResultExport);
+    assert.match(candidateResultExport?.content[0]?.text ?? "", /CANDIDATE RESULT EXPORT/);
+    assert.match(candidateResultExport?.content[0]?.text ?? "", /review_candidate_wave/);
+    assert.equal(
+      (candidateResultExport?.details as { exportKind?: string }).exportKind,
+      "autoresearch.candidate_result_export.v1",
+    );
+    const candidateResultExportDetails = candidateResultExport?.details as { path?: string };
+    assert.equal(candidateResultExportDetails.path, candidateResultExportPath);
+    assert.equal(
+      JSON.parse(readFileSync(candidateResultExportPath, "utf8")).packetKind,
+      "autoresearch.candidate_result.v1",
     );
 
     const contracts = await tool?.execute(

@@ -69,6 +69,7 @@ import {
   formatAutoresearchCampaignStartResult,
   formatAutoresearchCandidateBindPlan,
   formatAutoresearchCandidateDecisionWorkbench,
+  formatAutoresearchCandidateResultExportResult,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchControlResult,
   formatAutoresearchDashboard,
@@ -91,6 +92,7 @@ import {
   requestAutoresearchSetupDecision,
   setAutoresearchRuntimeControl,
   validateAutoresearchAdapterPacket,
+  writeAutoresearchCandidateResultPacket,
   writeAutoresearchKnowledgeExportPacket,
   writeAutoresearchOracleEvidencePacket,
 } from "../src/core/runtime.ts";
@@ -318,6 +320,7 @@ const statusActionSchema = Type.Union(
     Type.Literal("learning"),
     Type.Literal("learning_export"),
     Type.Literal("candidate_result"),
+    Type.Literal("candidate_result_export"),
     Type.Literal("resume_plan"),
     Type.Literal("resume_apply_plan"),
     Type.Literal("adapter_contracts"),
@@ -335,13 +338,13 @@ const statusSchema = Type.Object({
   outPath: Type.Optional(
     Type.String({
       description:
-        "Optional output path for action=oracle_evidence_export or action=learning_export. Must be relative under cwd/.autoresearch; defaults are .autoresearch/oracle_evidence.json and .autoresearch/learning.json.",
+        "Optional output path for action=oracle_evidence_export, action=learning_export, or action=candidate_result_export. Must be relative under cwd/.autoresearch; defaults are .autoresearch/oracle_evidence.json, .autoresearch/learning.json, and .autoresearch/candidate-result.json.",
     }),
   ),
   overwrite: Type.Optional(
     Type.Boolean({
       description:
-        "Required as true for action=oracle_evidence_export or action=learning_export when the target JSON file already exists.",
+        "Required as true for action=oracle_evidence_export, action=learning_export, or action=candidate_result_export when the target JSON file already exists.",
     }),
   ),
   optimizationObjective: Type.Optional(
@@ -1443,9 +1446,9 @@ export function registerPiAutoresearchExtension(
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
     description:
-      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, export Oracle-ready evidence JSON for DSPx preflight or learning JSON for owner-routed KES handoff, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
+      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, export Oracle-ready evidence JSON, learning JSON, or candidate-result JSON for owner-routed handoff, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
     promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, local Oracle-ready evidence JSON export for DSPx preflight, exact-task AK evidence packet, adapter-ready learning packet, local learning JSON export for owner-routed KES handoff, candidate-result packet, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
+      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, local Oracle-ready evidence JSON export for DSPx preflight, exact-task AK evidence packet, adapter-ready learning packet, local learning JSON export for owner-routed KES handoff, candidate-result packet/export, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
     parameters: asPiToolParameters(statusSchema),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
@@ -1461,6 +1464,7 @@ export function registerPiAutoresearchExtension(
           | "learning"
           | "learning_export"
           | "candidate_result"
+          | "candidate_result_export"
           | "resume_plan"
           | "resume_apply_plan"
           | "adapter_contracts"
@@ -1637,6 +1641,18 @@ export function registerPiAutoresearchExtension(
         const result = buildAutoresearchCandidateResultPacket(cwd);
         return {
           content: [{ type: "text", text: formatAutoresearchCandidateResultPacket(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "candidate_result_export") {
+        const result = writeAutoresearchCandidateResultPacket({
+          cwd,
+          outPath: request.outPath,
+          overwrite: request.overwrite,
+        });
+        return {
+          content: [{ type: "text", text: formatAutoresearchCandidateResultExportResult(result) }],
           details: result,
         };
       }

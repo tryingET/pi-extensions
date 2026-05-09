@@ -493,6 +493,14 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
     result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
     /autoresearch_runtime_run/,
   );
+  assert.match(
+    result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
+    /candidate_result_export/,
+  );
+  assert.match(
+    result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
+    /\.autoresearch\/candidate-wave\/candidate-01\.candidate-result\.json/,
+  );
   assert.equal(
     result.details.candidateWave.lanes[0].candidateResultPacketPath,
     ".autoresearch/candidate-wave/candidate-01.candidate-result.json",

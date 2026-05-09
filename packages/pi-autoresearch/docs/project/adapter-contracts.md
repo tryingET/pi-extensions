@@ -125,6 +125,7 @@ Produced by:
 
 ```ts
 autoresearch_runtime_status({ action: "candidate_result", cwd })
+autoresearch_runtime_status({ action: "candidate_result_export", cwd, outPath })
 ```
 
 Purpose:
@@ -152,7 +153,7 @@ interface AutoresearchCandidateResultPacketV1 {
 }
 ```
 
-This packet is useful for adapters that want to comment on a Beads item, issue, candidate review, or task record. It does not merge, promote, assign review authority, or treat candidate-peer messages as canonical evidence.
+This packet is useful for adapters that want to comment on a Beads item, issue, candidate review, or task record. `action: "candidate_result_export"` writes the packet JSON locally under `cwd/.autoresearch/` (default `.autoresearch/candidate-result.json`) for owner-visible candidate-wave review; the export action is an explicit local write, is not available in read profile, rejects absolute/path-escape destinations, and requires `overwrite: true` when replacing an existing file. It does not merge, promote, assign review authority, mutate candidate lifecycle/worktrees, write AK/KES/evidence, or treat candidate-peer messages as canonical evidence.
 
 ### `autoresearch.learning.v1`
 

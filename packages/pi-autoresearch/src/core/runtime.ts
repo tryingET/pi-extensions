@@ -91,6 +91,7 @@ export const AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME = "autoresearch_candidate
 export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 export const AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE = ".autoresearch/oracle_evidence.json";
 export const AUTORESEARCH_LEARNING_EXPORT_FILE = ".autoresearch/learning.json";
+export const AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE = ".autoresearch/candidate-result.json";
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
@@ -104,6 +105,7 @@ export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.ideas.md",
   AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
   AUTORESEARCH_LEARNING_EXPORT_FILE,
+  AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
 ] as const;
 
 export const AUTORESEARCH_DASHBOARD_EXPORT_FILE = ".autoresearch/autoresearch-dashboard.html";
@@ -497,6 +499,22 @@ export interface AutoresearchCandidateResultPacket {
   resultSummary: string;
   closeout: AutoresearchSegmentCloseout;
   adapterBoundary: string;
+}
+
+export interface AutoresearchCandidateResultExportResult {
+  exportKind: "autoresearch.candidate_result_export.v1";
+  path: string;
+  packet: AutoresearchCandidateResultPacket;
+  suggestedReviewCall: string;
+  effect: {
+    localFileWritten: true;
+    candidateLifecycleMutated: false;
+    worktreeMutated: false;
+    akCalled: false;
+    kesWritten: false;
+    promotionStateChanged: false;
+  };
+  authorityBoundary: string;
 }
 
 export interface AutoresearchAdapterContractEntry {
@@ -3336,7 +3354,8 @@ export function buildAutoresearchAdapterContractCatalog(): AutoresearchAdapterCo
       {
         packetKind: "autoresearch.candidate_result.v1",
         adapterContractVersion: 1,
-        producerAction: 'autoresearch_runtime_status({ action: "candidate_result", cwd })',
+        producerAction:
+          'autoresearch_runtime_status({ action: "candidate_result", cwd }) or autoresearch_runtime_status({ action: "candidate_result_export", cwd, outPath })',
         targetKinds: ["candidate_review", "task_system", "evidence", "issue_tracker"],
         requiredFields: [
           "packetKind",
@@ -3827,6 +3846,15 @@ function resolveAutoresearchLearningExportPath(cwd: string, outPath?: string): s
   });
 }
 
+function resolveAutoresearchCandidateResultExportPath(cwd: string, outPath?: string): string {
+  return resolveAutoresearchPacketExportPath({
+    cwd,
+    outPath,
+    defaultPath: AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
+    label: "candidate result export",
+  });
+}
+
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
@@ -3970,6 +3998,62 @@ export function formatAutoresearchLearningExportResult(
     "## Suggested owner-routed KES adapter call",
     "```ts",
     result.suggestedKesAdapterCall,
+    "```",
+  ].join("\n");
+}
+
+export function writeAutoresearchCandidateResultPacket(input: {
+  cwd: string;
+  outPath?: string;
+  overwrite?: boolean;
+}): AutoresearchCandidateResultExportResult {
+  const packet = buildAutoresearchCandidateResultPacket(input.cwd);
+  const outputPath = resolveAutoresearchCandidateResultExportPath(input.cwd, input.outPath);
+  if (existsSync(outputPath) && input.overwrite !== true) {
+    throw new Error(
+      `candidate result export already exists; pass overwrite=true to replace it: ${outputPath}`,
+    );
+  }
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  return {
+    exportKind: "autoresearch.candidate_result_export.v1",
+    path: outputPath,
+    packet,
+    suggestedReviewCall: `autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(input.cwd)}, objective: "<candidate-wave-objective>", direction: "lower", candidateResultPacketPaths: [${JSON.stringify(outputPath)}] })`,
+    effect: {
+      localFileWritten: true,
+      candidateLifecycleMutated: false,
+      worktreeMutated: false,
+      akCalled: false,
+      kesWritten: false,
+      promotionStateChanged: false,
+    },
+    authorityBoundary:
+      "Local candidate-result packet export only; candidate lifecycle, worktree mutation, AK/KES/evidence, and promotion remain external owner-surface actions.",
+  };
+}
+
+export function formatAutoresearchCandidateResultExportResult(
+  result: AutoresearchCandidateResultExportResult,
+): string {
+  return [
+    "# PI-AUTORESEARCH CANDIDATE RESULT EXPORT",
+    "",
+    `- export kind: ${result.exportKind}`,
+    `- packet kind: ${result.packet.packetKind}`,
+    `- path: ${result.path}`,
+    `- candidate: ${result.packet.candidate?.branch ?? result.packet.candidate?.worktreePath ?? "(none)"}`,
+    `- candidate lifecycle mutated: ${result.effect.candidateLifecycleMutated ? "yes" : "no"}`,
+    `- worktree mutated: ${result.effect.worktreeMutated ? "yes" : "no"}`,
+    `- AK called: ${result.effect.akCalled ? "yes" : "no"}`,
+    `- KES written: ${result.effect.kesWritten ? "yes" : "no"}`,
+    `- promotion state changed: ${result.effect.promotionStateChanged ? "yes" : "no"}`,
+    `- boundary: ${result.authorityBoundary}`,
+    "",
+    "## Suggested aggregate review call seed",
+    "```ts",
+    result.suggestedReviewCall,
     "```",
   ].join("\n");
 }
