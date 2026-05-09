@@ -2972,6 +2972,10 @@ test("/autoresearch run executes the bounded first-entrypoint campaign", async (
     assert.match(editorText, /PI-AUTORESEARCH CAMPAIGN START/);
     assert.match(editorText, /run mode: bounded_loop/);
     assert.match(editorText, /completed iterations: 3\/3/);
+    assert.match(editorText, /peer tool: candidate_peer_spawn/);
+    assert.match(editorText, /peer call: candidate_peer_spawn/);
+    assert.match(editorText, /peer launch handoff: not_requested/);
+    assert.match(editorText, /Peer\/intercom messages are communication only/);
     assert.match(editorText, /machine state: ready/);
     assert.match(
       readFileSync(path.join(cwd, "autoresearch.jsonl"), "utf8"),

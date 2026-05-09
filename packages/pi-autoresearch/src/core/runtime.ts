@@ -2182,7 +2182,16 @@ export function formatAutoresearchCampaignStartResult(
         "## Bounded loop",
         `- completed iterations: ${result.loopResult.completedIterations}/${result.loopResult.requestedIterations}`,
         `- stop reason: ${result.loopResult.stopReason}`,
+        `- peer mode: ${result.loopResult.peerMode}`,
         `- peer lane: ${result.loopResult.peerAssist.lane}`,
+        `- peer reason: ${result.loopResult.peerAssist.reason}`,
+        `- peer tool: ${result.loopResult.peerAssist.toolName ?? "(none)"}`,
+        result.loopResult.peerAssist.toolCall
+          ? `- peer call: ${result.loopResult.peerAssist.toolCall}`
+          : "- peer call: (none)",
+        `- peer launch handoff: ${result.loopResult.peerLaunchHandoff.status}`,
+        `- peer launch note: ${result.loopResult.peerLaunchHandoff.note}`,
+        `- peer evidence boundary: ${result.loopResult.peerAssist.evidenceWarning}`,
       ]
     : result.setupResult
       ? [
