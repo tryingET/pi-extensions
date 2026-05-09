@@ -10,10 +10,12 @@ import {
   STRATEGIC_PLUGIN,
   TRANSCENDENT_PLUGIN,
 } from "../src/loops/engine.ts";
+import { LoopKesWriter } from "../src/loops/kes.ts";
 
 function createExecutor(plugin, operatorCwd, packageRoot) {
   return new LoopExecutor(plugin, operatorCwd, "/tmp/unused-vault", {
     packageRoot,
+    allowUnverifiedKesRoot: true,
     ak: {
       async evidenceRecord() {
         return { ok: true, via: "ak" };
@@ -146,6 +148,29 @@ test("LoopExecutor fails closed with a typed error when the configured KES root 
   } finally {
     fs.rmSync(operatorCwd, { recursive: true, force: true });
     fs.rmSync(packageRootParent, { recursive: true, force: true });
+  }
+});
+
+test("LoopKesWriter rejects unverified package roots by default", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-unverified-root-"));
+
+  try {
+    const writer = new LoopKesWriter(packageRoot);
+    assert.throws(
+      () =>
+        writer.writeStart({
+          plugin: "kaizen",
+          sessionId: "loop-unverified",
+          objective: "Reject arbitrary KES root",
+          phases: ["plan"],
+          timestamp: new Date("2026-04-10T13:30:00Z"),
+        }),
+      (error) => error instanceof KesMaterializationError,
+    );
+    assert.equal(fs.existsSync(path.join(packageRoot, "diary")), false);
+    assert.equal(fs.existsSync(path.join(packageRoot, "docs", "learnings")), false);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
   }
 });
 

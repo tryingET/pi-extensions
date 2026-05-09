@@ -382,6 +382,7 @@ export interface LoopEvidenceRecorder {
 export interface LoopExecutorOptions {
   akPath?: string;
   packageRoot?: string;
+  allowUnverifiedKesRoot?: boolean;
   ak?: LoopEvidenceRecorder;
 }
 
@@ -399,7 +400,9 @@ export class LoopExecutor {
   ) {
     this.plugin = plugin;
     this.cwd = cwd;
-    this.kes = new LoopKesWriter(options.packageRoot);
+    this.kes = new LoopKesWriter(options.packageRoot, {
+      allowUnverifiedPackageRoot: options.allowUnverifiedKesRoot,
+    });
     this.ak =
       options.ak ||
       new AgentKernel(

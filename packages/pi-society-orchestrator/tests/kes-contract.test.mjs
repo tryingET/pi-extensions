@@ -185,3 +185,74 @@ test("materializeKesArtifactPlan rejects nested symlink traversal before mkdir s
     fs.rmSync(outsideRoot, { recursive: true, force: true });
   }
 });
+
+test("materializeKesArtifactPlan does not clobber a final path created during commit", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-no-clobber-"));
+  const realLinkSync = fs.linkSync;
+  let injected = false;
+
+  try {
+    const plan = createKesArtifactPlan(packageRoot, {
+      diary: {
+        kind: "validation",
+        summary: "Protect concurrent KES materialization",
+        source: { kind: "manual", objective: "Check no-clobber commit" },
+        actions: ["Stage a no-clobber commit repro."],
+        timestamp: new Date("2026-04-10T14:00:00Z"),
+      },
+    });
+    fs.linkSync = (existingPath, newPath) => {
+      if (!injected) {
+        injected = true;
+        fs.writeFileSync(newPath, "CONCURRENT", "utf8");
+      }
+      return realLinkSync(existingPath, newPath);
+    };
+
+    assert.throws(
+      () => materializeKesArtifactPlan(plan),
+      (error) => error instanceof KesMaterializationError,
+    );
+    assert.equal(fs.readFileSync(plan.diary.absolutePath, "utf8"), "CONCURRENT");
+  } finally {
+    fs.linkSync = realLinkSync;
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("materializeKesArtifactPlan cleans temp writes if a KES root is swapped to a symlink", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-swap-root-"));
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-swap-outside-"));
+  const realWriteFileSync = fs.writeFileSync;
+  let injected = false;
+
+  try {
+    const plan = createKesArtifactPlan(packageRoot, {
+      diary: {
+        kind: "validation",
+        summary: "Detect swapped KES roots",
+        source: { kind: "manual", objective: "Check symlink swap cleanup" },
+        actions: ["Stage a symlink-swap repro."],
+        timestamp: new Date("2026-04-10T15:00:00Z"),
+      },
+    });
+    fs.writeFileSync = (file, ...args) => {
+      if (!injected && path.basename(String(file)).startsWith(".")) {
+        injected = true;
+        fs.rmSync(path.join(packageRoot, "diary"), { recursive: true, force: true });
+        fs.symlinkSync(outsideRoot, path.join(packageRoot, "diary"), "dir");
+      }
+      return realWriteFileSync(file, ...args);
+    };
+
+    assert.throws(
+      () => materializeKesArtifactPlan(plan),
+      (error) => error instanceof KesMaterializationError,
+    );
+    assert.deepEqual(fs.readdirSync(outsideRoot), []);
+  } finally {
+    fs.writeFileSync = realWriteFileSync;
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+    fs.rmSync(outsideRoot, { recursive: true, force: true });
+  }
+});

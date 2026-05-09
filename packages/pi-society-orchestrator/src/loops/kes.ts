@@ -1,6 +1,12 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createKesArtifactPlan, materializeKesArtifactPlan } from "../kes/index.ts";
+import {
+  createKesArtifactPlan,
+  KES_PACKAGE_NAME,
+  KesMaterializationError,
+  materializeKesArtifactPlan,
+} from "../kes/index.ts";
 import type { EvidenceWriteResult, SkippedEvidenceWriteResult } from "../runtime/evidence.ts";
 import type { ExecutionStatus } from "../runtime/execution-status.ts";
 
@@ -59,15 +65,22 @@ export function resolveLoopKesPackageRoot(override = process.env.PI_ORCH_KES_ROO
   return path.resolve(override || DEFAULT_LOOP_KES_PACKAGE_ROOT);
 }
 
+export interface LoopKesWriterOptions {
+  allowUnverifiedPackageRoot?: boolean;
+}
+
 export class LoopKesWriter {
   private packageRoot: string;
+  private allowUnverifiedPackageRoot: boolean;
 
-  constructor(packageRoot = resolveLoopKesPackageRoot()) {
-    this.packageRoot = packageRoot;
+  constructor(packageRoot = resolveLoopKesPackageRoot(), options: LoopKesWriterOptions = {}) {
+    this.packageRoot = path.resolve(packageRoot);
+    this.allowUnverifiedPackageRoot = options.allowUnverifiedPackageRoot === true;
   }
 
   writeStart(entry: LoopKesStartEntry): LoopKesArtifact[] {
-    const plan = createKesArtifactPlan(this.packageRoot, {
+    const packageRoot = this.resolvePackageRootForWrite();
+    const plan = createKesArtifactPlan(packageRoot, {
       diary: {
         kind: "session",
         summary: `${entry.plugin} loop start for ${entry.objective}`,
@@ -95,8 +108,9 @@ export class LoopKesWriter {
   }
 
   writePhase(entry: LoopKesPhaseEntry): LoopKesArtifact[] {
+    const packageRoot = this.resolvePackageRootForWrite();
     const excerpt = summarizeOutput(entry.output);
-    const plan = createKesArtifactPlan(this.packageRoot, {
+    const plan = createKesArtifactPlan(packageRoot, {
       diary: {
         kind: "phase",
         summary: `${entry.plugin} ${entry.phase} phase for ${entry.objective}`,
@@ -178,11 +192,12 @@ export class LoopKesWriter {
   }
 
   writeComplete(entry: LoopKesCompleteEntry): LoopKesArtifact[] {
+    const packageRoot = this.resolvePackageRootForWrite();
     const failedPhases = entry.phases.filter((phase) => phase.status !== "done");
     const learningCandidates = entry.emittedArtifacts.filter(
       (artifact) => artifact.type === "kes_learning_candidate",
     );
-    const plan = createKesArtifactPlan(this.packageRoot, {
+    const plan = createKesArtifactPlan(packageRoot, {
       diary: {
         kind: "complete",
         summary: `${entry.plugin} loop completion for ${entry.objective}`,
@@ -226,6 +241,29 @@ export class LoopKesWriter {
 
     materializeKesArtifactPlan(plan);
     return toLoopArtifacts(plan);
+  }
+
+  private resolvePackageRootForWrite(): string {
+    if (!this.allowUnverifiedPackageRoot) {
+      assertLoopKesPackageRoot(this.packageRoot);
+    }
+    return this.packageRoot;
+  }
+}
+
+function assertLoopKesPackageRoot(packageRoot: string): void {
+  try {
+    const manifestPath = path.join(packageRoot, "package.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { name?: unknown };
+    if (manifest.name !== KES_PACKAGE_NAME) {
+      throw new Error(`package.json#name must be ${KES_PACKAGE_NAME}`);
+    }
+  } catch (cause) {
+    throw new KesMaterializationError({
+      operation: "ensure_roots",
+      packageRoot,
+      cause,
+    });
   }
 }
 

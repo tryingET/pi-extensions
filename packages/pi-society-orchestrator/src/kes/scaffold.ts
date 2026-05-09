@@ -196,14 +196,17 @@ function stageAndCommitDrafts(drafts: KesArtifactDraft[], roots: KesRoots): void
         path.dirname(finalPath),
         `.${path.basename(finalPath)}.${process.pid}.${randomUUID()}.tmp`,
       );
-      fs.writeFileSync(temporaryPath, draft.content, { encoding: "utf8", flag: "wx" });
       staged.push({ draft, temporaryPath, finalPath });
+      fs.writeFileSync(temporaryPath, draft.content, { encoding: "utf8", flag: "wx" });
+      assertNoSymlinkPath(roots, finalPath);
     }
 
     for (const stagedDraft of staged) {
       activeDraft = stagedDraft.draft;
-      fs.renameSync(stagedDraft.temporaryPath, stagedDraft.finalPath);
+      assertNoSymlinkPath(roots, stagedDraft.finalPath);
+      fs.linkSync(stagedDraft.temporaryPath, stagedDraft.finalPath);
       committed.push(stagedDraft.finalPath);
+      fs.unlinkSync(stagedDraft.temporaryPath);
     }
   } catch (cause) {
     for (const stagedDraft of staged) {
