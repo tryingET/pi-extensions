@@ -3200,6 +3200,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-09"
+        },
+        {
+          "id": "AK-TASK-2641",
+          "title": "Reallocate KES artifact paths during atomic materialization",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Reallocate KES artifact paths during atomic materialization (task #2641)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-09"
         }
       ]
     }
