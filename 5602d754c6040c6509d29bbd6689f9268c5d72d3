@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5602d754c6040c6509d29bbd6689f9268c5d72d3"
+created_at: "2026-05-09T19:17:54Z"
+intent: "Link candidate-wave planning to packet-backed aggregate review with packet-path placeholders and executable review call templates."
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check; node --experimental-strip-types /tmp/dogfood-candidate-wave-plan.mjs; pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Small UX spine slice connects plan_candidate_wave output to review_candidate_wave without spawning peers or writing authority."
+links:
+  task_ids:
+    - 2674
