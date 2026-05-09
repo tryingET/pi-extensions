@@ -493,7 +493,20 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
     result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
     /autoresearch_runtime_run/,
   );
+  assert.equal(
+    result.details.candidateWave.lanes[0].candidateResultPacketPath,
+    ".autoresearch/candidate-wave/candidate-01.candidate-result.json",
+  );
+  assert.match(
+    result.details.candidateWave.ownerSelection.aggregateReviewCall,
+    /review_candidate_wave/,
+  );
+  assert.deepEqual(result.details.candidateWave.ownerSelection.candidateResultPacketPaths, [
+    ".autoresearch/candidate-wave/candidate-01.candidate-result.json",
+    ".autoresearch/candidate-wave/candidate-02.candidate-result.json",
+  ]);
   assert.match(result.content[0].text, /Candidate lanes: 2/);
+  assert.match(result.content[0].text, /aggregate review/);
   assert.match(result.content[0].text, /This plan does not spawn peers by itself/);
   assert.match(result.content[0].text, /explicit_owner_decision_required|Owner selection/);
 });

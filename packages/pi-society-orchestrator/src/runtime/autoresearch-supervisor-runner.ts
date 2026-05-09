@@ -155,6 +155,7 @@ export interface AutoresearchLiveStartCampaignResult {
 
 export interface AutoresearchCandidateWaveRequest extends AutoresearchLiveSupervisionRequest {
   objective: string;
+  direction?: "lower" | "higher";
   candidateCount?: number;
   candidateObjectives?: readonly string[];
   filesInScope?: readonly string[];
@@ -170,6 +171,7 @@ export interface AutoresearchCandidateWaveLane {
   objective: string;
   candidatePeerCall: string;
   measurementPlan: string[];
+  candidateResultPacketPath: string;
   ownerReviewCall: string;
 }
 
@@ -187,6 +189,8 @@ export interface AutoresearchCandidateWavePlan {
   lanes: AutoresearchCandidateWaveLane[];
   ownerSelection: {
     posture: "explicit_owner_decision_required";
+    candidateResultPacketPaths: readonly string[];
+    aggregateReviewCall: string;
     reviewInstructions: string[];
   };
   boundaries: string[];
@@ -746,11 +750,13 @@ export function planAutoresearchCandidateWave(
         cwd: identity.cwd,
         action: "candidate_result",
       });
+      const candidateResultPacketPath = `.autoresearch/candidate-wave/${laneId}.candidate-result.json`;
       return {
         laneId,
         objective: laneObjective,
         candidatePeerCall: formatToolCall("candidate_peer_spawn", peerPayload),
         measurementPlan: [bindCall, runCall, resultCall],
+        candidateResultPacketPath,
         ownerReviewCall: formatToolCall("autoresearch_candidate_decision", {
           cwd: identity.cwd,
           action: "status",
@@ -758,6 +764,16 @@ export function planAutoresearchCandidateWave(
       };
     },
   );
+
+  const candidateResultPacketPaths = lanes.map((lane) => lane.candidateResultPacketPath);
+  const aggregateReviewCall = formatToolCall("autoresearch_live_supervision", {
+    action: "review_candidate_wave",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction: input.direction ?? "lower",
+    candidateResultPacketPaths,
+  });
 
   return {
     kind: "autoresearch.candidate_wave_plan.v1",
@@ -773,9 +789,12 @@ export function planAutoresearchCandidateWave(
     lanes,
     ownerSelection: {
       posture: "explicit_owner_decision_required",
+      candidateResultPacketPaths,
+      aggregateReviewCall,
       reviewInstructions: [
         "Launch only the lanes the owner/controller explicitly approves.",
         "After each PEER_FINAL, bind and measure the candidate through pi-autoresearch before comparing claims.",
+        "Save each candidate_result packet to the lane's candidateResultPacketPath, then run aggregateReviewCall for owner-visible comparison.",
         "Use the dashboard/candidate decision surface to choose keep, discard, rewind, more samples, or finalize; do not auto-merge.",
       ],
     },
