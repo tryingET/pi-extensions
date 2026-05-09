@@ -73,6 +73,8 @@ import {
   type AutoresearchSelfHostingTaskAnchor,
 } from "../src/runtime/autoresearch-self-hosting-supervision.ts";
 import {
+  type AutoresearchCandidateWavePlan,
+  type AutoresearchCandidateWaveReview,
   type AutoresearchLivePollResult,
   type AutoresearchLiveStartCampaignResult,
   type AutoresearchLiveStartResult,
@@ -160,7 +162,14 @@ export interface SocietyOrchestratorExtensionOptions {
   autoresearchLearningKesPackageRoot?: string;
 }
 
-type AutoresearchLiveSupervisionAction = "status" | "observe" | "start" | "start_campaign" | "stop";
+type AutoresearchLiveSupervisionAction =
+  | "status"
+  | "observe"
+  | "start"
+  | "start_campaign"
+  | "plan_candidate_wave"
+  | "review_candidate_wave"
+  | "stop";
 
 type AutoresearchManifestCampaignSupervisionAction = "observe" | "record_evidence";
 
@@ -177,6 +186,8 @@ type AutoresearchLiveSupervisionToolDetails = {
   reused?: boolean;
   poll?: AutoresearchLiveStartResult["poll"];
   campaign?: AutoresearchLiveStartCampaignResult["campaign"];
+  candidateWave?: AutoresearchCandidateWavePlan;
+  candidateWaveReview?: AutoresearchCandidateWaveReview;
   stopped?: boolean;
   error?: string;
 };
@@ -397,6 +408,60 @@ function formatAutoresearchCampaignStartUnderSupervisionReport(
   ]
     .filter((line, index, lines) => line.length > 0 || lines[index - 1]?.length !== 0)
     .join("\n");
+}
+
+function formatAutoresearchCandidateWavePlanReport(plan: AutoresearchCandidateWavePlan): string {
+  const lines = [
+    "Autoresearch live supervision — plan_candidate_wave",
+    `Task: #${plan.taskId}`,
+    `CWD: ${plan.cwd}`,
+    `Objective: ${plan.objective}`,
+    `Candidate lanes: ${plan.candidateCount}`,
+    `Parent peer target: ${plan.parentPeerTarget ?? "required before launch"}`,
+    "",
+    "Candidate lanes:",
+    ...plan.lanes.flatMap((lane) => [
+      `- ${lane.laneId}: ${lane.objective}`,
+      `  launch: ${lane.candidatePeerCall}`,
+      `  measure: ${lane.measurementPlan.join(" -> ")}`,
+      `  review: ${lane.ownerReviewCall}`,
+    ]),
+    "",
+    "Owner selection:",
+    ...plan.ownerSelection.reviewInstructions.map((instruction) => `- ${instruction}`),
+    "",
+    "Boundaries:",
+    ...plan.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${plan.nextStep}`,
+  ];
+  return lines.join("\n");
+}
+
+function formatAutoresearchCandidateWaveReviewReport(
+  review: AutoresearchCandidateWaveReview,
+): string {
+  return [
+    "Autoresearch live supervision — review_candidate_wave",
+    `Task: #${review.taskId}`,
+    `CWD: ${review.cwd}`,
+    `Objective: ${review.objective}`,
+    `Direction: ${review.direction} is better`,
+    "",
+    "Candidate comparison:",
+    ...review.lanes.map(
+      (lane) =>
+        `- ${lane.rank ? `#${lane.rank} ` : ""}${lane.laneId}: metric=${lane.metric ?? "missing"}; status=${lane.status}; checks=${lane.checksStatus}; selectable=${lane.selectable ? "yes" : "no"} (${lane.selectionReason})`,
+    ),
+    "",
+    `Recommendation: ${review.recommendation.posture}${review.recommendation.laneId ? ` — ${review.recommendation.laneId}` : ""}`,
+    `Reason: ${review.recommendation.reason}`,
+    "",
+    "Boundaries:",
+    ...review.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${review.nextStep}`,
+  ].join("\n");
 }
 
 function formatAutoresearchLiveStopReport(result: AutoresearchLiveStopResult): string {
@@ -1288,6 +1353,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
     promptGuidelines: [
       "Use autoresearch_live_supervision for exact taskId + cwd supervision above the pi-autoresearch runtime.",
       "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
+      "Use action=plan_candidate_wave when the operator wants multiple visible candidate experiments in parallel; this returns explicit candidate_peer_spawn and pi-autoresearch measurement/review calls, but does not launch or promote anything by itself.",
+      "Use action=review_candidate_wave after multiple pi-autoresearch candidate measurements have produced result summaries; this compares lanes for owner selection, but still does not choose winners as promotion authority.",
       "For DSPx/DSPy planning, set planner=dspx_program and runDspxProgramGen=true; this asks pi-autoresearch to materialize and run a bounded DSPx-generated DSPy planner assembly, then validate the generated DSPy output from behavior_results.json as the campaign plan. Orchestrator still does not synthesize or apply a DSPy program itself.",
       "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop/start_campaign.",
       "Do not auto-spawn scout_peer_spawn, candidate_peer_spawn, or fork_peer_spawn from this surface; pi-autoresearch may recommend exact peer calls and the operator/controller chooses whether to launch them.",
@@ -1302,13 +1369,56 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("observe"),
           Type.Literal("start"),
           Type.Literal("start_campaign"),
+          Type.Literal("plan_candidate_wave"),
+          Type.Literal("review_candidate_wave"),
           Type.Literal("stop"),
         ]),
       ),
       taskId: Type.Optional(Type.Number({ description: "Exact AK task id for the campaign" })),
       cwd: Type.Optional(Type.String({ description: "Exact campaign cwd" })),
       objective: Type.Optional(
-        Type.String({ description: "Bounded optimization objective for action=start_campaign" }),
+        Type.String({
+          description:
+            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, or action=review_candidate_wave.",
+        }),
+      ),
+      candidateCount: Type.Optional(
+        Type.Number({
+          description: "Number of candidate lanes for action=plan_candidate_wave (1-6, default 3).",
+          minimum: 1,
+          maximum: 6,
+        }),
+      ),
+      candidateObjectives: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Optional explicit per-lane candidate objectives for action=plan_candidate_wave.",
+        }),
+      ),
+      parentPeerTarget: Type.Optional(
+        Type.String({
+          description:
+            "Optional exact controller peer target to include in candidate_peer_spawn calls for action=plan_candidate_wave.",
+        }),
+      ),
+      candidateResults: Type.Optional(
+        Type.Array(
+          Type.Object({
+            laneId: Type.String({ description: "Candidate lane id, for example candidate-01." }),
+            objective: Type.Optional(Type.String()),
+            metric: Type.Optional(Type.Number()),
+            status: Type.Optional(Type.String()),
+            checksStatus: Type.Optional(Type.String()),
+            confidence: Type.Optional(Type.Number()),
+            candidateWorktree: Type.Optional(Type.String()),
+            candidateBranch: Type.Optional(Type.String()),
+            caveat: Type.Optional(Type.String()),
+          }),
+          {
+            description:
+              "Candidate result summaries for action=review_candidate_wave after pi-autoresearch measurement.",
+          },
+        ),
       ),
       maxIterations: Type.Optional(
         Type.Number({
@@ -1403,6 +1513,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         taskId,
         cwd,
         objective,
+        candidateCount,
+        candidateObjectives,
+        parentPeerTarget,
+        candidateResults,
         maxIterations,
         maxWallClockMinutes,
         benchmarkCommand,
@@ -1428,6 +1542,20 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         taskId?: number;
         cwd?: string;
         objective?: string;
+        candidateCount?: number;
+        candidateObjectives?: string[];
+        parentPeerTarget?: string;
+        candidateResults?: Array<{
+          laneId: string;
+          objective?: string;
+          metric?: number;
+          status?: string;
+          checksStatus?: string;
+          confidence?: number;
+          candidateWorktree?: string;
+          candidateBranch?: string;
+          caveat?: string;
+        }>;
         maxIterations?: number;
         maxWallClockMinutes?: number;
         benchmarkCommand?: string;
@@ -1548,6 +1676,62 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             nextStep: result.poll?.nextStep || describeAutoresearchLiveNextStep(result.session),
             poll: result.poll,
           });
+        }
+
+        if (action === "plan_candidate_wave") {
+          const waveObjective = objective?.trim() ?? "";
+          if (waveObjective.length === 0) {
+            throw new Error("plan_candidate_wave requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.planCandidateWave({
+            ...identity,
+            objective: waveObjective,
+            candidateCount,
+            candidateObjectives,
+            filesInScope,
+            offLimits,
+            constraints,
+            parentPeerTarget,
+            maxIterationsPerCandidate: maxIterations,
+            maxWallClockMinutesPerCandidate: maxWallClockMinutes,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchCandidateWavePlanReport(result),
+            {
+              ok: true,
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              candidateWave: result,
+            },
+          );
+        }
+
+        if (action === "review_candidate_wave") {
+          const waveObjective = objective?.trim() ?? "";
+          if (waveObjective.length === 0) {
+            throw new Error("review_candidate_wave requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.reviewCandidateWave({
+            ...identity,
+            objective: waveObjective,
+            direction,
+            candidateResults: candidateResults ?? [],
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchCandidateWaveReviewReport(result),
+            {
+              ok: true,
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              candidateWaveReview: result,
+            },
+          );
         }
 
         if (action === "start_campaign") {

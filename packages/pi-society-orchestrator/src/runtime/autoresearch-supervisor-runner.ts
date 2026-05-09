@@ -152,6 +152,95 @@ export interface AutoresearchLiveStartCampaignResult {
   supervision: AutoresearchLiveStartResult;
 }
 
+export interface AutoresearchCandidateWaveRequest extends AutoresearchLiveSupervisionRequest {
+  objective: string;
+  candidateCount?: number;
+  candidateObjectives?: readonly string[];
+  filesInScope?: readonly string[];
+  offLimits?: readonly string[];
+  constraints?: readonly string[];
+  parentPeerTarget?: string;
+  maxIterationsPerCandidate?: number;
+  maxWallClockMinutesPerCandidate?: number;
+}
+
+export interface AutoresearchCandidateWaveLane {
+  laneId: string;
+  objective: string;
+  candidatePeerCall: string;
+  measurementPlan: string[];
+  ownerReviewCall: string;
+}
+
+export interface AutoresearchCandidateWavePlan {
+  kind: "autoresearch.candidate_wave_plan.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  candidateCount: number;
+  parentPeerTargetRequired: boolean;
+  parentPeerTarget: string | null;
+  filesInScope: readonly string[];
+  offLimits: readonly string[];
+  constraints: readonly string[];
+  lanes: AutoresearchCandidateWaveLane[];
+  ownerSelection: {
+    posture: "explicit_owner_decision_required";
+    reviewInstructions: string[];
+  };
+  boundaries: string[];
+  nextStep: string;
+}
+
+export interface AutoresearchCandidateWaveResultInput {
+  laneId: string;
+  objective?: string;
+  metric?: number;
+  status?: string;
+  checksStatus?: string;
+  confidence?: number;
+  candidateWorktree?: string;
+  candidateBranch?: string;
+  caveat?: string;
+}
+
+export interface AutoresearchCandidateWaveReviewRequest extends AutoresearchLiveSupervisionRequest {
+  objective: string;
+  direction?: "lower" | "higher";
+  candidateResults: readonly AutoresearchCandidateWaveResultInput[];
+}
+
+export interface AutoresearchCandidateWaveReviewLane {
+  laneId: string;
+  objective: string | null;
+  metric: number | null;
+  status: string;
+  checksStatus: string;
+  confidence: number | null;
+  candidateWorktree: string | null;
+  candidateBranch: string | null;
+  caveat: string | null;
+  rank: number | null;
+  selectable: boolean;
+  selectionReason: string;
+}
+
+export interface AutoresearchCandidateWaveReview {
+  kind: "autoresearch.candidate_wave_review.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  direction: "lower" | "higher";
+  lanes: AutoresearchCandidateWaveReviewLane[];
+  recommendation: {
+    posture: "owner_selection_required" | "no_selectable_candidate";
+    laneId: string | null;
+    reason: string;
+  };
+  nextStep: string;
+  boundaries: string[];
+}
+
 export interface AutoresearchLiveStopResult {
   sessionKey: string;
   session: AutoresearchLiveSupervisionSessionV1 | null;
@@ -280,6 +369,259 @@ function resolveStartCampaignPositiveNumberBudget(
     throw new Error(`${name} must be a positive number, received: ${String(value)}`);
   }
   return resolved;
+}
+
+function resolveCandidateWaveCount(input: AutoresearchCandidateWaveRequest): number {
+  const fromObjectives = input.candidateObjectives?.length ?? 0;
+  const resolved = input.candidateCount ?? (fromObjectives > 0 ? fromObjectives : 3);
+  if (!Number.isInteger(resolved) || resolved < 1 || resolved > 6) {
+    throw new Error(
+      `candidateCount must be an integer between 1 and 6, received: ${String(input.candidateCount)}`,
+    );
+  }
+  return resolved;
+}
+
+function nonEmptyStrings(values: readonly string[] | undefined): string[] {
+  return (values ?? []).map((value) => value.trim()).filter((value) => value.length > 0);
+}
+
+function defaultCandidateObjective(index: number, objective: string): string {
+  const templates = [
+    `Try the smallest surgical candidate patch for: ${objective}`,
+    `Try an alternative implementation strategy for: ${objective}`,
+    `Try a UX/status/evidence-oriented candidate patch for: ${objective}`,
+    `Try a risk-reducing simplification candidate for: ${objective}`,
+    `Try a measurement/instrumentation candidate that improves confidence for: ${objective}`,
+    `Try a conservative cleanup candidate that removes friction for: ${objective}`,
+  ];
+  return templates[index] ?? `Try bounded candidate ${index + 1} for: ${objective}`;
+}
+
+function formatToolCall(name: string, payload: Record<string, unknown>): string {
+  return `${name}(${JSON.stringify(payload, null, 2)})`;
+}
+
+function candidateWaveLaneSelectable(input: AutoresearchCandidateWaveResultInput): {
+  selectable: boolean;
+  reason: string;
+} {
+  if (typeof input.metric !== "number" || !Number.isFinite(input.metric)) {
+    return { selectable: false, reason: "missing finite metric" };
+  }
+  const status = input.status?.toLowerCase() ?? "";
+  const checksStatus = input.checksStatus?.toLowerCase() ?? "";
+  if (/regression|fail|crash|blocked|discard/u.test(status)) {
+    return { selectable: false, reason: `status is ${input.status}` };
+  }
+  if (checksStatus.length > 0 && !/pass|ok|success|none/u.test(checksStatus)) {
+    return { selectable: false, reason: `checks status is ${input.checksStatus}` };
+  }
+  return { selectable: true, reason: "finite metric with no failing status/check gate" };
+}
+
+function sortCandidateWaveReviewLanes(
+  lanes: AutoresearchCandidateWaveReviewLane[],
+  direction: "lower" | "higher",
+): AutoresearchCandidateWaveReviewLane[] {
+  const selectable = lanes
+    .filter((lane) => lane.selectable && lane.metric !== null)
+    .sort((a, b) =>
+      direction === "lower" ? (a.metric ?? 0) - (b.metric ?? 0) : (b.metric ?? 0) - (a.metric ?? 0),
+    );
+  const rankByLane = new Map(selectable.map((lane, index) => [lane.laneId, index + 1]));
+  return lanes.map((lane) => ({ ...lane, rank: rankByLane.get(lane.laneId) ?? null }));
+}
+
+export function reviewAutoresearchCandidateWave(
+  input: AutoresearchCandidateWaveReviewRequest,
+): AutoresearchCandidateWaveReview {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const objective = input.objective.trim();
+  if (objective.length === 0) {
+    throw new Error("review_candidate_wave requires a non-empty objective.");
+  }
+  if (!Array.isArray(input.candidateResults) || input.candidateResults.length === 0) {
+    throw new Error("review_candidate_wave requires at least one candidate result.");
+  }
+  const direction = input.direction ?? "lower";
+  const lanes = sortCandidateWaveReviewLanes(
+    input.candidateResults.map((candidate) => {
+      const selectable = candidateWaveLaneSelectable(candidate);
+      return {
+        laneId: candidate.laneId || "candidate-unknown",
+        objective: candidate.objective?.trim() || null,
+        metric:
+          typeof candidate.metric === "number" && Number.isFinite(candidate.metric)
+            ? candidate.metric
+            : null,
+        status: candidate.status || "unknown",
+        checksStatus: candidate.checksStatus || "unknown",
+        confidence:
+          typeof candidate.confidence === "number" && Number.isFinite(candidate.confidence)
+            ? candidate.confidence
+            : null,
+        candidateWorktree: candidate.candidateWorktree || null,
+        candidateBranch: candidate.candidateBranch || null,
+        caveat: candidate.caveat || null,
+        rank: null,
+        selectable: selectable.selectable,
+        selectionReason: selectable.reason,
+      };
+    }),
+    direction,
+  );
+  const winner = lanes.find((lane) => lane.rank === 1) ?? null;
+
+  return {
+    kind: "autoresearch.candidate_wave_review.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction,
+    lanes,
+    recommendation: winner
+      ? {
+          posture: "owner_selection_required",
+          laneId: winner.laneId,
+          reason: `Best selectable ${direction}-is-better metric is ${winner.metric}. Owner must still approve keep/finalize.`,
+        }
+      : {
+          posture: "no_selectable_candidate",
+          laneId: null,
+          reason: "No candidate had finite metrics with passing status/check gates.",
+        },
+    nextStep: winner
+      ? `Review ${winner.laneId}, then use autoresearch_candidate_decision plan_keep/plan_discard/plan_rewind or collect more samples.`
+      : "Reject or rerun candidate lanes; no winner is selectable from the supplied results.",
+    boundaries: [
+      "This review compares supplied candidate-result summaries only; it does not verify raw peer output by itself.",
+      "pi-autoresearch receipts remain the measurement source for each candidate.",
+      "The recommendation is not promotion authority; owner approval and external promotion gates remain required.",
+    ],
+  };
+}
+
+export function planAutoresearchCandidateWave(
+  input: AutoresearchCandidateWaveRequest,
+): AutoresearchCandidateWavePlan {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const objective = input.objective.trim();
+  if (objective.length === 0) {
+    throw new Error("plan_candidate_wave requires a non-empty objective.");
+  }
+
+  const candidateCount = resolveCandidateWaveCount(input);
+  const suppliedObjectives = nonEmptyStrings(input.candidateObjectives);
+  const filesInScope = nonEmptyStrings(input.filesInScope);
+  const offLimits = nonEmptyStrings(input.offLimits);
+  const constraints = nonEmptyStrings(input.constraints);
+  const parentPeerTarget = input.parentPeerTarget?.trim() || null;
+  const maxIterationsPerCandidate = resolveStartCampaignPositiveIntegerBudget(
+    "maxIterationsPerCandidate",
+    input.maxIterationsPerCandidate,
+    1,
+  );
+  const maxWallClockMinutesPerCandidate = resolveStartCampaignPositiveNumberBudget(
+    "maxWallClockMinutesPerCandidate",
+    input.maxWallClockMinutesPerCandidate,
+    20,
+  );
+
+  const lanes = Array.from(
+    { length: candidateCount },
+    (_, index): AutoresearchCandidateWaveLane => {
+      const laneId = `candidate-${String(index + 1).padStart(2, "0")}`;
+      const laneObjective =
+        suppliedObjectives[index] ?? defaultCandidateObjective(index, objective);
+      const baseConstraints = [
+        ...constraints,
+        `Per-candidate budget: at most ${maxIterationsPerCandidate} measured iteration(s) and ${maxWallClockMinutesPerCandidate} wall-clock minute(s) before controller review.`,
+        "Keep mutations inside the candidate worktree only.",
+        "Report changed files, branch/ref, benchmark/check commands run, and caveats in PEER_FINAL.",
+        "Do not merge, promote, write AK/KES/evidence, or delete/reset worktrees.",
+      ];
+      const peerPayload: Record<string, unknown> = {
+        objective: laneObjective,
+        cwd: identity.cwd,
+        filesInScope,
+        offLimits,
+        constraints: baseConstraints,
+        dod: [
+          "Produce at most one bounded candidate patch in the isolated worktree.",
+          "Run the smallest truthful local validation for the patch if available.",
+          "Return worktree path, branch name, base ref, changed files, and validation result for controller measurement.",
+        ],
+      };
+      if (parentPeerTarget) peerPayload.parentPeerTarget = parentPeerTarget;
+      else peerPayload.parentPeerTarget = "<required-parent-peer-target>";
+
+      const bindCall = formatToolCall("autoresearch_candidate_bind", {
+        cwd: identity.cwd,
+        candidateWorktree: `<${laneId}-worktree-from-candidate_peer_spawn>`,
+        candidateBaseRef: `<${laneId}-base-ref-from-candidate_peer_spawn>`,
+      });
+      const runCall = formatToolCall("autoresearch_runtime_run", {
+        cwd: identity.cwd,
+        runKind: "ordinary",
+        description: `Measure ${laneId}: ${laneObjective}`,
+        hypothesisId: laneId,
+        hypothesis: laneObjective,
+        candidateSource: "candidate_peer_spawn",
+        candidateWorktree: `<${laneId}-worktree-from-candidate_peer_spawn>`,
+        candidateBranch: `<${laneId}-branch-from-candidate_peer_spawn>`,
+        candidateBaseRef: `<${laneId}-base-ref-from-candidate_peer_spawn>`,
+        candidateDiffSummary: `<${laneId}-controller-verified-diff-summary>`,
+        candidateFilesChanged: [`<${laneId}-changed-files>`],
+      });
+      const resultCall = formatToolCall("autoresearch_runtime_status", {
+        cwd: identity.cwd,
+        action: "candidate_result",
+      });
+      return {
+        laneId,
+        objective: laneObjective,
+        candidatePeerCall: formatToolCall("candidate_peer_spawn", peerPayload),
+        measurementPlan: [bindCall, runCall, resultCall],
+        ownerReviewCall: formatToolCall("autoresearch_candidate_decision", {
+          cwd: identity.cwd,
+          action: "status",
+        }),
+      };
+    },
+  );
+
+  return {
+    kind: "autoresearch.candidate_wave_plan.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    candidateCount,
+    parentPeerTargetRequired: parentPeerTarget === null,
+    parentPeerTarget,
+    filesInScope,
+    offLimits,
+    constraints,
+    lanes,
+    ownerSelection: {
+      posture: "explicit_owner_decision_required",
+      reviewInstructions: [
+        "Launch only the lanes the owner/controller explicitly approves.",
+        "After each PEER_FINAL, bind and measure the candidate through pi-autoresearch before comparing claims.",
+        "Use the dashboard/candidate decision surface to choose keep, discard, rewind, more samples, or finalize; do not auto-merge.",
+      ],
+    },
+    boundaries: [
+      "This plan does not spawn peers by itself.",
+      "candidate_peer_spawn / pi-little-helpers owns visible isolated worktree launch.",
+      "pi-autoresearch owns measurement receipts and candidate-result packets.",
+      "pi-society-orchestrator owns above-seam supervision and comparison choreography only.",
+      "AK/KES/evidence/promotion remain external owner-surface actions.",
+    ],
+    nextStep: parentPeerTarget
+      ? "Review the candidate_peer_spawn calls and launch the approved lanes in parallel."
+      : "Fill parentPeerTarget with the current controller peer id, then launch only the approved candidate_peer_spawn calls.",
+  };
 }
 
 export async function readAutoresearchLiveObservation(
@@ -429,6 +771,16 @@ export class AutoresearchLiveSupervisionRunner {
 
     const supervision = await this.start(input);
     return { campaign, supervision };
+  }
+
+  planCandidateWave(input: AutoresearchCandidateWaveRequest): AutoresearchCandidateWavePlan {
+    return planAutoresearchCandidateWave(input);
+  }
+
+  reviewCandidateWave(
+    input: AutoresearchCandidateWaveReviewRequest,
+  ): AutoresearchCandidateWaveReview {
+    return reviewAutoresearchCandidateWave(input);
   }
 
   stop(

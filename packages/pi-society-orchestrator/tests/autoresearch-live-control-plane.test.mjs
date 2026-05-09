@@ -443,6 +443,120 @@ test("autoresearch_live_supervision start_campaign delegates execution then supe
   });
 });
 
+test("autoresearch_live_supervision plan_candidate_wave prepares visible parallel candidate lanes", async () => {
+  const cwd = "/tmp/candidate-wave";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+  assert.ok(tool.parameters.properties.candidateCount, "schema exposes candidateCount");
+  assert.ok(tool.parameters.properties.candidateObjectives, "schema exposes candidateObjectives");
+  assert.ok(tool.parameters.properties.parentPeerTarget, "schema exposes parentPeerTarget");
+
+  const result = await tool.execute(
+    "tc-plan-candidate-wave",
+    {
+      action: "plan_candidate_wave",
+      taskId: 2674,
+      cwd,
+      objective: "make autoresearch campaign behavior feel like candidate racing",
+      candidateCount: 2,
+      candidateObjectives: [
+        "Implement a minimal candidate wave planning surface.",
+        "Implement a candidate result comparison surface.",
+      ],
+      parentPeerTarget: "controller-peer-1",
+      filesInScope: [
+        "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+      ],
+      offLimits: ["packages/pi-autoresearch/.autoresearch/**"],
+      constraints: ["no hidden peer launch", "owner chooses winners"],
+      maxIterations: 1,
+      maxWallClockMinutes: 10,
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.action, "plan_candidate_wave");
+  assert.equal(result.details.candidateWave.kind, "autoresearch.candidate_wave_plan.v1");
+  assert.equal(result.details.candidateWave.candidateCount, 2);
+  assert.equal(result.details.candidateWave.parentPeerTargetRequired, false);
+  assert.equal(result.details.candidateWave.lanes.length, 2);
+  assert.match(result.details.candidateWave.lanes[0].candidatePeerCall, /candidate_peer_spawn/);
+  assert.match(result.details.candidateWave.lanes[0].candidatePeerCall, /controller-peer-1/);
+  assert.match(
+    result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
+    /autoresearch_candidate_bind/,
+  );
+  assert.match(
+    result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
+    /autoresearch_runtime_run/,
+  );
+  assert.match(result.content[0].text, /Candidate lanes: 2/);
+  assert.match(result.content[0].text, /This plan does not spawn peers by itself/);
+  assert.match(result.content[0].text, /explicit_owner_decision_required|Owner selection/);
+});
+
+test("autoresearch_live_supervision review_candidate_wave compares measured lanes for owner selection", async () => {
+  const cwd = "/tmp/candidate-wave-review";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+  assert.ok(tool.parameters.properties.candidateResults, "schema exposes candidateResults");
+
+  const result = await tool.execute(
+    "tc-review-candidate-wave",
+    {
+      action: "review_candidate_wave",
+      taskId: 2674,
+      cwd,
+      objective: "choose the best campaign-behavior candidate",
+      direction: "lower",
+      candidateResults: [
+        {
+          laneId: "candidate-01",
+          objective: "minimal plan surface",
+          metric: 12,
+          status: "candidate_review_ready",
+          checksStatus: "pass",
+          confidence: 2.3,
+        },
+        {
+          laneId: "candidate-02",
+          objective: "review surface",
+          metric: 9,
+          status: "candidate_review_ready",
+          checksStatus: "pass",
+          confidence: 1.8,
+        },
+        {
+          laneId: "candidate-03",
+          objective: "risky auto-launch",
+          metric: 7,
+          status: "blocked",
+          checksStatus: "pass",
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.action, "review_candidate_wave");
+  assert.equal(result.details.candidateWaveReview.kind, "autoresearch.candidate_wave_review.v1");
+  assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
+  assert.equal(
+    result.details.candidateWaveReview.lanes.find((lane) => lane.laneId === "candidate-03")
+      .selectable,
+    false,
+  );
+  assert.match(result.content[0].text, /Candidate comparison/);
+  assert.match(result.content[0].text, /Recommendation: owner_selection_required — candidate-02/);
+  assert.match(result.content[0].text, /not promotion authority|owner approval/);
+});
+
 test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff options", async () => {
   const cwd = "/tmp/delegated-dspx-campaign";
   const scheduler = new FakeScheduler();
