@@ -250,6 +250,7 @@ export const CATALOG: ToolboxBundle[] = [
           "autoresearch_live_supervision",
           "autoresearch_manifest_campaign_supervision",
           "autoresearch_self_hosting_supervision",
+          "autoresearch_learning_kes_adapter",
         ],
         risk: "orchestrator-gated",
         defaultTtlTurns: 2,

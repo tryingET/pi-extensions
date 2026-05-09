@@ -146,6 +146,7 @@ test("plan is active-set only and imports no owner modules", async () => {
   assert.match(result.content[0].text, /owner module imports: none/);
   assert.match(result.content[0].text, /activation effect: active-tool set only/);
   assert.match(result.content[0].text, /autoresearch_self_hosting_supervision/);
+  assert.match(result.content[0].text, /autoresearch_learning_kes_adapter/);
   assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
 });
 
