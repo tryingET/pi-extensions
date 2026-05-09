@@ -92,6 +92,7 @@ export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
 export const AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE = ".autoresearch/oracle_evidence.json";
 export const AUTORESEARCH_LEARNING_EXPORT_FILE = ".autoresearch/learning.json";
 export const AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE = ".autoresearch/candidate-result.json";
+export const AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR = ".autoresearch/candidate-wave";
 
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
@@ -506,6 +507,7 @@ export interface AutoresearchCandidateResultExportResult {
   path: string;
   packet: AutoresearchCandidateResultPacket;
   suggestedReviewCall: string;
+  suggestedAggregateReviewCall: string | null;
   effect: {
     localFileWritten: true;
     candidateLifecycleMutated: false;
@@ -4016,11 +4018,19 @@ export function writeAutoresearchCandidateResultPacket(input: {
   }
   mkdirSync(path.dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  const defaultCandidateWaveDir = path.resolve(
+    input.cwd,
+    AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR,
+  );
+  const usesDefaultCandidateWaveDir = path.dirname(outputPath) === defaultCandidateWaveDir;
   return {
     exportKind: "autoresearch.candidate_result_export.v1",
     path: outputPath,
     packet,
     suggestedReviewCall: `autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(input.cwd)}, objective: "<candidate-wave-objective>", direction: "lower", candidateResultPacketPaths: [${JSON.stringify(outputPath)}] })`,
+    suggestedAggregateReviewCall: usesDefaultCandidateWaveDir
+      ? `autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(input.cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`
+      : null,
     effect: {
       localFileWritten: true,
       candidateLifecycleMutated: false,
@@ -4055,6 +4065,16 @@ export function formatAutoresearchCandidateResultExportResult(
     "```ts",
     result.suggestedReviewCall,
     "```",
+    ...(result.suggestedAggregateReviewCall
+      ? [
+          "",
+          "## Suggested default-discovery aggregate review call",
+          "Use after all approved lanes export under .autoresearch/candidate-wave/.",
+          "```ts",
+          result.suggestedAggregateReviewCall,
+          "```",
+        ]
+      : []),
   ].join("\n");
 }
 

@@ -38,6 +38,8 @@ export const AUTORESEARCH_LIVE_SUPERVISION_VERSION = 1 as const;
 export const AUTORESEARCH_LIVE_SUPERVISION_DEFAULT_INTERVAL_SECONDS = 30 as const;
 export const AUTORESEARCH_LIVE_SUPERVISION_MIN_INTERVAL_SECONDS = 5 as const;
 export const AUTORESEARCH_LIVE_SUPERVISION_MAX_INTERVAL_SECONDS = 300 as const;
+export const AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR =
+  ".autoresearch/candidate-wave" as const;
 
 export type AutoresearchLiveSessionState = "running" | "blocked" | "stopped" | "completed";
 
@@ -239,6 +241,13 @@ export interface AutoresearchCandidateWaveReviewLane {
   selectionReason: string;
 }
 
+export interface AutoresearchCandidateWavePacketDiscovery {
+  mode: "explicit" | "default" | "manual";
+  defaultDirectory: string;
+  candidateResultPacketPaths: readonly string[];
+  message: string;
+}
+
 export interface AutoresearchCandidateWaveReview {
   kind: "autoresearch.candidate_wave_review.v1";
   taskId: number;
@@ -246,6 +255,7 @@ export interface AutoresearchCandidateWaveReview {
   objective: string;
   direction: "lower" | "higher";
   lanes: AutoresearchCandidateWaveReviewLane[];
+  packetDiscovery: AutoresearchCandidateWavePacketDiscovery;
   recommendation: {
     posture: "owner_selection_required" | "no_selectable_candidate";
     laneId: string | null;
@@ -606,15 +616,52 @@ function buildCandidateWaveReviewNextCalls(input: {
   return calls;
 }
 
+function discoverDefaultCandidateResultPacketPaths(cwd: string): string[] {
+  const defaultDir = path.resolve(cwd, AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR);
+  if (!fs.existsSync(defaultDir)) return [];
+  return fs
+    .readdirSync(defaultDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".candidate-result.json"))
+    .map((entry) => `${AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR}/${entry.name}`)
+    .sort();
+}
+
 function candidateResultInputsFromReviewRequest(
   input: AutoresearchCandidateWaveReviewRequest,
   cwd: string,
-): AutoresearchCandidateWaveResultInput[] {
+): {
+  candidateResults: AutoresearchCandidateWaveResultInput[];
+  packetDiscovery: AutoresearchCandidateWavePacketDiscovery;
+} {
   const supplied = [...(input.candidateResults ?? [])];
-  const fromPackets = (input.candidateResultPacketPaths ?? []).map((packetPath) =>
+  const explicitPacketPaths = nonEmptyStrings(input.candidateResultPacketPaths);
+  const defaultDirectory = path.resolve(cwd, AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR);
+  const discoveredPacketPaths =
+    explicitPacketPaths.length === 0 && supplied.length === 0
+      ? discoverDefaultCandidateResultPacketPaths(cwd)
+      : [];
+  const packetPaths = explicitPacketPaths.length > 0 ? explicitPacketPaths : discoveredPacketPaths;
+  const fromPackets = packetPaths.map((packetPath) =>
     candidateResultInputFromPacketPath(cwd, packetPath),
   );
-  return [...supplied, ...fromPackets];
+  const mode =
+    explicitPacketPaths.length > 0 ? "explicit" : supplied.length > 0 ? "manual" : "default";
+  const message =
+    mode === "explicit"
+      ? `Using ${packetPaths.length} explicit candidate-result packet path(s).`
+      : mode === "manual"
+        ? "Using inline candidate results; default packet discovery was not mixed in."
+        : `Discovered ${packetPaths.length} default candidate-result packet(s) under ${defaultDirectory}.`;
+
+  return {
+    candidateResults: [...supplied, ...fromPackets],
+    packetDiscovery: {
+      mode,
+      defaultDirectory,
+      candidateResultPacketPaths: packetPaths,
+      message,
+    },
+  };
 }
 
 export function reviewAutoresearchCandidateWave(
@@ -625,9 +672,14 @@ export function reviewAutoresearchCandidateWave(
   if (objective.length === 0) {
     throw new Error("review_candidate_wave requires a non-empty objective.");
   }
-  const candidateResults = candidateResultInputsFromReviewRequest(input, identity.cwd);
+  const { candidateResults, packetDiscovery } = candidateResultInputsFromReviewRequest(
+    input,
+    identity.cwd,
+  );
   if (candidateResults.length === 0) {
-    throw new Error("review_candidate_wave requires at least one candidate result or packet path.");
+    throw new Error(
+      `review_candidate_wave requires at least one candidate result or packet path; no default candidate-result packets were found under ${packetDiscovery.defaultDirectory}. Export lanes with candidate_result_export to ${AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR}/<lane>.candidate-result.json or pass candidateResultPacketPaths explicitly.`,
+    );
   }
   const direction = input.direction ?? "lower";
   const lanes = sortCandidateWaveReviewLanes(
@@ -670,6 +722,7 @@ export function reviewAutoresearchCandidateWave(
     objective,
     direction,
     lanes,
+    packetDiscovery,
     recommendation: winner
       ? {
           posture: "owner_selection_required",
@@ -688,7 +741,8 @@ export function reviewAutoresearchCandidateWave(
       : "Reject or rerun candidate lanes; no winner is selectable from the supplied results.",
     boundaries: [
       "This review compares supplied candidate-result summaries and/or exported pi-autoresearch candidate-result packets; it does not verify raw peer output by itself.",
-      "Missing candidate-result packet paths are surfaced as non-selectable missing_packet lanes so partial candidate waves remain reviewable.",
+      "When no inline results or packet paths are supplied, review_candidate_wave only auto-discovers existing packets under the default candidate-wave packet directory.",
+      "Missing candidate-result packet paths are surfaced as non-selectable missing_packet lanes when paths are supplied explicitly, so partial candidate waves remain reviewable.",
       "pi-autoresearch receipts and candidate-result packets remain the measurement source for each candidate.",
       "The recommendation is not promotion authority; owner approval and external promotion gates remain required.",
     ],
@@ -817,6 +871,8 @@ export function planAutoresearchCandidateWave(
         "Launch only the lanes the owner/controller explicitly approves.",
         "After each PEER_FINAL, bind and measure the candidate through pi-autoresearch before comparing claims.",
         "Run each lane's candidate_result_export call, then run aggregateReviewCall for owner-visible comparison.",
+        "If lanes exported to .autoresearch/candidate-wave/<lane>.candidate-result.json, review_candidate_wave can also be called without candidateResultPacketPaths; it will discover existing default packets.",
+        "Use the explicit aggregateReviewCall when you want missing planned lanes surfaced as missing_packet; default discovery only sees packets that exist.",
         "Use the dashboard/candidate decision surface to choose keep, discard, rewind, more samples, or finalize; do not auto-merge.",
       ],
     },

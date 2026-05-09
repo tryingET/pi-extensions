@@ -450,6 +450,10 @@ function formatAutoresearchCandidateWaveReviewReport(
     `CWD: ${review.cwd}`,
     `Objective: ${review.objective}`,
     `Direction: ${review.direction} is better`,
+    `Packet discovery: ${review.packetDiscovery.mode} — ${review.packetDiscovery.message}`,
+    ...(review.packetDiscovery.candidateResultPacketPaths.length > 0
+      ? [`Packet paths: ${review.packetDiscovery.candidateResultPacketPaths.join(", ")}`]
+      : []),
     "",
     "Candidate comparison:",
     ...review.lanes.flatMap((lane) => {

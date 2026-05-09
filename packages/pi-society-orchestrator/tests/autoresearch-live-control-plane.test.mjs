@@ -691,6 +691,11 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     );
 
     assert.equal(result.details.ok, true);
+    assert.equal(result.details.candidateWaveReview.packetDiscovery.mode, "explicit");
+    assert.equal(
+      result.details.candidateWaveReview.packetDiscovery.candidateResultPacketPaths.length,
+      3,
+    );
     assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
     const candidate02 = result.details.candidateWaveReview.lanes.find(
       (lane) => lane.laneId === "candidate-02",
@@ -718,10 +723,80 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.match(result.content[0].text, /candidate: branch=candidate\/candidate-02/);
     assert.match(result.content[0].text, /worktree=.*candidate-02/);
     assert.match(result.content[0].text, /caveat: candidate 02 improved more/);
+    assert.match(result.content[0].text, /Packet discovery: explicit/);
     assert.match(result.content[0].text, /candidate-result packets/);
     assert.match(result.content[0].text, /missing_packet guidance: verify\/export/);
     assert.match(result.content[0].text, /still running\/failed/);
     assert.match(result.content[0].text, /Exact next calls/);
+  });
+});
+
+test("autoresearch_live_supervision review_candidate_wave discovers default candidate-wave packets", async () => {
+  await withTempDir(async (cwd) => {
+    const packetDir = path.join(cwd, ".autoresearch", "candidate-wave");
+    mkdirSync(packetDir, { recursive: true });
+    const packetPath = path.join(packetDir, "candidate-01.candidate-result.json");
+    writeFileSync(
+      packetPath,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "candidate_peer_spawn",
+          worktreePath: path.join(cwd, ".worktrees", "candidate-01"),
+          branch: "candidate/discovered",
+          baseRef: "HEAD",
+          diffSummary: "discovered candidate",
+          filesChanged: ["src/discovered.ts"],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 8,
+          description: "Measure discovered candidate",
+          timestamp: 1,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-01",
+            hypothesis: "Default discovery candidate from packet",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "discovered candidate improved",
+        closeout: { status: { confidence: 2.2 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const result = await tool.execute(
+      "tc-review-candidate-wave-default-discovery",
+      {
+        action: "review_candidate_wave",
+        taskId: 2674,
+        cwd,
+        objective: "choose from default candidate-result exports",
+        direction: "lower",
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.candidateWaveReview.packetDiscovery.mode, "default");
+    assert.deepEqual(
+      result.details.candidateWaveReview.packetDiscovery.candidateResultPacketPaths,
+      [".autoresearch/candidate-wave/candidate-01.candidate-result.json"],
+    );
+    assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-01");
+    assert.match(result.content[0].text, /Packet discovery: default/);
+    assert.match(result.content[0].text, /candidate-01\.candidate-result\.json/);
   });
 });
 

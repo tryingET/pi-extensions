@@ -44,6 +44,7 @@ import {
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
+  AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -1918,9 +1919,31 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     assert.equal(candidateResultExport.effect.kesWritten, false);
     assert.equal(candidateResultExport.effect.promotionStateChanged, false);
     assert.match(candidateResultExport.suggestedReviewCall, /review_candidate_wave/);
+    assert.equal(candidateResultExport.suggestedAggregateReviewCall, null);
     assert.match(
       formatAutoresearchCandidateResultExportResult(candidateResultExport),
       /CANDIDATE RESULT EXPORT/,
+    );
+    const candidateWaveExport = writeAutoresearchCandidateResultPacket({
+      cwd,
+      outPath: `${AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR}/candidate-01.candidate-result.json`,
+    });
+    assert.equal(
+      candidateWaveExport.path,
+      path.join(
+        cwd,
+        AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR,
+        "candidate-01.candidate-result.json",
+      ),
+    );
+    assert.match(candidateWaveExport.suggestedAggregateReviewCall ?? "", /review_candidate_wave/);
+    assert.doesNotMatch(
+      candidateWaveExport.suggestedAggregateReviewCall ?? "",
+      /candidateResultPacketPaths/,
+    );
+    assert.match(
+      formatAutoresearchCandidateResultExportResult(candidateWaveExport),
+      /default-discovery aggregate review call/,
     );
     const candidateResultPayload = JSON.parse(readFileSync(candidateResultExport.path, "utf8"));
     assert.equal(candidateResultPayload.packetKind, "autoresearch.candidate_result.v1");
