@@ -557,6 +557,114 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
   assert.match(result.content[0].text, /not promotion authority|owner approval/);
 });
 
+test("autoresearch_live_supervision review_candidate_wave reads candidate result packet paths", async () => {
+  await withTempDir(async (cwd) => {
+    const packetA = path.join(cwd, "candidate-01.json");
+    const packetB = path.join(cwd, "candidate-02.json");
+    writeFileSync(
+      packetA,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "candidate_peer_spawn",
+          worktreePath: path.join(cwd, ".worktrees", "candidate-01"),
+          branch: "candidate/candidate-01",
+          baseRef: "HEAD",
+          diffSummary: "first candidate",
+          filesChanged: ["src/a.ts"],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 15,
+          description: "Measure candidate 01",
+          timestamp: 1,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-01",
+            hypothesis: "First candidate from packet",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "candidate 01 improved",
+        closeout: { status: { confidence: 2.1 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+    writeFileSync(
+      packetB,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "candidate_peer_spawn",
+          worktreePath: path.join(cwd, ".worktrees", "candidate-02"),
+          branch: "candidate/candidate-02",
+          baseRef: "HEAD",
+          diffSummary: "second candidate",
+          filesChanged: ["src/b.ts"],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 10,
+          description: "Measure candidate 02",
+          timestamp: 2,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-02",
+            hypothesis: "Second candidate from packet",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "candidate 02 improved more",
+        closeout: { status: { confidence: 2.4 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    assert.ok(
+      tool.parameters.properties.candidateResultPacketPaths,
+      "schema exposes candidateResultPacketPaths",
+    );
+
+    const result = await tool.execute(
+      "tc-review-candidate-wave-packets",
+      {
+        action: "review_candidate_wave",
+        taskId: 2674,
+        cwd,
+        objective: "choose from packetized candidate results",
+        direction: "lower",
+        candidateResultPacketPaths: [packetA, packetB],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
+    assert.equal(
+      result.details.candidateWaveReview.lanes.find((lane) => lane.laneId === "candidate-02")
+        .candidateBranch,
+      "candidate/candidate-02",
+    );
+    assert.match(result.content[0].text, /candidate-result packets/);
+  });
+});
+
 test("autoresearch_live_supervision start_campaign forwards DSPx planner handoff options", async () => {
   const cwd = "/tmp/delegated-dspx-campaign";
   const scheduler = new FakeScheduler();

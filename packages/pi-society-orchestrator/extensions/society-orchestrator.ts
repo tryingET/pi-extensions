@@ -1420,6 +1420,12 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           },
         ),
       ),
+      candidateResultPacketPaths: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Paths to exported autoresearch.candidate_result.v1 packet JSON files for action=review_candidate_wave.",
+        }),
+      ),
       maxIterations: Type.Optional(
         Type.Number({
           description:
@@ -1517,6 +1523,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         candidateObjectives,
         parentPeerTarget,
         candidateResults,
+        candidateResultPacketPaths,
         maxIterations,
         maxWallClockMinutes,
         benchmarkCommand,
@@ -1556,6 +1563,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           candidateBranch?: string;
           caveat?: string;
         }>;
+        candidateResultPacketPaths?: string[];
         maxIterations?: number;
         maxWallClockMinutes?: number;
         benchmarkCommand?: string;
@@ -1718,7 +1726,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             ...identity,
             objective: waveObjective,
             direction,
-            candidateResults: candidateResults ?? [],
+            candidateResults,
+            candidateResultPacketPaths,
             intervalSeconds,
             signal,
           });

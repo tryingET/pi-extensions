@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
@@ -207,7 +208,8 @@ export interface AutoresearchCandidateWaveResultInput {
 export interface AutoresearchCandidateWaveReviewRequest extends AutoresearchLiveSupervisionRequest {
   objective: string;
   direction?: "lower" | "higher";
-  candidateResults: readonly AutoresearchCandidateWaveResultInput[];
+  candidateResults?: readonly AutoresearchCandidateWaveResultInput[];
+  candidateResultPacketPaths?: readonly string[];
 }
 
 export interface AutoresearchCandidateWaveReviewLane {
@@ -433,6 +435,86 @@ function sortCandidateWaveReviewLanes(
   return lanes.map((lane) => ({ ...lane, rank: rankByLane.get(lane.laneId) ?? null }));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function resolveCandidateResultPacketPath(cwd: string, packetPath: string): string {
+  const trimmed = packetPath.trim();
+  if (trimmed.length === 0) {
+    throw new Error("candidateResultPacketPaths cannot contain empty paths.");
+  }
+  return path.isAbsolute(trimmed) ? trimmed : path.resolve(cwd, trimmed);
+}
+
+function candidateResultInputFromPacketPath(
+  cwd: string,
+  packetPath: string,
+): AutoresearchCandidateWaveResultInput {
+  const resolvedPath = resolveCandidateResultPacketPath(cwd, packetPath);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read candidate result packet at ${resolvedPath}: ${message}`);
+  }
+
+  if (!isRecord(parsed) || parsed.packetKind !== "autoresearch.candidate_result.v1") {
+    throw new Error(
+      `Candidate result packet at ${resolvedPath} must have packetKind=autoresearch.candidate_result.v1.`,
+    );
+  }
+
+  const candidate = isRecord(parsed.candidate) ? parsed.candidate : null;
+  const candidateRun = isRecord(parsed.candidateRun) ? parsed.candidateRun : null;
+  const experiment =
+    candidateRun && isRecord(candidateRun.experiment) ? candidateRun.experiment : null;
+  const closeout = isRecord(parsed.closeout) ? parsed.closeout : null;
+  const closeoutStatus = closeout && isRecord(closeout.status) ? closeout.status : null;
+  const status =
+    optionalString(parsed.empiricalDecisionClass) ?? optionalString(candidateRun?.status);
+  const checks = optionalString(candidateRun?.checks);
+  const laneId =
+    optionalString(experiment?.hypothesisId) ??
+    optionalString(candidate?.branch) ??
+    path.basename(resolvedPath, path.extname(resolvedPath));
+
+  return {
+    laneId,
+    objective:
+      optionalString(experiment?.hypothesis) ??
+      optionalString(candidateRun?.description) ??
+      optionalString(parsed.resultSummary),
+    metric: optionalNumber(candidateRun?.metric),
+    status,
+    checksStatus: checks,
+    confidence: optionalNumber(closeoutStatus?.confidence),
+    candidateWorktree: optionalString(candidate?.worktreePath),
+    candidateBranch: optionalString(candidate?.branch),
+    caveat: optionalString(parsed.resultSummary),
+  };
+}
+
+function candidateResultInputsFromReviewRequest(
+  input: AutoresearchCandidateWaveReviewRequest,
+  cwd: string,
+): AutoresearchCandidateWaveResultInput[] {
+  const supplied = [...(input.candidateResults ?? [])];
+  const fromPackets = (input.candidateResultPacketPaths ?? []).map((packetPath) =>
+    candidateResultInputFromPacketPath(cwd, packetPath),
+  );
+  return [...supplied, ...fromPackets];
+}
+
 export function reviewAutoresearchCandidateWave(
   input: AutoresearchCandidateWaveReviewRequest,
 ): AutoresearchCandidateWaveReview {
@@ -441,12 +523,13 @@ export function reviewAutoresearchCandidateWave(
   if (objective.length === 0) {
     throw new Error("review_candidate_wave requires a non-empty objective.");
   }
-  if (!Array.isArray(input.candidateResults) || input.candidateResults.length === 0) {
-    throw new Error("review_candidate_wave requires at least one candidate result.");
+  const candidateResults = candidateResultInputsFromReviewRequest(input, identity.cwd);
+  if (candidateResults.length === 0) {
+    throw new Error("review_candidate_wave requires at least one candidate result or packet path.");
   }
   const direction = input.direction ?? "lower";
   const lanes = sortCandidateWaveReviewLanes(
-    input.candidateResults.map((candidate) => {
+    candidateResults.map((candidate) => {
       const selectable = candidateWaveLaneSelectable(candidate);
       return {
         laneId: candidate.laneId || "candidate-unknown",
@@ -495,8 +578,8 @@ export function reviewAutoresearchCandidateWave(
       ? `Review ${winner.laneId}, then use autoresearch_candidate_decision plan_keep/plan_discard/plan_rewind or collect more samples.`
       : "Reject or rerun candidate lanes; no winner is selectable from the supplied results.",
     boundaries: [
-      "This review compares supplied candidate-result summaries only; it does not verify raw peer output by itself.",
-      "pi-autoresearch receipts remain the measurement source for each candidate.",
+      "This review compares supplied candidate-result summaries and/or exported pi-autoresearch candidate-result packets; it does not verify raw peer output by itself.",
+      "pi-autoresearch receipts and candidate-result packets remain the measurement source for each candidate.",
       "The recommendation is not promotion authority; owner approval and external promotion gates remain required.",
     ],
   };
