@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ac4f07a700d04e4b3906ba4a91b10e44ac2ab170"
+created_at: "2026-05-09T10:21:45Z"
+intent: "Surface exact peer handoff details after bounded autoresearch campaign runs so the next candidate-attempt step is visible without widening runtime authority."
+files:
+  - "packages/pi-autoresearch/src/core/runtime.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+validation:
+  fast_gate:
+    command: "cd packages/pi-autoresearch && npm run check"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-autoresearch && npm run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Dogfood parity friction: bounded campaign result named a peer lane but hid the exact candidate/scout handoff call."
