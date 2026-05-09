@@ -10,15 +10,18 @@ import {
   loadAutoresearchLearningPacket,
 } from "../src/runtime/autoresearch-learning-kes-adapter.ts";
 
-function registerLearningKesAdapterTool() {
+function registerLearningKesAdapterTool(options = {}) {
   const tools = new Map();
-  extension({
-    registerTool(tool) {
-      tools.set(tool.name, tool);
+  extension(
+    {
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+      registerCommand() {},
+      on() {},
     },
-    registerCommand() {},
-    on() {},
-  });
+    options,
+  );
 
   const tool = tools.get("autoresearch_learning_kes_adapter");
   assert.ok(tool, "expected autoresearch_learning_kes_adapter to register");
@@ -162,8 +165,10 @@ test("registered tool plans and materializes through the KES owner seam", async 
   fs.writeFileSync(packetPath, `${JSON.stringify(createLearningPacket())}\n`, "utf8");
 
   try {
-    const tool = registerLearningKesAdapterTool();
-    const planned = await tool.execute("call-1", { action: "plan", packetPath, packageRoot });
+    const tool = registerLearningKesAdapterTool({
+      autoresearchLearningKesPackageRoot: packageRoot,
+    });
+    const planned = await tool.execute("call-1", { action: "plan", packetPath });
     assert.equal(planned.details.ok, true);
     assert.equal(planned.details.result.status, "planned");
     assert.equal(fs.existsSync(planned.details.result.kesPlan.diary.absolutePath), false);
@@ -171,7 +176,6 @@ test("registered tool plans and materializes through the KES owner seam", async 
     const materialized = await tool.execute("call-2", {
       action: "materialize",
       packetPath,
-      packageRoot,
     });
     assert.equal(materialized.details.ok, true);
     assert.equal(materialized.details.result.status, "materialized");
@@ -183,5 +187,110 @@ test("registered tool plans and materializes through the KES owner seam", async 
     );
   } finally {
     fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("registered tool ignores caller-supplied packageRoot and stays on the owner root", async () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-owner-"));
+  const maliciousRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-other-"));
+  const packetPath = path.join(packageRoot, "packet.json");
+  fs.writeFileSync(packetPath, `${JSON.stringify(createLearningPacket())}\n`, "utf8");
+
+  try {
+    const tool = registerLearningKesAdapterTool({
+      autoresearchLearningKesPackageRoot: packageRoot,
+    });
+    const materialized = await tool.execute("call-root", {
+      action: "materialize",
+      packetPath,
+      packageRoot: maliciousRoot,
+    });
+
+    assert.equal(materialized.details.ok, true);
+    assert.equal(materialized.details.result.packageRoot, path.resolve(packageRoot));
+    assert.equal(fs.existsSync(path.join(packageRoot, "diary")), true);
+    assert.equal(fs.existsSync(path.join(maliciousRoot, "diary")), false);
+    assert.equal(fs.existsSync(path.join(maliciousRoot, "docs", "learnings")), false);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+    fs.rmSync(maliciousRoot, { recursive: true, force: true });
+  }
+});
+
+test("rejects malformed optional closeout fields before KES rendering", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-bad-"));
+
+  try {
+    assert.throws(
+      () =>
+        buildAutoresearchLearningKesAdapterResult({
+          packageRoot,
+          packet: createLearningPacket({ closeout: { recommendedAction: 123 } }),
+        }),
+      /closeout\.recommendedAction must be a non-empty string/,
+    );
+    assert.throws(
+      () =>
+        buildAutoresearchLearningKesAdapterResult({
+          packageRoot,
+          packet: createLearningPacket({
+            closeout: { empiricalPosture: { promotionReady: "yes" } },
+          }),
+        }),
+      /closeout\.empiricalPosture\.promotionReady must be a boolean/,
+    );
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("materialize failure cleans staged KES files instead of leaving a diary partial", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-partial-"));
+  const diaryDir = path.join(packageRoot, "diary");
+  const learningsDir = path.join(packageRoot, "docs", "learnings");
+  fs.mkdirSync(diaryDir, { recursive: true });
+  fs.mkdirSync(learningsDir, { recursive: true });
+  fs.chmodSync(learningsDir, 0o555);
+
+  try {
+    assert.throws(
+      () =>
+        buildAutoresearchLearningKesAdapterResult({
+          packageRoot,
+          packet: createLearningPacket(),
+          action: "materialize",
+          timestamp: new Date("2026-05-08T12:00:00Z"),
+        }),
+      /Package-owned KES artifacts could not be written/,
+    );
+    assert.deepEqual(fs.readdirSync(diaryDir), []);
+    assert.deepEqual(fs.readdirSync(learningsDir), []);
+  } finally {
+    fs.chmodSync(learningsDir, 0o755);
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("materialize rejects symlinked KES roots instead of writing outside the package root", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-symlink-"));
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-outside-"));
+  fs.mkdirSync(path.join(packageRoot, "docs", "learnings"), { recursive: true });
+  fs.symlinkSync(outsideRoot, path.join(packageRoot, "diary"), "dir");
+
+  try {
+    assert.throws(
+      () =>
+        buildAutoresearchLearningKesAdapterResult({
+          packageRoot,
+          packet: createLearningPacket(),
+          action: "materialize",
+          timestamp: new Date("2026-05-08T12:00:00Z"),
+        }),
+      /Package-owned KES artifacts could not be written/,
+    );
+    assert.deepEqual(fs.readdirSync(outsideRoot), []);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+    fs.rmSync(outsideRoot, { recursive: true, force: true });
   }
 });

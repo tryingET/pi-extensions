@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -99,10 +100,10 @@ export function createKesArtifactPlan(
 
 export function materializeKesArtifactPlan(plan: KesArtifactPlan): KesArtifactPlan {
   const roots = ensureKesRoots(plan.roots.packageRoot);
-  writeDraft(plan.diary, roots);
-  if (plan.learningCandidate) {
-    writeDraft(plan.learningCandidate, roots);
-  }
+  const drafts = [plan.diary, plan.learningCandidate].filter((draft): draft is KesArtifactDraft =>
+    Boolean(draft),
+  );
+  stageAndCommitDrafts(drafts, roots);
   return { ...plan, roots };
 }
 
@@ -172,16 +173,44 @@ function createLearningCandidateDraft(
   };
 }
 
-function writeDraft(draft: KesArtifactDraft, roots: KesRoots): void {
-  const absolutePath = resolveBoundedArtifactPath(roots, draft.relativePath);
+function stageAndCommitDrafts(drafts: KesArtifactDraft[], roots: KesRoots): void {
+  const staged: Array<{ draft: KesArtifactDraft; temporaryPath: string; finalPath: string }> = [];
+  const committed: string[] = [];
+  let activeDraft: KesArtifactDraft | undefined;
+
   try {
-    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-    fs.writeFileSync(absolutePath, draft.content, "utf8");
+    for (const draft of drafts) {
+      activeDraft = draft;
+      const finalPath = resolveBoundedArtifactPath(roots, draft.relativePath);
+      fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+      assertNoSymlinkPath(roots, finalPath);
+      if (fs.existsSync(finalPath)) {
+        throw new Error(`KES artifact already exists: ${draft.relativePath}`);
+      }
+      const temporaryPath = path.join(
+        path.dirname(finalPath),
+        `.${path.basename(finalPath)}.${process.pid}.${randomUUID()}.tmp`,
+      );
+      fs.writeFileSync(temporaryPath, draft.content, { encoding: "utf8", flag: "wx" });
+      staged.push({ draft, temporaryPath, finalPath });
+    }
+
+    for (const stagedDraft of staged) {
+      activeDraft = stagedDraft.draft;
+      fs.renameSync(stagedDraft.temporaryPath, stagedDraft.finalPath);
+      committed.push(stagedDraft.finalPath);
+    }
   } catch (cause) {
+    for (const stagedDraft of staged) {
+      fs.rmSync(stagedDraft.temporaryPath, { force: true });
+    }
+    for (const committedPath of committed) {
+      fs.rmSync(committedPath, { force: true });
+    }
     throw new KesMaterializationError({
       operation: "write_artifact",
       packageRoot: roots.packageRoot,
-      relativePath: draft.relativePath,
+      relativePath: activeDraft?.relativePath,
       cause,
     });
   }
@@ -398,6 +427,20 @@ function resolveBoundedArtifactPath(roots: KesRoots, relativePath: string): stri
   }
 
   return absolutePath;
+}
+
+function assertNoSymlinkPath(roots: KesRoots, absolutePath: string): void {
+  const relativePath = path.relative(roots.packageRoot, absolutePath);
+  const parts = relativePath.split(path.sep).filter(Boolean);
+  let cursor = roots.packageRoot;
+  for (const part of parts.slice(0, -1)) {
+    cursor = path.join(cursor, part);
+    if (fs.lstatSync(cursor).isSymbolicLink()) {
+      throw new Error(
+        `KES artifact path must not traverse symlinks: ${path.relative(roots.packageRoot, cursor)}`,
+      );
+    }
+  }
 }
 
 function allocateAvailableRelativePath(packageRoot: string, relativePath: string): string {

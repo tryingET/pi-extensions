@@ -157,6 +157,7 @@ export interface SocietyOrchestratorExtensionOptions {
   manifestCampaignSupervisor?: AutoresearchManifestCampaignSupervisor;
   selfHostingSupervisor?: AutoresearchSelfHostingSupervisor;
   tsQualityReleaseWorkflowRunner?: TsQualityReleaseWorkflowRunner;
+  autoresearchLearningKesPackageRoot?: string;
 }
 
 type AutoresearchLiveSupervisionAction = "status" | "observe" | "start" | "start_campaign" | "stop";
@@ -739,6 +740,9 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
     });
   const tsQualityReleaseWorkflowRunner =
     options.tsQualityReleaseWorkflowRunner || new TsQualityReleaseWorkflowRunner();
+  const autoresearchLearningKesPackageRoot = path.resolve(
+    options.autoresearchLearningKesPackageRoot || ORCHESTRATOR_PACKAGE_ROOT,
+  );
 
   // ===========================================================================
   // TOOL: society_query
@@ -1913,12 +1917,6 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         description:
           "Path to an autoresearch.learning.v1 packet JSON file produced by pi-autoresearch.",
       }),
-      packageRoot: Type.Optional(
-        Type.String({
-          description:
-            "Optional package-owned KES root. Defaults to the installed pi-society-orchestrator package root.",
-        }),
-      ),
       sessionId: Type.Optional(
         Type.String({ description: "Optional Pi/session identifier to include in KES metadata." }),
       ),
@@ -1927,7 +1925,6 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       const request = params as {
         action?: AutoresearchLearningKesAdapterAction;
         packetPath: string;
-        packageRoot?: string;
         sessionId?: string;
       };
       const action = request.action || "plan";
@@ -1938,7 +1935,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         }
         const packet = loadAutoresearchLearningPacket(request.packetPath);
         const result = buildAutoresearchLearningKesAdapterResult({
-          packageRoot: request.packageRoot || ORCHESTRATOR_PACKAGE_ROOT,
+          packageRoot: autoresearchLearningKesPackageRoot,
           packet,
           action,
           sessionId: request.sessionId,

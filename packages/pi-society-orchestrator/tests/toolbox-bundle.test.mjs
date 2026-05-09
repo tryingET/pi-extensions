@@ -52,3 +52,21 @@ test("orchestrator toolbox bundle registers orchestrator tools and reports reque
   assert.equal(harness.tools.has("loop_execute"), true);
   assert.equal(harness.commands.has("runtime-status"), true);
 });
+
+test("orchestrator-gated toolbox profile includes the autoresearch learning KES adapter", () => {
+  const harness = createHarness();
+
+  const summaries = registerToolboxBundle(harness.pi, {
+    profile: "orchestrator-gated",
+    requestedTools: ["autoresearch_learning_kes_adapter"],
+  });
+
+  assert.deepEqual(summaries, [
+    {
+      name: "autoresearch_learning_kes_adapter",
+      profile: "orchestrator-gated",
+      risk: "orchestrator-gated",
+    },
+  ]);
+  assert.equal(harness.tools.has("autoresearch_learning_kes_adapter"), true);
+});

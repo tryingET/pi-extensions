@@ -221,9 +221,7 @@ function validateAutoresearchLearningPacket(packet: unknown): AutoresearchLearni
   assertNonEmptyString(packet.markdown, "markdown");
   assertNonEmptyString(packet.adapterBoundary, "adapterBoundary");
   const suggestedPath = assertLearningPath(packet.suggestedPath, "suggestedPath");
-  if (!isRecord(packet.closeout)) {
-    throw new Error("closeout object is required");
-  }
+  const closeout = validateLearningCloseout(packet.closeout);
   return {
     packetKind: packet.packetKind,
     adapterContractVersion: packet.adapterContractVersion,
@@ -231,9 +229,43 @@ function validateAutoresearchLearningPacket(packet: unknown): AutoresearchLearni
     suggestedPath,
     title: packet.title,
     markdown: packet.markdown,
-    closeout: packet.closeout,
+    closeout,
     adapterBoundary: packet.adapterBoundary,
   } as AutoresearchLearningPacketV1;
+}
+
+function validateLearningCloseout(value: unknown): AutoresearchLearningPacketV1["closeout"] {
+  if (!isRecord(value)) {
+    throw new Error("closeout object is required");
+  }
+  const closeout: AutoresearchLearningPacketV1["closeout"] = {};
+  closeout.packetKind = optionalNonEmptyString(value.packetKind, "closeout.packetKind");
+  closeout.campaign = optionalNullableNonEmptyString(value.campaign, "closeout.campaign");
+  closeout.empiricalDecisionClass = optionalNonEmptyString(
+    value.empiricalDecisionClass,
+    "closeout.empiricalDecisionClass",
+  );
+  closeout.recommendedAction = optionalNonEmptyString(
+    value.recommendedAction,
+    "closeout.recommendedAction",
+  );
+  closeout.receiptPath = optionalNonEmptyString(value.receiptPath, "closeout.receiptPath");
+  if (value.empiricalPosture !== undefined) {
+    if (!isRecord(value.empiricalPosture)) {
+      throw new Error("closeout.empiricalPosture must be an object when present");
+    }
+    closeout.empiricalPosture = {
+      promotionReady: optionalBoolean(
+        value.empiricalPosture.promotionReady,
+        "closeout.empiricalPosture.promotionReady",
+      ),
+      summary: optionalNonEmptyString(
+        value.empiricalPosture.summary,
+        "closeout.empiricalPosture.summary",
+      ),
+    };
+  }
+  return closeout;
 }
 
 function assertLearningPath(value: unknown, fieldName: string): string {
@@ -255,6 +287,34 @@ function assertNonEmptyString(value: unknown, fieldName: string): asserts value 
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${fieldName} must be a non-empty string`);
   }
+}
+
+function optionalNonEmptyString(value: unknown, fieldName: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  assertNonEmptyString(value, fieldName);
+  return value;
+}
+
+function optionalNullableNonEmptyString(
+  value: unknown,
+  fieldName: string,
+): string | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return optionalNonEmptyString(value, fieldName);
+}
+
+function optionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(`${fieldName} must be a boolean when present`);
+  }
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

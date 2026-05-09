@@ -255,10 +255,10 @@ It consumes `autoresearch.learning.v1`, validates that the packet targets notes,
 The productionized owner-routed proof now lives above the package seam in `pi-society-orchestrator`:
 
 ```text
-autoresearch_learning_kes_adapter({ action: "plan" | "materialize", packetPath, packageRoot? })
+autoresearch_learning_kes_adapter({ action: "plan" | "materialize", packetPath })
 ```
 
-It consumes the same `autoresearch.learning.v1` packet, validates the `kes` target and `docs/learnings/` suggested path, plans through `pi-society-orchestrator`'s package-owned KES contract, and materializes only explicit candidate-only KES diary/learning artifacts under that owner package. `pi-autoresearch` remains the non-mutating packet producer; it does not write KES, promote learning, mutate AK, or own the adapter platform.
+It consumes the same `autoresearch.learning.v1` packet, validates the `kes` target and `docs/learnings/` suggested path, plans through `pi-society-orchestrator`'s package-owned KES contract, and materializes only explicit candidate-only KES diary/learning artifacts under that owner package. The public tool does not accept a caller-selected KES root; alternate roots are internal test harness configuration only. `pi-autoresearch` remains the non-mutating packet producer; it does not write KES, promote learning, mutate AK, or own the adapter platform.
 
 Remaining work: use this owner-routed KES seam in real closeout workflows and add other owner adapters only when a concrete notes/KMS owner is ready.
 

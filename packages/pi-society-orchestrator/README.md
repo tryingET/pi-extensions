@@ -183,7 +183,7 @@ Primary tools and commands exposed by the imported extension include:
 - `pi-autoresearch` learning packets now have a real owner-routed KES consumer proof:
   - tool: `autoresearch_learning_kes_adapter`
   - source packet: `autoresearch.learning.v1` from `pi-autoresearch`
-  - current truth: `action=plan` validates and previews package-owned KES diary plus candidate-learning drafts without writing; `action=materialize` explicitly writes only `pi-society-orchestrator` KES artifacts under `diary/` and `docs/learnings/`; neither action mutates `pi-autoresearch`, AK, Prompt Vault, ROCS, Oracle/DSPx, external authority, or promotion state.
+  - current truth: `action=plan` validates and previews package-owned KES diary plus candidate-learning drafts without writing; `action=materialize` explicitly writes only `pi-society-orchestrator` KES artifacts under `diary/` and `docs/learnings/`; the public tool does not accept a caller-selected KES root; neither action mutates `pi-autoresearch`, AK, Prompt Vault, ROCS, Oracle/DSPx, external authority, or promotion state.
 - Keep this package's current truth in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Package-owned KES activation

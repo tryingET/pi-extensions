@@ -47,6 +47,11 @@ const PROFILE_TOOLS: Record<string, ToolboxRegisteredToolSummary[]> = {
       profile: "orchestrator-gated",
       risk: "orchestrator-gated",
     },
+    {
+      name: "autoresearch_learning_kes_adapter",
+      profile: "orchestrator-gated",
+      risk: "orchestrator-gated",
+    },
   ],
 };
 
