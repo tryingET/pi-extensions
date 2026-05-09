@@ -196,7 +196,7 @@ The first bounded KES wave after the prompt-plane cutover is now complete throug
 - loop execution consumes this seam: every run writes package-owned KES diary artifacts under `diary/`, and crystallization-oriented phases stage candidate-only learning artifacts under `docs/learnings/`
 - `autoresearch_learning_kes_adapter` consumes `autoresearch.learning.v1` packets through this same owner seam and keeps learning outputs candidate-only
 - invalid, unwritable, symlink-traversing, or unverified package-owned KES roots now fail closed with a typed materialization error and structured failure surfaces
-- KES materialization uses staged no-clobber commits and cleanup on failure so concurrent or partial writes do not silently replace existing artifacts
+- KES materialization uses staged no-clobber commits, materialization-time filename reallocation for stale plans, and cleanup on failure so concurrent or partial writes do not silently replace existing artifacts
 - package checks, installed-package release smoke, and repo-root validation now prove that path strongly enough to treat the first KES packet and first TG3 hardening slice as landed truth
 - set `PI_ORCH_KES_ROOT` only when you intentionally need a different verified `pi-society-orchestrator` package root during live operation; tests must use explicit injected test roots rather than broad environment redirects
 

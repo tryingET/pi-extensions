@@ -153,6 +153,50 @@ test("materializeKesArtifactPlan creates scaffold directories and allocates uniq
   }
 });
 
+test("materializeKesArtifactPlan reallocates stale planned paths at commit time", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-stale-plan-"));
+
+  try {
+    const request = {
+      diary: {
+        kind: "validation",
+        summary: "Verify stale planned KES paths reallocate",
+        source: {
+          kind: "manual",
+          objective: "Check materialization-time allocation",
+        },
+        actions: ["Create two plans before either one materializes."],
+        timestamp: new Date("2026-04-10T13:15:00Z"),
+      },
+      learningCandidate: {
+        kind: "contract",
+        summary: "Stale KES plans should not fail on filename collision",
+        claim: "Materialization should allocate a fresh suffix if a planned path became stale.",
+        evidence: ["Two plans created before materialization can target the same first filename."],
+      },
+    };
+
+    const firstPlan = createKesArtifactPlan(packageRoot, request);
+    const secondPlan = createKesArtifactPlan(packageRoot, request);
+    assert.equal(secondPlan.diary.relativePath, firstPlan.diary.relativePath);
+
+    materializeKesArtifactPlan(firstPlan);
+    const materializedSecondPlan = materializeKesArtifactPlan(secondPlan);
+
+    assert.match(materializedSecondPlan.diary.relativePath, /--2\.md$/);
+    assert.match(materializedSecondPlan.learningCandidate.relativePath, /--2\.md$/);
+    assert.equal(fs.existsSync(materializedSecondPlan.diary.absolutePath), true);
+    assert.equal(fs.existsSync(materializedSecondPlan.learningCandidate.absolutePath), true);
+    assert.ok(
+      fs
+        .readFileSync(materializedSecondPlan.learningCandidate.absolutePath, "utf8")
+        .includes(`Source diary: \`${materializedSecondPlan.diary.relativePath}\``),
+    );
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
 test("materializeKesArtifactPlan rejects nested symlink traversal before mkdir side effects", () => {
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-nested-symlink-"));
   const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-kes-nested-outside-"));
@@ -209,11 +253,12 @@ test("materializeKesArtifactPlan does not clobber a final path created during co
       return realLinkSync(existingPath, newPath);
     };
 
-    assert.throws(
-      () => materializeKesArtifactPlan(plan),
-      (error) => error instanceof KesMaterializationError,
-    );
-    assert.equal(fs.readFileSync(plan.diary.absolutePath, "utf8"), "CONCURRENT");
+    const firstPlannedPath = plan.diary.absolutePath;
+    const materializedPlan = materializeKesArtifactPlan(plan);
+
+    assert.equal(fs.readFileSync(firstPlannedPath, "utf8"), "CONCURRENT");
+    assert.match(materializedPlan.diary.relativePath, /--2\.md$/);
+    assert.equal(fs.existsSync(materializedPlan.diary.absolutePath), true);
   } finally {
     fs.linkSync = realLinkSync;
     fs.rmSync(packageRoot, { recursive: true, force: true });

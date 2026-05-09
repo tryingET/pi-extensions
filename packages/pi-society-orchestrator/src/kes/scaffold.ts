@@ -178,39 +178,18 @@ function createLearningCandidateDraft(
 }
 
 function stageAndCommitDrafts(drafts: KesArtifactDraft[], roots: KesRoots): void {
-  const staged: Array<{ draft: KesArtifactDraft; temporaryPath: string; finalPath: string }> = [];
+  const temporaryPaths: string[] = [];
   const committed: string[] = [];
   let activeDraft: KesArtifactDraft | undefined;
 
   try {
     for (const draft of drafts) {
       activeDraft = draft;
-      const finalPath = resolveBoundedArtifactPath(roots, draft.relativePath);
-      assertNoSymlinkPath(roots, finalPath);
-      fs.mkdirSync(path.dirname(finalPath), { recursive: true });
-      assertNoSymlinkPath(roots, finalPath);
-      if (fs.existsSync(finalPath)) {
-        throw new Error(`KES artifact already exists: ${draft.relativePath}`);
-      }
-      const temporaryPath = path.join(
-        path.dirname(finalPath),
-        `.${path.basename(finalPath)}.${process.pid}.${randomUUID()}.tmp`,
-      );
-      staged.push({ draft, temporaryPath, finalPath });
-      fs.writeFileSync(temporaryPath, draft.content, { encoding: "utf8", flag: "wx" });
-      assertNoSymlinkPath(roots, finalPath);
-    }
-
-    for (const stagedDraft of staged) {
-      activeDraft = stagedDraft.draft;
-      assertNoSymlinkPath(roots, stagedDraft.finalPath);
-      fs.linkSync(stagedDraft.temporaryPath, stagedDraft.finalPath);
-      committed.push(stagedDraft.finalPath);
-      fs.unlinkSync(stagedDraft.temporaryPath);
+      commitDraftNoClobber({ roots, draft, drafts, temporaryPaths, committed });
     }
   } catch (cause) {
-    for (const stagedDraft of staged) {
-      fs.rmSync(stagedDraft.temporaryPath, { force: true });
+    for (const temporaryPath of temporaryPaths) {
+      fs.rmSync(temporaryPath, { force: true });
     }
     for (const committedPath of committed) {
       fs.rmSync(committedPath, { force: true });
@@ -222,6 +201,81 @@ function stageAndCommitDrafts(drafts: KesArtifactDraft[], roots: KesRoots): void
       cause,
     });
   }
+}
+
+function commitDraftNoClobber(input: {
+  roots: KesRoots;
+  draft: KesArtifactDraft;
+  drafts: KesArtifactDraft[];
+  temporaryPaths: string[];
+  committed: string[];
+}): void {
+  const allocationBaseRelativePath = input.draft.relativePath;
+
+  while (true) {
+    const allocatedRelativePath = allocateAvailableRelativePath(
+      input.roots.packageRoot,
+      allocationBaseRelativePath,
+    );
+    updateDraftPath(input.draft, input.drafts, input.roots, allocatedRelativePath);
+    const finalPath = resolveBoundedArtifactPath(input.roots, input.draft.relativePath);
+    assertNoSymlinkPath(input.roots, finalPath);
+    fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+    assertNoSymlinkPath(input.roots, finalPath);
+
+    const temporaryPath = path.join(
+      path.dirname(finalPath),
+      `.${path.basename(finalPath)}.${process.pid}.${randomUUID()}.tmp`,
+    );
+    input.temporaryPaths.push(temporaryPath);
+    fs.writeFileSync(temporaryPath, input.draft.content, { encoding: "utf8", flag: "wx" });
+    assertNoSymlinkPath(input.roots, finalPath);
+
+    try {
+      fs.linkSync(temporaryPath, finalPath);
+      input.committed.push(finalPath);
+      fs.unlinkSync(temporaryPath);
+      input.temporaryPaths.splice(input.temporaryPaths.indexOf(temporaryPath), 1);
+      return;
+    } catch (cause) {
+      fs.rmSync(temporaryPath, { force: true });
+      input.temporaryPaths.splice(input.temporaryPaths.indexOf(temporaryPath), 1);
+      if (isFileExistsError(cause)) {
+        continue;
+      }
+      throw cause;
+    }
+  }
+}
+
+function updateDraftPath(
+  draft: KesArtifactDraft,
+  drafts: KesArtifactDraft[],
+  roots: KesRoots,
+  relativePath: string,
+): void {
+  const oldRelativePath = draft.relativePath;
+  if (oldRelativePath === relativePath) {
+    return;
+  }
+
+  draft.relativePath = relativePath;
+  draft.absolutePath = resolveBoundedArtifactPath(roots, relativePath);
+  for (const candidate of drafts) {
+    if (candidate === draft) {
+      continue;
+    }
+    candidate.content = candidate.content.replaceAll(oldRelativePath, relativePath);
+    if (candidate.metadata.source_diary === oldRelativePath) {
+      candidate.metadata.source_diary = relativePath;
+    }
+  }
+}
+
+function isFileExistsError(value: unknown): boolean {
+  return (
+    value instanceof Error && "code" in value && (value as NodeJS.ErrnoException).code === "EEXIST"
+  );
 }
 
 function renderDiaryContent(dateStamp: string, diary: KesDiaryEntryInput): string {
