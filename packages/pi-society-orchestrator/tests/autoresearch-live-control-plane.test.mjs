@@ -714,8 +714,13 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
       /candidate\/candidate-02/,
     );
+    assert.ok(result.content[0].text.includes(packetB));
+    assert.match(result.content[0].text, /candidate: branch=candidate\/candidate-02/);
+    assert.match(result.content[0].text, /worktree=.*candidate-02/);
+    assert.match(result.content[0].text, /caveat: candidate 02 improved more/);
     assert.match(result.content[0].text, /candidate-result packets/);
-    assert.match(result.content[0].text, /missing_packet/);
+    assert.match(result.content[0].text, /missing_packet guidance: verify\/export/);
+    assert.match(result.content[0].text, /still running\/failed/);
     assert.match(result.content[0].text, /Exact next calls/);
   });
 });

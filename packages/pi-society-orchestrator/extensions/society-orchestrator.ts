@@ -452,10 +452,25 @@ function formatAutoresearchCandidateWaveReviewReport(
     `Direction: ${review.direction} is better`,
     "",
     "Candidate comparison:",
-    ...review.lanes.map(
-      (lane) =>
+    ...review.lanes.flatMap((lane) => {
+      const candidatePointers = [
+        lane.candidateBranch ? `branch=${lane.candidateBranch}` : null,
+        lane.candidateWorktree ? `worktree=${lane.candidateWorktree}` : null,
+        lane.candidateBaseRef ? `base=${lane.candidateBaseRef}` : null,
+      ].filter(Boolean);
+      return [
         `- ${lane.rank ? `#${lane.rank} ` : ""}${lane.laneId}: metric=${lane.metric ?? "missing"}; status=${lane.status}; checks=${lane.checksStatus}; selectable=${lane.selectable ? "yes" : "no"} (${lane.selectionReason})`,
-    ),
+        lane.sourcePacketPath ? `  source packet: ${lane.sourcePacketPath}` : null,
+        candidatePointers.length > 0 ? `  candidate: ${candidatePointers.join("; ")}` : null,
+        lane.candidateFilesChanged.length > 0
+          ? `  files changed: ${lane.candidateFilesChanged.join(", ")}`
+          : null,
+        lane.caveat ? `  caveat: ${lane.caveat}` : null,
+        lane.status === "missing_packet"
+          ? "  missing_packet guidance: verify/export the candidate-result packet path after measurement, or treat this lane as still running/failed and leave it non-selectable until a packet exists."
+          : null,
+      ].filter((line): line is string => line !== null);
+    }),
     "",
     `Recommendation: ${review.recommendation.posture}${review.recommendation.laneId ? ` — ${review.recommendation.laneId}` : ""}`,
     `Reason: ${review.recommendation.reason}`,
