@@ -456,6 +456,13 @@ function formatAutoresearchCandidateWaveReviewReport(
     "",
     `Recommendation: ${review.recommendation.posture}${review.recommendation.laneId ? ` — ${review.recommendation.laneId}` : ""}`,
     `Reason: ${review.recommendation.reason}`,
+    ...(review.recommendation.exactNextCalls.length > 0
+      ? [
+          "",
+          "Exact next calls:",
+          ...review.recommendation.exactNextCalls.map((call) => `- ${call}`),
+        ]
+      : []),
     "",
     "Boundaries:",
     ...review.boundaries.map((boundary) => `- ${boundary}`),
@@ -1412,6 +1419,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             confidence: Type.Optional(Type.Number()),
             candidateWorktree: Type.Optional(Type.String()),
             candidateBranch: Type.Optional(Type.String()),
+            candidateBaseRef: Type.Optional(Type.String()),
+            candidateDiffSummary: Type.Optional(Type.String()),
+            candidateFilesChanged: Type.Optional(Type.Array(Type.String())),
+            sourcePacketPath: Type.Optional(Type.String()),
             caveat: Type.Optional(Type.String()),
           }),
           {
@@ -1561,6 +1572,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           confidence?: number;
           candidateWorktree?: string;
           candidateBranch?: string;
+          candidateBaseRef?: string;
+          candidateDiffSummary?: string;
+          candidateFilesChanged?: string[];
+          sourcePacketPath?: string;
           caveat?: string;
         }>;
         candidateResultPacketPaths?: string[];

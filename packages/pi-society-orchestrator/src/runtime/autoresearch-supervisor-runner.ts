@@ -202,6 +202,10 @@ export interface AutoresearchCandidateWaveResultInput {
   confidence?: number;
   candidateWorktree?: string;
   candidateBranch?: string;
+  candidateBaseRef?: string;
+  candidateDiffSummary?: string;
+  candidateFilesChanged?: readonly string[];
+  sourcePacketPath?: string;
   caveat?: string;
 }
 
@@ -221,6 +225,10 @@ export interface AutoresearchCandidateWaveReviewLane {
   confidence: number | null;
   candidateWorktree: string | null;
   candidateBranch: string | null;
+  candidateBaseRef: string | null;
+  candidateDiffSummary: string | null;
+  candidateFilesChanged: readonly string[];
+  sourcePacketPath: string | null;
   caveat: string | null;
   rank: number | null;
   selectable: boolean;
@@ -238,6 +246,7 @@ export interface AutoresearchCandidateWaveReview {
     posture: "owner_selection_required" | "no_selectable_candidate";
     laneId: string | null;
     reason: string;
+    exactNextCalls: string[];
   };
   nextStep: string;
   boundaries: string[];
@@ -455,6 +464,12 @@ function resolveCandidateResultPacketPath(cwd: string, packetPath: string): stri
   return path.isAbsolute(trimmed) ? trimmed : path.resolve(cwd, trimmed);
 }
 
+function stringArrayFrom(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 function candidateResultInputFromPacketPath(
   cwd: string,
   packetPath: string,
@@ -500,8 +515,71 @@ function candidateResultInputFromPacketPath(
     confidence: optionalNumber(closeoutStatus?.confidence),
     candidateWorktree: optionalString(candidate?.worktreePath),
     candidateBranch: optionalString(candidate?.branch),
+    candidateBaseRef: optionalString(candidate?.baseRef),
+    candidateDiffSummary: optionalString(candidate?.diffSummary),
+    candidateFilesChanged: stringArrayFrom(candidate?.filesChanged),
+    sourcePacketPath: resolvedPath,
     caveat: optionalString(parsed.resultSummary),
   };
+}
+
+function buildCandidateWaveReviewNextCalls(input: {
+  cwd: string;
+  winner: AutoresearchCandidateWaveReviewLane | null;
+}): string[] {
+  const { cwd, winner } = input;
+  if (!winner) return [];
+
+  const calls: string[] = [];
+  if (winner.candidateWorktree) {
+    calls.push(
+      formatToolCall("autoresearch_candidate_bind", {
+        cwd,
+        action: "plan_run",
+        candidateWorktree: winner.candidateWorktree,
+        candidateBaseRef: winner.candidateBaseRef ?? "<verify-base-ref>",
+      }),
+    );
+  }
+  calls.push(
+    formatToolCall("autoresearch_candidate_decision", {
+      cwd,
+      action: "plan_keep",
+    }),
+  );
+  calls.push(
+    formatToolCall("autoresearch_candidate_decision", {
+      cwd,
+      action: "plan_discard",
+    }),
+  );
+  if (winner.candidateWorktree || winner.candidateBaseRef) {
+    calls.push(
+      formatToolCall("autoresearch_candidate_decision", {
+        cwd,
+        action: "plan_rewind",
+      }),
+    );
+  }
+  calls.push(
+    formatToolCall("autoresearch_runtime_run", {
+      cwd,
+      runKind: "ordinary",
+      description: `Collect another sample for ${winner.laneId}`,
+      hypothesisId: winner.laneId,
+      hypothesis: winner.objective ?? `More samples for ${winner.laneId}`,
+      candidateSource: winner.candidateWorktree ? "candidate_peer_spawn" : "manual",
+      candidateWorktree: winner.candidateWorktree ?? "<candidate-worktree>",
+      candidateBranch: winner.candidateBranch ?? "<candidate-branch>",
+      candidateBaseRef: winner.candidateBaseRef ?? "<candidate-base-ref>",
+      candidateDiffSummary: winner.candidateDiffSummary ?? "<controller-verified-diff-summary>",
+      candidateFilesChanged:
+        winner.candidateFilesChanged.length > 0
+          ? winner.candidateFilesChanged
+          : ["<changed-files>"],
+    }),
+  );
+  return calls;
 }
 
 function candidateResultInputsFromReviewRequest(
@@ -546,6 +624,10 @@ export function reviewAutoresearchCandidateWave(
             : null,
         candidateWorktree: candidate.candidateWorktree || null,
         candidateBranch: candidate.candidateBranch || null,
+        candidateBaseRef: candidate.candidateBaseRef || null,
+        candidateDiffSummary: candidate.candidateDiffSummary || null,
+        candidateFilesChanged: [...(candidate.candidateFilesChanged ?? [])],
+        sourcePacketPath: candidate.sourcePacketPath || null,
         caveat: candidate.caveat || null,
         rank: null,
         selectable: selectable.selectable,
@@ -555,6 +637,7 @@ export function reviewAutoresearchCandidateWave(
     direction,
   );
   const winner = lanes.find((lane) => lane.rank === 1) ?? null;
+  const exactNextCalls = buildCandidateWaveReviewNextCalls({ cwd: identity.cwd, winner });
 
   return {
     kind: "autoresearch.candidate_wave_review.v1",
@@ -568,11 +651,13 @@ export function reviewAutoresearchCandidateWave(
           posture: "owner_selection_required",
           laneId: winner.laneId,
           reason: `Best selectable ${direction}-is-better metric is ${winner.metric}. Owner must still approve keep/finalize.`,
+          exactNextCalls,
         }
       : {
           posture: "no_selectable_candidate",
           laneId: null,
           reason: "No candidate had finite metrics with passing status/check gates.",
+          exactNextCalls,
         },
     nextStep: winner
       ? `Review ${winner.laneId}, then use autoresearch_candidate_decision plan_keep/plan_discard/plan_rewind or collect more samples.`

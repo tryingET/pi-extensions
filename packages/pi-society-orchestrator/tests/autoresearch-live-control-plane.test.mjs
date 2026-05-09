@@ -552,8 +552,17 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
       .selectable,
     false,
   );
+  assert.match(
+    result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
+    /autoresearch_candidate_decision/,
+  );
+  assert.match(
+    result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
+    /autoresearch_runtime_run/,
+  );
   assert.match(result.content[0].text, /Candidate comparison/);
   assert.match(result.content[0].text, /Recommendation: owner_selection_required — candidate-02/);
+  assert.match(result.content[0].text, /Exact next calls/);
   assert.match(result.content[0].text, /not promotion authority|owner approval/);
 });
 
@@ -656,12 +665,23 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
 
     assert.equal(result.details.ok, true);
     assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
-    assert.equal(
-      result.details.candidateWaveReview.lanes.find((lane) => lane.laneId === "candidate-02")
-        .candidateBranch,
-      "candidate/candidate-02",
+    const candidate02 = result.details.candidateWaveReview.lanes.find(
+      (lane) => lane.laneId === "candidate-02",
+    );
+    assert.equal(candidate02.candidateBranch, "candidate/candidate-02");
+    assert.equal(candidate02.candidateBaseRef, "HEAD");
+    assert.deepEqual(candidate02.candidateFilesChanged, ["src/b.ts"]);
+    assert.equal(candidate02.sourcePacketPath, packetB);
+    assert.match(
+      result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
+      /autoresearch_candidate_bind/,
+    );
+    assert.match(
+      result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
+      /candidate\/candidate-02/,
     );
     assert.match(result.content[0].text, /candidate-result packets/);
+    assert.match(result.content[0].text, /Exact next calls/);
   });
 });
 
