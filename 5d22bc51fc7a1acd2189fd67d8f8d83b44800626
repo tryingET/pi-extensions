@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5d22bc51fc7a1acd2189fd67d8f8d83b44800626"
+created_at: "2026-05-09T19:07:18Z"
+intent: "Make orchestrator candidate-wave review consume exported pi-autoresearch candidate-result packets for real packet-backed owner selection."
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check; node --experimental-strip-types /tmp/dogfood-candidate-wave-packets.mjs; pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-society-orchestrator"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Extends the previous candidate-wave review from synthetic summaries to real exported candidate-result packet paths."
+links:
+  task_ids:
+    - 2674
