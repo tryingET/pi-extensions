@@ -1,0 +1,22 @@
+AK task #2794: Run code-to-canvas live design autoresearch campaign
+
+Started a supervised code-to-canvas live design autoresearch campaign for comparing browser truth, SVG/Penpot projection, native Penpot MCP, OpenPencil, and hybrid routes.
+
+Inputs and provenance:
+- User supplied campaign context distinguishing Pi/society autoresearch from DSPx program generation.
+- DesignMD Foundry owner session was queried through intercom for verified surfaces and claim boundaries.
+- Visible peer lanes were launched:
+  - scoutpeer-mozvpdx2-67aab2f3 route-readiness scout
+  - candidatepeer-mozvpdzh-6621bfd2 Route A browser-truth proof candidate
+  - candidatepeer-mozvpdzs-1f6cf5db Routes B/D/E projection proof candidate
+- Candidate outputs were treated as communication only; controller inspected candidate proof notes and verified generated projection artifact shapes before synthesizing recommendation.
+
+Validation:
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs docs/project --strict: pass
+- projection candidate artifact shape checks with jq/grep: pass
+- git diff --check: pass
+
+Authority boundaries:
+- Did not merge candidate worktrees into the DesignMD Foundry owner repo.
+- Did not mutate DESIGN.md, Penpot, OpenPencil, AK/KES/Prompt Vault/ROCS, or external design tools.
+- Recommendation is Route E: browser-rendered code as live/watchable truth, Foundry Watch Mode as evidence surface, SVG/.pen/Penpot-plan projections, and explicit approval for any live Penpot MCP apply.
