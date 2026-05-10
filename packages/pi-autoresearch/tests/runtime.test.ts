@@ -538,6 +538,17 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
   assert.match(formatAutoresearchStatusText(status), /empirical posture: unconfigured/);
   assert.match(formatAutoresearchStatusText(status), /next slices: \(none currently committed\)/);
+  assert.match(formatAutoresearchStatusText(status), /Setup guide/);
+  assert.match(formatAutoresearchStatusText(status), /autoresearch_campaign_start/);
+  assert.match(formatAutoresearchStatusText(status), /autoresearch_runtime_setup/);
+  assert.match(
+    formatAutoresearchStatusText(status),
+    /Guided candidate journey: bind -> measure -> candidate_result_export/,
+  );
+  assert.match(formatAutoresearchStatusText(status), /autoresearch_candidate_bind/);
+  assert.match(formatAutoresearchStatusText(status), /autoresearch_runtime_run/);
+  assert.match(formatAutoresearchStatusText(status), /candidate_result_export/);
+  assert.match(formatAutoresearchStatusText(status), /autoresearch_live_supervision/);
   assert.match(buildAutoresearchHelpText(status), /exact-task AK-binding snapshot derivation/);
   assert.match(buildAutoresearchHelpText(status), /one-step campaign-local advancement/);
   assert.match(
@@ -2535,6 +2546,15 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /Learning handoff/);
     assert.match(html, /learning_export/);
     assert.match(html, /autoresearch_learning_kes_adapter/);
+    assert.match(html, /Setup guide/);
+    assert.match(html, /autoresearch_campaign_start/);
+    assert.match(html, /autoresearch_runtime_setup/);
+    assert.match(html, /Bind → measure → candidate_result_export journey/);
+    assert.match(html, /autoresearch_candidate_bind/);
+    assert.match(html, /autoresearch_runtime_run/);
+    assert.match(html, /candidate_result_export/);
+    assert.match(html, /autoresearch_live_supervision/);
+    assert.match(html, /taskId/);
     assert.match(html, /Browser export is read-only/);
   }));
 

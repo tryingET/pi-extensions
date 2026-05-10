@@ -4696,6 +4696,24 @@ export function exportAutoresearchDashboardHtml(input: {
   };
 }
 
+function formatAutoresearchSetupGuideLines(cwd: string): string[] {
+  return [
+    `- configure a bounded segment: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
+    `- lower-level setup plan: ${AUTORESEARCH_SETUP_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "plan", name: "<campaign-name>", metricName: "<metric-name>", direction: "lower", benchmarkCommand: "<command that prints METRIC name=value>" })`,
+    "- boundary: setup guidance is read-only until the operator sends an explicit setup/baseline/bounded-loop call.",
+  ];
+}
+
+function formatAutoresearchGuidedCandidateJourneyLines(cwd: string): string[] {
+  return [
+    `- bind candidate (read-only plan): ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, candidateWorktree: "<candidate-worktree>", action: "plan_run" })`,
+    `- measure after bind review: ${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, description: "Measure bound candidate", candidateSource: "candidate_peer_spawn", candidateWorktree: "<candidate-worktree>", candidateBranch: "<candidate-branch>", candidateBaseRef: "<base-ref>", candidateDiffSummary: "<controller-verified diff>", candidateFilesChanged: ["<path>"] })`,
+    `- export candidate result packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "candidate_result_export", outPath: "${AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE}" })`,
+    `- witness/aggregate review handoff: autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`,
+    "- boundary: these are exact next legal calls only; the dashboard does not spawn a candidate, run benchmarks, mutate worktrees, write AK/KES evidence, or promote.",
+  ];
+}
+
 export function formatAutoresearchDashboard(
   status: AutoresearchRuntimeStatus,
   candidatePolicy: AutoresearchCandidateLifecyclePolicy = DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY,
@@ -4720,9 +4738,12 @@ export function formatAutoresearchDashboard(
   const resumeApplyPlanLines = resumeApplyPlan
     ? formatAutoresearchResumeApplyPlanSummaryLines(resumeApplyPlan)
     : ["- resume apply plan: (unavailable without cwd)"];
-  const learningExportCall = `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "learning_export" })`;
+  const dashboardCwd = status.cwd ?? process.cwd();
+  const learningExportCall = `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "learning_export" })`;
   const learningKesAdapterCall =
     'autoresearch_learning_kes_adapter({ action: "plan", packetPath: "<exported-learning-packet>" })';
+  const setupGuideLines = formatAutoresearchSetupGuideLines(dashboardCwd);
+  const guidedCandidateJourneyLines = formatAutoresearchGuidedCandidateJourneyLines(dashboardCwd);
 
   return [
     "# PI-AUTORESEARCH DASHBOARD",
@@ -4774,17 +4795,23 @@ export function formatAutoresearchDashboard(
     `- KES adapter plan: ${learningKesAdapterCall}`,
     "- boundary: export is local only; KES/notes/KMS adapters own persistence and promotion.",
     "",
+    "## Setup guide",
+    ...setupGuideLines,
+    "",
+    "## Guided candidate journey: bind -> measure -> candidate_result_export",
+    ...guidedCandidateJourneyLines,
+    "",
     "## Next legal surfaces",
-    `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
-    `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
-    `- resume plan: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "resume_plan" })`,
-    `- resume apply plan-only proposal: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "resume_apply_plan" })`,
-    `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "closeout" })`,
+    `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
+    `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "status" })`,
+    `- resume plan: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "resume_plan" })`,
+    `- resume apply plan-only proposal: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "resume_apply_plan" })`,
+    `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "closeout" })`,
     `- learning export: ${learningExportCall}`,
     `- learning KES adapter plan: ${learningKesAdapterCall}`,
-    `- candidate bind: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, candidateWorktree: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "plan_run" })`,
-    `- candidate decision: ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
-    `- control gate: ${AUTORESEARCH_CONTROL_TOOL_NAME}({ cwd: ${JSON.stringify(status.cwd ?? process.cwd())}, action: "status" })`,
+    `- candidate bind: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, candidateWorktree: ${JSON.stringify(dashboardCwd)}, action: "plan_run" })`,
+    `- candidate decision: ${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "status" })`,
+    `- control gate: ${AUTORESEARCH_CONTROL_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "status" })`,
     "",
     "## Boundaries",
     "- peers are planned or visibly launched only through explicit peer surfaces.",
@@ -4808,6 +4835,8 @@ function renderAutoresearchDashboardHtml(
   const learningExportCall = `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "learning_export" })`;
   const learningKesAdapterCall =
     'autoresearch_learning_kes_adapter({ action: "plan", packetPath: "<exported-learning-packet>" })';
+  const setupGuideLines = formatAutoresearchSetupGuideLines(closeout.cwd);
+  const guidedCandidateJourneyLines = formatAutoresearchGuidedCandidateJourneyLines(closeout.cwd);
   const generatedAt = new Date().toLocaleString();
   const metricUnit = closeout.metricUnit || segment.metricUnit || "";
   const metricName = closeout.metricName ?? segment.metricName ?? "metric";
@@ -4984,6 +5013,18 @@ code { color: #a5d6ff; }
     <div class="card-copy">Boundary: export is local only; KES/notes/KMS adapters own persistence and promotion.</div>
   </section>
 
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Setup guide</div>
+    <div class="card-value" style="font-size:18px">configure a bounded segment</div>
+    ${setupGuideLines.map((line) => `<div class="card-copy"><code>${escapeHtml(line.replace(/^- /u, ""))}</code></div>`).join("\n")}
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Bind → measure → candidate_result_export journey</div>
+    <div class="card-value" style="font-size:18px">next legal candidate calls</div>
+    ${guidedCandidateJourneyLines.map((line) => `<div class="card-copy"><code>${escapeHtml(line.replace(/^- /u, ""))}</code></div>`).join("\n")}
+  </section>
+
   <div class="cards">
     <section class="card"><div class="card-label">Campaign</div><div class="card-value" style="font-size:16px">${escapeHtml(segment.name ?? "unconfigured")}</div></section>
     <section class="card"><div class="card-label">Metric</div><div class="card-value" style="font-size:16px">★ ${escapeHtml(metricName)} ${escapeHtml(direction ?? "")} ${metricUnit ? `(${escapeHtml(metricUnit)})` : ""}</div></section>
@@ -5007,7 +5048,8 @@ code { color: #a5d6ff; }
 
   <section class="card footer">
     <strong>Boundary:</strong> Browser export is read-only. It does not run benchmarks, spawn peers, mutate worktrees, write AK/KES evidence, or promote candidates.<br />
-    <strong>Candidate policy:</strong> mode=worktree; keep=preserve_branch; discard=suggest_cleanup; rewind=reset_worktree_to_base. Replay Fabric observes history; ASC rewind is live session recovery.
+    <strong>Candidate policy:</strong> mode=worktree; keep=preserve_branch; discard=suggest_cleanup; rewind=reset_worktree_to_base. Replay Fabric observes history; ASC rewind is live session recovery.<br />
+    <strong>Orchestrator witness handoff:</strong> use <code>autoresearch_live_supervision({ action: "review_candidate_wave", taskId: &lt;ak-task-id&gt;, cwd: ${escapeHtml(JSON.stringify(closeout.cwd))}, objective: "&lt;candidate-wave-objective&gt;", direction: "lower" })</code> after candidate-result packet review; this dashboard does not mutate AK or claim evidence authority.
   </section>
 </div>
 <script>
@@ -5523,6 +5565,16 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     `- ready Prompt Vault templates: ${status.readyPromptVaultTemplates.join(", ")}`,
     `- blocked Prompt Vault templates: ${status.blockedPromptVaultTemplates.join(", ")}`,
     `- next slices: ${formatNextSlices(status.nextSlices)}`,
+    "",
+    "## Setup guide",
+    ...(status.cwd
+      ? formatAutoresearchSetupGuideLines(status.cwd)
+      : ["- provide cwd to show exact setup calls"]),
+    "",
+    "## Guided candidate journey: bind -> measure -> candidate_result_export",
+    ...(status.cwd
+      ? formatAutoresearchGuidedCandidateJourneyLines(status.cwd)
+      : ["- provide cwd to show exact bind/measure/export calls"]),
     "",
     "## Peer lane recommendations",
     ...formatAutoresearchPeerLaneRecommendations({ cwd: status.cwd }),
@@ -6366,9 +6418,14 @@ export async function executeAutoresearchLoop(
     }
 
     const previousDecision = runs.at(-1)?.decisionSummary;
+    const requestedDescription = input.description?.trim();
     const description =
       index === 0
-        ? input.description?.trim() || `loop baseline/iteration for ${goal}`
+        ? requestedDescription
+          ? requestedDescription.includes(goal)
+            ? requestedDescription
+            : `${requestedDescription} Operator objective: ${goal}`
+          : `loop baseline/iteration for ${goal}`
         : previousDecision?.nextHypothesis?.trim() || `loop iteration ${index + 1} for ${goal}`;
 
     emitAutoresearchLoopProgress(input, {
