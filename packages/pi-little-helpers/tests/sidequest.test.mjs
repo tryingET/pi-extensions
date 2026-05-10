@@ -472,7 +472,7 @@ test("scout_peer_spawn launches a clean session even when the controller session
     "tool-call-1",
     {
       objective: "inspect clean launch handling",
-      parentPeerTarget: "controller-session-123",
+      parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
     },
     undefined,
     undefined,
@@ -592,6 +592,40 @@ test("scout_peer_spawn rejects ambiguous parentPeerTarget aliases before launch"
   assert.match(result.details.nextStep, /intercom\(\{ action: "status" \}\)/);
 });
 
+test("scout_peer_spawn rejects non-session-id parentPeerTarget before launch", async () => {
+  const execStub = createExecStub(() => {
+    throw new Error("Ghostty should not be called with a non-session parent target");
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("scout_peer_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "inspect without orphaning", parentPeerTarget: "main" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  assert.equal(execStub.calls.length, 0);
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "invalid_parent_peer_target");
+  assert.equal(result.details.reason, "not_exact_session_id");
+  assert.equal(result.details.parentPeerTarget, "main");
+});
+
 test("scout_peer_spawn uses the same Ghostty window fallback launch path and returns structured details", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
@@ -627,7 +661,7 @@ test("scout_peer_spawn uses the same Ghostty window fallback launch path and ret
       objective: "Review the retry plan for sidequest fallback",
       cwd: "/requested-cwd",
       reportBack: "intercom",
-      parentPeerTarget: "controller-session-123",
+      parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
     },
     undefined,
     undefined,
@@ -661,7 +695,10 @@ test("scout_peer_spawn uses the same Ghostty window fallback launch path and ret
       piArgs.at(-1).indexOf("## Objective"),
   );
   assert.match(piArgs.at(-1), /Role\nreviewer/);
-  assert.match(piArgs.at(-1), /Report to the exact parent target: controller-session-123/);
+  assert.match(
+    piArgs.at(-1),
+    /Report to the exact parent target: session-019e10d2-15f5-705a-aea4-01ba49d2bbac/,
+  );
   assert.match(piArgs.at(-1), /Message budget: at most PEER_ACK and PEER_FINAL/);
   assert.match(piArgs.at(-1), /PEER_ACK peer_run_id=scoutpeer-[^:]+: \.\.\./);
   assert.match(piArgs.at(-1), /PEER_FINAL peer_run_id=scoutpeer-[^:]+: \.\.\./);
@@ -669,7 +706,7 @@ test("scout_peer_spawn uses the same Ghostty window fallback launch path and ret
   assert.match(piArgs.at(-1), /After sending `PEER_FINAL`, stop/);
   assert.match(
     piArgs.at(-1),
-    /intercom\(\{ action: "send", to: "controller-session-123", message: "PEER_ACK peer_run_id=scoutpeer-[^:]+: \.\.\." \}\)/,
+    /intercom\(\{ action: "send", to: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac", message: "PEER_ACK peer_run_id=scoutpeer-[^:]+: \.\.\." \}\)/,
   );
 
   assert.equal(result.details.ok, true);
@@ -777,7 +814,7 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
     "tool-call-1",
     {
       objective: "Inspect why benchmark artifacts disagree",
-      parentPeerTarget: "controller-session-123",
+      parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
       context: {
         campaignGoal: "Improve benchmark accuracy",
         primaryMetric: "overall_accuracy",
@@ -834,7 +871,10 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
   assert.match(prompt, /`workflow_execute` for a small explicit plan/);
   assert.match(prompt, /`intercom` for reporting back/);
   assert.match(prompt, /Do not spawn more quest agents unless explicitly instructed/);
-  assert.match(prompt, /Report to the exact parent target: controller-session-123/);
+  assert.match(
+    prompt,
+    /Report to the exact parent target: session-019e10d2-15f5-705a-aea4-01ba49d2bbac/,
+  );
   assert.doesNotMatch(prompt, /Manual report-back is requested/);
   assert.match(prompt, /1\. Answer or recommendation/);
   assert.match(prompt, /2\. Evidence inspected — exact files, artifacts, commands/);
@@ -1087,6 +1127,39 @@ test("candidate_peer_spawn rejects ambiguous parentPeerTarget aliases before git
   assert.equal(result.details.parentPeerTarget, "current");
 });
 
+test("candidate_peer_spawn rejects non-session-id parentPeerTarget before git or launch", async () => {
+  const execStub = createCandidatePeerExecStub();
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("candidate_peer_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "try without orphaning", parentPeerTarget: "steve" },
+      undefined,
+      undefined,
+      createContext({ cwd: "/repo" }).ctx,
+    );
+
+  assert.equal(execStub.calls.length, 0);
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "invalid_parent_peer_target");
+  assert.equal(result.details.reason, "not_exact_session_id");
+  assert.equal(result.details.parentPeerTarget, "steve");
+});
+
 test("candidate_peer_spawn fails closed when requireCleanParent sees dirty parent state", async () => {
   await withTempDir(async (stateHome) => {
     const execStub = createCandidatePeerExecStub({ dirty: " M src/file.ts\n" });
@@ -1109,7 +1182,7 @@ test("candidate_peer_spawn fails closed when requireCleanParent sees dirty paren
       "tool-call-1",
       {
         objective: "try a bounded fix",
-        parentPeerTarget: "controller-session-123",
+        parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
         requireCleanParent: true,
       },
       undefined,
@@ -1149,7 +1222,7 @@ test("candidate_peer_spawn rejects worktree paths inside the parent checkout", a
     {
       objective: "try a bounded fix",
       cwd: "/repo",
-      parentPeerTarget: "controller-session-123",
+      parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
       workspaceRoot: "/repo/tmp-quests",
     },
     undefined,
@@ -1186,7 +1259,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
       {
         objective: "Try bounded runner guard",
         cwd: "/repo",
-        parentPeerTarget: "controller-session-123",
+        parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
         branchName: "candidatepeer/Runner Guard!",
         workspaceName: "../Runner Guard Workspace",
         filesInScope: ["src/runner.ts", "tests/runner.test.mjs"],
@@ -1253,7 +1326,10 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.match(prompt, /- parent checkout/);
     assert.match(prompt, /- run focused test only/);
     assert.match(prompt, /Report diff summary/);
-    assert.match(prompt, /Report to the exact parent target: controller-session-123/);
+    assert.match(
+      prompt,
+      /Report to the exact parent target: session-019e10d2-15f5-705a-aea4-01ba49d2bbac/,
+    );
     assert.match(prompt, /Message budget: at most PEER_ACK and PEER_FINAL/);
     assert.match(prompt, /PEER_ACK peer_run_id=candidatepeer-[^:]+: \.\.\./);
     assert.match(prompt, /PEER_FINAL peer_run_id=candidatepeer-[^:]+: \.\.\./);
@@ -1261,7 +1337,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.match(prompt, /After sending `PEER_FINAL`, stop/);
     assert.match(
       prompt,
-      /intercom\(\{ action: "send", to: "controller-session-123", message: "PEER_ACK peer_run_id=candidatepeer-[^:]+: \.\.\." \}\)/,
+      /intercom\(\{ action: "send", to: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac", message: "PEER_ACK peer_run_id=candidatepeer-[^:]+: \.\.\." \}\)/,
     );
     assert.doesNotMatch(prompt, /Manual report-back is requested/);
     assert.doesNotMatch(prompt, /visible report in this sidequest session/);

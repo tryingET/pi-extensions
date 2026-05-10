@@ -1220,15 +1220,21 @@ const AMBIGUOUS_PARENT_PEER_TARGETS = new Set([
   "this",
 ]);
 
+const EXACT_SESSION_ID_PATTERN =
+  /^session-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type ParentPeerTargetValidation =
   | { ok: true; target: string }
-  | { ok: false; reason: "missing" | "ambiguous"; target?: string };
+  | { ok: false; reason: "missing" | "ambiguous" | "not_exact_session_id"; target?: string };
 
 function validateParentPeerTarget(value: string | undefined): ParentPeerTargetValidation {
   const target = value?.trim();
   if (!target) return { ok: false, reason: "missing" };
   if (AMBIGUOUS_PARENT_PEER_TARGETS.has(target.toLowerCase())) {
     return { ok: false, reason: "ambiguous", target };
+  }
+  if (!EXACT_SESSION_ID_PATTERN.test(target)) {
+    return { ok: false, reason: "not_exact_session_id", target };
   }
   return { ok: true, target };
 }
@@ -1253,13 +1259,22 @@ function parentPeerTargetFailureResult(
     );
   }
 
+  const reason =
+    validation.reason === "not_exact_session_id"
+      ? "not_exact_session_id"
+      : "missing_parent_peer_target";
   return errorToolResult(
     `${tool} defaults to intercom report-back and requires parentPeerTarget so the peer can report to the exact controller session. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
     {
       ok: false,
       tool,
       reportBack: "intercom",
-      error: "missing_parent_peer_target",
+      parentPeerTarget: validation.target,
+      error:
+        validation.reason === "not_exact_session_id"
+          ? "invalid_parent_peer_target"
+          : "missing_parent_peer_target",
+      reason,
       nextStep:
         'Call intercom({ action: "status" }) in the controller session and retry with parentPeerTarget set to the exact Session ID.',
     },
