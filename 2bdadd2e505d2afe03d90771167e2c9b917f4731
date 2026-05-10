@@ -1,0 +1,28 @@
+Commit 2bdadd2 feat(autoresearch): add campaign goal ledger
+
+Provenance:
+- Prompted by operator request to move beyond one-off handoff contracts toward true long-running campaigns and to inspect Codex CLI's under-development goals feature for transferable semantics.
+- AK task #2818: Borrow Codex goal semantics for long-running autoresearch campaigns.
+- Used visible campaign peers:
+  - scoutpeer-mp02d970-b978b4a4: read-only Codex goals research. Local evidence included codex features list, app-server schema generation, sqlite thread_goals schema, and native binary strings. Finding: Codex goals are per-thread persisted objective/status/budget/usage overlays with active/paused/budgetLimited/complete, not external durable task authority.
+  - candidatepeer-mp02d9bg-f628eb04: isolated worktree implementation candidate for a pi-autoresearch campaign goal ledger.
+- Controller inspected and verified candidate diff and validations before promotion; peer/intercom output was treated as communication, not durable evidence.
+- Parent task scope was explicitly widened to include root .gitignore so autoresearch.goal.json can remain a local projection artifact.
+
+Implementation summary:
+- Added package-local projection artifact autoresearch.goal.json with objective, goal id, active/paused/budget_limited/complete status, aggregate iteration/wall-clock/token-like budgets, accumulated usage across explicit foreground segments, segment summaries, exact next continuation call, and explicit goal_pause/goal_resume/goal_complete control calls.
+- Threaded campaignGoal* inputs through autoresearch_campaign_start and autoresearch_runtime_loop.
+- Added read-only status surface autoresearch_runtime_status({ action: "campaign_goal" }).
+- Added control actions autoresearch_runtime_control({ action: "goal_pause" | "goal_resume" | "goal_complete" }).
+- Kept execution foreground-only; no daemon, scheduler, automatic peer spawn, AK/KES mutation, or promotion path added.
+
+Validation:
+- npm --prefix packages/pi-autoresearch run check => pass (205 tests pass, release:check:quick pass)
+- node --import ./node_modules/tsx/dist/esm/index.mjs scripts/dogfood-contract-suite.mjs from packages/pi-autoresearch => METRIC unresolved_autoresearch_dogfood_suite_blockers=0
+- campaign-goal-ledger dogfood inside suite => METRIC unresolved_campaign_goal_blockers=0
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch/docs --strict => pass
+- git diff --check and pre-commit quality gate => pass
+
+Boundary:
+- autoresearch.goal.json is local continuity/projection state only, not AK task/evidence/direction truth.
+- Existing unrelated dirty pi-society-orchestrator transcendent-loop files were not staged or committed.
