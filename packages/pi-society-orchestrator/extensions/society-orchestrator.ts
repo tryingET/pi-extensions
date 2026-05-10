@@ -81,6 +81,7 @@ import {
   type AutoresearchLiveStopResult,
   AutoresearchLiveSupervisionRunner,
   type AutoresearchLiveSupervisionSessionV1,
+  type AutoresearchMatrixCampaignPlan,
   describeAutoresearchLiveNextStep,
 } from "../src/runtime/autoresearch-supervisor-runner.ts";
 import {
@@ -168,6 +169,7 @@ type AutoresearchLiveSupervisionAction =
   | "start"
   | "start_campaign"
   | "plan_candidate_wave"
+  | "plan_matrix_campaign"
   | "review_candidate_wave"
   | "stop";
 
@@ -187,6 +189,7 @@ type AutoresearchLiveSupervisionToolDetails = {
   poll?: AutoresearchLiveStartResult["poll"];
   campaign?: AutoresearchLiveStartCampaignResult["campaign"];
   candidateWave?: AutoresearchCandidateWavePlan;
+  matrixCampaign?: AutoresearchMatrixCampaignPlan;
   candidateWaveReview?: AutoresearchCandidateWaveReview;
   stopped?: boolean;
   error?: string;
@@ -417,6 +420,7 @@ function formatAutoresearchCandidateWavePlanReport(plan: AutoresearchCandidateWa
     `CWD: ${plan.cwd}`,
     `Objective: ${plan.objective}`,
     `Candidate lanes: ${plan.candidateCount}`,
+    `Candidate packet directory: ${plan.candidatePacketDirectory}`,
     `Parent peer target: ${plan.parentPeerTarget ?? "required before launch"}`,
     "",
     "Candidate lanes:",
@@ -439,6 +443,39 @@ function formatAutoresearchCandidateWavePlanReport(plan: AutoresearchCandidateWa
     `Next step: ${plan.nextStep}`,
   ];
   return lines.join("\n");
+}
+
+function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCampaignPlan): string {
+  return [
+    "Autoresearch live supervision — plan_matrix_campaign",
+    `Task: #${plan.taskId}`,
+    `CWD: ${plan.cwd}`,
+    `Objective: ${plan.objective}`,
+    `Direction: ${plan.direction} is better`,
+    `Matrix: ${plan.scenarios.length} scenario(s) × ${plan.hypotheses.length} hypothesis/hypotheses = ${plan.cells.length} cell(s)`,
+    `Candidates per cell: ${plan.candidateCountPerCell}`,
+    "",
+    "Implementation-wave substrate:",
+    `- posture: ${plan.implementationWaveSubstrate.posture}`,
+    `- AK task: #${plan.implementationWaveSubstrate.akTaskId}`,
+    `- owner UI: ${plan.implementationWaveSubstrate.ownerUiCommand}`,
+    ...plan.implementationWaveSubstrate.nextExactCalls.map((call) => `- first exact call: ${call}`),
+    "",
+    "Matrix cells:",
+    ...plan.cells.flatMap((cell) => [
+      `- ${cell.cellId}: scenario=${cell.scenario}; hypothesis=${cell.hypothesis}`,
+      `  objective: ${cell.objective}`,
+      `  packet dir: ${cell.candidatePacketDirectory}`,
+      `  plan: ${cell.planCandidateWaveCall}`,
+      `  review: ${cell.reviewCandidateWaveCall}`,
+      `  owner UI after review: ${cell.ownerUiCommand}`,
+    ]),
+    "",
+    "Boundaries:",
+    ...plan.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${plan.nextStep}`,
+  ].join("\n");
 }
 
 function formatAutoresearchCandidateWaveReviewReport(
@@ -1410,6 +1447,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       "Use autoresearch_live_supervision for exact taskId + cwd supervision above the pi-autoresearch runtime.",
       "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
       "Use action=plan_candidate_wave when the operator wants multiple visible candidate experiments in parallel; this returns explicit candidate_peer_spawn and pi-autoresearch measurement/review calls, but does not launch or promote anything by itself.",
+      "Use action=plan_matrix_campaign when the operator wants implementation-wave work dogfooded as a scenario × hypothesis matrix; this returns cell-scoped plan_candidate_wave/review_candidate_wave calls and keeps AK as the task spine.",
       "Use action=review_candidate_wave after multiple pi-autoresearch candidate measurements have produced result summaries; this compares lanes for owner selection, but still does not choose winners as promotion authority.",
       "For DSPx/DSPy planning, set planner=dspx_program and runDspxProgramGen=true; this asks pi-autoresearch to materialize and run a bounded DSPx-generated DSPy planner assembly, then validate the generated DSPy output from behavior_results.json as the campaign plan. Orchestrator still does not synthesize or apply a DSPy program itself.",
       "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop/start_campaign.",
@@ -1426,6 +1464,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("start"),
           Type.Literal("start_campaign"),
           Type.Literal("plan_candidate_wave"),
+          Type.Literal("plan_matrix_campaign"),
           Type.Literal("review_candidate_wave"),
           Type.Literal("stop"),
         ]),
@@ -1435,7 +1474,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       objective: Type.Optional(
         Type.String({
           description:
-            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, or action=review_candidate_wave.",
+            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, action=plan_matrix_campaign, or action=review_candidate_wave.",
         }),
       ),
       candidateCount: Type.Optional(
@@ -1449,6 +1488,30 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         Type.Array(Type.String(), {
           description:
             "Optional explicit per-lane candidate objectives for action=plan_candidate_wave.",
+        }),
+      ),
+      candidatePacketDirectory: Type.Optional(
+        Type.String({
+          description:
+            "Optional repo-relative .autoresearch/ packet directory for action=plan_candidate_wave.",
+        }),
+      ),
+      scenarios: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Scenario axis values for action=plan_matrix_campaign.",
+        }),
+      ),
+      hypotheses: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Hypothesis axis values for action=plan_matrix_campaign.",
+        }),
+      ),
+      candidateCountPerCell: Type.Optional(
+        Type.Number({
+          description:
+            "Number of candidate lanes generated inside each matrix cell for action=plan_matrix_campaign (1-6, default 3).",
+          minimum: 1,
+          maximum: 6,
         }),
       ),
       parentPeerTarget: Type.Optional(
@@ -1581,6 +1644,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         objective,
         candidateCount,
         candidateObjectives,
+        candidatePacketDirectory,
+        scenarios,
+        hypotheses,
+        candidateCountPerCell,
         parentPeerTarget,
         candidateResults,
         candidateResultPacketPaths,
@@ -1611,6 +1678,10 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         objective?: string;
         candidateCount?: number;
         candidateObjectives?: string[];
+        candidatePacketDirectory?: string;
+        scenarios?: string[];
+        hypotheses?: string[];
+        candidateCountPerCell?: number;
         parentPeerTarget?: string;
         candidateResults?: Array<{
           laneId: string;
@@ -1760,6 +1831,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             objective: waveObjective,
             candidateCount,
             candidateObjectives,
+            candidatePacketDirectory,
             filesInScope,
             offLimits,
             constraints,
@@ -1778,6 +1850,39 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
               sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
               nextStep: result.nextStep,
               candidateWave: result,
+            },
+          );
+        }
+
+        if (action === "plan_matrix_campaign") {
+          const matrixObjective = objective?.trim() ?? "";
+          if (matrixObjective.length === 0) {
+            throw new Error("plan_matrix_campaign requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.planMatrixCampaign({
+            ...identity,
+            objective: matrixObjective,
+            direction,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            filesInScope,
+            offLimits,
+            constraints,
+            parentPeerTarget,
+            maxIterationsPerCandidate: maxIterations,
+            maxWallClockMinutesPerCandidate: maxWallClockMinutes,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchMatrixCampaignPlanReport(result),
+            {
+              ok: true,
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              matrixCampaign: result,
             },
           );
         }

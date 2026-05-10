@@ -160,6 +160,7 @@ export interface AutoresearchCandidateWaveRequest extends AutoresearchLiveSuperv
   direction?: "lower" | "higher";
   candidateCount?: number;
   candidateObjectives?: readonly string[];
+  candidatePacketDirectory?: string;
   filesInScope?: readonly string[];
   offLimits?: readonly string[];
   constraints?: readonly string[];
@@ -183,6 +184,7 @@ export interface AutoresearchCandidateWavePlan {
   cwd: string;
   objective: string;
   candidateCount: number;
+  candidatePacketDirectory: string;
   parentPeerTargetRequired: boolean;
   parentPeerTarget: string | null;
   filesInScope: readonly string[];
@@ -196,6 +198,52 @@ export interface AutoresearchCandidateWavePlan {
     reviewInstructions: string[];
   };
   boundaries: string[];
+  nextStep: string;
+}
+
+export interface AutoresearchMatrixCampaignRequest extends AutoresearchLiveSupervisionRequest {
+  objective: string;
+  direction?: "lower" | "higher";
+  scenarios?: readonly string[];
+  hypotheses?: readonly string[];
+  candidateCountPerCell?: number;
+  filesInScope?: readonly string[];
+  offLimits?: readonly string[];
+  constraints?: readonly string[];
+  parentPeerTarget?: string;
+  maxIterationsPerCandidate?: number;
+  maxWallClockMinutesPerCandidate?: number;
+}
+
+export interface AutoresearchMatrixCampaignCell {
+  cellId: string;
+  scenario: string;
+  hypothesis: string;
+  objective: string;
+  candidatePacketDirectory: string;
+  candidateResultPacketPaths: readonly string[];
+  planCandidateWaveCall: string;
+  reviewCandidateWaveCall: string;
+  ownerUiCommand: "/autoresearch review";
+}
+
+export interface AutoresearchMatrixCampaignPlan {
+  kind: "autoresearch.matrix_campaign_plan.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  direction: "lower" | "higher";
+  scenarios: readonly string[];
+  hypotheses: readonly string[];
+  candidateCountPerCell: number;
+  cells: readonly AutoresearchMatrixCampaignCell[];
+  implementationWaveSubstrate: {
+    posture: "dogfood_matrix_replaces_hand_authored_wave_steps";
+    akTaskId: number;
+    ownerUiCommand: "/autoresearch review";
+    nextExactCalls: readonly string[];
+  };
+  boundaries: readonly string[];
   nextStep: string;
 }
 
@@ -460,7 +508,9 @@ function resolveStartCampaignPositiveNumberBudget(
   return resolved;
 }
 
-function resolveCandidateWaveCount(input: AutoresearchCandidateWaveRequest): number {
+function resolveCandidateWaveCount(
+  input: Pick<AutoresearchCandidateWaveRequest, "candidateObjectives" | "candidateCount">,
+): number {
   const fromObjectives = input.candidateObjectives?.length ?? 0;
   const resolved = input.candidateCount ?? (fromObjectives > 0 ? fromObjectives : 3);
   if (!Number.isInteger(resolved) || resolved < 1 || resolved > 6) {
@@ -469,6 +519,27 @@ function resolveCandidateWaveCount(input: AutoresearchCandidateWaveRequest): num
     );
   }
   return resolved;
+}
+
+function resolveMatrixCellCandidateCount(value: number | undefined): number {
+  return resolveCandidateWaveCount({ candidateCount: value });
+}
+
+function resolveCandidateWavePacketDirectory(value: string | undefined): string {
+  const raw = value?.trim() || AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR;
+  if (path.isAbsolute(raw)) {
+    throw new Error("candidatePacketDirectory must be repo-relative under .autoresearch/.");
+  }
+  const normalized = path.posix.normalize(raw.replace(/\\/gu, "/"));
+  if (
+    normalized === "." ||
+    normalized.startsWith("../") ||
+    normalized.includes("/../") ||
+    !(normalized === ".autoresearch" || normalized.startsWith(".autoresearch/"))
+  ) {
+    throw new Error("candidatePacketDirectory must stay under .autoresearch/.");
+  }
+  return normalized;
 }
 
 function nonEmptyStrings(values: readonly string[] | undefined): string[] {
@@ -1050,6 +1121,9 @@ export function planAutoresearchCandidateWave(
   }
 
   const candidateCount = resolveCandidateWaveCount(input);
+  const candidatePacketDirectory = resolveCandidateWavePacketDirectory(
+    input.candidatePacketDirectory,
+  );
   const suppliedObjectives = nonEmptyStrings(input.candidateObjectives);
   const filesInScope = nonEmptyStrings(input.filesInScope);
   const offLimits = nonEmptyStrings(input.offLimits);
@@ -1113,7 +1187,7 @@ export function planAutoresearchCandidateWave(
         candidateDiffSummary: `<${laneId}-controller-verified-diff-summary>`,
         candidateFilesChanged: [`<${laneId}-changed-files>`],
       });
-      const candidateResultPacketPath = `.autoresearch/candidate-wave/${laneId}.candidate-result.json`;
+      const candidateResultPacketPath = `${candidatePacketDirectory}/${laneId}.candidate-result.json`;
       const resultCall = formatToolCall("autoresearch_runtime_status", {
         cwd: identity.cwd,
         action: "candidate_result_export",
@@ -1149,6 +1223,7 @@ export function planAutoresearchCandidateWave(
     cwd: identity.cwd,
     objective,
     candidateCount,
+    candidatePacketDirectory,
     parentPeerTargetRequired: parentPeerTarget === null,
     parentPeerTarget,
     filesInScope,
@@ -1179,6 +1254,121 @@ export function planAutoresearchCandidateWave(
     nextStep: parentPeerTarget
       ? "Review the candidate_peer_spawn calls and launch the approved lanes in parallel."
       : "Fill parentPeerTarget with the current controller peer id, then launch only the approved candidate_peer_spawn calls.",
+  };
+}
+
+export function planAutoresearchMatrixCampaign(
+  input: AutoresearchMatrixCampaignRequest,
+): AutoresearchMatrixCampaignPlan {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const objective = input.objective.trim();
+  if (objective.length === 0) {
+    throw new Error("plan_matrix_campaign requires a non-empty objective.");
+  }
+
+  const scenarios = nonEmptyStrings(input.scenarios);
+  const hypotheses = nonEmptyStrings(input.hypotheses);
+  if (scenarios.length === 0) {
+    throw new Error("plan_matrix_campaign requires at least one scenario.");
+  }
+  if (hypotheses.length === 0) {
+    throw new Error("plan_matrix_campaign requires at least one hypothesis.");
+  }
+
+  const direction = input.direction ?? "lower";
+  const candidateCountPerCell = resolveMatrixCellCandidateCount(input.candidateCountPerCell);
+  const filesInScope = nonEmptyStrings(input.filesInScope);
+  const offLimits = nonEmptyStrings(input.offLimits);
+  const constraints = nonEmptyStrings(input.constraints);
+  const parentPeerTarget = input.parentPeerTarget?.trim() || undefined;
+
+  const cells = scenarios.flatMap((scenario, scenarioIndex) =>
+    hypotheses.map((hypothesis, hypothesisIndex): AutoresearchMatrixCampaignCell => {
+      const cellId = `cell-${String(scenarioIndex + 1).padStart(2, "0")}-${String(
+        hypothesisIndex + 1,
+      ).padStart(2, "0")}`;
+      const cellObjective = `${objective} | scenario: ${scenario} | hypothesis: ${hypothesis}`;
+      const candidatePacketDirectory = `.autoresearch/matrix-campaign/${cellId}`;
+      const candidateObjectives = Array.from(
+        { length: candidateCountPerCell },
+        (_, index) => `${hypothesis} [sample ${index + 1}] under scenario: ${scenario}`,
+      );
+      const candidateResultPacketPaths = candidateObjectives.map(
+        (_, index) =>
+          `${candidatePacketDirectory}/candidate-${String(index + 1).padStart(2, "0")}.candidate-result.json`,
+      );
+      const commonPayload = {
+        taskId: identity.taskId,
+        cwd: identity.cwd,
+        objective: cellObjective,
+        direction,
+      };
+      const planCandidateWavePayload: Record<string, unknown> = {
+        action: "plan_candidate_wave",
+        ...commonPayload,
+        candidateCount: candidateCountPerCell,
+        candidateObjectives,
+        candidatePacketDirectory,
+        filesInScope,
+        offLimits,
+        constraints: [
+          ...constraints,
+          `Matrix cell: ${cellId}`,
+          `Scenario: ${scenario}`,
+          `Hypothesis: ${hypothesis}`,
+          "Treat this matrix cell as the implementation-wave execution unit; do not mutate AK direction from inside the cell.",
+        ],
+        maxIterations: input.maxIterationsPerCandidate,
+        maxWallClockMinutes: input.maxWallClockMinutesPerCandidate,
+      };
+      if (parentPeerTarget) planCandidateWavePayload.parentPeerTarget = parentPeerTarget;
+
+      return {
+        cellId,
+        scenario,
+        hypothesis,
+        objective: cellObjective,
+        candidatePacketDirectory,
+        candidateResultPacketPaths,
+        planCandidateWaveCall: formatToolCall(
+          "autoresearch_live_supervision",
+          planCandidateWavePayload,
+        ),
+        reviewCandidateWaveCall: formatToolCall("autoresearch_live_supervision", {
+          action: "review_candidate_wave",
+          ...commonPayload,
+          candidateResultPacketPaths,
+        }),
+        ownerUiCommand: "/autoresearch review",
+      };
+    }),
+  );
+
+  return {
+    kind: "autoresearch.matrix_campaign_plan.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction,
+    scenarios,
+    hypotheses,
+    candidateCountPerCell,
+    cells,
+    implementationWaveSubstrate: {
+      posture: "dogfood_matrix_replaces_hand_authored_wave_steps",
+      akTaskId: identity.taskId,
+      ownerUiCommand: "/autoresearch review",
+      nextExactCalls: cells.slice(0, 1).map((cell) => cell.planCandidateWaveCall),
+    },
+    boundaries: [
+      "This matrix plan is a non-mutating implementation-wave substrate, not a direction mutation.",
+      "Each matrix cell delegates candidate execution to the existing plan_candidate_wave and pi-autoresearch measurement/candidate-result packet surfaces.",
+      "pi-autoresearch owns metrics, receipts, candidate packets, and candidate worktree measurement semantics.",
+      "pi-society-orchestrator owns matrix choreography, aggregate review calls, and owner-decision surfacing only.",
+      "AK remains the task/direction spine; no AK/KES/evidence write, merge, promotion, peer spawn, or worktree lifecycle action is applied by this plan.",
+    ],
+    nextStep:
+      "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, export candidate-result packets, then run the cell reviewCandidateWaveCall and choose through /autoresearch review.",
   };
 }
 
@@ -1333,6 +1523,10 @@ export class AutoresearchLiveSupervisionRunner {
 
   planCandidateWave(input: AutoresearchCandidateWaveRequest): AutoresearchCandidateWavePlan {
     return planAutoresearchCandidateWave(input);
+  }
+
+  planMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignPlan {
+    return planAutoresearchMatrixCampaign(input);
   }
 
   reviewCandidateWave(

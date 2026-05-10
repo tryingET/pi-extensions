@@ -449,6 +449,10 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
   const tool = registerAutoresearchLiveTool(runner);
   assert.ok(tool.parameters.properties.candidateCount, "schema exposes candidateCount");
   assert.ok(tool.parameters.properties.candidateObjectives, "schema exposes candidateObjectives");
+  assert.ok(
+    tool.parameters.properties.candidatePacketDirectory,
+    "schema exposes candidatePacketDirectory",
+  );
   assert.ok(tool.parameters.properties.parentPeerTarget, "schema exposes parentPeerTarget");
 
   const result = await tool.execute(
@@ -521,6 +525,80 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
   assert.match(result.content[0].text, /aggregate review/);
   assert.match(result.content[0].text, /This plan does not spawn peers by itself/);
   assert.match(result.content[0].text, /explicit_owner_decision_required|Owner selection/);
+});
+
+test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the implementation-wave substrate", async () => {
+  const cwd = "/tmp/matrix-campaign";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+  assert.ok(tool.parameters.properties.scenarios, "schema exposes scenarios");
+  assert.ok(tool.parameters.properties.hypotheses, "schema exposes hypotheses");
+  assert.ok(
+    tool.parameters.properties.candidateCountPerCell,
+    "schema exposes candidateCountPerCell",
+  );
+
+  const result = await tool.execute(
+    "tc-plan-matrix-campaign",
+    {
+      action: "plan_matrix_campaign",
+      taskId: 2722,
+      cwd,
+      objective: "dogfood matrix campaigns instead of hand-authored implementation waves",
+      direction: "lower",
+      scenarios: ["operator happy path", "missing packet recovery"],
+      hypotheses: ["cell-scoped candidate waves"],
+      candidateCountPerCell: 2,
+      parentPeerTarget: "controller-peer-1",
+      filesInScope: [
+        "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+      ],
+      constraints: ["no hidden peer launch"],
+      maxIterations: 1,
+      maxWallClockMinutes: 10,
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.action, "plan_matrix_campaign");
+  assert.equal(result.details.matrixCampaign.kind, "autoresearch.matrix_campaign_plan.v1");
+  assert.equal(result.details.matrixCampaign.taskId, 2722);
+  assert.equal(result.details.matrixCampaign.cells.length, 2);
+  assert.equal(result.details.matrixCampaign.candidateCountPerCell, 2);
+  assert.equal(
+    result.details.matrixCampaign.implementationWaveSubstrate.posture,
+    "dogfood_matrix_replaces_hand_authored_wave_steps",
+  );
+  assert.equal(
+    result.details.matrixCampaign.implementationWaveSubstrate.ownerUiCommand,
+    "/autoresearch review",
+  );
+  assert.match(
+    result.details.matrixCampaign.cells[0].candidatePacketDirectory,
+    /^\.autoresearch\/matrix-campaign\/cell-01-01$/,
+  );
+  assert.deepEqual(result.details.matrixCampaign.cells[0].candidateResultPacketPaths, [
+    ".autoresearch/matrix-campaign/cell-01-01/candidate-01.candidate-result.json",
+    ".autoresearch/matrix-campaign/cell-01-01/candidate-02.candidate-result.json",
+  ]);
+  assert.match(result.details.matrixCampaign.cells[0].planCandidateWaveCall, /plan_candidate_wave/);
+  assert.match(
+    result.details.matrixCampaign.cells[0].planCandidateWaveCall,
+    /candidatePacketDirectory/,
+  );
+  assert.match(
+    result.details.matrixCampaign.cells[0].reviewCandidateWaveCall,
+    /review_candidate_wave/,
+  );
+  assert.match(result.content[0].text, /plan_matrix_campaign/);
+  assert.match(result.content[0].text, /2 scenario\(s\) × 1 hypothesis/);
+  assert.match(result.content[0].text, /Implementation-wave substrate/);
+  assert.match(result.content[0].text, /owner UI: \/autoresearch review/);
+  assert.match(result.content[0].text, /cell-01-01/);
+  assert.match(result.content[0].text, /This matrix plan is a non-mutating/);
 });
 
 test("autoresearch_live_supervision review_candidate_wave compares measured lanes for owner selection", async () => {
