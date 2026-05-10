@@ -737,12 +737,6 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
   await withTempDir(async (cwd) => {
     const packetA = path.join(cwd, "candidate-01.json");
     const packetB = path.join(cwd, "candidate-02.json");
-    const missingPacket = path.join(
-      cwd,
-      ".autoresearch",
-      "candidate-wave",
-      "candidate-03.candidate-result.json",
-    );
     writeFileSync(
       packetA,
       JSON.stringify({
@@ -829,7 +823,7 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
         cwd,
         objective: "choose from packetized candidate results",
         direction: "lower",
-        candidateResultPacketPaths: [packetA, packetB, missingPacket],
+        candidateResultPacketPaths: [packetA, packetB],
       },
       undefined,
       undefined,
@@ -840,7 +834,7 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.equal(result.details.candidateWaveReview.packetDiscovery.mode, "explicit");
     assert.equal(
       result.details.candidateWaveReview.packetDiscovery.candidateResultPacketPaths.length,
-      3,
+      2,
     );
     assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
     assert.deepEqual(
@@ -907,13 +901,6 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.equal(candidate02.candidateBaseRef, "HEAD");
     assert.deepEqual(candidate02.candidateFilesChanged, ["src/b.ts"]);
     assert.equal(candidate02.sourcePacketPath, packetB);
-    const candidate03 = result.details.candidateWaveReview.lanes.find(
-      (lane) => lane.laneId === "candidate-03",
-    );
-    assert.equal(candidate03.status, "missing_packet");
-    assert.equal(candidate03.selectable, false);
-    assert.equal(candidate03.sourcePacketPath, missingPacket);
-    assert.match(candidate03.caveat, /packet was not found/);
     assert.match(
       result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
       /autoresearch_candidate_bind/,
@@ -939,9 +926,91 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.match(result.content[0].text, /plan_keep_recommended/);
     assert.match(result.content[0].text, /collect_more_samples/);
     assert.match(result.content[0].text, /candidate-result packets/);
+    assert.match(result.content[0].text, /Exact next calls/);
+  });
+});
+
+test("autoresearch_live_supervision review_candidate_wave gates explicit incomplete planned lanes", async () => {
+  await withTempDir(async (cwd) => {
+    const packetA = path.join(cwd, "candidate-01.json");
+    const missingPacket = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "candidate-02.candidate-result.json",
+    );
+    writeFileSync(
+      packetA,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "candidate_peer_spawn",
+          worktreePath: path.join(cwd, ".worktrees", "candidate-01"),
+          branch: "candidate/candidate-01",
+          baseRef: "HEAD",
+          diffSummary: "first candidate",
+          filesChanged: ["src/a.ts"],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 1,
+          description: "Measure candidate 01",
+          timestamp: 1,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-01",
+            hypothesis: "First candidate from packet",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "candidate 01 improved",
+        closeout: { status: { confidence: 2.1 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const result = await tool.execute(
+      "tc-review-candidate-wave-incomplete-explicit",
+      {
+        action: "review_candidate_wave",
+        taskId: 2674,
+        cwd,
+        objective: "avoid premature owner selection while a planned lane is still missing",
+        direction: "lower",
+        candidateResultPacketPaths: [packetA, missingPacket],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(
+      result.details.candidateWaveReview.recommendation.posture,
+      "planned_lanes_incomplete",
+    );
+    assert.equal(result.details.candidateWaveReview.recommendation.laneId, null);
+    assert.deepEqual(result.details.candidateWaveReview.recommendation.exactNextCalls, []);
+    assert.equal(result.details.candidateWaveReview.recommendation.ownerDecisionForm, null);
+    const candidate02 = result.details.candidateWaveReview.lanes.find(
+      (lane) => lane.laneId === "candidate-02",
+    );
+    assert.equal(candidate02.status, "missing_packet");
+    assert.equal(candidate02.selectable, false);
+    assert.equal(candidate02.sourcePacketPath, missingPacket);
+    assert.match(result.details.candidateWaveReview.recommendation.reason, /candidate-02/);
+    assert.match(result.content[0].text, /Recommendation: planned_lanes_incomplete/);
     assert.match(result.content[0].text, /missing_packet guidance: verify\/export/);
     assert.match(result.content[0].text, /still running\/failed/);
-    assert.match(result.content[0].text, /Exact next calls/);
+    assert.match(result.content[0].text, /Wait for every explicit planned lane/);
   });
 });
 

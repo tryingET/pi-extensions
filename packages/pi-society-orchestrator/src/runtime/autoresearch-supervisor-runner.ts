@@ -388,7 +388,7 @@ export interface AutoresearchCandidateWaveReview {
   lanes: AutoresearchCandidateWaveReviewLane[];
   packetDiscovery: AutoresearchCandidateWavePacketDiscovery;
   recommendation: {
-    posture: "owner_selection_required" | "no_selectable_candidate";
+    posture: "owner_selection_required" | "planned_lanes_incomplete" | "no_selectable_candidate";
     laneId: string | null;
     reason: string;
     exactNextCalls: string[];
@@ -1083,14 +1083,23 @@ export function reviewAutoresearchCandidateWave(
     direction,
   );
   const winner = lanes.find((lane) => lane.rank === 1) ?? null;
-  const exactNextCalls = buildCandidateWaveReviewNextCalls({ cwd: identity.cwd, winner });
+  const missingPlannedLanes =
+    packetDiscovery.mode === "explicit"
+      ? lanes.filter((lane) => normalizeReviewToken(lane.status) === "missing_packet")
+      : [];
+  const plannedLanesIncomplete = missingPlannedLanes.length > 0;
+  const selectableWinner = plannedLanesIncomplete ? null : winner;
+  const exactNextCalls = buildCandidateWaveReviewNextCalls({
+    cwd: identity.cwd,
+    winner: selectableWinner,
+  });
   const ownerDecisionOptions = buildCandidateWaveOwnerDecisionOptions({
     cwd: identity.cwd,
-    winner,
+    winner: selectableWinner,
   });
   const ownerDecisionForm = buildCandidateWaveOwnerDecisionForm({
     reviewObjective: objective,
-    winner,
+    winner: selectableWinner,
     ownerDecisionOptions,
   });
 
@@ -1102,30 +1111,42 @@ export function reviewAutoresearchCandidateWave(
     direction,
     lanes,
     packetDiscovery,
-    recommendation: winner
+    recommendation: plannedLanesIncomplete
       ? {
-          posture: "owner_selection_required",
-          laneId: winner.laneId,
-          reason: `Best selectable ${direction}-is-better metric is ${winner.metric}. Owner must still approve keep/finalize.`,
+          posture: "planned_lanes_incomplete",
+          laneId: null,
+          reason: `${missingPlannedLanes.length} explicit planned lane(s) are missing candidate-result packets: ${missingPlannedLanes.map((lane) => lane.laneId).join(", ")}. Final owner selection is gated until every planned lane is measured/exported or the owner replans the wave without that lane.`,
           exactNextCalls,
           ownerDecisionOptions,
           ownerDecisionForm,
         }
-      : {
-          posture: "no_selectable_candidate",
-          laneId: null,
-          reason: "No candidate had finite metrics with passing status/check gates.",
-          exactNextCalls,
-          ownerDecisionOptions,
-          ownerDecisionForm,
-        },
-    nextStep: winner
-      ? `Review ${winner.laneId}, then use autoresearch_candidate_decision plan_keep/plan_discard/plan_rewind or collect more samples.`
-      : "Reject or rerun candidate lanes; no winner is selectable from the supplied results.",
+      : winner
+        ? {
+            posture: "owner_selection_required",
+            laneId: winner.laneId,
+            reason: `Best selectable ${direction}-is-better metric is ${winner.metric}. Owner must still approve keep/finalize.`,
+            exactNextCalls,
+            ownerDecisionOptions,
+            ownerDecisionForm,
+          }
+        : {
+            posture: "no_selectable_candidate",
+            laneId: null,
+            reason: "No candidate had finite metrics with passing status/check gates.",
+            exactNextCalls,
+            ownerDecisionOptions,
+            ownerDecisionForm,
+          },
+    nextStep: plannedLanesIncomplete
+      ? "Wait for every explicit planned lane to reach controller-measured candidate_result_export, or rerun review_candidate_wave with a deliberately revised packet path set after owner replanning."
+      : winner
+        ? `Review ${winner.laneId}, then use autoresearch_candidate_decision plan_keep/plan_discard/plan_rewind or collect more samples.`
+        : "Reject or rerun candidate lanes; no winner is selectable from the supplied results.",
     boundaries: [
       "This review compares supplied candidate-result summaries and/or exported pi-autoresearch candidate-result packets; it does not verify raw peer output by itself.",
       "When no inline results or packet paths are supplied, review_candidate_wave only auto-discovers existing packets under the default candidate-wave packet directory.",
       "Missing candidate-result packet paths are surfaced as non-selectable missing_packet lanes when paths are supplied explicitly, so partial candidate waves remain reviewable.",
+      "Explicit planned packet paths gate final owner selection until every planned lane has a controller-measured pi-autoresearch candidate-result packet or the owner deliberately replans the lane set.",
       "pi-autoresearch receipts and candidate-result packets remain the measurement source for each candidate.",
       "The recommendation is not promotion authority; owner approval and external promotion gates remain required.",
     ],
@@ -1261,7 +1282,7 @@ export function planAutoresearchCandidateWave(
         "When candidateWorktree is supplied, pi-autoresearch executes benchmark/check commands from that candidate worktree before recording candidate metadata.",
         "Run each lane's candidate_result_export call, then run aggregateReviewCall for owner-visible comparison.",
         "If lanes exported to .autoresearch/candidate-wave/<lane>.candidate-result.json, review_candidate_wave can also be called without candidateResultPacketPaths; it will discover existing default packets.",
-        "Use the explicit aggregateReviewCall when you want missing planned lanes surfaced as missing_packet; default discovery only sees packets that exist.",
+        "Use the explicit aggregateReviewCall when you want missing planned lanes surfaced as missing_packet; explicit missing planned lanes gate final selection until measured/exported or owner-replanned.",
         "Use the dashboard/candidate decision surface to choose keep, discard, rewind, more samples, or finalize; do not auto-merge.",
       ],
     },
