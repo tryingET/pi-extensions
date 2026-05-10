@@ -376,7 +376,14 @@ The eleventh optional interaction-picker candidate decision slice is now also la
 - a deterministic non-slash `$$ autoresearch ...` input fallback prevents PTX's `$$ /template` namespace from stealing autoresearch candidate-decision inputs;
 - it still applies no worktree cleanup/reset/recreate, peer launch, AK/KES/evidence write, or promotion.
 
-Still next in this slice: richer form-style confirmation affordances for candidate keep/discard/rewind decisions.
+The twelfth long-campaign dogfood slice is now also landed:
+
+- `packages/pi-autoresearch/scripts/dogfood-long-supervised-campaign-contract.mjs` exercises the full larger campaign journey in an isolated controller repo;
+- it runs `autoresearch_campaign_start` for two bounded iterations, then requires `resume_apply_plan` and exact `autoresearch_runtime_resume_apply` confirmation for two more foreground iterations;
+- it measures four visible-candidate worktree lanes, exports four candidate-result packets, reviews them through `pi-society-orchestrator` matrix closeout, and verifies learning / AK-evidence / exact evidence handoff packets;
+- it asserts `unresolved_long_supervised_campaign_blockers=0` while preserving no-daemon, no-hidden-peer, no-merge, no-AK/KES-write, and no-promotion boundaries.
+
+Still next in this slice: richer form-style confirmation affordances for candidate keep/discard/rewind decisions, plus turning the long-campaign contract's useful checkpoints into friendlier operator UI.
 
 ### Slice 4 — Orchestrator workflow wrapper — next after richer Slice 3/owner review
 
