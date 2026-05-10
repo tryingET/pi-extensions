@@ -4,6 +4,10 @@ import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import {
+  buildAutoresearchAutoContinuationDecision,
+  formatAutoresearchAutoContinuationDecision,
+} from "../src/core/autoContinuation.ts";
+import {
   type AutoresearchDecisionRuntime,
   createAutoresearchDecisionRuntime,
 } from "../src/core/decisions.ts";
@@ -1078,6 +1082,12 @@ const campaignStartSchema = Type.Object({
       minimum: 1,
     }),
   ),
+  campaignGoalAutoContinue: Type.Optional(
+    Type.Boolean({
+      description:
+        "When true, keep the package-local campaign goal active after each foreground segment while budget remains so the opt-in session auto-continuation hook can send the next visible follow-up.",
+    }),
+  ),
 });
 
 const loopSchema = Type.Object({
@@ -1163,6 +1173,12 @@ const loopSchema = Type.Object({
     Type.Number({
       description: "Optional token-like budget ledger value across foreground segments.",
       minimum: 1,
+    }),
+  ),
+  campaignGoalAutoContinue: Type.Optional(
+    Type.Boolean({
+      description:
+        "When true, keep the package-local campaign goal active after each foreground segment while budget remains so the opt-in session auto-continuation hook can send the next visible follow-up.",
     }),
   ),
 });
@@ -1375,6 +1391,8 @@ export function registerPiAutoresearchExtension(
 ): void {
   let unregisterAutoresearchLiveTrigger: (() => void) | null = null;
   const dashboardExportIntervals = new Map<string, ReturnType<typeof setInterval>>();
+  const autoContinuationCounts = new Map<string, number>();
+  const autoContinuationTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let sessionActive = true;
 
   void maybeRegisterAutoresearchLiveTrigger(options.triggerSurface).then((registration) => {
@@ -1393,12 +1411,29 @@ export function registerPiAutoresearchExtension(
       if (process.env.PI_AUTORESEARCH_WIDGET === "0") return;
       registerAutoresearchWidget(ctx as AutoresearchWidgetContext);
     });
+    maybeOn.call(pi, "agent_start", (_event: unknown, ctx: unknown) => {
+      cancelAutoresearchAutoContinuationFollowUp(
+        (ctx as AutoresearchWidgetContext).cwd,
+        autoContinuationTimers,
+      );
+    });
+    maybeOn.call(pi, "agent_end", (_event: unknown, ctx: unknown) => {
+      scheduleAutoresearchAutoContinuationFollowUp(
+        pi,
+        ctx as AutoresearchWidgetContext,
+        autoContinuationCounts,
+        autoContinuationTimers,
+      );
+    });
     maybeOn.call(pi, "session_shutdown", () => {
       sessionActive = false;
       unregisterAutoresearchLiveTrigger?.();
       unregisterAutoresearchLiveTrigger = null;
       for (const interval of dashboardExportIntervals.values()) clearInterval(interval);
       dashboardExportIntervals.clear();
+      for (const timer of autoContinuationTimers.values()) clearTimeout(timer);
+      autoContinuationTimers.clear();
+      autoContinuationCounts.clear();
     });
   }
 
@@ -2151,6 +2186,7 @@ export function registerPiAutoresearchExtension(
         campaignGoalIterationBudget?: number;
         campaignGoalWallClockMinutesBudget?: number;
         campaignGoalTokenBudget?: number;
+        campaignGoalAutoContinue?: boolean;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
       const result = await executeAutoresearchCampaignStart({
@@ -2202,6 +2238,7 @@ export function registerPiAutoresearchExtension(
         campaignGoalIterationBudget: request.campaignGoalIterationBudget,
         campaignGoalWallClockMinutesBudget: request.campaignGoalWallClockMinutesBudget,
         campaignGoalTokenBudget: request.campaignGoalTokenBudget,
+        campaignGoalAutoContinue: request.campaignGoalAutoContinue,
         signal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
       });
@@ -2303,6 +2340,7 @@ export function registerPiAutoresearchExtension(
         campaignGoalIterationBudget?: number;
         campaignGoalWallClockMinutesBudget?: number;
         campaignGoalTokenBudget?: number;
+        campaignGoalAutoContinue?: boolean;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_LOOP_TOOL_NAME);
       const result = await executeAutoresearchLoop({
@@ -2340,6 +2378,7 @@ export function registerPiAutoresearchExtension(
         campaignGoalIterationBudget: request.campaignGoalIterationBudget,
         campaignGoalWallClockMinutesBudget: request.campaignGoalWallClockMinutesBudget,
         campaignGoalTokenBudget: request.campaignGoalTokenBudget,
+        campaignGoalAutoContinue: request.campaignGoalAutoContinue,
         signal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
       });
@@ -4049,6 +4088,88 @@ function buildAutoresearchCampaignStartToolCall(input: {
   maxIterations: number;
 }): string {
   return `autoresearch_campaign_start({\n  cwd: ${JSON.stringify(input.cwd)},\n  objective: ${JSON.stringify(input.objective)},\n  setupMode: ${JSON.stringify(input.setupMode)},\n  runMode: ${JSON.stringify(input.runMode)},\n  maxIterations: ${input.maxIterations},\n  peerMode: "plan",\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
+}
+
+function scheduleAutoresearchAutoContinuationFollowUp(
+  pi: ExtensionAPI,
+  ctx: AutoresearchWidgetContext,
+  autoContinuationCounts: Map<string, number>,
+  autoContinuationTimers: Map<string, ReturnType<typeof setTimeout>>,
+): void {
+  const cwd = ctx.cwd;
+  if (!cwd) return;
+  cancelAutoresearchAutoContinuationFollowUp(cwd, autoContinuationTimers);
+
+  const initialDecision = buildAutoresearchAutoContinuationDecisionForCwd(
+    cwd,
+    autoContinuationCounts,
+  );
+  if (!initialDecision.eligible) return;
+
+  const timer = setTimeout(() => {
+    autoContinuationTimers.delete(cwd);
+    const decision = buildAutoresearchAutoContinuationDecisionForCwd(cwd, autoContinuationCounts);
+    if (!decision.eligible || !decision.visibleFollowUpMessage) return;
+
+    autoContinuationCounts.set(cwd, (autoContinuationCounts.get(cwd) ?? 0) + 1);
+    const sendUserMessage = (pi as unknown as { sendUserMessage?: ExtensionAPI["sendUserMessage"] })
+      .sendUserMessage;
+    if (typeof sendUserMessage === "function") {
+      sendUserMessage.call(pi, decision.visibleFollowUpMessage, { deliverAs: "followUp" });
+      return;
+    }
+
+    ctx.ui?.notify?.(formatAutoresearchAutoContinuationDecision(decision), "info");
+  }, getAutoresearchAutoContinuationSettleDelayMs());
+  timer.unref?.();
+  autoContinuationTimers.set(cwd, timer);
+}
+
+function cancelAutoresearchAutoContinuationFollowUp(
+  cwd: string | undefined,
+  autoContinuationTimers: Map<string, ReturnType<typeof setTimeout>>,
+): void {
+  if (!cwd) return;
+  const timer = autoContinuationTimers.get(cwd);
+  if (!timer) return;
+  clearTimeout(timer);
+  autoContinuationTimers.delete(cwd);
+}
+
+function buildAutoresearchAutoContinuationDecisionForCwd(
+  cwd: string,
+  autoContinuationCounts: Map<string, number>,
+): ReturnType<typeof buildAutoresearchAutoContinuationDecision> {
+  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+  return buildAutoresearchAutoContinuationDecision({
+    cwd,
+    campaignGoal: status.campaignGoal,
+    runtime: {
+      machineState: status.runtimeProjection.state,
+      controlKind: status.control.kind,
+      blockedReason: status.runtimeProjection.blockedReason,
+      completionReason: status.runtimeProjection.completionReason,
+    },
+    session: {
+      enabled: isAutoresearchAutoContinuationEnabled(),
+      autoContinueCount: autoContinuationCounts.get(cwd) ?? 0,
+      maxAutoContinueCount: getAutoresearchAutoContinuationMaxCount(),
+    },
+  });
+}
+
+function isAutoresearchAutoContinuationEnabled(): boolean {
+  return process.env.PI_AUTORESEARCH_AUTO_CONTINUE === "1";
+}
+
+function getAutoresearchAutoContinuationMaxCount(): number {
+  const parsed = Number(process.env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX ?? "1");
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 1;
+}
+
+function getAutoresearchAutoContinuationSettleDelayMs(): number {
+  const parsed = Number(process.env.PI_AUTORESEARCH_AUTO_CONTINUE_SETTLE_MS ?? "1500");
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 1500;
 }
 
 function registerAutoresearchWidget(ctx: AutoresearchWidgetContext): void {

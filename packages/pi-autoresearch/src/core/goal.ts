@@ -78,6 +78,7 @@ export interface BeginAutoresearchCampaignGoalInput {
   iterationBudget?: number;
   wallClockMinutesBudget?: number;
   tokenLikeBudget?: number;
+  autoContinue?: boolean;
   now?: number;
 }
 
@@ -91,6 +92,7 @@ export interface RecordAutoresearchCampaignGoalSegmentInput {
   toolName: string;
   toolCall: string;
   tokenLikeUnits?: number;
+  autoContinue?: boolean;
   startedAt?: number;
   completedAt?: number;
 }
@@ -195,6 +197,7 @@ export function beginAutoresearchCampaignGoal(
       goalId: requestedGoalId,
       budget,
       usage,
+      autoContinue: input.autoContinue === true,
     }),
     exactControlActions: buildGoalControlActions(cwd),
     authorityWarnings: [...GOAL_AUTHORITY_WARNINGS],
@@ -242,8 +245,9 @@ export function recordAutoresearchCampaignGoalSegment(
     tokenLikeUnits: previous.usage.tokenLikeUnits + (input.tokenLikeUnits ?? 0),
   };
   const budgetStatus = classifyBudgetStatus(previous.budget, usage);
+  const autoContinue = input.autoContinue === true;
   const status: AutoresearchCampaignGoalStatus =
-    budgetStatus === "budget_limited" ? "budget_limited" : "paused";
+    budgetStatus === "budget_limited" ? "budget_limited" : autoContinue ? "active" : "paused";
   const ledger: AutoresearchCampaignGoalLedgerV1 = {
     ...previous,
     status,
@@ -252,7 +256,9 @@ export function recordAutoresearchCampaignGoalSegment(
     lastStatusReason:
       status === "budget_limited"
         ? budgetLimitReason(previous.budget, usage)
-        : "foreground segment completed; explicit continuation required",
+        : autoContinue
+          ? "foreground segment completed; session auto-continuation remains active"
+          : "foreground segment completed; explicit continuation required",
     segments: [...previous.segments, segment],
     nextContinuationCall:
       status === "budget_limited"
@@ -263,6 +269,7 @@ export function recordAutoresearchCampaignGoalSegment(
             goalId: previous.goalId,
             budget: previous.budget,
             usage,
+            autoContinue,
           }),
     exactControlActions: buildGoalControlActions(cwd),
     authorityWarnings: [...GOAL_AUTHORITY_WARNINGS],
@@ -518,6 +525,7 @@ function buildGoalContinuationCall(input: {
   goalId: string;
   budget: AutoresearchCampaignGoalBudget;
   usage: AutoresearchCampaignGoalUsage;
+  autoContinue?: boolean;
 }): string | null {
   const remaining = computeRemainingBudget(input.budget, input.usage);
   if (classifyBudgetStatus(input.budget, input.usage) === "budget_limited") return null;
@@ -539,7 +547,8 @@ function buildGoalContinuationCall(input: {
     input.budget.tokenLikeUnits === null
       ? ""
       : `, campaignGoalTokenBudget: ${input.budget.tokenLikeUnits}`;
-  return `autoresearch_runtime_loop({ cwd: ${JSON.stringify(input.cwd)}, goal: ${JSON.stringify(input.objective)}, maxIterations: ${nextIterations}${wallClockField}, campaignGoalId: ${JSON.stringify(input.goalId)}${iterationBudgetField}${wallClockBudgetField}${tokenBudgetField}, peerMode: "off" })`;
+  const autoContinueField = input.autoContinue ? ", campaignGoalAutoContinue: true" : "";
+  return `autoresearch_runtime_loop({ cwd: ${JSON.stringify(input.cwd)}, goal: ${JSON.stringify(input.objective)}, maxIterations: ${nextIterations}${wallClockField}, campaignGoalId: ${JSON.stringify(input.goalId)}${iterationBudgetField}${wallClockBudgetField}${tokenBudgetField}${autoContinueField}, peerMode: "off" })`;
 }
 
 function buildGoalControlActions(cwd: string): Record<"pause" | "resume" | "complete", string> {

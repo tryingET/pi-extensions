@@ -92,6 +92,11 @@ const contracts = [
       },
     ],
   },
+  {
+    id: "auto-continuation-contract",
+    script: "scripts/dogfood-auto-continuation-contract.mjs",
+    metricName: "unresolved_auto_continuation_blockers",
+  },
 ];
 
 export function parseMetric(output, metricName) {

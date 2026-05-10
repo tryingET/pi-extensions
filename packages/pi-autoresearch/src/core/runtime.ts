@@ -1082,6 +1082,7 @@ export interface ExecuteAutoresearchCampaignStartInput extends BuildAutoresearch
   campaignGoalIterationBudget?: number;
   campaignGoalWallClockMinutesBudget?: number;
   campaignGoalTokenBudget?: number;
+  campaignGoalAutoContinue?: boolean;
   signal?: AbortSignal;
   onProgress?: (event: AutoresearchLoopProgressEvent) => void;
 }
@@ -1200,6 +1201,7 @@ export interface ExecuteAutoresearchLoopInput {
   campaignGoalIterationBudget?: number;
   campaignGoalWallClockMinutesBudget?: number;
   campaignGoalTokenBudget?: number;
+  campaignGoalAutoContinue?: boolean;
   signal?: AbortSignal;
   onProgress?: (event: AutoresearchLoopProgressEvent) => void;
 }
@@ -2162,6 +2164,7 @@ export async function executeAutoresearchCampaignStart(
       campaignGoalIterationBudget: input.campaignGoalIterationBudget,
       campaignGoalWallClockMinutesBudget: input.campaignGoalWallClockMinutesBudget,
       campaignGoalTokenBudget: input.campaignGoalTokenBudget,
+      campaignGoalAutoContinue: input.campaignGoalAutoContinue,
       signal: input.signal,
       onProgress: input.onProgress,
     });
@@ -6397,11 +6400,16 @@ export async function executeAutoresearchLoop(
   }
 
   const startedAt = Date.now();
-  const shouldTrackCampaignGoal =
-    input.campaignGoalId !== undefined ||
+  const hasCampaignGoalBudget =
     input.campaignGoalIterationBudget !== undefined ||
     input.campaignGoalWallClockMinutesBudget !== undefined ||
     input.campaignGoalTokenBudget !== undefined;
+  if (input.campaignGoalAutoContinue === true && !hasCampaignGoalBudget) {
+    throw new Error(
+      "campaignGoalAutoContinue requires an explicit package-local campaign goal budget",
+    );
+  }
+  const shouldTrackCampaignGoal = input.campaignGoalId !== undefined || hasCampaignGoalBudget;
   const campaignGoalLedger = shouldTrackCampaignGoal
     ? beginAutoresearchCampaignGoal({
         cwd,
@@ -6410,6 +6418,7 @@ export async function executeAutoresearchLoop(
         iterationBudget: input.campaignGoalIterationBudget,
         wallClockMinutesBudget: input.campaignGoalWallClockMinutesBudget,
         tokenLikeBudget: input.campaignGoalTokenBudget,
+        autoContinue: input.campaignGoalAutoContinue === true,
         now: startedAt,
       })
     : null;
@@ -6599,7 +6608,9 @@ export async function executeAutoresearchLoop(
               ? null
               : campaignGoalLedger.budget.wallClockSeconds / 60,
           campaignGoalTokenBudget: campaignGoalLedger.budget.tokenLikeUnits,
+          campaignGoalAutoContinue: input.campaignGoalAutoContinue === true,
         }),
+        autoContinue: input.campaignGoalAutoContinue === true,
         startedAt,
         completedAt: Date.now(),
       })
@@ -6687,6 +6698,7 @@ function formatCampaignGoalLoopCall(input: {
   campaignGoalIterationBudget: number | null;
   campaignGoalWallClockMinutesBudget: number | null;
   campaignGoalTokenBudget: number | null;
+  campaignGoalAutoContinue?: boolean;
 }): string {
   const wallClockField =
     input.maxWallClockMinutes === undefined
@@ -6704,7 +6716,10 @@ function formatCampaignGoalLoopCall(input: {
     input.campaignGoalTokenBudget === null
       ? ""
       : `, campaignGoalTokenBudget: ${input.campaignGoalTokenBudget}`;
-  return `${AUTORESEARCH_LOOP_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, goal: ${JSON.stringify(input.goal)}, maxIterations: ${input.maxIterations}${wallClockField}, campaignGoalId: ${JSON.stringify(input.campaignGoalId)}${iterationBudgetField}${wallClockBudgetField}${tokenBudgetField}, peerMode: "off" })`;
+  const autoContinueField = input.campaignGoalAutoContinue
+    ? ", campaignGoalAutoContinue: true"
+    : "";
+  return `${AUTORESEARCH_LOOP_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, goal: ${JSON.stringify(input.goal)}, maxIterations: ${input.maxIterations}${wallClockField}, campaignGoalId: ${JSON.stringify(input.campaignGoalId)}${iterationBudgetField}${wallClockBudgetField}${tokenBudgetField}${autoContinueField}, peerMode: "off" })`;
 }
 
 function buildLoopPeerAssistInput(
