@@ -1,0 +1,27 @@
+Intent: Execute the highest-leverage pi-extensions root campaign by protecting the newest integrated supervised autoresearch/orchestrator path in the root host-compatibility canary lane.
+
+Task: AK #2789 Add canary campaign for orchestrator autoresearch matrix closeout.
+
+Selection rationale:
+- Root owns host compatibility/release validation, not package implementation.
+- The most valuable current cross-package product path is the orchestrator + autoresearch matrix closeout/evidence handoff.
+- The campaign converts that path from package-local proof into a root-owned Pi host compatibility canary scenario.
+
+Changes:
+- Add scenario orchestrator-autoresearch-matrix-closeout to policy/pi-host-compatibility-canary.json.
+- Document the scenario in docs/project/pi-host-compatibility-canary.md.
+- Scenario protects TypeBox tool schema compatibility, registered tool execution result details, and nested owner-route report rendering.
+
+Validation/campaign execution:
+- cd packages/pi-society-orchestrator && node --test --test-name-pattern "plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares" tests/autoresearch-live-control-plane.test.mjs
+- npm run compat:canary:validate
+- node scripts/pi-host-compatibility-canary.mjs list --scenario orchestrator-autoresearch-matrix-closeout
+- node scripts/pi-host-compatibility-canary.mjs run --profile current --scenario orchestrator-autoresearch-matrix-closeout --dry-run
+- node scripts/pi-host-compatibility-canary.mjs run --profile current --scenario orchestrator-autoresearch-matrix-closeout
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs docs/project --strict
+
+Boundary:
+- No package implementation was changed.
+- No hidden peer launch, benchmark execution, merge, promotion, AK/KES evidence write from the canary scenario, or worktree lifecycle action.
+- Existing unrelated dirty files were not staged.
+- Full root docs strict currently has unrelated pre-existing failures in packages/pi-workstation-inference-provider prompts.
