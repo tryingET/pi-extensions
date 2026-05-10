@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8cb78056c04a92ecd3bf8e81c97b4c4aa55752b8"
+created_at: "2026-05-10T03:44:12Z"
+intent: "Emit pi-interview-compatible owner decision call from candidate-wave review form."
+files:
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+  - "packages/pi-society-orchestrator/README.md"
+validation:
+  fast_gate:
+    command: "node --experimental-strip-types /tmp/dogfood-owner-interview-call.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+links:
+  task_ids:
+    - 2674
