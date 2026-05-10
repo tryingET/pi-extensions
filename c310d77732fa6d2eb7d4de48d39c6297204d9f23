@@ -1,0 +1,26 @@
+Commit c310d77 test(orchestrator): require peer-runner campaign handoff
+
+Provenance:
+- Prompted by operator correction that controller agent should not directly implement DesignMD Foundry campaign work; autonomous campaigns should route implementation through real candidate/scout runners.
+- AK task #2815: Harden autoresearch campaigns to route implementation through peer runners.
+- Used visible peer runners:
+  - scoutpeer-mozz8ch4-78231348: read-only audit recommended enforcing candidate runner lineage at managed-wave review.
+  - candidatepeer-mozz8clj-c552af8b: broader peer-runner handoff contract candidate; controller verified and promoted after follow-up lineage gating.
+  - candidatepeer-mozzn7z2-34275ba6: narrower selection-gate candidate used as comparative validation of the enforcement gap.
+- Controller verified candidate output before promotion; peer messages were treated as communication, not durable evidence.
+
+Validation:
+- node packages/pi-society-orchestrator/scripts/dogfood-campaign-peer-runner-handoff-contract.mjs => METRIC unresolved_campaign_peer_runner_handoff_blockers=0
+- node packages/pi-society-orchestrator/scripts/dogfood-candidate-wave-management-contract.mjs => METRIC unresolved_candidate_wave_management_blockers=0
+- node packages/pi-society-orchestrator/scripts/dogfood-matrix-candidate-wave-management-contract.mjs => METRIC unresolved_matrix_managed_wave_blockers=0
+- node packages/pi-society-orchestrator/scripts/dogfood-integrated-matrix-campaign-closeout-contract.mjs => METRIC unresolved_integrated_matrix_campaign_closeout_blockers=0
+- node --test packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs => 19/19 pass
+- npm --prefix packages/pi-society-orchestrator run lint => pass
+- npm --prefix packages/pi-society-orchestrator run typecheck => pass
+- docs-list strict over packages/pi-autoresearch/docs/project and packages/pi-society-orchestrator/docs/project => pass
+- git diff --check / cached pre-commit quality gates => pass
+
+Boundary:
+- pi-autoresearch remains below-seam and does not spawn peers.
+- pi-society-orchestrator now makes candidate_peer_spawn handoff explicit and rejects controller-inline/manual candidate-result packets from managed-wave selection when lineage is missing.
+- Existing unrelated dirty pi-society-orchestrator transcendent-loop files were not staged or committed.
