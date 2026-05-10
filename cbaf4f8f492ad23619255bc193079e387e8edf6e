@@ -1,0 +1,23 @@
+Intent: Implement and execute the requested greater autoresearch campaign proof: multiple tries, explicit resume, candidate comparison, matrix closeout, and evidence/learning handoff without hidden autonomy.
+
+Task: AK #2790 Add long supervised autoresearch campaign dogfood contract.
+
+Changes:
+- Add packages/pi-autoresearch/scripts/dogfood-long-supervised-campaign-contract.mjs.
+- The contract creates an isolated controller repo, runs campaign_start for two bounded iterations, gates an explicit foreground resume for two more iterations, measures four visible-candidate worktree lanes, exports four candidate-result packets, reviews them through pi-society-orchestrator matrix closeout, and verifies learning / AK-evidence / exact evidence handoff packets.
+- Update pi-autoresearch and integrated product posture docs.
+
+Validation/campaign execution:
+- node packages/pi-autoresearch/scripts/dogfood-long-supervised-campaign-contract.mjs
+  - METRIC unresolved_long_supervised_campaign_blockers=0
+  - initial metrics: 3 -> 2
+  - resume metrics: 1 -> 0
+  - candidate packets: 4
+  - matrix selected lanes: 2
+- npm --prefix packages/pi-autoresearch run check
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch --strict
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs docs/project --strict
+
+Boundary:
+- No hidden peer launch, daemon, merge, promotion, AK/KES evidence write, or worktree lifecycle mutation by the contract.
+- Existing unrelated dirty files were not staged.
