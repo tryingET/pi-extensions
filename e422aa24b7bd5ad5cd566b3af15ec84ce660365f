@@ -1,0 +1,27 @@
+Intent: Use visible candidate peers to harden the long supervised campaign proof and make it part of the strict autoresearch dogfood gate.
+
+Task: AK #2791 Use real candidate peers to harden long campaign dogfood suite.
+
+Candidate inputs:
+- candidate/long-campaign-suite-integration suggested suite integration and TSX path mapping.
+- candidate/long-campaign-operator-summary suggested human-readable checkpoint output.
+- Controller inspected and merged both bounded patches with conflict resolution in integrated posture docs.
+
+Changes:
+- Add long-supervised-campaign-contract to scripts/dogfood-contract-suite.mjs with suite-owned temp root isolation.
+- Add compact operator-readable checkpoint output to dogfood-long-supervised-campaign-contract.mjs before the metric/JSON payload.
+- Add TSX_TSCONFIG_PATH mapping so the contract can resolve @tryinget/pi-autoresearch imports when orchestrator source is loaded from suite/temp contexts.
+- Update product posture docs.
+
+Validation:
+- node packages/pi-autoresearch/scripts/dogfood-contract-suite.mjs
+  - METRIC unresolved_autoresearch_dogfood_suite_blockers=0
+  - all five contracts ok, including long-supervised-campaign-contract
+- npm --prefix packages/pi-autoresearch run check
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch --strict
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs docs/project --strict
+
+Boundary:
+- Candidate peer output was communication only; controller verified and applied selected patches.
+- No hidden peer launch inside the package contract, no daemon, no merge/promotion, and no AK/KES evidence write by the contract.
+- Existing unrelated dirty orchestrator files were not staged.
