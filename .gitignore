@@ -1,5 +1,8 @@
 .pi-subagent-sessions/
 .pi-subagent-sessions.self-memory.json
 
-# Local pi-autoresearch runtime projection (regenerated; not source truth)
+# Local pi-autoresearch runtime artifacts (regenerated; not source truth)
+/.autoresearch/
+/autoresearch.events.jsonl
+/autoresearch.jsonl
 /autoresearch.runtime.json
