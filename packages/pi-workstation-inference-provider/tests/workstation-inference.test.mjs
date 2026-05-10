@@ -113,6 +113,98 @@ test("status command registers provider after contract appears post-load", async
   }
 });
 
+test("refresh command asks lane-op to rewrite canonical contract and registers provider", async () => {
+  const oldPath = process.env[CONTRACT_ENV];
+  const oldJson = process.env[CONTRACT_JSON_ENV];
+  const oldRoot = process.env.PI_WORKSTATION_ROOT;
+  const oldFetch = globalThis.fetch;
+  const commands = new Map();
+  const providers = [];
+  const execCalls = [];
+  process.env[CONTRACT_ENV] = "/tmp/workstation-inference-provider-test-missing.json";
+  process.env.PI_WORKSTATION_ROOT = "/workstation";
+  delete process.env[CONTRACT_JSON_ENV];
+  globalThis.fetch = async () => ({ ok: true, status: 200 });
+  try {
+    await extension({
+      registerCommand(name, command) {
+        commands.set(name, command);
+      },
+      registerProvider(name, config) {
+        providers.push({ name, config });
+      },
+      async exec(command, args, options) {
+        execCalls.push({ command, args, options });
+        process.env[CONTRACT_JSON_ENV] = JSON.stringify(
+          contract({ generated_at: new Date().toISOString() }),
+        );
+        return { code: 0, stdout: '{"result":"ok"}', stderr: "", killed: false };
+      },
+    });
+
+    await commands.get("workstation-inference").handler("refresh", {
+      hasUI: true,
+      ui: { notify() {} },
+    });
+
+    assert.equal(execCalls.length, 1);
+    assert.equal(execCalls[0].command, "python3");
+    assert.deepEqual(execCalls[0].args, [
+      "scripts/phasee/lane-op.py",
+      "provider-contract",
+      "baseline-text",
+      "--surface",
+      "canonical",
+      "--write",
+    ]);
+    assert.equal(execCalls[0].options.cwd, "/workstation");
+    assert.equal(providers.length, 1);
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldPath === undefined) delete process.env[CONTRACT_ENV];
+    else process.env[CONTRACT_ENV] = oldPath;
+    if (oldJson === undefined) delete process.env[CONTRACT_JSON_ENV];
+    else process.env[CONTRACT_JSON_ENV] = oldJson;
+    if (oldRoot === undefined) delete process.env.PI_WORKSTATION_ROOT;
+    else process.env.PI_WORKSTATION_ROOT = oldRoot;
+  }
+});
+
+test("lane-status command delegates to lane-op read-only status", async () => {
+  const commands = new Map();
+  const execCalls = [];
+  let notice = "";
+  await extension({
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+    registerProvider() {},
+    async exec(command, args, options) {
+      execCalls.push({ command, args, options });
+      return { code: 0, stdout: '{"status":"ok"}', stderr: "", killed: false };
+    },
+  });
+
+  await commands.get("workstation-inference").handler("lane-status", {
+    hasUI: true,
+    ui: {
+      notify(message) {
+        notice = message;
+      },
+    },
+  });
+
+  assert.equal(execCalls.length, 1);
+  assert.deepEqual(execCalls[0].args, [
+    "scripts/phasee/lane-op.py",
+    "status",
+    "baseline-text",
+    "--surface",
+    "canonical",
+  ]);
+  assert.equal(notice, '{"status":"ok"}');
+});
+
 test("streamWorkstationInference returns an error event when health is bad", async () => {
   await withInlineContract(contract(), async () => {
     const events = [];

@@ -93,16 +93,21 @@ const DEFAULT_TIMEOUT_MS = 1_500;
 const DEFAULT_API_KEY = "workstation-local";
 const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
 const CONTRACT_JSON_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_JSON";
-const DEFAULT_CONTRACT_PATH = join(
+const WORKSTATION_ROOT_ENV = "PI_WORKSTATION_ROOT";
+const DEFAULT_WORKSTATION_ROOT = join(
   homedir(),
   "ai-society",
   "softwareco",
   "infra",
   "workstation",
+);
+const DEFAULT_CONTRACT_PATH = join(
+  DEFAULT_WORKSTATION_ROOT,
   "phasee",
   "state",
   "workstation-inference-provider.json",
 );
+const LANE_OP_SCRIPT = join("scripts", "phasee", "lane-op.py");
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -273,6 +278,10 @@ function notifyOrLog(
   else console.log(message);
 }
 
+function workstationRoot(): string {
+  return process.env[WORKSTATION_ROOT_ENV]?.trim() || DEFAULT_WORKSTATION_ROOT;
+}
+
 function contractApiKey(contract: WorkstationInferenceContract): string {
   return (
     stringValue(contract.api_key) ??
@@ -348,6 +357,29 @@ export function streamWorkstationInference(
   return stream;
 }
 
+async function runLaneOp(
+  pi: ExtensionAPI,
+  args: string[],
+): Promise<{ ok: true; stdout: string } | { ok: false; detail: string }> {
+  const result = await pi.exec("python3", [LANE_OP_SCRIPT, ...args], {
+    cwd: workstationRoot(),
+    timeout: 60_000,
+  });
+  if (result.code !== 0) {
+    return {
+      ok: false,
+      detail: [
+        `lane-op exited ${result.code}`,
+        result.stderr.trim() ? `stderr: ${result.stderr.trim()}` : undefined,
+        result.stdout.trim() ? `stdout: ${result.stdout.trim()}` : undefined,
+      ]
+        .filter((line): line is string => Boolean(line))
+        .join("\n"),
+    };
+  }
+  return { ok: true, stdout: result.stdout.trim() };
+}
+
 function statusText(status: ContractStatus): string {
   const contract = status.contract;
   const lines = [
@@ -396,6 +428,8 @@ export default async function (pi: ExtensionAPI) {
           ctx,
           [
             "/workstation-inference status  Show contract and health status",
+            "/workstation-inference refresh  Ask lane-op to refresh the canonical provider contract",
+            "/workstation-inference lane-status  Show lane-op baseline-text status",
             "/workstation-inference contract  Show the expected contract path/env",
           ].join("\n"),
         );
@@ -407,8 +441,37 @@ export default async function (pi: ExtensionAPI) {
           [
             `contract env: ${CONTRACT_ENV}`,
             `inline contract env: ${CONTRACT_JSON_ENV}`,
+            `workstation root env: ${WORKSTATION_ROOT_ENV}`,
+            `default workstation root: ${DEFAULT_WORKSTATION_ROOT}`,
             `default path: ${DEFAULT_CONTRACT_PATH}`,
           ].join("\n"),
+        );
+        return;
+      }
+      if (action === "refresh") {
+        const refresh = await runLaneOp(pi, [
+          "provider-contract",
+          "baseline-text",
+          "--surface",
+          "canonical",
+          "--write",
+        ]);
+        if (!refresh.ok) {
+          notifyOrLog(ctx, `workstation inference refresh failed\n${refresh.detail}`, "error");
+          return;
+        }
+        const status = await resolveContractStatus({ checkHealth: true });
+        if (status.status === "ok" && status.contract)
+          registerContractProvider(pi, status.contract);
+        notifyOrLog(ctx, ["refresh: ok", statusText(status)].join("\n"));
+        return;
+      }
+      if (action === "lane-status") {
+        const status = await runLaneOp(pi, ["status", "baseline-text", "--surface", "canonical"]);
+        notifyOrLog(
+          ctx,
+          status.ok ? status.stdout : `lane-status failed\n${status.detail}`,
+          status.ok ? "info" : "error",
         );
         return;
       }

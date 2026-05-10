@@ -89,11 +89,15 @@ The exporter is a bounded write to `phasee/state/workstation-inference-provider.
 
 ```text
 /workstation-inference status
+/workstation-inference refresh
+/workstation-inference lane-status
 /workstation-inference contract
 /workstation-inference help
 ```
 
-`status` reads the contract and probes the configured health URL. It is intentionally read-only.
+`status` reads the contract and probes the configured health URL. `refresh` explicitly asks workstation `lane-op` to rewrite the canonical provider contract, then re-registers the provider if healthy. `lane-status` delegates to read-only `lane-op status baseline-text --surface canonical`.
+
+These commands may call the workstation-owned `lane-op` CLI, but they do not start/stop/switch/warm services or apply lane changes. Runtime lifecycle remains behind lane-op's existing plan/apply surfaces.
 
 ## Runtime dependencies
 
