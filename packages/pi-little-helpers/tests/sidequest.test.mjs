@@ -557,6 +557,41 @@ test("scout_peer_spawn requires exact parentPeerTarget for default intercom repo
   assert.match(result.details.nextStep, /intercom\(\{ action: "status" \}\)/);
 });
 
+test("scout_peer_spawn rejects ambiguous parentPeerTarget aliases before launch", async () => {
+  const execStub = createExecStub(() => {
+    throw new Error("Ghostty should not be called with an ambiguous parent target");
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("scout_peer_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "inspect without orphaning", parentPeerTarget: "current" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  assert.equal(execStub.calls.length, 0);
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "invalid_parent_peer_target");
+  assert.equal(result.details.reason, "ambiguous_parent_peer_target");
+  assert.equal(result.details.parentPeerTarget, "current");
+  assert.match(result.details.nextStep, /intercom\(\{ action: "status" \}\)/);
+});
+
 test("scout_peer_spawn uses the same Ghostty window fallback launch path and returns structured details", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
@@ -1017,6 +1052,39 @@ test("candidate_peer_spawn requires exact parentPeerTarget for default intercom 
   assert.equal(execStub.calls.length, 0);
   assert.equal(result.isError, true);
   assert.equal(result.details.error, "missing_parent_peer_target");
+});
+
+test("candidate_peer_spawn rejects ambiguous parentPeerTarget aliases before git or launch", async () => {
+  const execStub = createCandidatePeerExecStub();
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("candidate_peer_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "try without orphaning", parentPeerTarget: "current" },
+      undefined,
+      undefined,
+      createContext({ cwd: "/repo" }).ctx,
+    );
+
+  assert.equal(execStub.calls.length, 0);
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "invalid_parent_peer_target");
+  assert.equal(result.details.reason, "ambiguous_parent_peer_target");
+  assert.equal(result.details.parentPeerTarget, "current");
 });
 
 test("candidate_peer_spawn fails closed when requireCleanParent sees dirty parent state", async () => {

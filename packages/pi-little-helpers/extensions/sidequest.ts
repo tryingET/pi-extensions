@@ -1209,11 +1209,50 @@ function successToolResult(message: string, details: Record<string, unknown>) {
   };
 }
 
-function hasExactParentPeerTarget(value: string | undefined): boolean {
-  return Boolean(value?.trim());
+const AMBIGUOUS_PARENT_PEER_TARGETS = new Set([
+  "active",
+  "controller",
+  "current",
+  "here",
+  "me",
+  "parent",
+  "self",
+  "this",
+]);
+
+type ParentPeerTargetValidation =
+  | { ok: true; target: string }
+  | { ok: false; reason: "missing" | "ambiguous"; target?: string };
+
+function validateParentPeerTarget(value: string | undefined): ParentPeerTargetValidation {
+  const target = value?.trim();
+  if (!target) return { ok: false, reason: "missing" };
+  if (AMBIGUOUS_PARENT_PEER_TARGETS.has(target.toLowerCase())) {
+    return { ok: false, reason: "ambiguous", target };
+  }
+  return { ok: true, target };
 }
 
-function missingParentPeerTargetResult(tool: string) {
+function parentPeerTargetFailureResult(
+  tool: string,
+  validation: Exclude<ParentPeerTargetValidation, { ok: true }>,
+) {
+  if (validation.reason === "ambiguous") {
+    return errorToolResult(
+      `${tool} defaults to intercom report-back and requires an exact parentPeerTarget. "${validation.target}" is an ambiguous alias, not a deliverable intercom target. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
+      {
+        ok: false,
+        tool,
+        reportBack: "intercom",
+        parentPeerTarget: validation.target,
+        error: "invalid_parent_peer_target",
+        reason: "ambiguous_parent_peer_target",
+        nextStep:
+          'Call intercom({ action: "status" }) in the controller session and retry with parentPeerTarget set to the exact Session ID.',
+      },
+    );
+  }
+
   return errorToolResult(
     `${tool} defaults to intercom report-back and requires parentPeerTarget so the peer can report to the exact controller session. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
     {
@@ -1561,8 +1600,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         });
       }
 
-      if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
-        return missingParentPeerTargetResult(toolName);
+      if (reportBack === "intercom") {
+        const parentPeerTarget = validateParentPeerTarget(request.parentPeerTarget);
+        if (!parentPeerTarget.ok) return parentPeerTargetFailureResult(toolName, parentPeerTarget);
       }
 
       const questId = createQuestId("scoutpeer");
@@ -1670,8 +1710,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         });
       }
 
-      if (reportBack === "intercom" && !hasExactParentPeerTarget(request.parentPeerTarget)) {
-        return missingParentPeerTargetResult(toolName);
+      if (reportBack === "intercom") {
+        const parentPeerTarget = validateParentPeerTarget(request.parentPeerTarget);
+        if (!parentPeerTarget.ok) return parentPeerTargetFailureResult(toolName, parentPeerTarget);
       }
 
       const worktree = await prepareCandidatePeerWorktree({
