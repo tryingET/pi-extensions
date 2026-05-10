@@ -485,7 +485,11 @@ function formatAutoresearchCandidateWaveReviewReport(
           `- kind: ${review.recommendation.ownerDecisionForm.kind}`,
           `- question: ${review.recommendation.ownerDecisionForm.questionId}`,
           `- recommended option: ${review.recommendation.ownerDecisionForm.recommendedOptionId ?? "none"}`,
-          `- interview call: ${review.recommendation.ownerDecisionForm.interviewCall}`,
+          `- primary UI: ${review.recommendation.ownerDecisionForm.primaryUi.surface}`,
+          `- primary UI command: ${review.recommendation.ownerDecisionForm.primaryUi.slashCommand}`,
+          `- primary UI summary: ${review.recommendation.ownerDecisionForm.primaryUi.summary}`,
+          `- primary UI preparation: ${review.recommendation.ownerDecisionForm.primaryUi.exactPreparationCalls.join("; ") || "none"}`,
+          `- fallback interview call: ${review.recommendation.ownerDecisionForm.interviewCall}`,
           `- boundary: ${review.recommendation.ownerDecisionForm.boundary}`,
         ]
       : []),

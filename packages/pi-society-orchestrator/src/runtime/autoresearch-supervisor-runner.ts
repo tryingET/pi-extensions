@@ -290,6 +290,13 @@ export interface AutoresearchCandidateWaveOwnerDecisionInterviewPayload {
   ];
 }
 
+export interface AutoresearchCandidateWaveOwnerDecisionPrimaryUi {
+  surface: "pi-autoresearch_candidate_decision_workbench";
+  summary: string;
+  slashCommand: string;
+  exactPreparationCalls: readonly string[];
+}
+
 export interface AutoresearchCandidateWaveOwnerDecisionForm {
   kind: "autoresearch.candidate_wave_owner_decision_form.v1";
   title: string;
@@ -297,6 +304,7 @@ export interface AutoresearchCandidateWaveOwnerDecisionForm {
   questionId: "candidate_wave_owner_decision";
   recommendedOptionId: string | null;
   options: readonly AutoresearchCandidateWaveOwnerDecisionFormOption[];
+  primaryUi: AutoresearchCandidateWaveOwnerDecisionPrimaryUi;
   interviewQuestions: AutoresearchCandidateWaveOwnerDecisionInterviewPayload;
   interviewCall: string;
   boundary: string;
@@ -860,6 +868,15 @@ function buildCandidateWaveOwnerDecisionForm(input: {
       },
     ],
   };
+  const primaryUi: AutoresearchCandidateWaveOwnerDecisionPrimaryUi = {
+    surface: "pi-autoresearch_candidate_decision_workbench",
+    summary:
+      "Use pi-autoresearch's existing candidate decision workbench as the primary owner UI after the reviewed lane is current.",
+    slashCommand: "/autoresearch review",
+    exactPreparationCalls:
+      ownerDecisionOptions.find((option) => option.optionId === "collect_more_samples")
+        ?.exactNextCalls ?? [],
+  };
   return {
     kind: "autoresearch.candidate_wave_owner_decision_form.v1",
     title,
@@ -867,12 +884,13 @@ function buildCandidateWaveOwnerDecisionForm(input: {
     questionId: "candidate_wave_owner_decision",
     recommendedOptionId,
     options,
+    primaryUi,
     interviewQuestions,
     interviewCall: formatToolCall("interview", {
       questions: JSON.stringify(interviewQuestions),
     }),
     boundary:
-      "This owner-decision form does not apply worktree lifecycle actions, write AK/KES/evidence, merge, promote, or mutate candidate state.",
+      "This owner-decision form does not apply worktree lifecycle actions, write AK/KES/evidence, merge, promote, or mutate candidate state. The interview payload is a fallback for sessions where the pi-autoresearch candidate decision UI is unavailable.",
   };
 }
 
