@@ -1,0 +1,18 @@
+Intent: Harden pi-society-orchestrator autoresearch AK evidence projection without expanding runtime ownership.
+
+Task: AK #2784 Harden autoresearch AK evidence projection dedupe and anchor metadata.
+
+Changes:
+- Record exact AK task anchor metadata in autoresearch milestone evidence details.
+- Dedupe projected milestones by matching projection_key across task/check evidence rows, not only the latest row.
+- Add dogfood contract for task-anchor metadata and replay/stale projection-key dedupe.
+
+Validation:
+- node packages/pi-society-orchestrator/scripts/dogfood-evidence-projection-hardening-contract.mjs
+- node --test packages/pi-society-orchestrator/tests/autoresearch-ak-projector.test.mjs
+- npm --prefix packages/pi-society-orchestrator run check
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-society-orchestrator --strict
+
+Boundary:
+- No AK direction mutation, KES write, peer launch, promotion, merge, worktree cleanup, or pi-autoresearch runtime ownership change.
+- Existing unrelated dirty files were not staged.
