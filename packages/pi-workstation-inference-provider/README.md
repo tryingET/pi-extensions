@@ -74,7 +74,7 @@ Minimal shape:
 }
 ```
 
-If the contract has `generated_at` plus `stale_after_seconds`, stale contracts fail closed.
+If the contract has `generated_at` plus `refresh_after_seconds` (or the legacy `stale_after_seconds`), `/workstation-inference status` reports the refresh warning. Runtime requests fail closed on missing/invalid/unhealthy contracts through the package's custom stream handler.
 
 Current workstation exporter command:
 

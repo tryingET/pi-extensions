@@ -4,7 +4,7 @@
   "family": "baseline-text",
   "surface": "canonical",
   "generated_at": "2026-05-10T00:00:00Z",
-  "stale_after_seconds": 3600,
+  "refresh_after_seconds": 3600,
   "provider_id": "workstation-inference",
   "provider_name": "Workstation Inference",
   "base_url": "http://127.0.0.1:1234/v1",

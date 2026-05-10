@@ -1,6 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+  type Api,
+  type AssistantMessageEventStream,
+  type Context,
+  createAssistantMessageEventStream,
+  type Model,
+  type SimpleStreamOptions,
+  streamSimpleOpenAICompletions,
+} from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 type ThinkingLevelMap = {
@@ -31,6 +40,7 @@ type WorkstationInferenceContract = {
   surface?: string;
   generated_at?: string;
   stale_after_seconds?: number;
+  refresh_after_seconds?: number;
   provider_id?: string;
   provider_name?: string;
   base_url: string;
@@ -142,6 +152,7 @@ function parseContract(payload: unknown): WorkstationInferenceContract {
     surface: stringValue(payload.surface),
     generated_at: stringValue(payload.generated_at),
     stale_after_seconds: numberValue(payload.stale_after_seconds),
+    refresh_after_seconds: numberValue(payload.refresh_after_seconds),
     provider_id: stringValue(payload.provider_id),
     provider_name: stringValue(payload.provider_name),
     base_url: baseUrl,
@@ -174,13 +185,14 @@ function defaultHealthUrl(contract: WorkstationInferenceContract): string {
 }
 
 function staleDetail(contract: WorkstationInferenceContract): string | undefined {
-  if (!contract.generated_at || !contract.stale_after_seconds) return undefined;
+  const refreshAfterSeconds = contract.stale_after_seconds ?? contract.refresh_after_seconds;
+  if (!contract.generated_at || !refreshAfterSeconds) return undefined;
   const generatedAt = Date.parse(contract.generated_at);
   if (!Number.isFinite(generatedAt))
     return `generated_at is not parseable: ${contract.generated_at}`;
   const ageSeconds = Math.floor((Date.now() - generatedAt) / 1000);
-  if (ageSeconds > contract.stale_after_seconds) {
-    return `contract is ${ageSeconds}s old; stale_after_seconds=${contract.stale_after_seconds}`;
+  if (ageSeconds > refreshAfterSeconds) {
+    return `contract is ${ageSeconds}s old; refresh_after_seconds=${refreshAfterSeconds}`;
   }
   return undefined;
 }
@@ -201,8 +213,8 @@ async function checkHealth(contract: WorkstationInferenceContract): Promise<stri
   }
 }
 
-async function resolveContractStatus(
-  options: { checkHealth?: boolean } = {},
+export async function resolveContractStatus(
+  options: { checkHealth?: boolean; failOnStale?: boolean } = {},
 ): Promise<ContractStatus> {
   let loaded: LoadedContract;
   try {
@@ -217,7 +229,7 @@ async function resolveContractStatus(
   }
 
   const stale = staleDetail(loaded.contract);
-  if (stale) {
+  if (stale && options.failOnStale) {
     return {
       status: "stale",
       source: loaded.source,
@@ -243,18 +255,25 @@ async function resolveContractStatus(
   return {
     status: "ok",
     source: loaded.source,
-    summary: "workstation inference contract is usable",
+    summary: stale
+      ? "workstation inference contract is usable but should be refreshed"
+      : "workstation inference contract is usable",
+    detail: stale,
     contract: loaded.contract,
   };
 }
 
-function providerModel(model: ContractModel) {
-  const compat = model.thinking_format ? { thinkingFormat: model.thinking_format } : undefined;
+export function providerModel(model: ContractModel) {
+  const supportsReasoning = model.reasoning ?? false;
+  const compat =
+    supportsReasoning && model.thinking_format
+      ? { thinkingFormat: model.thinking_format }
+      : undefined;
   return {
     id: model.pi_model_id ?? model.id ?? "baseline-text",
     name: model.name ?? model.pi_model_id ?? model.id ?? "baseline-text",
-    reasoning: model.reasoning ?? false,
-    thinkingLevelMap: model.thinking_level_map,
+    reasoning: supportsReasoning,
+    thinkingLevelMap: supportsReasoning ? model.thinking_level_map : undefined,
     input: model.input ?? ["text"],
     contextWindow: model.context_window ?? DEFAULT_CONTEXT_WINDOW,
     maxTokens: model.max_tokens ?? DEFAULT_MAX_TOKENS,
@@ -270,6 +289,81 @@ function notifyOrLog(
 ) {
   if (ctx.hasUI && ctx.ui) ctx.ui.notify(message, level);
   else console.log(message);
+}
+
+function contractApiKey(contract: WorkstationInferenceContract): string {
+  return (
+    contract.api_key ??
+    (contract.api_key_env ? process.env[contract.api_key_env] : undefined) ??
+    DEFAULT_API_KEY
+  );
+}
+
+export function streamWorkstationInference(
+  model: Model<Api>,
+  context: Context,
+  options?: SimpleStreamOptions,
+): AssistantMessageEventStream {
+  const stream = createAssistantMessageEventStream();
+
+  (async () => {
+    try {
+      const status = await resolveContractStatus({ checkHealth: true });
+      if (status.status !== "ok" || !status.contract) {
+        throw new Error(
+          `${status.summary}: ${status.detail ?? status.contract?.recovery_hint ?? "no detail"}`,
+        );
+      }
+
+      const contractModel = status.contract.models.find(
+        (candidate) => (candidate.pi_model_id ?? candidate.id) === model.id,
+      );
+      if (!contractModel) {
+        throw new Error(`model ${model.id} is not present in the current workstation contract`);
+      }
+
+      const inner = streamSimpleOpenAICompletions(
+        {
+          ...model,
+          baseUrl: normalizeBaseUrl(status.contract.base_url),
+          compat: providerModel(contractModel).compat,
+        } as Model<"openai-completions">,
+        context,
+        {
+          ...options,
+          apiKey: contractApiKey(status.contract),
+        },
+      );
+      for await (const event of inner) stream.push(event);
+      stream.end();
+    } catch (error) {
+      stream.push({
+        type: "error",
+        reason: "error",
+        error: {
+          role: "assistant",
+          content: [],
+          api: model.api,
+          provider: model.provider,
+          model: model.id,
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: "error",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          timestamp: Date.now(),
+        },
+      });
+      stream.end();
+    }
+  })();
+
+  return stream;
 }
 
 function statusText(status: ContractStatus): string {
@@ -334,21 +428,9 @@ export default async function (pi: ExtensionAPI) {
   pi.registerProvider(providerId, {
     name: initial.contract.provider_name ?? DEFAULT_PROVIDER_NAME,
     baseUrl: normalizeBaseUrl(initial.contract.base_url),
-    apiKey:
-      initial.contract.api_key ??
-      (initial.contract.api_key_env ? process.env[initial.contract.api_key_env] : undefined) ??
-      DEFAULT_API_KEY,
+    apiKey: contractApiKey(initial.contract),
     api: "openai-completions",
     models: initial.contract.models.map(providerModel),
-  });
-
-  pi.on("before_provider_request", async (_event, ctx) => {
-    if (ctx.model?.provider !== providerId) return;
-    const status = await resolveContractStatus({ checkHealth: true });
-    if (status.status !== "ok") {
-      throw new Error(
-        `${status.summary}: ${status.detail ?? status.contract?.recovery_hint ?? "no detail"}`,
-      );
-    }
+    streamSimple: streamWorkstationInference,
   });
 }
