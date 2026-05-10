@@ -1342,6 +1342,94 @@ export function buildLoopExecuteInvocation(loop: string, objective: string): str
   return `loop_execute({ loop: ${JSON.stringify(loop)}, objective: ${JSON.stringify(objective)} })`;
 }
 
+export function buildVaultExecuteTemplateInvocation(
+  templateName: string,
+  objective: string,
+): string {
+  return `vault_execute_template({ template_name: ${JSON.stringify(templateName)}, objective: ${JSON.stringify(objective)} })`;
+}
+
+function activateRequiredTools(pi: ExtensionAPI, toolNames: string[]): string[] {
+  const allToolNames = new Set(pi.getAllTools().map((tool) => tool.name));
+  const missing = toolNames.filter((name) => !allToolNames.has(name));
+  if (missing.length > 0) return missing;
+
+  const activeToolNames = new Set(pi.getActiveTools());
+  let changed = false;
+  for (const name of toolNames) {
+    if (!activeToolNames.has(name)) {
+      activeToolNames.add(name);
+      changed = true;
+    }
+  }
+  if (changed) pi.setActiveTools([...activeToolNames]);
+  return [];
+}
+
+type SessionTextEntry = {
+  type?: string;
+  message?: {
+    role?: string;
+    content?: unknown;
+  };
+};
+
+type TextContentBlock = {
+  type?: string;
+  text?: string;
+};
+
+function extractSessionText(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .flatMap((part) => {
+      if (!part || typeof part !== "object") return [];
+      const block = part as TextContentBlock;
+      return block.type === "text" && typeof block.text === "string" ? [block.text] : [];
+    })
+    .join("\n")
+    .trim();
+}
+
+const ABOVE_REFERENCE_PATTERN = /^(?:the\s+above|above|that|this|previous|last|last\s+output)$/i;
+const TRANSCENDENT_ITERATION_PREVIEW_PATTERN = /^\s*\$\$\/transcendent-iteration(?:\s+(.*))?\s*$/i;
+const MAX_INFERRED_OBJECTIVE_CHARS = 12_000;
+
+export function parseTranscendentIterationPreviewInput(text: string): string | null {
+  const match = TRANSCENDENT_ITERATION_PREVIEW_PATTERN.exec(text);
+  if (!match) return null;
+  return (match[1] || "").trim();
+}
+
+export function resolveTranscendentIterationObjective(
+  args: string,
+  entries: SessionTextEntry[],
+): { ok: true; objective: string; inferred: boolean } | { ok: false; reason: string } {
+  const trimmed = args.trim();
+  if (trimmed && !ABOVE_REFERENCE_PATTERN.test(trimmed)) {
+    return { ok: true, objective: trimmed, inferred: false };
+  }
+
+  for (const entry of [...entries].reverse()) {
+    if (entry.type !== "message" || entry.message?.role !== "assistant") continue;
+    const text = extractSessionText(entry.message.content);
+    if (!text) continue;
+    const boundedText =
+      text.length > MAX_INFERRED_OBJECTIVE_CHARS
+        ? `${text.slice(0, MAX_INFERRED_OBJECTIVE_CHARS)}\n\n[truncated: previous assistant output exceeded ${MAX_INFERRED_OBJECTIVE_CHARS} characters]`
+        : text;
+    return {
+      ok: true,
+      inferred: true,
+      objective: `Apply Transcendent Iteration v4 to the immediately preceding assistant output.\n\n${boundedText}`,
+    };
+  }
+
+  return { ok: false, reason: "No previous assistant output found to use as the objective." };
+}
+
 // ============================================================================
 // COMMAND REGISTRATION
 // ============================================================================
@@ -1350,6 +1438,44 @@ export function registerLoopCommands(
   pi: ExtensionAPI,
   plugins: Record<string, LoopPlugin> = BUILT_IN_PLUGINS,
 ): void {
+  pi.on("input", async (event, ctx) => {
+    if (event.source === "extension") return { action: "continue" };
+
+    const previewArgs = parseTranscendentIterationPreviewInput(event.text);
+    if (previewArgs === null) return { action: "continue" };
+
+    const objectiveResult = resolveTranscendentIterationObjective(
+      previewArgs,
+      ctx.sessionManager.getBranch() as SessionTextEntry[],
+    );
+    if (!objectiveResult.ok) {
+      if (ctx.hasUI) {
+        ctx.ui.notify(
+          `${objectiveResult.reason} Usage: $$/transcendent-iteration [objective|above]`,
+          "warning",
+        );
+      }
+      return { action: "handled" };
+    }
+
+    const invocation = buildVaultExecuteTemplateInvocation(
+      "transcendent-iteration",
+      objectiveResult.objective,
+    );
+    if (ctx.hasUI) {
+      ctx.ui.setEditorText(invocation);
+      ctx.ui.notify(
+        objectiveResult.inferred
+          ? "Prepared Transcendent Iteration v4 from the previous assistant output. Review/edit, then press Enter."
+          : "Prepared Transcendent Iteration v4. Review/edit, then press Enter.",
+        "info",
+      );
+      return { action: "handled" };
+    }
+
+    return { action: "transform", text: invocation };
+  });
+
   pi.registerCommand("loop", {
     description: "Execute a loop: /loop <type> <objective>",
     handler: async (args, ctx) => {
@@ -1388,6 +1514,45 @@ export function registerLoopCommands(
       ctx.ui.notify(`Starting ${loopType.toUpperCase()} loop...`, "info");
       // The actual execution happens via the loop_execute tool
       ctx.ui.setEditorText(buildLoopExecuteInvocation(loopType, objective));
+    },
+  });
+
+  pi.registerCommand("transcendent-iteration", {
+    description: "Dispatch Transcendent Iteration v4 through the governed orchestrator binding",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+
+      const objectiveResult = resolveTranscendentIterationObjective(
+        args || "",
+        ctx.sessionManager.getBranch() as SessionTextEntry[],
+      );
+      if (!objectiveResult.ok) {
+        ctx.ui.notify(
+          `${objectiveResult.reason} Usage: /transcendent-iteration <objective>`,
+          "warning",
+        );
+        return;
+      }
+      const { objective } = objectiveResult;
+
+      const missingTools = activateRequiredTools(pi, ["vault_execute_template", "loop_execute"]);
+      if (missingTools.length > 0) {
+        ctx.ui.notify(
+          `Cannot dispatch transcendent-iteration; required tool(s) are not registered: ${missingTools.join(", ")}`,
+          "error",
+        );
+        return;
+      }
+
+      ctx.ui.notify(
+        objectiveResult.inferred
+          ? "Dispatching Transcendent Iteration v4 on the previous assistant output..."
+          : "Dispatching Transcendent Iteration v4 through vault_execute_template...",
+        "info",
+      );
+      await pi.sendUserMessage(
+        buildVaultExecuteTemplateInvocation("transcendent-iteration", objective),
+      );
     },
   });
 

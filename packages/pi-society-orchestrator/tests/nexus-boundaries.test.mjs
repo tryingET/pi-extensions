@@ -4,7 +4,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { buildLoopExecuteInvocation } from "../src/loops/engine.ts";
+import {
+  buildLoopExecuteInvocation,
+  parseTranscendentIterationPreviewInput,
+  resolveTranscendentIterationObjective,
+} from "../src/loops/engine.ts";
 import {
   buildSqlContainsExpression,
   execFileText,
@@ -188,4 +192,48 @@ test("buildLoopExecuteInvocation JSON-escapes loop objectives for editor inserti
     buildLoopExecuteInvocation("strategic", objective),
     `loop_execute({ loop: ${JSON.stringify("strategic")}, objective: ${JSON.stringify(objective)} })`,
   );
+});
+
+test("resolveTranscendentIterationObjective uses explicit objectives unchanged", () => {
+  const result = resolveTranscendentIterationObjective("rebuild this boundary", []);
+  assert.equal(result.ok, true);
+  assert.equal(result.objective, "rebuild this boundary");
+  assert.equal(result.inferred, false);
+});
+
+test("resolveTranscendentIterationObjective treats empty and above-like args as previous assistant output", () => {
+  const entries = [
+    { type: "message", message: { role: "user", content: [{ type: "text", text: "question" }] } },
+    {
+      type: "message",
+      message: { role: "assistant", content: [{ type: "text", text: "answer to improve" }] },
+    },
+  ];
+
+  for (const args of ["", "above", "the above", "that", "last output"]) {
+    const result = resolveTranscendentIterationObjective(args, entries);
+    assert.equal(result.ok, true);
+    assert.equal(result.inferred, true);
+    assert.match(result.objective, /immediately preceding assistant output/);
+    assert.match(result.objective, /answer to improve/);
+  }
+});
+
+test("resolveTranscendentIterationObjective fails clearly when no assistant output exists", () => {
+  const result = resolveTranscendentIterationObjective("the above", [
+    { type: "message", message: { role: "user", content: "only user" } },
+  ]);
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /No previous assistant output/);
+});
+
+test("parseTranscendentIterationPreviewInput recognizes compact preview syntax", () => {
+  assert.equal(parseTranscendentIterationPreviewInput("$$/transcendent-iteration"), "");
+  assert.equal(parseTranscendentIterationPreviewInput("$$/transcendent-iteration above"), "above");
+  assert.equal(
+    parseTranscendentIterationPreviewInput("$$/transcendent-iteration improve the answer"),
+    "improve the answer",
+  );
+  assert.equal(parseTranscendentIterationPreviewInput("$$ /transcendent-iteration"), null);
+  assert.equal(parseTranscendentIterationPreviewInput("/transcendent-iteration"), null);
 });
