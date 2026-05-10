@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3bbee8f00fd0217c4ebb292c5c622b9ee94abd2f"
+created_at: "2026-05-10T03:30:22Z"
+intent: "Complete candidate-worktree execution safety by failing closed when supplied worktree is missing."
+files:
+  - "packages/pi-autoresearch/src/core/runtime.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+validation:
+  fast_gate:
+    command: "node --experimental-strip-types /tmp/dogfood-nexus-candidate-semantics.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autoresearch run check && npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+links:
+  task_ids:
+    - 2674
