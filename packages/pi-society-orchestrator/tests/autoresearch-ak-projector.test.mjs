@@ -502,7 +502,10 @@ test("projectAutoresearchAkMilestone records one durable row and deduplicates un
     [
       "SELECT id, task_id, check_type, result,",
       "json_extract(details, '$.projection_key') AS projection_key,",
-      "json_extract(details, '$.summary') AS summary",
+      "json_extract(details, '$.summary') AS summary,",
+      "json_extract(details, '$.task_anchor.id') AS task_anchor_id,",
+      "json_extract(details, '$.task_anchor.repo') AS task_anchor_repo,",
+      "json_extract(details, '$.task_anchor.entity_version') AS task_anchor_entity_version",
       "FROM evidence ORDER BY id",
     ].join(" "),
   );
@@ -512,6 +515,20 @@ test("projectAutoresearchAkMilestone records one durable row and deduplicates un
   assert.equal(rowsAfterFirst[0].result, "pass");
   assert.match(rowsAfterFirst[0].summary, /awaiting next bounded decision/);
   assert.equal(rowsAfterFirst[0].projection_key, first.candidate.payload.details.projection_key);
+  assert.equal(rowsAfterFirst[0].task_anchor_id, taskId);
+  assert.equal(rowsAfterFirst[0].task_anchor_repo, repoRoot);
+  assert.equal(rowsAfterFirst[0].task_anchor_entity_version, 7);
+
+  const expectedRecordedDetails = {
+    ...first.candidate.payload.details,
+    task_anchor: {
+      id: taskId,
+      repo: repoRoot,
+      title: "Autoresearch projection anchor",
+      status: "claimed",
+      entity_version: 7,
+    },
+  };
 
   const second = await projectAutoresearchAkMilestone({
     taskId,
@@ -530,7 +547,75 @@ test("projectAutoresearchAkMilestone records one durable row and deduplicates un
   assert.deepEqual(rowsAfterSecond, [{ id: 1 }]);
   assert.deepEqual(akCalls, [
     `task show ${taskId} -F json`,
-    `evidence record --check-type autoresearch:milestone:decision-required --result pass --task 4201 --details ${JSON.stringify(first.candidate.payload.details)}`,
+    `evidence record --check-type autoresearch:milestone:decision-required --result pass --task 4201 --details ${JSON.stringify(expectedRecordedDetails)}`,
     `task show ${taskId} -F json`,
   ]);
+});
+
+test("projectAutoresearchAkMilestone deduplicates by projection key across later evidence rows", async () => {
+  const { repoRoot, runtime, ledger } = createAwaitingDecisionCampaign();
+  const dbPath = createSqliteDb(repoRoot);
+  const taskId = 4202;
+  const akCalls = [];
+
+  const runAk = async (params) => {
+    akCalls.push(params.args.join(" "));
+    if (params.args[0] === "task" && params.args[1] === "show") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({ id: taskId, repo: repoRoot, status: "claimed" }),
+        stderr: "",
+      };
+    }
+
+    if (params.args[0] === "evidence" && params.args[1] === "record") {
+      insertEvidenceRow(dbPath, {
+        taskId: Number(params.args[params.args.indexOf("--task") + 1]),
+        checkType: params.args[params.args.indexOf("--check-type") + 1],
+        result: params.args[params.args.indexOf("--result") + 1],
+        details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
+      });
+      return { ok: true, stdout: "ak-ok", stderr: "" };
+    }
+
+    throw new Error(`Unexpected ak args: ${params.args.join(" ")}`);
+  };
+
+  const first = await projectAutoresearchAkMilestone({
+    taskId,
+    akPath: "/tmp/fake-ak",
+    societyDb: dbPath,
+    runtime,
+    ledger,
+    runAk,
+  });
+
+  assert.equal(first.action, "recorded");
+
+  insertEvidenceRow(dbPath, {
+    taskId,
+    checkType: first.candidate.payload.checkType,
+    result: "pass",
+    details: {
+      ...first.candidate.payload.details,
+      projection_key: `${first.candidate.payload.details.projection_key}:later`,
+    },
+  });
+
+  const second = await projectAutoresearchAkMilestone({
+    taskId,
+    akPath: "/tmp/fake-ak",
+    societyDb: dbPath,
+    runtime,
+    ledger,
+    runAk,
+  });
+
+  assert.equal(second.ok, true);
+  assert.equal(second.action, "already-projected");
+  assert.equal(second.existingEvidenceId, 1);
+
+  const rows = queryRows(dbPath, "SELECT id FROM evidence ORDER BY id");
+  assert.deepEqual(rows, [{ id: 1 }, { id: 2 }]);
+  assert.equal(akCalls.filter((args) => args.startsWith("evidence record")).length, 1);
 });

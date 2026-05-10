@@ -149,9 +149,11 @@ These slices are still plan/review choreography: they do not launch peers, run b
 
 The existing `/autoresearch export` and `/autoresearch review` surfaces are good lower-plane affordances. Candidate-wave and matrix review reports now make the handoff explicit: dashboard first for situational awareness (`/autoresearch export`, with `/autoresearch overlay` fallback), candidate decision workbench only for final plan-only lifecycle decisions (`/autoresearch review`).
 
-### Bet 4 — Evidence projection hardening
+### Bet 4 — Evidence projection hardening — first slice landed
 
 Keep evidence projection boring: exact anchors, dedupe, fail-closed verification, and no expansion into runtime ownership.
+
+The first hardening slice records the exact AK task anchor in projected autoresearch milestone evidence and dedupes by `projection_key` across all matching task/check rows, not only the latest row. This prevents stale or replayed milestone states from writing duplicate evidence after later milestone rows have appeared, while preserving the existing fail-closed task/repo boundary check. The dogfood contract is `scripts/dogfood-evidence-projection-hardening-contract.mjs` with expected metric `unresolved_evidence_projection_hardening_blockers=0`.
 
 ## Ownership map
 

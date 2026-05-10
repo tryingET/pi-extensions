@@ -59,6 +59,13 @@ export interface AutoresearchAkMilestoneEvidenceDetails extends Record<string, u
   receipts: {
     path: string;
   };
+  task_anchor?: {
+    id: number;
+    repo: string;
+    title?: string;
+    status?: string;
+    entity_version?: number;
+  };
   summary: string;
 }
 
@@ -116,7 +123,7 @@ export interface AutoresearchAkProjectorResult {
   error?: string;
 }
 
-interface LatestProjectionRow {
+interface ProjectionRow {
   id?: number;
   projection_key?: string | null;
 }
@@ -286,36 +293,38 @@ export async function projectAutoresearchAkMilestone(
     };
   }
 
-  const latestProjection = await readLatestProjection(params, {
+  const existingProjection = await readExistingProjectionByKey(params, {
     taskId: params.taskId,
     checkType: payload.checkType,
+    projectionKey: payload.details.projection_key,
   });
-  if (isBoundaryFailure(latestProjection)) {
+  if (isBoundaryFailure(existingProjection)) {
     return {
       ok: false,
       action: "blocked",
       candidate,
       task: task.value,
-      error: latestProjection.error,
+      error: existingProjection.error,
     };
   }
 
-  if (latestProjection.value?.projection_key === payload.details.projection_key) {
+  if (existingProjection.value?.projection_key === payload.details.projection_key) {
     return {
       ok: true,
       action: "already-projected",
       candidate,
       task: task.value,
-      existingEvidenceId: latestProjection.value.id,
+      existingEvidenceId: existingProjection.value.id,
     };
   }
 
+  const anchoredPayload = attachTaskAnchorToPayload(payload, task.value);
   const evidence = await recordEvidence(
     {
       task_id: params.taskId,
-      check_type: payload.checkType,
-      result: payload.result,
-      details: payload.details,
+      check_type: anchoredPayload.checkType,
+      result: anchoredPayload.result,
+      details: anchoredPayload.details,
     },
     params.signal,
     {
@@ -426,17 +435,19 @@ function parseTaskAnchor(
   };
 }
 
-async function readLatestProjection(
+async function readExistingProjectionByKey(
   params: Pick<AutoresearchAkProjectorParams, "societyDb" | "querySqliteJson" | "signal">,
-  input: { taskId: number; checkType: string },
-): Promise<BoundaryResult<LatestProjectionRow | null>> {
+  input: { taskId: number; checkType: string; projectionKey: string },
+): Promise<BoundaryResult<ProjectionRow | null>> {
   const querySqliteJson = params.querySqliteJson || querySqliteJsonAsync;
-  const rows = await querySqliteJson<LatestProjectionRow>(
+  const rows = await querySqliteJson<ProjectionRow>(
     params.societyDb,
     [
       "SELECT id, json_extract(details, '$.projection_key') AS projection_key",
       "FROM evidence",
-      `WHERE task_id = ${input.taskId} AND check_type = '${escapeSqlLiteral(input.checkType)}'`,
+      `WHERE task_id = ${input.taskId}`,
+      `AND check_type = '${escapeSqlLiteral(input.checkType)}'`,
+      `AND json_extract(details, '$.projection_key') = '${escapeSqlLiteral(input.projectionKey)}'`,
       "ORDER BY id DESC",
       "LIMIT 1",
     ].join(" "),
@@ -450,6 +461,25 @@ async function readLatestProjection(
   return {
     ok: true,
     value: rows.value[0] ?? null,
+  };
+}
+
+function attachTaskAnchorToPayload(
+  payload: AutoresearchAkMilestonePayload,
+  task: AutoresearchAkTaskAnchor,
+): AutoresearchAkMilestonePayload {
+  return {
+    ...payload,
+    details: {
+      ...payload.details,
+      task_anchor: {
+        id: task.id,
+        repo: task.repo,
+        ...(task.title ? { title: task.title } : {}),
+        ...(task.status ? { status: task.status } : {}),
+        ...(typeof task.entityVersion === "number" ? { entity_version: task.entityVersion } : {}),
+      },
+    },
   };
 }
 
