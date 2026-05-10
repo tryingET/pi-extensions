@@ -1,0 +1,27 @@
+AK task: #2829 Restore governed autoresearch auto-continuation loop
+
+Promoted from candidate worktree:
+- branch: candidate/governed-autoresearch-auto-continuation-2
+- worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/governed-autoresearch-auto-continuation-2
+- candidate peer: candidatepeer-mp048cl4-aa66d95c
+
+Compared follow-up policy candidate before final promotion:
+- branch: candidate/governed-autoresearch-auto-continuation-policy
+- worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/governed-autoresearch-auto-continuation-policy
+- candidate peer: candidatepeer-mp04m7gc-33ef99ad
+- accepted the explicit-budget guard idea; kept the first candidate's agent_end + pi.sendUserMessage(..., { deliverAs: "followUp" }) design because it matched the governed same-session follow-up contract and preserved the PI_AUTORESEARCH_AUTO_CONTINUE environment opt-in.
+
+Controller adjustments:
+- added a fail-closed guard requiring campaignGoalAutoContinue to include an explicit package-local campaign-goal budget.
+- extended focused test and dogfood contract to prove no-budget auto-continuation is rejected.
+
+Validation:
+- node --import tsx --test tests/auto-continuation.test.ts: PASS (8/8)
+- node --import tsx scripts/dogfood-auto-continuation-contract.mjs: PASS, METRIC unresolved_auto_continuation_blockers=0
+- npm --prefix packages/pi-autoresearch run check: PASS (213/213, release-check quick dry-run PASS)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch --strict: PASS
+- git diff --cached --check: PASS
+
+Boundaries:
+- no daemon, hidden background scheduler, automatic peer spawning, AK/KES/Oracle mutation, ASC rewind, or candidate promotion authority added.
+- unrelated dirty orchestrator and workstation-inference paths were not staged.
