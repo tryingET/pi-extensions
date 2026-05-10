@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "135c6f823108a971e0f94f7afef6121a5013226b"
+created_at: "2026-05-10T07:51:36Z"
+intent: "Add integrated supervised-campaign UX blocker-count dogfood benchmark for meaningful autoresearch product campaigns"
+files:
+  - "packages/pi-autoresearch/scripts/dogfood-integrated-campaign-ux-contract.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Benchmark script only; emits unresolved_integrated_campaign_ux_blockers for candidate-wave campaigns"
+links:
+  task_ids:
+    - 2749
+  evidence_ids:
+    - 1644
