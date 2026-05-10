@@ -103,6 +103,23 @@ Protected host surfaces:
 - `tool_result` correlation
 - parallel tool execution
 
+### `orchestrator-autoresearch-matrix-closeout`
+Anchors the highest-stack supervised campaign path currently proven inside `pi-society-orchestrator`: matrix campaign planning, managed candidate-wave packet review, dashboard-first owner routing, and the matrix closeout evidence handoff.
+
+Current command:
+
+```bash
+cd packages/pi-society-orchestrator
+node --test --test-name-pattern "plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares" tests/autoresearch-live-control-plane.test.mjs
+```
+
+Protected host surfaces:
+- TypeBox tool schema compatibility
+- registered tool execution result details
+- extension report rendering for nested owner-route payloads
+
+This scenario intentionally does not run benchmarks, launch peers, merge candidates, or write AK/KES evidence. It protects the operator-visible choreography surface that tells the user which lower owner seam to use next.
+
 ## How to run
 
 ### Default CI path

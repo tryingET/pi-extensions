@@ -104,6 +104,33 @@
         "run",
         "test:compat:parallel-tool-events"
       ]
+    },
+    {
+      "id": "orchestrator-autoresearch-matrix-closeout",
+      "title": "orchestrator autoresearch matrix closeout contract",
+      "owner": "monorepo-root",
+      "why": "Protect the highest-stack supervised campaign path where pi-society-orchestrator registers TypeBox-backed tools and reports matrix/candidate-wave closeout handoffs over pi-autoresearch packet seams.",
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
+      "packages": [
+        "packages/pi-society-orchestrator"
+      ],
+      "upstreamSurfaces": [
+        "TypeBox tool schema compatibility",
+        "registered tool execution result details",
+        "extension report rendering for nested owner-route payloads"
+      ],
+      "cwd": "packages/pi-society-orchestrator",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern",
+        "plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares",
+        "tests/autoresearch-live-control-plane.test.mjs"
+      ],
+      "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers."
     }
   ]
 }
