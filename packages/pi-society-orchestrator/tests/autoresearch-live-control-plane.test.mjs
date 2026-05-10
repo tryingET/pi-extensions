@@ -527,6 +527,29 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
   assert.match(result.content[0].text, /explicit_owner_decision_required|Owner selection/);
 });
 
+test("autoresearch_live_supervision plan_candidate_wave rejects packet directories outside autoresearch", async () => {
+  const cwd = "/tmp/candidate-wave-bad-packet-dir";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+
+  const result = await tool.execute(
+    "tc-plan-candidate-wave-bad-packet-dir",
+    {
+      action: "plan_candidate_wave",
+      taskId: 2722,
+      cwd,
+      objective: "reject packet path escape",
+      candidatePacketDirectory: "../outside",
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(result.details.ok, false);
+  assert.match(result.details.error, /candidatePacketDirectory must stay under \.autoresearch/);
+});
+
 test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the implementation-wave substrate", async () => {
   const cwd = "/tmp/matrix-campaign";
   const runner = new AutoresearchLiveSupervisionRunner();
