@@ -12,6 +12,9 @@ import {
 } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
+type InputKind = "text" | "image";
+type NotifyLevel = "info" | "warning" | "error";
+
 type ThinkingLevelMap = {
   minimal?: string | null;
   low?: string | null;
@@ -30,7 +33,7 @@ type ContractModel = {
   reasoning?: boolean;
   thinking_level_map?: ThinkingLevelMap;
   thinking_format?: "qwen" | "qwen-chat-template";
-  input?: string[];
+  input?: InputKind[];
 };
 
 type WorkstationInferenceContract = {
@@ -56,7 +59,7 @@ type LoadedContract = {
   source: string;
 };
 
-type Status = "ok" | "missing" | "invalid" | "stale" | "unhealthy";
+type Status = "ok" | "missing" | "invalid" | "unhealthy";
 
 type ContractStatus = {
   status: Status;
@@ -97,11 +100,11 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function stringListValue(value: unknown): string[] | undefined {
+function inputListValue(value: unknown): InputKind[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const items = value
     .map((item) => stringValue(item))
-    .filter((item): item is string => Boolean(item));
+    .filter((item): item is InputKind => item === "text" || item === "image");
   return items.length > 0 ? items : undefined;
 }
 
@@ -119,10 +122,15 @@ function parseModel(value: unknown, index: number): ContractModel {
   if (!isRecord(value)) throw new Error(`models[${index}] must be an object`);
   const id = stringValue(value.id) ?? stringValue(value.pi_model_id);
   if (!id) throw new Error(`models[${index}] needs id or pi_model_id`);
-  const thinkingFormat = stringValue(value.thinking_format);
-  if (thinkingFormat && thinkingFormat !== "qwen" && thinkingFormat !== "qwen-chat-template") {
+  const rawThinkingFormat = stringValue(value.thinking_format);
+  if (
+    rawThinkingFormat &&
+    rawThinkingFormat !== "qwen" &&
+    rawThinkingFormat !== "qwen-chat-template"
+  ) {
     throw new Error(`models[${index}].thinking_format must be qwen or qwen-chat-template`);
   }
+  const thinkingFormat = rawThinkingFormat as ContractModel["thinking_format"];
   return {
     id,
     pi_model_id: id,
@@ -133,7 +141,7 @@ function parseModel(value: unknown, index: number): ContractModel {
     reasoning: typeof value.reasoning === "boolean" ? value.reasoning : undefined,
     thinking_level_map: parseThinkingLevelMap(value.thinking_level_map),
     thinking_format: thinkingFormat,
-    input: stringListValue(value.input),
+    input: inputListValue(value.input),
   };
 }
 
@@ -214,7 +222,7 @@ async function checkHealth(contract: WorkstationInferenceContract): Promise<stri
 }
 
 export async function resolveContractStatus(
-  options: { checkHealth?: boolean; failOnStale?: boolean } = {},
+  options: { checkHealth?: boolean } = {},
 ): Promise<ContractStatus> {
   let loaded: LoadedContract;
   try {
@@ -229,15 +237,6 @@ export async function resolveContractStatus(
   }
 
   const stale = staleDetail(loaded.contract);
-  if (stale && options.failOnStale) {
-    return {
-      status: "stale",
-      source: loaded.source,
-      summary: "workstation inference contract is stale",
-      detail: stale,
-      contract: loaded.contract,
-    };
-  }
 
   if (options.checkHealth) {
     const unhealthy = await checkHealth(loaded.contract);
@@ -283,9 +282,9 @@ export function providerModel(model: ContractModel) {
 }
 
 function notifyOrLog(
-  ctx: { hasUI?: boolean; ui?: { notify: (message: string, level: string) => void } },
+  ctx: { hasUI?: boolean; ui?: { notify: (message: string, level?: NotifyLevel) => void } },
   message: string,
-  level = "info",
+  level: NotifyLevel = "info",
 ) {
   if (ctx.hasUI && ctx.ui) ctx.ui.notify(message, level);
   else console.log(message);
@@ -293,8 +292,8 @@ function notifyOrLog(
 
 function contractApiKey(contract: WorkstationInferenceContract): string {
   return (
-    contract.api_key ??
-    (contract.api_key_env ? process.env[contract.api_key_env] : undefined) ??
+    stringValue(contract.api_key) ??
+    (contract.api_key_env ? stringValue(process.env[contract.api_key_env]) : undefined) ??
     DEFAULT_API_KEY
   );
 }
@@ -386,9 +385,24 @@ function statusText(status: ContractStatus): string {
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
+function registerContractProvider(
+  pi: ExtensionAPI,
+  contract: WorkstationInferenceContract,
+): string {
+  const providerId = contract.provider_id ?? DEFAULT_PROVIDER_ID;
+  pi.registerProvider(providerId, {
+    name: contract.provider_name ?? DEFAULT_PROVIDER_NAME,
+    baseUrl: normalizeBaseUrl(contract.base_url),
+    apiKey: contractApiKey(contract),
+    api: "openai-completions",
+    models: contract.models.map(providerModel),
+    streamSimple: streamWorkstationInference,
+  });
+  return providerId;
+}
+
 export default async function (pi: ExtensionAPI) {
   const initial = await resolveContractStatus({ checkHealth: false });
-  const providerId = initial.contract?.provider_id ?? DEFAULT_PROVIDER_ID;
 
   pi.registerCommand("workstation-inference", {
     description: "Show read-only workstation inference provider status",
@@ -419,18 +433,11 @@ export default async function (pi: ExtensionAPI) {
         notifyOrLog(ctx, `unknown action: ${action}; try /workstation-inference help`, "warning");
         return;
       }
-      notifyOrLog(ctx, statusText(await resolveContractStatus({ checkHealth: true })));
+      const status = await resolveContractStatus({ checkHealth: true });
+      if (status.status === "ok" && status.contract) registerContractProvider(pi, status.contract);
+      notifyOrLog(ctx, statusText(status));
     },
   });
 
-  if (initial.status !== "ok" || !initial.contract) return;
-
-  pi.registerProvider(providerId, {
-    name: initial.contract.provider_name ?? DEFAULT_PROVIDER_NAME,
-    baseUrl: normalizeBaseUrl(initial.contract.base_url),
-    apiKey: contractApiKey(initial.contract),
-    api: "openai-completions",
-    models: initial.contract.models.map(providerModel),
-    streamSimple: streamWorkstationInference,
-  });
+  if (initial.status === "ok" && initial.contract) registerContractProvider(pi, initial.contract);
 }

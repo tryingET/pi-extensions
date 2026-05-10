@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
+import extension, {
   providerModel,
   resolveContractStatus,
   streamWorkstationInference,
@@ -66,6 +66,51 @@ test("providerModel strips thinking controls from visible non-reasoning aliases"
   assert.equal(model.reasoning, false);
   assert.equal(model.thinkingLevelMap, undefined);
   assert.equal(model.compat, undefined);
+});
+
+test("status command registers provider after contract appears post-load", async () => {
+  const oldPath = process.env[CONTRACT_ENV];
+  const oldJson = process.env[CONTRACT_JSON_ENV];
+  const oldFetch = globalThis.fetch;
+  const oldEmptyKey = process.env.EMPTY_WORKSTATION_TEST_KEY;
+  const commands = new Map();
+  const providers = [];
+  process.env[CONTRACT_ENV] = "/tmp/workstation-inference-provider-test-missing.json";
+  delete process.env[CONTRACT_JSON_ENV];
+  globalThis.fetch = async () => ({ ok: true, status: 200 });
+  try {
+    await extension({
+      registerCommand(name, command) {
+        commands.set(name, command);
+      },
+      registerProvider(name, config) {
+        providers.push({ name, config });
+      },
+    });
+    assert.equal(providers.length, 0);
+    process.env.EMPTY_WORKSTATION_TEST_KEY = "";
+    process.env[CONTRACT_JSON_ENV] = JSON.stringify(
+      contract({
+        generated_at: new Date().toISOString(),
+        api_key_env: "EMPTY_WORKSTATION_TEST_KEY",
+      }),
+    );
+    await commands.get("workstation-inference").handler("status", {
+      hasUI: true,
+      ui: { notify() {} },
+    });
+    assert.equal(providers.length, 1);
+    assert.equal(providers[0].name, "workstation-inference");
+    assert.equal(providers[0].config.apiKey, "workstation-local");
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldPath === undefined) delete process.env[CONTRACT_ENV];
+    else process.env[CONTRACT_ENV] = oldPath;
+    if (oldJson === undefined) delete process.env[CONTRACT_JSON_ENV];
+    else process.env[CONTRACT_JSON_ENV] = oldJson;
+    if (oldEmptyKey === undefined) delete process.env.EMPTY_WORKSTATION_TEST_KEY;
+    else process.env.EMPTY_WORKSTATION_TEST_KEY = oldEmptyKey;
+  }
 });
 
 test("streamWorkstationInference returns an error event when health is bad", async () => {
