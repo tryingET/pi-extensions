@@ -28,7 +28,7 @@ inversion-fix:
         $INPUT
 
 transcendent-iteration:
-  description: "DIAGNOSE → 100x → 100x → DISSOLVE → REBUILD → NAME DEBT"
+  description: "DIAGNOSE → 100x → 100x → DEBT TARGETING → DISSOLVE → REBUILD → ALIEN PASS → CLOSURE GATE"
   steps:
     - agent: scout
       prompt: |
@@ -63,10 +63,38 @@ transcendent-iteration:
 
     - agent: reviewer
       prompt: |
-        NAME RESIDUAL DEBT:
-        - What's still imperfect?
-        - Why isn't it fixed?
-        - What would be needed?
+        DEBT TARGETING:
+        - Classify remaining debt as blocking, accepted/deferred, or new opportunity.
+        - Blocking in-scope debt must become dissolve/rebuild input, not a terminal note.
+        - Accepted/deferred debt needs reason, owner/surface, and reopen trigger.
+        
+        $INPUT
+
+    - agent: researcher
+      prompt: |
+        DISSOLVE the assumptions, inherited constraints, scaffolding, or structures causing the targeted blocking debt.
+        
+        $INPUT
+
+    - agent: builder
+      prompt: |
+        REBUILD from first principles without reintroducing targeted debt.
+        Show evidence that the targeted debt is gone rather than merely renamed.
+        
+        $INPUT
+
+    - agent: builder
+      prompt: |
+        ALIEN PASS: make the rebuilt result feel alien because the old problem no longer appears as a problem.
+        Optimize outcome leverage and directness, not aesthetic novelty.
+        
+        $INPUT
+
+    - agent: researcher
+      prompt: |
+        CLOSURE GATE:
+        Close only if no blocking in-scope debt remains.
+        Otherwise emit the next-loop ceiling or stop incomplete when continuation is not authorized.
         
         $INPUT
 

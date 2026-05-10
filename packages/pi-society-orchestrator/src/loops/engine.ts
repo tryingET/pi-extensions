@@ -250,10 +250,11 @@ export const TRANSCENDENT_PLUGIN: LoopPlugin = {
     "debt-targeting",
     "dissolve",
     "rebuild",
+    "alien-pass",
     "closure-gate",
   ],
   description:
-    "Transcendent Iteration v3 — Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Closure Gate",
+    "Transcendent Iteration v4 — Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Alien Pass → Closure Gate",
   continueOnFailure: false,
   cognitiveTools: {
     diagnose: ["first-principles", "constraint-inventory", "inversion"],
@@ -262,6 +263,7 @@ export const TRANSCENDENT_PLUGIN: LoopPlugin = {
     "debt-targeting": ["audit", "constraint-inventory", "inversion"],
     dissolve: ["first-principles", "scaffold"],
     rebuild: ["first-principles", "scaffold", "recursion-engine"],
+    "alien-pass": ["elevate", "telescopic", "nexus"],
     "closure-gate": ["knowledge-crystallization", "audit", "elevate"],
   },
   agents: {
@@ -271,6 +273,7 @@ export const TRANSCENDENT_PLUGIN: LoopPlugin = {
     "debt-targeting": "reviewer",
     dissolve: "researcher",
     rebuild: "builder",
+    "alien-pass": "builder",
     "closure-gate": "researcher",
   },
 };
@@ -692,6 +695,8 @@ Focus on what this phase requires. Use the cognitive tools available to you.
         "Dissolve the assumptions, inherited constraints, scaffolding, or structures causing the targeted blocking debt.",
       rebuild:
         "Rebuild from first principles without reintroducing targeted debt. Show evidence that the targeted debt is gone rather than merely renamed.",
+      "alien-pass":
+        "Make the rebuilt result feel alien because the old problem no longer appears as a problem. Optimize outcome leverage and directness, not aesthetic novelty.",
       "closure-gate":
         "Apply the Definition of Done. Close only if no blocking in-scope debt remains; otherwise emit the next-loop ceiling or stop incomplete when continuation is not authorized.",
     };
@@ -1106,7 +1111,7 @@ Available loops:
 - strategic: Mission → Intelligence → Tooling → Operations (strategic execution; renamed from the old 'mito' label to avoid collision with Prof. Binner's MITO)
 - kaizen: Plan → Do → Check → Act (continuous improvement)
 - adkar: Awareness → Desire → Knowledge → Ability → Reinforcement (change management)
-- transcendent: Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Closure Gate (debt-resolving 100x improvement)
+- transcendent: Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Alien Pass → Closure Gate (debt-resolving 100x improvement)
 
 Each phase injects the appropriate cognitive tool and dispatches an agent.
 Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \`docs/learnings/\` when applicable) plus the evidence ledger.`,

@@ -174,7 +174,7 @@ test("LoopKesWriter rejects unverified package roots by default", () => {
   }
 });
 
-test("Transcendent v3 targets debt before dissolve and uses closure-gate as final DoD phase", () => {
+test("Transcendent v4 targets debt before dissolve, runs alien-pass, and uses closure-gate as final DoD phase", () => {
   assert.deepEqual(TRANSCENDENT_PLUGIN.phases, [
     "diagnose",
     "first-100x",
@@ -182,17 +182,19 @@ test("Transcendent v3 targets debt before dissolve and uses closure-gate as fina
     "debt-targeting",
     "dissolve",
     "rebuild",
+    "alien-pass",
     "closure-gate",
   ]);
   assert.equal(TRANSCENDENT_PLUGIN.continueOnFailure, false);
   assert.equal(TRANSCENDENT_PLUGIN.phases.includes("name-debt"), false);
+  assert.equal(TRANSCENDENT_PLUGIN.cognitiveTools["alien-pass"]?.[0], "elevate");
   assert.equal(
     TRANSCENDENT_PLUGIN.cognitiveTools["closure-gate"]?.[0],
     "knowledge-crystallization",
   );
 });
 
-test("Transcendent v3 fail-fast stops unresolved blocking debt before dissolve/rebuild", async () => {
+test("Transcendent v4 fail-fast stops unresolved blocking debt before dissolve/rebuild", async () => {
   const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-operator-"));
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-package-"));
   let phaseIndex = 0;
@@ -236,7 +238,7 @@ test("Transcendent v3 fail-fast stops unresolved blocking debt before dissolve/r
   }
 });
 
-test("Transcendent v3 closure-gate records incomplete debt instead of pretending success", async () => {
+test("Transcendent v4 closure-gate records incomplete debt instead of pretending success", async () => {
   const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-operator-"));
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-package-"));
   let phaseIndex = 0;
@@ -245,6 +247,9 @@ test("Transcendent v3 closure-gate records incomplete debt instead of pretending
     const executor = createExecutor(TRANSCENDENT_PLUGIN, operatorCwd, packageRoot);
     const result = await executor.execute("Close only when debt is gone", async ({ context }) => {
       const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
+      if (phase === "alien-pass") {
+        assert.match(context, /old problem no longer appears as a problem/);
+      }
       if (phase === "closure-gate") {
         assert.match(context, /Close only if no blocking in-scope debt remains/);
         return {
