@@ -229,6 +229,12 @@ export interface AutoresearchMatrixCampaignCell {
 
 export interface AutoresearchMatrixCampaignOwnerReviewRoute {
   primaryUi: {
+    surface: "pi-autoresearch_html_dashboard";
+    slashCommand: "/autoresearch export";
+    fallbackSlashCommand: "/autoresearch overlay";
+    summary: string;
+  };
+  decisionUi: {
     surface: "pi-autoresearch_candidate_decision_workbench";
     slashCommand: "/autoresearch review";
     summary: string;
@@ -1377,16 +1383,24 @@ export function planAutoresearchMatrixCampaign(
     },
     ownerReview: {
       primaryUi: {
+        surface: "pi-autoresearch_html_dashboard",
+        slashCommand: "/autoresearch export",
+        fallbackSlashCommand: "/autoresearch overlay",
+        summary:
+          "Open pi-autoresearch's HTML dashboard first for run history, receipts, metrics, and candidate context; use the overlay when a browser export is not desirable.",
+      },
+      decisionUi: {
         surface: "pi-autoresearch_candidate_decision_workbench",
         slashCommand: "/autoresearch review",
         summary:
-          "Use pi-autoresearch's existing candidate decision workbench after each cell review; the matrix planner does not introduce a new primary owner UI.",
+          "Use pi-autoresearch's existing candidate decision workbench only for the final keep/discard/rewind/more-samples decision after reviewing dashboard and packet evidence.",
       },
       reviewFlow: [
         "Approve and launch only the matrix cell candidate lanes the owner/controller explicitly selects.",
         "After each visible candidate reports back, bind, measure, and export candidate-result packets through pi-autoresearch before comparing lanes.",
+        "Open /autoresearch export for the HTML dashboard with run history, receipts, metrics, and candidate context; use /autoresearch overlay as the live TUI fallback.",
         "Run the cell reviewCandidateWaveCall to build the owner-visible comparison from candidate-result packets.",
-        "Choose keep, discard, rewind, more samples, or finalize through /autoresearch review; matrix choreography is advisory and plan-only.",
+        "Use /autoresearch review only for the final keep, discard, rewind, more samples, or finalize decision; matrix choreography is advisory and plan-only.",
       ],
       cellReviewCalls: cells.map((cell) => ({
         cellId: cell.cellId,
@@ -1403,7 +1417,7 @@ export function planAutoresearchMatrixCampaign(
       "AK remains the task/direction spine; no AK/KES/evidence write, merge, promotion, peer spawn, or worktree lifecycle action is applied by this plan.",
     ],
     nextStep:
-      "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, export candidate-result packets, then run the cell reviewCandidateWaveCall and choose through /autoresearch review.",
+      "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
   };
 }
 

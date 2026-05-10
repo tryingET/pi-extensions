@@ -27,7 +27,7 @@ In scope:
 - deterministic cell ids and packet directories;
 - cell-scoped `plan_candidate_wave` calls;
 - cell-scoped `review_candidate_wave` calls;
-- `/autoresearch review` as the primary owner decision UI;
+- `/autoresearch export` as the primary run-history/metrics dashboard, `/autoresearch overlay` as the live TUI fallback, and `/autoresearch review` as the final owner decision UI;
 - clear non-mutating boundaries;
 - tests and documentation proving the contract.
 
@@ -49,7 +49,7 @@ Current package truth:
 - AK owns task, direction, decision, and evidence authority.
 - `pi-autoresearch` owns empirical measurement, runtime receipts, candidate-result packets, and candidate lifecycle planning.
 - `pi-society-orchestrator` owns above-seam choreography, review, recommendation, and owner-decision surfacing.
-- `/autoresearch review` is the primary candidate owner-decision UI; `interview(...)` is fallback.
+- `/autoresearch export` is the primary run-history/metrics dashboard, `/autoresearch overlay` is the live TUI fallback, `/autoresearch review` is the final candidate owner-decision UI, and `interview(...)` is fallback decision payload only.
 
 This RFC preserves that split.
 
@@ -91,7 +91,9 @@ The result has kind `autoresearch.matrix_campaign_plan.v1` and returns:
 - candidate-result packet paths for each candidate lane;
 - exact `plan_candidate_wave` call per cell;
 - exact `review_candidate_wave` call per cell;
-- `/autoresearch review` as the owner UI after review;
+- `/autoresearch export` as the owner dashboard before final decision review;
+- `/autoresearch overlay` as the live TUI fallback;
+- `/autoresearch review` as the final decision UI after review;
 - first exact cell call as the next implementation-wave action;
 - non-action boundaries.
 
@@ -103,7 +105,7 @@ The result has kind `autoresearch.matrix_campaign_plan.v1` and returns:
 4. Matrix packet paths stay under `.autoresearch/matrix-campaign/`.
 5. It delegates cell execution to `plan_candidate_wave`; it does not fork a separate execution system.
 6. It delegates empirical proof to `pi-autoresearch` candidate-result packets.
-7. It delegates owner decision to `/autoresearch review` as the primary UI.
+7. It delegates run-history/metrics review to `/autoresearch export` first, offers `/autoresearch overlay` as live TUI fallback, and delegates the final owner decision to `/autoresearch review`.
 8. It does not mutate AK direction, write evidence, write KES, spawn peers, run benchmarks, merge, promote, or apply worktree lifecycle actions.
 
 ## Relationship to AK strategy/design protocol

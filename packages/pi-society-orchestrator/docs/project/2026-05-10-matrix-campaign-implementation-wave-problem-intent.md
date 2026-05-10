@@ -77,10 +77,12 @@ Metrics, receipts, candidate-result packets, candidate lifecycle planning, and c
 The orchestrator may plan matrix cells, call out exact candidate-wave/review calls, and recommend owner gates.
 It must not secretly spawn peers, run benchmarks, merge, promote, mutate worktrees, write KES, or rewrite AK direction.
 
-### 4. The primary owner UI stays unified
+### 4. The owner UI path stays unified but staged
 
-Owner decision should continue through `/autoresearch review` as the primary surface.
-`interview(...)` remains portable fallback UI data only.
+Owner situational awareness should start with `/autoresearch export` for the HTML dashboard with run history, receipts, metrics, and candidate context.
+`/autoresearch overlay` remains the live TUI fallback when browser export is not desirable.
+Owner final decision should continue through `/autoresearch review` as the explicit keep/discard/rewind/more-samples surface.
+`interview(...)` remains portable fallback decision UI data only.
 
 ## Smallest truthful success state
 
@@ -90,7 +92,7 @@ The first slice is solved when the package can:
 2. require exact `taskId`, `cwd`, non-empty objective, at least one scenario, and at least one hypothesis;
 3. generate deterministic matrix cell ids and packet directories under `.autoresearch/matrix-campaign/<cell>/`;
 4. emit cell-scoped `plan_candidate_wave` and `review_candidate_wave` calls;
-5. surface `/autoresearch review` as the owner decision UI after review;
+5. surface `/autoresearch export` as the primary dashboard, `/autoresearch overlay` as the live TUI fallback, and `/autoresearch review` as the final owner decision UI;
 6. explain that the matrix is an implementation-wave substrate, not an AK/direction mutation or hidden executor;
 7. validate the implementation against an accepted ADR before treating the slice as process proof.
 

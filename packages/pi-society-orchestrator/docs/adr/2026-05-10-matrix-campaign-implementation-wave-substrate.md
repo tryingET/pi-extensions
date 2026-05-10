@@ -45,7 +45,7 @@ Each cell returns exact calls for:
 1. planning a candidate wave for that cell;
 2. exporting/using cell-scoped candidate-result packet paths through the existing candidate-wave measurement flow;
 3. reviewing the cell through `review_candidate_wave`;
-4. using `/autoresearch review` as the primary owner decision UI after review.
+4. using `/autoresearch export` as the primary run-history/metrics dashboard, `/autoresearch overlay` as the live TUI fallback, and `/autoresearch review` only as the final owner decision UI after review.
 
 ## Ownership assignment
 
@@ -54,7 +54,9 @@ Each cell returns exact calls for:
 | Strategy/work-wave/task/decision/evidence authority | AK |
 | Metrics, receipts, candidate-result packets, candidate lifecycle planning, candidate worktree measurement | `pi-autoresearch` |
 | Above-seam matrix/candidate-wave choreography and owner-decision surfacing | `pi-society-orchestrator` |
-| Primary candidate owner UI | `/autoresearch review` from `pi-autoresearch` |
+| Primary run-history/metrics UI | `/autoresearch export` from `pi-autoresearch` |
+| Live TUI fallback | `/autoresearch overlay` from `pi-autoresearch` |
+| Final candidate owner decision UI | `/autoresearch review` from `pi-autoresearch` |
 | Portable fallback owner UI payload | `interview(...)` |
 
 ## Architectural rule
@@ -77,7 +79,9 @@ It may not silently create, complete, or mutate AK tasks, direction, decisions, 
 - keep generated packet paths under `.autoresearch/matrix-campaign/<cell>/`;
 - emit exact `plan_candidate_wave` calls per cell;
 - emit exact `review_candidate_wave` calls per cell;
-- surface `/autoresearch review` as the primary owner decision UI;
+- surface `/autoresearch export` as the primary run-history/metrics UI;
+- surface `/autoresearch overlay` as the live TUI fallback;
+- surface `/autoresearch review` only as the final owner decision UI;
 - return a first exact cell call as the next implementation-wave action;
 - state non-action boundaries in the result.
 

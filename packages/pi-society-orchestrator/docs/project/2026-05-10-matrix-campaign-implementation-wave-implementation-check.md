@@ -38,7 +38,7 @@ Follow-up conformance hardening in this check:
 | Custom candidate-wave packet dir cannot escape `.autoresearch/` | Conforms after check hardening | Added test rejects `candidatePacketDirectory: "../outside"`; runtime rejects absolute/path-escape dirs. |
 | Emits exact `plan_candidate_wave` calls per cell | Conforms | Matrix cell `planCandidateWaveCall` uses `autoresearch_live_supervision({ action: "plan_candidate_wave", ... })`. |
 | Emits exact `review_candidate_wave` calls per cell | Conforms | Matrix cell `reviewCandidateWaveCall` uses `autoresearch_live_supervision({ action: "review_candidate_wave", ... })`. |
-| Uses `/autoresearch review` as primary owner UI | Conforms | Matrix cell `ownerUiCommand` and implementation substrate set `/autoresearch review`. |
+| Uses dashboard first, decision workbench last | Conforms | Matrix owner route now surfaces `/autoresearch export` as the primary run-history/metrics UI, `/autoresearch overlay` as the live TUI fallback, and keeps matrix cell `ownerUiCommand` / implementation substrate `/autoresearch review` as the final decision UI only. |
 | First exact cell call as next implementation action | Conforms | `implementationWaveSubstrate.nextExactCalls` contains the first cell's `planCandidateWaveCall`. |
 | Plan-only / no hidden execution | Conforms | Runtime planner returns data only; extension renders and returns details only. No peer spawn, benchmark, packet export, AK/KES/evidence write, merge, promotion, or worktree lifecycle action is invoked. |
 | README/current truth documents boundary | Conforms | README describes `plan_matrix_campaign` as plan-only and owner-boundary-preserving. |
@@ -57,4 +57,4 @@ node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict --r
 Status: **conforms for first-slice dogfood**.
 
 The implementation satisfies the ADR for a plan-only matrix choreography surface.
-The next process step is not broader implementation; it is dogfooding the first matrix cell through the emitted `plan_candidate_wave` / candidate-result packet / `review_candidate_wave` / `/autoresearch review` path under AK task `#2722` and AK direction `SF3 -> IW1`.
+The next process step is not broader implementation; it is dogfooding the first matrix cell through the emitted `plan_candidate_wave` / candidate-result packet / `/autoresearch export` dashboard / `review_candidate_wave` / `/autoresearch review` final-decision path under AK task `#2722` and AK direction `SF3 -> IW1`.

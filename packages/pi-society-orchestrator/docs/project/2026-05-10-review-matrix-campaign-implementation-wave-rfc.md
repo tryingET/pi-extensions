@@ -47,9 +47,11 @@ The preferred option is acceptable only if the ADR preserves the following const
 4. **Empirical owner boundary**
    - Metrics, receipts, candidate-result packets, candidate lifecycle planning, and candidate worktree measurement stay in `pi-autoresearch`.
 
-5. **Primary owner UI**
-   - Owner decision after review must point to `/autoresearch review` as the primary UI.
-   - `interview(...)` remains fallback payload only.
+5. **Owner UI route**
+   - Owner situational awareness should point first to `/autoresearch export` for the HTML run-history/metrics dashboard.
+   - `/autoresearch overlay` remains the live TUI fallback.
+   - Owner final decision after review must point to `/autoresearch review`.
+   - `interview(...)` remains fallback decision payload only.
 
 6. **Deterministic packet paths**
    - Matrix-cell packet paths must stay under `.autoresearch/matrix-campaign/<cell>/`.
@@ -73,7 +75,7 @@ Mitigation: require exact AK task id, but do not create tasks per cell. If task-
 
 ### Concern: owner UI fragments again
 
-Mitigation: matrix cells must flow through existing candidate-wave review and `/autoresearch review` instead of adding a new primary matrix decision UI.
+Mitigation: matrix cells must flow through existing pi-autoresearch dashboard/review surfaces (`/autoresearch export`, `/autoresearch overlay`, then `/autoresearch review`) instead of adding a new primary matrix decision UI.
 
 ### Concern: packet directories become arbitrary write targets
 
