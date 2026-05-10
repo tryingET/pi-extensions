@@ -1,0 +1,28 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "91e001ab5fd7abe3f15ca8c43e0f0c58dd12ed86"
+created_at: "2026-05-10T08:08:22Z"
+intent: "Prevent premature candidate-wave owner selection when explicit planned lanes are still missing controller-measured pi-autoresearch candidate-result packets"
+files:
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  targeted:
+    command: "node --test --test-name-pattern review_candidate_wave packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+    status: "pass"
+  package_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Above-seam choreography fix: explicit planned packet paths now gate final selection until all lanes are measured/exported or owner-replanned"
+links:
+  task_ids:
+    - 2749
+  decision_ids:
+    - 37
+  evidence_ids:
+    - 1661
