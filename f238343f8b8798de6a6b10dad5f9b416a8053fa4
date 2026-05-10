@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "f238343f8b8798de6a6b10dad5f9b416a8053fa4"
-created_at: "2026-05-10T06:16:37Z"
+created_at: "2026-05-10T06:18:21Z"
 intent: "Fix matrix owner review route to surface /autoresearch export HTML dashboard as primary UI before /autoresearch review decision workbench"
 files:
   - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
@@ -21,7 +21,7 @@ validation:
     status: "pass"
   full_gate:
     command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 2
