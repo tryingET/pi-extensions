@@ -101,6 +101,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - is the read-only / plan-only candidate lifecycle decision workbench
   - supports `action: "status" | "plan_keep" | "plan_discard" | "plan_rewind"`
   - consumes current runtime status, segment closeout, and candidate-result evidence to summarize candidate source, worktree, branch/ref/base, changed files, and diff summary when bound
+  - when `autoresearch_runtime_run` receives a real existing `candidateWorktree`, benchmark and checks commands execute from that candidate worktree while receipts remain in the controller cwd
   - reports empirical posture, promotion readiness, confidence/noise interpretation, checks status, and baseline-drift risk before suggesting a lifecycle decision
   - recommends keep, discard, rewind, rebaseline, collect more samples, finalize, or no candidate bound yet
   - returns exact next tool calls and plan-only git commands such as `git -C <worktree> reset --hard <baseRef>` without applying them

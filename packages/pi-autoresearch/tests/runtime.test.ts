@@ -4639,6 +4639,76 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
   });
 });
 
+test("autoresearch_runtime_run executes benchmark and checks from existing candidate worktree", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(tool);
+
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "candidate-worktree-execution",
+        metricName: "score",
+        metricUnit: "points",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+        checksCommand: "bash autoresearch.checks.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "historical baseline",
+        timestamp: 2,
+      }),
+    );
+
+    writeExecutable(cwd, "autoresearch.sh", "#!/usr/bin/env bash\necho 'METRIC score=999'\n");
+    writeExecutable(cwd, "autoresearch.checks.sh", "#!/usr/bin/env bash\nexit 1\n");
+    const candidateWorktree = path.join(cwd, "candidate-worktree");
+    mkdirSync(candidateWorktree, { recursive: true });
+    writeExecutable(
+      candidateWorktree,
+      "autoresearch.sh",
+      "#!/usr/bin/env bash\necho 'METRIC score=50'\n",
+    );
+    writeExecutable(candidateWorktree, "autoresearch.checks.sh", "#!/usr/bin/env bash\nexit 0\n");
+
+    const result = await tool?.execute(
+      "call-candidate-worktree-execution",
+      {
+        cwd,
+        description: "candidate worktree execution",
+        hypothesisId: "candidate-01",
+        hypothesis: "candidate worktree lowers score",
+        candidateSource: "candidate_peer_spawn",
+        candidateWorktree,
+        candidateBranch: "candidate/worktree-execution",
+        candidateBaseRef: "HEAD",
+        candidateDiffSummary: "candidate score change",
+        candidateFilesChanged: ["score.txt"],
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+
+    const details = result?.details as {
+      primaryMetric: number;
+      checks: { exitCode: number | null } | null;
+      runReceipt: { status: string; metric: number };
+    };
+    assert.equal(details.primaryMetric, 50);
+    assert.equal(details.checks?.exitCode, 0);
+    assert.equal(details.runReceipt.status, "candidate");
+    assert.equal(details.runReceipt.metric, 50);
+  });
+});
+
 test("autoresearch_runtime_run maps a governed finalize_candidate into machine state", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness({

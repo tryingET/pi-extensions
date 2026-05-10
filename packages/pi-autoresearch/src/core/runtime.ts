@@ -6107,6 +6107,14 @@ export async function executeAutoresearchRun(
   }
 
   const checksCommand = resolveChecksCommand(input.checksCommand, config.checksCommand, paths);
+  const candidateExecutionCwd = stringOrNull(input.experiment?.candidate?.worktreePath);
+  const resolvedCandidateExecutionCwd = candidateExecutionCwd
+    ? path.resolve(cwd, candidateExecutionCwd)
+    : null;
+  const commandCwd =
+    resolvedCandidateExecutionCwd && existsSync(resolvedCandidateExecutionCwd)
+      ? resolvedCandidateExecutionCwd
+      : cwd;
 
   if (input.postureCommand?.trim()) {
     await assertAutoresearchPostureReady({
@@ -6144,7 +6152,7 @@ export async function executeAutoresearchRun(
 
   const benchmark = await runShellCommand({
     command: benchmarkCommand,
-    cwd,
+    cwd: commandCwd,
     timeoutSeconds: input.timeoutSeconds ?? DEFAULT_BENCHMARK_TIMEOUT_SECONDS,
     signal: input.signal,
   });
@@ -6180,7 +6188,7 @@ export async function executeAutoresearchRun(
   if (benchmarkSucceeded && !metricContractFailed && checksCommand) {
     checks = await runShellCommand({
       command: checksCommand,
-      cwd,
+      cwd: commandCwd,
       timeoutSeconds: input.checksTimeoutSeconds ?? DEFAULT_CHECKS_TIMEOUT_SECONDS,
       signal: input.signal,
     });

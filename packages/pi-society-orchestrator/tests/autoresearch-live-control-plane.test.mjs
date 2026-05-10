@@ -497,13 +497,9 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
     result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
     /candidate_result_export/,
   );
-  assert.match(
+  assert.doesNotMatch(
     result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
     /candidate-aware benchmark command/,
-  );
-  assert.match(
-    result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
-    /candidate-aware checks command/,
   );
   assert.match(
     result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
@@ -733,7 +729,7 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       result.details.candidateWaveReview.recommendation.ownerDecisionOptions[1].exactNextCalls.join(
         "\n",
       ),
-      /candidate-aware benchmark command/,
+      /candidateWorktree/,
     );
     const candidate02 = result.details.candidateWaveReview.lanes.find(
       (lane) => lane.laneId === "candidate-02",
@@ -772,6 +768,53 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.match(result.content[0].text, /still running\/failed/);
     assert.match(result.content[0].text, /Exact next calls/);
   });
+});
+
+test("autoresearch_live_supervision review_candidate_wave rejects invalid empirical/check postures", async () => {
+  const cwd = "/tmp/candidate-wave-invalid-postures";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+
+  const result = await tool.execute(
+    "tc-review-candidate-wave-invalid-postures",
+    {
+      action: "review_candidate_wave",
+      taskId: 2674,
+      cwd,
+      objective: "reject invalid candidate-wave postures",
+      direction: "lower",
+      candidateResults: [
+        {
+          laneId: "measurement-invalid",
+          metric: 1,
+          status: "measurement_invalid",
+          checksStatus: "pass",
+        },
+        { laneId: "not-ok", metric: 2, status: "candidate_improvement", checksStatus: "not ok" },
+        { laneId: "neutral", metric: 3, status: "candidate_neutral", checksStatus: "pass" },
+        { laneId: "unknown", metric: 4, status: "mystery_status", checksStatus: "pass" },
+      ],
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(result.details.ok, true);
+  assert.equal(
+    result.details.candidateWaveReview.recommendation.posture,
+    "no_selectable_candidate",
+  );
+  assert.equal(result.details.candidateWaveReview.recommendation.ownerDecisionForm, null);
+  assert.deepEqual(
+    result.details.candidateWaveReview.lanes.map((lane) => [lane.laneId, lane.selectable]),
+    [
+      ["measurement-invalid", false],
+      ["not-ok", false],
+      ["neutral", false],
+      ["unknown", false],
+    ],
+  );
 });
 
 test("autoresearch_live_supervision review_candidate_wave discovers default candidate-wave packets", async () => {

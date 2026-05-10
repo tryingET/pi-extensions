@@ -456,6 +456,59 @@ function formatToolCall(name: string, payload: Record<string, unknown>): string 
   return `${name}(${JSON.stringify(payload, null, 2)})`;
 }
 
+function normalizeReviewToken(value: unknown): string {
+  return typeof value === "string"
+    ? value
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/gu, "_")
+    : "";
+}
+
+function candidateWaveChecksAcceptable(checksStatus: unknown): boolean {
+  const normalized = normalizeReviewToken(checksStatus);
+  if (normalized.length === 0) return true;
+  return ["pass", "passed", "ok", "success", "succeeded", "none", "no_checks"].includes(normalized);
+}
+
+function candidateWaveStatusDecision(
+  status: unknown,
+): "keep" | "more_samples" | "discard" | "rewind" | "blocked" | "unknown" {
+  const normalized = normalizeReviewToken(status);
+  if (normalized.length === 0) return "unknown";
+  if (
+    [
+      "candidate_improvement",
+      "threshold_satisfied",
+      "threshold_preserved",
+      "candidate_review_ready",
+      "keep",
+      "candidate",
+    ].includes(normalized)
+  ) {
+    return "keep";
+  }
+  if (["insufficient_samples", "possible_noise", "calibration_signal"].includes(normalized)) {
+    return "more_samples";
+  }
+  if (normalized === "candidate_neutral") return "rewind";
+  if (
+    normalized.includes("regression") ||
+    normalized.includes("fail") ||
+    normalized.includes("crash") ||
+    normalized.includes("blocked") ||
+    normalized.includes("discard") ||
+    normalized === "measurement_invalid" ||
+    normalized === "threshold_regressed" ||
+    normalized === "checks_failed" ||
+    normalized === "missing_packet" ||
+    normalized === "baseline_drift"
+  ) {
+    return "discard";
+  }
+  return "unknown";
+}
+
 function candidateWaveLaneSelectable(input: AutoresearchCandidateWaveResultInput): {
   selectable: boolean;
   reason: string;
@@ -463,15 +516,19 @@ function candidateWaveLaneSelectable(input: AutoresearchCandidateWaveResultInput
   if (typeof input.metric !== "number" || !Number.isFinite(input.metric)) {
     return { selectable: false, reason: "missing finite metric" };
   }
-  const status = input.status?.toLowerCase() ?? "";
-  const checksStatus = input.checksStatus?.toLowerCase() ?? "";
-  if (/regression|fail|crash|blocked|discard/u.test(status)) {
-    return { selectable: false, reason: `status is ${input.status}` };
-  }
-  if (checksStatus.length > 0 && !/pass|ok|success|none/u.test(checksStatus)) {
+  if (!candidateWaveChecksAcceptable(input.checksStatus)) {
     return { selectable: false, reason: `checks status is ${input.checksStatus}` };
   }
-  return { selectable: true, reason: "finite metric with no failing status/check gate" };
+  const decision = candidateWaveStatusDecision(input.status);
+  if (
+    decision === "discard" ||
+    decision === "rewind" ||
+    decision === "blocked" ||
+    decision === "unknown"
+  ) {
+    return { selectable: false, reason: `status is ${input.status ?? "unknown"}` };
+  }
+  return { selectable: true, reason: `finite metric with ${decision} decision posture` };
 }
 
 function sortCandidateWaveReviewLanes(
@@ -599,14 +656,6 @@ function buildCandidateWaveBindCall(
   });
 }
 
-function buildCandidateAwareBenchmarkPlaceholder(candidateWorktree: string): string {
-  return `<candidate-aware benchmark command; run inside or against ${candidateWorktree}>`;
-}
-
-function buildCandidateAwareChecksPlaceholder(candidateWorktree: string): string {
-  return `<candidate-aware checks command; run inside or against ${candidateWorktree}; use null only if no checks apply>`;
-}
-
 function buildCandidateWaveMoreSamplesCall(
   cwd: string,
   winner: AutoresearchCandidateWaveReviewLane,
@@ -625,8 +674,6 @@ function buildCandidateWaveMoreSamplesCall(
     candidateDiffSummary: winner.candidateDiffSummary ?? "<controller-verified-diff-summary>",
     candidateFilesChanged:
       winner.candidateFilesChanged.length > 0 ? winner.candidateFilesChanged : ["<changed-files>"],
-    benchmarkCommand: buildCandidateAwareBenchmarkPlaceholder(candidateWorktree),
-    checksCommand: buildCandidateAwareChecksPlaceholder(candidateWorktree),
   });
 }
 
@@ -640,12 +687,15 @@ function buildCandidateWaveReviewNextCalls(input: {
   const calls: string[] = [];
   const bindCall = buildCandidateWaveBindCall(cwd, winner);
   if (bindCall) calls.push(bindCall);
+  const targetCurrentLaneCall = buildCandidateWaveMoreSamplesCall(cwd, winner);
+  calls.push(targetCurrentLaneCall);
   calls.push(
     formatToolCall("autoresearch_candidate_decision", {
       cwd,
       action: "plan_keep",
     }),
   );
+  calls.push(targetCurrentLaneCall);
   calls.push(
     formatToolCall("autoresearch_candidate_decision", {
       cwd,
@@ -653,6 +703,7 @@ function buildCandidateWaveReviewNextCalls(input: {
     }),
   );
   if (winner.candidateWorktree || winner.candidateBaseRef) {
+    calls.push(targetCurrentLaneCall);
     calls.push(
       formatToolCall("autoresearch_candidate_decision", {
         cwd,
@@ -660,7 +711,6 @@ function buildCandidateWaveReviewNextCalls(input: {
       }),
     );
   }
-  calls.push(buildCandidateWaveMoreSamplesCall(cwd, winner));
   return calls;
 }
 
@@ -671,8 +721,11 @@ function buildCandidateWaveOwnerDecisionOptions(input: {
   const { cwd, winner } = input;
   if (!winner) return [];
   const bindCall = buildCandidateWaveBindCall(cwd, winner);
+  const moreSamplesCall = buildCandidateWaveMoreSamplesCall(cwd, winner);
+  const targetCurrentLaneCall = moreSamplesCall;
   const keepCalls = [
     ...(bindCall ? [bindCall] : []),
+    targetCurrentLaneCall,
     formatToolCall("autoresearch_candidate_decision", { cwd, action: "plan_keep" }),
   ];
   const options: AutoresearchCandidateWaveOwnerDecisionOption[] = [
@@ -682,7 +735,7 @@ function buildCandidateWaveOwnerDecisionOptions(input: {
       label: `Plan keep for ${winner.laneId}`,
       posture: "owner_gate_required",
       rationale:
-        "Use when the owner accepts this candidate after reviewing packet evidence and local diff.",
+        "Use when the owner accepts this candidate after reviewing packet evidence and local diff; run the included measurement call first if this lane is not already the latest pi-autoresearch candidate.",
       exactNextCalls: keepCalls,
     },
     {
@@ -692,7 +745,7 @@ function buildCandidateWaveOwnerDecisionOptions(input: {
       posture: "owner_gate_required",
       rationale:
         "Use when the metric/check evidence is promising but still under-sampled or noisy.",
-      exactNextCalls: [buildCandidateWaveMoreSamplesCall(cwd, winner)],
+      exactNextCalls: [moreSamplesCall],
     },
     {
       optionId: "plan_discard",
@@ -700,8 +753,9 @@ function buildCandidateWaveOwnerDecisionOptions(input: {
       label: `Plan discard for ${winner.laneId}`,
       posture: "owner_gate_required",
       rationale:
-        "Use when the owner rejects this candidate; discard planning remains non-mutating.",
+        "Use when the owner rejects this candidate; run the included measurement call first if this lane is not already current, then discard planning remains non-mutating.",
       exactNextCalls: [
+        targetCurrentLaneCall,
         formatToolCall("autoresearch_candidate_decision", { cwd, action: "plan_discard" }),
       ],
     },
@@ -713,8 +767,9 @@ function buildCandidateWaveOwnerDecisionOptions(input: {
       label: `Plan rewind for ${winner.laneId}`,
       posture: "owner_gate_required",
       rationale:
-        "Use when the owner wants a plan to reset the candidate worktree; rewind remains plan-only here.",
+        "Use when the owner wants a plan to reset the candidate worktree; run the included measurement call first if this lane is not already current, then rewind remains plan-only here.",
       exactNextCalls: [
+        targetCurrentLaneCall,
         formatToolCall("autoresearch_candidate_decision", { cwd, action: "plan_rewind" }),
       ],
     });
@@ -729,17 +784,21 @@ function buildCandidateWaveOwnerDecisionForm(input: {
 }): AutoresearchCandidateWaveOwnerDecisionForm | null {
   const { reviewObjective, winner, ownerDecisionOptions } = input;
   if (!winner || ownerDecisionOptions.length === 0) return null;
+  const recommendedOptionId =
+    candidateWaveStatusDecision(winner.status) === "more_samples"
+      ? "collect_more_samples"
+      : "plan_keep_recommended";
   return {
     kind: "autoresearch.candidate_wave_owner_decision_form.v1",
     title: `Owner decision for candidate wave: ${reviewObjective}`,
     description:
       "Choose one plan-only next step after reviewing packet evidence, candidate diff, and validation. The form is advisory UI data only; executing calls remains explicit.",
     questionId: "candidate_wave_owner_decision",
-    recommendedOptionId: "plan_keep_recommended",
+    recommendedOptionId,
     options: ownerDecisionOptions.map((option) => ({
       optionId: option.optionId,
       label: option.label,
-      recommended: option.optionId === "plan_keep_recommended",
+      recommended: option.optionId === recommendedOptionId,
       rationale: option.rationale,
       exactNextCalls: option.exactNextCalls,
     })),
@@ -966,8 +1025,6 @@ export function planAutoresearchCandidateWave(
         candidateBaseRef: `<${laneId}-base-ref-from-candidate_peer_spawn>`,
         candidateDiffSummary: `<${laneId}-controller-verified-diff-summary>`,
         candidateFilesChanged: [`<${laneId}-changed-files>`],
-        benchmarkCommand: buildCandidateAwareBenchmarkPlaceholder(candidateWorktreePlaceholder),
-        checksCommand: buildCandidateAwareChecksPlaceholder(candidateWorktreePlaceholder),
       });
       const candidateResultPacketPath = `.autoresearch/candidate-wave/${laneId}.candidate-result.json`;
       const resultCall = formatToolCall("autoresearch_runtime_status", {
@@ -1018,7 +1075,7 @@ export function planAutoresearchCandidateWave(
       reviewInstructions: [
         "Launch only the lanes the owner/controller explicitly approves.",
         "After each PEER_FINAL, bind and measure the candidate through pi-autoresearch before comparing claims.",
-        "Fill each measurement run's benchmarkCommand/checksCommand so it measures the candidate worktree, not the unchanged controller checkout.",
+        "When candidateWorktree is supplied, pi-autoresearch executes benchmark/check commands from that candidate worktree before recording candidate metadata.",
         "Run each lane's candidate_result_export call, then run aggregateReviewCall for owner-visible comparison.",
         "If lanes exported to .autoresearch/candidate-wave/<lane>.candidate-result.json, review_candidate_wave can also be called without candidateResultPacketPaths; it will discover existing default packets.",
         "Use the explicit aggregateReviewCall when you want missing planned lanes surfaced as missing_packet; default discovery only sees packets that exist.",
