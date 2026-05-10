@@ -1,0 +1,39 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f9f84f20c017e739d50560f5e33ea5c619e90d95"
+created_at: "2026-05-10T08:21:09Z"
+intent: "Add orchestrator product posture and managed candidate-wave fan-in contract/reporting so planned lanes are scored only after controller-measured candidate-result packets"
+files:
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/scripts/dogfood-candidate-wave-management-contract.mjs"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  dogfood_contract:
+    command: "node packages/pi-society-orchestrator/scripts/dogfood-candidate-wave-management-contract.mjs"
+    status: "pass"
+    metric: "unresolved_candidate_wave_management_blockers=0"
+  targeted:
+    command: "node --test --test-name-pattern candidate_wave packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+    status: "pass"
+  package_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  docs:
+    command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-society-orchestrator --strict"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "First managed fan-in slice: no hidden peer launch or promotion, but plan/review now expose wave management posture, lane states, final-only scoring, controller measurement requirement, and non-selected lane policy"
+links:
+  task_ids:
+    - 2763
+  evidence_ids:
+    - 1665
+    - 1666
+notes:
+  - "Validation ran in a checkout with pre-existing unrelated dirty files; commit staged only the explicit paths listed above."
