@@ -447,6 +447,11 @@ function formatAutoresearchCandidateWavePlanReport(plan: AutoresearchCandidateWa
     `- lane progress: ${plan.management.completedLaneCount}/${plan.management.expectedLaneCount}`,
     `- final-only scoring: ${plan.management.finalOnlyScoring ? "yes" : "no"}`,
     `- controller measurement required: ${plan.management.controllerMeasurementRequired ? "yes" : "no"}`,
+    `- required runner: ${plan.management.handoffContract.requiredRunner}`,
+    `- handoff: ${plan.management.handoffContract.handoff}`,
+    `- controller-inline implementation: ${plan.management.handoffContract.controllerInlineImplementation}`,
+    `- controller role: ${plan.management.handoffContract.controllerRole}`,
+    `- pi-autoresearch peer spawning: ${plan.management.handoffContract.piAutoresearchPeerSpawning}`,
     ...plan.management.laneStates.map(
       (lane) =>
         `- ${lane.laneId}: ${lane.state}; packet=${lane.candidateResultPacketPath ?? "none"}; next=${lane.nextStep}`,
@@ -477,6 +482,10 @@ function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCamp
     `- posture: ${plan.implementationWaveSubstrate.posture}`,
     `- AK task: #${plan.implementationWaveSubstrate.akTaskId}`,
     `- owner decision UI: ${plan.implementationWaveSubstrate.ownerUiCommand}`,
+    `- required runner: ${plan.implementationWaveSubstrate.handoffContract.requiredRunner}`,
+    `- handoff: ${plan.implementationWaveSubstrate.handoffContract.handoff}`,
+    `- controller-inline implementation: ${plan.implementationWaveSubstrate.handoffContract.controllerInlineImplementation}`,
+    `- controller role: ${plan.implementationWaveSubstrate.handoffContract.controllerRole}`,
     ...plan.implementationWaveSubstrate.nextExactCalls.map((call) => `- first exact call: ${call}`),
     "",
     "Managed candidate-wave substrate:",
@@ -487,6 +496,10 @@ function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCamp
     `- final-only scoring: ${plan.managedWaveSubstrate.finalOnlyScoring ? "yes" : "no"}`,
     `- controller measurement required: ${plan.managedWaveSubstrate.controllerMeasurementRequired ? "yes" : "no"}`,
     `- explicit packet paths gate selection: ${plan.managedWaveSubstrate.explicitPacketPathsGateSelection ? "yes" : "no"}`,
+    `- required runner: ${plan.managedWaveSubstrate.handoffContract.requiredRunner}`,
+    `- handoff: ${plan.managedWaveSubstrate.handoffContract.handoff}`,
+    `- controller-inline implementation: ${plan.managedWaveSubstrate.handoffContract.controllerInlineImplementation}`,
+    `- pi-autoresearch peer spawning: ${plan.managedWaveSubstrate.handoffContract.piAutoresearchPeerSpawning}`,
     ...plan.managedWaveSubstrate.checklist.map((item) => `- checklist: ${item}`),
     ...plan.managedWaveSubstrate.cellFanInCalls.map(
       (cell) =>
@@ -608,9 +621,12 @@ function formatAutoresearchCandidateWaveReviewReport(
     "Candidate comparison:",
     ...review.lanes.flatMap((lane) => {
       const candidatePointers = [
+        lane.candidateSource ? `source=${lane.candidateSource}` : null,
         lane.candidateBranch ? `branch=${lane.candidateBranch}` : null,
         lane.candidateWorktree ? `worktree=${lane.candidateWorktree}` : null,
         lane.candidateBaseRef ? `base=${lane.candidateBaseRef}` : null,
+        lane.candidatePeerRunId ? `peerRunId=${lane.candidatePeerRunId}` : null,
+        lane.candidateRunnerId ? `runnerId=${lane.candidateRunnerId}` : null,
       ].filter(Boolean);
       return [
         `- ${lane.rank ? `#${lane.rank} ` : ""}${lane.laneId}: metric=${lane.metric ?? "missing"}; status=${lane.status}; checks=${lane.checksStatus}; selectable=${lane.selectable ? "yes" : "no"} (${lane.selectionReason})`,

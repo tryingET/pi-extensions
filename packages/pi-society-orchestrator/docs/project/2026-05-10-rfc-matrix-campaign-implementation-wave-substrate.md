@@ -25,6 +25,8 @@ In scope:
 - exact `taskId` + `cwd` anchoring;
 - required objective, scenarios, and hypotheses;
 - deterministic cell ids and packet directories;
+- explicit campaign peer-runner handoff contract: `candidate_peer_spawn -> candidate worktree -> autoresearch_candidate_bind -> autoresearch_runtime_run -> candidate_result_export -> review_candidate_wave`;
+- controller-inline implementation classified as a process violation for campaign-style implementation work;
 - cell-scoped `plan_candidate_wave` calls;
 - cell-scoped `review_candidate_wave` calls;
 - `/autoresearch export` as the primary run-history/metrics dashboard, `/autoresearch overlay` as the live TUI fallback, and `/autoresearch review` as the final owner decision UI;
@@ -36,6 +38,7 @@ Out of scope:
 - automatic peer launch;
 - automatic candidate measurement;
 - automatic matrix-wide execution;
+- controller-inline implementation patches as a substitute for candidate-runner worktrees;
 - AK direction mutation from the tool;
 - KES/evidence/Oracle writes;
 - worktree merge/delete/reset;
@@ -106,7 +109,9 @@ The result has kind `autoresearch.matrix_campaign_plan.v1` and returns:
 5. It delegates cell execution to `plan_candidate_wave`; it does not fork a separate execution system.
 6. It delegates empirical proof to `pi-autoresearch` candidate-result packets.
 7. It delegates run-history/metrics review to `/autoresearch export` first, offers `/autoresearch overlay` as live TUI fallback, and delegates the final owner decision to `/autoresearch review`.
-8. It does not mutate AK direction, write evidence, write KES, spawn peers, run benchmarks, merge, promote, or apply worktree lifecycle actions.
+8. It classifies controller-inline implementation as a process violation for campaign-style implementation work; mutation must occur in visible candidate worktrees before controller binding and measurement.
+9. Managed review selection requires candidate-runner lineage. A candidate-result packet is non-selectable if it lacks `source: candidate_peer_spawn`, a distinct candidate worktree, branch, base ref, and changed files, even when metric/check/status look winning. Peer/runner ids should be carried when the runner reports them.
+10. It does not mutate AK direction, write evidence, write KES, spawn peers, run benchmarks, merge, promote, or apply worktree lifecycle actions.
 
 ## Relationship to AK strategy/design protocol
 
@@ -137,7 +142,8 @@ The first slice is acceptable when:
 - `plan_matrix_campaign` exists in the public tool schema;
 - tests prove schema exposure and matrix-cell output shape;
 - tests prove the first exact cell call delegates to `plan_candidate_wave` and cell review delegates to `review_candidate_wave`;
-- docs state the plan-only boundary and owner-surface split;
+- a dogfood contract emits `METRIC unresolved_campaign_peer_runner_handoff_blockers=0` and would fail if a campaign workflow skipped visible candidate runner/worktree handoff in favor of controller-inline patching;
+- docs state the plan-only boundary, owner-surface split, and inline-implementation process-violation rule;
 - implementation conformance is checked against the ADR;
 - package validation passes.
 

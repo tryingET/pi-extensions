@@ -50,11 +50,28 @@ if (plan.managedWaveSubstrate?.controllerMeasurementRequired !== true) {
 if (plan.managedWaveSubstrate?.explicitPacketPathsGateSelection !== true) {
   addBlocker("matrix_missing_explicit_packet_gate");
 }
+if (plan.managedWaveSubstrate?.handoffContract?.requiredRunner !== "candidate_peer_spawn") {
+  addBlocker("matrix_missing_required_candidate_peer_runner");
+}
+if (
+  plan.managedWaveSubstrate?.handoffContract?.handoff !==
+  "candidate_peer_spawn_to_candidate_worktree"
+) {
+  addBlocker("matrix_missing_candidate_worktree_handoff");
+}
+if (
+  plan.managedWaveSubstrate?.handoffContract?.controllerInlineImplementation !== "process_violation"
+) {
+  addBlocker("matrix_missing_inline_implementation_violation_policy");
+}
 if (!plan.managedWaveSubstrate?.checklist?.some((item) => /managed candidate wave/i.test(item))) {
   addBlocker("matrix_missing_managed_wave_checklist");
 }
 if (!plan.managedWaveSubstrate?.checklist?.some((item) => /controller-measured/i.test(item))) {
   addBlocker("matrix_missing_controller_measured_checklist");
+}
+if (!plan.managedWaveSubstrate?.checklist?.some((item) => /process violation/i.test(item))) {
+  addBlocker("matrix_missing_inline_violation_checklist");
 }
 if (
   !plan.managedWaveSubstrate?.checklist?.some((item) => /missing planned lanes gate/i.test(item))

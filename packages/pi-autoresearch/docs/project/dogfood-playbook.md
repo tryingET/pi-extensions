@@ -41,6 +41,16 @@ The current clean surface must emit `METRIC unresolved_autoresearch_dogfood_suit
 
 When the target is broader than one candidate patch — for example a command family, latency surface, or scenario/hypothesis sweep — use [benchmark-matrix-runbook.md](./benchmark-matrix-runbook.md) to define the campaign matrix, then use this playbook for each bounded candidate segment.
 
+For campaign-style implementation work, the controller must not patch the implementation target inline. Use the above-seam `pi-society-orchestrator` candidate-wave or matrix-campaign planner to launch visible `candidate_peer_spawn` lanes, then bind and measure candidate worktrees here. Controller-inline implementation that bypasses `candidate_peer_spawn -> candidate worktree -> autoresearch_candidate_bind -> autoresearch_runtime_run -> candidate_result_export -> review_candidate_wave` is a process violation, not a valid campaign lane. `pi-autoresearch` remains below-seam: it measures and packages candidates, but it does not spawn peers.
+
+The orchestrator-side dogfood guard for that handoff is:
+
+```bash
+node packages/pi-society-orchestrator/scripts/dogfood-campaign-peer-runner-handoff-contract.mjs
+```
+
+It must emit `METRIC unresolved_campaign_peer_runner_handoff_blockers=0` before a campaign-style implementation workflow is considered clean. The contract includes a negative packet with a winning metric but manual/controller-inline lineage; `review_candidate_wave` must classify that packet as `process_violation` and non-selectable. A positive packet remains selectable only when candidate metadata proves `source: "candidate_peer_spawn"`, a distinct candidate worktree, branch, base ref, and changed files. Peer/runner ids are propagated when present.
+
 ## Process gate: do not bypass missing Prompt Vault bindings
 
 The package has governed Prompt Vault templates, but the lawful execution path is the package-owned runtime seam, not ad hoc template interpretation.

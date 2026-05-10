@@ -42,6 +42,9 @@ The missing layer is **matrix choreography above candidate waves**:
 - define hypothesis axis values;
 - generate exact matrix-cell candidate-wave plans;
 - keep packet paths cell-scoped and deterministic;
+- make the peer-runner handoff explicit: visible `candidate_peer_spawn` lane, isolated candidate worktree, controller bind/measure/export/review;
+- classify controller-inline implementation as a process violation for campaign-style implementation work;
+- make review selection fail closed when a packet lacks candidate-runner lineage, even if its metric looks best;
 - surface the first exact cell call as the next implementation-wave unit;
 - keep owner decision in the existing `pi-autoresearch` UI;
 - preserve AK task/direction authority instead of letting the matrix become a shadow task system.
@@ -76,6 +79,7 @@ Metrics, receipts, candidate-result packets, candidate lifecycle planning, and c
 
 The orchestrator may plan matrix cells, call out exact candidate-wave/review calls, and recommend owner gates.
 It must not secretly spawn peers, run benchmarks, merge, promote, mutate worktrees, write KES, or rewrite AK direction.
+For campaign-style implementation work, it must also reject controller-inline implementation as a process violation: the legal route is `plan_candidate_wave`, visible `candidate_peer_spawn`, candidate worktree, controller bind/measure/export, and owner review.
 
 ### 4. The owner UI path stays unified but staged
 
@@ -92,9 +96,11 @@ The first slice is solved when the package can:
 2. require exact `taskId`, `cwd`, non-empty objective, at least one scenario, and at least one hypothesis;
 3. generate deterministic matrix cell ids and packet directories under `.autoresearch/matrix-campaign/<cell>/`;
 4. emit cell-scoped `plan_candidate_wave` and `review_candidate_wave` calls;
-5. surface `/autoresearch export` as the primary dashboard, `/autoresearch overlay` as the live TUI fallback, and `/autoresearch review` as the final owner decision UI;
-6. explain that the matrix is an implementation-wave substrate, not an AK/direction mutation or hidden executor;
-7. validate the implementation against an accepted ADR before treating the slice as process proof.
+5. expose the required peer-runner/worktree handoff and the inline-implementation process-violation rule in returned contracts and operator reports;
+6. keep managed review selection non-selectable for manual/controller-inline packets unless metadata proves `candidate_peer_spawn` lineage, distinct worktree, branch, base ref, and changed files;
+7. surface `/autoresearch export` as the primary dashboard, `/autoresearch overlay` as the live TUI fallback, and `/autoresearch review` as the final owner decision UI;
+8. explain that the matrix is an implementation-wave substrate, not an AK/direction mutation or hidden executor;
+9. validate the implementation against an accepted ADR before treating the slice as process proof.
 
 ## Non-goals for the first slice
 
@@ -104,6 +110,7 @@ This problem-intent does **not** ask for:
 - automatic candidate measurement;
 - automatic matrix-wide execution;
 - automatic AK direction/task creation per cell;
+- controller-inline patches as a shortcut around visible candidate-runner handoff;
 - automatic evidence/KES/Oracle writes;
 - promotion or merge authority;
 - a generic matrix engine outside `pi-society-orchestrator`;

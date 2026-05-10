@@ -24,6 +24,8 @@ Implementation commit under review:
 Follow-up conformance hardening in this check:
 
 - added explicit regression coverage that `candidatePacketDirectory` rejects path escapes outside `.autoresearch/`.
+- added a campaign peer-runner handoff contract that exposes `candidate_peer_spawn -> candidate worktree -> autoresearch_candidate_bind -> autoresearch_runtime_run -> candidate_result_export -> review_candidate_wave` and classifies controller-inline implementation as a process violation for campaign-style implementation work.
+- hardened `review_candidate_wave` selection so packets are non-selectable unless candidate metadata proves candidate-runner lineage (`source: candidate_peer_spawn`, distinct worktree, branch, base ref, and changed files; peer/runner ids are propagated when present).
 
 ## Conformance matrix
 
@@ -38,6 +40,10 @@ Follow-up conformance hardening in this check:
 | Custom candidate-wave packet dir cannot escape `.autoresearch/` | Conforms after check hardening | Added test rejects `candidatePacketDirectory: "../outside"`; runtime rejects absolute/path-escape dirs. |
 | Emits exact `plan_candidate_wave` calls per cell | Conforms | Matrix cell `planCandidateWaveCall` uses `autoresearch_live_supervision({ action: "plan_candidate_wave", ... })`. |
 | Emits exact `review_candidate_wave` calls per cell | Conforms | Matrix cell `reviewCandidateWaveCall` uses `autoresearch_live_supervision({ action: "review_candidate_wave", ... })`. |
+| Campaign peer-runner handoff explicit | Conforms after check hardening | Matrix and candidate-wave management packets include the handoff contract: `candidate_peer_spawn`, candidate worktree, bind, run, export, review. |
+| Controller-inline implementation rejected | Conforms after check hardening | Reports, boundaries, review flow, candidate constraints, and dogfood contract classify controller-inline campaign implementation as `process_violation`. |
+| Review selection requires candidate-runner lineage | Conforms after check hardening | `review_candidate_wave` now makes manual/controller-inline packets non-selectable even when their metric/check/status would otherwise win; positive `candidate_peer_spawn` packets remain selectable. |
+| `pi-autoresearch` stays below-seam | Conforms after check hardening | The handoff contract says peer spawning is `forbidden_below_seam`; candidate measurement remains `pi-autoresearch` owned. |
 | Uses dashboard first, decision workbench last | Conforms | Matrix owner route now surfaces `/autoresearch export` as the primary run-history/metrics UI, `/autoresearch overlay` as the live TUI fallback, and keeps matrix cell `ownerUiCommand` / implementation substrate `/autoresearch review` as the final decision UI only. |
 | First exact cell call as next implementation action | Conforms | `implementationWaveSubstrate.nextExactCalls` contains the first cell's `planCandidateWaveCall`. |
 | Plan-only / no hidden execution | Conforms | Runtime planner returns data only; extension renders and returns details only. No peer spawn, benchmark, packet export, AK/KES/evidence write, merge, promotion, or worktree lifecycle action is invoked. |
@@ -49,6 +55,8 @@ Run from repo root:
 
 ```bash
 npm --prefix packages/pi-society-orchestrator run check
+node packages/pi-society-orchestrator/scripts/dogfood-campaign-peer-runner-handoff-contract.mjs
+node packages/pi-society-orchestrator/scripts/dogfood-matrix-candidate-wave-management-contract.mjs
 node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict --require-system4d-path docs/adr/ --require-system4d-path docs/decisions/
 ```
 
@@ -57,4 +65,4 @@ node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict --r
 Status: **conforms for first-slice dogfood**.
 
 The implementation satisfies the ADR for a plan-only matrix choreography surface.
-The next process step is not broader implementation; it is dogfooding the first matrix cell through the emitted `plan_candidate_wave` / candidate-result packet / `/autoresearch export` dashboard / `review_candidate_wave` / `/autoresearch review` final-decision path under AK task `#2722` and AK direction `SF3 -> IW1`.
+The next process step is not controller-inline implementation; it is dogfooding the first matrix cell through the emitted `plan_candidate_wave` / visible `candidate_peer_spawn` / candidate worktree / candidate-result packet / `/autoresearch export` dashboard / `review_candidate_wave` / `/autoresearch review` final-decision path under the owning AK task and direction node.

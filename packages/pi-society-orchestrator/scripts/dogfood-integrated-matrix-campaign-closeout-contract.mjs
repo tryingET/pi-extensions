@@ -37,7 +37,7 @@ function writeCandidatePacket({ cellId, laneId, metric, empiricalDecisionClass }
         cwd,
         campaign: "integrated-matrix-closeout-dogfood",
         candidate: {
-          source: "controller_verified_synthetic_dogfood_packet",
+          source: "candidate_peer_spawn",
           worktreePath: path.join(cwd, ".worktrees", `${cellId}-${laneId}`),
           branch: `candidate/${cellId}-${laneId}`,
           baseRef: "HEAD",

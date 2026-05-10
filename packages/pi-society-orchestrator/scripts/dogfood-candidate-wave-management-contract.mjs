@@ -85,6 +85,12 @@ if (plan.management?.finalOnlyScoring !== true) {
 if (plan.management?.controllerMeasurementRequired !== true) {
   addBlocker("plan_missing_controller_measurement_requirement");
 }
+if (plan.management?.handoffContract?.requiredRunner !== "candidate_peer_spawn") {
+  addBlocker("plan_missing_candidate_peer_runner_requirement");
+}
+if (plan.management?.handoffContract?.controllerInlineImplementation !== "process_violation") {
+  addBlocker("plan_missing_inline_process_violation");
+}
 if (!plan.management?.fanInChecklist?.some((item) => /PEER_FINAL.*communication/i.test(item))) {
   addBlocker("plan_missing_peer_final_not_evidence_boundary");
 }
@@ -160,6 +166,11 @@ if (completeReview.management?.posture !== "ready_for_owner_selection") {
 }
 if (completeReview.management?.completedLaneCount !== 2) {
   addBlocker("complete_review_wrong_completed_count");
+}
+if (
+  completeReview.management?.handoffContract?.controllerInlineImplementation !== "process_violation"
+) {
+  addBlocker("complete_review_missing_inline_process_violation");
 }
 if (!completeReview.management?.nonSelectedLanePolicy?.includes("stop/cancel")) {
   addBlocker("complete_review_missing_non_selected_stop_policy");

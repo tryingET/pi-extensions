@@ -530,6 +530,36 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
   assert.equal(result.details.candidateWave.management.completedLaneCount, 0);
   assert.equal(result.details.candidateWave.management.finalOnlyScoring, true);
   assert.equal(result.details.candidateWave.management.controllerMeasurementRequired, true);
+  assert.equal(
+    result.details.candidateWave.management.handoffContract.requiredRunner,
+    "candidate_peer_spawn",
+  );
+  assert.equal(
+    result.details.candidateWave.management.handoffContract.handoff,
+    "candidate_peer_spawn_to_candidate_worktree",
+  );
+  assert.equal(
+    result.details.candidateWave.management.handoffContract.controllerInlineImplementation,
+    "process_violation",
+  );
+  assert.equal(
+    result.details.candidateWave.management.handoffContract.piAutoresearchPeerSpawning,
+    "forbidden_below_seam",
+  );
+  assert.deepEqual(
+    result.details.candidateWave.management.handoffContract.requiredMeasurementSequence,
+    [
+      "candidate_peer_spawn",
+      "autoresearch_candidate_bind",
+      "autoresearch_runtime_run",
+      "candidate_result_export",
+      "review_candidate_wave",
+    ],
+  );
+  assert.match(
+    result.details.candidateWave.lanes[0].candidatePeerCall,
+    /Controller-inline implementation is a process violation/,
+  );
   assert.deepEqual(
     result.details.candidateWave.management.laneStates.map((lane) => lane.state),
     ["planned", "planned"],
@@ -539,6 +569,8 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
   assert.match(result.content[0].text, /Wave fan-in management/);
   assert.match(result.content[0].text, /final-only scoring: yes/);
   assert.match(result.content[0].text, /controller measurement required: yes/);
+  assert.match(result.content[0].text, /required runner: candidate_peer_spawn/);
+  assert.match(result.content[0].text, /controller-inline implementation: process_violation/);
   assert.match(result.content[0].text, /This plan does not spawn peers by itself/);
   assert.match(result.content[0].text, /explicit_owner_decision_required|Owner selection/);
 });
@@ -623,6 +655,19 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
     result.details.matrixCampaign.managedWaveSubstrate.explicitPacketPathsGateSelection,
     true,
   );
+  assert.equal(
+    result.details.matrixCampaign.managedWaveSubstrate.handoffContract.requiredRunner,
+    "candidate_peer_spawn",
+  );
+  assert.equal(
+    result.details.matrixCampaign.managedWaveSubstrate.handoffContract
+      .controllerInlineImplementation,
+    "process_violation",
+  );
+  assert.equal(
+    result.details.matrixCampaign.managedWaveSubstrate.handoffContract.piAutoresearchPeerSpawning,
+    "forbidden_below_seam",
+  );
   assert.equal(result.details.matrixCampaign.managedWaveSubstrate.cellFanInCalls.length, 2);
   assert.equal(
     result.details.matrixCampaign.implementationWaveSubstrate.posture,
@@ -631,6 +676,14 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.equal(
     result.details.matrixCampaign.implementationWaveSubstrate.ownerUiCommand,
     "/autoresearch review",
+  );
+  assert.equal(
+    result.details.matrixCampaign.implementationWaveSubstrate.handoffContract.handoff,
+    "candidate_peer_spawn_to_candidate_worktree",
+  );
+  assert.equal(
+    result.details.matrixCampaign.implementationWaveSubstrate.handoffContract.controllerRole,
+    "plan_launch_bind_measure_review_only",
   );
   assert.equal(
     result.details.matrixCampaign.ownerReview.primaryUi.surface,
@@ -693,6 +746,9 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /Managed candidate-wave substrate/);
   assert.match(result.content[0].text, /expected candidate lanes: 4/);
   assert.match(result.content[0].text, /explicit packet paths gate selection: yes/);
+  assert.match(result.content[0].text, /required runner: candidate_peer_spawn/);
+  assert.match(result.content[0].text, /handoff: candidate_peer_spawn_to_candidate_worktree/);
+  assert.match(result.content[0].text, /controller-inline implementation: process_violation/);
   assert.match(result.content[0].text, /owner decision UI: \/autoresearch review/);
   assert.match(result.content[0].text, /Owner review route/);
   assert.match(result.content[0].text, /primary UI: pi-autoresearch_html_dashboard/);
@@ -878,6 +934,12 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
           status: "candidate_review_ready",
           checksStatus: "pass",
           confidence: 2.3,
+          candidateSource: "candidate_peer_spawn",
+          candidateWorktree: path.join(cwd, ".worktrees", "candidate-01"),
+          candidateBranch: "candidate/candidate-01",
+          candidateBaseRef: "HEAD",
+          candidateFilesChanged: ["src/a.ts"],
+          candidatePeerRunId: "candidatepeer-positive-01",
         },
         {
           laneId: "candidate-02",
@@ -886,6 +948,12 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
           status: "candidate_review_ready",
           checksStatus: "pass",
           confidence: 1.8,
+          candidateSource: "candidate_peer_spawn",
+          candidateWorktree: path.join(cwd, ".worktrees", "candidate-02"),
+          candidateBranch: "candidate/candidate-02",
+          candidateBaseRef: "HEAD",
+          candidateFilesChanged: ["src/b.ts"],
+          candidatePeerRunId: "candidatepeer-positive-02",
         },
         {
           laneId: "candidate-03",
@@ -1133,7 +1201,10 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       /candidate\/candidate-02/,
     );
     assert.ok(result.content[0].text.includes(packetB));
-    assert.match(result.content[0].text, /candidate: branch=candidate\/candidate-02/);
+    assert.match(
+      result.content[0].text,
+      /candidate: source=candidate_peer_spawn; branch=candidate\/candidate-02/,
+    );
     assert.match(result.content[0].text, /worktree=.*candidate-02/);
     assert.match(result.content[0].text, /caveat: candidate 02 improved more/);
     assert.match(result.content[0].text, /Packet discovery: explicit/);
@@ -1150,6 +1221,126 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.match(result.content[0].text, /collect_more_samples/);
     assert.match(result.content[0].text, /candidate-result packets/);
     assert.match(result.content[0].text, /Exact next calls/);
+  });
+});
+
+test("autoresearch_live_supervision review_candidate_wave rejects controller-inline packet lineage", async () => {
+  await withTempDir(async (cwd) => {
+    const inlinePacket = path.join(cwd, "candidate-inline.json");
+    const peerPacket = path.join(cwd, "candidate-peer.json");
+    writeFileSync(
+      inlinePacket,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "manual",
+          worktreePath: cwd,
+          branch: "main",
+          baseRef: "HEAD",
+          diffSummary: "controller inline patch that would have won on metric alone",
+          filesChanged: ["packages/pi-designmd-foundry/src/inline.ts"],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 0,
+          description: "Measure inline controller patch",
+          timestamp: 1,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-inline",
+            hypothesis: "Inline controller patch should be rejected despite best metric",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "inline patch had best metric but bypassed candidate runner handoff",
+        closeout: { status: { confidence: 3.1 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+    writeFileSync(
+      peerPacket,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "candidate_peer_spawn",
+          peerRunId: "candidatepeer-positive-lineage",
+          runnerId: "candidate-runner-positive-lineage",
+          worktreePath: path.join(cwd, ".worktrees", "candidate-peer"),
+          branch: "candidate/candidate-peer",
+          baseRef: "HEAD",
+          diffSummary: "visible candidate runner patch",
+          filesChanged: ["packages/pi-designmd-foundry/src/candidate.ts"],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 5,
+          description: "Measure visible candidate runner patch",
+          timestamp: 2,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-peer",
+            hypothesis: "Visible candidate runner lineage remains selectable",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary:
+          "candidate runner packet is selectable even with a worse metric than inline patch",
+        closeout: { status: { confidence: 2.8 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const result = await tool.execute(
+      "tc-review-candidate-wave-lineage-enforcement",
+      {
+        action: "review_candidate_wave",
+        taskId: 2815,
+        cwd,
+        objective: "reject controller-inline implementation packets during campaign review",
+        direction: "lower",
+        candidateResultPacketPaths: [inlinePacket, peerPacket],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-peer");
+    const inlineLane = result.details.candidateWaveReview.lanes.find(
+      (lane) => lane.laneId === "candidate-inline",
+    );
+    const peerLane = result.details.candidateWaveReview.lanes.find(
+      (lane) => lane.laneId === "candidate-peer",
+    );
+    assert.equal(inlineLane.selectable, false);
+    assert.match(inlineLane.selectionReason, /process_violation/);
+    assert.match(inlineLane.selectionReason, /manual/);
+    assert.equal(peerLane.selectable, true);
+    assert.match(peerLane.selectionReason, /verified candidate_peer_spawn worktree lineage/);
+    assert.equal(peerLane.candidateSource, "candidate_peer_spawn");
+    assert.equal(peerLane.candidatePeerRunId, "candidatepeer-positive-lineage");
+    assert.deepEqual(peerLane.candidateFilesChanged, [
+      "packages/pi-designmd-foundry/src/candidate.ts",
+    ]);
+    assert.match(result.content[0].text, /candidate-inline/);
+    assert.match(result.content[0].text, /process_violation/);
+    assert.match(result.content[0].text, /candidate-peer/);
+    assert.match(result.content[0].text, /peerRunId=candidatepeer-positive-lineage/);
   });
 });
 

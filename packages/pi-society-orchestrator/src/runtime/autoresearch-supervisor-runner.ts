@@ -41,6 +41,27 @@ export const AUTORESEARCH_LIVE_SUPERVISION_MAX_INTERVAL_SECONDS = 300 as const;
 export const AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR =
   ".autoresearch/candidate-wave" as const;
 
+const CAMPAIGN_PEER_RUNNER_VIOLATION_REASON =
+  "Campaign-style implementation work must be launched as visible candidate_peer_spawn lanes and measured from candidate worktrees; controller-inline implementation patches bypass the handoff and are a process violation.";
+
+export function buildAutoresearchCampaignPeerRunnerHandoffContract(): AutoresearchCampaignPeerRunnerHandoffContract {
+  return {
+    requiredRunner: "candidate_peer_spawn",
+    handoff: "candidate_peer_spawn_to_candidate_worktree",
+    controllerInlineImplementation: "process_violation",
+    controllerRole: "plan_launch_bind_measure_review_only",
+    piAutoresearchPeerSpawning: "forbidden_below_seam",
+    requiredMeasurementSequence: [
+      "candidate_peer_spawn",
+      "autoresearch_candidate_bind",
+      "autoresearch_runtime_run",
+      "candidate_result_export",
+      "review_candidate_wave",
+    ],
+    violationReason: CAMPAIGN_PEER_RUNNER_VIOLATION_REASON,
+  };
+}
+
 export type AutoresearchLiveSessionState = "running" | "blocked" | "stopped" | "completed";
 
 export type AutoresearchLiveProjectionAction =
@@ -184,6 +205,22 @@ export interface AutoresearchCandidateWaveManagementLane {
   nextStep: string;
 }
 
+export interface AutoresearchCampaignPeerRunnerHandoffContract {
+  requiredRunner: "candidate_peer_spawn";
+  handoff: "candidate_peer_spawn_to_candidate_worktree";
+  controllerInlineImplementation: "process_violation";
+  controllerRole: "plan_launch_bind_measure_review_only";
+  piAutoresearchPeerSpawning: "forbidden_below_seam";
+  requiredMeasurementSequence: readonly [
+    "candidate_peer_spawn",
+    "autoresearch_candidate_bind",
+    "autoresearch_runtime_run",
+    "candidate_result_export",
+    "review_candidate_wave",
+  ];
+  violationReason: string;
+}
+
 export interface AutoresearchCandidateWaveManagement {
   kind: "autoresearch.candidate_wave_management.v1";
   waveId: string;
@@ -197,6 +234,7 @@ export interface AutoresearchCandidateWaveManagement {
   laneStates: readonly AutoresearchCandidateWaveManagementLane[];
   finalOnlyScoring: true;
   controllerMeasurementRequired: true;
+  handoffContract: AutoresearchCampaignPeerRunnerHandoffContract;
   nonSelectedLanePolicy: string;
   fanInChecklist: readonly string[];
   exactNextCalls: readonly string[];
@@ -271,6 +309,7 @@ export interface AutoresearchMatrixManagedWaveSubstrate {
   finalOnlyScoring: true;
   controllerMeasurementRequired: true;
   explicitPacketPathsGateSelection: true;
+  handoffContract: AutoresearchCampaignPeerRunnerHandoffContract;
   cellFanInCalls: readonly {
     cellId: string;
     planCandidateWaveCall: string;
@@ -314,6 +353,7 @@ export interface AutoresearchMatrixCampaignPlan {
     posture: "dogfood_matrix_replaces_hand_authored_wave_steps";
     akTaskId: number;
     ownerUiCommand: "/autoresearch review";
+    handoffContract: AutoresearchCampaignPeerRunnerHandoffContract;
     nextExactCalls: readonly string[];
   };
   ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
@@ -394,11 +434,14 @@ export interface AutoresearchCandidateWaveResultInput {
   status?: string;
   checksStatus?: string;
   confidence?: number;
+  candidateSource?: string;
   candidateWorktree?: string;
   candidateBranch?: string;
   candidateBaseRef?: string;
   candidateDiffSummary?: string;
   candidateFilesChanged?: readonly string[];
+  candidatePeerRunId?: string;
+  candidateRunnerId?: string;
   sourcePacketPath?: string;
   caveat?: string;
 }
@@ -417,11 +460,14 @@ export interface AutoresearchCandidateWaveReviewLane {
   status: string;
   checksStatus: string;
   confidence: number | null;
+  candidateSource: string | null;
   candidateWorktree: string | null;
   candidateBranch: string | null;
   candidateBaseRef: string | null;
   candidateDiffSummary: string | null;
   candidateFilesChanged: readonly string[];
+  candidatePeerRunId: string | null;
+  candidateRunnerId: string | null;
   sourcePacketPath: string | null;
   caveat: string | null;
   rank: number | null;
@@ -773,7 +819,50 @@ function candidateWaveStatusDecision(
   return "unknown";
 }
 
-function candidateWaveLaneSelectable(input: AutoresearchCandidateWaveResultInput): {
+function candidateWaveRunnerLineage(
+  input: AutoresearchCandidateWaveResultInput,
+  cwd: string,
+): {
+  ok: boolean;
+  reason: string;
+} {
+  if (input.candidateSource !== "candidate_peer_spawn") {
+    return {
+      ok: false,
+      reason: `process_violation: candidate source is ${input.candidateSource ?? "missing"}, expected candidate_peer_spawn`,
+    };
+  }
+  if (!input.candidateWorktree || input.candidateWorktree.trim().length === 0) {
+    return { ok: false, reason: "process_violation: missing external candidate worktree" };
+  }
+  if (path.resolve(input.candidateWorktree) === path.resolve(cwd)) {
+    return {
+      ok: false,
+      reason: "process_violation: candidate worktree must be distinct from controller cwd",
+    };
+  }
+  if (!input.candidateBranch || input.candidateBranch.trim().length === 0) {
+    return { ok: false, reason: "process_violation: missing candidate branch" };
+  }
+  if (!input.candidateBaseRef || input.candidateBaseRef.trim().length === 0) {
+    return { ok: false, reason: "process_violation: missing candidate base ref" };
+  }
+  if (!input.candidateFilesChanged || input.candidateFilesChanged.length === 0) {
+    return { ok: false, reason: "process_violation: missing candidate changed-files proof" };
+  }
+  return {
+    ok: true,
+    reason:
+      input.candidatePeerRunId || input.candidateRunnerId
+        ? "verified candidate_peer_spawn worktree lineage with runner id"
+        : "verified candidate_peer_spawn worktree lineage",
+  };
+}
+
+function candidateWaveLaneSelectable(
+  input: AutoresearchCandidateWaveResultInput,
+  cwd: string,
+): {
   selectable: boolean;
   reason: string;
 } {
@@ -792,7 +881,14 @@ function candidateWaveLaneSelectable(input: AutoresearchCandidateWaveResultInput
   ) {
     return { selectable: false, reason: `status is ${input.status ?? "unknown"}` };
   }
-  return { selectable: true, reason: `finite metric with ${decision} decision posture` };
+  const lineage = candidateWaveRunnerLineage(input, cwd);
+  if (!lineage.ok) {
+    return { selectable: false, reason: lineage.reason };
+  }
+  return {
+    selectable: true,
+    reason: `finite metric with ${decision} decision posture and ${lineage.reason}`,
+  };
 }
 
 function sortCandidateWaveReviewLanes(
@@ -844,10 +940,12 @@ function buildPlannedCandidateWaveManagement(input: {
     })),
     finalOnlyScoring: true,
     controllerMeasurementRequired: true,
+    handoffContract: buildAutoresearchCampaignPeerRunnerHandoffContract(),
     nonSelectedLanePolicy:
       "After owner selection, send explicit stop/cancel guidance for non-selected visible peers; do not merge, delete, or reset their worktrees from this plan.",
     fanInChecklist: [
       "Use visible candidate_peer_spawn calls only for approved lanes.",
+      "Treat controller-inline implementation patches as a process violation for campaign-style implementation work.",
       "Treat PEER_FINAL as communication until the controller binds and measures the worktree through pi-autoresearch.",
       "Export one autoresearch.candidate_result.v1 packet per planned lane before final scoring.",
       "Run the explicit aggregate review call so missing planned lanes remain visible and gate selection.",
@@ -899,11 +997,13 @@ function buildReviewedCandidateWaveManagement(input: {
     }),
     finalOnlyScoring: true,
     controllerMeasurementRequired: true,
+    handoffContract: buildAutoresearchCampaignPeerRunnerHandoffContract(),
     nonSelectedLanePolicy: input.winner
       ? `After owner approval for ${input.winner.laneId}, stop/cancel non-selected visible peers explicitly and leave cleanup/merge/reset to owner-approved lifecycle plans.`
       : "No selected lane yet; do not stop/cancel or clean up lanes as if a winner exists.",
     fanInChecklist: [
       "Score only controller-measured pi-autoresearch candidate-result packets, never raw peer claims.",
+      "Treat any controller-inline patching that bypassed candidate_peer_spawn and candidate worktree measurement as a process violation, not a selectable lane.",
       "Do not recommend owner selection while any explicit planned lane is missing its packet.",
       "Keep missing, failed, blocked, and non-selectable lanes visible in the review report.",
       "After owner selection, issue explicit stop/cancel guidance for non-selected active peers before any merge/promotion work.",
@@ -1001,11 +1101,14 @@ function candidateResultInputFromPacketPath(
     status,
     checksStatus: checks,
     confidence: optionalNumber(closeoutStatus?.confidence),
+    candidateSource: optionalString(candidate?.source),
     candidateWorktree: optionalString(candidate?.worktreePath),
     candidateBranch: optionalString(candidate?.branch),
     candidateBaseRef: optionalString(candidate?.baseRef),
     candidateDiffSummary: optionalString(candidate?.diffSummary),
     candidateFilesChanged: stringArrayFrom(candidate?.filesChanged),
+    candidatePeerRunId: optionalString(candidate?.peerRunId),
+    candidateRunnerId: optionalString(candidate?.runnerId),
     sourcePacketPath: resolvedPath,
     caveat: optionalString(parsed.resultSummary),
   };
@@ -1328,7 +1431,7 @@ export function reviewAutoresearchCandidateWave(
   const direction = input.direction ?? "lower";
   const lanes = sortCandidateWaveReviewLanes(
     candidateResults.map((candidate) => {
-      const selectable = candidateWaveLaneSelectable(candidate);
+      const selectable = candidateWaveLaneSelectable(candidate, identity.cwd);
       return {
         laneId: candidate.laneId || "candidate-unknown",
         objective: candidate.objective?.trim() || null,
@@ -1342,11 +1445,14 @@ export function reviewAutoresearchCandidateWave(
           typeof candidate.confidence === "number" && Number.isFinite(candidate.confidence)
             ? candidate.confidence
             : null,
+        candidateSource: candidate.candidateSource || null,
         candidateWorktree: candidate.candidateWorktree || null,
         candidateBranch: candidate.candidateBranch || null,
         candidateBaseRef: candidate.candidateBaseRef || null,
         candidateDiffSummary: candidate.candidateDiffSummary || null,
         candidateFilesChanged: [...(candidate.candidateFilesChanged ?? [])],
+        candidatePeerRunId: candidate.candidatePeerRunId || null,
+        candidateRunnerId: candidate.candidateRunnerId || null,
         sourcePacketPath: candidate.sourcePacketPath || null,
         caveat: candidate.caveat || null,
         rank: null,
@@ -1490,6 +1596,7 @@ export function planAutoresearchCandidateWave(
         ...constraints,
         `Per-candidate budget: at most ${maxIterationsPerCandidate} measured iteration(s) and ${maxWallClockMinutesPerCandidate} wall-clock minute(s) before controller review.`,
         "Keep mutations inside the candidate worktree only.",
+        "Controller-inline implementation is a process violation for campaign-style implementation work; the controller may plan, launch, bind, measure, and review but must not patch inline.",
         "Report changed files, branch/ref, benchmark/check commands run, and caveats in PEER_FINAL.",
         "Do not merge, promote, write AK/KES/evidence, or delete/reset worktrees.",
       ];
@@ -1582,6 +1689,7 @@ export function planAutoresearchCandidateWave(
       aggregateReviewCall,
       reviewInstructions: [
         "Launch only the lanes the owner/controller explicitly approves.",
+        "Do not let the controller implement campaign-style patches inline; bypassing candidate_peer_spawn and candidate-worktree handoff is a process violation.",
         "After each PEER_FINAL, bind and measure the candidate through pi-autoresearch before comparing claims.",
         "When candidateWorktree is supplied, pi-autoresearch executes benchmark/check commands from that candidate worktree before recording candidate metadata.",
         "Run each lane's candidate_result_export call, then run aggregateReviewCall for owner-visible comparison.",
@@ -1593,6 +1701,7 @@ export function planAutoresearchCandidateWave(
     management,
     boundaries: [
       "This plan does not spawn peers by itself.",
+      "For campaign-style implementation work, controller-inline implementation is a process violation; use visible candidate_peer_spawn lanes and candidate worktrees.",
       "candidate_peer_spawn / pi-little-helpers owns visible isolated worktree launch.",
       "pi-autoresearch owns measurement receipts and candidate-result packets.",
       "pi-society-orchestrator owns above-seam supervision and comparison choreography only.",
@@ -1674,6 +1783,7 @@ function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCam
           `Scenario: ${scenario}`,
           `Hypothesis: ${hypothesis}`,
           "Treat this matrix cell as the implementation-wave execution unit; do not mutate AK direction from inside the cell.",
+          "Controller-inline implementation is a process violation for this campaign cell; route implementation through approved candidate_peer_spawn lanes and candidate worktrees.",
         ],
         maxIterations: input.maxIterationsPerCandidate,
         maxWallClockMinutes: input.maxWallClockMinutesPerCandidate,
@@ -1733,6 +1843,7 @@ export function planAutoresearchMatrixCampaign(
     finalOnlyScoring: true,
     controllerMeasurementRequired: true,
     explicitPacketPathsGateSelection: true,
+    handoffContract: buildAutoresearchCampaignPeerRunnerHandoffContract(),
     cellFanInCalls: cells.map((cell) => ({
       cellId: cell.cellId,
       planCandidateWaveCall: cell.planCandidateWaveCall,
@@ -1741,6 +1852,7 @@ export function planAutoresearchMatrixCampaign(
     checklist: [
       "Treat each matrix cell as a managed candidate wave, not as loose parallel sidequests.",
       "Run the cell planCandidateWaveCall before launching approved visible candidate lanes.",
+      "Controller-inline implementation is a process violation for campaign-style implementation cells; route mutation through candidate_peer_spawn worktrees.",
       "Score only controller-measured pi-autoresearch candidate-result packets for each lane.",
       "Use explicit cell reviewCandidateWaveCall packet paths so missing planned lanes gate final cell selection.",
       "Compare matrix cells only after their managed wave reviews are complete or deliberately owner-replanned.",
@@ -1762,6 +1874,7 @@ export function planAutoresearchMatrixCampaign(
       posture: "dogfood_matrix_replaces_hand_authored_wave_steps",
       akTaskId: identity.taskId,
       ownerUiCommand: "/autoresearch review",
+      handoffContract: buildAutoresearchCampaignPeerRunnerHandoffContract(),
       nextExactCalls: cells.slice(0, 1).map((cell) => cell.planCandidateWaveCall),
     },
     ownerReview: {
@@ -1780,6 +1893,7 @@ export function planAutoresearchMatrixCampaign(
       },
       reviewFlow: [
         "Approve and launch only the matrix cell candidate lanes the owner/controller explicitly selects.",
+        "Do not patch the implementation target inline from the controller during campaign-style work; that bypasses the candidate-runner/worktree handoff and is a process violation.",
         "After each visible candidate reports back, bind, measure, and export candidate-result packets through pi-autoresearch before comparing lanes.",
         "Open /autoresearch export for the HTML dashboard with run history, receipts, metrics, and candidate context; use /autoresearch overlay as the live TUI fallback.",
         "Run the cell reviewCandidateWaveCall to build the owner-visible comparison from candidate-result packets.",
@@ -1795,12 +1909,13 @@ export function planAutoresearchMatrixCampaign(
     boundaries: [
       "This matrix plan is a non-mutating implementation-wave substrate, not a direction mutation.",
       "Each matrix cell delegates candidate execution to the existing plan_candidate_wave and pi-autoresearch measurement/candidate-result packet surfaces.",
+      "Controller-inline implementation for campaign-style cells is a process violation; mutation must happen in candidate_peer_spawn worktrees before controller binding/measurement.",
       "pi-autoresearch owns metrics, receipts, candidate packets, and candidate worktree measurement semantics.",
       "pi-society-orchestrator owns matrix choreography, aggregate review calls, and owner-decision surfacing only.",
       "AK remains the task/direction spine; no AK/KES/evidence write, merge, promotion, peer spawn, or worktree lifecycle action is applied by this plan.",
     ],
     nextStep:
-      "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
+      "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, reject controller-inline implementation as a process violation, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
   };
 }
 
