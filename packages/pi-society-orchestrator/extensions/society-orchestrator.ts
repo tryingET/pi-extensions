@@ -82,6 +82,7 @@ import {
   AutoresearchLiveSupervisionRunner,
   type AutoresearchLiveSupervisionSessionV1,
   type AutoresearchMatrixCampaignPlan,
+  type AutoresearchMatrixCampaignReview,
   describeAutoresearchLiveNextStep,
 } from "../src/runtime/autoresearch-supervisor-runner.ts";
 import {
@@ -170,6 +171,7 @@ type AutoresearchLiveSupervisionAction =
   | "start_campaign"
   | "plan_candidate_wave"
   | "plan_matrix_campaign"
+  | "review_matrix_campaign"
   | "review_candidate_wave"
   | "stop";
 
@@ -190,6 +192,7 @@ type AutoresearchLiveSupervisionToolDetails = {
   campaign?: AutoresearchLiveStartCampaignResult["campaign"];
   candidateWave?: AutoresearchCandidateWavePlan;
   matrixCampaign?: AutoresearchMatrixCampaignPlan;
+  matrixCampaignReview?: AutoresearchMatrixCampaignReview;
   candidateWaveReview?: AutoresearchCandidateWaveReview;
   stopped?: boolean;
   error?: string;
@@ -520,6 +523,43 @@ function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCamp
     ...plan.boundaries.map((boundary) => `- ${boundary}`),
     "",
     `Next step: ${plan.nextStep}`,
+  ].join("\n");
+}
+
+function formatAutoresearchMatrixCampaignReviewReport(
+  review: AutoresearchMatrixCampaignReview,
+): string {
+  return [
+    "Autoresearch live supervision — review_matrix_campaign",
+    `Task: #${review.taskId}`,
+    `CWD: ${review.cwd}`,
+    `Objective: ${review.objective}`,
+    `Direction: ${review.direction} is better`,
+    `Posture: ${review.posture}`,
+    `Cell progress: ${review.completedCellCount}/${review.expectedCellCount}`,
+    `Selected cells: ${review.selectedCellCount}`,
+    "",
+    "Managed cell reviews:",
+    ...review.cells.flatMap((cell) => [
+      `- ${cell.cellId}: scenario=${cell.scenario}; hypothesis=${cell.hypothesis}`,
+      `  posture: ${cell.recommendationPosture}; selected lane: ${cell.selectedLaneId ?? "none"}`,
+      `  lane progress: ${cell.completedLaneCount}/${cell.expectedLaneCount}`,
+      `  review call: ${cell.reviewCandidateWaveCall}`,
+    ]),
+    "",
+    "Owner review route:",
+    `- primary UI: ${review.ownerReview.primaryUi.surface}`,
+    `- primary UI command: ${review.ownerReview.primaryUi.slashCommand}`,
+    `- final decision UI: ${review.ownerReview.decisionUi.surface}`,
+    `- final decision UI command: ${review.ownerReview.decisionUi.slashCommand}`,
+    ...(review.exactNextCalls.length > 0
+      ? ["", "Exact next calls:", ...review.exactNextCalls.map((call) => `- ${call}`)]
+      : []),
+    "",
+    "Boundaries:",
+    ...review.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${review.nextStep}`,
   ].join("\n");
 }
 
@@ -1508,6 +1548,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
       "Use action=plan_candidate_wave when the operator wants multiple visible candidate experiments in parallel; this returns explicit candidate_peer_spawn and pi-autoresearch measurement/review calls, but does not launch or promote anything by itself.",
       "Use action=plan_matrix_campaign when the operator wants implementation-wave work dogfooded as a scenario × hypothesis matrix; this returns cell-scoped plan_candidate_wave/review_candidate_wave calls and keeps AK as the task spine.",
+      "Use action=review_matrix_campaign after matrix cells have exported candidate-result packets; this aggregates managed cell-wave reviews without launching, measuring, writing evidence, or selecting promotion authority.",
       "Use action=review_candidate_wave after multiple pi-autoresearch candidate measurements have produced result summaries; this compares lanes for owner selection, but still does not choose winners as promotion authority.",
       "For DSPx/DSPy planning, set planner=dspx_program and runDspxProgramGen=true; this asks pi-autoresearch to materialize and run a bounded DSPx-generated DSPy planner assembly, then validate the generated DSPy output from behavior_results.json as the campaign plan. Orchestrator still does not synthesize or apply a DSPy program itself.",
       "Do not invent fuzzy task lookup or hidden daemons; provide exact taskId and cwd for observe/start/stop/start_campaign.",
@@ -1525,6 +1566,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("start_campaign"),
           Type.Literal("plan_candidate_wave"),
           Type.Literal("plan_matrix_campaign"),
+          Type.Literal("review_matrix_campaign"),
           Type.Literal("review_candidate_wave"),
           Type.Literal("stop"),
         ]),
@@ -1534,7 +1576,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       objective: Type.Optional(
         Type.String({
           description:
-            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, action=plan_matrix_campaign, or action=review_candidate_wave.",
+            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, action=plan_matrix_campaign, action=review_matrix_campaign, or action=review_candidate_wave.",
         }),
       ),
       candidateCount: Type.Optional(
@@ -1943,6 +1985,39 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
               sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
               nextStep: result.nextStep,
               matrixCampaign: result,
+            },
+          );
+        }
+
+        if (action === "review_matrix_campaign") {
+          const matrixObjective = objective?.trim() ?? "";
+          if (matrixObjective.length === 0) {
+            throw new Error("review_matrix_campaign requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.reviewMatrixCampaign({
+            ...identity,
+            objective: matrixObjective,
+            direction,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            filesInScope,
+            offLimits,
+            constraints,
+            parentPeerTarget,
+            maxIterationsPerCandidate: maxIterations,
+            maxWallClockMinutesPerCandidate: maxWallClockMinutes,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchMatrixCampaignReviewReport(result),
+            {
+              ok: true,
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              matrixCampaignReview: result,
             },
           );
         }

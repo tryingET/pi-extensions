@@ -711,6 +711,95 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /This matrix plan is a non-mutating/);
 });
 
+test("autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves", async () => {
+  await withTempDir(async (cwd) => {
+    const packetDir = path.join(cwd, ".autoresearch", "matrix-campaign");
+    for (const cellId of ["cell-01-01", "cell-02-01"]) {
+      for (const [laneId, metric] of [
+        ["candidate-01", 1],
+        ["candidate-02", 3],
+      ]) {
+        const packetPath = path.join(packetDir, cellId, `${laneId}.candidate-result.json`);
+        mkdirSync(path.dirname(packetPath), { recursive: true });
+        writeFileSync(
+          packetPath,
+          JSON.stringify({
+            packetKind: "autoresearch.candidate_result.v1",
+            adapterContractVersion: 1,
+            cwd,
+            campaign: "matrix-review",
+            candidate: {
+              source: "candidate_peer_spawn",
+              worktreePath: path.join(cwd, ".worktrees", `${cellId}-${laneId}`),
+              branch: `candidate/${cellId}-${laneId}`,
+              baseRef: "HEAD",
+              diffSummary: `${cellId} ${laneId}`,
+              filesChanged: ["src/runtime/autoresearch-supervisor-runner.ts"],
+            },
+            candidateRun: {
+              iteration: 1,
+              status: "candidate",
+              runKind: "ordinary",
+              empiricalDecisionClass: "candidate_improvement",
+              metric,
+              description: `Measure ${cellId} ${laneId}`,
+              timestamp: 1,
+              checks: "pass",
+              experiment: {
+                hypothesisId: laneId,
+                hypothesis: `${cellId} ${laneId}`,
+              },
+            },
+            empiricalDecisionClass: "candidate_improvement",
+            resultSummary: `${cellId} ${laneId} improved`,
+            closeout: { status: { confidence: 2.1 } },
+            adapterBoundary: "packet boundary",
+          }),
+        );
+      }
+    }
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const result = await tool.execute(
+      "tc-review-matrix-campaign",
+      {
+        action: "review_matrix_campaign",
+        taskId: 2774,
+        cwd,
+        objective: "aggregate matrix managed cell-wave reviews",
+        direction: "lower",
+        scenarios: ["operator happy path", "missing planned lane recovery"],
+        hypotheses: ["managed fan-in beats loose sidequests"],
+        candidateCountPerCell: 2,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.action, "review_matrix_campaign");
+    assert.equal(
+      result.details.matrixCampaignReview.kind,
+      "autoresearch.matrix_campaign_review.v1",
+    );
+    assert.equal(result.details.matrixCampaignReview.posture, "ready_for_matrix_owner_review");
+    assert.equal(result.details.matrixCampaignReview.completedCellCount, 2);
+    assert.equal(result.details.matrixCampaignReview.expectedCellCount, 2);
+    assert.equal(result.details.matrixCampaignReview.selectedCellCount, 2);
+    assert.deepEqual(
+      result.details.matrixCampaignReview.cells.map((cell) => cell.selectedLaneId),
+      ["candidate-01", "candidate-01"],
+    );
+    assert.match(result.content[0].text, /review_matrix_campaign/);
+    assert.match(result.content[0].text, /ready_for_matrix_owner_review/);
+    assert.match(result.content[0].text, /Managed cell reviews/);
+    assert.match(result.content[0].text, /Cell progress: 2\/2/);
+    assert.match(result.content[0].text, /Raw peer messages are communication only/);
+  });
+});
+
 test("autoresearch_live_supervision review_candidate_wave compares measured lanes for owner selection", async () => {
   const cwd = "/tmp/candidate-wave-review";
   const runner = new AutoresearchLiveSupervisionRunner();

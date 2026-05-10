@@ -321,6 +321,39 @@ export interface AutoresearchMatrixCampaignPlan {
   nextStep: string;
 }
 
+export interface AutoresearchMatrixCampaignCellReview {
+  cellId: string;
+  scenario: string;
+  hypothesis: string;
+  objective: string;
+  recommendationPosture: AutoresearchCandidateWaveReview["recommendation"]["posture"];
+  selectedLaneId: string | null;
+  completedLaneCount: number;
+  expectedLaneCount: number;
+  reviewCandidateWaveCall: string;
+  candidateWaveReview: AutoresearchCandidateWaveReview;
+}
+
+export interface AutoresearchMatrixCampaignReview {
+  kind: "autoresearch.matrix_campaign_review.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  direction: "lower" | "higher";
+  posture:
+    | "waiting_for_managed_cell_waves"
+    | "ready_for_matrix_owner_review"
+    | "cell_rerun_required";
+  cells: readonly AutoresearchMatrixCampaignCellReview[];
+  completedCellCount: number;
+  expectedCellCount: number;
+  selectedCellCount: number;
+  ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
+  exactNextCalls: readonly string[];
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
 export interface AutoresearchCandidateWaveResultInput {
   laneId: string;
   objective?: string;
@@ -1473,9 +1506,19 @@ export function planAutoresearchCandidateWave(
   };
 }
 
-export function planAutoresearchMatrixCampaign(
-  input: AutoresearchMatrixCampaignRequest,
-): AutoresearchMatrixCampaignPlan {
+function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCampaignRequest): {
+  identity: SessionIdentity;
+  objective: string;
+  scenarios: string[];
+  hypotheses: string[];
+  direction: "lower" | "higher";
+  candidateCountPerCell: number;
+  filesInScope: string[];
+  offLimits: string[];
+  constraints: string[];
+  parentPeerTarget: string | undefined;
+  cells: AutoresearchMatrixCampaignCell[];
+} {
   const identity = resolveAutoresearchLiveSupervisionIdentity(input);
   const objective = input.objective.trim();
   if (objective.length === 0) {
@@ -1563,6 +1606,27 @@ export function planAutoresearchMatrixCampaign(
     }),
   );
 
+  return {
+    identity,
+    objective,
+    scenarios,
+    hypotheses,
+    direction,
+    candidateCountPerCell,
+    filesInScope,
+    offLimits,
+    constraints,
+    parentPeerTarget,
+    cells,
+  };
+}
+
+export function planAutoresearchMatrixCampaign(
+  input: AutoresearchMatrixCampaignRequest,
+): AutoresearchMatrixCampaignPlan {
+  const { identity, objective, scenarios, hypotheses, direction, candidateCountPerCell, cells } =
+    resolveAutoresearchMatrixCampaignPlanParts(input);
+
   const managedWaveSubstrate: AutoresearchMatrixManagedWaveSubstrate = {
     kind: "autoresearch.matrix_managed_candidate_wave_substrate.v1",
     cellCount: cells.length,
@@ -1639,6 +1703,89 @@ export function planAutoresearchMatrixCampaign(
     ],
     nextStep:
       "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
+  };
+}
+
+export function reviewAutoresearchMatrixCampaign(
+  input: AutoresearchMatrixCampaignRequest,
+): AutoresearchMatrixCampaignReview {
+  const { identity, objective, direction, cells } =
+    resolveAutoresearchMatrixCampaignPlanParts(input);
+  const plan = planAutoresearchMatrixCampaign(input);
+  const cellReviews = cells.map((cell): AutoresearchMatrixCampaignCellReview => {
+    const candidateWaveReview = reviewAutoresearchCandidateWave({
+      taskId: identity.taskId,
+      cwd: identity.cwd,
+      objective: cell.objective,
+      direction,
+      candidateResultPacketPaths: cell.candidateResultPacketPaths,
+    });
+    return {
+      cellId: cell.cellId,
+      scenario: cell.scenario,
+      hypothesis: cell.hypothesis,
+      objective: cell.objective,
+      recommendationPosture: candidateWaveReview.recommendation.posture,
+      selectedLaneId: candidateWaveReview.recommendation.laneId,
+      completedLaneCount: candidateWaveReview.management.completedLaneCount,
+      expectedLaneCount: candidateWaveReview.management.expectedLaneCount,
+      reviewCandidateWaveCall: cell.reviewCandidateWaveCall,
+      candidateWaveReview,
+    };
+  });
+  const completedCellCount = cellReviews.filter(
+    (cell) => cell.recommendationPosture !== "planned_lanes_incomplete",
+  ).length;
+  const selectedCellCount = cellReviews.filter(
+    (cell) => cell.recommendationPosture === "owner_selection_required",
+  ).length;
+  const hasIncomplete = cellReviews.some(
+    (cell) => cell.recommendationPosture === "planned_lanes_incomplete",
+  );
+  const hasNoSelectable = cellReviews.some(
+    (cell) => cell.recommendationPosture === "no_selectable_candidate",
+  );
+  const posture = hasIncomplete
+    ? "waiting_for_managed_cell_waves"
+    : hasNoSelectable
+      ? "cell_rerun_required"
+      : "ready_for_matrix_owner_review";
+  const exactNextCalls =
+    posture === "waiting_for_managed_cell_waves"
+      ? cellReviews
+          .filter((cell) => cell.recommendationPosture === "planned_lanes_incomplete")
+          .map((cell) => cell.reviewCandidateWaveCall)
+      : posture === "ready_for_matrix_owner_review"
+        ? cellReviews.flatMap((cell) => cell.candidateWaveReview.recommendation.exactNextCalls)
+        : cellReviews
+            .filter((cell) => cell.recommendationPosture === "no_selectable_candidate")
+            .map((cell) => cell.reviewCandidateWaveCall);
+
+  return {
+    kind: "autoresearch.matrix_campaign_review.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction,
+    posture,
+    cells: cellReviews,
+    completedCellCount,
+    expectedCellCount: cellReviews.length,
+    selectedCellCount,
+    ownerReview: plan.ownerReview,
+    exactNextCalls,
+    boundaries: [
+      "This matrix review aggregates managed candidate-wave reviews; it does not launch peers, run benchmarks, merge worktrees, write evidence, or promote candidates.",
+      "Each cell remains gated by review_candidate_wave over explicit candidate-result packet paths.",
+      "Raw peer messages are communication only; pi-autoresearch candidate-result packets remain the measurement source.",
+      "Owner approval and lower-plane candidate decision workbench calls remain required before keep/discard/rewind/finalize actions.",
+    ],
+    nextStep:
+      posture === "waiting_for_managed_cell_waves"
+        ? "Finish controller measurement and candidate_result_export for incomplete cells, then rerun review_matrix_campaign."
+        : posture === "cell_rerun_required"
+          ? "Rerun or replan cells with no selectable candidate before matrix-level owner review."
+          : "Review selected lanes per cell, open /autoresearch export for evidence, then use /autoresearch review for final owner decisions.",
   };
 }
 
@@ -1797,6 +1944,10 @@ export class AutoresearchLiveSupervisionRunner {
 
   planMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignPlan {
     return planAutoresearchMatrixCampaign(input);
+  }
+
+  reviewMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignReview {
+    return reviewAutoresearchMatrixCampaign(input);
   }
 
   reviewCandidateWave(
