@@ -1,0 +1,20 @@
+Intent: Continue the integrated supervised matrix campaign implementation by making the closeout actionable, not merely descriptive.
+
+Task: AK #2787 Make matrix campaign closeout evidence handoff actionable.
+
+Changes:
+- Add deterministic matrix closeout projection_key.
+- Add exact evidence_record handoff call to autoresearch.matrix_campaign_closeout.v1 when matrix review is ready after owner review.
+- Surface the projection key and evidence_record call in the matrix review report.
+- Extend the integrated matrix closeout dogfood contract to require the actionable evidence handoff.
+
+Validation:
+- node packages/pi-society-orchestrator/scripts/dogfood-integrated-matrix-campaign-closeout-contract.mjs
+- node --test --test-name-pattern "review_matrix_campaign" packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs
+- npm --prefix packages/pi-society-orchestrator run check
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-society-orchestrator --strict
+
+Boundary:
+- The review path prepares but does not execute evidence_record.
+- No hidden peer launch, benchmark execution, merge, promotion, worktree lifecycle action, KES write, or pi-autoresearch runtime ownership change.
+- Existing unrelated dirty files were not staged.
