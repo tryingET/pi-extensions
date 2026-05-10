@@ -599,10 +599,19 @@ function buildCandidateWaveBindCall(
   });
 }
 
+function buildCandidateAwareBenchmarkPlaceholder(candidateWorktree: string): string {
+  return `<candidate-aware benchmark command; run inside or against ${candidateWorktree}>`;
+}
+
+function buildCandidateAwareChecksPlaceholder(candidateWorktree: string): string {
+  return `<candidate-aware checks command; run inside or against ${candidateWorktree}; use null only if no checks apply>`;
+}
+
 function buildCandidateWaveMoreSamplesCall(
   cwd: string,
   winner: AutoresearchCandidateWaveReviewLane,
 ): string {
+  const candidateWorktree = winner.candidateWorktree ?? "<candidate-worktree>";
   return formatToolCall("autoresearch_runtime_run", {
     cwd,
     runKind: "ordinary",
@@ -610,12 +619,14 @@ function buildCandidateWaveMoreSamplesCall(
     hypothesisId: winner.laneId,
     hypothesis: winner.objective ?? `More samples for ${winner.laneId}`,
     candidateSource: winner.candidateWorktree ? "candidate_peer_spawn" : "manual",
-    candidateWorktree: winner.candidateWorktree ?? "<candidate-worktree>",
+    candidateWorktree,
     candidateBranch: winner.candidateBranch ?? "<candidate-branch>",
     candidateBaseRef: winner.candidateBaseRef ?? "<candidate-base-ref>",
     candidateDiffSummary: winner.candidateDiffSummary ?? "<controller-verified-diff-summary>",
     candidateFilesChanged:
       winner.candidateFilesChanged.length > 0 ? winner.candidateFilesChanged : ["<changed-files>"],
+    benchmarkCommand: buildCandidateAwareBenchmarkPlaceholder(candidateWorktree),
+    checksCommand: buildCandidateAwareChecksPlaceholder(candidateWorktree),
   });
 }
 
@@ -942,6 +953,7 @@ export function planAutoresearchCandidateWave(
         candidateWorktree: `<${laneId}-worktree-from-candidate_peer_spawn>`,
         candidateBaseRef: `<${laneId}-base-ref-from-candidate_peer_spawn>`,
       });
+      const candidateWorktreePlaceholder = `<${laneId}-worktree-from-candidate_peer_spawn>`;
       const runCall = formatToolCall("autoresearch_runtime_run", {
         cwd: identity.cwd,
         runKind: "ordinary",
@@ -949,11 +961,13 @@ export function planAutoresearchCandidateWave(
         hypothesisId: laneId,
         hypothesis: laneObjective,
         candidateSource: "candidate_peer_spawn",
-        candidateWorktree: `<${laneId}-worktree-from-candidate_peer_spawn>`,
+        candidateWorktree: candidateWorktreePlaceholder,
         candidateBranch: `<${laneId}-branch-from-candidate_peer_spawn>`,
         candidateBaseRef: `<${laneId}-base-ref-from-candidate_peer_spawn>`,
         candidateDiffSummary: `<${laneId}-controller-verified-diff-summary>`,
         candidateFilesChanged: [`<${laneId}-changed-files>`],
+        benchmarkCommand: buildCandidateAwareBenchmarkPlaceholder(candidateWorktreePlaceholder),
+        checksCommand: buildCandidateAwareChecksPlaceholder(candidateWorktreePlaceholder),
       });
       const candidateResultPacketPath = `.autoresearch/candidate-wave/${laneId}.candidate-result.json`;
       const resultCall = formatToolCall("autoresearch_runtime_status", {
@@ -1004,6 +1018,7 @@ export function planAutoresearchCandidateWave(
       reviewInstructions: [
         "Launch only the lanes the owner/controller explicitly approves.",
         "After each PEER_FINAL, bind and measure the candidate through pi-autoresearch before comparing claims.",
+        "Fill each measurement run's benchmarkCommand/checksCommand so it measures the candidate worktree, not the unchanged controller checkout.",
         "Run each lane's candidate_result_export call, then run aggregateReviewCall for owner-visible comparison.",
         "If lanes exported to .autoresearch/candidate-wave/<lane>.candidate-result.json, review_candidate_wave can also be called without candidateResultPacketPaths; it will discover existing default packets.",
         "Use the explicit aggregateReviewCall when you want missing planned lanes surfaced as missing_packet; default discovery only sees packets that exist.",

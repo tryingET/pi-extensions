@@ -499,6 +499,14 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
   );
   assert.match(
     result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
+    /candidate-aware benchmark command/,
+  );
+  assert.match(
+    result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
+    /candidate-aware checks command/,
+  );
+  assert.match(
+    result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
     /\.autoresearch\/candidate-wave\/candidate-01\.candidate-result\.json/,
   );
   assert.equal(
@@ -720,6 +728,12 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
         "\n",
       ),
       /plan_keep/,
+    );
+    assert.match(
+      result.details.candidateWaveReview.recommendation.ownerDecisionOptions[1].exactNextCalls.join(
+        "\n",
+      ),
+      /candidate-aware benchmark command/,
     );
     const candidate02 = result.details.candidateWaveReview.lanes.find(
       (lane) => lane.laneId === "candidate-02",
