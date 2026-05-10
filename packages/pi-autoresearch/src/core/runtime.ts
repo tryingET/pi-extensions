@@ -6111,10 +6111,12 @@ export async function executeAutoresearchRun(
   const resolvedCandidateExecutionCwd = candidateExecutionCwd
     ? path.resolve(cwd, candidateExecutionCwd)
     : null;
-  const commandCwd =
-    resolvedCandidateExecutionCwd && existsSync(resolvedCandidateExecutionCwd)
-      ? resolvedCandidateExecutionCwd
-      : cwd;
+  if (resolvedCandidateExecutionCwd && !existsSync(resolvedCandidateExecutionCwd)) {
+    throw new Error(
+      `candidateWorktree does not exist; refusing to measure controller cwd as candidate: ${resolvedCandidateExecutionCwd}`,
+    );
+  }
+  const commandCwd = resolvedCandidateExecutionCwd ?? cwd;
 
   if (input.postureCommand?.trim()) {
     await assertAutoresearchPostureReady({

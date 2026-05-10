@@ -4563,6 +4563,13 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
     writeExecutable(
       cwd,
       "autoresearch.sh",
+      ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "METRIC total_ms=999"'].join("\n"),
+    );
+    const candidateWorktree = path.join(cwd, "candidate-peer-runtime");
+    mkdirSync(candidateWorktree, { recursive: true });
+    writeExecutable(
+      candidateWorktree,
+      "autoresearch.sh",
       ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "METRIC total_ms=180"'].join("\n"),
     );
 
@@ -4577,7 +4584,7 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
         expectedPrimaryEffect: "lower total_ms beyond timing noise",
         hypothesisTargetFiles: ["src/core/runtime.ts"],
         candidateSource: "candidate_peer_spawn",
-        candidateWorktree: "/tmp/candidate-peer-runtime",
+        candidateWorktree,
         candidateBranch: "candidate/runtime-speed",
         candidateBaseRef: "main",
         candidateDiffSummary: "tighten runtime hot path after peer exploration",
@@ -4618,7 +4625,7 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
 
     assert.deepEqual(details.runReceipt.experiment?.candidate, {
       source: "candidate_peer_spawn",
-      worktreePath: "/tmp/candidate-peer-runtime",
+      worktreePath: candidateWorktree,
       branch: "candidate/runtime-speed",
       baseRef: "main",
       diffSummary: "tighten runtime hot path after peer exploration",
@@ -4635,6 +4642,44 @@ test("autoresearch_runtime_run backfills the event ledger from existing receipts
         .trim()
         .split("\n").length,
       9,
+    );
+  });
+});
+
+test("autoresearch_runtime_run fails closed for missing candidate worktree", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(tool);
+
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "missing-candidate-worktree",
+        metricName: "score",
+        metricUnit: "points",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    writeExecutable(cwd, "autoresearch.sh", "#!/usr/bin/env bash\necho 'METRIC score=999'\n");
+
+    await assert.rejects(
+      () =>
+        tool.execute(
+          "call-missing-candidate-worktree",
+          {
+            cwd,
+            description: "missing candidate worktree",
+            candidateSource: "candidate_peer_spawn",
+            candidateWorktree: path.join(cwd, "missing-candidate-worktree"),
+          },
+          undefined,
+          undefined,
+          { cwd },
+        ),
+      /candidateWorktree does not exist; refusing to measure controller cwd as candidate/,
     );
   });
 });
