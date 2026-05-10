@@ -1,0 +1,31 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "c7bc7e90f4a4bdbe124f9f23b8cec0d78b325d2e"
+created_at: "2026-05-10T07:25:40Z"
+intent: "Govern pi-autoresearch campaign endurance proof and ignore regenerated local runtime artifacts"
+files:
+  - ".gitignore"
+  - "packages/pi-autoresearch/docs/adr/2026-05-10-campaign-endurance-runtime-proof.md"
+  - "packages/pi-autoresearch/docs/project/2026-05-10-campaign-endurance-problem-intent.md"
+  - "packages/pi-autoresearch/docs/project/2026-05-10-campaign-endurance-smoke-implementation-check.md"
+  - "packages/pi-autoresearch/docs/project/2026-05-10-review-campaign-endurance-runtime-proof.md"
+  - "packages/pi-autoresearch/docs/project/2026-05-10-rfc-campaign-endurance-runtime-proof.md"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pass"
+  full_gate:
+    command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch --strict --require-system4d-path docs/adr/ --require-system4d-path docs/decisions/"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Commit current campaign-endurance problem/RFC/review/ADR/check docs and root autoresearch runtime ignores"
+links:
+  task_ids:
+    - 2749
+  evidence_ids:
+    - 1642
+    - 1643
