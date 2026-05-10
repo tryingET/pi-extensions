@@ -816,6 +816,18 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
       result.details.matrixCampaignReview.closeout.evidenceProjection.requiredAnchor,
       "taskId:2774",
     );
+    assert.match(
+      result.details.matrixCampaignReview.closeout.evidenceProjection.projectionKey,
+      /^matrix-closeout\|task:2774\|/,
+    );
+    assert.match(
+      result.details.matrixCampaignReview.closeout.evidenceProjection.exactRecordCall,
+      /evidence_record/,
+    );
+    assert.match(
+      result.details.matrixCampaignReview.closeout.evidenceProjection.exactRecordCall,
+      /autoresearch:matrix-campaign:closeout/,
+    );
     assert.equal(result.details.matrixCampaignReview.closeout.selectedLanes.length, 2);
     assert.deepEqual(result.details.matrixCampaignReview.closeout.ownerDecisionRoute, {
       dashboardFirst: "/autoresearch export",
@@ -838,6 +850,7 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
       result.content[0].text,
       /evidence projection: ready_for_external_projection via AK/,
     );
+    assert.match(result.content[0].text, /evidence record call: evidence_record/);
     assert.match(result.content[0].text, /No peer was launched/);
     assert.match(result.content[0].text, /Raw peer messages are communication only/);
   });

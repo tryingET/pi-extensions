@@ -568,6 +568,10 @@ function formatAutoresearchMatrixCampaignReviewReport(
         `- selected ${lane.cellId}: lane=${lane.laneId}; packet=${lane.sourcePacketPath ?? "none"}`,
     ),
     `- evidence projection: ${review.closeout.evidenceProjection.posture} via ${review.closeout.evidenceProjection.ownerSurface}; anchor=${review.closeout.evidenceProjection.requiredAnchor}`,
+    `- evidence projection key: ${review.closeout.evidenceProjection.projectionKey}`,
+    ...(review.closeout.evidenceProjection.exactRecordCall
+      ? [`- evidence record call: ${review.closeout.evidenceProjection.exactRecordCall}`]
+      : []),
     `- evidence boundary: ${review.closeout.evidenceProjection.boundary}`,
     `- dashboard first: ${review.closeout.ownerDecisionRoute.dashboardFirst}`,
     `- overlay fallback: ${review.closeout.ownerDecisionRoute.overlayFallback}`,

@@ -353,6 +353,8 @@ export interface AutoresearchMatrixCampaignCloseout {
     posture: "ready_for_external_projection" | "blocked";
     ownerSurface: "AK";
     requiredAnchor: string;
+    projectionKey: string;
+    exactRecordCall: string | null;
     boundary: string;
   };
   ownerDecisionRoute: {
@@ -1923,6 +1925,34 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
         ? "blocked_until_managed_cell_waves_complete"
         : "blocked_until_cell_rerun";
   const projectionReady = input.posture === "ready_for_matrix_owner_review";
+  const projectionKey = buildAutoresearchMatrixCampaignCloseoutProjectionKey({
+    taskId: input.taskId,
+    selectedLanes,
+    packetPaths,
+  });
+  const evidenceDetails = {
+    kind: "autoresearch.matrix_campaign_closeout.v1",
+    projection_key: projectionKey,
+    task_id: input.taskId,
+    posture: closeoutPosture,
+    selected_lanes: selectedLanes,
+    packet_paths: packetPaths,
+    owner_decision_route: {
+      dashboard_first: input.ownerReview.primaryUi.slashCommand,
+      overlay_fallback: input.ownerReview.primaryUi.fallbackSlashCommand,
+      final_decision: input.ownerReview.decisionUi.slashCommand,
+    },
+    boundary:
+      "Matrix campaign closeout evidence is an owner-reviewed projection of pi-autoresearch candidate-result packets; it does not merge, promote, write KES, launch peers, run benchmarks, or mutate worktrees.",
+  };
+  const exactRecordCall = projectionReady
+    ? formatToolCall("evidence_record", {
+        check_type: "autoresearch:matrix-campaign:closeout",
+        result: "pass",
+        task_id: input.taskId,
+        details: evidenceDetails,
+      })
+    : null;
 
   return {
     kind: "autoresearch.matrix_campaign_closeout.v1",
@@ -1938,8 +1968,10 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       posture: projectionReady ? "ready_for_external_projection" : "blocked",
       ownerSurface: "AK",
       requiredAnchor: `taskId:${input.taskId}`,
+      projectionKey,
+      exactRecordCall,
       boundary:
-        "AK evidence projection is an explicit external owner-surface action after dashboard-first owner review; this closeout does not write evidence.",
+        "AK evidence projection is an explicit external owner-surface action after dashboard-first owner review; this closeout prepares the exact evidence_record call but does not execute it.",
     },
     ownerDecisionRoute: {
       dashboardFirst: input.ownerReview.primaryUi.slashCommand,
@@ -1963,6 +1995,19 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       "No merge, promotion, AK evidence write, KES write, or task lifecycle mutation was applied.",
     ],
   };
+}
+
+function buildAutoresearchMatrixCampaignCloseoutProjectionKey(input: {
+  taskId: number;
+  selectedLanes: readonly { cellId: string; laneId: string; sourcePacketPath: string | null }[];
+  packetPaths: readonly string[];
+}): string {
+  const selectedLaneKey = input.selectedLanes
+    .map((lane) => `${lane.cellId}:${lane.laneId}:${lane.sourcePacketPath ?? "no-packet"}`)
+    .sort()
+    .join(",");
+  const packetKey = [...input.packetPaths].sort().join(",");
+  return `matrix-closeout|task:${input.taskId}|selected:${encodeURIComponent(selectedLaneKey)}|packets:${encodeURIComponent(packetKey)}`;
 }
 
 export async function readAutoresearchLiveObservation(

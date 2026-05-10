@@ -144,6 +144,21 @@ if (review.closeout?.evidenceProjection?.posture !== "ready_for_external_project
 if (review.closeout?.evidenceProjection?.requiredAnchor !== `taskId:${taskId}`) {
   addBlocker("closeout_missing_exact_task_anchor");
 }
+if (
+  !review.closeout?.evidenceProjection?.projectionKey?.startsWith(`matrix-closeout|task:${taskId}|`)
+) {
+  addBlocker("closeout_missing_projection_key");
+}
+if (!review.closeout?.evidenceProjection?.exactRecordCall?.includes("evidence_record")) {
+  addBlocker("closeout_missing_exact_evidence_record_call");
+}
+if (
+  !review.closeout?.evidenceProjection?.exactRecordCall?.includes(
+    "autoresearch:matrix-campaign:closeout",
+  )
+) {
+  addBlocker("closeout_evidence_record_call_missing_check_type");
+}
 if (review.closeout?.ownerDecisionRoute?.dashboardFirst !== "/autoresearch export") {
   addBlocker("closeout_missing_dashboard_first_route");
 }
@@ -199,6 +214,8 @@ console.log(
         selectedCellCount: review.selectedCellCount,
         closeoutPosture: review.closeout?.posture ?? null,
         evidenceProjection: review.closeout?.evidenceProjection?.posture ?? null,
+        projectionKey: review.closeout?.evidenceProjection?.projectionKey ?? null,
+        evidenceRecordCall: review.closeout?.evidenceProjection?.exactRecordCall ?? null,
         dashboardFirst: review.closeout?.ownerDecisionRoute?.dashboardFirst ?? null,
       },
     },
