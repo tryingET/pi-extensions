@@ -719,6 +719,19 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       result.details.candidateWaveReview.recommendation.ownerDecisionForm.options[0].recommended,
       true,
     );
+    assert.equal(
+      result.details.candidateWaveReview.recommendation.ownerDecisionForm.interviewQuestions
+        .questions[0].id,
+      "candidate_wave_owner_decision",
+    );
+    assert.match(
+      result.details.candidateWaveReview.recommendation.ownerDecisionForm.interviewCall,
+      /interview/,
+    );
+    assert.match(
+      result.details.candidateWaveReview.recommendation.ownerDecisionForm.interviewCall,
+      /candidate_wave_owner_decision/,
+    );
     assert.match(
       result.details.candidateWaveReview.recommendation.ownerDecisionOptions[0].exactNextCalls.join(
         "\n",
@@ -759,6 +772,7 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.match(result.content[0].text, /caveat: candidate 02 improved more/);
     assert.match(result.content[0].text, /Packet discovery: explicit/);
     assert.match(result.content[0].text, /Owner decision form/);
+    assert.match(result.content[0].text, /interview call: interview/);
     assert.match(result.content[0].text, /candidate_wave_owner_decision/);
     assert.match(result.content[0].text, /Owner decision options/);
     assert.match(result.content[0].text, /plan_keep_recommended/);

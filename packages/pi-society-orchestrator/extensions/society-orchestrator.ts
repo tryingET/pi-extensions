@@ -485,6 +485,7 @@ function formatAutoresearchCandidateWaveReviewReport(
           `- kind: ${review.recommendation.ownerDecisionForm.kind}`,
           `- question: ${review.recommendation.ownerDecisionForm.questionId}`,
           `- recommended option: ${review.recommendation.ownerDecisionForm.recommendedOptionId ?? "none"}`,
+          `- interview call: ${review.recommendation.ownerDecisionForm.interviewCall}`,
           `- boundary: ${review.recommendation.ownerDecisionForm.boundary}`,
         ]
       : []),

@@ -265,6 +265,31 @@ export interface AutoresearchCandidateWaveOwnerDecisionFormOption {
   exactNextCalls: readonly string[];
 }
 
+export interface AutoresearchCandidateWaveOwnerDecisionInterviewPayload {
+  title: string;
+  description: string;
+  questions: readonly [
+    {
+      id: "candidate_wave_owner_decision";
+      type: "single";
+      question: string;
+      options: readonly {
+        label: string;
+        value: string;
+        content: {
+          source: string;
+          lang: "md";
+        };
+      }[];
+      recommended?: {
+        optionId: string;
+        rationale: string;
+      };
+      weight: "critical";
+    },
+  ];
+}
+
 export interface AutoresearchCandidateWaveOwnerDecisionForm {
   kind: "autoresearch.candidate_wave_owner_decision_form.v1";
   title: string;
@@ -272,6 +297,8 @@ export interface AutoresearchCandidateWaveOwnerDecisionForm {
   questionId: "candidate_wave_owner_decision";
   recommendedOptionId: string | null;
   options: readonly AutoresearchCandidateWaveOwnerDecisionFormOption[];
+  interviewQuestions: AutoresearchCandidateWaveOwnerDecisionInterviewPayload;
+  interviewCall: string;
   boundary: string;
 }
 
@@ -788,20 +815,62 @@ function buildCandidateWaveOwnerDecisionForm(input: {
     candidateWaveStatusDecision(winner.status) === "more_samples"
       ? "collect_more_samples"
       : "plan_keep_recommended";
+  const title = `Owner decision for candidate wave: ${reviewObjective}`;
+  const description =
+    "Choose one plan-only next step after reviewing packet evidence, candidate diff, and validation. The form is advisory UI data only; executing calls remains explicit.";
+  const options = ownerDecisionOptions.map((option) => ({
+    optionId: option.optionId,
+    label: option.label,
+    recommended: option.optionId === recommendedOptionId,
+    rationale: option.rationale,
+    exactNextCalls: option.exactNextCalls,
+  }));
+  const interviewQuestions: AutoresearchCandidateWaveOwnerDecisionInterviewPayload = {
+    title,
+    description,
+    questions: [
+      {
+        id: "candidate_wave_owner_decision",
+        type: "single",
+        question: `Select the next plan-only action for ${winner.laneId}.`,
+        options: options.map((option) => ({
+          label: `${option.label}${option.recommended ? " (recommended)" : ""}`,
+          value: option.optionId,
+          content: {
+            lang: "md",
+            source: [
+              `**Posture:** owner_gate_required`,
+              `**Rationale:** ${option.rationale}`,
+              "",
+              "**Exact next calls:**",
+              ...option.exactNextCalls.map((call) => `- \`${call}\``),
+            ].join("\n"),
+          },
+        })),
+        ...(recommendedOptionId
+          ? {
+              recommended: {
+                optionId: recommendedOptionId,
+                rationale:
+                  "Recommended from candidate-wave packet review; owner must still approve.",
+              },
+            }
+          : {}),
+        weight: "critical",
+      },
+    ],
+  };
   return {
     kind: "autoresearch.candidate_wave_owner_decision_form.v1",
-    title: `Owner decision for candidate wave: ${reviewObjective}`,
-    description:
-      "Choose one plan-only next step after reviewing packet evidence, candidate diff, and validation. The form is advisory UI data only; executing calls remains explicit.",
+    title,
+    description,
     questionId: "candidate_wave_owner_decision",
     recommendedOptionId,
-    options: ownerDecisionOptions.map((option) => ({
-      optionId: option.optionId,
-      label: option.label,
-      recommended: option.optionId === recommendedOptionId,
-      rationale: option.rationale,
-      exactNextCalls: option.exactNextCalls,
-    })),
+    options,
+    interviewQuestions,
+    interviewCall: formatToolCall("interview", {
+      questions: JSON.stringify(interviewQuestions),
+    }),
     boundary:
       "This owner-decision form does not apply worktree lifecycle actions, write AK/KES/evidence, merge, promote, or mutate candidate state.",
   };
