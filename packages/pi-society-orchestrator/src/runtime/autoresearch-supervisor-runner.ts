@@ -169,6 +169,39 @@ export interface AutoresearchCandidateWaveRequest extends AutoresearchLiveSuperv
   maxWallClockMinutesPerCandidate?: number;
 }
 
+export type AutoresearchCandidateWaveManagementLaneState =
+  | "planned"
+  | "packet_missing"
+  | "measured_exported_selectable"
+  | "measured_exported_not_selectable";
+
+export interface AutoresearchCandidateWaveManagementLane {
+  laneId: string;
+  state: AutoresearchCandidateWaveManagementLaneState;
+  candidateResultPacketPath: string | null;
+  selectable: boolean;
+  metric: number | null;
+  nextStep: string;
+}
+
+export interface AutoresearchCandidateWaveManagement {
+  kind: "autoresearch.candidate_wave_management.v1";
+  waveId: string;
+  posture:
+    | "planned_not_launched"
+    | "waiting_for_planned_lanes"
+    | "ready_for_owner_selection"
+    | "no_selectable_candidate";
+  completedLaneCount: number;
+  expectedLaneCount: number;
+  laneStates: readonly AutoresearchCandidateWaveManagementLane[];
+  finalOnlyScoring: true;
+  controllerMeasurementRequired: true;
+  nonSelectedLanePolicy: string;
+  fanInChecklist: readonly string[];
+  exactNextCalls: readonly string[];
+}
+
 export interface AutoresearchCandidateWaveLane {
   laneId: string;
   objective: string;
@@ -197,6 +230,7 @@ export interface AutoresearchCandidateWavePlan {
     aggregateReviewCall: string;
     reviewInstructions: string[];
   };
+  management: AutoresearchCandidateWaveManagement;
   boundaries: string[];
   nextStep: string;
 }
@@ -395,6 +429,7 @@ export interface AutoresearchCandidateWaveReview {
     ownerDecisionOptions: readonly AutoresearchCandidateWaveOwnerDecisionOption[];
     ownerDecisionForm: AutoresearchCandidateWaveOwnerDecisionForm | null;
   };
+  management: AutoresearchCandidateWaveManagement;
   nextStep: string;
   boundaries: string[];
 }
@@ -669,6 +704,110 @@ function sortCandidateWaveReviewLanes(
     );
   const rankByLane = new Map(selectable.map((lane, index) => [lane.laneId, index + 1]));
   return lanes.map((lane) => ({ ...lane, rank: rankByLane.get(lane.laneId) ?? null }));
+}
+
+function candidateWaveSlug(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-|-$/gu, "")
+    .slice(0, 48);
+  return slug || "candidate-wave";
+}
+
+function candidateWaveId(input: { taskId: number; objective: string }): string {
+  return `task-${input.taskId}-${candidateWaveSlug(input.objective)}`;
+}
+
+function buildPlannedCandidateWaveManagement(input: {
+  taskId: number;
+  objective: string;
+  lanes: readonly AutoresearchCandidateWaveLane[];
+  aggregateReviewCall: string;
+}): AutoresearchCandidateWaveManagement {
+  return {
+    kind: "autoresearch.candidate_wave_management.v1",
+    waveId: candidateWaveId(input),
+    posture: "planned_not_launched",
+    completedLaneCount: 0,
+    expectedLaneCount: input.lanes.length,
+    laneStates: input.lanes.map((lane) => ({
+      laneId: lane.laneId,
+      state: "planned",
+      candidateResultPacketPath: lane.candidateResultPacketPath,
+      selectable: false,
+      metric: null,
+      nextStep:
+        "Launch only if explicitly approved, then bind, measure, and export the lane packet.",
+    })),
+    finalOnlyScoring: true,
+    controllerMeasurementRequired: true,
+    nonSelectedLanePolicy:
+      "After owner selection, send explicit stop/cancel guidance for non-selected visible peers; do not merge, delete, or reset their worktrees from this plan.",
+    fanInChecklist: [
+      "Use visible candidate_peer_spawn calls only for approved lanes.",
+      "Treat PEER_FINAL as communication until the controller binds and measures the worktree through pi-autoresearch.",
+      "Export one autoresearch.candidate_result.v1 packet per planned lane before final scoring.",
+      "Run the explicit aggregate review call so missing planned lanes remain visible and gate selection.",
+    ],
+    exactNextCalls: [input.aggregateReviewCall],
+  };
+}
+
+function buildReviewedCandidateWaveManagement(input: {
+  taskId: number;
+  objective: string;
+  lanes: readonly AutoresearchCandidateWaveReviewLane[];
+  plannedLanesIncomplete: boolean;
+  winner: AutoresearchCandidateWaveReviewLane | null;
+  exactNextCalls: readonly string[];
+}): AutoresearchCandidateWaveManagement {
+  const completedLaneCount = input.lanes.filter(
+    (lane) => normalizeReviewToken(lane.status) !== "missing_packet",
+  ).length;
+  const posture = input.plannedLanesIncomplete
+    ? "waiting_for_planned_lanes"
+    : input.winner
+      ? "ready_for_owner_selection"
+      : "no_selectable_candidate";
+  return {
+    kind: "autoresearch.candidate_wave_management.v1",
+    waveId: candidateWaveId(input),
+    posture,
+    completedLaneCount,
+    expectedLaneCount: input.lanes.length,
+    laneStates: input.lanes.map((lane) => {
+      const missing = normalizeReviewToken(lane.status) === "missing_packet";
+      return {
+        laneId: lane.laneId,
+        state: missing
+          ? "packet_missing"
+          : lane.selectable
+            ? "measured_exported_selectable"
+            : "measured_exported_not_selectable",
+        candidateResultPacketPath: lane.sourcePacketPath,
+        selectable: lane.selectable,
+        metric: lane.metric,
+        nextStep: missing
+          ? "Wait for controller measurement and candidate_result_export, or explicitly replan the wave without this lane."
+          : lane.selectable
+            ? "Eligible for final-only scoring after all explicit planned lanes are exported."
+            : "Not selectable; inspect status/check posture before rerun or discard planning.",
+      };
+    }),
+    finalOnlyScoring: true,
+    controllerMeasurementRequired: true,
+    nonSelectedLanePolicy: input.winner
+      ? `After owner approval for ${input.winner.laneId}, stop/cancel non-selected visible peers explicitly and leave cleanup/merge/reset to owner-approved lifecycle plans.`
+      : "No selected lane yet; do not stop/cancel or clean up lanes as if a winner exists.",
+    fanInChecklist: [
+      "Score only controller-measured pi-autoresearch candidate-result packets, never raw peer claims.",
+      "Do not recommend owner selection while any explicit planned lane is missing its packet.",
+      "Keep missing, failed, blocked, and non-selectable lanes visible in the review report.",
+      "After owner selection, issue explicit stop/cancel guidance for non-selected active peers before any merge/promotion work.",
+    ],
+    exactNextCalls: input.exactNextCalls,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1102,6 +1241,14 @@ export function reviewAutoresearchCandidateWave(
     winner: selectableWinner,
     ownerDecisionOptions,
   });
+  const management = buildReviewedCandidateWaveManagement({
+    taskId: identity.taskId,
+    objective,
+    lanes,
+    plannedLanesIncomplete,
+    winner: selectableWinner,
+    exactNextCalls,
+  });
 
   return {
     kind: "autoresearch.candidate_wave_review.v1",
@@ -1137,6 +1284,7 @@ export function reviewAutoresearchCandidateWave(
             ownerDecisionOptions,
             ownerDecisionForm,
           },
+    management,
     nextStep: plannedLanesIncomplete
       ? "Wait for every explicit planned lane to reach controller-measured candidate_result_export, or rerun review_candidate_wave with a deliberately revised packet path set after owner replanning."
       : winner
@@ -1258,6 +1406,12 @@ export function planAutoresearchCandidateWave(
     direction: input.direction ?? "lower",
     candidateResultPacketPaths,
   });
+  const management = buildPlannedCandidateWaveManagement({
+    taskId: identity.taskId,
+    objective,
+    lanes,
+    aggregateReviewCall,
+  });
 
   return {
     kind: "autoresearch.candidate_wave_plan.v1",
@@ -1286,6 +1440,7 @@ export function planAutoresearchCandidateWave(
         "Use the dashboard/candidate decision surface to choose keep, discard, rewind, more samples, or finalize; do not auto-merge.",
       ],
     },
+    management,
     boundaries: [
       "This plan does not spawn peers by itself.",
       "candidate_peer_spawn / pi-little-helpers owns visible isolated worktree launch.",

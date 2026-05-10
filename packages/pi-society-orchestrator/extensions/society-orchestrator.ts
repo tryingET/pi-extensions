@@ -437,6 +437,21 @@ function formatAutoresearchCandidateWavePlanReport(plan: AutoresearchCandidateWa
     `packet paths: ${plan.ownerSelection.candidateResultPacketPaths.join(", ")}`,
     ...plan.ownerSelection.reviewInstructions.map((instruction) => `- ${instruction}`),
     "",
+    "Wave fan-in management:",
+    `- kind: ${plan.management.kind}`,
+    `- wave id: ${plan.management.waveId}`,
+    `- posture: ${plan.management.posture}`,
+    `- lane progress: ${plan.management.completedLaneCount}/${plan.management.expectedLaneCount}`,
+    `- final-only scoring: ${plan.management.finalOnlyScoring ? "yes" : "no"}`,
+    `- controller measurement required: ${plan.management.controllerMeasurementRequired ? "yes" : "no"}`,
+    ...plan.management.laneStates.map(
+      (lane) =>
+        `- ${lane.laneId}: ${lane.state}; packet=${lane.candidateResultPacketPath ?? "none"}; next=${lane.nextStep}`,
+    ),
+    ...plan.management.fanInChecklist.map((item) => `- checklist: ${item}`),
+    `- non-selected lane policy: ${plan.management.nonSelectedLanePolicy}`,
+    ...plan.management.exactNextCalls.map((call) => `- fan-in call: ${call}`),
+    "",
     "Boundaries:",
     ...plan.boundaries.map((boundary) => `- ${boundary}`),
     "",
@@ -529,6 +544,21 @@ function formatAutoresearchCandidateWaveReviewReport(
     "",
     `Recommendation: ${review.recommendation.posture}${review.recommendation.laneId ? ` — ${review.recommendation.laneId}` : ""}`,
     `Reason: ${review.recommendation.reason}`,
+    "",
+    "Wave fan-in management:",
+    `- kind: ${review.management.kind}`,
+    `- wave id: ${review.management.waveId}`,
+    `- posture: ${review.management.posture}`,
+    `- lane progress: ${review.management.completedLaneCount}/${review.management.expectedLaneCount}`,
+    `- final-only scoring: ${review.management.finalOnlyScoring ? "yes" : "no"}`,
+    `- controller measurement required: ${review.management.controllerMeasurementRequired ? "yes" : "no"}`,
+    ...review.management.laneStates.map(
+      (lane) =>
+        `- ${lane.laneId}: ${lane.state}; metric=${lane.metric ?? "missing"}; selectable=${lane.selectable ? "yes" : "no"}; packet=${lane.candidateResultPacketPath ?? "none"}; next=${lane.nextStep}`,
+    ),
+    ...review.management.fanInChecklist.map((item) => `- checklist: ${item}`),
+    `- non-selected lane policy: ${review.management.nonSelectedLanePolicy}`,
+    ...review.management.exactNextCalls.map((call) => `- fan-in call: ${call}`),
     ...(review.recommendation.ownerDecisionForm
       ? [
           "",

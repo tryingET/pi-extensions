@@ -521,8 +521,24 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
     ".autoresearch/candidate-wave/candidate-01.candidate-result.json",
     ".autoresearch/candidate-wave/candidate-02.candidate-result.json",
   ]);
+  assert.equal(
+    result.details.candidateWave.management.kind,
+    "autoresearch.candidate_wave_management.v1",
+  );
+  assert.equal(result.details.candidateWave.management.posture, "planned_not_launched");
+  assert.equal(result.details.candidateWave.management.expectedLaneCount, 2);
+  assert.equal(result.details.candidateWave.management.completedLaneCount, 0);
+  assert.equal(result.details.candidateWave.management.finalOnlyScoring, true);
+  assert.equal(result.details.candidateWave.management.controllerMeasurementRequired, true);
+  assert.deepEqual(
+    result.details.candidateWave.management.laneStates.map((lane) => lane.state),
+    ["planned", "planned"],
+  );
   assert.match(result.content[0].text, /Candidate lanes: 2/);
   assert.match(result.content[0].text, /aggregate review/);
+  assert.match(result.content[0].text, /Wave fan-in management/);
+  assert.match(result.content[0].text, /final-only scoring: yes/);
+  assert.match(result.content[0].text, /controller measurement required: yes/);
   assert.match(result.content[0].text, /This plan does not spawn peers by itself/);
   assert.match(result.content[0].text, /explicit_owner_decision_required|Owner selection/);
 });
@@ -715,6 +731,21 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
   assert.equal(result.details.candidateWaveReview.kind, "autoresearch.candidate_wave_review.v1");
   assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
   assert.equal(
+    result.details.candidateWaveReview.management.kind,
+    "autoresearch.candidate_wave_management.v1",
+  );
+  assert.equal(result.details.candidateWaveReview.management.posture, "ready_for_owner_selection");
+  assert.equal(result.details.candidateWaveReview.management.completedLaneCount, 3);
+  assert.equal(result.details.candidateWaveReview.management.expectedLaneCount, 3);
+  assert.deepEqual(
+    result.details.candidateWaveReview.management.laneStates.map((lane) => lane.state),
+    [
+      "measured_exported_selectable",
+      "measured_exported_selectable",
+      "measured_exported_not_selectable",
+    ],
+  );
+  assert.equal(
     result.details.candidateWaveReview.lanes.find((lane) => lane.laneId === "candidate-03")
       .selectable,
     false,
@@ -729,6 +760,8 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
   );
   assert.match(result.content[0].text, /Candidate comparison/);
   assert.match(result.content[0].text, /Recommendation: owner_selection_required — candidate-02/);
+  assert.match(result.content[0].text, /Wave fan-in management/);
+  assert.match(result.content[0].text, /ready_for_owner_selection/);
   assert.match(result.content[0].text, /Exact next calls/);
   assert.match(result.content[0].text, /not promotion authority|owner approval/);
 });
@@ -1000,6 +1033,16 @@ test("autoresearch_live_supervision review_candidate_wave gates explicit incompl
     assert.equal(result.details.candidateWaveReview.recommendation.laneId, null);
     assert.deepEqual(result.details.candidateWaveReview.recommendation.exactNextCalls, []);
     assert.equal(result.details.candidateWaveReview.recommendation.ownerDecisionForm, null);
+    assert.equal(
+      result.details.candidateWaveReview.management.posture,
+      "waiting_for_planned_lanes",
+    );
+    assert.equal(result.details.candidateWaveReview.management.completedLaneCount, 1);
+    assert.equal(result.details.candidateWaveReview.management.expectedLaneCount, 2);
+    assert.deepEqual(
+      result.details.candidateWaveReview.management.laneStates.map((lane) => lane.state),
+      ["measured_exported_selectable", "packet_missing"],
+    );
     const candidate02 = result.details.candidateWaveReview.lanes.find(
       (lane) => lane.laneId === "candidate-02",
     );
@@ -1008,6 +1051,7 @@ test("autoresearch_live_supervision review_candidate_wave gates explicit incompl
     assert.equal(candidate02.sourcePacketPath, missingPacket);
     assert.match(result.details.candidateWaveReview.recommendation.reason, /candidate-02/);
     assert.match(result.content[0].text, /Recommendation: planned_lanes_incomplete/);
+    assert.match(result.content[0].text, /waiting_for_planned_lanes/);
     assert.match(result.content[0].text, /missing_packet guidance: verify\/export/);
     assert.match(result.content[0].text, /still running\/failed/);
     assert.match(result.content[0].text, /Wait for every explicit planned lane/);
