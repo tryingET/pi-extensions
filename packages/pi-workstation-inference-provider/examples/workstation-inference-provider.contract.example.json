@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "authority": "workstation/lane-op",
+  "family": "baseline-text",
+  "surface": "canonical",
+  "generated_at": "2026-05-10T00:00:00Z",
+  "stale_after_seconds": 3600,
+  "provider_id": "workstation-inference",
+  "provider_name": "Workstation Inference",
+  "base_url": "http://127.0.0.1:1234/v1",
+  "health_url": "http://127.0.0.1:1234/health",
+  "recovery_hint": "Provider is read-only. Use workstation lane-op to inspect or repair baseline-text runtime state.",
+  "models": [
+    {
+      "pi_model_id": "baseline-text",
+      "name": "Baseline text (lane-op canonical)",
+      "upstream_model": "lane-op-routed-baseline-text",
+      "context_window": 131072,
+      "max_tokens": 16384,
+      "reasoning": true,
+      "thinking_format": "qwen-chat-template",
+      "thinking_level_map": {
+        "minimal": null,
+        "low": null,
+        "medium": null,
+        "high": "enabled",
+        "xhigh": null
+      },
+      "input": ["text"]
+    }
+  ]
+}

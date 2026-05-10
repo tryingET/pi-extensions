@@ -76,6 +76,10 @@
     "packages/pi-vault-client": {
       "release-type": "node",
       "component": "pi-vault-client"
+    },
+    "packages/pi-workstation-inference-provider": {
+      "release-type": "node",
+      "component": "pi-workstation-inference-provider"
     }
   }
 }

@@ -1,0 +1,354 @@
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+type ThinkingLevelMap = {
+  minimal?: string | null;
+  low?: string | null;
+  medium?: string | null;
+  high?: string | null;
+  xhigh?: string | null;
+};
+
+type ContractModel = {
+  id?: string;
+  pi_model_id?: string;
+  name?: string;
+  upstream_model?: string;
+  context_window?: number;
+  max_tokens?: number;
+  reasoning?: boolean;
+  thinking_level_map?: ThinkingLevelMap;
+  thinking_format?: "qwen" | "qwen-chat-template";
+  input?: string[];
+};
+
+type WorkstationInferenceContract = {
+  schema_version: 1;
+  authority?: string;
+  family?: string;
+  surface?: string;
+  generated_at?: string;
+  stale_after_seconds?: number;
+  provider_id?: string;
+  provider_name?: string;
+  base_url: string;
+  health_url?: string;
+  api_key_env?: string;
+  api_key?: string;
+  recovery_hint?: string;
+  models: ContractModel[];
+};
+
+type LoadedContract = {
+  contract: WorkstationInferenceContract;
+  source: string;
+};
+
+type Status = "ok" | "missing" | "invalid" | "stale" | "unhealthy";
+
+type ContractStatus = {
+  status: Status;
+  source?: string;
+  summary: string;
+  detail?: string;
+  contract?: WorkstationInferenceContract;
+};
+
+const DEFAULT_PROVIDER_ID = "workstation-inference";
+const DEFAULT_PROVIDER_NAME = "Workstation Inference";
+const DEFAULT_CONTEXT_WINDOW = 131_072;
+const DEFAULT_MAX_TOKENS = 16_384;
+const DEFAULT_TIMEOUT_MS = 1_500;
+const DEFAULT_API_KEY = "workstation-local";
+const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
+const CONTRACT_JSON_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_JSON";
+const DEFAULT_CONTRACT_PATH = join(
+  homedir(),
+  "ai-society",
+  "softwareco",
+  "infra",
+  "workstation",
+  "phasee",
+  "state",
+  "workstation-inference-provider.json",
+);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringListValue(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value
+    .map((item) => stringValue(item))
+    .filter((item): item is string => Boolean(item));
+  return items.length > 0 ? items : undefined;
+}
+
+function parseThinkingLevelMap(value: unknown): ThinkingLevelMap | undefined {
+  if (!isRecord(value)) return undefined;
+  const map: ThinkingLevelMap = {};
+  for (const key of ["minimal", "low", "medium", "high", "xhigh"] as const) {
+    const item = value[key];
+    if (item === null || typeof item === "string") map[key] = item;
+  }
+  return Object.keys(map).length > 0 ? map : undefined;
+}
+
+function parseModel(value: unknown, index: number): ContractModel {
+  if (!isRecord(value)) throw new Error(`models[${index}] must be an object`);
+  const id = stringValue(value.id) ?? stringValue(value.pi_model_id);
+  if (!id) throw new Error(`models[${index}] needs id or pi_model_id`);
+  const thinkingFormat = stringValue(value.thinking_format);
+  if (thinkingFormat && thinkingFormat !== "qwen" && thinkingFormat !== "qwen-chat-template") {
+    throw new Error(`models[${index}].thinking_format must be qwen or qwen-chat-template`);
+  }
+  return {
+    id,
+    pi_model_id: id,
+    name: stringValue(value.name) ?? id,
+    upstream_model: stringValue(value.upstream_model),
+    context_window: numberValue(value.context_window),
+    max_tokens: numberValue(value.max_tokens),
+    reasoning: typeof value.reasoning === "boolean" ? value.reasoning : undefined,
+    thinking_level_map: parseThinkingLevelMap(value.thinking_level_map),
+    thinking_format: thinkingFormat,
+    input: stringListValue(value.input),
+  };
+}
+
+function parseContract(payload: unknown): WorkstationInferenceContract {
+  if (!isRecord(payload)) throw new Error("contract must be a JSON object");
+  if (payload.schema_version !== 1) throw new Error("schema_version must be 1");
+  const baseUrl = stringValue(payload.base_url);
+  if (!baseUrl) throw new Error("base_url is required");
+  if (!Array.isArray(payload.models) || payload.models.length === 0) {
+    throw new Error("models must be a non-empty array");
+  }
+  return {
+    schema_version: 1,
+    authority: stringValue(payload.authority),
+    family: stringValue(payload.family),
+    surface: stringValue(payload.surface),
+    generated_at: stringValue(payload.generated_at),
+    stale_after_seconds: numberValue(payload.stale_after_seconds),
+    provider_id: stringValue(payload.provider_id),
+    provider_name: stringValue(payload.provider_name),
+    base_url: baseUrl,
+    health_url: stringValue(payload.health_url),
+    api_key_env: stringValue(payload.api_key_env),
+    api_key: stringValue(payload.api_key),
+    recovery_hint: stringValue(payload.recovery_hint),
+    models: payload.models.map(parseModel),
+  };
+}
+
+async function loadContract(): Promise<LoadedContract> {
+  const inline = process.env[CONTRACT_JSON_ENV];
+  if (inline?.trim()) {
+    return { contract: parseContract(JSON.parse(inline)), source: CONTRACT_JSON_ENV };
+  }
+
+  const path = process.env[CONTRACT_ENV]?.trim() || DEFAULT_CONTRACT_PATH;
+  const text = await readFile(path, "utf8");
+  return { contract: parseContract(JSON.parse(text)), source: path };
+}
+
+function normalizeBaseUrl(value: string): string {
+  const trimmed = value.replace(/\/+$/, "");
+  return trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;
+}
+
+function defaultHealthUrl(contract: WorkstationInferenceContract): string {
+  return normalizeBaseUrl(contract.base_url).replace(/\/v1$/, "/health");
+}
+
+function staleDetail(contract: WorkstationInferenceContract): string | undefined {
+  if (!contract.generated_at || !contract.stale_after_seconds) return undefined;
+  const generatedAt = Date.parse(contract.generated_at);
+  if (!Number.isFinite(generatedAt))
+    return `generated_at is not parseable: ${contract.generated_at}`;
+  const ageSeconds = Math.floor((Date.now() - generatedAt) / 1000);
+  if (ageSeconds > contract.stale_after_seconds) {
+    return `contract is ${ageSeconds}s old; stale_after_seconds=${contract.stale_after_seconds}`;
+  }
+  return undefined;
+}
+
+async function checkHealth(contract: WorkstationInferenceContract): Promise<string | undefined> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  try {
+    const response = await fetch(contract.health_url ?? defaultHealthUrl(contract), {
+      signal: controller.signal,
+    });
+    if (!response.ok) return `health returned HTTP ${response.status}`;
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function resolveContractStatus(
+  options: { checkHealth?: boolean } = {},
+): Promise<ContractStatus> {
+  let loaded: LoadedContract;
+  try {
+    loaded = await loadContract();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return {
+      status: detail.includes("ENOENT") ? "missing" : "invalid",
+      summary: "workstation inference contract is not available",
+      detail,
+    };
+  }
+
+  const stale = staleDetail(loaded.contract);
+  if (stale) {
+    return {
+      status: "stale",
+      source: loaded.source,
+      summary: "workstation inference contract is stale",
+      detail: stale,
+      contract: loaded.contract,
+    };
+  }
+
+  if (options.checkHealth) {
+    const unhealthy = await checkHealth(loaded.contract);
+    if (unhealthy) {
+      return {
+        status: "unhealthy",
+        source: loaded.source,
+        summary: "workstation inference endpoint is not healthy",
+        detail: unhealthy,
+        contract: loaded.contract,
+      };
+    }
+  }
+
+  return {
+    status: "ok",
+    source: loaded.source,
+    summary: "workstation inference contract is usable",
+    contract: loaded.contract,
+  };
+}
+
+function providerModel(model: ContractModel) {
+  const compat = model.thinking_format ? { thinkingFormat: model.thinking_format } : undefined;
+  return {
+    id: model.pi_model_id ?? model.id ?? "baseline-text",
+    name: model.name ?? model.pi_model_id ?? model.id ?? "baseline-text",
+    reasoning: model.reasoning ?? false,
+    thinkingLevelMap: model.thinking_level_map,
+    input: model.input ?? ["text"],
+    contextWindow: model.context_window ?? DEFAULT_CONTEXT_WINDOW,
+    maxTokens: model.max_tokens ?? DEFAULT_MAX_TOKENS,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    compat,
+  };
+}
+
+function notifyOrLog(
+  ctx: { hasUI?: boolean; ui?: { notify: (message: string, level: string) => void } },
+  message: string,
+  level = "info",
+) {
+  if (ctx.hasUI && ctx.ui) ctx.ui.notify(message, level);
+  else console.log(message);
+}
+
+function statusText(status: ContractStatus): string {
+  const contract = status.contract;
+  const lines = [
+    `status: ${status.status}`,
+    `summary: ${status.summary}`,
+    status.source ? `source: ${status.source}` : undefined,
+    status.detail ? `detail: ${status.detail}` : undefined,
+    contract ? `provider: ${contract.provider_id ?? DEFAULT_PROVIDER_ID}` : undefined,
+    contract ? `base_url: ${normalizeBaseUrl(contract.base_url)}` : undefined,
+    contract ? `health_url: ${contract.health_url ?? defaultHealthUrl(contract)}` : undefined,
+    contract ? `authority: ${contract.authority ?? "unspecified"}` : undefined,
+    contract ? `family/surface: ${contract.family ?? "?"}/${contract.surface ?? "?"}` : undefined,
+    contract
+      ? `models: ${contract.models.map((model) => model.pi_model_id ?? model.id).join(", ")}`
+      : undefined,
+    contract?.recovery_hint ? `recovery_hint: ${contract.recovery_hint}` : undefined,
+  ];
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
+}
+
+export default async function (pi: ExtensionAPI) {
+  const initial = await resolveContractStatus({ checkHealth: false });
+  const providerId = initial.contract?.provider_id ?? DEFAULT_PROVIDER_ID;
+
+  pi.registerCommand("workstation-inference", {
+    description: "Show read-only workstation inference provider status",
+    handler: async (args, ctx) => {
+      const action = args.trim().toLowerCase() || "status";
+      if (action === "help") {
+        notifyOrLog(
+          ctx,
+          [
+            "/workstation-inference status  Show contract and health status",
+            "/workstation-inference contract  Show the expected contract path/env",
+          ].join("\n"),
+        );
+        return;
+      }
+      if (action === "contract") {
+        notifyOrLog(
+          ctx,
+          [
+            `contract env: ${CONTRACT_ENV}`,
+            `inline contract env: ${CONTRACT_JSON_ENV}`,
+            `default path: ${DEFAULT_CONTRACT_PATH}`,
+          ].join("\n"),
+        );
+        return;
+      }
+      if (action !== "status") {
+        notifyOrLog(ctx, `unknown action: ${action}; try /workstation-inference help`, "warning");
+        return;
+      }
+      notifyOrLog(ctx, statusText(await resolveContractStatus({ checkHealth: true })));
+    },
+  });
+
+  if (initial.status !== "ok" || !initial.contract) return;
+
+  pi.registerProvider(providerId, {
+    name: initial.contract.provider_name ?? DEFAULT_PROVIDER_NAME,
+    baseUrl: normalizeBaseUrl(initial.contract.base_url),
+    apiKey:
+      initial.contract.api_key ??
+      (initial.contract.api_key_env ? process.env[initial.contract.api_key_env] : undefined) ??
+      DEFAULT_API_KEY,
+    api: "openai-completions",
+    models: initial.contract.models.map(providerModel),
+  });
+
+  pi.on("before_provider_request", async (_event, ctx) => {
+    if (ctx.model?.provider !== providerId) return;
+    const status = await resolveContractStatus({ checkHealth: true });
+    if (status.status !== "ok") {
+      throw new Error(
+        `${status.summary}: ${status.detail ?? status.contract?.recovery_hint ?? "no detail"}`,
+      );
+    }
+  });
+}
