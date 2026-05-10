@@ -599,6 +599,27 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
     result.details.matrixCampaign.implementationWaveSubstrate.ownerUiCommand,
     "/autoresearch review",
   );
+  assert.equal(
+    result.details.matrixCampaign.ownerReview.primaryUi.surface,
+    "pi-autoresearch_candidate_decision_workbench",
+  );
+  assert.equal(
+    result.details.matrixCampaign.ownerReview.primaryUi.slashCommand,
+    "/autoresearch review",
+  );
+  assert.match(
+    result.details.matrixCampaign.ownerReview.primaryUi.summary,
+    /does not introduce a new primary owner UI/,
+  );
+  assert.equal(result.details.matrixCampaign.ownerReview.cellReviewCalls.length, 2);
+  assert.match(
+    result.details.matrixCampaign.ownerReview.cellReviewCalls[0].reviewCandidateWaveCall,
+    /review_candidate_wave/,
+  );
+  assert.match(
+    result.details.matrixCampaign.ownerReview.boundary,
+    /existing pi-autoresearch candidate decision workbench/,
+  );
   assert.match(
     result.details.matrixCampaign.cells[0].candidatePacketDirectory,
     /^\.autoresearch\/matrix-campaign\/cell-01-01$/,
@@ -620,6 +641,11 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /2 scenario\(s\) × 1 hypothesis/);
   assert.match(result.content[0].text, /Implementation-wave substrate/);
   assert.match(result.content[0].text, /owner UI: \/autoresearch review/);
+  assert.match(result.content[0].text, /Owner review route/);
+  assert.match(result.content[0].text, /primary UI: pi-autoresearch_candidate_decision_workbench/);
+  assert.match(result.content[0].text, /primary UI command: \/autoresearch review/);
+  assert.match(result.content[0].text, /new primary owner UI/);
+  assert.match(result.content[0].text, /cell-01-01 review call:/);
   assert.match(result.content[0].text, /cell-01-01/);
   assert.match(result.content[0].text, /This matrix plan is a non-mutating/);
 });

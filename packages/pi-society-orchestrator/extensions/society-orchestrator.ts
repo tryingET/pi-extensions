@@ -461,6 +461,16 @@ function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCamp
     `- owner UI: ${plan.implementationWaveSubstrate.ownerUiCommand}`,
     ...plan.implementationWaveSubstrate.nextExactCalls.map((call) => `- first exact call: ${call}`),
     "",
+    "Owner review route:",
+    `- primary UI: ${plan.ownerReview.primaryUi.surface}`,
+    `- primary UI command: ${plan.ownerReview.primaryUi.slashCommand}`,
+    `- primary UI summary: ${plan.ownerReview.primaryUi.summary}`,
+    ...plan.ownerReview.reviewFlow.map((step) => `- ${step}`),
+    ...plan.ownerReview.cellReviewCalls.map(
+      (cell) => `- ${cell.cellId} review call: ${cell.reviewCandidateWaveCall}`,
+    ),
+    `- boundary: ${plan.ownerReview.boundary}`,
+    "",
     "Matrix cells:",
     ...plan.cells.flatMap((cell) => [
       `- ${cell.cellId}: scenario=${cell.scenario}; hypothesis=${cell.hypothesis}`,

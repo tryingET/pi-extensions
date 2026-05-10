@@ -227,6 +227,20 @@ export interface AutoresearchMatrixCampaignCell {
   ownerUiCommand: "/autoresearch review";
 }
 
+export interface AutoresearchMatrixCampaignOwnerReviewRoute {
+  primaryUi: {
+    surface: "pi-autoresearch_candidate_decision_workbench";
+    slashCommand: "/autoresearch review";
+    summary: string;
+  };
+  reviewFlow: readonly string[];
+  cellReviewCalls: readonly {
+    cellId: string;
+    reviewCandidateWaveCall: string;
+  }[];
+  boundary: string;
+}
+
 export interface AutoresearchMatrixCampaignPlan {
   kind: "autoresearch.matrix_campaign_plan.v1";
   taskId: number;
@@ -243,6 +257,7 @@ export interface AutoresearchMatrixCampaignPlan {
     ownerUiCommand: "/autoresearch review";
     nextExactCalls: readonly string[];
   };
+  ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
   boundaries: readonly string[];
   nextStep: string;
 }
@@ -1359,6 +1374,26 @@ export function planAutoresearchMatrixCampaign(
       akTaskId: identity.taskId,
       ownerUiCommand: "/autoresearch review",
       nextExactCalls: cells.slice(0, 1).map((cell) => cell.planCandidateWaveCall),
+    },
+    ownerReview: {
+      primaryUi: {
+        surface: "pi-autoresearch_candidate_decision_workbench",
+        slashCommand: "/autoresearch review",
+        summary:
+          "Use pi-autoresearch's existing candidate decision workbench after each cell review; the matrix planner does not introduce a new primary owner UI.",
+      },
+      reviewFlow: [
+        "Approve and launch only the matrix cell candidate lanes the owner/controller explicitly selects.",
+        "After each visible candidate reports back, bind, measure, and export candidate-result packets through pi-autoresearch before comparing lanes.",
+        "Run the cell reviewCandidateWaveCall to build the owner-visible comparison from candidate-result packets.",
+        "Choose keep, discard, rewind, more samples, or finalize through /autoresearch review; matrix choreography is advisory and plan-only.",
+      ],
+      cellReviewCalls: cells.map((cell) => ({
+        cellId: cell.cellId,
+        reviewCandidateWaveCall: cell.reviewCandidateWaveCall,
+      })),
+      boundary:
+        "Owner decision routing stays on the existing pi-autoresearch candidate decision workbench; this matrix report adds no new primary UI and applies no lifecycle action.",
     },
     boundaries: [
       "This matrix plan is a non-mutating implementation-wave substrate, not a direction mutation.",
