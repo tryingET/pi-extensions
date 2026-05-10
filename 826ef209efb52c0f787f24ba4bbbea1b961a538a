@@ -1,0 +1,29 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "826ef209efb52c0f787f24ba4bbbea1b961a538a"
+created_at: "2026-05-10T08:04:29Z"
+intent: "Apply verified integrated supervised-campaign UX candidate that guides setup, candidate binding, measurement, result export, and orchestrator witness handoff"
+files:
+  - "packages/pi-autoresearch/src/core/runtime.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+validation:
+  dogfood_contract:
+    command: "DOGFOOD_CONTRACT_STRICT=0 node packages/pi-autoresearch/scripts/dogfood-integrated-campaign-ux-contract.mjs"
+    status: "pass"
+    metric: "unresolved_integrated_campaign_ux_blockers=0"
+  package_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Selected guided-candidate-journey candidate after controller remeasurement; did not merge partial empty-dashboard candidate or unrelated dirty files"
+links:
+  task_ids:
+    - 2749
+  decision_ids:
+    - 37
+  evidence_ids:
+    - 1658
