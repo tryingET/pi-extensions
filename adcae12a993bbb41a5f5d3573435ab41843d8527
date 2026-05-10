@@ -1,0 +1,39 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "adcae12a993bbb41a5f5d3573435ab41843d8527"
+created_at: "2026-05-10T09:06:20Z"
+intent: "Bind matrix campaign cells to the managed candidate-wave fan-in substrate so matrix campaigns cannot multiply loose sidequests"
+files:
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/scripts/dogfood-matrix-candidate-wave-management-contract.mjs"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  dogfood_contract:
+    command: "node packages/pi-society-orchestrator/scripts/dogfood-matrix-candidate-wave-management-contract.mjs"
+    status: "pass"
+    metric: "unresolved_matrix_managed_wave_blockers=0"
+  targeted:
+    command: "node --test --test-name-pattern plan_matrix_campaign packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+    status: "pass"
+  package_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  docs:
+    command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-society-orchestrator --strict"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Matrix cells now carry managed candidate-wave posture, explicit fan-in gates, and a matrix managed-wave substrate summary; no peer launch, benchmark, evidence write, merge, or promotion is applied."
+links:
+  task_ids:
+    - 2768
+  evidence_ids:
+    - 1672
+    - 1673
+notes:
+  - "Validation ran in a checkout with pre-existing unrelated dirty files; commit staged only the explicit paths listed above."
