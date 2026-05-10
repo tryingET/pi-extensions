@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ccc1a06ba2810052a9fb92367d2905cf66ad4bc6"
+created_at: "2026-05-10T05:17:38Z"
+intent: "Upgrade transcendent loop runtime from v3 to v4 (add alien-pass phase) and align chains.yaml/README/tests"
+files:
+  - "packages/pi-society-orchestrator/src/loops/engine.ts"
+  - "packages/pi-society-orchestrator/tests/loop-kes.test.mjs"
+  - "packages/pi-society-orchestrator/src/chains.yaml"
+  - "packages/pi-society-orchestrator/README.md"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run quality:ci"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run quality:ci"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Single coherent change: v3\u2192v4 transcendent loop upgrade across runtime, tests, chain definition, and docs"
