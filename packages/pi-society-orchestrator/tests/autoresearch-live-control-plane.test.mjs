@@ -788,6 +788,18 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.equal(result.details.matrixCampaignReview.completedCellCount, 2);
     assert.equal(result.details.matrixCampaignReview.expectedCellCount, 2);
     assert.equal(result.details.matrixCampaignReview.selectedCellCount, 2);
+    assert.equal(
+      result.details.matrixCampaignReview.ownerReview.primaryUi.surface,
+      "pi-autoresearch_html_dashboard",
+    );
+    assert.equal(
+      result.details.matrixCampaignReview.ownerReview.primaryUi.slashCommand,
+      "/autoresearch export",
+    );
+    assert.equal(
+      result.details.matrixCampaignReview.ownerReview.decisionUi.slashCommand,
+      "/autoresearch review",
+    );
     assert.deepEqual(
       result.details.matrixCampaignReview.cells.map((cell) => cell.selectedLaneId),
       ["candidate-01", "candidate-01"],
@@ -796,6 +808,8 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.match(result.content[0].text, /ready_for_matrix_owner_review/);
     assert.match(result.content[0].text, /Managed cell reviews/);
     assert.match(result.content[0].text, /Cell progress: 2\/2/);
+    assert.match(result.content[0].text, /primary UI command: \/autoresearch export/);
+    assert.match(result.content[0].text, /final decision UI command: \/autoresearch review/);
     assert.match(result.content[0].text, /Raw peer messages are communication only/);
   });
 });
@@ -853,6 +867,18 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
     result.details.candidateWaveReview.management.kind,
     "autoresearch.candidate_wave_management.v1",
   );
+  assert.equal(
+    result.details.candidateWaveReview.ownerReviewRoute.primaryUi.surface,
+    "pi-autoresearch_html_dashboard",
+  );
+  assert.equal(
+    result.details.candidateWaveReview.ownerReviewRoute.primaryUi.slashCommand,
+    "/autoresearch export",
+  );
+  assert.equal(
+    result.details.candidateWaveReview.ownerReviewRoute.decisionUi.slashCommand,
+    "/autoresearch review",
+  );
   assert.equal(result.details.candidateWaveReview.management.posture, "ready_for_owner_selection");
   assert.equal(result.details.candidateWaveReview.management.completedLaneCount, 3);
   assert.equal(result.details.candidateWaveReview.management.expectedLaneCount, 3);
@@ -881,6 +907,9 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
   assert.match(result.content[0].text, /Recommendation: owner_selection_required — candidate-02/);
   assert.match(result.content[0].text, /Wave fan-in management/);
   assert.match(result.content[0].text, /ready_for_owner_selection/);
+  assert.match(result.content[0].text, /Owner review route/);
+  assert.match(result.content[0].text, /primary UI command: \/autoresearch export/);
+  assert.match(result.content[0].text, /final decision UI command: \/autoresearch review/);
   assert.match(result.content[0].text, /Exact next calls/);
   assert.match(result.content[0].text, /not promotion authority|owner approval/);
 });

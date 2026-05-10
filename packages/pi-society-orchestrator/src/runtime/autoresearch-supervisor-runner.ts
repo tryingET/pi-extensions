@@ -465,6 +465,22 @@ export interface AutoresearchCandidateWaveOwnerDecisionForm {
   boundary: string;
 }
 
+export interface AutoresearchOwnerReviewRoute {
+  primaryUi: {
+    surface: "pi-autoresearch_html_dashboard";
+    slashCommand: "/autoresearch export";
+    fallbackSlashCommand: "/autoresearch overlay";
+    summary: string;
+  };
+  decisionUi: {
+    surface: "pi-autoresearch_candidate_decision_workbench";
+    slashCommand: "/autoresearch review";
+    summary: string;
+  };
+  reviewFlow: readonly string[];
+  boundary: string;
+}
+
 export interface AutoresearchCandidateWaveReview {
   kind: "autoresearch.candidate_wave_review.v1";
   taskId: number;
@@ -482,6 +498,7 @@ export interface AutoresearchCandidateWaveReview {
     ownerDecisionForm: AutoresearchCandidateWaveOwnerDecisionForm | null;
   };
   management: AutoresearchCandidateWaveManagement;
+  ownerReviewRoute: AutoresearchOwnerReviewRoute;
   nextStep: string;
   boundaries: string[];
 }
@@ -1095,6 +1112,39 @@ function buildCandidateWaveOwnerDecisionOptions(input: {
   return options;
 }
 
+function buildAutoresearchOwnerReviewRoute(input: {
+  scopeLabel: string;
+  aggregateReviewCall?: string;
+}): AutoresearchOwnerReviewRoute {
+  return {
+    primaryUi: {
+      surface: "pi-autoresearch_html_dashboard",
+      slashCommand: "/autoresearch export",
+      fallbackSlashCommand: "/autoresearch overlay",
+      summary:
+        "Open the pi-autoresearch HTML dashboard first for run history, receipts, metrics, candidate context, and packet evidence; use the overlay when a browser export is not desirable.",
+    },
+    decisionUi: {
+      surface: "pi-autoresearch_candidate_decision_workbench",
+      slashCommand: "/autoresearch review",
+      summary:
+        "Use pi-autoresearch's candidate decision workbench only for final plan-only keep, discard, rewind, more-samples, or finalize decisions after dashboard and packet review.",
+    },
+    reviewFlow: [
+      `Review ${input.scopeLabel} through /autoresearch export before lifecycle decisions.`,
+      "Use /autoresearch overlay only as the live TUI fallback when browser export is not desirable.",
+      ...(input.aggregateReviewCall
+        ? [
+            `Run aggregate review after dashboard inspection if the packet set changed: ${input.aggregateReviewCall}`,
+          ]
+        : []),
+      "Use /autoresearch review only for the final candidate lifecycle decision; no merge, cleanup, evidence write, or promotion is implied.",
+    ],
+    boundary:
+      "Dashboard/export/overlay/review surfaces are owner-review affordances only; they do not launch peers, run benchmarks, mutate worktrees, write AK/KES/evidence, merge, or promote.",
+  };
+}
+
 function buildCandidateWaveOwnerDecisionForm(input: {
   reviewObjective: string;
   winner: AutoresearchCandidateWaveReviewLane | null;
@@ -1301,6 +1351,20 @@ export function reviewAutoresearchCandidateWave(
     winner: selectableWinner,
     exactNextCalls,
   });
+  const aggregateReviewPayload: Record<string, unknown> = {
+    action: "review_candidate_wave",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction,
+  };
+  if (packetDiscovery.candidateResultPacketPaths.length > 0) {
+    aggregateReviewPayload.candidateResultPacketPaths = packetDiscovery.candidateResultPacketPaths;
+  }
+  const ownerReviewRoute = buildAutoresearchOwnerReviewRoute({
+    scopeLabel: `candidate wave ${objective}`,
+    aggregateReviewCall: formatToolCall("autoresearch_live_supervision", aggregateReviewPayload),
+  });
 
   return {
     kind: "autoresearch.candidate_wave_review.v1",
@@ -1337,6 +1401,7 @@ export function reviewAutoresearchCandidateWave(
             ownerDecisionForm,
           },
     management,
+    ownerReviewRoute,
     nextStep: plannedLanesIncomplete
       ? "Wait for every explicit planned lane to reach controller-measured candidate_result_export, or rerun review_candidate_wave with a deliberately revised packet path set after owner replanning."
       : winner

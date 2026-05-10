@@ -550,8 +550,13 @@ function formatAutoresearchMatrixCampaignReviewReport(
     "Owner review route:",
     `- primary UI: ${review.ownerReview.primaryUi.surface}`,
     `- primary UI command: ${review.ownerReview.primaryUi.slashCommand}`,
+    `- primary UI fallback: ${review.ownerReview.primaryUi.fallbackSlashCommand}`,
+    `- primary UI summary: ${review.ownerReview.primaryUi.summary}`,
     `- final decision UI: ${review.ownerReview.decisionUi.surface}`,
     `- final decision UI command: ${review.ownerReview.decisionUi.slashCommand}`,
+    `- final decision UI summary: ${review.ownerReview.decisionUi.summary}`,
+    ...review.ownerReview.reviewFlow.map((step) => `- ${step}`),
+    `- boundary: ${review.ownerReview.boundary}`,
     ...(review.exactNextCalls.length > 0
       ? ["", "Exact next calls:", ...review.exactNextCalls.map((call) => `- ${call}`)]
       : []),
@@ -615,6 +620,17 @@ function formatAutoresearchCandidateWaveReviewReport(
     ...review.management.fanInChecklist.map((item) => `- checklist: ${item}`),
     `- non-selected lane policy: ${review.management.nonSelectedLanePolicy}`,
     ...review.management.exactNextCalls.map((call) => `- fan-in call: ${call}`),
+    "",
+    "Owner review route:",
+    `- primary UI: ${review.ownerReviewRoute.primaryUi.surface}`,
+    `- primary UI command: ${review.ownerReviewRoute.primaryUi.slashCommand}`,
+    `- primary UI fallback: ${review.ownerReviewRoute.primaryUi.fallbackSlashCommand}`,
+    `- primary UI summary: ${review.ownerReviewRoute.primaryUi.summary}`,
+    `- final decision UI: ${review.ownerReviewRoute.decisionUi.surface}`,
+    `- final decision UI command: ${review.ownerReviewRoute.decisionUi.slashCommand}`,
+    `- final decision UI summary: ${review.ownerReviewRoute.decisionUi.summary}`,
+    ...review.ownerReviewRoute.reviewFlow.map((step) => `- ${step}`),
+    `- boundary: ${review.ownerReviewRoute.boundary}`,
     ...(review.recommendation.ownerDecisionForm
       ? [
           "",

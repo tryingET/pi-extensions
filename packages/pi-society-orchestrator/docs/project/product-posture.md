@@ -145,9 +145,9 @@ scenario × hypothesis cell -> managed candidate wave -> packetized review -> AK
 
 These slices are still plan/review choreography: they do not launch peers, run benchmarks, write evidence, merge, or promote. Their job is to prevent matrix campaigns from multiplying loose sidequests by requiring every cell to pass through managed candidate-wave planning, controller-measured candidate-result packets, explicit missing-lane gates, and matrix-level review before owner selection.
 
-### Bet 3 — Owner-facing review UX polish
+### Bet 3 — Owner-facing review UX polish — first slice landed
 
-The existing `/autoresearch export` and `/autoresearch review` surfaces are good lower-plane affordances. Orchestrator reports should make the handoff obvious: dashboard first for situational awareness, candidate decision workbench for final plan-only lifecycle decisions.
+The existing `/autoresearch export` and `/autoresearch review` surfaces are good lower-plane affordances. Candidate-wave and matrix review reports now make the handoff explicit: dashboard first for situational awareness (`/autoresearch export`, with `/autoresearch overlay` fallback), candidate decision workbench only for final plan-only lifecycle decisions (`/autoresearch review`).
 
 ### Bet 4 — Evidence projection hardening
 
