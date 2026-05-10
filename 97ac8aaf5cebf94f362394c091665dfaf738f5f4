@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "97ac8aaf5cebf94f362394c091665dfaf738f5f4"
+created_at: "2026-05-10T02:55:50Z"
+intent: "Add advisory owner-decision form data to candidate-wave review recommendations."
+files:
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+  - "packages/pi-society-orchestrator/README.md"
+validation:
+  fast_gate:
+    command: "node --experimental-strip-types /tmp/dogfood-candidate-wave-owner-form.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+links:
+  task_ids:
+    - 2674
