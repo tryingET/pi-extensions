@@ -66,6 +66,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
+    "@types/node": "22.14.0",
+    "typebox": "^1.0.0",
     "typescript": "5.9.2"
   },
   "overrides": {
@@ -73,6 +75,7 @@
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-ai": "*"
+    "@mariozechner/pi-ai": "*",
+    "typebox": "*"
   }
 }

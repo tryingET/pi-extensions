@@ -11,48 +11,64 @@ import {
   streamSimpleOpenAICompletions,
 } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { type Static, Type } from "typebox";
+import { Value } from "typebox/value";
 
-type InputKind = "text" | "image";
 type NotifyLevel = "info" | "warning" | "error";
 
-type ThinkingLevelMap = {
-  minimal?: string | null;
-  low?: string | null;
-  medium?: string | null;
-  high?: string | null;
-  xhigh?: string | null;
-};
+const OptionalString = Type.Optional(Type.String());
+const OptionalPositiveNumber = Type.Optional(Type.Number({ exclusiveMinimum: 0 }));
+const ThinkingLevelMapSchema = Type.Object(
+  {
+    minimal: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    low: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    medium: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    high: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    xhigh: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  },
+  { additionalProperties: false },
+);
+const InputKindSchema = Type.Union([Type.Literal("text"), Type.Literal("image")]);
+const ContractModelSchema = Type.Object(
+  {
+    id: OptionalString,
+    pi_model_id: OptionalString,
+    name: OptionalString,
+    upstream_model: OptionalString,
+    context_window: OptionalPositiveNumber,
+    max_tokens: OptionalPositiveNumber,
+    reasoning: Type.Optional(Type.Boolean()),
+    thinking_level_map: Type.Optional(ThinkingLevelMapSchema),
+    thinking_format: Type.Optional(
+      Type.Union([Type.Literal("qwen"), Type.Literal("qwen-chat-template")]),
+    ),
+    input: Type.Optional(Type.Array(InputKindSchema, { minItems: 1 })),
+  },
+  { additionalProperties: true },
+);
+const WorkstationInferenceContractSchema = Type.Object(
+  {
+    schema_version: Type.Literal(1),
+    authority: OptionalString,
+    family: OptionalString,
+    surface: OptionalString,
+    generated_at: OptionalString,
+    stale_after_seconds: OptionalPositiveNumber,
+    refresh_after_seconds: OptionalPositiveNumber,
+    provider_id: OptionalString,
+    provider_name: OptionalString,
+    base_url: Type.String({ minLength: 1 }),
+    health_url: OptionalString,
+    api_key_env: OptionalString,
+    api_key: OptionalString,
+    recovery_hint: OptionalString,
+    models: Type.Array(ContractModelSchema, { minItems: 1 }),
+  },
+  { additionalProperties: true },
+);
 
-type ContractModel = {
-  id?: string;
-  pi_model_id?: string;
-  name?: string;
-  upstream_model?: string;
-  context_window?: number;
-  max_tokens?: number;
-  reasoning?: boolean;
-  thinking_level_map?: ThinkingLevelMap;
-  thinking_format?: "qwen" | "qwen-chat-template";
-  input?: InputKind[];
-};
-
-type WorkstationInferenceContract = {
-  schema_version: 1;
-  authority?: string;
-  family?: string;
-  surface?: string;
-  generated_at?: string;
-  stale_after_seconds?: number;
-  refresh_after_seconds?: number;
-  provider_id?: string;
-  provider_name?: string;
-  base_url: string;
-  health_url?: string;
-  api_key_env?: string;
-  api_key?: string;
-  recovery_hint?: string;
-  models: ContractModel[];
-};
+type ContractModel = Static<typeof ContractModelSchema>;
+type WorkstationInferenceContract = Static<typeof WorkstationInferenceContractSchema>;
 
 type LoadedContract = {
   contract: WorkstationInferenceContract;
@@ -88,87 +104,54 @@ const DEFAULT_CONTRACT_PATH = join(
   "workstation-inference-provider.json",
 );
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function numberValue(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+function schemaErrorSummary(payload: unknown): string {
+  return (
+    [...Value.Errors(WorkstationInferenceContractSchema, payload)]
+      .slice(0, 5)
+      .map((error) => `${error.instancePath || "/"} ${error.message}`)
+      .join("; ") || "contract schema validation failed"
+  );
 }
 
-function inputListValue(value: unknown): InputKind[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const items = value
-    .map((item) => stringValue(item))
-    .filter((item): item is InputKind => item === "text" || item === "image");
-  return items.length > 0 ? items : undefined;
-}
-
-function parseThinkingLevelMap(value: unknown): ThinkingLevelMap | undefined {
-  if (!isRecord(value)) return undefined;
-  const map: ThinkingLevelMap = {};
-  for (const key of ["minimal", "low", "medium", "high", "xhigh"] as const) {
-    const item = value[key];
-    if (item === null || typeof item === "string") map[key] = item;
-  }
-  return Object.keys(map).length > 0 ? map : undefined;
-}
-
-function parseModel(value: unknown, index: number): ContractModel {
-  if (!isRecord(value)) throw new Error(`models[${index}] must be an object`);
-  const id = stringValue(value.id) ?? stringValue(value.pi_model_id);
+function normalizeModel(model: ContractModel, index: number): ContractModel {
+  const id = stringValue(model.id) ?? stringValue(model.pi_model_id);
   if (!id) throw new Error(`models[${index}] needs id or pi_model_id`);
-  const rawThinkingFormat = stringValue(value.thinking_format);
-  if (
-    rawThinkingFormat &&
-    rawThinkingFormat !== "qwen" &&
-    rawThinkingFormat !== "qwen-chat-template"
-  ) {
-    throw new Error(`models[${index}].thinking_format must be qwen or qwen-chat-template`);
-  }
-  const thinkingFormat = rawThinkingFormat as ContractModel["thinking_format"];
   return {
+    ...model,
     id,
     pi_model_id: id,
-    name: stringValue(value.name) ?? id,
-    upstream_model: stringValue(value.upstream_model),
-    context_window: numberValue(value.context_window),
-    max_tokens: numberValue(value.max_tokens),
-    reasoning: typeof value.reasoning === "boolean" ? value.reasoning : undefined,
-    thinking_level_map: parseThinkingLevelMap(value.thinking_level_map),
-    thinking_format: thinkingFormat,
-    input: inputListValue(value.input),
+    name: stringValue(model.name) ?? id,
+    upstream_model: stringValue(model.upstream_model),
+    thinking_format: model.thinking_format,
   };
 }
 
 function parseContract(payload: unknown): WorkstationInferenceContract {
-  if (!isRecord(payload)) throw new Error("contract must be a JSON object");
-  if (payload.schema_version !== 1) throw new Error("schema_version must be 1");
-  const baseUrl = stringValue(payload.base_url);
-  if (!baseUrl) throw new Error("base_url is required");
-  if (!Array.isArray(payload.models) || payload.models.length === 0) {
-    throw new Error("models must be a non-empty array");
+  if (!Value.Check(WorkstationInferenceContractSchema, payload)) {
+    throw new Error(`contract schema validation failed: ${schemaErrorSummary(payload)}`);
   }
+
+  const contract = payload as WorkstationInferenceContract;
+  const baseUrl = stringValue(contract.base_url);
+  if (!baseUrl) throw new Error("base_url is required");
   return {
-    schema_version: 1,
-    authority: stringValue(payload.authority),
-    family: stringValue(payload.family),
-    surface: stringValue(payload.surface),
-    generated_at: stringValue(payload.generated_at),
-    stale_after_seconds: numberValue(payload.stale_after_seconds),
-    refresh_after_seconds: numberValue(payload.refresh_after_seconds),
-    provider_id: stringValue(payload.provider_id),
-    provider_name: stringValue(payload.provider_name),
+    ...contract,
+    authority: stringValue(contract.authority),
+    family: stringValue(contract.family),
+    surface: stringValue(contract.surface),
+    generated_at: stringValue(contract.generated_at),
+    provider_id: stringValue(contract.provider_id),
+    provider_name: stringValue(contract.provider_name),
     base_url: baseUrl,
-    health_url: stringValue(payload.health_url),
-    api_key_env: stringValue(payload.api_key_env),
-    api_key: stringValue(payload.api_key),
-    recovery_hint: stringValue(payload.recovery_hint),
-    models: payload.models.map(parseModel),
+    health_url: stringValue(contract.health_url),
+    api_key_env: stringValue(contract.api_key_env),
+    api_key: stringValue(contract.api_key),
+    recovery_hint: stringValue(contract.recovery_hint),
+    models: contract.models.map(normalizeModel),
   };
 }
 
