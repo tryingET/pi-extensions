@@ -557,6 +557,25 @@ function formatAutoresearchMatrixCampaignReviewReport(
     `- final decision UI summary: ${review.ownerReview.decisionUi.summary}`,
     ...review.ownerReview.reviewFlow.map((step) => `- ${step}`),
     `- boundary: ${review.ownerReview.boundary}`,
+    "",
+    "Campaign closeout:",
+    `- kind: ${review.closeout.kind}`,
+    `- posture: ${review.closeout.posture}`,
+    `- summary: ${review.closeout.summary}`,
+    `- packet paths: ${review.closeout.packetPaths.length}`,
+    ...review.closeout.selectedLanes.map(
+      (lane) =>
+        `- selected ${lane.cellId}: lane=${lane.laneId}; packet=${lane.sourcePacketPath ?? "none"}`,
+    ),
+    `- evidence projection: ${review.closeout.evidenceProjection.posture} via ${review.closeout.evidenceProjection.ownerSurface}; anchor=${review.closeout.evidenceProjection.requiredAnchor}`,
+    `- evidence boundary: ${review.closeout.evidenceProjection.boundary}`,
+    `- dashboard first: ${review.closeout.ownerDecisionRoute.dashboardFirst}`,
+    `- overlay fallback: ${review.closeout.ownerDecisionRoute.overlayFallback}`,
+    `- final decision: ${review.closeout.ownerDecisionRoute.finalDecision}`,
+    "- next legal owner actions:",
+    ...review.closeout.nextLegalOwnerActions.map((action) => `  - ${action}`),
+    "- not done:",
+    ...review.closeout.notDone.map((item) => `  - ${item}`),
     ...(review.exactNextCalls.length > 0
       ? ["", "Exact next calls:", ...review.exactNextCalls.map((call) => `- ${call}`)]
       : []),

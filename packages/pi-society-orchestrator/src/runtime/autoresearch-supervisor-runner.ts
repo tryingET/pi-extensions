@@ -334,6 +334,36 @@ export interface AutoresearchMatrixCampaignCellReview {
   candidateWaveReview: AutoresearchCandidateWaveReview;
 }
 
+export interface AutoresearchMatrixCampaignCloseout {
+  kind: "autoresearch.matrix_campaign_closeout.v1";
+  posture:
+    | "ak_ready_after_owner_review"
+    | "blocked_until_managed_cell_waves_complete"
+    | "blocked_until_cell_rerun";
+  summary: string;
+  packetPaths: readonly string[];
+  selectedLanes: readonly {
+    cellId: string;
+    scenario: string;
+    hypothesis: string;
+    laneId: string;
+    sourcePacketPath: string | null;
+  }[];
+  evidenceProjection: {
+    posture: "ready_for_external_projection" | "blocked";
+    ownerSurface: "AK";
+    requiredAnchor: string;
+    boundary: string;
+  };
+  ownerDecisionRoute: {
+    dashboardFirst: "/autoresearch export";
+    overlayFallback: "/autoresearch overlay";
+    finalDecision: "/autoresearch review";
+  };
+  nextLegalOwnerActions: readonly string[];
+  notDone: readonly string[];
+}
+
 export interface AutoresearchMatrixCampaignReview {
   kind: "autoresearch.matrix_campaign_review.v1";
   taskId: number;
@@ -349,6 +379,7 @@ export interface AutoresearchMatrixCampaignReview {
   expectedCellCount: number;
   selectedCellCount: number;
   ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
+  closeout: AutoresearchMatrixCampaignCloseout;
   exactNextCalls: readonly string[];
   boundaries: readonly string[];
   nextStep: string;
@@ -1825,6 +1856,12 @@ export function reviewAutoresearchMatrixCampaign(
         : cellReviews
             .filter((cell) => cell.recommendationPosture === "no_selectable_candidate")
             .map((cell) => cell.reviewCandidateWaveCall);
+  const closeout = buildAutoresearchMatrixCampaignCloseout({
+    taskId: identity.taskId,
+    posture,
+    cellReviews,
+    ownerReview: plan.ownerReview,
+  });
 
   return {
     kind: "autoresearch.matrix_campaign_review.v1",
@@ -1838,6 +1875,7 @@ export function reviewAutoresearchMatrixCampaign(
     expectedCellCount: cellReviews.length,
     selectedCellCount,
     ownerReview: plan.ownerReview,
+    closeout,
     exactNextCalls,
     boundaries: [
       "This matrix review aggregates managed candidate-wave reviews; it does not launch peers, run benchmarks, merge worktrees, write evidence, or promote candidates.",
@@ -1851,6 +1889,79 @@ export function reviewAutoresearchMatrixCampaign(
         : posture === "cell_rerun_required"
           ? "Rerun or replan cells with no selectable candidate before matrix-level owner review."
           : "Review selected lanes per cell, open /autoresearch export for evidence, then use /autoresearch review for final owner decisions.",
+  };
+}
+
+function buildAutoresearchMatrixCampaignCloseout(input: {
+  taskId: number;
+  posture: AutoresearchMatrixCampaignReview["posture"];
+  cellReviews: readonly AutoresearchMatrixCampaignCellReview[];
+  ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
+}): AutoresearchMatrixCampaignCloseout {
+  const packetPaths = input.cellReviews.flatMap(
+    (cell) => cell.candidateWaveReview.packetDiscovery.candidateResultPacketPaths,
+  );
+  const selectedLanes = input.cellReviews.flatMap((cell) => {
+    if (!cell.selectedLaneId) return [];
+    const selectedLane = cell.candidateWaveReview.lanes.find(
+      (lane) => lane.laneId === cell.selectedLaneId,
+    );
+    return [
+      {
+        cellId: cell.cellId,
+        scenario: cell.scenario,
+        hypothesis: cell.hypothesis,
+        laneId: cell.selectedLaneId,
+        sourcePacketPath: selectedLane?.sourcePacketPath ?? null,
+      },
+    ];
+  });
+  const closeoutPosture =
+    input.posture === "ready_for_matrix_owner_review"
+      ? "ak_ready_after_owner_review"
+      : input.posture === "waiting_for_managed_cell_waves"
+        ? "blocked_until_managed_cell_waves_complete"
+        : "blocked_until_cell_rerun";
+  const projectionReady = input.posture === "ready_for_matrix_owner_review";
+
+  return {
+    kind: "autoresearch.matrix_campaign_closeout.v1",
+    posture: closeoutPosture,
+    summary: projectionReady
+      ? `Matrix campaign has ${selectedLanes.length} selected managed cell lane(s); open ${input.ownerReview.primaryUi.slashCommand} before final owner decisions and project evidence only after owner review.`
+      : input.posture === "waiting_for_managed_cell_waves"
+        ? "Matrix campaign closeout is blocked until every managed cell wave has controller-measured candidate-result packets or the owner replans the lane set."
+        : "Matrix campaign closeout is blocked until cells with no selectable candidate are rerun or deliberately replanned.",
+    packetPaths,
+    selectedLanes,
+    evidenceProjection: {
+      posture: projectionReady ? "ready_for_external_projection" : "blocked",
+      ownerSurface: "AK",
+      requiredAnchor: `taskId:${input.taskId}`,
+      boundary:
+        "AK evidence projection is an explicit external owner-surface action after dashboard-first owner review; this closeout does not write evidence.",
+    },
+    ownerDecisionRoute: {
+      dashboardFirst: input.ownerReview.primaryUi.slashCommand,
+      overlayFallback: input.ownerReview.primaryUi.fallbackSlashCommand,
+      finalDecision: input.ownerReview.decisionUi.slashCommand,
+    },
+    nextLegalOwnerActions: projectionReady
+      ? [
+          "Open /autoresearch export for dashboard-first review of receipts, metrics, and candidate packets.",
+          "Use /autoresearch review for final keep/discard/rewind/more-samples/finalize decisions per selected lane.",
+          "Record AK/KES/evidence only through explicit owner surfaces after accepting the reviewed closeout.",
+        ]
+      : [
+          "Complete or deliberately replan missing managed cell waves.",
+          "Rerun review_matrix_campaign after every required cell has controller-measured packet evidence.",
+        ],
+    notDone: [
+      "No peer was launched.",
+      "No benchmark was run.",
+      "No worktree lifecycle action was applied.",
+      "No merge, promotion, AK evidence write, KES write, or task lifecycle mutation was applied.",
+    ],
   };
 }
 

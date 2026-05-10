@@ -800,6 +800,28 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
       result.details.matrixCampaignReview.ownerReview.decisionUi.slashCommand,
       "/autoresearch review",
     );
+    assert.equal(
+      result.details.matrixCampaignReview.closeout.kind,
+      "autoresearch.matrix_campaign_closeout.v1",
+    );
+    assert.equal(
+      result.details.matrixCampaignReview.closeout.posture,
+      "ak_ready_after_owner_review",
+    );
+    assert.equal(
+      result.details.matrixCampaignReview.closeout.evidenceProjection.posture,
+      "ready_for_external_projection",
+    );
+    assert.equal(
+      result.details.matrixCampaignReview.closeout.evidenceProjection.requiredAnchor,
+      "taskId:2774",
+    );
+    assert.equal(result.details.matrixCampaignReview.closeout.selectedLanes.length, 2);
+    assert.deepEqual(result.details.matrixCampaignReview.closeout.ownerDecisionRoute, {
+      dashboardFirst: "/autoresearch export",
+      overlayFallback: "/autoresearch overlay",
+      finalDecision: "/autoresearch review",
+    });
     assert.deepEqual(
       result.details.matrixCampaignReview.cells.map((cell) => cell.selectedLaneId),
       ["candidate-01", "candidate-01"],
@@ -810,6 +832,13 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.match(result.content[0].text, /Cell progress: 2\/2/);
     assert.match(result.content[0].text, /primary UI command: \/autoresearch export/);
     assert.match(result.content[0].text, /final decision UI command: \/autoresearch review/);
+    assert.match(result.content[0].text, /Campaign closeout/);
+    assert.match(result.content[0].text, /autoresearch\.matrix_campaign_closeout\.v1/);
+    assert.match(
+      result.content[0].text,
+      /evidence projection: ready_for_external_projection via AK/,
+    );
+    assert.match(result.content[0].text, /No peer was launched/);
     assert.match(result.content[0].text, /Raw peer messages are communication only/);
   });
 });
