@@ -15,6 +15,7 @@ const controlledEnvNames = [
   "PI_AUTORESEARCH_CANDIDATE_DOGFOOD_ROOT",
   "PI_AUTORESEARCH_DOGFOOD_CWD",
   "PI_AUTORESEARCH_FOREGROUND_RESUME_BENCHMARK_LOG",
+  "PI_AUTORESEARCH_LONG_CAMPAIGN_DOGFOOD_ROOT",
   "PI_AUTORESEARCH_RESUME_UI_DOGFOOD_CWD",
 ];
 
@@ -62,6 +63,18 @@ const contracts = [
       {
         envName: "PI_AUTORESEARCH_CANDIDATE_DOGFOOD_ROOT",
         prefix: "autoresearch-suite-candidate-",
+        kind: "directory",
+      },
+    ],
+  },
+  {
+    id: "long-supervised-campaign-contract",
+    script: "scripts/dogfood-long-supervised-campaign-contract.mjs",
+    metricName: "unresolved_long_supervised_campaign_blockers",
+    tempPaths: [
+      {
+        envName: "PI_AUTORESEARCH_LONG_CAMPAIGN_DOGFOOD_ROOT",
+        prefix: "autoresearch-suite-long-campaign-",
         kind: "directory",
       },
     ],

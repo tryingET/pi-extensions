@@ -6,7 +6,7 @@
 // pi-autoresearch runtime functions, but does not launch peers, merge worktrees, write AK/KES
 // evidence, or promote candidates.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -25,6 +25,22 @@ const tempRoot = process.env.PI_AUTORESEARCH_LONG_CAMPAIGN_DOGFOOD_ROOT
   ? path.resolve(process.env.PI_AUTORESEARCH_LONG_CAMPAIGN_DOGFOOD_ROOT)
   : mkdtempSync(path.join(os.tmpdir(), "autoresearch-long-campaign-"));
 const shouldCleanup = !process.env.PI_AUTORESEARCH_LONG_CAMPAIGN_DOGFOOD_ROOT;
+const tsxTsconfigPath = path.join(tempRoot, "tsx-tsconfig.json");
+writeFileSync(
+  tsxTsconfigPath,
+  JSON.stringify(
+    {
+      compilerOptions: {
+        baseUrl: repoRoot,
+        paths: {
+          "@tryinget/pi-autoresearch/*": ["packages/pi-autoresearch/*"],
+        },
+      },
+    },
+    null,
+    2,
+  ),
+);
 
 const runnerSource = `
 import { execFileSync } from "node:child_process";
@@ -81,6 +97,81 @@ function createCandidate({ cellId, laneId, score }) {
   git(worktree, ["add", "score.txt"]);
   git(worktree, ["commit", "-m", "candidate " + cellId + " " + laneId + " score " + score]);
   return { worktree, branch };
+}
+
+function formatMetricTrail(metrics) {
+  return metrics.length === 0 ? "none" : metrics.join(" -> ");
+}
+
+function printOperatorCheckpointSummary({
+  campaign,
+  firstMetrics,
+  resumePlan,
+  resumeApply,
+  resumeMetrics,
+  postResumeStatus,
+  matrixPlan,
+  matrixReview,
+  packetPaths,
+  closeout,
+  learning,
+  akEvidence,
+  decision,
+  blockers,
+}) {
+  const selectedLanes = matrixReview.cells
+    .map((cell) => cell.cellId + ":" + cell.selectedLaneId)
+    .join(", ");
+  const boundarySummary = [
+    "peer launch off",
+    "candidate lifecycle plan-only",
+    "no merge/promotion",
+    "AK/KES handoff packets only",
+  ].join("; ");
+
+  console.log("LONG SUPERVISED CAMPAIGN CHECKPOINTS");
+  console.log("1. campaign_start: " + (campaign.loopResult?.completedIterations ?? 0) + " iteration(s), metric trail " + formatMetricTrail(firstMetrics));
+  console.log(
+    "2. resume gate: " +
+      (resumePlan.planReady ? "ready" : "blocked") +
+      ", executor confirmation " +
+      (resumePlan.futureForegroundCall?.includes('operatorConfirmation: "RUN FOREGROUND RESUME"') ? "present" : "missing"),
+  );
+  console.log("3. foreground resume: " + (resumeApply?.loopResult.completedIterations ?? 0) + " iteration(s), metric trail " + formatMetricTrail(resumeMetrics));
+  console.log(
+    "4. final controller posture: " +
+      postResumeStatus.currentSegment.runCount +
+      " run(s), best " +
+      postResumeStatus.currentSegment.bestMetric,
+  );
+  console.log(
+    "5. candidate matrix: " +
+      matrixPlan.cells.length +
+      " cell(s), " +
+      packetPaths.length +
+      " candidate-result packet(s), selected " +
+      selectedLanes,
+  );
+  console.log(
+    "6. closeout handoff: " +
+      matrixReview.closeout.posture +
+      ", evidence projection " +
+      matrixReview.closeout.evidenceProjection.posture +
+      ", learning " +
+      learning.packetKind +
+      ", AK evidence " +
+      akEvidence.packetKind +
+      ", owner decision " +
+      decision.recommendedDecision,
+  );
+  console.log("7. closeout history: " + closeout.runs.length + " total measured run(s); " + boundarySummary);
+  console.log("Result: unresolved_long_supervised_campaign_blockers=" + blockers.length);
+}
+
+function printFailedOperatorCheckpointSummary({ blockers }) {
+  console.log("LONG SUPERVISED CAMPAIGN CHECKPOINTS");
+  console.log("1. campaign aborted before the full checkpoint timeline could be built.");
+  console.log("Result: unresolved_long_supervised_campaign_blockers=" + blockers.length);
 }
 
 try {
@@ -340,6 +431,22 @@ try {
     addBlocker("candidate_decision_missing_external_evidence_checklist");
   }
 
+  printOperatorCheckpointSummary({
+    campaign,
+    firstMetrics,
+    resumePlan,
+    resumeApply,
+    resumeMetrics,
+    postResumeStatus,
+    matrixPlan,
+    matrixReview,
+    packetPaths,
+    closeout,
+    learning,
+    akEvidence,
+    decision,
+    blockers,
+  });
   console.log("METRIC unresolved_long_supervised_campaign_blockers=" + blockers.length);
   console.log(
     JSON.stringify(
@@ -377,6 +484,7 @@ try {
   );
 } catch (error) {
   addBlocker("exception", error instanceof Error ? error.stack ?? error.message : String(error));
+  printFailedOperatorCheckpointSummary({ blockers });
   console.log("METRIC unresolved_long_supervised_campaign_blockers=" + blockers.length);
   console.log(JSON.stringify({ cwd: controller, blockers, unresolved: blockers.length }, null, 2));
 }
@@ -392,7 +500,11 @@ const result = spawnSync(
   {
     cwd: packageRoot,
     encoding: "utf8",
-    env: { ...process.env, DOGFOOD_CONTRACT_STRICT: strictDefault },
+    env: {
+      ...process.env,
+      DOGFOOD_CONTRACT_STRICT: strictDefault,
+      TSX_TSCONFIG_PATH: tsxTsconfigPath,
+    },
   },
 );
 
