@@ -257,6 +257,24 @@ export interface AutoresearchCandidateWaveOwnerDecisionOption {
   exactNextCalls: readonly string[];
 }
 
+export interface AutoresearchCandidateWaveOwnerDecisionFormOption {
+  optionId: string;
+  label: string;
+  recommended: boolean;
+  rationale: string;
+  exactNextCalls: readonly string[];
+}
+
+export interface AutoresearchCandidateWaveOwnerDecisionForm {
+  kind: "autoresearch.candidate_wave_owner_decision_form.v1";
+  title: string;
+  description: string;
+  questionId: "candidate_wave_owner_decision";
+  recommendedOptionId: string | null;
+  options: readonly AutoresearchCandidateWaveOwnerDecisionFormOption[];
+  boundary: string;
+}
+
 export interface AutoresearchCandidateWaveReview {
   kind: "autoresearch.candidate_wave_review.v1";
   taskId: number;
@@ -271,6 +289,7 @@ export interface AutoresearchCandidateWaveReview {
     reason: string;
     exactNextCalls: string[];
     ownerDecisionOptions: readonly AutoresearchCandidateWaveOwnerDecisionOption[];
+    ownerDecisionForm: AutoresearchCandidateWaveOwnerDecisionForm | null;
   };
   nextStep: string;
   boundaries: string[];
@@ -692,6 +711,32 @@ function buildCandidateWaveOwnerDecisionOptions(input: {
   return options;
 }
 
+function buildCandidateWaveOwnerDecisionForm(input: {
+  reviewObjective: string;
+  winner: AutoresearchCandidateWaveReviewLane | null;
+  ownerDecisionOptions: readonly AutoresearchCandidateWaveOwnerDecisionOption[];
+}): AutoresearchCandidateWaveOwnerDecisionForm | null {
+  const { reviewObjective, winner, ownerDecisionOptions } = input;
+  if (!winner || ownerDecisionOptions.length === 0) return null;
+  return {
+    kind: "autoresearch.candidate_wave_owner_decision_form.v1",
+    title: `Owner decision for candidate wave: ${reviewObjective}`,
+    description:
+      "Choose one plan-only next step after reviewing packet evidence, candidate diff, and validation. The form is advisory UI data only; executing calls remains explicit.",
+    questionId: "candidate_wave_owner_decision",
+    recommendedOptionId: "plan_keep_recommended",
+    options: ownerDecisionOptions.map((option) => ({
+      optionId: option.optionId,
+      label: option.label,
+      recommended: option.optionId === "plan_keep_recommended",
+      rationale: option.rationale,
+      exactNextCalls: option.exactNextCalls,
+    })),
+    boundary:
+      "This owner-decision form does not apply worktree lifecycle actions, write AK/KES/evidence, merge, promote, or mutate candidate state.",
+  };
+}
+
 function discoverDefaultCandidateResultPacketPaths(cwd: string): string[] {
   const defaultDir = path.resolve(cwd, AUTORESEARCH_CANDIDATE_WAVE_DEFAULT_PACKET_DIR);
   if (!fs.existsSync(defaultDir)) return [];
@@ -794,6 +839,11 @@ export function reviewAutoresearchCandidateWave(
     cwd: identity.cwd,
     winner,
   });
+  const ownerDecisionForm = buildCandidateWaveOwnerDecisionForm({
+    reviewObjective: objective,
+    winner,
+    ownerDecisionOptions,
+  });
 
   return {
     kind: "autoresearch.candidate_wave_review.v1",
@@ -810,6 +860,7 @@ export function reviewAutoresearchCandidateWave(
           reason: `Best selectable ${direction}-is-better metric is ${winner.metric}. Owner must still approve keep/finalize.`,
           exactNextCalls,
           ownerDecisionOptions,
+          ownerDecisionForm,
         }
       : {
           posture: "no_selectable_candidate",
@@ -817,6 +868,7 @@ export function reviewAutoresearchCandidateWave(
           reason: "No candidate had finite metrics with passing status/check gates.",
           exactNextCalls,
           ownerDecisionOptions,
+          ownerDecisionForm,
         },
     nextStep: winner
       ? `Review ${winner.laneId}, then use autoresearch_candidate_decision plan_keep/plan_discard/plan_rewind or collect more samples.`
