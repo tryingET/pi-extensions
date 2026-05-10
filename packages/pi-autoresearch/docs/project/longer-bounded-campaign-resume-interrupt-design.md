@@ -19,8 +19,9 @@ system4d:
 
 - `autoresearch_runtime_loop` runs within the active tool call and stops on explicit budgets, blocked decisions, checks failures, crash, rebaseline, finalize, wall-clock limit, or max iterations.
 - `autoresearch.runtime.json` stores a reusable control/snapshot overlay keyed to cwd, segment, runtime state, and last decision.
-- `autoresearch_runtime_control` exposes explicit `continue`, `rebaseline`, `finalize`, and `stop` intent.
-- Receipts and event ledger remain package-local projections; AK/KES/notes/Prompt Vault/ROCS keep their own authority.
+- `autoresearch.goal.json` stores optional package-local campaign-goal continuity state: objective, legal status (`active`, `paused`, `budget_limited`, `complete`), explicit aggregate budgets, accumulated usage across foreground segments, and the next exact continuation call.
+- `autoresearch_runtime_control` exposes explicit `continue`, `rebaseline`, `finalize`, and `stop` intent; it also exposes explicit goal pause/resume/complete actions when a package-local campaign goal ledger exists.
+- Receipts, event ledger, runtime snapshot, and campaign-goal ledger remain package-local projections; AK/KES/notes/Prompt Vault/ROCS keep their own authority.
 
 ## Non-negotiable semantics
 
@@ -45,6 +46,24 @@ campaign_start(plan/baseline/bounded_loop)
 ```
 
 The key design point is that resume is a **reviewed continuation**, not automatic persistence of intent.
+
+## Campaign-goal ledger shape
+
+The first Codex-goal-inspired primitive is intentionally smaller than a planner, daemon, or peer orchestrator. When `campaignGoalId` or a campaign-goal budget is supplied to `autoresearch_runtime_loop` or `autoresearch_campaign_start`, the package writes one local `autoresearch.goal.json` projection next to the existing receipts/snapshot artifacts. The ledger is justified separately from `autoresearch.runtime.json` because it tracks cross-segment operator intent and aggregate budget/usage, while the runtime snapshot is keyed to a single resumable machine posture.
+
+The ledger shape is:
+
+| Field | Meaning |
+|---|---|
+| `goalId` / `objective` | package-local continuity handle and human objective |
+| `status` | `active`, `paused`, `budget_limited`, or `complete` |
+| `budget` | explicit iteration / wall-clock / token-like limits when supplied |
+| `usage` | accumulated foreground segment count, completed iterations, elapsed seconds, and token-like usage |
+| `segments` | append-like summaries of explicit foreground loop calls; not background work |
+| `nextContinuationCall` | exact next `autoresearch_runtime_loop({ ... })` call, or `null` when budget-limited/complete |
+| `exactControlActions` | explicit `autoresearch_runtime_control({ action: "goal_*" })` calls |
+
+This primitive is inspired by Codex goals only in the sense that it gives a long-running objective an inspectable local goal/ledger/status contract. It does not depend on Codex runtime and does not become AK truth, evidence truth, research-agenda authority, promotion authority, or a hidden scheduler.
 
 ## Resume packet shape
 
@@ -134,6 +153,8 @@ METRIC unresolved_foreground_resume_blockers=0
 ```
 
 The dogfood result proved the reviewed executor path can run one more bounded foreground segment with `peerMode="off"`, explicit authority warnings, and threshold-preserved posture. That is enough evidence not to add budget presets yet; explicit budgets remain the safer UX until repeated operator runs show a real preset need.
+
+A first campaign-goal ledger slice is now also landed. `autoresearch_runtime_loop` and `autoresearch_campaign_start({ runMode: "bounded_loop" })` can receive `campaignGoalId` plus aggregate iteration/wall-clock/token-like budgets. Each explicit foreground segment records into `autoresearch.goal.json`, pauses after the segment for operator review, becomes `budget_limited` when the aggregate budget is exhausted, and exposes the exact next continuation call while budget remains. `autoresearch_runtime_status({ action: "campaign_goal" })` is read-only, and `autoresearch_runtime_control({ action: "goal_pause" | "goal_resume" | "goal_complete" })` is the explicit control surface. The strict dogfood contract `scripts/dogfood-campaign-goal-ledger-contract.mjs` proves `active -> paused -> active -> budget_limited -> complete`, two accumulated foreground segments under one goal, metric `unresolved_campaign_goal_blockers=0`, and no daemon/automatic peer behavior.
 
 Next implementation work, when justified:
 

@@ -44,6 +44,13 @@ import {
   type SetupDecisionPacket,
 } from "./decisions.ts";
 import {
+  AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE,
+  type AutoresearchCampaignGoalStatusView,
+  beginAutoresearchCampaignGoal,
+  buildAutoresearchCampaignGoalStatus,
+  recordAutoresearchCampaignGoalSegment,
+} from "./goal.ts";
+import {
   AUTORESEARCH_EVENT_LEDGER_FILE,
   type AutoresearchLedgerEventEntry,
   type AutoresearchLedgerReplayIssue,
@@ -75,6 +82,11 @@ import {
 } from "./resume.ts";
 import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "./selfHosting.ts";
 
+export {
+  formatAutoresearchCampaignGoalStatus,
+  setAutoresearchCampaignGoalControl,
+} from "./goal.ts";
+
 export const AUTORESEARCH_COMMAND_NAME = "autoresearch";
 export const AUTORESEARCH_STATUS_TOOL_NAME = "autoresearch_runtime_status";
 export const AUTORESEARCH_RUN_TOOL_NAME = "autoresearch_runtime_run";
@@ -97,6 +109,7 @@ export const AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR = ".autoresearch/cand
 export const AUTORESEARCH_LOCAL_ARTIFACTS = [
   "autoresearch.jsonl",
   AUTORESEARCH_EVENT_LEDGER_FILE,
+  AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE,
   AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
   "autoresearch.finalization.json",
   AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE,
@@ -666,6 +679,7 @@ export interface AutoresearchRuntimeStatus {
   runtimeProjection: AutoresearchRuntimeProjection;
   runtimeSnapshot: AutoresearchRuntimeSnapshotStatus;
   control: AutoresearchControlStateV1;
+  campaignGoal: AutoresearchCampaignGoalStatusView;
   promptVaultDecisions: AutoresearchPromptVaultDecisionStatus;
   llamacppCampaignProjection: AutoresearchLlamacppCampaignProjectionStatus;
   nextSlices: readonly string[];
@@ -1064,6 +1078,10 @@ export interface ExecuteAutoresearchCampaignStartInput extends BuildAutoresearch
   stopOn?: readonly (RunStatus | "blocked" | "rebaseline" | "finalize")[];
   peerMode?: AutoresearchLoopPeerMode;
   candidatePolicy?: AutoresearchCandidateLifecyclePolicyInput;
+  campaignGoalId?: string;
+  campaignGoalIterationBudget?: number;
+  campaignGoalWallClockMinutesBudget?: number;
+  campaignGoalTokenBudget?: number;
   signal?: AbortSignal;
   onProgress?: (event: AutoresearchLoopProgressEvent) => void;
 }
@@ -1178,6 +1196,10 @@ export interface ExecuteAutoresearchLoopInput {
   model?: string;
   stopOn?: readonly (RunStatus | "blocked" | "rebaseline" | "finalize")[];
   peerMode?: AutoresearchLoopPeerMode;
+  campaignGoalId?: string;
+  campaignGoalIterationBudget?: number;
+  campaignGoalWallClockMinutesBudget?: number;
+  campaignGoalTokenBudget?: number;
   signal?: AbortSignal;
   onProgress?: (event: AutoresearchLoopProgressEvent) => void;
 }
@@ -1193,6 +1215,7 @@ export interface ExecuteAutoresearchLoopResult {
   peerMode: AutoresearchLoopPeerMode;
   peerAssist: AutoresearchPeerAssistPlan;
   peerLaunchHandoff: AutoresearchLoopPeerHandoff;
+  campaignGoal: AutoresearchCampaignGoalStatusView;
   status: AutoresearchRuntimeStatus;
 }
 
@@ -2135,6 +2158,10 @@ export async function executeAutoresearchCampaignStart(
       model: input.model,
       stopOn: input.stopOn,
       peerMode: input.peerMode,
+      campaignGoalId: input.campaignGoalId,
+      campaignGoalIterationBudget: input.campaignGoalIterationBudget,
+      campaignGoalWallClockMinutesBudget: input.campaignGoalWallClockMinutesBudget,
+      campaignGoalTokenBudget: input.campaignGoalTokenBudget,
       signal: input.signal,
       onProgress: input.onProgress,
     });
@@ -2225,6 +2252,9 @@ export function formatAutoresearchCampaignStartResult(
         `- peer launch handoff: ${result.loopResult.peerLaunchHandoff.status}`,
         `- peer launch note: ${result.loopResult.peerLaunchHandoff.note}`,
         `- peer evidence boundary: ${result.loopResult.peerAssist.evidenceWarning}`,
+        `- campaign goal status: ${result.loopResult.campaignGoal.status}`,
+        `- campaign goal progress: ${result.loopResult.campaignGoal.usage.completedIterations}/${result.loopResult.campaignGoal.budget.iterations ?? "unbounded"} iteration(s)`,
+        `- campaign goal next continuation: ${result.loopResult.campaignGoal.nextContinuationCall ?? "(none)"}`,
       ]
     : result.setupResult
       ? [
@@ -5548,6 +5578,10 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     `- allowed actions: ${formatAllowedActions(status.control.allowedActions)}`,
     `- control reason: ${status.control.reason ?? "(none)"}`,
     `- control selected at: ${formatTimestamp(status.control.selectedAt)}`,
+    `- campaign goal status: ${status.campaignGoal.status}`,
+    `- campaign goal objective: ${status.campaignGoal.objective ?? "(none)"}`,
+    `- campaign goal progress: ${status.campaignGoal.usage.completedIterations}/${status.campaignGoal.budget.iterations ?? "unbounded"} iteration(s) across ${status.campaignGoal.usage.foregroundSegments} foreground segment(s)`,
+    `- campaign goal next continuation: ${status.campaignGoal.nextContinuationCall ?? "(none)"}`,
     `- event ledger present: ${projection.hasLedger ? "yes" : "no"}`,
     `- invalid ledger lines: ${projection.invalidLedgerLines}`,
     `- ledger replay: ${projection.replayedEventCount}/${projection.eventCount} events accepted`,
@@ -6363,6 +6397,33 @@ export async function executeAutoresearchLoop(
   }
 
   const startedAt = Date.now();
+  const shouldTrackCampaignGoal =
+    input.campaignGoalId !== undefined ||
+    input.campaignGoalIterationBudget !== undefined ||
+    input.campaignGoalWallClockMinutesBudget !== undefined ||
+    input.campaignGoalTokenBudget !== undefined;
+  const campaignGoalLedger = shouldTrackCampaignGoal
+    ? beginAutoresearchCampaignGoal({
+        cwd,
+        objective: goal,
+        goalId: input.campaignGoalId,
+        iterationBudget: input.campaignGoalIterationBudget,
+        wallClockMinutesBudget: input.campaignGoalWallClockMinutesBudget,
+        tokenLikeBudget: input.campaignGoalTokenBudget,
+        now: startedAt,
+      })
+    : null;
+  const remainingGoalIterations =
+    campaignGoalLedger?.budget.iterations === null || campaignGoalLedger === null
+      ? input.maxIterations
+      : Math.max(
+          0,
+          campaignGoalLedger.budget.iterations - campaignGoalLedger.usage.completedIterations,
+        );
+  if (campaignGoalLedger && remainingGoalIterations < 1) {
+    throw new Error("campaign goal iteration budget is exhausted");
+  }
+  const segmentMaxIterations = Math.min(input.maxIterations, remainingGoalIterations);
   const stopOn = new Set(
     input.stopOn ?? ["blocked", "rebaseline", "finalize", "crash", "checks_failed"],
   );
@@ -6375,12 +6436,12 @@ export async function executeAutoresearchLoop(
     cwd,
     goal,
     iteration: null,
-    maxIterations: input.maxIterations,
+    maxIterations: segmentMaxIterations,
     elapsedSeconds: 0,
-    message: `Starting bounded autoresearch loop for ${goal} with maxIterations=${input.maxIterations}.`,
+    message: `Starting bounded autoresearch loop for ${goal} with maxIterations=${segmentMaxIterations}.`,
   });
 
-  for (let index = 0; index < input.maxIterations; index += 1) {
+  for (let index = 0; index < segmentMaxIterations; index += 1) {
     input.signal?.throwIfAborted();
     const elapsedSeconds = (Date.now() - startedAt) / 1000;
     if (
@@ -6433,10 +6494,10 @@ export async function executeAutoresearchLoop(
       cwd,
       goal,
       iteration: index + 1,
-      maxIterations: input.maxIterations,
+      maxIterations: segmentMaxIterations,
       elapsedSeconds,
       nextHypothesis: previousDecision?.nextHypothesis ?? null,
-      message: `Starting autoresearch loop iteration ${index + 1}/${input.maxIterations}: ${description}`,
+      message: `Starting autoresearch loop iteration ${index + 1}/${segmentMaxIterations}: ${description}`,
     });
 
     let run: ExecuteAutoresearchRunResult;
@@ -6484,14 +6545,14 @@ export async function executeAutoresearchLoop(
       cwd,
       goal,
       iteration: index + 1,
-      maxIterations: input.maxIterations,
+      maxIterations: segmentMaxIterations,
       elapsedSeconds: (Date.now() - startedAt) / 1000,
       runStatus: run.runReceipt.status,
       primaryMetricName: run.primaryMetricName,
       primaryMetric: run.primaryMetric,
       bestMetric: run.status.currentSegment.bestMetric,
       nextHypothesis: run.decisionSummary?.nextHypothesis ?? null,
-      message: `Completed autoresearch loop iteration ${index + 1}/${input.maxIterations}: ${run.runReceipt.status} ${run.primaryMetricName}=${formatMetricValue(run.primaryMetric, run.status.currentSegment.metricUnit)}.`,
+      message: `Completed autoresearch loop iteration ${index + 1}/${segmentMaxIterations}: ${run.runReceipt.status} ${run.primaryMetricName}=${formatMetricValue(run.primaryMetric, run.status.currentSegment.metricUnit)}.`,
     });
 
     if (stopOn.has(run.runReceipt.status)) {
@@ -6516,8 +6577,34 @@ export async function executeAutoresearchLoop(
     }
   }
 
-  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
   const elapsedSeconds = (Date.now() - startedAt) / 1000;
+  const campaignGoal = campaignGoalLedger
+    ? recordAutoresearchCampaignGoalSegment({
+        cwd,
+        goalId: campaignGoalLedger.goalId,
+        requestedIterations: segmentMaxIterations,
+        completedIterations: runs.length,
+        elapsedSeconds,
+        stopReason,
+        toolName: AUTORESEARCH_LOOP_TOOL_NAME,
+        toolCall: formatCampaignGoalLoopCall({
+          cwd,
+          goal,
+          maxIterations: segmentMaxIterations,
+          maxWallClockMinutes: input.maxWallClockMinutes,
+          campaignGoalId: campaignGoalLedger.goalId,
+          campaignGoalIterationBudget: campaignGoalLedger.budget.iterations,
+          campaignGoalWallClockMinutesBudget:
+            campaignGoalLedger.budget.wallClockSeconds === null
+              ? null
+              : campaignGoalLedger.budget.wallClockSeconds / 60,
+          campaignGoalTokenBudget: campaignGoalLedger.budget.tokenLikeUnits,
+        }),
+        startedAt,
+        completedAt: Date.now(),
+      })
+    : null;
+  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
   const peerAssist = buildAutoresearchPeerAssistPlan(
     buildLoopPeerAssistInput(input, cwd, goal, peerMode),
   );
@@ -6525,7 +6612,7 @@ export async function executeAutoresearchLoop(
   const result: ExecuteAutoresearchLoopResult = {
     cwd,
     goal,
-    requestedIterations: input.maxIterations,
+    requestedIterations: segmentMaxIterations,
     completedIterations: runs.length,
     stopReason,
     elapsedSeconds,
@@ -6533,6 +6620,7 @@ export async function executeAutoresearchLoop(
     peerMode,
     peerAssist,
     peerLaunchHandoff,
+    campaignGoal: campaignGoal ? buildAutoresearchCampaignGoalStatus(cwd) : status.campaignGoal,
     status,
   };
 
@@ -6541,7 +6629,7 @@ export async function executeAutoresearchLoop(
     cwd,
     goal,
     iteration: null,
-    maxIterations: input.maxIterations,
+    maxIterations: segmentMaxIterations,
     elapsedSeconds,
     stopReason,
     bestMetric: status.currentSegment.bestMetric,
@@ -6567,6 +6655,9 @@ export function formatAutoresearchLoopResult(result: ExecuteAutoresearchLoopResu
     `- elapsed: ${result.elapsedSeconds.toFixed(2)}s`,
     `- stop reason: ${result.stopReason}`,
     `- final machine state: ${result.status.runtimeProjection.state}`,
+    `- campaign goal status: ${result.campaignGoal.status}`,
+    `- campaign goal progress: ${result.campaignGoal.usage.completedIterations}/${result.campaignGoal.budget.iterations ?? "unbounded"} iteration(s) across ${result.campaignGoal.usage.foregroundSegments} foreground segment(s)`,
+    `- campaign goal next continuation: ${result.campaignGoal.nextContinuationCall ?? "(none)"}`,
     `- current best: ${formatMetricValue(result.status.currentSegment.bestMetric, result.status.currentSegment.metricUnit)}`,
     `- last hypothesis: ${lastDecision?.nextHypothesis ?? "(none)"}`,
     "",
@@ -6585,6 +6676,35 @@ export function formatAutoresearchLoopResult(result: ExecuteAutoresearchLoopResu
     "## Final dashboard",
     formatAutoresearchDashboard(result.status),
   ].join("\n");
+}
+
+function formatCampaignGoalLoopCall(input: {
+  cwd: string;
+  goal: string;
+  maxIterations: number;
+  maxWallClockMinutes?: number;
+  campaignGoalId: string;
+  campaignGoalIterationBudget: number | null;
+  campaignGoalWallClockMinutesBudget: number | null;
+  campaignGoalTokenBudget: number | null;
+}): string {
+  const wallClockField =
+    input.maxWallClockMinutes === undefined
+      ? ""
+      : `, maxWallClockMinutes: ${input.maxWallClockMinutes}`;
+  const iterationBudgetField =
+    input.campaignGoalIterationBudget === null
+      ? ""
+      : `, campaignGoalIterationBudget: ${input.campaignGoalIterationBudget}`;
+  const wallClockBudgetField =
+    input.campaignGoalWallClockMinutesBudget === null
+      ? ""
+      : `, campaignGoalWallClockMinutesBudget: ${input.campaignGoalWallClockMinutesBudget}`;
+  const tokenBudgetField =
+    input.campaignGoalTokenBudget === null
+      ? ""
+      : `, campaignGoalTokenBudget: ${input.campaignGoalTokenBudget}`;
+  return `${AUTORESEARCH_LOOP_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, goal: ${JSON.stringify(input.goal)}, maxIterations: ${input.maxIterations}${wallClockField}, campaignGoalId: ${JSON.stringify(input.campaignGoalId)}${iterationBudgetField}${wallClockBudgetField}${tokenBudgetField}, peerMode: "off" })`;
 }
 
 function buildLoopPeerAssistInput(
@@ -7237,6 +7357,9 @@ function buildAutoresearchRuntimeStatusFromEntries(
     completionReason: runtimeProjection.completionReason,
   });
   const llamacppCampaignProjection = buildAutoresearchLlamacppCampaignProjectionStatus(cwd);
+  const campaignGoal = cwd
+    ? buildAutoresearchCampaignGoalStatus(cwd)
+    : buildAutoresearchCampaignGoalStatus(process.cwd());
   const snapshotInput =
     cwd !== undefined
       ? createRuntimeSnapshotInput(cwd, currentSegment, runtimeProjection, promptVaultDecisions)
@@ -7295,6 +7418,7 @@ function buildAutoresearchRuntimeStatusFromEntries(
       runtimeKey: null,
     },
     control: loadedControl?.control ?? defaultControl,
+    campaignGoal,
     promptVaultDecisions,
     llamacppCampaignProjection,
     nextSlices: [],

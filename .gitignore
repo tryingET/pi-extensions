@@ -4,5 +4,6 @@
 # Local pi-autoresearch runtime artifacts (regenerated; not source truth)
 /.autoresearch/
 /autoresearch.events.jsonl
+/autoresearch.goal.json
 /autoresearch.jsonl
 /autoresearch.runtime.json

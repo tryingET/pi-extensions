@@ -5,6 +5,7 @@ dist/
 *.tgz
 .autoresearch/
 autoresearch.runtime.json
+autoresearch.goal.json
 autoresearch.jsonl
 autoresearch.events.jsonl
 autoresearch.self-hosting.json

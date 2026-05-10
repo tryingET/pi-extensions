@@ -66,6 +66,7 @@ import {
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
   formatAutoresearchAutoplanResult,
+  formatAutoresearchCampaignGoalStatus,
   formatAutoresearchCampaignStartResult,
   formatAutoresearchCandidateBindPlan,
   formatAutoresearchCandidateDecisionWorkbench,
@@ -90,6 +91,7 @@ import {
   inspectAutoresearchRuntimeControl,
   requestAutoresearchFinalizeDecision,
   requestAutoresearchSetupDecision,
+  setAutoresearchCampaignGoalControl,
   setAutoresearchRuntimeControl,
   validateAutoresearchAdapterPacket,
   writeAutoresearchCandidateResultPacket,
@@ -323,6 +325,7 @@ const statusActionSchema = Type.Union(
     Type.Literal("candidate_result_export"),
     Type.Literal("resume_plan"),
     Type.Literal("resume_apply_plan"),
+    Type.Literal("campaign_goal"),
     Type.Literal("adapter_contracts"),
     Type.Literal("validate_packet"),
   ],
@@ -385,10 +388,19 @@ const statusSchema = Type.Object({
   ideasToLeaveOut: Type.Optional(stringArraySchema),
 });
 
-const controlActionSchema = Type.Union([Type.Literal("status"), Type.Literal("set")], {
-  description:
-    "Inspect the current operator control overlay or set an explicit continue/rebaseline/finalize/stop decision.",
-});
+const controlActionSchema = Type.Union(
+  [
+    Type.Literal("status"),
+    Type.Literal("set"),
+    Type.Literal("goal_pause"),
+    Type.Literal("goal_resume"),
+    Type.Literal("goal_complete"),
+  ],
+  {
+    description:
+      "Inspect the current operator control overlay, set an explicit continue/rebaseline/finalize/stop decision, or apply an explicit campaign-goal pause/resume/complete control action.",
+  },
+);
 
 const controlDecisionSchema = Type.Union(
   [
@@ -1043,6 +1055,29 @@ const campaignStartSchema = Type.Object({
   ),
   peerMode: Type.Optional(loopPeerModeSchema),
   candidatePolicy: Type.Optional(campaignStartCandidatePolicySchema),
+  campaignGoalId: Type.Optional(
+    Type.String({
+      description: "Optional package-local campaign goal id for foreground continuation.",
+    }),
+  ),
+  campaignGoalIterationBudget: Type.Optional(
+    Type.Number({
+      description: "Total iteration budget across foreground campaign-goal segments.",
+      minimum: 1,
+    }),
+  ),
+  campaignGoalWallClockMinutesBudget: Type.Optional(
+    Type.Number({
+      description: "Total wall-clock budget across foreground campaign-goal segments.",
+      minimum: 0.01,
+    }),
+  ),
+  campaignGoalTokenBudget: Type.Optional(
+    Type.Number({
+      description: "Optional token-like budget ledger value across foreground segments.",
+      minimum: 1,
+    }),
+  ),
 });
 
 const loopSchema = Type.Object({
@@ -1107,6 +1142,29 @@ const loopSchema = Type.Object({
     ),
   ),
   peerMode: Type.Optional(loopPeerModeSchema),
+  campaignGoalId: Type.Optional(
+    Type.String({
+      description: "Optional package-local campaign goal id for foreground continuation.",
+    }),
+  ),
+  campaignGoalIterationBudget: Type.Optional(
+    Type.Number({
+      description: "Total iteration budget across foreground campaign-goal segments.",
+      minimum: 1,
+    }),
+  ),
+  campaignGoalWallClockMinutesBudget: Type.Optional(
+    Type.Number({
+      description: "Total wall-clock budget across foreground campaign-goal segments.",
+      minimum: 0.01,
+    }),
+  ),
+  campaignGoalTokenBudget: Type.Optional(
+    Type.Number({
+      description: "Optional token-like budget ledger value across foreground segments.",
+      minimum: 1,
+    }),
+  ),
 });
 
 const resumeApplySchema = Type.Object({
@@ -1467,6 +1525,7 @@ export function registerPiAutoresearchExtension(
           | "candidate_result_export"
           | "resume_plan"
           | "resume_apply_plan"
+          | "campaign_goal"
           | "adapter_contracts"
           | "validate_packet";
         cwd?: string;
@@ -1508,6 +1567,7 @@ export function registerPiAutoresearchExtension(
           "candidate_result",
           "resume_plan",
           "resume_apply_plan",
+          "campaign_goal",
           "adapter_contracts",
           "validate_packet",
         ],
@@ -1673,6 +1733,14 @@ export function registerPiAutoresearchExtension(
         };
       }
 
+      if (action === "campaign_goal") {
+        const result = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false }).campaignGoal;
+        return {
+          content: [{ type: "text", text: formatAutoresearchCampaignGoalStatus(result) }],
+          details: result,
+        };
+      }
+
       if (action === "finalize") {
         const result = await requestAutoresearchFinalizeDecision({
           cwd,
@@ -1714,7 +1782,7 @@ export function registerPiAutoresearchExtension(
     parameters: asPiToolParameters(controlSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as {
-        action?: "status" | "set";
+        action?: "status" | "set" | "goal_pause" | "goal_resume" | "goal_complete";
         cwd?: string;
         decision?: "continue" | "rebaseline" | "finalize" | "stop";
         reason?: string;
@@ -1739,6 +1807,20 @@ export function registerPiAutoresearchExtension(
         });
         return {
           content: [{ type: "text", text: formatAutoresearchControlResult(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "goal_pause" || action === "goal_resume" || action === "goal_complete") {
+        const result = setAutoresearchCampaignGoalControl({
+          cwd,
+          action:
+            action === "goal_pause" ? "pause" : action === "goal_resume" ? "resume" : "complete",
+          reason: request.reason,
+        });
+        const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false }).campaignGoal;
+        return {
+          content: [{ type: "text", text: formatAutoresearchCampaignGoalStatus(status) }],
           details: result,
         };
       }
@@ -2065,6 +2147,10 @@ export function registerPiAutoresearchExtension(
           discard?: "suggest_cleanup" | "delete_worktree_after_confirm";
           rewind?: "reset_worktree_to_base" | "recreate_worktree_from_base";
         };
+        campaignGoalId?: string;
+        campaignGoalIterationBudget?: number;
+        campaignGoalWallClockMinutesBudget?: number;
+        campaignGoalTokenBudget?: number;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
       const result = await executeAutoresearchCampaignStart({
@@ -2112,6 +2198,10 @@ export function registerPiAutoresearchExtension(
         stopOn: request.stopOn,
         peerMode: request.peerMode,
         candidatePolicy: request.candidatePolicy,
+        campaignGoalId: request.campaignGoalId,
+        campaignGoalIterationBudget: request.campaignGoalIterationBudget,
+        campaignGoalWallClockMinutesBudget: request.campaignGoalWallClockMinutesBudget,
+        campaignGoalTokenBudget: request.campaignGoalTokenBudget,
         signal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
       });
@@ -2209,6 +2299,10 @@ export function registerPiAutoresearchExtension(
           | "finalize"
         >;
         peerMode?: "off" | "plan" | "launch_scout" | "launch_candidate" | "launch_fork";
+        campaignGoalId?: string;
+        campaignGoalIterationBudget?: number;
+        campaignGoalWallClockMinutesBudget?: number;
+        campaignGoalTokenBudget?: number;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_LOOP_TOOL_NAME);
       const result = await executeAutoresearchLoop({
@@ -2242,6 +2336,10 @@ export function registerPiAutoresearchExtension(
         model: ctx.model?.id,
         stopOn: request.stopOn,
         peerMode: request.peerMode,
+        campaignGoalId: request.campaignGoalId,
+        campaignGoalIterationBudget: request.campaignGoalIterationBudget,
+        campaignGoalWallClockMinutesBudget: request.campaignGoalWallClockMinutesBudget,
+        campaignGoalTokenBudget: request.campaignGoalTokenBudget,
         signal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
       });
