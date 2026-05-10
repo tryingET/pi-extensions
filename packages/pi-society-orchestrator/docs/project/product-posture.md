@@ -135,13 +135,15 @@ planned lane set
 
 Orchestrator owns the above-seam state model and report. `pi-autoresearch` owns measurement and candidate-result packets. Peer tooling owns visible candidate launch. Operators and owner surfaces own promotion/cleanup.
 
-### Bet 2 — Matrix campaign cells as managed waves
+### Bet 2 — Matrix campaign cells as managed waves — first slice landed
 
-After Bet 1, each matrix cell should delegate to the managed candidate-wave path. A matrix plan should be explainable as:
+Each matrix cell now carries a managed candidate-wave posture and fan-in gate. The matrix plan exposes `autoresearch.matrix_managed_candidate_wave_substrate.v1` so the campaign is explainable as:
 
 ```text
 scenario × hypothesis cell -> managed candidate wave -> packetized review -> AK-ready evidence context
 ```
+
+The first slice is still plan/review choreography: it does not launch peers, run benchmarks, write evidence, merge, or promote. Its job is to prevent matrix campaigns from multiplying loose sidequests by requiring every cell to pass through managed candidate-wave planning, controller-measured candidate-result packets, and explicit missing-lane gates before owner selection.
 
 ### Bet 3 — Owner-facing review UX polish
 

@@ -608,6 +608,23 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.equal(result.details.matrixCampaign.cells.length, 2);
   assert.equal(result.details.matrixCampaign.candidateCountPerCell, 2);
   assert.equal(
+    result.details.matrixCampaign.managedWaveSubstrate.kind,
+    "autoresearch.matrix_managed_candidate_wave_substrate.v1",
+  );
+  assert.equal(result.details.matrixCampaign.managedWaveSubstrate.cellCount, 2);
+  assert.equal(result.details.matrixCampaign.managedWaveSubstrate.candidateCountPerCell, 2);
+  assert.equal(result.details.matrixCampaign.managedWaveSubstrate.expectedCandidateLaneCount, 4);
+  assert.equal(result.details.matrixCampaign.managedWaveSubstrate.finalOnlyScoring, true);
+  assert.equal(
+    result.details.matrixCampaign.managedWaveSubstrate.controllerMeasurementRequired,
+    true,
+  );
+  assert.equal(
+    result.details.matrixCampaign.managedWaveSubstrate.explicitPacketPathsGateSelection,
+    true,
+  );
+  assert.equal(result.details.matrixCampaign.managedWaveSubstrate.cellFanInCalls.length, 2);
+  assert.equal(
     result.details.matrixCampaign.implementationWaveSubstrate.posture,
     "dogfood_matrix_replaces_hand_authored_wave_steps",
   );
@@ -653,6 +670,14 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
     ".autoresearch/matrix-campaign/cell-01-01/candidate-01.candidate-result.json",
     ".autoresearch/matrix-campaign/cell-01-01/candidate-02.candidate-result.json",
   ]);
+  assert.equal(
+    result.details.matrixCampaign.cells[0].managedWavePosture,
+    "managed_candidate_wave_required",
+  );
+  assert.match(
+    result.details.matrixCampaign.cells[0].fanInGate,
+    /missing planned lane packets gate/,
+  );
   assert.match(result.details.matrixCampaign.cells[0].planCandidateWaveCall, /plan_candidate_wave/);
   assert.match(
     result.details.matrixCampaign.cells[0].planCandidateWaveCall,
@@ -665,6 +690,9 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /plan_matrix_campaign/);
   assert.match(result.content[0].text, /2 scenario\(s\) × 1 hypothesis/);
   assert.match(result.content[0].text, /Implementation-wave substrate/);
+  assert.match(result.content[0].text, /Managed candidate-wave substrate/);
+  assert.match(result.content[0].text, /expected candidate lanes: 4/);
+  assert.match(result.content[0].text, /explicit packet paths gate selection: yes/);
   assert.match(result.content[0].text, /owner decision UI: \/autoresearch review/);
   assert.match(result.content[0].text, /Owner review route/);
   assert.match(result.content[0].text, /primary UI: pi-autoresearch_html_dashboard/);
@@ -678,6 +706,8 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /HTML dashboard/);
   assert.match(result.content[0].text, /cell-01-01 review call:/);
   assert.match(result.content[0].text, /cell-01-01/);
+  assert.match(result.content[0].text, /managed wave posture: managed_candidate_wave_required/);
+  assert.match(result.content[0].text, /fan-in gate:/);
   assert.match(result.content[0].text, /This matrix plan is a non-mutating/);
 });
 

@@ -259,6 +259,24 @@ export interface AutoresearchMatrixCampaignCell {
   planCandidateWaveCall: string;
   reviewCandidateWaveCall: string;
   ownerUiCommand: "/autoresearch review";
+  managedWavePosture: "managed_candidate_wave_required";
+  fanInGate: string;
+}
+
+export interface AutoresearchMatrixManagedWaveSubstrate {
+  kind: "autoresearch.matrix_managed_candidate_wave_substrate.v1";
+  cellCount: number;
+  candidateCountPerCell: number;
+  expectedCandidateLaneCount: number;
+  finalOnlyScoring: true;
+  controllerMeasurementRequired: true;
+  explicitPacketPathsGateSelection: true;
+  cellFanInCalls: readonly {
+    cellId: string;
+    planCandidateWaveCall: string;
+    reviewCandidateWaveCall: string;
+  }[];
+  checklist: readonly string[];
 }
 
 export interface AutoresearchMatrixCampaignOwnerReviewRoute {
@@ -291,6 +309,7 @@ export interface AutoresearchMatrixCampaignPlan {
   hypotheses: readonly string[];
   candidateCountPerCell: number;
   cells: readonly AutoresearchMatrixCampaignCell[];
+  managedWaveSubstrate: AutoresearchMatrixManagedWaveSubstrate;
   implementationWaveSubstrate: {
     posture: "dogfood_matrix_replaces_hand_authored_wave_steps";
     akTaskId: number;
@@ -1537,9 +1556,34 @@ export function planAutoresearchMatrixCampaign(
           candidateResultPacketPaths,
         }),
         ownerUiCommand: "/autoresearch review",
+        managedWavePosture: "managed_candidate_wave_required",
+        fanInGate:
+          "Run this cell through plan_candidate_wave, then review_candidate_wave with explicit candidateResultPacketPaths; missing planned lane packets gate final owner selection until measured/exported or owner-replanned.",
       };
     }),
   );
+
+  const managedWaveSubstrate: AutoresearchMatrixManagedWaveSubstrate = {
+    kind: "autoresearch.matrix_managed_candidate_wave_substrate.v1",
+    cellCount: cells.length,
+    candidateCountPerCell,
+    expectedCandidateLaneCount: cells.length * candidateCountPerCell,
+    finalOnlyScoring: true,
+    controllerMeasurementRequired: true,
+    explicitPacketPathsGateSelection: true,
+    cellFanInCalls: cells.map((cell) => ({
+      cellId: cell.cellId,
+      planCandidateWaveCall: cell.planCandidateWaveCall,
+      reviewCandidateWaveCall: cell.reviewCandidateWaveCall,
+    })),
+    checklist: [
+      "Treat each matrix cell as a managed candidate wave, not as loose parallel sidequests.",
+      "Run the cell planCandidateWaveCall before launching approved visible candidate lanes.",
+      "Score only controller-measured pi-autoresearch candidate-result packets for each lane.",
+      "Use explicit cell reviewCandidateWaveCall packet paths so missing planned lanes gate final cell selection.",
+      "Compare matrix cells only after their managed wave reviews are complete or deliberately owner-replanned.",
+    ],
+  };
 
   return {
     kind: "autoresearch.matrix_campaign_plan.v1",
@@ -1551,6 +1595,7 @@ export function planAutoresearchMatrixCampaign(
     hypotheses,
     candidateCountPerCell,
     cells,
+    managedWaveSubstrate,
     implementationWaveSubstrate: {
       posture: "dogfood_matrix_replaces_hand_authored_wave_steps",
       akTaskId: identity.taskId,
