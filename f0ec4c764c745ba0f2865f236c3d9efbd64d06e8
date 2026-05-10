@@ -1,0 +1,18 @@
+Intent: Prove the supervised matrix campaign path as a reviewable closeout rather than adding another loose orchestration surface.
+
+Task: AK #2786 Dogfood integrated supervised matrix campaign closeout.
+
+Changes:
+- Add autoresearch.matrix_campaign_closeout.v1 to matrix campaign review results.
+- Surface selected cell lanes, packet paths, dashboard-first owner route, AK projection readiness, next legal owner actions, and explicit not-done boundaries.
+- Add integrated dogfood contract for plan_matrix_campaign -> managed packet review -> review_matrix_campaign closeout posture.
+
+Validation:
+- node packages/pi-society-orchestrator/scripts/dogfood-integrated-matrix-campaign-closeout-contract.mjs
+- node --test --test-name-pattern "review_matrix_campaign" packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs
+- npm --prefix packages/pi-society-orchestrator run check
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-society-orchestrator --strict
+
+Boundary:
+- No hidden peer launch, benchmark execution, merge, promotion, worktree lifecycle action, AK evidence write from the review path, KES write, or pi-autoresearch runtime ownership change.
+- Existing unrelated dirty files were not staged.
