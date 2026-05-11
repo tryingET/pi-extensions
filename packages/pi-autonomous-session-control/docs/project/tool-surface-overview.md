@@ -72,6 +72,9 @@ Keep these surfaces distinct:
 
 - package-owned prompt assets live in `prompts/` and are exposed through `package.json#pi.prompts`
 - package-local runtime/tool surfaces are `self` and `dispatch_subagent`
+- `self` capability meta-queries (`What can you do?`, `capability discovery`, `capability routing`) describe self-tool query domains only; they do not discover or activate extension bundles
+- toolbox/bundle discovery belongs to the separate `toolbox` tool, which searches, explains, activates, deactivates, and inspects Pi extension bundles
+- repo/lane capability-map routing belongs to documentation/read-first surfaces such as `repo-capability-map.md` and `pi-extensions/docs/project/root-capabilities.md`; these maps guide ownership and read order, not runtime authority
 - prompt-envelope provenance is a tool-result surface on `dispatch_subagent` (`prompt_applied`, `prompt_name`, `prompt_source`, `prompt_tags`, `prompt_warning`)
 - live cross-extension coherence is proven by the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` harness path, which should preserve the `vault-client-live` provenance label when the prompt came from the live vault-client tool chain
 - repo-root `.pi/prompts/*` files in the monorepo root are repo-owned operator prompts, not ASC package prompts

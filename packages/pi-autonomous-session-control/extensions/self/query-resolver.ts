@@ -57,6 +57,12 @@ const CAPABILITY_KEYWORDS = [
   "what can you do",
   "what queries",
   "capabilities",
+  "capability discovery",
+  "capability routing",
+  "capability map",
+  "capability maps",
+  "toolbox discovery",
+  "bundle discovery",
   "what do you understand",
   "show commands",
   "available queries",
@@ -281,12 +287,13 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
       return {
         understood: false,
         intent: "unknown",
-        answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, semantic-pressure annotations, or traps.`,
+        answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, semantic-pressure annotations, traps, or capability discovery.`,
         suggestions: [
           "What files have I touched?",
           "Am I in a loop?",
           "What progress have I made?",
           "What semantic-pressure annotations have I recorded?",
+          "Capability discovery",
         ],
       };
   }
@@ -301,7 +308,9 @@ function resolveMetaQuery(intent: string): SelfResponse {
     return {
       understood: true,
       intent: "meta",
-      answer: `I understand 5 domains of queries:
+      answer: `I can help with capability discovery, but these surfaces are intentionally different:
+
+**1. self-tool query domains** (ask this tool about the current session):
 
 **Perception** (see yourself):
 - "What files have I touched?" / "What commands have I run?"
@@ -326,7 +335,15 @@ function resolveMetaQuery(intent: string): SelfResponse {
 **Action** (act):
 - "Create checkpoint before [reason]"
 - "Queue followup: [task]" / "Remind me: [task]"
-- "Prefill: [text]"`,
+- "Prefill: [text]"
+
+**2. toolbox/bundle discovery** (outside self):
+- Use the \`toolbox\` tool to search, explain, activate, deactivate, or inspect Pi extension bundles when you need extension-provided capabilities.
+- Keep toolbox/bundle discovery separate from this self-tool query list; self explains itself, toolbox discovers extension bundles.
+
+**3. repo/lane capability-map routing surfaces** (documentation/read-first routing):
+- Use lane and repo capability maps such as \`repo-capability-map.md\` and \`pi-extensions/docs/project/root-capabilities.md\` to choose the owning repo/package and read-first docs.
+- Capability maps are routing surfaces, not new runtime tools or durable authority.`,
       data: {
         domains: [
           {
@@ -358,6 +375,23 @@ function resolveMetaQuery(intent: string): SelfResponse {
             name: "action",
             description: "Create checkpoints, queue followups, prefill editor",
             examples: ["Create checkpoint", "Queue followup: X", "Prefill: Y"],
+          },
+        ],
+        discoverySurfaces: [
+          {
+            name: "self-tool query domains",
+            description:
+              "Natural-language queries understood by this self tool for session perception, direction, crystallization, protection, and action.",
+          },
+          {
+            name: "toolbox/bundle discovery",
+            description:
+              "Use the toolbox tool for Pi extension bundle search, explanation, activation, deactivation, and inspection.",
+          },
+          {
+            name: "repo/lane capability-map routing",
+            description:
+              "Use repo-capability-map.md and pi-extensions/docs/project/root-capabilities.md as read-first routing surfaces for repo/package ownership.",
           },
         ],
       },

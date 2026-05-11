@@ -95,9 +95,9 @@ test("self query: capability discovery", async () => {
   const tool = harness.tools.get("self");
   const ctx = createMockContext();
 
-  const result = await tool.execute("tc-1", { query: "What can you do?" }, null, null, ctx);
+  const result = await tool.execute("tc-1", { query: "capability discovery" }, null, null, ctx);
 
-  assert.ok(result.details.understood, "should understand capability query");
+  assert.ok(result.details.understood, "should understand capability discovery query");
   assert.ok(result.content[0].text.includes("Perception"), "should list perception domain");
   assert.ok(result.content[0].text.includes("Direction"), "should list direction domain");
   assert.ok(
@@ -106,7 +106,43 @@ test("self query: capability discovery", async () => {
   );
   assert.ok(result.content[0].text.includes("Protection"), "should list protection domain");
   assert.ok(result.content[0].text.includes("Action"), "should list action domain");
+  assert.ok(result.content[0].text.includes("toolbox"), "should mention toolbox discovery");
+  assert.ok(result.content[0].text.includes("capability maps"), "should mention capability maps");
+  assert.ok(
+    result.content[0].text.includes("repo-capability-map.md"),
+    "should mention repo capability-map docs",
+  );
+  assert.ok(
+    result.content[0].text.includes("pi-extensions/docs/project/root-capabilities.md"),
+    "should mention root capabilities docs",
+  );
   assert.ok(result.details.data.domains, "should return domains data");
+  assert.ok(result.details.data.discoverySurfaces, "should return discovery surfaces data");
+
+  await cleanup(tempDir);
+});
+
+test("self query: capability routing variant", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-capability-routing",
+    { query: "capability routing" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.details.understood, "should understand capability routing query");
+  assert.equal(result.details.intent, "meta");
+  assert.ok(result.content[0].text.includes("toolbox"), "should mention toolbox discovery");
+  assert.ok(result.content[0].text.includes("capability maps"), "should mention capability maps");
 
   await cleanup(tempDir);
 });

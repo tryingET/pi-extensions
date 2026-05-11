@@ -128,6 +128,14 @@ ASC owns two distinct prompt-related surfaces:
 Keep those surfaces separate from repo-root `.pi/prompts/*` operator prompts in the monorepo root.
 The live cross-extension harness proves the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain preserves prompt provenance coherently, including the `vault-client-live` source label.
 
+### Capability discovery surfaces
+
+The `self` tool accepts capability meta-queries such as `What can you do?`, `capability discovery`, and `capability routing`. Its response intentionally distinguishes three surfaces:
+
+1. `self` query domains: perception, direction, crystallization, protection, and action queries understood by the ASC self mirror.
+2. Toolbox/bundle discovery: use the Pi `toolbox` tool to search, explain, activate, deactivate, or inspect extension bundles. ASC does not add or replace that tool.
+3. Repo/lane capability-map routing: use documentation surfaces such as `repo-capability-map.md` and `pi-extensions/docs/project/root-capabilities.md` to choose owning repos/packages and read-first docs. These maps are routing guidance, not runtime authority.
+
 ### Public execution contract
 
 ASC now exposes a supported package-level execution seam for non-tool consumers:
