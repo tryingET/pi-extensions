@@ -1,0 +1,23 @@
+AK task: #2837 Add toolbox preflight to autoresearch follow-up
+
+Promoted from candidate worktree:
+- branch: candidate/autoresearch-followup-toolbox-preflight
+- worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/autoresearch-followup-toolbox-preflight
+- candidate peer: candidatepeer-mp1d35kn-c968b95b
+
+Change summary:
+- Updated visible auto-continuation follow-up text to tell the next live Pi agent to activate toolbox bundle=autoresearch profile=mutating if autoresearch_runtime_loop is not active/available.
+- Preserved the exact continuation call, campaignGoalAutoContinue naming, peerMode off, and no-daemon/no-hidden-run/no-peer-spawn/no-AK-KES-Oracle/no-promotion boundaries.
+- Added focused and dogfood assertions for the toolbox preflight text.
+
+Validation:
+- node --import tsx --test tests/auto-continuation.test.ts: PASS (10/10)
+- node --import tsx scripts/dogfood-auto-continuation-contract.mjs: PASS, METRIC unresolved_auto_continuation_blockers=0
+- npm --prefix packages/pi-autoresearch run check: PASS (216/216, release-check quick dry-run PASS)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch --strict: PASS
+- git diff --cached --check: PASS
+
+Boundaries:
+- text-only follow-up guidance; no execution semantics changed.
+- no daemon, hidden background scheduler, automatic peer spawning, AK/KES/Oracle mutation, ASC rewind, or candidate promotion authority added.
+- unrelated dirty designmd, orchestrator, and workstation-inference paths were not staged.
