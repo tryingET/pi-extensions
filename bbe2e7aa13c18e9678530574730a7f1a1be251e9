@@ -1,0 +1,25 @@
+Promoted from peer-session candidate branch candidate/asc-self-capability-discovery-routing.
+
+Peer run: candidatepeer-mp1h9c5t-03187521
+Peer session: session-019e1817-1146-7713-939c-ffb6beef47a8
+Candidate worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/candidate-asc-self-capability-discovery-routing
+Controller session: session-019e0b49-3ba1-7069-8acd-97b9adce0e7c
+AK task: #2850
+
+Promoted files:
+- packages/pi-autonomous-session-control/extensions/self/query-resolver.ts
+- packages/pi-autonomous-session-control/tests/self/perception.test.mjs
+- packages/pi-autonomous-session-control/README.md
+- packages/pi-autonomous-session-control/docs/project/tool-surface-overview.md
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/self/perception.test.mjs (pass, 8/8)
+- git diff --check -- scoped ASC files (pass)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass, 179 pass / 1 skip; npm view 404 treated by release-check as expected for first unpublished release)
+
+Review notes:
+- Adds exact/variant recognition for capability discovery/routing phrases.
+- The self response now distinguishes self-tool query domains, toolbox/bundle discovery, and repo/lane capability-map routing surfaces.
+- Guidance only: no new tool activation, daemon, scheduler, or authority surface.
+- Unrelated dirty parent files were not staged.
