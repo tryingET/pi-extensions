@@ -1,0 +1,24 @@
+AK task: #2835 Expose autoresearch auto-continuation status gates
+
+Promoted from candidate worktree:
+- branch: candidate/autoresearch-auto-continuation-status-visibility
+- worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/autoresearch-auto-continuation-status-visibility
+- candidate peer: candidatepeer-mp1bk3rj-1e9a077a
+
+Change summary:
+- Added structured auto-continuation decision gate views to runtime status.
+- Added env/session diagnostics for PI_AUTORESEARCH_AUTO_CONTINUE and PI_AUTORESEARCH_AUTO_CONTINUE_MAX.
+- Rendered auto-continuation eligibility, follow-up disposition, blockers, runtime gate, and campaign-goal gate in status/campaign-goal surfaces.
+- Preserved explicit campaignGoalAutoContinue opt-in and existing follow-up behavior.
+
+Validation:
+- node --import tsx --test tests/auto-continuation.test.ts: PASS (10/10)
+- node --import tsx --test tests/runtime.test.ts: PASS (86/86)
+- node --import tsx scripts/dogfood-auto-continuation-contract.mjs: PASS, METRIC unresolved_auto_continuation_blockers=0
+- npm --prefix packages/pi-autoresearch run check: PASS (216/216, release-check quick dry-run PASS)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autoresearch --strict: PASS
+- git diff --cached --check: PASS
+
+Boundaries:
+- no daemon, hidden background scheduler, automatic peer spawning, AK/KES/Oracle mutation, ASC rewind, or candidate promotion authority added.
+- unrelated dirty designmd, orchestrator, and workstation-inference paths were not staged.
