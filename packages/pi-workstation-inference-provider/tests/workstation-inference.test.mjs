@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import extension, {
@@ -66,6 +69,65 @@ test("providerModel strips thinking controls from visible non-reasoning aliases"
   assert.equal(model.reasoning, false);
   assert.equal(model.thinkingLevelMap, undefined);
   assert.equal(model.compat, undefined);
+});
+
+test("default provider registration includes canary-only MTP models without env override", async () => {
+  const oldPath = process.env[CONTRACT_ENV];
+  const oldJson = process.env[CONTRACT_JSON_ENV];
+  const oldRoot = process.env.PI_WORKSTATION_ROOT;
+  const root = await mkdtemp(join(tmpdir(), "workstation-provider-"));
+  const stateDir = join(root, "phasee", "state");
+  const providers = [];
+  try {
+    await mkdir(stateDir, { recursive: true });
+    await writeFile(
+      join(stateDir, "workstation-inference-provider.json"),
+      JSON.stringify(contract({ generated_at: new Date().toISOString() })),
+    );
+    await writeFile(
+      join(stateDir, "workstation-inference-provider.canary.json"),
+      JSON.stringify(
+        contract({
+          surface: "canary",
+          base_url: "http://127.0.0.1:1334/v1",
+          health_url: "http://127.0.0.1:1334/health",
+          models: [
+            ...contract().models,
+            {
+              pi_model_id: "baseline-text-mtp-visible",
+              name: "MTP visible",
+              context_window: 153600,
+              max_tokens: 65536,
+              reasoning: false,
+              input: ["text"],
+            },
+          ],
+        }),
+      ),
+    );
+    delete process.env[CONTRACT_ENV];
+    delete process.env[CONTRACT_JSON_ENV];
+    process.env.PI_WORKSTATION_ROOT = root;
+
+    await extension({
+      registerCommand() {},
+      registerProvider(name, config) {
+        providers.push({ name, config });
+      },
+    });
+
+    assert.equal(providers.length, 1);
+    assert.equal(providers[0].config.api, "workstation-inference");
+    assert.ok(providers[0].config.models.some((model) => model.id === "baseline-text-mtp-visible"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    if (oldPath === undefined) delete process.env[CONTRACT_ENV];
+    else process.env[CONTRACT_ENV] = oldPath;
+    if (oldJson === undefined) delete process.env[CONTRACT_JSON_ENV];
+    else process.env[CONTRACT_JSON_ENV] = oldJson;
+    if (oldRoot === undefined) delete process.env.PI_WORKSTATION_ROOT;
+    else process.env.PI_WORKSTATION_ROOT = oldRoot;
+  }
 });
 
 test("status command registers provider after contract appears post-load", async () => {
@@ -147,7 +209,7 @@ test("refresh command asks lane-op to rewrite canonical contract and registers p
       ui: { notify() {} },
     });
 
-    assert.equal(execCalls.length, 1);
+    assert.equal(execCalls.length, 2);
     assert.equal(execCalls[0].command, "python3");
     assert.deepEqual(execCalls[0].args, [
       "scripts/phasee/lane-op.py",
@@ -157,7 +219,16 @@ test("refresh command asks lane-op to rewrite canonical contract and registers p
       "canonical",
       "--write",
     ]);
+    assert.deepEqual(execCalls[1].args, [
+      "scripts/phasee/lane-op.py",
+      "provider-contract",
+      "baseline-text",
+      "--surface",
+      "canary",
+      "--write",
+    ]);
     assert.equal(execCalls[0].options.cwd, "/workstation");
+    assert.equal(execCalls[1].options.cwd, "/workstation");
     assert.equal(providers.length, 1);
   } finally {
     globalThis.fetch = oldFetch;
@@ -213,7 +284,7 @@ test("streamWorkstationInference returns an error event when health is bad", asy
         id: "baseline-text-visible",
         name: "Visible",
         provider: "workstation-inference",
-        api: "openai-completions",
+        api: "workstation-inference",
         baseUrl: "http://127.0.0.1:1234/v1",
         reasoning: false,
         input: ["text"],

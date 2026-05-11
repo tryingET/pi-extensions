@@ -87,11 +87,13 @@ type ContractStatus = {
 
 const DEFAULT_PROVIDER_ID = "workstation-inference";
 const DEFAULT_PROVIDER_NAME = "Workstation Inference";
+const WORKSTATION_API_ID = "workstation-inference";
 const DEFAULT_CONTEXT_WINDOW = 131_072;
 const DEFAULT_MAX_TOKENS = 16_384;
 const DEFAULT_TIMEOUT_MS = 1_500;
 const DEFAULT_API_KEY = "workstation-local";
 const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
+const CANARY_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CANARY_CONTRACT";
 const CONTRACT_JSON_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_JSON";
 const WORKSTATION_ROOT_ENV = "PI_WORKSTATION_ROOT";
 const DEFAULT_WORKSTATION_ROOT = join(
@@ -100,12 +102,6 @@ const DEFAULT_WORKSTATION_ROOT = join(
   "softwareco",
   "infra",
   "workstation",
-);
-const DEFAULT_CONTRACT_PATH = join(
-  DEFAULT_WORKSTATION_ROOT,
-  "phasee",
-  "state",
-  "workstation-inference-provider.json",
 );
 const LANE_OP_SCRIPT = join("scripts", "phasee", "lane-op.py");
 
@@ -160,15 +156,73 @@ function parseContract(payload: unknown): WorkstationInferenceContract {
   };
 }
 
-async function loadContract(): Promise<LoadedContract> {
+function workstationRoot(): string {
+  return process.env[WORKSTATION_ROOT_ENV]?.trim() || DEFAULT_WORKSTATION_ROOT;
+}
+
+function defaultContractPath(surface: "canonical" | "canary" = "canonical"): string {
+  return join(
+    workstationRoot(),
+    "phasee",
+    "state",
+    surface === "canary"
+      ? "workstation-inference-provider.canary.json"
+      : "workstation-inference-provider.json",
+  );
+}
+
+async function loadContractFromPath(path: string): Promise<LoadedContract> {
+  const text = await readFile(path, "utf8");
+  return { contract: parseContract(JSON.parse(text)), source: path };
+}
+
+async function loadPrimaryContract(): Promise<LoadedContract> {
   const inline = process.env[CONTRACT_JSON_ENV];
   if (inline?.trim()) {
     return { contract: parseContract(JSON.parse(inline)), source: CONTRACT_JSON_ENV };
   }
 
-  const path = process.env[CONTRACT_ENV]?.trim() || DEFAULT_CONTRACT_PATH;
-  const text = await readFile(path, "utf8");
-  return { contract: parseContract(JSON.parse(text)), source: path };
+  const path = process.env[CONTRACT_ENV]?.trim() || defaultContractPath("canonical");
+  return loadContractFromPath(path);
+}
+
+async function loadAvailableContracts(): Promise<LoadedContract[]> {
+  const primary = await loadPrimaryContract();
+  if (process.env[CONTRACT_JSON_ENV]?.trim() || process.env[CONTRACT_ENV]?.trim()) return [primary];
+
+  const canaryPath = process.env[CANARY_CONTRACT_ENV]?.trim() || defaultContractPath("canary");
+  try {
+    const canary = await loadContractFromPath(canaryPath);
+    return [primary, canary];
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (detail.includes("ENOENT")) return [primary];
+    console.warn(`workstation inference canary contract ignored: ${detail}`);
+    return [primary];
+  }
+}
+
+function mergeContracts(loadedContracts: LoadedContract[]): LoadedContract {
+  const [primary] = loadedContracts;
+  if (!primary) throw new Error("no workstation inference contracts loaded");
+  const seen = new Set<string>();
+  const models: ContractModel[] = [];
+  for (const loaded of loadedContracts) {
+    for (const model of loaded.contract.models) {
+      const id = model.pi_model_id ?? model.id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      models.push(model);
+    }
+  }
+  return {
+    contract: { ...primary.contract, models },
+    source: loadedContracts.map((loaded) => loaded.source).join(" + "),
+  };
+}
+
+async function loadContract(): Promise<LoadedContract> {
+  return mergeContracts(await loadAvailableContracts());
 }
 
 function normalizeBaseUrl(value: string): string {
@@ -191,6 +245,25 @@ function staleDetail(contract: WorkstationInferenceContract): string | undefined
     return `contract is ${ageSeconds}s old; refresh_after_seconds=${refreshAfterSeconds}`;
   }
   return undefined;
+}
+
+async function resolveContractForModel(
+  modelId: string,
+  options: { checkHealth?: boolean } = {},
+): Promise<{ contract: WorkstationInferenceContract; model: ContractModel; source: string }> {
+  const loadedContracts = await loadAvailableContracts();
+  for (const loaded of loadedContracts) {
+    const contractModel = loaded.contract.models.find(
+      (candidate) => (candidate.pi_model_id ?? candidate.id) === modelId,
+    );
+    if (!contractModel) continue;
+    if (options.checkHealth) {
+      const unhealthy = await checkHealth(loaded.contract);
+      if (unhealthy) throw new Error(`workstation inference endpoint is not healthy: ${unhealthy}`);
+    }
+    return { contract: loaded.contract, model: contractModel, source: loaded.source };
+  }
+  throw new Error(`model ${modelId} is not present in the current workstation contracts`);
 }
 
 async function checkHealth(contract: WorkstationInferenceContract): Promise<string | undefined> {
@@ -278,10 +351,6 @@ function notifyOrLog(
   else console.log(message);
 }
 
-function workstationRoot(): string {
-  return process.env[WORKSTATION_ROOT_ENV]?.trim() || DEFAULT_WORKSTATION_ROOT;
-}
-
 function contractApiKey(contract: WorkstationInferenceContract): string {
   return (
     stringValue(contract.api_key) ??
@@ -299,30 +368,19 @@ export function streamWorkstationInference(
 
   (async () => {
     try {
-      const status = await resolveContractStatus({ checkHealth: true });
-      if (status.status !== "ok" || !status.contract) {
-        throw new Error(
-          `${status.summary}: ${status.detail ?? status.contract?.recovery_hint ?? "no detail"}`,
-        );
-      }
-
-      const contractModel = status.contract.models.find(
-        (candidate) => (candidate.pi_model_id ?? candidate.id) === model.id,
-      );
-      if (!contractModel) {
-        throw new Error(`model ${model.id} is not present in the current workstation contract`);
-      }
+      const selected = await resolveContractForModel(model.id, { checkHealth: true });
 
       const inner = streamSimpleOpenAICompletions(
         {
           ...model,
-          baseUrl: normalizeBaseUrl(status.contract.base_url),
-          compat: providerModel(contractModel).compat,
+          api: "openai-completions",
+          baseUrl: normalizeBaseUrl(selected.contract.base_url),
+          compat: providerModel(selected.model).compat,
         } as Model<"openai-completions">,
         context,
         {
           ...options,
-          apiKey: contractApiKey(status.contract),
+          apiKey: contractApiKey(selected.contract),
         },
       );
       for await (const event of inner) stream.push(event);
@@ -409,7 +467,7 @@ function registerContractProvider(
     name: contract.provider_name ?? DEFAULT_PROVIDER_NAME,
     baseUrl: normalizeBaseUrl(contract.base_url),
     apiKey: contractApiKey(contract),
-    api: "openai-completions",
+    api: WORKSTATION_API_ID,
     models: contract.models.map(providerModel),
     streamSimple: streamWorkstationInference,
   });
@@ -428,7 +486,7 @@ export default async function (pi: ExtensionAPI) {
           ctx,
           [
             "/workstation-inference status  Show contract and health status",
-            "/workstation-inference refresh  Ask lane-op to refresh the canonical provider contract",
+            "/workstation-inference refresh  Ask lane-op to refresh canonical and canary provider contracts",
             "/workstation-inference lane-status  Show lane-op baseline-text status",
             "/workstation-inference contract  Show the expected contract path/env",
           ].join("\n"),
@@ -440,24 +498,45 @@ export default async function (pi: ExtensionAPI) {
           ctx,
           [
             `contract env: ${CONTRACT_ENV}`,
+            `canary contract env: ${CANARY_CONTRACT_ENV}`,
             `inline contract env: ${CONTRACT_JSON_ENV}`,
             `workstation root env: ${WORKSTATION_ROOT_ENV}`,
             `default workstation root: ${DEFAULT_WORKSTATION_ROOT}`,
-            `default path: ${DEFAULT_CONTRACT_PATH}`,
+            `default canonical path: ${defaultContractPath("canonical")}`,
+            `default canary path: ${defaultContractPath("canary")}`,
           ].join("\n"),
         );
         return;
       }
       if (action === "refresh") {
-        const refresh = await runLaneOp(pi, [
+        const canonicalRefresh = await runLaneOp(pi, [
           "provider-contract",
           "baseline-text",
           "--surface",
           "canonical",
           "--write",
         ]);
-        if (!refresh.ok) {
-          notifyOrLog(ctx, `workstation inference refresh failed\n${refresh.detail}`, "error");
+        if (!canonicalRefresh.ok) {
+          notifyOrLog(
+            ctx,
+            `workstation inference canonical refresh failed\n${canonicalRefresh.detail}`,
+            "error",
+          );
+          return;
+        }
+        const canaryRefresh = await runLaneOp(pi, [
+          "provider-contract",
+          "baseline-text",
+          "--surface",
+          "canary",
+          "--write",
+        ]);
+        if (!canaryRefresh.ok) {
+          notifyOrLog(
+            ctx,
+            `workstation inference canary refresh failed\n${canaryRefresh.detail}`,
+            "error",
+          );
           return;
         }
         const status = await resolveContractStatus({ checkHealth: true });

@@ -22,7 +22,8 @@ and rollback.
 ## What it does
 
 - Reads a small lane-op/workstation-exported provider contract JSON.
-- Registers an OpenAI-compatible Pi provider, default id `workstation-inference`.
+- Registers a Pi provider, default id `workstation-inference`, with a provider-local API id `workstation-inference`.
+- Delegates internally to Pi's OpenAI-compatible transport for workstation requests only, without owning the shared `openai-completions` transport.
 - Maps contract models into Pi model entries.
 - Performs read-only health checks before provider requests.
 - Provides `/workstation-inference status` and `/workstation-inference contract`.
@@ -75,6 +76,8 @@ Minimal shape:
 ```
 
 If the contract has `generated_at` plus `refresh_after_seconds` (or the legacy `stale_after_seconds`), `/workstation-inference status` reports the refresh warning. Runtime requests fail closed on missing/invalid/unhealthy contracts through the package's custom stream handler.
+
+Transport ownership membrane: this package must never register its custom `streamSimple` under shared built-in API ids such as `openai-completions`. Workstation models use `api: "workstation-inference"`; the stream handler then delegates internally to OpenAI-compatible transport after it has resolved the selected workstation contract and model.
 
 Current workstation exporter command:
 
