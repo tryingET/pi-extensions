@@ -1,0 +1,19 @@
+Operator requested replacing ASC tsc usage with tsgo per tech-stack-core pi-ts guidance.
+
+Context:
+- tech-stack-core pi-ts says repos with TypeScript compile boundaries should prefer `tsgo --noEmit` as primary typecheck, with tsc fallback only during rollout/incident recovery.
+- packages/pi-autonomous-session-control already has @typescript/native-preview and the shared quality gate invokes ./node_modules/.bin/tsgo first.
+- The remaining package-local tsc surface came from the `typescript` devDependency, which installed node_modules/.bin/tsc and package-lock node_modules/typescript metadata.
+
+Change:
+- Removed `typescript` from packages/pi-autonomous-session-control/devDependencies.
+- Refreshed packages/pi-autonomous-session-control/package-lock.json so the package no longer carries the tsc-providing TypeScript dependency.
+
+Validation:
+- uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo
+- cd packages/pi-autonomous-session-control && ./node_modules/.bin/tsgo --noEmit
+- rg -n "\\btsc\\b|\\\"typescript\\\"" packages/pi-autonomous-session-control/package.json packages/pi-autonomous-session-control/package-lock.json packages/pi-autonomous-session-control/scripts packages/pi-autonomous-session-control/docs packages/pi-autonomous-session-control/AGENTS.md -S (no matches; command exits 1 for no matches)
+- cd packages/pi-autonomous-session-control && npm run check (pass, 178 pass / 1 skip; npm view 404 still treated as expected for first unpublished release)
+- git diff --check -- packages/pi-autonomous-session-control/package.json packages/pi-autonomous-session-control/package-lock.json
+
+AK task: #2847
