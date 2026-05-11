@@ -42,6 +42,7 @@ The seam is therefore an anti-drift boundary, not a goal by itself.
 The public runtime preserves the existing ASC execution-plane behavior:
 - request normalization and invariant checks
 - runtime-owned concurrency reservation before spawn so `maxConcurrent` applies even to custom spawners
+- model selection failure shaping before spawn, including deterministic release of the reserved concurrency slot
 - prompt-envelope application
 - session-name reservation and artifact-backed session lifecycle
 - subagent spawn execution
@@ -128,7 +129,7 @@ Useful properties:
 - `result.text` preserves the human-readable execution summary
 - `result.details.displayOutput` preserves the normalized body text consumers should render or forward, even when `fullOutput` is empty/whitespace on failing executions
 - `result.details.status` uses the canonical execution taxonomy (`done`, `aborted`, `timed_out`, `error`)
-- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, or the pre-execution guardrail reasons)
+- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, `model_selection_failed`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
 - request `env` values are intentionally not echoed into `result.details`; consumers that need provenance should read their own sidecar/output artifact
 - `getDispatchSubagentDisplayOutput(result)` is the exported compatibility helper for consumers that want the same normalized body shaping without reimplementing fallback logic
@@ -163,7 +164,7 @@ This now covers the first two execution-boundary slices in the AK sequence:
 
 Current proof shape:
 - **ASC package-local contract truth**
-  - `tests/public-execution-contract.test.mjs` proves the supported package entrypoint exists and can bind the tool surface
+  - `tests/public-execution-contract.test.mjs` proves the supported package entrypoint exists, can bind the tool surface, and returns structured model-selection failures without leaking reserved concurrency slots
   - `tests/public-execution-parity.test.mjs` proves the public runtime and `dispatch_subagent` stay aligned for:
     - prompt-envelope application
     - rate-limit / invariant failures

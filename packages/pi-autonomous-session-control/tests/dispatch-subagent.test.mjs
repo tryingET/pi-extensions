@@ -132,6 +132,37 @@ test("dispatch_subagent passes execution context to modelProvider", async () => 
   }
 });
 
+test("dispatch_subagent returns a structured model-selection error without leaking activeCount", async () => {
+  const harness = await setup(undefined, () => {
+    throw new Error("model provider exploded");
+  });
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-model-provider-throw",
+      {
+        profile: "reviewer",
+        objective: "Review changes",
+      },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(result.details.status, "error");
+    assert.equal(result.details.reason, "model_selection_failed");
+    assert.equal(result.details.failureKind, "model_selection_failed");
+    assert.equal(result.details.activeCount, 0);
+    assert.equal(harness.state.activeCount, 0);
+    assert.equal(harness.getCapturedDef(), undefined);
+    assert.equal(harness.getCapturedModel(), undefined);
+    assert.match(result.content[0].text, /Model selection failed before subagent spawn/);
+    assert.match(result.content[0].text, /model provider exploded/);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
 test("dispatch_subagent auto-loads pi-multi-pass when the current model uses a numeric-suffix provider alias", async () => {
   const previous = process.env.PI_MULTI_PASS_EXTENSION;
   const extensionDir = await mkdtemp(join(tmpdir(), "subagent-multi-pass-extension-"));

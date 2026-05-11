@@ -48,7 +48,8 @@ export type DispatchSubagentFailureKind =
   | "extension_bootstrap_missing"
   | "invariant_failed"
   | "unknown_profile"
-  | "rate_limited";
+  | "rate_limited"
+  | "model_selection_failed";
 
 export interface DispatchSubagentRequest {
   profile: DispatchSubagentProfile;
@@ -339,7 +340,30 @@ export async function executeDispatchSubagentRequest(options: {
     process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES?.trim().toLowerCase() !== "false";
 
   const spawner = options.spawner ?? spawnSubagent;
-  const selectedModel = normalizeModelProviderResult(options.modelProvider(options.ctx));
+  let selectedModel: ResolvedSubagentModelSelection;
+  try {
+    selectedModel = normalizeModelProviderResult(options.modelProvider(options.ctx));
+  } catch (error) {
+    executionSlot.release();
+    const message = error instanceof Error ? error.message : String(error);
+    const output = `Model selection failed before subagent spawn: ${message}`;
+    return {
+      ok: false,
+      text: `✗ [${profile}] error before spawn\n\n${output}`,
+      details: {
+        profile: profile as DispatchSubagentProfile,
+        objective: safeObjective,
+        status: "error",
+        reason: "model_selection_failed",
+        failureKind: "model_selection_failed",
+        elapsed: 0,
+        fullOutput: output,
+        displayOutput: output,
+        activeCount: options.state.activeCount,
+        maxConcurrent: options.state.maxConcurrent,
+      },
+    };
+  }
   const extensionSelection = resolveSubagentExtensionSelection({
     requestedExtensions: extensions,
     ctx: options.ctx,

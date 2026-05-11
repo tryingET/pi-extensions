@@ -29,7 +29,7 @@ Do **not** land the change if it would introduce any of the following:
 - an orchestrator-local spawn/runtime revival or copied lifecycle logic
 - UI, dashboard, or tool-registration concerns in the headless public contract
 - unbounded stdout/stderr/raw-event buffering or weaker truncation signaling
-- weaker abort, timeout, assistant-protocol, or malformed-output truth in execution results
+- weaker abort, timeout, assistant-protocol, model-selection, or malformed-output truth in execution results
 - drift between raw `fullOutput`, normalized `displayOutput`, and consumer-side rendering helpers for the same failure mode
 - weaker session-name reservation, sidecar occupancy handling, or lock-failure surfacing
 - public API growth justified only by today's bundled publish/install bridge or smoke-harness convenience
@@ -44,7 +44,7 @@ When public entrypoints, supported semantics, or stewardship rules change, updat
 - [`../../../../governance/execution-seam-cases/README.md`](../../../../governance/execution-seam-cases/README.md) when a learned edge case should become a named reusable seam scenario
 
 Keep the explanation tied to actual callers and real failure modes, not speculative future consumers.
-If the change alters how failure/body text is surfaced, update the docs to say which field is raw capture (`fullOutput`), which field is consumer-facing normalized body text (`displayOutput`), and which helper consumers should call instead of re-deriving output.
+If the change alters how failure/body text is surfaced or adds a `failureKind`, update the docs to say which field is raw capture (`fullOutput`), which field is consumer-facing normalized body text (`displayOutput`), which normalized failure branch callers should expect, and which helper consumers should call instead of re-deriving output.
 
 ## 4. Choose and run the right verification layer
 

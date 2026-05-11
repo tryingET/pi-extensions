@@ -126,6 +126,50 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
   }
 });
 
+test("createAscExecutionRuntime returns structured model-selection errors without leaking activeCount", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-model-failure-"));
+  let spawnerCalled = false;
+
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => {
+      throw new Error("model provider exploded");
+    },
+    spawner: async () => {
+      spawnerCalled = true;
+      return {
+        output: "should not spawn",
+        exitCode: 0,
+        elapsed: 1,
+        status: "done",
+      };
+    },
+  });
+
+  try {
+    const result = await runtime.execute(
+      {
+        profile: "reviewer",
+        objective: "Verify model failure shaping",
+      },
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(spawnerCalled, false);
+    assert.equal(runtime.state.activeCount, 0);
+    assert.equal(result.ok, false);
+    assert.equal(result.details.status, "error");
+    assert.equal(result.details.reason, "model_selection_failed");
+    assert.equal(result.details.failureKind, "model_selection_failed");
+    assert.equal(result.details.activeCount, 0);
+    assert.equal(result.details.displayOutput, result.details.fullOutput);
+    assert.match(result.text, /^✗ \[reviewer\] error before spawn/);
+    assert.match(result.text, /model provider exploded/);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("execution entrypoint stays headless-importable without package-local node_modules", async () => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), "asc-public-runtime-headless-"));
   const packageRoot = join(fixtureRoot, "package");
