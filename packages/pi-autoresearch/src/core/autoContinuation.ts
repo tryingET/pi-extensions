@@ -29,6 +29,30 @@ export interface AutoresearchAutoContinuationSessionGate {
   enabled: boolean;
   autoContinueCount: number;
   maxAutoContinueCount?: number;
+  envValue?: string | null;
+}
+
+export interface AutoresearchAutoContinuationSessionGateView {
+  enabled: boolean;
+  envVariable: "PI_AUTORESEARCH_AUTO_CONTINUE";
+  envValue: string | null;
+  enabledWhen: "1";
+  autoContinueCount: number;
+  maxAutoContinueCount: number;
+  remainingAutoContinueCount: number;
+}
+
+export interface AutoresearchAutoContinuationRuntimeGateView
+  extends AutoresearchAutoContinuationRuntimeGate {
+  ready: boolean;
+}
+
+export interface AutoresearchAutoContinuationCampaignGoalGateView {
+  exists: boolean;
+  status: AutoresearchCampaignGoalStatusView["status"];
+  hasRemainingBudget: boolean;
+  hasContinuationCall: boolean;
+  continuationConsented: boolean;
 }
 
 export interface AutoresearchAutoContinuationDecisionInput {
@@ -44,8 +68,30 @@ export interface AutoresearchAutoContinuationDecision {
   cwd: string;
   goalId: string | null;
   objective: string | null;
+  sessionGate: AutoresearchAutoContinuationSessionGateView;
+  runtimeGate: AutoresearchAutoContinuationRuntimeGateView;
+  campaignGoalGate: AutoresearchAutoContinuationCampaignGoalGateView;
   exactContinuationCall: string | null;
   visibleFollowUpMessage: string | null;
+}
+
+export function buildAutoresearchAutoContinuationSessionGateFromEnv(
+  input: {
+    env?: Record<string, string | undefined>;
+    autoContinueCount?: number;
+    maxAutoContinueCount?: number;
+  } = {},
+): AutoresearchAutoContinuationSessionGate {
+  const env = input.env ?? process.env;
+  const envValue = env.PI_AUTORESEARCH_AUTO_CONTINUE ?? null;
+  return {
+    enabled: envValue === "1",
+    envValue,
+    autoContinueCount: input.autoContinueCount ?? 0,
+    maxAutoContinueCount:
+      input.maxAutoContinueCount ??
+      parseMaxAutoContinueCount(env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX),
+  };
 }
 
 export function buildAutoresearchAutoContinuationDecision(
@@ -53,6 +99,31 @@ export function buildAutoresearchAutoContinuationDecision(
 ): AutoresearchAutoContinuationDecision {
   const blockedReasons: AutoresearchAutoContinuationBlockedReason[] = [];
   const maxAutoContinueCount = normalizeMaxAutoContinueCount(input.session.maxAutoContinueCount);
+  const remainingAutoContinueCount = Math.max(
+    maxAutoContinueCount - input.session.autoContinueCount,
+    0,
+  );
+  const sessionGate: AutoresearchAutoContinuationSessionGateView = {
+    enabled: input.session.enabled,
+    envVariable: "PI_AUTORESEARCH_AUTO_CONTINUE",
+    envValue: input.session.envValue ?? (input.session.enabled ? "1" : null),
+    enabledWhen: "1",
+    autoContinueCount: input.session.autoContinueCount,
+    maxAutoContinueCount,
+    remainingAutoContinueCount,
+  };
+  const runtimeGate: AutoresearchAutoContinuationRuntimeGateView = {
+    ...input.runtime,
+    ready: input.runtime.machineState === "ready",
+  };
+  const campaignGoalGate: AutoresearchAutoContinuationCampaignGoalGateView = {
+    exists: input.campaignGoal.exists,
+    status: input.campaignGoal.status,
+    hasRemainingBudget: hasAnyRemainingBudget(input.campaignGoal.remainingBudget),
+    hasContinuationCall: input.campaignGoal.nextContinuationCall !== null,
+    continuationConsented:
+      input.campaignGoal.nextContinuationCall?.includes("campaignGoalAutoContinue: true") ?? false,
+  };
 
   if (!input.session.enabled) blockedReasons.push("auto_continuation_disabled");
   if (input.session.autoContinueCount >= maxAutoContinueCount) {
@@ -103,6 +174,9 @@ export function buildAutoresearchAutoContinuationDecision(
     cwd: input.cwd,
     goalId: input.campaignGoal.goalId,
     objective: input.campaignGoal.objective,
+    sessionGate,
+    runtimeGate,
+    campaignGoalGate,
     exactContinuationCall: eligible ? input.campaignGoal.nextContinuationCall : null,
     visibleFollowUpMessage: eligible
       ? formatAutoresearchAutoContinuationFollowUp({
@@ -127,7 +201,11 @@ export function formatAutoresearchAutoContinuationDecision(
     `- goal id: ${decision.goalId ?? "(none)"}`,
     `- objective: ${decision.objective ?? "(none)"}`,
     `- eligible: ${decision.eligible ? "yes" : "no"}`,
+    `- follow-up: ${decision.eligible ? "will be sent after settle window" : "will not be sent"}`,
     `- exact continuation call: ${decision.exactContinuationCall ?? "(none)"}`,
+    "",
+    "## Gates",
+    ...formatAutoresearchAutoContinuationGateLines(decision),
     "",
     "## Blocked reasons",
     ...(decision.blockedReasons.length > 0
@@ -138,6 +216,17 @@ export function formatAutoresearchAutoContinuationDecision(
     "- This decision only prepares a visible follow-up call for the current Pi session.",
     "- It does not run the continuation, spawn peers, start a daemon, mutate AK/KES/Oracle, use ASC rewind, or promote candidates.",
   ].join("\n");
+}
+
+export function formatAutoresearchAutoContinuationGateLines(
+  decision: AutoresearchAutoContinuationDecision,
+): string[] {
+  return [
+    `- session env gate: ${decision.sessionGate.enabled ? "enabled" : "disabled"} (${decision.sessionGate.envVariable}=${decision.sessionGate.envValue ?? "(unset)"}; required ${decision.sessionGate.envVariable}=1)`,
+    `- session count: ${decision.sessionGate.autoContinueCount}/${decision.sessionGate.maxAutoContinueCount} used; ${decision.sessionGate.remainingAutoContinueCount} remaining`,
+    `- runtime gate: machine=${decision.runtimeGate.machineState}; control=${decision.runtimeGate.controlKind}; blocked=${decision.runtimeGate.blockedReason ?? "(none)"}; completion=${decision.runtimeGate.completionReason ?? "(none)"}`,
+    `- campaign-goal gate: exists=${decision.campaignGoalGate.exists ? "yes" : "no"}; status=${decision.campaignGoalGate.status}; remaining_budget=${decision.campaignGoalGate.hasRemainingBudget ? "yes" : "no"}; continuation_call=${decision.campaignGoalGate.hasContinuationCall ? "yes" : "no"}; campaignGoalAutoContinue=${decision.campaignGoalGate.continuationConsented ? "yes" : "no"}`,
+  ];
 }
 
 function formatAutoresearchAutoContinuationFollowUp(input: {
@@ -174,6 +263,11 @@ function normalizeMaxAutoContinueCount(value: number | undefined): number {
   if (value === undefined) return AUTORESEARCH_AUTO_CONTINUATION_DEFAULT_MAX;
   if (!Number.isFinite(value) || value < 0) return AUTORESEARCH_AUTO_CONTINUATION_DEFAULT_MAX;
   return Math.floor(value);
+}
+
+function parseMaxAutoContinueCount(value: string | undefined): number {
+  const parsed = Number(value ?? String(AUTORESEARCH_AUTO_CONTINUATION_DEFAULT_MAX));
+  return normalizeMaxAutoContinueCount(parsed);
 }
 
 function hasAnyRemainingBudget(budget: AutoresearchCampaignGoalBudget): boolean {

@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import type { AutoresearchAutoContinuationDecision } from "./autoContinuation.ts";
+import { formatAutoresearchAutoContinuationGateLines } from "./autoContinuation.ts";
+
 export const AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE = "autoresearch.goal.json" as const;
 
 export const AUTORESEARCH_CAMPAIGN_GOAL_STATUSES = [
@@ -319,7 +322,23 @@ export function setAutoresearchCampaignGoalControl(
 
 export function formatAutoresearchCampaignGoalStatus(
   status: AutoresearchCampaignGoalStatusView,
+  options: { autoContinuation?: AutoresearchAutoContinuationDecision } = {},
 ): string {
+  const autoContinuationLines = options.autoContinuation
+    ? [
+        "",
+        "## Auto-continuation eligibility",
+        `- eligible: ${options.autoContinuation.eligible ? "yes" : "no"}`,
+        `- follow-up: ${options.autoContinuation.eligible ? "will be sent after settle window" : "will not be sent"}`,
+        `- blockers: ${options.autoContinuation.blockedReasons.length > 0 ? options.autoContinuation.blockedReasons.join(", ") : "(none)"}`,
+        ...formatAutoresearchAutoContinuationGateLines(options.autoContinuation),
+      ]
+    : [
+        "",
+        "## Auto-continuation eligibility",
+        "- status: not evaluated on this formatter call",
+        "- note: use autoresearch_runtime_status for the current PI_AUTORESEARCH_AUTO_CONTINUE env/session gate decision",
+      ];
   return [
     "# PI-AUTORESEARCH CAMPAIGN GOAL",
     "",
@@ -347,6 +366,7 @@ export function formatAutoresearchCampaignGoalStatus(
     "",
     "## Authority warnings",
     ...status.authorityWarnings.map((warning) => `- ${warning}`),
+    ...autoContinuationLines,
   ].join("\n");
 }
 

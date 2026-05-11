@@ -29,6 +29,13 @@ import {
   isCampaignDecision,
 } from "../machine/events.ts";
 import {
+  type AutoresearchAutoContinuationDecision,
+  type AutoresearchAutoContinuationSessionGate,
+  buildAutoresearchAutoContinuationDecision,
+  buildAutoresearchAutoContinuationSessionGateFromEnv,
+  formatAutoresearchAutoContinuationGateLines,
+} from "./autoContinuation.ts";
+import {
   AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
   AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
   AUTORESEARCH_SETUP_TEMPLATE_NAME,
@@ -680,6 +687,7 @@ export interface AutoresearchRuntimeStatus {
   runtimeSnapshot: AutoresearchRuntimeSnapshotStatus;
   control: AutoresearchControlStateV1;
   campaignGoal: AutoresearchCampaignGoalStatusView;
+  autoContinuation: AutoresearchAutoContinuationDecision;
   promptVaultDecisions: AutoresearchPromptVaultDecisionStatus;
   llamacppCampaignProjection: AutoresearchLlamacppCampaignProjectionStatus;
   nextSlices: readonly string[];
@@ -3292,7 +3300,10 @@ function normalizeOptionalString(value: string | null | undefined): string | nul
 
 export function buildAutoresearchRuntimeStatus(
   cwd?: string,
-  options: { persistSnapshot?: boolean } = {},
+  options: {
+    persistSnapshot?: boolean;
+    autoContinuationSession?: AutoresearchAutoContinuationSessionGate;
+  } = {},
 ): AutoresearchRuntimeStatus {
   const paths = cwd ? resolveAutoresearchPaths(cwd) : null;
   const { entries, invalidLineCount } = cwd
@@ -3300,6 +3311,7 @@ export function buildAutoresearchRuntimeStatus(
     : { entries: [], invalidLineCount: 0 };
   return buildAutoresearchRuntimeStatusFromEntries(cwd, paths, entries, invalidLineCount, {
     persistSnapshot: options.persistSnapshot ?? false,
+    autoContinuationSession: options.autoContinuationSession,
   });
 }
 
@@ -5585,6 +5597,10 @@ export function formatAutoresearchStatusText(status: AutoresearchRuntimeStatus):
     `- campaign goal objective: ${status.campaignGoal.objective ?? "(none)"}`,
     `- campaign goal progress: ${status.campaignGoal.usage.completedIterations}/${status.campaignGoal.budget.iterations ?? "unbounded"} iteration(s) across ${status.campaignGoal.usage.foregroundSegments} foreground segment(s)`,
     `- campaign goal next continuation: ${status.campaignGoal.nextContinuationCall ?? "(none)"}`,
+    `- auto-continuation eligible: ${status.autoContinuation.eligible ? "yes" : "no"}`,
+    `- auto-continuation follow-up: ${status.autoContinuation.eligible ? "will be sent after settle window" : "will not be sent"}`,
+    `- auto-continuation blockers: ${status.autoContinuation.blockedReasons.length > 0 ? status.autoContinuation.blockedReasons.join(", ") : "(none)"}`,
+    ...formatAutoresearchAutoContinuationGateLines(status.autoContinuation),
     `- event ledger present: ${projection.hasLedger ? "yes" : "no"}`,
     `- invalid ledger lines: ${projection.invalidLedgerLines}`,
     `- ledger replay: ${projection.replayedEventCount}/${projection.eventCount} events accepted`,
@@ -7352,7 +7368,10 @@ function buildAutoresearchRuntimeStatusFromEntries(
   paths: AutoresearchPaths | null,
   entries: AutoresearchReceipt[],
   invalidLineCount: number,
-  options: { persistSnapshot?: boolean } = {},
+  options: {
+    persistSnapshot?: boolean;
+    autoContinuationSession?: AutoresearchAutoContinuationSessionGate;
+  } = {},
 ): AutoresearchRuntimeStatus {
   const currentSegmentView = getCurrentSegment(entries);
   const currentSegment = summarizeCurrentSegment(currentSegmentView);
@@ -7383,6 +7402,19 @@ function buildAutoresearchRuntimeStatusFromEntries(
     cwd !== undefined && snapshotInput
       ? loadAutoresearchRuntimeControlState({ cwd, current: snapshotInput })
       : null;
+  const control = loadedControl?.control ?? defaultControl;
+  const autoContinuation = buildAutoresearchAutoContinuationDecision({
+    cwd: cwd ?? process.cwd(),
+    campaignGoal,
+    runtime: {
+      machineState: runtimeProjection.state,
+      controlKind: control.kind,
+      blockedReason: runtimeProjection.blockedReason,
+      completionReason: runtimeProjection.completionReason,
+    },
+    session:
+      options.autoContinuationSession ?? buildAutoresearchAutoContinuationSessionGateFromEnv(),
+  });
 
   if (options.persistSnapshot !== false && cwd && snapshotInput && existsSync(cwd)) {
     persistAutoresearchRuntimeSnapshot({
@@ -7432,8 +7464,9 @@ function buildAutoresearchRuntimeStatusFromEntries(
       segmentKey: null,
       runtimeKey: null,
     },
-    control: loadedControl?.control ?? defaultControl,
+    control,
     campaignGoal,
+    autoContinuation,
     promptVaultDecisions,
     llamacppCampaignProjection,
     nextSlices: [],

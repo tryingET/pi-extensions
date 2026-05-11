@@ -4,7 +4,8 @@ import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import {
-  buildAutoresearchAutoContinuationDecision,
+  type AutoresearchAutoContinuationDecision,
+  buildAutoresearchAutoContinuationSessionGateFromEnv,
   formatAutoresearchAutoContinuationDecision,
 } from "../src/core/autoContinuation.ts";
 import {
@@ -1609,7 +1610,13 @@ export function registerPiAutoresearchExtension(
       });
 
       if (action === "dashboard") {
-        const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+        const status = buildAutoresearchRuntimeStatus(cwd, {
+          persistSnapshot: false,
+          autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
+            cwd,
+            autoContinuationCounts,
+          ),
+        });
         return {
           content: [{ type: "text", text: formatAutoresearchDashboard(status) }],
           details: status,
@@ -1769,10 +1776,23 @@ export function registerPiAutoresearchExtension(
       }
 
       if (action === "campaign_goal") {
-        const result = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false }).campaignGoal;
+        const status = buildAutoresearchRuntimeStatus(cwd, {
+          persistSnapshot: false,
+          autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
+            cwd,
+            autoContinuationCounts,
+          ),
+        });
         return {
-          content: [{ type: "text", text: formatAutoresearchCampaignGoalStatus(result) }],
-          details: result,
+          content: [
+            {
+              type: "text",
+              text: formatAutoresearchCampaignGoalStatus(status.campaignGoal, {
+                autoContinuation: status.autoContinuation,
+              }),
+            },
+          ],
+          details: status.campaignGoal,
         };
       }
 
@@ -1799,7 +1819,13 @@ export function registerPiAutoresearchExtension(
         };
       }
 
-      const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+      const status = buildAutoresearchRuntimeStatus(cwd, {
+        persistSnapshot: false,
+        autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
+          cwd,
+          autoContinuationCounts,
+        ),
+      });
       return {
         content: [{ type: "text", text: formatAutoresearchStatusText(status) }],
         details: status,
@@ -1853,9 +1879,22 @@ export function registerPiAutoresearchExtension(
             action === "goal_pause" ? "pause" : action === "goal_resume" ? "resume" : "complete",
           reason: request.reason,
         });
-        const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false }).campaignGoal;
+        const status = buildAutoresearchRuntimeStatus(cwd, {
+          persistSnapshot: false,
+          autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
+            cwd,
+            autoContinuationCounts,
+          ),
+        });
         return {
-          content: [{ type: "text", text: formatAutoresearchCampaignGoalStatus(status) }],
+          content: [
+            {
+              type: "text",
+              text: formatAutoresearchCampaignGoalStatus(status.campaignGoal, {
+                autoContinuation: status.autoContinuation,
+              }),
+            },
+          ],
           details: result,
         };
       }
@@ -4139,32 +4178,23 @@ function cancelAutoresearchAutoContinuationFollowUp(
 function buildAutoresearchAutoContinuationDecisionForCwd(
   cwd: string,
   autoContinuationCounts: Map<string, number>,
-): ReturnType<typeof buildAutoresearchAutoContinuationDecision> {
-  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
-  return buildAutoresearchAutoContinuationDecision({
-    cwd,
-    campaignGoal: status.campaignGoal,
-    runtime: {
-      machineState: status.runtimeProjection.state,
-      controlKind: status.control.kind,
-      blockedReason: status.runtimeProjection.blockedReason,
-      completionReason: status.runtimeProjection.completionReason,
-    },
-    session: {
-      enabled: isAutoresearchAutoContinuationEnabled(),
-      autoContinueCount: autoContinuationCounts.get(cwd) ?? 0,
-      maxAutoContinueCount: getAutoresearchAutoContinuationMaxCount(),
-    },
+): AutoresearchAutoContinuationDecision {
+  return buildAutoresearchRuntimeStatus(cwd, {
+    persistSnapshot: false,
+    autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
+      cwd,
+      autoContinuationCounts,
+    ),
+  }).autoContinuation;
+}
+
+function buildAutoresearchAutoContinuationSessionGateForCwd(
+  cwd: string,
+  autoContinuationCounts: Map<string, number>,
+) {
+  return buildAutoresearchAutoContinuationSessionGateFromEnv({
+    autoContinueCount: autoContinuationCounts.get(cwd) ?? 0,
   });
-}
-
-function isAutoresearchAutoContinuationEnabled(): boolean {
-  return process.env.PI_AUTORESEARCH_AUTO_CONTINUE === "1";
-}
-
-function getAutoresearchAutoContinuationMaxCount(): number {
-  const parsed = Number(process.env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX ?? "1");
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 1;
 }
 
 function getAutoresearchAutoContinuationSettleDelayMs(): number {

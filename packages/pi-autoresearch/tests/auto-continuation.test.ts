@@ -10,8 +10,10 @@ import {
   appendReceipt,
   beginAutoresearchCampaignGoal,
   buildAutoresearchAutoContinuationDecision,
+  buildAutoresearchAutoContinuationSessionGateFromEnv,
   createConfigReceipt,
   executeAutoresearchLoop,
+  formatAutoresearchAutoContinuationDecision,
 } from "../src/runtime.ts";
 
 function writeExecutable(cwd: string, name: string, content: string): string {
@@ -59,6 +61,54 @@ test("auto-continuation helper returns the exact visible follow-up call for elig
   assert.match(decision.visibleFollowUpMessage ?? "", /Exact continuation call/);
   assert.match(decision.visibleFollowUpMessage ?? "", /no hidden daemon/);
   assert.match(decision.visibleFollowUpMessage ?? "", /ASC rewind/);
+});
+
+test("auto-continuation helper formats disabled env/session gate diagnostics", () => {
+  const session = buildAutoresearchAutoContinuationSessionGateFromEnv({
+    env: {},
+    autoContinueCount: 0,
+  });
+  const decision = buildAutoresearchAutoContinuationDecision({
+    cwd: "/tmp/project",
+    campaignGoal: activeGoal(),
+    runtime: { machineState: "ready", controlKind: "none" },
+    session,
+  });
+  const formatted = formatAutoresearchAutoContinuationDecision(decision);
+
+  assert.equal(decision.eligible, false);
+  assert.equal(decision.sessionGate.enabled, false);
+  assert.equal(decision.sessionGate.envValue, null);
+  assert.match(
+    formatted,
+    /session env gate: disabled \(PI_AUTORESEARCH_AUTO_CONTINUE=\(unset\); required PI_AUTORESEARCH_AUTO_CONTINUE=1\)/,
+  );
+  assert.match(formatted, /follow-up: will not be sent/);
+  assert.match(formatted, /auto_continuation_disabled/);
+});
+
+test("auto-continuation helper formats enabled env/session gate diagnostics", () => {
+  const session = buildAutoresearchAutoContinuationSessionGateFromEnv({
+    env: { PI_AUTORESEARCH_AUTO_CONTINUE: "1", PI_AUTORESEARCH_AUTO_CONTINUE_MAX: "2" },
+    autoContinueCount: 1,
+  });
+  const decision = buildAutoresearchAutoContinuationDecision({
+    cwd: "/tmp/project",
+    campaignGoal: activeGoal(),
+    runtime: { machineState: "ready", controlKind: "none" },
+    session,
+  });
+  const formatted = formatAutoresearchAutoContinuationDecision(decision);
+
+  assert.equal(decision.eligible, true);
+  assert.equal(decision.sessionGate.maxAutoContinueCount, 2);
+  assert.equal(decision.sessionGate.remainingAutoContinueCount, 1);
+  assert.match(
+    formatted,
+    /session env gate: enabled \(PI_AUTORESEARCH_AUTO_CONTINUE=1; required PI_AUTORESEARCH_AUTO_CONTINUE=1\)/,
+  );
+  assert.match(formatted, /session count: 1\/2 used; 1 remaining/);
+  assert.match(formatted, /follow-up: will be sent after settle window/);
 });
 
 test("auto-continuation helper blocks disabled opt-in and exhausted session count", () => {

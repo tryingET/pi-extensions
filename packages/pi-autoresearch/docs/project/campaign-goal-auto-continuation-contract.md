@@ -39,6 +39,18 @@ The extension keeps one pending timer per `cwd`, re-checks these gates after a s
 
 Without `campaignGoalAutoContinue: true`, normal foreground segments preserve manual behavior and record the goal as `paused`, so the session hook will not continue even when `PI_AUTORESEARCH_AUTO_CONTINUE=1` is set. Stop/block states include `goal_pause`, `budget_limited`, `complete`, operator-paused/non-active goal, blocking runtime control, `stop`, `rebaseline`, `finalize`, max auto-continue count, and missing continuation call.
 
+## Observability contract
+
+`autoresearch_runtime_status` and `autoresearch_runtime_status({ action: "campaign_goal" })` must expose the current auto-continuation decision rather than leaving missing follow-ups implicit. The rendered surfaces report:
+
+- whether the session env gate is enabled (`PI_AUTORESEARCH_AUTO_CONTINUE=1`) or disabled/unset;
+- the current session count, max count, and remaining auto-continuations;
+- runtime gate state (`machine`, control kind, blocked/completion reason);
+- campaign-goal gate state (ledger presence/status, remaining budget, continuation call presence, and `campaignGoalAutoContinue: true` consent);
+- whether the follow-up will be sent and the exact blockers when it will not.
+
+This observability is diagnostic only. It does not create a daemon, spawn peers, run the continuation, mutate AK/KES/Oracle, or promote candidates.
+
 ## ASC boundary
 
 ASC rewind remains live Pi/session recovery only. Campaign-goal auto-continuation must not call ASC, treat ASC as candidate lifecycle authority, or use ASC to create same-session follow-up. The only output is a visible Pi user-message follow-up carrying a foreground `autoresearch_runtime_loop` call.
@@ -47,8 +59,9 @@ ASC rewind remains live Pi/session recovery only. Campaign-goal auto-continuatio
 
 Focused proof lives in:
 
-- `tests/auto-continuation.test.ts` — pure helper eligibility/blocker tests, extension `sendUserMessage`/cancellation tests, and actual-loop enabled-vs-disabled proofs;
-- `scripts/dogfood-auto-continuation-contract.mjs` — dogfood script proving actual-loop enabled-vs-disabled behavior, eligible exact-call output, and blocked-state refusal.
+- `tests/auto-continuation.test.ts` — pure helper eligibility/blocker tests, env/session decision-format tests, extension `sendUserMessage`/cancellation tests, and actual-loop enabled-vs-disabled proofs;
+- `tests/runtime.test.ts` — runtime/campaign-goal status-surface diagnostics for disabled and enabled env/session gates;
+- `scripts/dogfood-auto-continuation-contract.mjs` — dogfood script proving actual-loop enabled-vs-disabled behavior, eligible exact-call output, status/campaign-goal observability, and blocked-state refusal.
 
 Run with:
 

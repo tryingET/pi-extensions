@@ -12,9 +12,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runtimeUrl = pathToFileURL(path.join(packageRoot, "src/runtime.ts")).href;
-const { buildAutoresearchAutoContinuationDecision, executeAutoresearchLoop } = await import(
-  runtimeUrl
-);
+const {
+  buildAutoresearchAutoContinuationDecision,
+  buildAutoresearchRuntimeStatus,
+  executeAutoresearchLoop,
+  formatAutoresearchAutoContinuationDecision,
+  formatAutoresearchCampaignGoalStatus,
+  formatAutoresearchStatusText,
+} = await import(runtimeUrl);
 
 const blockers = [];
 const cwd = "/tmp/pi-autoresearch-auto-continuation-dogfood";
@@ -65,6 +70,18 @@ try {
   assert.match(eligible.visibleFollowUpMessage, /Exact continuation call/);
   assert.match(eligible.visibleFollowUpMessage, /no hidden daemon/);
   assert.match(eligible.visibleFollowUpMessage, /ASC rewind/);
+
+  const disabledDiagnostic = formatAutoresearchAutoContinuationDecision(
+    buildAutoresearchAutoContinuationDecision({
+      cwd,
+      campaignGoal: goal(),
+      runtime: { machineState: "ready", controlKind: "none" },
+      session: { enabled: false, envValue: null, autoContinueCount: 0, maxAutoContinueCount: 1 },
+    }),
+  );
+  if (!disabledDiagnostic.includes("PI_AUTORESEARCH_AUTO_CONTINUE=(unset)")) {
+    addBlocker("disabled_env_gate_not_diagnostic", disabledDiagnostic);
+  }
 
   const noBudgetCwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-auto-no-budget-dogfood-"));
   try {
@@ -131,6 +148,28 @@ try {
     }
     if (!String(actualDecision.exactContinuationCall).includes("campaignGoalAutoContinue: true")) {
       addBlocker("actual_loop_continuation_drops_auto_continue_policy", actualDecision);
+    }
+    const actualStatus = buildAutoresearchRuntimeStatus(actualCwd, {
+      persistSnapshot: false,
+      autoContinuationSession: {
+        enabled: true,
+        envValue: "1",
+        autoContinueCount: 0,
+        maxAutoContinueCount: 1,
+      },
+    });
+    const actualStatusText = formatAutoresearchStatusText(actualStatus);
+    const actualGoalText = formatAutoresearchCampaignGoalStatus(actualStatus.campaignGoal, {
+      autoContinuation: actualStatus.autoContinuation,
+    });
+    if (!actualStatusText.includes("auto-continuation eligible: yes")) {
+      addBlocker("status_surface_missing_auto_continuation_eligibility", actualStatusText);
+    }
+    if (!actualStatusText.includes("PI_AUTORESEARCH_AUTO_CONTINUE=1")) {
+      addBlocker("status_surface_missing_env_gate", actualStatusText);
+    }
+    if (!actualGoalText.includes("Auto-continuation eligibility")) {
+      addBlocker("campaign_goal_surface_missing_auto_continuation_section", actualGoalText);
     }
   } finally {
     rmSync(actualCwd, { recursive: true, force: true });
@@ -247,8 +286,9 @@ try {
   console.log(
     "6. disabled/budget_limited/complete/operator_paused/runtime_control/max_count/missing_call are blocked",
   );
+  console.log("7. status/campaign-goal surfaces expose env/session gate diagnostics");
   console.log(
-    "7. no peer spawn, daemon install, continuation execution, ASC rewind, AK/KES/Oracle write, or promotion occurs",
+    "8. no peer spawn, daemon install, continuation execution, ASC rewind, AK/KES/Oracle write, or promotion occurs",
   );
   console.log(`METRIC unresolved_auto_continuation_blockers=${blockers.length}`);
   if (blockers.length > 0) {

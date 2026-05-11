@@ -29,6 +29,7 @@ import {
   type NextHypothesisDecisionOutcome,
   type SetupDecisionOutcome,
 } from "../src/core/decisions.ts";
+import { beginAutoresearchCampaignGoal } from "../src/core/goal.ts";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_KIND,
@@ -77,6 +78,7 @@ import {
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
+  formatAutoresearchCampaignGoalStatus,
   formatAutoresearchCandidateBindPlan,
   formatAutoresearchCandidateDecisionDashboardSummary,
   formatAutoresearchCandidateDecisionWorkbench,
@@ -523,6 +525,8 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.deepEqual(status.control.allowedActions, ["stop"]);
   assert.equal(status.runtimeSnapshot.reuse, "missing");
   assert.ok((status.runtimeSnapshot.path ?? "").endsWith("autoresearch.runtime.json"));
+  assert.equal(status.autoContinuation.eligible, false);
+  assert.ok(status.autoContinuation.blockedReasons.includes("auto_continuation_disabled"));
   assert.equal(status.promptVaultDecisions.availability, "available_not_yet_used");
   assert.equal(status.promptVaultDecisions.lastPostRunDecision, null);
   assert.equal(status.llamacppCampaignProjection.availability, "not_projected");
@@ -534,6 +538,15 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
   assert.deepEqual(status.nextSlices, []);
   assert.match(formatAutoresearchStatusText(status), /phase: bounded_runtime_kernel/);
   assert.match(formatAutoresearchStatusText(status), /machine state: segment_unconfigured/);
+  assert.match(formatAutoresearchStatusText(status), /auto-continuation eligible: no/);
+  assert.match(
+    formatAutoresearchStatusText(status),
+    /auto-continuation blockers: auto_continuation_disabled/,
+  );
+  assert.match(
+    formatAutoresearchStatusText(status),
+    /session env gate: disabled \(PI_AUTORESEARCH_AUTO_CONTINUE=\(unset\); required PI_AUTORESEARCH_AUTO_CONTINUE=1\)/,
+  );
   assert.match(formatAutoresearchStatusText(status), /live Prompt Vault decisions: available/);
   assert.match(formatAutoresearchStatusText(status), /manifest campaign projection: not projected/);
   assert.match(formatAutoresearchStatusText(status), /empirical posture: unconfigured/);
@@ -566,6 +579,74 @@ test("buildAutoresearchRuntimeStatus reports the bounded runtime surface", () =>
     buildAutoresearchHelpText(status).includes("llamacpp_campaign_projection_proof"),
     false,
   );
+});
+
+test("runtime and campaign-goal surfaces explain auto-continuation env/session gates", () => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-status-auto-gate-"));
+  const previousEnabled = process.env.PI_AUTORESEARCH_AUTO_CONTINUE;
+  const previousMax = process.env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX;
+  try {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "status-auto-gate",
+        metricName: "unresolved_auto_continuation_blockers",
+        metricUnit: "count",
+        direction: "lower",
+        benchmarkCommand: "node bench.mjs",
+        createdAt: 9,
+      }),
+    );
+    beginAutoresearchCampaignGoal({
+      cwd,
+      objective: "Expose auto-continuation gate status",
+      goalId: "goal-status-auto-gate",
+      iterationBudget: 3,
+      autoContinue: true,
+      now: 10,
+    });
+
+    delete process.env.PI_AUTORESEARCH_AUTO_CONTINUE;
+    delete process.env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX;
+    const disabled = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
+    const disabledStatusText = formatAutoresearchStatusText(disabled);
+    const disabledGoalText = formatAutoresearchCampaignGoalStatus(disabled.campaignGoal, {
+      autoContinuation: disabled.autoContinuation,
+    });
+    assert.equal(disabled.autoContinuation.eligible, false);
+    assert.match(disabledStatusText, /auto-continuation follow-up: will not be sent/);
+    assert.match(disabledStatusText, /PI_AUTORESEARCH_AUTO_CONTINUE=\(unset\)/);
+    assert.match(disabledGoalText, /Auto-continuation eligibility/);
+    assert.match(disabledGoalText, /auto_continuation_disabled/);
+
+    process.env.PI_AUTORESEARCH_AUTO_CONTINUE = "1";
+    process.env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX = "2";
+    const enabled = buildAutoresearchRuntimeStatus(cwd, {
+      persistSnapshot: false,
+      autoContinuationSession: {
+        enabled: true,
+        envValue: "1",
+        autoContinueCount: 1,
+        maxAutoContinueCount: 2,
+      },
+    });
+    const enabledText = formatAutoresearchStatusText(enabled);
+    assert.equal(enabled.autoContinuation.eligible, true);
+    assert.match(enabledText, /auto-continuation eligible: yes/);
+    assert.match(enabledText, /session count: 1\/2 used; 1 remaining/);
+    assert.match(
+      formatAutoresearchCampaignGoalStatus(enabled.campaignGoal, {
+        autoContinuation: enabled.autoContinuation,
+      }),
+      /follow-up: will be sent after settle window/,
+    );
+  } finally {
+    if (previousEnabled === undefined) delete process.env.PI_AUTORESEARCH_AUTO_CONTINUE;
+    else process.env.PI_AUTORESEARCH_AUTO_CONTINUE = previousEnabled;
+    if (previousMax === undefined) delete process.env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX;
+    else process.env.PI_AUTORESEARCH_AUTO_CONTINUE_MAX = previousMax;
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("product posture and dogfood playbook expose orchestrator supervision handoff seams", () => {
