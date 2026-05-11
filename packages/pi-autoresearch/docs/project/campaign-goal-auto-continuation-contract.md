@@ -20,7 +20,7 @@ The intended behavior is inspired by the old contrib-style convenience pattern: 
 
 - source of continuity: `autoresearch.goal.json` campaign-goal ledger, left `active` only by an explicit `campaignGoalAutoContinue: true` loop/campaign-start policy;
 - decision shape: pure helper `buildAutoresearchAutoContinuationDecision(...)`;
-- follow-up shape: visible user-message injection containing the exact `autoresearch_runtime_loop({ ... peerMode: "off" })` call;
+- follow-up shape: visible user-message injection that first tells the next live Pi agent to activate the `autoresearch` mutating toolbox profile if `autoresearch_runtime_loop` is not active/available, then contains the exact `autoresearch_runtime_loop({ ... peerMode: "off" })` call;
 - scope: current Pi session only, with an in-memory max count;
 - execution: automatic next-turn user message through Pi's follow-up queue, not a hidden/background run.
 
@@ -49,7 +49,7 @@ Without `campaignGoalAutoContinue: true`, normal foreground segments preserve ma
 - campaign-goal gate state (ledger presence/status, remaining budget, continuation call presence, and `campaignGoalAutoContinue: true` consent);
 - whether the follow-up will be sent and the exact blockers when it will not.
 
-This observability is diagnostic only. It does not create a daemon, spawn peers, run the continuation, mutate AK/KES/Oracle, or promote candidates.
+This observability is diagnostic only. The toolbox activation instruction is an explicit live-session preflight for making the foreground `autoresearch_runtime_loop` tool available; it is not permission to run hidden work. It does not create a daemon, spawn peers, run the continuation, mutate AK/KES/Oracle, or promote candidates.
 
 ## ASC boundary
 

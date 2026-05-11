@@ -67,6 +67,15 @@ try {
   });
   assert.equal(eligible.eligible, true);
   assert.equal(eligible.exactContinuationCall, exactCall);
+  assert.match(
+    eligible.visibleFollowUpMessage,
+    /autoresearch_runtime_loop` tool is not active\/available/,
+  );
+  assert.match(eligible.visibleFollowUpMessage, /autoresearch mutating toolbox profile/);
+  assert.match(
+    eligible.visibleFollowUpMessage,
+    /toolbox\(\{ action: "activate", bundle: "autoresearch", profile: "mutating"/,
+  );
   assert.match(eligible.visibleFollowUpMessage, /Exact continuation call/);
   assert.match(eligible.visibleFollowUpMessage, /no hidden daemon/);
   assert.match(eligible.visibleFollowUpMessage, /ASC rewind/);
@@ -279,7 +288,9 @@ try {
 
   console.log("AUTO-CONTINUATION CHECKPOINTS");
   console.log(`1. eligible exact call: ${eligible.exactContinuationCall}`);
-  console.log("2. visible message includes exact call, no-daemon boundary, and ASC boundary");
+  console.log(
+    "2. visible message includes toolbox mutating-profile preflight, exact call, no-daemon boundary, and ASC boundary",
+  );
   console.log("3. campaignGoalAutoContinue without an explicit campaign goal budget is rejected");
   console.log("4. actual loop with campaignGoalAutoContinue remains active and eligible");
   console.log("5. actual loop without campaignGoalAutoContinue remains paused and ineligible");

@@ -58,6 +58,15 @@ test("auto-continuation helper returns the exact visible follow-up call for elig
   assert.deepEqual(decision.blockedReasons, []);
   assert.match(decision.exactContinuationCall ?? "", /autoresearch_runtime_loop/);
   assert.match(decision.exactContinuationCall ?? "", /peerMode: "off"/);
+  assert.match(
+    decision.visibleFollowUpMessage ?? "",
+    /autoresearch_runtime_loop` tool is not active\/available/,
+  );
+  assert.match(decision.visibleFollowUpMessage ?? "", /autoresearch mutating toolbox profile/);
+  assert.match(
+    decision.visibleFollowUpMessage ?? "",
+    /toolbox\(\{ action: "activate", bundle: "autoresearch", profile: "mutating"/,
+  );
   assert.match(decision.visibleFollowUpMessage ?? "", /Exact continuation call/);
   assert.match(decision.visibleFollowUpMessage ?? "", /no hidden daemon/);
   assert.match(decision.visibleFollowUpMessage ?? "", /ASC rewind/);
@@ -243,6 +252,11 @@ test("extension hook sends one follow-up user message after settled eligible age
 
     assert.equal(sentUserMessages.length, 1);
     assert.match(sentUserMessages[0]?.content, /PI-AUTORESEARCH AUTO-CONTINUATION REQUEST/);
+    assert.match(
+      sentUserMessages[0]?.content,
+      /autoresearch_runtime_loop` tool is not active\/available/,
+    );
+    assert.match(sentUserMessages[0]?.content, /autoresearch mutating toolbox profile/);
     assert.match(sentUserMessages[0]?.content, /autoresearch_runtime_loop/);
     assert.match(sentUserMessages[0]?.content, /peerMode: "off"/);
     assert.deepEqual(sentUserMessages[0]?.options, { deliverAs: "followUp" });
@@ -387,6 +401,11 @@ test("actual loop with campaignGoalAutoContinue stays active and extension sends
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     assert.equal(sentUserMessages.length, 1);
+    assert.match(
+      sentUserMessages[0]?.content,
+      /autoresearch_runtime_loop` tool is not active\/available/,
+    );
+    assert.match(sentUserMessages[0]?.content, /autoresearch mutating toolbox profile/);
     assert.match(sentUserMessages[0]?.content, /autoresearch_runtime_loop/);
     assert.match(sentUserMessages[0]?.content, /campaignGoalAutoContinue: true/);
     assert.deepEqual(sentUserMessages[0]?.options, { deliverAs: "followUp" });
