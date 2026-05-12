@@ -1,0 +1,29 @@
+Peer-assisted pi-extension npm package scope cleanup.
+
+Candidate peer: candidatepeer-mp2anyfu-c4239eca
+Candidate branch: candidate/scope-unscoped-pi-packages-2
+Candidate commit: 44f3aa5b
+Controller commit: 40a1a791
+AK task: #2879
+Evidence: #1845
+
+Promoted changes:
+- Scoped pi-autonomous-session-control -> @tryinget/pi-autonomous-session-control.
+- Scoped pi-prompt-template-accelerator -> @tryinget/pi-prompt-template-accelerator.
+- Scoped pi-society-orchestrator -> @tryinget/pi-society-orchestrator.
+- Scoped pi-vault-client -> @tryinget/pi-vault-client.
+- Updated package-lock files, docs, public import specifiers, orchestrator local dependencies/bundleDependencies, ASC compatibility manifest-name guard, and seam tests.
+- Kept release-please component names and component tag identities unscoped (for example pi-autonomous-session-control-v0.1.5).
+
+Validation in parent checkout:
+- publishable component package-name audit: all package.json names are @tryinget-scoped.
+- npm run release:components:check (pass)
+- cd packages/pi-autonomous-session-control && node --test tests/prompt-vault-compat.test.mjs (pass 8/8)
+- cd packages/pi-society-orchestrator && node --test tests/asc-bridge-lifecycle.test.mjs tests/execution-seam-guardrails.test.mjs tests/discoverability-route-fixtures.test.mjs (pass 15/15)
+- release:check:quick passed sequentially for pi-autonomous-session-control, pi-prompt-template-accelerator, pi-vault-client, and pi-society-orchestrator. npm view E404 is expected first scoped publish state.
+- git diff --cached --check (pass)
+
+Boundary notes:
+- No publish, tag, push, or GitHub Release was created.
+- Existing unrelated dirty files in the parent checkout were preserved. For packages/pi-society-orchestrator/src/loops/engine.ts, only the scoped pi-vault-client dispatch-runtime import was staged; unrelated unstaged edits remain in the working tree.
+- A parallel validation attempt raced package prepack/postpack backup files; sequential validation passed.
