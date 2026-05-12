@@ -137,7 +137,7 @@ Manual smoke (optional):
 ## Acceptance criteria
 - Invalid envelope fails soft with actionable guidance.
 - At least one integration-oriented test covers prompt provenance and fallback.
-- Integration includes a live prompt-vault DB path test when vault DB is available (`tests/prompt-vault-db-integration.test.mjs`).
+- Integration includes a live prompt-vault DB path test when vault DB is available (`tests/prompt-vault-db-integration.live.mjs`).
 - Docs include compatibility matrix and rollback steps.
 
 ## Validation
@@ -165,7 +165,7 @@ npm run check
   - Compatibility guard notes and telemetry handshake docs added.
   - Integration tests added:
     - mocked vault payload flow (`tests/prompt-vault-dispatch-integration.test.mjs`)
-    - live prompt-vault DB flow (`tests/prompt-vault-db-integration.test.mjs`)
+    - live prompt-vault DB flow (`tests/prompt-vault-db-integration.live.mjs`)
   - Additional runtime hardening completed:
     - bash command tracking now captures real command text
     - session-name sanitization for subagent session files
@@ -176,7 +176,7 @@ npm run check
     - runtime probe implemented in `extensions/self/prompt-vault-compat.ts`
     - compatibility evaluation covered by `tests/prompt-vault-compat.test.mjs`
   - Live cross-extension harness added:
-    - `tests/prompt-vault-cross-extension-live.test.mjs` registers real vault-client tools and chains `vault_query` -> `vault_retrieve` -> `dispatch_subagent`
+    - `tests/prompt-vault-cross-extension.live.mjs` registers real vault-client tools and chains `vault_query` -> `vault_retrieve` -> `dispatch_subagent`
     - harness readiness probe in `extensions/self/cross-extension-harness.ts` provides explicit skip gating when environment/dependencies are unavailable
     - vault-client entry discovery now supports both legacy `index.ts` and package-based entrypoints (e.g., `./extensions/vault.ts`)
     - retrieval envelope parser now preserves prompt content containing internal markdown `---` separators

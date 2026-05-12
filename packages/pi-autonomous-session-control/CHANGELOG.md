@@ -58,7 +58,7 @@ All notable changes to this project should be documented here.
 - `dispatch_subagent` now records selected child model plus explicit child bootstrap details (`requestedModel`, `effectiveModel`, `loadedExtensions`, `extensionWarnings`) on execution results
 - `self-prompt-vault-compat` now uses a feature/manifest policy for the ASC autonomy floor instead of certifying arbitrary low checked manifest versions, and its Dolt schema probe is timeout-bounded.
 - Documentation updated to reflect scoped cross-session persistence, filtered subagent transport, and new memory contract surfaces
-- Default `npm run check` now keeps prompt-vault parser/unit contract tests while skipping host-dependent live prompt-vault DB/vault-client probes unless the live opt-in env is set.
+- Default `npm run check` now keeps prompt-vault parser/unit contract tests while host-dependent live prompt-vault DB/vault-client probes live in explicit `.live.mjs` files run only by `npm run test:live:prompt-vault`, so default checks report zero live prompt-vault skips.
 
 ### Fixed
 
@@ -115,7 +115,7 @@ All notable changes to this project should be documented here.
   - integration-oriented mocked vault payload flow
   - `tests/dispatch-subagent.test.mjs`
   - `tests/prompt-vault-dispatch-integration.test.mjs`
-  - `tests/prompt-vault-db-integration.test.mjs`
+  - live prompt-vault DB path (currently `tests/prompt-vault-db-integration.live.mjs`)
 
 ### Changed
 
@@ -137,7 +137,7 @@ All notable changes to this project should be documented here.
 - Added compatibility probe module (`extensions/self/prompt-vault-compat.ts`) and focused matrix tests (`tests/prompt-vault-compat.test.mjs`).
 - Added live cross-extension harness support:
   - harness helpers in `extensions/self/cross-extension-harness.ts`
-  - live integration test `tests/prompt-vault-cross-extension-live.test.mjs` chaining real vault-client tools (`vault_query` + `vault_retrieve`) into `dispatch_subagent`
+  - live integration test `tests/prompt-vault-cross-extension.live.mjs` chaining real vault-client tools (`vault_query` + `vault_retrieve`) into `dispatch_subagent`
   - deterministic skip gating when vault-client runtime dependencies/environment are unavailable
   - package-layout-aware vault-client entry discovery (`index.ts` and package-defined extension paths)
   - prompt envelope extraction now preserves template bodies containing internal `---` markdown separators

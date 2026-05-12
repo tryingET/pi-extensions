@@ -22,8 +22,9 @@ This inventory combines:
 Date: 2026-03-05
 
 Cross-extension coherence note:
-- `tests/prompt-vault-cross-extension-live.test.mjs` is the live harness that checks the visible `vault_query`/`vault_retrieve` tool chain still lands in ASC-owned prompt provenance on `dispatch_subagent`.
-- Treat that harness as the executable companion to this inventory when exposed-tool discoverability is in doubt.
+- `tests/prompt-vault-cross-extension.test.mjs` keeps parser/readiness unit coverage in the default check.
+- `tests/prompt-vault-cross-extension.live.mjs` is the explicit opt-in live harness that checks the visible `vault_query`/`vault_retrieve` tool chain still lands in ASC-owned prompt provenance on `dispatch_subagent`.
+- Treat the live harness as the executable companion to this inventory when exposed-tool discoverability is in doubt; it is intentionally not discovered by default `npm run check`.
 
 ---
 

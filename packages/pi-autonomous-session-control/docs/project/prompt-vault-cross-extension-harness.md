@@ -55,7 +55,7 @@ This harness is the live discoverability/coherence check for the exposed-tool ch
 
 ## Reproducible recipe for live harness execution
 
-The live cross-extension test (`tests/prompt-vault-cross-extension-live.test.mjs`) and live DB test (`tests/prompt-vault-db-integration.test.mjs`) are opt-in. Default `npm run check` executes the mock/unit prompt-vault contract tests and reports the live tests as skipped without probing host vault-client/Dolt paths. To run live validation outside of a Pi session:
+The live cross-extension test (`tests/prompt-vault-cross-extension.live.mjs`) and live DB test (`tests/prompt-vault-db-integration.live.mjs`) are opt-in. Live prompt-vault files use the non-default `.live.mjs` suffix, so default `npm run check` does not discover them and reports zero live prompt-vault skips while still executing mock/unit prompt-vault contract tests. To run live validation outside of a Pi session:
 
 ### Prerequisites
 
@@ -92,7 +92,7 @@ Set `NODE_PATH` to include vault-client's node_modules:
 
 ```bash
 export NODE_PATH="$HOME/.pi/agent/extensions/vault-client/node_modules"
-ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.test.mjs tests/prompt-vault-cross-extension-live.test.mjs
+ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.live.mjs tests/prompt-vault-cross-extension.live.mjs
 ```
 
 Note: This may still fail for ESM packages with `exports` fields. Recipe 1 is the supported path.

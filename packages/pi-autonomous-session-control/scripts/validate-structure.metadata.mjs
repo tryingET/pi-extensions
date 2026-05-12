@@ -205,6 +205,8 @@ try {
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     check: "npm run quality:ci",
     test: "npm run quality:ci",
+    "test:live:prompt-vault":
+      "ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.live.mjs tests/prompt-vault-cross-extension.live.mjs",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
