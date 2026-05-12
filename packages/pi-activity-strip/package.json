@@ -72,7 +72,7 @@
     "scaffoldMode": "simple-package",
     "workspacePath": "packages/pi-activity-strip",
     "releaseComponent": "pi-activity-strip",
-    "releaseConfigMode": "none"
+    "releaseConfigMode": "component"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",

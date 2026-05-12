@@ -95,7 +95,7 @@ Loop/chain/workflow ownership belongs in `packages/pi-society-orchestrator/`. Su
 
 ## Template baseline
 
-This package was created from `../pi-extensions-template` in `simple-package` mode and keeps `.copier-answers.yml` tracked. It is deliberately adapted as a private live extension package with a minimal extension entrypoint and no prompt bundle.
+This package was created from `../pi-extensions-template` in `simple-package` mode and keeps `.copier-answers.yml` tracked. It is deliberately adapted as a root-managed live extension package with a minimal extension entrypoint and no prompt bundle.
 
 ## Validation
 

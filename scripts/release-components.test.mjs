@@ -25,7 +25,7 @@ function resolveTagEnv(tag) {
 
 test("resolve-tag reports latest dist-tag for stable versions", () => {
   const result = resolveTag("pi-society-orchestrator-v0.1.0");
-  assert.equal(result.packageName, "pi-society-orchestrator");
+  assert.equal(result.packageName, "@tryinget/pi-society-orchestrator");
   assert.equal(result.tagVersion, "0.1.0");
   assert.equal(result.npmDistTag, "latest");
 });

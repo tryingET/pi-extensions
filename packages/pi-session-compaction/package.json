@@ -1,7 +1,6 @@
 {
-  "name": "pi-session-compaction",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@tryinget/pi-session-compaction",
+  "version": "0.1.0",
   "description": "Dedicated Pi package for custom session compaction summaries.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
@@ -20,6 +19,10 @@
     "compaction",
     "session-summary"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "engines": {
     "node": ">=22"
   },
@@ -31,7 +34,11 @@
     "quality:pre-commit": "bash ../../scripts/package-quality-gate.sh pre-commit .",
     "quality:pre-push": "bash ../../scripts/package-quality-gate.sh pre-push .",
     "quality:ci": "bash ../../scripts/package-quality-gate.sh ci .",
-    "check": "npm run quality:ci"
+    "check": "npm run quality:ci",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack",
+    "release:check": "npm pack --dry-run --json",
+    "release:check:quick": "npm pack --dry-run --json"
   },
   "files": [
     "extensions",
@@ -74,6 +81,6 @@
     "scaffoldMode": "simple-package",
     "workspacePath": "packages/pi-session-compaction",
     "releaseComponent": "pi-session-compaction",
-    "releaseConfigMode": "none"
+    "releaseConfigMode": "component"
   }
 }

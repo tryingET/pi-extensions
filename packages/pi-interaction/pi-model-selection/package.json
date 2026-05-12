@@ -1,7 +1,6 @@
 {
   "name": "@tryinget/pi-model-selection",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Shared Pi model selection and auth resolution primitives.",
   "type": "module",
   "main": "./index.js",
@@ -28,6 +27,10 @@
     "model-selection",
     "prompt-template"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "engines": {
     "node": ">=22"
   },
@@ -39,7 +42,9 @@
     "quality:pre-commit": "bash ../../../scripts/package-quality-gate.sh pre-commit . --mode simple-package",
     "quality:pre-push": "bash ../../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
     "quality:ci": "bash ../../../scripts/package-quality-gate.sh ci . --mode simple-package",
-    "check": "npm run quality:ci"
+    "check": "npm run quality:ci",
+    "release:check": "npm pack --dry-run --json",
+    "release:check:quick": "npm pack --dry-run --json"
   },
   "files": [
     "index.js",
@@ -50,7 +55,7 @@
     "scaffoldMode": "simple-package",
     "workspacePath": "packages/pi-interaction/pi-model-selection",
     "releaseComponent": "pi-model-selection",
-    "releaseConfigMode": "none"
+    "releaseConfigMode": "component"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4"

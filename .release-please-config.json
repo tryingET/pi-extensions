@@ -5,6 +5,10 @@
   "include-component-in-tag": true,
   "separate-pull-requests": true,
   "packages": {
+    "packages/pi-activity-strip": {
+      "release-type": "node",
+      "component": "pi-activity-strip"
+    },
     "packages/pi-autonomous-session-control": {
       "release-type": "node",
       "component": "pi-autonomous-session-control"
@@ -33,6 +37,10 @@
       "release-type": "node",
       "component": "pi-interaction-kit"
     },
+    "packages/pi-interaction/pi-model-selection": {
+      "release-type": "node",
+      "component": "pi-model-selection"
+    },
     "packages/pi-interaction/pi-runtime-registry": {
       "release-type": "node",
       "component": "pi-runtime-registry"
@@ -57,9 +65,17 @@
       "release-type": "node",
       "component": "pi-prompt-template-accelerator"
     },
+    "packages/pi-prompt-template-execution": {
+      "release-type": "node",
+      "component": "pi-prompt-template-execution"
+    },
     "packages/pi-provenance": {
       "release-type": "node",
       "component": "pi-provenance"
+    },
+    "packages/pi-session-compaction": {
+      "release-type": "node",
+      "component": "pi-session-compaction"
     },
     "packages/pi-society-orchestrator": {
       "release-type": "node",

@@ -1,7 +1,6 @@
 {
   "name": "@tryinget/pi-prompt-template-execution",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Live prompt-template execution successor for model/thinking/args semantics.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
@@ -20,6 +19,10 @@
     "prompt-template",
     "model-selection"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "engines": {
     "node": ">=22"
   },
@@ -31,7 +34,11 @@
     "quality:pre-commit": "bash ../../scripts/package-quality-gate.sh pre-commit .",
     "quality:pre-push": "bash ../../scripts/package-quality-gate.sh pre-push .",
     "quality:ci": "bash ../../scripts/package-quality-gate.sh ci .",
-    "check": "npm run quality:ci"
+    "check": "npm run quality:ci",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack",
+    "release:check": "npm pack --dry-run --json",
+    "release:check:quick": "npm pack --dry-run --json"
   },
   "files": [
     "extensions/prompt-template-execution.js",
@@ -65,7 +72,7 @@
     "scaffoldMode": "simple-package",
     "workspacePath": "packages/pi-prompt-template-execution",
     "releaseComponent": "pi-prompt-template-execution",
-    "releaseConfigMode": "none"
+    "releaseConfigMode": "component"
   },
   "dependencies": {
     "@tryinget/pi-model-selection": "file:../pi-interaction/pi-model-selection"

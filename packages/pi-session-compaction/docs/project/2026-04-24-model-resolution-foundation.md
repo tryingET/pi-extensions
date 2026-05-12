@@ -11,7 +11,7 @@ read_when:
 
 Start `packages/pi-session-compaction` as the dedicated owner of custom Pi compaction summaries. The model-resolution, handler, and registration foundations landed before the package was exposed as a live `session_before_compact` owner.
 
-The package remains private, but it is now live-enabled through a guarded local extension entrypoint after handler-level tests passed and the cutover preflight found no installed compaction override packages. This prevents accidental double-loading by preserving the no-double-compaction invariant at install/reload time.
+The package is now a root-managed component and is live-enabled through a guarded local extension entrypoint after handler-level tests passed and the cutover preflight found no installed compaction override packages. This prevents accidental double-loading by preserving the no-double-compaction invariant at install/reload time.
 
 ## Findings
 

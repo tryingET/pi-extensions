@@ -22,7 +22,7 @@ Current live owner:
   model: zai/glm-5.1
   ```
 
-`packages/pi-prompt-template-execution/` is now a private live extension package. It registers prompt-template execution commands through the guarded registration path and does not expose `package.json#pi.prompts` or prompt bundles.
+`packages/pi-prompt-template-execution/` is now a root-managed live extension package. It registers prompt-template execution commands through the guarded registration path and does not expose `package.json#pi.prompts` or prompt bundles.
 
 ## Preconditions that were verified before cutover
 

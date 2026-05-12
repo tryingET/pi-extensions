@@ -44,6 +44,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-society-orchestrator`
 - For the shortest package map and outsider framing, see [README.terse.md](README.terse.md).
 - For live release-component inventory, run `node ./scripts/release-components.mjs list --json`.
+  The inventory is metadata-driven: publish-ready packages opt in with `x-pi-template.releaseConfigMode=component`; private group roots such as `packages/pi-interaction` stay out of the root-managed component list.
 
 ## Fresh-context routing
 

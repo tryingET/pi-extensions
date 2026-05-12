@@ -26,4 +26,4 @@ It intentionally does not own prompt-template slash-command registration, compac
 
 ## Template baseline
 
-This package was reconciled through `../pi-extensions-template` in `simple-package` mode, then intentionally adapted as a private support library. It keeps template lineage and baseline files such as `.copier-answers.yml`, `biome.jsonc`, `policy/stack-lane.json`, and `docs/tech-stack.local.md`, but it deliberately omits `package.json#pi.extensions` and `package.json#pi.prompts` so it cannot register slash commands or package prompts by accident.
+This package was reconciled through `../pi-extensions-template` in `simple-package` mode, then intentionally adapted as a root-managed support library. It keeps template lineage and baseline files such as `.copier-answers.yml`, `biome.jsonc`, `policy/stack-lane.json`, and `docs/tech-stack.local.md`, but it deliberately omits `package.json#pi.extensions` and `package.json#pi.prompts` so it cannot register slash commands or package prompts by accident.

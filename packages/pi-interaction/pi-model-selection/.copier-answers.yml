@@ -6,7 +6,7 @@ github_maintainer: tryingET
 monorepo_repo_name: pi-extensions
 npm_org: tryinget
 release_component_key: pi-model-selection
-release_config_mode: none
+release_config_mode: component
 repo_name: pi-model-selection
 scaffold_mode: simple-package
 workspace_relative_path: packages/pi-interaction/pi-model-selection

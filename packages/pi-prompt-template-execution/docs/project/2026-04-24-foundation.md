@@ -9,9 +9,9 @@ read_when:
 
 ## Decision
 
-Create `packages/pi-prompt-template-execution` as a private successor foundation for the external `npm:pi-prompt-template-model` package, then cut it over as the live prompt-template execution owner in Phase 4.
+Create `packages/pi-prompt-template-execution` as a successor foundation for the external `npm:pi-prompt-template-model` package, then cut it over as the live prompt-template execution owner in Phase 4.
 
-The package was scaffolded from `../pi-extensions-template` in `simple-package` mode. It is deliberately adapted as a private live extension package with a minimal `package.json#pi.extensions` entrypoint, while still omitting `package.json#pi.prompts` and generated prompt bundles.
+The package was scaffolded from `../pi-extensions-template` in `simple-package` mode. It is deliberately adapted as a root-managed live extension package with a minimal `package.json#pi.extensions` entrypoint, while still omitting `package.json#pi.prompts` and generated prompt bundles.
 
 ## Current implemented slice
 

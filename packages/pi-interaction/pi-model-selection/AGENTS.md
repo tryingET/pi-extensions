@@ -13,7 +13,7 @@ system4d:
 
 ## Package scope
 
-`packages/pi-interaction/pi-model-selection/` is a private shared library package for Pi model-selection and auth-resolution primitives.
+`packages/pi-interaction/pi-model-selection/` is a shared library package for Pi model-selection and auth-resolution primitives.
 
 It is template-baseline-aligned with `../pi-extensions-template`, but it intentionally does **not** expose a live Pi extension entrypoint or package prompt bundle yet. Do not add `package.json#pi.extensions`, `package.json#pi.prompts`, slash commands, or hooks unless the operator explicitly asks for a live extension surface and no-double-registration tests exist.
 

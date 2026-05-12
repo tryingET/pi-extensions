@@ -84,6 +84,8 @@ system4d:
   - current source of truth: package metadata with `x-pi-template.releaseConfigMode=component`
   - independent component PRs/tags/releases
   - publish dispatch by component-scoped tag
+  - packages that were scaffolded as private or `releaseConfigMode=none` are intentionally excluded until their package metadata truthfully declares a publishable component
+  - `packages/pi-interaction` remains excluded because it is a private logical group/root, not a runtime package; its publishable interaction artifacts live in split child packages
 
 ### Monorepo root docs
 - `README.md`
