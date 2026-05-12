@@ -22,6 +22,7 @@ import { createAscExecutionRuntime } from "pi-autonomous-session-control/executi
 
 Current intent:
 - `createAscExecutionRuntime(...)` is the supported non-UI execution seam
+- `execution.ts` is both the package export target for `./execution` and an explicit package typecheck input, so the public headless seam cannot drift outside CI/typecheck coverage
 - the `dispatch_subagent` tool continues to bind the same runtime internally, but helper-level tool registration is intentionally not part of the headless public entrypoint
 - consumers should stop treating `extensions/self/*` as their integration API
 - the companion seam charter explains why this seam exists at all and when it should be reconsidered: [Execution seam charter](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md)
@@ -85,7 +86,7 @@ It keeps future changes tied to real consumer gaps, the named negative-path guar
 
 The current seam proof is intentionally split across distinct truth layers:
 
-- **ASC package-local contract truth** — `tests/public-execution-contract.test.mjs`, `tests/public-execution-parity.test.mjs`, `tests/dispatch-subagent-diagnostics.test.mjs`, `tests/subagent-protocol.test.mjs`, `tests/subagent-transport-live.test.mjs`, and `tests/subagent-file-lock.test.mjs` prove the seam semantics and transport-safety invariants owned by ASC.
+- **ASC package-local contract truth** — `tsconfig.json` typechecks the public `execution.ts` export target directly; `tests/public-execution-contract.test.mjs`, `tests/public-execution-parity.test.mjs`, `tests/dispatch-subagent-diagnostics.test.mjs`, `tests/subagent-protocol.test.mjs`, `tests/subagent-transport-live.test.mjs`, and `tests/subagent-file-lock.test.mjs` prove the seam semantics and transport-safety invariants owned by ASC.
 - **Orchestrator package-local consumer truth** — `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves the expected timeout/truncation/abort and `result.details` semantics in repo-local source, and `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` fail-closes private ASC imports plus orchestrator-local runtime revival drift.
 - **Cross-extension discoverability truth** — `tests/prompt-vault-cross-extension-live.test.mjs` proves the real `vault_query`/`vault_retrieve` registration path stays coherent with ASC-owned prompt provenance on `dispatch_subagent`, so exposed-tool discoverability and execution-boundary truth do not drift apart.
 - **Installed-package smoke / packaging truth** — `cd packages/pi-society-orchestrator && npm run release:check` proves the packaged orchestrator artifact can still import and use the seam after install, including the current bundled ASC bridge while the temporary lifecycle in [bundled ASC bridge lifecycle](../../../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains active.

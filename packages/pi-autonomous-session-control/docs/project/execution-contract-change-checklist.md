@@ -53,7 +53,7 @@ The seam currently has three distinct verification layers:
 
 ### Layer A — ASC package-local contract truth
 
-Run these whenever the ASC public runtime itself, the named transport-safety invariants, or shaped execution semantics change:
+Run these whenever the ASC public runtime itself, the named transport-safety invariants, or shaped execution semantics change. Keep `execution.ts` in `tsconfig.json#include` so the package typecheck covers the published `./execution` export target:
 
 - `tests/public-execution-contract.test.mjs`
 - `tests/public-execution-parity.test.mjs`

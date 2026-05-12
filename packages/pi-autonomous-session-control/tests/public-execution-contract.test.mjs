@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -15,6 +15,19 @@ const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protoco
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+test("public execution export target stays published and typechecked", async () => {
+  const [packageJson, tsconfigJson] = await Promise.all([
+    readFile("package.json", "utf8"),
+    readFile("tsconfig.json", "utf8"),
+  ]);
+  const packageDefinition = JSON.parse(packageJson);
+  const tsconfig = JSON.parse(tsconfigJson);
+
+  assert.equal(packageDefinition.exports?.["./execution"], "./execution.ts");
+  assert.ok(packageDefinition.files?.includes("execution.ts"));
+  assert.ok(tsconfig.include?.includes("execution.ts"));
+});
 
 async function withFakePiOnPath(scriptBody, run) {
   const tempDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-fake-pi-"));
