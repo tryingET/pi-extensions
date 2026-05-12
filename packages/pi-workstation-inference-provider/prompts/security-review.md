@@ -1,4 +1,8 @@
 ---
+summary: "Review a change for security risks and mitigations"
+read_when:
+  - "Using or maintaining this package prompt template."
+  - "Checking prompt metadata for pi package discovery or docs-list validation."
 description: Review a change for security risks and mitigations
 system4d:
   container: "Prompt template for security-focused review."
