@@ -1,0 +1,13 @@
+Operator requested proving release/OIDC path now. Pre-push validation exposed stale docs/project/tech-stack-review-surfaces.md snapshot after package inventory changed.
+
+Change:
+- Refreshed tech-stack review snapshot counts from live scripts/tech-stack-review-surfaces.mjs output.
+- Added packages/pi-workstation-inference-provider to legacy-full listings.
+
+Validation:
+- node --test scripts/root-doc-alignment.test.mjs: pass
+- npm run -s release:components:check: pass
+- npm run -s release:contracts:validate: pass
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs docs/project --strict: pass
+- git diff --check for changed doc: pass
+- pre-commit hook during commit: pass
