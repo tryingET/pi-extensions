@@ -56,7 +56,11 @@ jobs:
           package-manager-cache: false
 
       - name: Upgrade npm for release-check parity
-        run: npm install --global npm@^11.5.1
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-global"
+          npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@^11.5.1
+          echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/npm-global/bin/npm" --version
 
       - name: Install package dependencies
         working-directory: ${{ matrix.package_path }}
