@@ -49,13 +49,13 @@ The script enumerates every package root under `packages/` and reports whether i
 
 ## Current audit snapshot
 
-Audited on 2026-04-25.
+Audited on 2026-05-12.
 Refreshed from `node ./scripts/tech-stack-review-surfaces.mjs --json`.
 
 Snapshot summary:
 
-- package entries audited: `23`
-- legacy-full: `13`
+- package entries audited: `24`
+- legacy-full: `14`
 - reduced-form: `2`
 - policy-only: `0`
 - no local surface: `8`
@@ -75,6 +75,7 @@ Snapshot summary:
 - `packages/pi-society-startup-context`
 - `packages/pi-toolbox-discovery`
 - `packages/pi-vault-client`
+- `packages/pi-workstation-inference-provider`
 
 ### Reduced-form package-local surface (`docs/tech-stack.local.md` only)
 
@@ -100,7 +101,7 @@ Snapshot summary:
 
 The `#601` audit confirmed that the original `legacy-full` bucket was not uniform, and the first routed follow-up wave has now proved that classification in practice:
 
-- the current thirteen `legacy-full` package-local surfaces still carry both `docs/tech-stack.local.md` and `policy/stack-lane.json`:
+- the current fourteen `legacy-full` package-local surfaces still carry both `docs/tech-stack.local.md` and `policy/stack-lane.json`:
   - `packages/pi-autoresearch`
   - `packages/pi-context-overlay`
   - `packages/pi-designmd-foundry`
@@ -114,6 +115,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
   - `packages/pi-society-startup-context`
   - `packages/pi-toolbox-discovery`
   - `packages/pi-vault-client`
+  - `packages/pi-workstation-inference-provider`
 - `#634` proved the simple-package `none` path in `packages/pi-activity-strip`, and `#635` proved the matching monorepo-package `none` path in `packages/pi-autonomous-session-control`, so neither package still appears in the `legacy-full` bucket.
 - `#636` has now landed the only distinct child-package `reduced-form` case: `packages/pi-interaction/pi-interaction/docs/tech-stack.local.md` remains as the local override note while `policy/stack-lane.json` is gone.
 - With those three representative pilots complete, the next routed wave is not another generic contract pass; it should refresh audit/readiness truth and materialize only the next smallest justified queue from the remaining boilerplate-only `none` targets.
@@ -192,5 +194,5 @@ Notable refresh outcome for the current alignment wave:
 - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` sit in the `none` bucket after the two completed `none` pilots.
 - `packages/pi-peer-messaging` now also sits in the `none` bucket as a fresh simple-package scaffold that landed directly in the root-owned steady state without local tech-stack duplication.
 - `packages/pi-interaction/pi-interaction` now joins `packages/pi-interaction` in the `reduced-form` bucket after `#636`.
-- `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-designmd-foundry`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, and `packages/pi-vault-client` are among the current `legacy-full` package-local surfaces; `packages/pi-interaction/pi-model-selection`, `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
+- `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-designmd-foundry`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, `packages/pi-vault-client`, and `packages/pi-workstation-inference-provider` are among the current `legacy-full` package-local surfaces; `packages/pi-interaction/pi-model-selection`, `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
 - no package is currently in a `policy-only` intermediate state.
