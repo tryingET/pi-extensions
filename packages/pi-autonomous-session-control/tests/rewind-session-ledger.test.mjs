@@ -56,6 +56,39 @@ test("rewind session-ledger guards accept well-shaped ASC-owned rewind records",
   assert.equal(isAscRewindForkPendingData({ v: 1, current: "" }), false);
 });
 
+test("rewind session-ledger guards reject malformed snapshot ledgers fail-closed", () => {
+  const malformedCases = [
+    {
+      name: "non-array snapshots",
+      data: { v: 1, snapshots: "commit-a", bindings: [["entry-1", 0]] },
+    },
+    {
+      name: "empty snapshot string",
+      data: { v: 1, snapshots: [""], bindings: [["entry-1", 0]] },
+    },
+    {
+      name: "non-string snapshot",
+      data: { v: 1, snapshots: [123], bindings: [["entry-1", 0]] },
+    },
+    {
+      name: "negative binding index",
+      data: { v: 1, snapshots: ["commit-a"], bindings: [["entry-1", -1]] },
+    },
+    {
+      name: "out-of-bounds binding index",
+      data: { v: 1, snapshots: ["commit-a"], bindings: [["entry-1", 1]] },
+    },
+  ];
+
+  for (const { name, data } of malformedCases) {
+    assert.equal(isAscRewindTurnData(data), false, name);
+    assert.equal(isAscRewindOpData(data), false, name);
+  }
+
+  assert.equal(isAscRewindOpData({ v: 1, snapshots: ["commit-a"], current: -1 }), false);
+  assert.equal(isAscRewindOpData({ v: 1, snapshots: ["commit-a"], undo: 1 }), false);
+});
+
 test("rewind session-ledger helpers bind entries and resolve current or undo commits safely", () => {
   const entryToCommit = new Map();
   applyRewindBindings(

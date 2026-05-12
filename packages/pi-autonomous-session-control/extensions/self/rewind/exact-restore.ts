@@ -62,6 +62,20 @@ export async function deletePathsFromWorkingTree(
   }
 }
 
+async function restoreWorktreeFromSnapshot(
+  git: GitRunner,
+  repoRoot: string,
+  sourceCommitSha: string,
+  sourceTreeSha: string,
+  destinationTreeSha: string,
+): Promise<void> {
+  await execGitChecked(git, ["restore", `--source=${sourceCommitSha}`, "--worktree", "--", "."]);
+  await deletePathsFromWorkingTree(
+    repoRoot,
+    await getDeletedPaths(git, destinationTreeSha, sourceTreeSha),
+  );
+}
+
 export async function restoreCommitExactly(
   git: GitRunner,
   targetCommitSha: string,
@@ -82,8 +96,28 @@ export async function restoreCommitExactly(
   });
   const pathsToDelete = await getDeletedPaths(git, currentTreeSha, targetTreeSha);
   const repoRoot = await getRepoRoot(git);
-  await deletePathsFromWorkingTree(repoRoot, pathsToDelete);
-  await execGitChecked(git, ["restore", `--source=${targetCommitSha}`, "--worktree", "--", "."]);
+
+  try {
+    await deletePathsFromWorkingTree(repoRoot, pathsToDelete);
+    await execGitChecked(git, ["restore", `--source=${targetCommitSha}`, "--worktree", "--", "."]);
+  } catch (error) {
+    try {
+      await restoreWorktreeFromSnapshot(
+        git,
+        repoRoot,
+        undoSnapshot.commitSha,
+        currentTreeSha,
+        targetTreeSha,
+      );
+    } catch (rollbackError) {
+      throw new Error(
+        `restore failed and rollback to ${undoSnapshot.commitSha} failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+        { cause: error },
+      );
+    }
+
+    throw error;
+  }
 
   return {
     changed: true,

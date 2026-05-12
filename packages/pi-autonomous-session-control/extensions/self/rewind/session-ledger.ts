@@ -24,12 +24,23 @@ export interface AscRewindForkPendingData {
   undo?: string;
 }
 
-function isBindingTuple(value: unknown): value is BindingTuple {
+function isSnapshotArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.every((snapshot) => typeof snapshot === "string" && snapshot.length > 0)
+  );
+}
+
+function isSnapshotIndex(value: unknown, snapshots: string[]): value is number {
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) < snapshots.length;
+}
+
+function isBindingTupleForSnapshots(value: unknown, snapshots: string[]): value is BindingTuple {
   return (
     Array.isArray(value) &&
     value.length === 2 &&
     typeof value[0] === "string" &&
-    Number.isInteger(value[1])
+    isSnapshotIndex(value[1], snapshots)
   );
 }
 
@@ -39,11 +50,14 @@ export function isAscRewindTurnData(value: unknown): value is AscRewindTurnData 
   }
 
   const data = value as Partial<AscRewindTurnData>;
+  const snapshots = data.snapshots;
+  if (data.v !== ASC_REWIND_LEDGER_VERSION || !isSnapshotArray(snapshots)) {
+    return false;
+  }
+
   return (
-    data.v === ASC_REWIND_LEDGER_VERSION &&
-    Array.isArray(data.snapshots) &&
     Array.isArray(data.bindings) &&
-    data.bindings.every(isBindingTuple)
+    data.bindings.every((binding) => isBindingTupleForSnapshots(binding, snapshots))
   );
 }
 
@@ -53,11 +67,17 @@ export function isAscRewindOpData(value: unknown): value is AscRewindOpData {
   }
 
   const data = value as Partial<AscRewindOpData>;
+  const snapshots = data.snapshots;
+  if (data.v !== ASC_REWIND_LEDGER_VERSION || !isSnapshotArray(snapshots)) {
+    return false;
+  }
+
   return (
-    data.v === ASC_REWIND_LEDGER_VERSION &&
-    Array.isArray(data.snapshots) &&
     (data.bindings === undefined ||
-      (Array.isArray(data.bindings) && data.bindings.every(isBindingTuple)))
+      (Array.isArray(data.bindings) &&
+        data.bindings.every((binding) => isBindingTupleForSnapshots(binding, snapshots)))) &&
+    (data.current === undefined || isSnapshotIndex(data.current, snapshots)) &&
+    (data.undo === undefined || isSnapshotIndex(data.undo, snapshots))
   );
 }
 

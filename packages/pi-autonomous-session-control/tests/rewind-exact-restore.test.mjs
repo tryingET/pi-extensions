@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 import {
+  captureWorktreeTree,
   ensureSnapshotForCurrentWorktree,
   restoreCommitExactly,
 } from "../extensions/self/rewind/index.ts";
@@ -40,6 +43,46 @@ test("rewind exact restore restores tracked and untracked files while leaving ig
     assert.equal(await harness.readRepoFile("notes/local.md"), "note-v2\n");
     assert.equal(await harness.readRepoFile("extra.txt"), "extra-current\n");
     assert.equal(await harness.readRepoFile("ignored.txt"), "ignored-current\n");
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("rewind exact restore rolls back when git restore fails after destructive delete starts", async () => {
+  const harness = await createRewindGitHarness();
+
+  try {
+    await harness.writeRepoFile("tracked.txt", "target\n");
+    await harness.writeRepoFile("target-only.txt", "target-only\n");
+    const targetSnapshot = await ensureSnapshotForCurrentWorktree(harness.git);
+
+    await harness.writeRepoFile("tracked.txt", "current\n");
+    await harness.writeRepoFile("current-only.txt", "current-only\n");
+    await rm(path.join(harness.repoRoot, "target-only.txt"));
+    const currentSnapshot = await ensureSnapshotForCurrentWorktree(harness.git);
+
+    const failingGit = async (args, options) => {
+      if (args[0] === "restore" && args.includes(`--source=${targetSnapshot.snapshot.commitSha}`)) {
+        return { stdout: "", stderr: "simulated restore failure", code: 1 };
+      }
+
+      return harness.git(args, options);
+    };
+
+    await assert.rejects(
+      restoreCommitExactly(failingGit, targetSnapshot.snapshot.commitSha, {
+        lastExact: currentSnapshot.snapshot,
+      }),
+      /simulated restore failure/,
+    );
+
+    assert.equal(await harness.readRepoFile("tracked.txt"), "current\n");
+    assert.equal(await harness.readRepoFile("current-only.txt"), "current-only\n");
+    assert.equal(await harness.exists("target-only.txt"), false);
+    assert.equal(
+      (await captureWorktreeTree(harness.git)).treeSha,
+      currentSnapshot.snapshot.treeSha,
+    );
   } finally {
     await harness.cleanup();
   }
