@@ -199,9 +199,9 @@ Required in this repo:
 ## Test strategy
 - Integration-oriented mocked vault payload tests now cover prompt envelope application/fallback.
 - Prompt-vault compatibility tests cover the current package manifest feature policy, reject arbitrary low manifest/autonomy versions such as `0.0.1`, and cover a timeout-bounded Dolt schema probe using a fake sleeping `dolt` executable.
-- Live prompt-vault DB integration test now validates template retrieval compatibility with envelope application (`tests/prompt-vault-db-integration.test.mjs`).
+- Live prompt-vault DB and cross-extension integration tests are explicit opt-in checks behind `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1` / `npm run test:live:prompt-vault`, so default `npm run check` does not depend on host-local Dolt, vault DB, or vault-client readiness.
 - Nested self tests are now exercised by CI quality gate.
-- Remaining gap: live cross-extension integration test exists but may skip in CI when runtime dependencies/environment are unavailable.
+- Remaining gap: live cross-extension validation still depends on local vault-client runtime dependencies when explicitly opted in.
 
 ## Risk register
 

@@ -8,12 +8,17 @@ import test from "node:test";
 import { createSubagentState, registerSubagentTool } from "../extensions/self/subagent.ts";
 
 const DEFAULT_VAULT_DIR = "/home/tryinget/ai-society/core/prompt-vault/prompt-vault-db";
+const RUN_LIVE_PROMPT_VAULT_TESTS = process.env.ASC_RUN_LIVE_PROMPT_VAULT_TESTS === "1";
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function loadTemplateFromVault() {
+  if (!RUN_LIVE_PROMPT_VAULT_TESTS) {
+    return null;
+  }
+
   const vaultDir = process.env.VAULT_DIR || DEFAULT_VAULT_DIR;
 
   if (!existsSync(vaultDir)) {
@@ -92,7 +97,13 @@ const liveTemplate = loadTemplateFromVault();
 
 test(
   "live prompt-vault DB template can be applied through dispatch_subagent prompt envelope",
-  { skip: !liveTemplate },
+  {
+    skip: !RUN_LIVE_PROMPT_VAULT_TESTS
+      ? "set ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 to run host-dependent live prompt-vault DB validation"
+      : !liveTemplate
+        ? "live prompt-vault DB template unavailable"
+        : false,
+  },
   async () => {
     const harness = await setup();
 

@@ -12,6 +12,8 @@ import {
 } from "../extensions/self/cross-extension-harness.ts";
 import { createSubagentState, registerSubagentTool } from "../extensions/self/subagent.ts";
 
+const RUN_LIVE_PROMPT_VAULT_TESTS = process.env.ASC_RUN_LIVE_PROMPT_VAULT_TESTS === "1";
+
 function createPiHarness() {
   const tools = new Map();
   const commands = new Map();
@@ -153,12 +155,20 @@ test("getCrossExtensionHarnessPaths falls back to extensions/vault.ts when packa
   }
 });
 
-const readiness = getCrossExtensionHarnessReadiness();
-
 test(
   "live cross-extension harness: vault-client retrieval feeds dispatch_subagent prompt envelope",
-  { skip: !readiness.ready },
+  {
+    skip: !RUN_LIVE_PROMPT_VAULT_TESTS
+      ? "set ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 to run host-dependent live vault-client validation"
+      : false,
+  },
   async (t) => {
+    const readiness = getCrossExtensionHarnessReadiness();
+    if (!readiness.ready) {
+      t.skip(`live prompt-vault harness not ready: ${readiness.reasons.join("; ")}`);
+      return;
+    }
+
     const harness = createPiHarness();
     const sessionsDir = await mkdtemp(join(tmpdir(), "cross-extension-live-test-"));
 

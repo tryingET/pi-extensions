@@ -126,7 +126,13 @@ ASC owns two distinct prompt-related surfaces:
 - runtime prompt-envelope provenance returned by `dispatch_subagent` result details when callers provide `prompt_name`, `prompt_content`, `prompt_tags`, and `prompt_source`
 
 Keep those surfaces separate from repo-root `.pi/prompts/*` operator prompts in the monorepo root.
-The live cross-extension harness proves the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain preserves prompt provenance coherently, including the `vault-client-live` source label.
+The default quality gate keeps mocked/unit prompt-envelope contract tests in the normal suite and treats host-dependent prompt-vault checks as explicit live validation. Run live DB/vault-client coherence only when the local vault DB, Dolt, and vault-client runtime are intentionally available:
+
+```bash
+npm run test:live:prompt-vault
+```
+
+That script sets `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1` and exercises the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain, including the `vault-client-live` source label.
 
 ### Prompt-vault compatibility self-check
 

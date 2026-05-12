@@ -68,6 +68,7 @@ All notable changes to this project should be documented here.
 - `self-prompt-vault-compat` no longer reports the current ASC package below its own autonomy-version floor when source feature shape proves prompt-envelope support, but it also no longer certifies arbitrary low package manifests such as `0.0.1`.
 - Empty or whitespace-only subagent model selections now fail before spawn as structured `model_selection_failed` results without leaking `activeCount` / `maxConcurrent`.
 - `DispatchSubagentRequest.env` is now fail-closed to `PI_PROVENANCE_*` keys so request callers cannot override child control-plane env such as `PATH`, `NODE_OPTIONS`, or `PI_CODING_AGENT_DIR`; rejected env fails before spawn as `env_policy_failed` without leaking `activeCount`.
+- Live prompt-vault DB/vault-client integration tests are now explicit opt-in via `npm run test:live:prompt-vault` / `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1`, keeping default checks independent of host-local Dolt/vault-client readiness while retaining mocked/unit prompt-envelope coverage.
 - Capability-map wording inside explicit crystallization/protection directives (for example `Remember: capability map stale` or `Mark as trap: capability map ...`) no longer hijacks routing into capability discovery.
 - `tests/public-execution-contract.test.mjs` now resolves package paths from the test module location so it can pass from the repo root as well as the package root.
 

@@ -54,7 +54,15 @@ This harness is the live discoverability/coherence check for the exposed-tool ch
 
 ## Reproducible recipe for live harness execution
 
-The live cross-extension test (`tests/prompt-vault-cross-extension-live.test.mjs`) skips when environment prerequisites are unavailable. To run it outside of a Pi session:
+The live cross-extension test (`tests/prompt-vault-cross-extension-live.test.mjs`) is opt-in. Default `npm run check` keeps the parser/readiness unit coverage but skips host-dependent live vault-client execution unless `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1` is set.
+
+To run the full live prompt-vault suite:
+
+```bash
+npm run test:live:prompt-vault
+```
+
+That command runs both `tests/prompt-vault-db-integration.test.mjs` and `tests/prompt-vault-cross-extension-live.test.mjs` with the opt-in env set. To run it outside of a Pi session:
 
 ### Prerequisites
 
@@ -80,9 +88,9 @@ The test runs automatically when executed inside a Pi session where the runtime 
 ```bash
 # Start pi in any directory with the extension loaded
 pi
-# Then in another terminal, run the test
+# Then in another terminal, run the live prompt-vault suite
 cd ~/programming/pi-extensions/pi-autonomous-session-control
-node --test tests/prompt-vault-cross-extension-live.test.mjs
+npm run test:live:prompt-vault
 ```
 
 ### Recipe 2: Manual environment setup
@@ -91,7 +99,7 @@ Set `NODE_PATH` to include vault-client's node_modules:
 
 ```bash
 export NODE_PATH="$HOME/.pi/agent/extensions/vault-client/node_modules"
-node --test tests/prompt-vault-cross-extension-live.test.mjs
+npm run test:live:prompt-vault
 ```
 
 Note: This may still fail for ESM packages with `exports` fields. Recipe 1 is the supported path.
