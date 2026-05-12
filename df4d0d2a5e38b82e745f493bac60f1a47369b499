@@ -1,0 +1,28 @@
+Peer-assisted ASC rewind hardening.
+
+Scout peer: scoutpeer-mp248ne2-2b67acc1
+Candidate peer: candidatepeer-mp24c9by-360bdca1
+Candidate branch: candidate/asc-rewind-restore-ledger-hardening
+Candidate session: session-019e1a66-9dd0-70b9-a050-f1835069e764
+Candidate worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/asc-rewind-restore-ledger-hardening
+Controller commit: df4d0d2
+AK task: #2875
+
+Promoted changes:
+- restoreCommitExactly now captures the undo snapshot before destructive work and attempts to restore that snapshot if delete/restore fails.
+- Added an exact-restore failure-injection test that simulates target restore failure after destructive delete would begin and verifies the current tree is restored exactly.
+- ASC rewind session ledger guards now require snapshot entries to be nonempty strings and binding/current/undo indices to be nonnegative in-bounds values.
+- Added malformed ledger guard cases for non-array snapshots, empty/non-string snapshots, negative/out-of-bounds binding indices, and invalid current/undo indices.
+- Updated changelog.
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/rewind-*.test.mjs (pass 15/15)
+- git diff --check -- scoped ASC files (pass)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass 197/197, skip 0; npm view 404 treated by release-check as expected for first unpublished release)
+
+Boundary notes:
+- Changes are confined to ASC rewind modules/tests/changelog.
+- No AK/KES/Oracle mutation from runtime code.
+- No Replay Fabric code changes.
+- Unrelated dirty parent checkout files were not staged.
