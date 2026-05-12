@@ -1,0 +1,12 @@
+Operator requested proving package release/OIDC path. Pre-push release validation failed because ASC 0.1.5 is now published and pi-society-orchestrator still carried the temporary bundled ASC bridge.
+
+Change:
+- Changed packages/pi-society-orchestrator dependency @tryinget/pi-autonomous-session-control from file:../pi-autonomous-session-control to ^0.1.5.
+- Removed ASC bundleDependencies from package.json/package-lock.json.
+- Updated orchestrator README and bundled ASC bridge lifecycle doc to mark the bridge retired.
+
+Validation:
+- cd packages/pi-society-orchestrator && node --test tests/asc-bridge-lifecycle.test.mjs: pass
+- cd packages/pi-society-orchestrator && npm run release:check:quick: pass; ASC bridge lifecycle OK registry-backed cutover
+- git diff --check for changed orchestrator release files: pass
+- pre-commit hook during commit: pass
