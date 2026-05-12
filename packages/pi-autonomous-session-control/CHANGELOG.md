@@ -15,6 +15,8 @@ All notable changes to this project should be documented here.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-05-12
+
 ### Added
 
 - Scoped self-memory lifecycle wiring in `extensions/self/memory-lifecycle.ts` (load, hydrate, persist, validate)
