@@ -1,0 +1,28 @@
+Promoted from peer-session candidate branch candidate/asc-live-prompt-vault-test-isolation-3, refined on top of prior live prompt-vault isolation commit.
+
+Peer run: candidatepeer-mp22uzsz-254d88dc
+Peer session: session-019e1a40-b3eb-7076-b51a-f65e24422d07
+Candidate worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/asc-live-prompt-vault-test-isolation-3
+Controller promoted commit: 4c6b994
+Controller session: session-019e0b49-3ba1-7069-8acd-97b9adce0e7c
+AK task: #2864
+
+Promoted changes:
+- Renamed live prompt-vault files to non-default *.live.mjs suffix:
+  - tests/prompt-vault-db-integration.live.mjs
+  - tests/prompt-vault-cross-extension.live.mjs
+- Added tests/prompt-vault-cross-extension.test.mjs for default parser/readiness unit coverage.
+- Updated package script, structure validators, README, docs, and changelog.
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/prompt-vault-compat.test.mjs tests/prompt-vault-cross-extension.test.mjs tests/prompt-vault-dispatch-integration.test.mjs (pass, 16/16)
+- cd packages/pi-autonomous-session-control && npm run test:live:prompt-vault (pass 7 / skip 1; DB live path passed, cross-extension skipped because vault-client extension path unavailable)
+- cd packages/pi-autonomous-session-control && node scripts/validate-structure.mjs (pass)
+- git diff --check -- scoped ASC files (pass)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass, 192 pass / 0 skip; npm view 404 treated by release-check as expected for first unpublished release)
+
+Review notes:
+- Default Node test discovery no longer discovers live prompt-vault files, so default check has zero live prompt-vault skips.
+- Explicit live script remains the live host validation surface.
+- Unrelated dirty parent files were not staged.
