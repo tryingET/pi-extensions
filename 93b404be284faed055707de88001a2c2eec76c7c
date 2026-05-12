@@ -1,0 +1,9 @@
+Operator requested executing the OIDC publish proof. First GitHub publish workflow run 25743939899 failed before release validation during the npm upgrade step: npm install --global npm@^11.5.1 hit MODULE_NOT_FOUND promise-retry in the hosted npm install.
+
+Change:
+- Updated publish.yml and release-check.yml to install npm >=11.5.1 into an isolated RUNNER_TEMP prefix and prepend that bin directory through GITHUB_PATH instead of self-overwriting the setup-node npm installation.
+
+Validation:
+- git diff --check for workflow files: pass
+- pre-commit hook during commit: pass
+- Real workflow rerun is the follow-up proof.
