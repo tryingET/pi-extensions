@@ -1,0 +1,31 @@
+Controller-implemented after two candidate peer spawns for live prompt-vault test isolation produced no ACK/mutation in their worktrees.
+
+Attempted peer runs:
+- candidatepeer-mp22pxd5-24ef5796 (no ACK, clean worktree)
+- candidatepeer-mp22rhgu-414e8eab (no ACK, clean worktree)
+Controller promoted commit: c7fb950
+Controller session: session-019e0b49-3ba1-7069-8acd-97b9adce0e7c
+AK task: #2860
+
+Promoted files:
+- packages/pi-autonomous-session-control/package.json
+- packages/pi-autonomous-session-control/tests/prompt-vault-db-integration.test.mjs
+- packages/pi-autonomous-session-control/tests/prompt-vault-cross-extension-live.test.mjs
+- packages/pi-autonomous-session-control/README.md
+- packages/pi-autonomous-session-control/docs/project/prompt-vault-integration-assessment.md
+- packages/pi-autonomous-session-control/docs/project/prompt-vault-cross-extension-harness.md
+- packages/pi-autonomous-session-control/docs/project/public-execution-contract.md
+- packages/pi-autonomous-session-control/CHANGELOG.md
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/prompt-vault-db-integration.test.mjs tests/prompt-vault-cross-extension-live.test.mjs tests/prompt-vault-dispatch-integration.test.mjs (pass, 8 pass / 2 opt-in skips)
+- cd packages/pi-autonomous-session-control && npm run test:live:prompt-vault (pass, 7 pass / 1 skip in this host; DB live path ran, vault-client live path skipped because vault-client extension path unavailable)
+- git diff --check -- scoped ASC files (pass)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass, 192 pass / 2 opt-in skips; npm view 404 treated by release-check as expected for first unpublished release)
+
+Review notes:
+- Default check no longer probes live prompt-vault DB/Dolt at module load unless ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1.
+- Cross-extension parser/readiness unit coverage remains in default check.
+- Live prompt-vault validation is exposed as npm run test:live:prompt-vault.
+- Unrelated dirty parent files were not staged.
