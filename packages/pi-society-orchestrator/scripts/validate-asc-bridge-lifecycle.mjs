@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const ASC_PACKAGE_NAME = "pi-autonomous-session-control";
+export const ASC_PACKAGE_NAME = "@tryinget/pi-autonomous-session-control";
 const REPO_REGISTRY = "https://registry.npmjs.org/";
 
 function isRecord(value) {

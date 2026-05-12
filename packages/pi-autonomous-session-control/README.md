@@ -68,7 +68,7 @@ Interpretation:
 
 | Source | Identity |
 |--------|----------|
-| npm package | Package name (`pi-autonomous-session-control`) |
+| npm package | Package name (`@tryinget/pi-autonomous-session-control`) |
 | git source | Repository URL |
 | Local path | Resolved absolute path |
 
@@ -79,7 +79,7 @@ Interpretation:
 
 **After publishing to npm:**
 ```bash
-pi install npm:pi-autonomous-session-control
+pi install npm:@tryinget/pi-autonomous-session-control
 ```
 
 **When both exist:**
@@ -89,7 +89,7 @@ pi install npm:pi-autonomous-session-control
 To temporarily disable a global package while developing locally:
 ```bash
 # Remove from global settings
-pi remove npm:pi-autonomous-session-control
+pi remove npm:@tryinget/pi-autonomous-session-control
 
 # Or manually edit ~/.pi/agent/settings.json and remove from packages array
 ```
@@ -145,7 +145,7 @@ The `self` tool accepts capability meta-queries such as `What can you do?`, `cap
 ASC now exposes a supported package-level execution seam for non-tool consumers:
 
 ```ts
-import { createAscExecutionRuntime } from "pi-autonomous-session-control/execution";
+import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-control/execution";
 
 const runtime = createAscExecutionRuntime({
   sessionsDir: "/tmp/pi-subagent-sessions",
@@ -172,7 +172,7 @@ What this seam guarantees:
 - prompt-envelope application, request env policy, lifecycle invariants, runtime-owned concurrency reservation, session-name reservation, result shaping, assistant protocol classification, and abort propagation stay ASC-owned
 - result surfaces now use one normalized failure taxonomy: canonical `result.details.status` (`done`, `aborted`, `timed_out`, `error`) plus `result.details.failureKind` for the specific failure branch
 - a dedicated parity harness now proves those shared semantics stay aligned across the public runtime and the tool path
-- downstream consumers should prefer `pi-autonomous-session-control/execution` over private `extensions/self/*` imports
+- downstream consumers should prefer `@tryinget/pi-autonomous-session-control/execution` over private `extensions/self/*` imports
 
 Current verification split:
 - ASC package-local tests prove seam semantics and transport-safety invariants

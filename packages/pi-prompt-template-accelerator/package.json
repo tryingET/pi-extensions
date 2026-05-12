@@ -1,5 +1,5 @@
 {
-  "name": "pi-prompt-template-accelerator",
+  "name": "@tryinget/pi-prompt-template-accelerator",
   "version": "0.1.0",
   "description": "pi extension package: pi-prompt-template-accelerator",
   "type": "module",

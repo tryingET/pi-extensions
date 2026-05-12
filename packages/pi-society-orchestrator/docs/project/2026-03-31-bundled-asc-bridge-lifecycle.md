@@ -14,14 +14,14 @@ system4d:
 
 ## Decision in one sentence
 
-Keep the current bundled `pi-autonomous-session-control` bridge only as a **transitional installability shim** for `pi-society-orchestrator`, and remove it as soon as ASC has a real registry-backed release path plus one truthful orchestrator cutover pass.
+Keep the current bundled `@tryinget/pi-autonomous-session-control` bridge only as a **transitional installability shim** for `pi-society-orchestrator`, and remove it as soon as ASC has a real registry-backed release path plus one truthful orchestrator cutover pass.
 
 ## Current topology
 
 Today orchestrator uses:
 
-- `"pi-autonomous-session-control": "file:../pi-autonomous-session-control"`
-- `"bundleDependencies": ["pi-autonomous-session-control"]`
+- `"@tryinget/pi-autonomous-session-control": "file:../pi-autonomous-session-control"`
+- `"bundleDependencies": ["@tryinget/pi-autonomous-session-control"]`
 
 Why this exists:
 
@@ -47,7 +47,7 @@ If any of those statements stops being true, start the bridge-removal cutover in
 Retire the bridge in the same bounded change that satisfies all criteria below:
 
 1. **ASC publish path is real**
-   - `pi-autonomous-session-control` has a registry-backed release path proven through the existing monorepo component release flow
+   - `@tryinget/pi-autonomous-session-control` has a registry-backed release path proven through the existing monorepo component release flow
    - if ASC still needs a first bootstrap publish before trusted publishing is fully active, follow `../../pi-autonomous-session-control/docs/dev/trusted_publishing.md`
 2. **Orchestrator consumes ASC as a normal dependency**
    - replace the current local `file:../pi-autonomous-session-control` dependency with the intended published semver dependency
@@ -71,7 +71,7 @@ Do not wait for a vague later cleanup once one of those triggers fires.
 Operational enforcement:
 - `packages/pi-society-orchestrator/scripts/validate-asc-bridge-lifecycle.mjs`
 - `npm run release:check`
-- current enforcement rule: if `pi-autonomous-session-control` is visible on the npm registry while orchestrator still carries the bundled bridge, release-check fails closed and forces the cutover conversation immediately
+- current enforcement rule: if `@tryinget/pi-autonomous-session-control` is visible on the npm registry while orchestrator still carries the bundled bridge, release-check fails closed and forces the cutover conversation immediately
 
 ## What does *not* justify keeping the bridge
 

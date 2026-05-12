@@ -51,7 +51,7 @@ The current root wave and orchestrator boundary documents already fix the orderi
 The first supported non-UI consumer seam is a package-owned headless runtime exposed from:
 
 ```ts
-import { createVaultPromptPlaneRuntime } from "pi-vault-client/prompt-plane";
+import { createVaultPromptPlaneRuntime } from "@tryinget/pi-vault-client/prompt-plane";
 ```
 
 This runtime is additive.

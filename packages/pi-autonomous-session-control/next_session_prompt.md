@@ -15,7 +15,7 @@ system4d:
 ## Mission
 
 The execution-boundary cutover is complete:
-- ASC exposes a supported package-level runtime entrypoint at `pi-autonomous-session-control/execution`
+- ASC exposes a supported package-level runtime entrypoint at `@tryinget/pi-autonomous-session-control/execution`
 - `dispatch_subagent` composes that same runtime core internally
 - `pi-society-orchestrator` now consumes the public seam and no longer carries a second long-term runtime path
 - transport-safety invariants are now named contract truth in ASC docs and tests
@@ -65,7 +65,7 @@ Then anchor on the live runtime + proof surfaces:
 - The supported non-tool seam remains:
 
 ```ts
-import { createAscExecutionRuntime } from "pi-autonomous-session-control/execution";
+import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-control/execution";
 ```
 
 - Consumers should not treat `extensions/self/*` as their integration contract.

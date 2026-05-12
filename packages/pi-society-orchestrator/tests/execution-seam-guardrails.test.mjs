@@ -6,16 +6,16 @@ import test from "node:test";
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const allowedAscConsumer = {
   file: "src/runtime/subagent.ts",
-  specifier: "pi-autonomous-session-control/execution",
+  specifier: "@tryinget/pi-autonomous-session-control/execution",
 };
 const allowedVaultConsumers = [
   {
     file: "src/loops/engine.ts",
-    specifier: "pi-vault-client/dispatch-runtime",
+    specifier: "@tryinget/pi-vault-client/dispatch-runtime",
   },
   {
     file: "src/runtime/cognitive-tools.ts",
-    specifier: "pi-vault-client/prompt-plane",
+    specifier: "@tryinget/pi-vault-client/prompt-plane",
   },
 ];
 const allowedAutoresearchConsumers = [
@@ -128,6 +128,7 @@ test("subagent adapter does not revive orchestrator-local runtime internals", ()
     "execFileSync(",
     "fork(",
     "pi-autonomous-session-control/extensions/self",
+    "@tryinget/pi-autonomous-session-control/extensions/self",
     "../pi-autonomous-session-control/extensions/self",
     "subagent-spawn.ts",
     "subagent-session.ts",
@@ -147,6 +148,7 @@ test("subagent adapter does not revive orchestrator-local runtime internals", ()
 test("vault adapters do not drift back to private pi-vault-client imports", () => {
   const forbiddenTokens = [
     "pi-vault-client/src/",
+    "@tryinget/pi-vault-client/src/",
     "../pi-vault-client/src/",
     "../../pi-vault-client/src/",
     "../pi-vault-client/",

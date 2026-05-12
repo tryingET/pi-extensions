@@ -131,7 +131,7 @@ test("discoverability route fixtures document overloaded owner cues consistently
 });
 
 test("subagent consumer route stays bound to the ASC public execution seam", () => {
-  assert.match(files.subagent, /from "pi-autonomous-session-control\/execution"/);
+  assert.match(files.subagent, /from "@tryinget\/pi-autonomous-session-control\/execution"/);
   assert.match(files.subagent, /createAscExecutionRuntime\s*\(/);
   assert.equal(files.subagent.includes("extensions/self"), false);
 });

@@ -92,7 +92,7 @@ export const RUNTIME_TRUTH_DESCRIPTOR: RuntimeTruthDescriptor = Object.freeze({
   extensionTitle: "Society Orchestrator",
   coordinationOwner: "pi-society-orchestrator",
   coordinationRole: "coordination/control plane",
-  executionOwner: "pi-autonomous-session-control",
+  executionOwner: "@tryinget/pi-autonomous-session-control",
   executionRole: "execution/runtime plane",
   executionSeamLabel: "orchestrator→ASC",
   routingLabel: "Routing",

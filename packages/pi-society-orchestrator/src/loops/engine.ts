@@ -1229,7 +1229,7 @@ Unknown loop templates and workflow-grade templates without an execution binding
       let dispatchModule: VaultDispatchRuntimeModule;
       try {
         dispatchModule = (await import(
-          "pi-vault-client/dispatch-runtime"
+          "@tryinget/pi-vault-client/dispatch-runtime"
         )) as VaultDispatchRuntimeModule;
       } catch (error) {
         return {

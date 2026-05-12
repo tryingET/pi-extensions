@@ -1247,7 +1247,7 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
 
   const text = formatRuntimeStatusReport(snapshot);
   assert.match(text, /coordination owner: `pi-society-orchestrator`/);
-  assert.match(text, /execution owner: `pi-autonomous-session-control`/);
+  assert.match(text, /execution owner: `@tryinget\/pi-autonomous-session-control`/);
   assert.match(text, /routing: `quality` \(reviewer, researcher\)/);
   assert.match(text, /boundary telemetry inspector: `\/runtime-boundary-telemetry`/);
   assert.match(text, /context: 20,000 tokens \(window 128,000\)/);

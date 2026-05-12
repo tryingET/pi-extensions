@@ -101,7 +101,7 @@ function packageManifestDeclaresPromptEnvelopeSupport(path: string): boolean {
   const filesField = parsed?.files;
 
   return (
-    parsed?.name === "pi-autonomous-session-control" &&
+    parsed?.name === "@tryinget/pi-autonomous-session-control" &&
     exportsField !== null &&
     typeof exportsField === "object" &&
     !Array.isArray(exportsField) &&
@@ -236,7 +236,7 @@ export function evaluatePromptVaultCompatibility(
       `Autonomy package version ${input.autonomyVersion} is below recommended ${minimumAutonomyVersion}.`,
     );
     recommendations.push(
-      "Upgrade pi-autonomous-session-control to a prompt-envelope-compatible release.",
+      "Upgrade @tryinget/pi-autonomous-session-control to a prompt-envelope-compatible release.",
     );
   } else if (checks.autonomyVersionOk === undefined) {
     issues.push(`Autonomy package version '${input.autonomyVersion}' is not semver-parseable.`);

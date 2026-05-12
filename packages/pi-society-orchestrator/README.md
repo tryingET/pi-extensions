@@ -106,7 +106,7 @@ Imported files were mapped into the package scaffold like this:
 ## Package identity
 
 - package folder: `packages/pi-society-orchestrator`
-- npm package name: `pi-society-orchestrator`
+- npm package name: `@tryinget/pi-society-orchestrator`
 - release component: `pi-society-orchestrator`
 - lightweight status/footer entry: `extensions/runtime-footer.ts`
 - primary model-tool entry: `extensions/society-orchestrator.ts`

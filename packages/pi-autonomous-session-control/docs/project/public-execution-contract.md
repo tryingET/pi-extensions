@@ -17,7 +17,7 @@ system4d:
 Use the package-level headless entrypoint:
 
 ```ts
-import { createAscExecutionRuntime } from "pi-autonomous-session-control/execution";
+import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-control/execution";
 ```
 
 Current intent:
@@ -98,7 +98,7 @@ Do **not** let installed-package smoke stand in for the ASC contract tests, and 
 ## Minimal usage
 
 ```ts
-import { createAscExecutionRuntime } from "pi-autonomous-session-control/execution";
+import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-control/execution";
 
 const runtime = createAscExecutionRuntime({
   sessionsDir: "/tmp/pi-subagent-sessions",
@@ -141,7 +141,7 @@ Keep three concerns separate:
 
 - package-owned prompt assets in `prompts/`, exposed via `package.json#pi.prompts`
 - tool-layer prompt-envelope provenance surfaced by `dispatch_subagent` result details (`prompt_applied`, `prompt_name`, `prompt_source`, `prompt_tags`, `prompt_warning`)
-- the headless execution runtime in `pi-autonomous-session-control/execution`, which executes requests but does not own package prompt distribution
+- the headless execution runtime in `@tryinget/pi-autonomous-session-control/execution`, which executes requests but does not own package prompt distribution
 
 The live cross-extension harness plus prompt-envelope integration tests should prove the tool-layer provenance contract without turning the headless execution seam into a second prompt-distribution owner.
 

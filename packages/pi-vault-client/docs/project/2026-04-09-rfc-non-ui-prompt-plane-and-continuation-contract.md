@@ -126,7 +126,7 @@ The contract should stay headless and minimal.
 ### Proposed package entrypoint
 
 ```ts
-import { createVaultPromptPlaneRuntime } from "pi-vault-client/prompt-plane";
+import { createVaultPromptPlaneRuntime } from "@tryinget/pi-vault-client/prompt-plane";
 ```
 
 ### Proposed runtime shape

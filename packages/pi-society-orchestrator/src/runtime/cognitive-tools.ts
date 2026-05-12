@@ -49,7 +49,7 @@ interface VaultPromptPlaneRuntime {
 
 async function getPromptPlaneRuntime(): Promise<BoundaryResult<VaultPromptPlaneRuntime>> {
   try {
-    const module = await import("pi-vault-client/prompt-plane");
+    const module = await import("@tryinget/pi-vault-client/prompt-plane");
     return {
       ok: true,
       value: module.createVaultPromptPlaneRuntime(),

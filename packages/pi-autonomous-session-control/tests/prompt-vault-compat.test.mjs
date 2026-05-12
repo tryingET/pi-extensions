@@ -67,7 +67,7 @@ test("evaluatePromptVaultCompatibility does not certify arbitrary low manifest/a
   writeFileSync(
     packagePath,
     JSON.stringify({
-      name: "pi-autonomous-session-control",
+      name: "@tryinget/pi-autonomous-session-control",
       version: "0.0.1",
       exports: { "./execution": "./execution.ts" },
       files: ["extensions/self"],

@@ -91,7 +91,7 @@ Use these values when wiring monorepo-level release-please component maps.
 `pi-vault-client` now exposes a supported package-owned non-UI prompt-plane seam for downstream consumers:
 
 ```ts
-import { createVaultPromptPlaneRuntime } from "pi-vault-client/prompt-plane";
+import { createVaultPromptPlaneRuntime } from "@tryinget/pi-vault-client/prompt-plane";
 ```
 
 Current V3 seam scope:
@@ -110,7 +110,7 @@ Use this seam when a downstream package needs deterministic prompt-plane prepara
 `pi-vault-client` also exposes a public dispatch-runtime seam for downstream orchestrators:
 
 ```ts
-import { createVaultDispatchRuntime } from "pi-vault-client/dispatch-runtime";
+import { createVaultDispatchRuntime } from "@tryinget/pi-vault-client/dispatch-runtime";
 ```
 
 Current dispatch-runtime scope:

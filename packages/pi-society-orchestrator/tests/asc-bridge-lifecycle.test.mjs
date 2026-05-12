@@ -10,10 +10,10 @@ import {
 
 function createManifest(overrides = {}) {
   return {
-    name: "pi-society-orchestrator",
+    name: "@tryinget/pi-society-orchestrator",
     dependencies: {
       [ASC_PACKAGE_NAME]: "file:../pi-autonomous-session-control",
-      "pi-vault-client": "file:../pi-vault-client",
+      "@tryinget/pi-vault-client": "file:../pi-vault-client",
       ...(overrides.dependencies || {}),
     },
     bundleDependencies: [ASC_PACKAGE_NAME],
@@ -112,7 +112,7 @@ test("parsePublishedPackageVersionLookup parses published and unpublished npm vi
     status: 1,
     stdout: "",
     stderr:
-      "npm error code E404\nnpm error 404 Not Found - GET https://registry.npmjs.org/pi-autonomous-session-control - Not found\n",
+      "npm error code E404\nnpm error 404 Not Found - GET https://registry.npmjs.org/@tryinget/pi-autonomous-session-control - Not found\n",
   });
   assert.deepEqual(unpublished, { ok: true, published: false });
 });
@@ -126,6 +126,6 @@ test("formatAscBridgeLifecycleSummary reports the current mode and publish state
   assert.equal(evaluation.ok, true);
   assert.match(
     formatAscBridgeLifecycleSummary(evaluation, undefined),
-    /transitional bundled bridge; pi-autonomous-session-control is not yet published/,
+    /transitional bundled bridge; @tryinget\/pi-autonomous-session-control is not yet published/,
   );
 });

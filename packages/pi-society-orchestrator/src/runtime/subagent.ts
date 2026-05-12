@@ -8,7 +8,7 @@ import {
   getDispatchSubagentDisplayOutput,
   type SubagentSpawner,
   type SubagentState,
-} from "pi-autonomous-session-control/execution";
+} from "@tryinget/pi-autonomous-session-control/execution";
 import type { AgentDef } from "./agent-profiles.ts";
 import type { ExecutionLike } from "./execution-status.ts";
 

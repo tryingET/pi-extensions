@@ -15,7 +15,7 @@ system4d:
 ## Canonical package
 
 - Package path: `packages/pi-autonomous-session-control`
-- Package identity kept stable for now: `pi-autonomous-session-control`
+- Release component identity kept stable: `pi-autonomous-session-control`; npm package identity is now `@tryinget/pi-autonomous-session-control`
 - Template lineage: generated from `pi-extensions-template` in `monorepo-package` mode, then brownfield code was migrated on top
 
 ## What was regenerated vs migrated

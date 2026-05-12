@@ -37,7 +37,7 @@ Those proof/packaging concerns were intentionally deferred in task `#1049` and l
 `src/runtime/cognitive-tools.ts` now loads exact cognitive-tool prompt bodies through the supported public seam:
 
 ```ts
-import("pi-vault-client/prompt-plane")
+import("@tryinget/pi-vault-client/prompt-plane")
 ```
 
 and prepares the selected template through:

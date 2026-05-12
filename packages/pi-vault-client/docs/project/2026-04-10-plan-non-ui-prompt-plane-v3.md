@@ -42,7 +42,7 @@ Out of scope:
 Add the supported runtime entrypoint described by the RFC/ADR, with a public package path such as:
 
 ```ts
-import { createVaultPromptPlaneRuntime } from "pi-vault-client/prompt-plane";
+import { createVaultPromptPlaneRuntime } from "@tryinget/pi-vault-client/prompt-plane";
 ```
 
 This package entrypoint should:
