@@ -15,10 +15,6 @@ function escapeRegExp(value) {
 }
 
 function loadTemplateFromVault() {
-  if (!RUN_LIVE_PROMPT_VAULT_TESTS) {
-    return null;
-  }
-
   const vaultDir = process.env.VAULT_DIR || DEFAULT_VAULT_DIR;
 
   if (!existsSync(vaultDir)) {
@@ -93,17 +89,16 @@ async function setup() {
   };
 }
 
-const liveTemplate = loadTemplateFromVault();
+const liveTemplate = RUN_LIVE_PROMPT_VAULT_TESTS ? loadTemplateFromVault() : null;
+const liveSkipReason = !RUN_LIVE_PROMPT_VAULT_TESTS
+  ? "set ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 or run npm run test:live:prompt-vault to exercise live prompt-vault DB integration"
+  : !liveTemplate
+    ? "prompt-vault DB unavailable or returned no active templates"
+    : false;
 
 test(
   "live prompt-vault DB template can be applied through dispatch_subagent prompt envelope",
-  {
-    skip: !RUN_LIVE_PROMPT_VAULT_TESTS
-      ? "set ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 to run host-dependent live prompt-vault DB validation"
-      : !liveTemplate
-        ? "live prompt-vault DB template unavailable"
-        : false,
-  },
+  { skip: liveSkipReason },
   async () => {
     const harness = await setup();
 

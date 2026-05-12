@@ -46,6 +46,7 @@ All notable changes to this project should be documented here.
   - `tests/rewind-retention.test.mjs`
   - `tests/rewind-runtime.test.mjs`
 - Rewind integration design note: `docs/project/2026-04-22-rewind-salvage-and-integration-plan.md`
+- Explicit live prompt-vault test script `npm run test:live:prompt-vault`, gated by `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1`.
 
 ### Changed
 
@@ -57,6 +58,7 @@ All notable changes to this project should be documented here.
 - `dispatch_subagent` now records selected child model plus explicit child bootstrap details (`requestedModel`, `effectiveModel`, `loadedExtensions`, `extensionWarnings`) on execution results
 - `self-prompt-vault-compat` now uses a feature/manifest policy for the ASC autonomy floor instead of certifying arbitrary low checked manifest versions, and its Dolt schema probe is timeout-bounded.
 - Documentation updated to reflect scoped cross-session persistence, filtered subagent transport, and new memory contract surfaces
+- Default `npm run check` now keeps prompt-vault parser/unit contract tests while skipping host-dependent live prompt-vault DB/vault-client probes unless the live opt-in env is set.
 
 ### Fixed
 
@@ -68,7 +70,6 @@ All notable changes to this project should be documented here.
 - `self-prompt-vault-compat` no longer reports the current ASC package below its own autonomy-version floor when source feature shape proves prompt-envelope support, but it also no longer certifies arbitrary low package manifests such as `0.0.1`.
 - Empty or whitespace-only subagent model selections now fail before spawn as structured `model_selection_failed` results without leaking `activeCount` / `maxConcurrent`.
 - `DispatchSubagentRequest.env` is now fail-closed to `PI_PROVENANCE_*` keys so request callers cannot override child control-plane env such as `PATH`, `NODE_OPTIONS`, or `PI_CODING_AGENT_DIR`; rejected env fails before spawn as `env_policy_failed` without leaking `activeCount`.
-- Live prompt-vault DB/vault-client integration tests are now explicit opt-in via `npm run test:live:prompt-vault` / `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1`, keeping default checks independent of host-local Dolt/vault-client readiness while retaining mocked/unit prompt-envelope coverage.
 - Capability-map wording inside explicit crystallization/protection directives (for example `Remember: capability map stale` or `Mark as trap: capability map ...`) no longer hijacks routing into capability discovery.
 - `tests/public-execution-contract.test.mjs` now resolves package paths from the test module location so it can pass from the repo root as well as the package root.
 

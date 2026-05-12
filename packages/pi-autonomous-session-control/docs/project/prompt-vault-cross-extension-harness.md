@@ -25,7 +25,8 @@ Add a **live cross-extension integration harness** that validates real tool chai
 
 - Test should use real `vault-client` extension registration.
 - Test should use real `dispatch_subagent` registration path with injected spawner for deterministic runtime.
-- Harness must fail-safe with **skip** when environment prerequisites are unavailable.
+- Harness must fail-safe with **skip** unless `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1` is set, and must also skip when environment prerequisites are unavailable after opt-in.
+- Default package checks keep parser/unit prompt-vault contract coverage but do not probe host vault-client or Dolt paths.
 
 ## Readiness gates
 
@@ -54,15 +55,7 @@ This harness is the live discoverability/coherence check for the exposed-tool ch
 
 ## Reproducible recipe for live harness execution
 
-The live cross-extension test (`tests/prompt-vault-cross-extension-live.test.mjs`) is opt-in. Default `npm run check` keeps the parser/readiness unit coverage but skips host-dependent live vault-client execution unless `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1` is set.
-
-To run the full live prompt-vault suite:
-
-```bash
-npm run test:live:prompt-vault
-```
-
-That command runs both `tests/prompt-vault-db-integration.test.mjs` and `tests/prompt-vault-cross-extension-live.test.mjs` with the opt-in env set. To run it outside of a Pi session:
+The live cross-extension test (`tests/prompt-vault-cross-extension-live.test.mjs`) and live DB test (`tests/prompt-vault-db-integration.test.mjs`) are opt-in. Default `npm run check` executes the mock/unit prompt-vault contract tests and reports the live tests as skipped without probing host vault-client/Dolt paths. To run live validation outside of a Pi session:
 
 ### Prerequisites
 
@@ -88,7 +81,7 @@ The test runs automatically when executed inside a Pi session where the runtime 
 ```bash
 # Start pi in any directory with the extension loaded
 pi
-# Then in another terminal, run the live prompt-vault suite
+# Then in another terminal, run the live prompt-vault script
 cd ~/programming/pi-extensions/pi-autonomous-session-control
 npm run test:live:prompt-vault
 ```
@@ -99,14 +92,14 @@ Set `NODE_PATH` to include vault-client's node_modules:
 
 ```bash
 export NODE_PATH="$HOME/.pi/agent/extensions/vault-client/node_modules"
-npm run test:live:prompt-vault
+ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.test.mjs tests/prompt-vault-cross-extension-live.test.mjs
 ```
 
 Note: This may still fail for ESM packages with `exports` fields. Recipe 1 is the supported path.
 
 ### Diagnosing skip reasons
 
-Run the readiness probe directly:
+After opting in, run the readiness probe directly:
 
 ```bash
 node -e "

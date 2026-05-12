@@ -126,13 +126,7 @@ ASC owns two distinct prompt-related surfaces:
 - runtime prompt-envelope provenance returned by `dispatch_subagent` result details when callers provide `prompt_name`, `prompt_content`, `prompt_tags`, and `prompt_source`
 
 Keep those surfaces separate from repo-root `.pi/prompts/*` operator prompts in the monorepo root.
-The default quality gate keeps mocked/unit prompt-envelope contract tests in the normal suite and treats host-dependent prompt-vault checks as explicit live validation. Run live DB/vault-client coherence only when the local vault DB, Dolt, and vault-client runtime are intentionally available:
-
-```bash
-npm run test:live:prompt-vault
-```
-
-That script sets `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1` and exercises the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain, including the `vault-client-live` source label.
+Mock/unit prompt-vault contract tests run in the default package check. The live cross-extension harness is host-dependent and opt-in; run `npm run test:live:prompt-vault` (or set `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1`) to prove the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain preserves prompt provenance coherently, including the `vault-client-live` source label.
 
 ### Prompt-vault compatibility self-check
 
@@ -184,7 +178,7 @@ Current verification split:
 - ASC package-local tests prove seam semantics and transport-safety invariants
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter still preserves those semantics in repo-local source
 - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` fail-closes drift back to private ASC imports or a revived orchestrator-local execution path
-- `tests/prompt-vault-cross-extension-live.test.mjs` proves exposed-tool coherence across the real `vault_query`/`vault_retrieve` registration path and ASC-owned prompt provenance on `dispatch_subagent`
+- `npm run test:live:prompt-vault` opts into host-dependent live prompt-vault validation; it runs `tests/prompt-vault-db-integration.test.mjs` and `tests/prompt-vault-cross-extension-live.test.mjs` to prove real DB/vault-client coherence with ASC-owned prompt provenance on `dispatch_subagent`
 - `cd packages/pi-society-orchestrator && npm run release:check` proves installed-package/import-graph truth for the packaged orchestrator artifact, including the current bundled ASC bridge while the temporary lifecycle defined in [bundled ASC bridge lifecycle](../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains in force
 - the first time-boxed [execution seam review](../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-review.md) still counts only one real external runtime consumer today (`pi-society-orchestrator`), so no seam widening is justified
 
@@ -202,7 +196,13 @@ npm run check
 ```
 
 `check` routes to `quality:ci` via [scripts/quality-gate.sh](scripts/quality-gate.sh).
-It enforces structure validation, Biome lint checks, optional TypeScript typechecks, and npm pack dry-run.
+It enforces structure validation, Biome lint checks, optional TypeScript typechecks, default unit/mock tests, and npm pack dry-run. Host-dependent live prompt-vault DB / vault-client tests are skipped unless explicitly opted in:
+
+```bash
+npm run test:live:prompt-vault
+# equivalent env gate for focused node --test runs:
+ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.test.mjs tests/prompt-vault-cross-extension-live.test.mjs
+```
 
 ## Quality gate lane (TS)
 

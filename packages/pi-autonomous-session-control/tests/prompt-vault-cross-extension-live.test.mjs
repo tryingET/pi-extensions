@@ -155,20 +155,20 @@ test("getCrossExtensionHarnessPaths falls back to extensions/vault.ts when packa
   }
 });
 
+const readiness = RUN_LIVE_PROMPT_VAULT_TESTS ? getCrossExtensionHarnessReadiness() : null;
+let liveSkipReason = false;
+if (!RUN_LIVE_PROMPT_VAULT_TESTS) {
+  liveSkipReason =
+    "set ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 or run npm run test:live:prompt-vault to exercise live vault-client integration";
+} else if (!readiness?.ready) {
+  liveSkipReason = `live prompt-vault prerequisites unavailable: ${readiness?.reasons.join("; ") || "unknown"}`;
+}
+
 test(
   "live cross-extension harness: vault-client retrieval feeds dispatch_subagent prompt envelope",
-  {
-    skip: !RUN_LIVE_PROMPT_VAULT_TESTS
-      ? "set ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 to run host-dependent live vault-client validation"
-      : false,
-  },
+  { skip: liveSkipReason },
   async (t) => {
-    const readiness = getCrossExtensionHarnessReadiness();
-    if (!readiness.ready) {
-      t.skip(`live prompt-vault harness not ready: ${readiness.reasons.join("; ")}`);
-      return;
-    }
-
+    assert.ok(readiness?.ready, "live readiness must be available when the live test runs");
     const harness = createPiHarness();
     const sessionsDir = await mkdtemp(join(tmpdir(), "cross-extension-live-test-"));
 
