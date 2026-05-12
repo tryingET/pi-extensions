@@ -2,11 +2,24 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DEFAULT_VAULT_CLIENT_DIR = join(homedir(), ".pi", "agent", "extensions", "vault-client");
-const DEFAULT_VAULT_DIR = join(homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db");
 const DEFAULT_PROMPT_SOURCE = "vault-client-live";
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const VAULT_CLIENT_RUNTIME_MODULES = ["typebox", "@mariozechner/pi-tui"];
+
+function getLegacyVaultClientDir(): string {
+  return join(homedir(), ".pi", "agent", "extensions", "vault-client");
+}
+
+function getSiblingVaultClientDir(): string {
+  return join(MODULE_DIR, "..", "..", "..", "pi-vault-client");
+}
+
+function getDefaultVaultDir(): string {
+  return join(homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db");
+}
 
 function dedupePaths(paths: string[]): string[] {
   return [...new Set(paths.filter((path) => path.trim().length > 0))];
@@ -61,15 +74,37 @@ export interface RetrievedTemplateEnvelope {
   prompt_source: string;
 }
 
+export interface CrossExtensionHarnessPathOverrides
+  extends Partial<Pick<CrossExtensionHarnessPaths, "vaultClientDir" | "vaultDir">> {
+  defaultVaultClientDirCandidates?: string[];
+}
+
+function resolveDefaultVaultClientDir(defaultCandidates?: string[]): string {
+  const candidates = defaultCandidates || [getLegacyVaultClientDir(), getSiblingVaultClientDir()];
+  const firstWithEntry = candidates.find((candidate) =>
+    existsSync(resolveVaultClientEntryPath(candidate)),
+  );
+
+  if (firstWithEntry) {
+    return firstWithEntry;
+  }
+
+  return (
+    candidates.find((candidate) => existsSync(candidate)) ||
+    candidates[0] ||
+    getLegacyVaultClientDir()
+  );
+}
+
 export function getCrossExtensionHarnessPaths(
-  overrides: Partial<Pick<CrossExtensionHarnessPaths, "vaultClientDir" | "vaultDir">> = {},
+  overrides: CrossExtensionHarnessPathOverrides = {},
 ): CrossExtensionHarnessPaths {
   const vaultClientDir =
     overrides.vaultClientDir ||
     process.env.PI_VAULT_CLIENT_DIR ||
     process.env.VAULT_CLIENT_DIR ||
-    DEFAULT_VAULT_CLIENT_DIR;
-  const vaultDir = overrides.vaultDir || process.env.VAULT_DIR || DEFAULT_VAULT_DIR;
+    resolveDefaultVaultClientDir(overrides.defaultVaultClientDirCandidates);
+  const vaultDir = overrides.vaultDir || process.env.VAULT_DIR || getDefaultVaultDir();
 
   return {
     vaultClientDir,
@@ -90,11 +125,9 @@ function hasDolt(): boolean {
 }
 
 function getMissingVaultClientDependencies(vaultClientEntryPath: string): string[] {
-  const requiredModules = ["typebox", "@mariozechner/pi-coding-agent", "@mariozechner/pi-tui"];
-
   try {
     const requireFromVaultClient = createRequire(vaultClientEntryPath);
-    return requiredModules.filter((moduleName) => {
+    return VAULT_CLIENT_RUNTIME_MODULES.filter((moduleName) => {
       try {
         requireFromVaultClient.resolve(moduleName);
         return false;
@@ -103,12 +136,12 @@ function getMissingVaultClientDependencies(vaultClientEntryPath: string): string
       }
     });
   } catch {
-    return requiredModules;
+    return VAULT_CLIENT_RUNTIME_MODULES;
   }
 }
 
 export function getCrossExtensionHarnessReadiness(
-  overrides: Partial<Pick<CrossExtensionHarnessPaths, "vaultClientDir" | "vaultDir">> = {},
+  overrides: CrossExtensionHarnessPathOverrides = {},
 ): CrossExtensionHarnessReadiness {
   const paths = getCrossExtensionHarnessPaths(overrides);
   const reasons: string[] = [];
@@ -192,13 +225,13 @@ export function extractSingleRetrievedTemplateEnvelope(
   const prompt_tags = parseTags(tagsMatch?.[1]);
 
   const contentStart = normalized.indexOf("\n---\n");
-  const contentEnd = normalized.lastIndexOf("\n---\n");
 
-  if (contentStart === -1 || contentEnd === -1 || contentEnd <= contentStart) {
+  if (contentStart === -1) {
     return null;
   }
 
-  const prompt_content = normalized.slice(contentStart + "\n---\n".length, contentEnd).trim();
+  const rawContent = normalized.slice(contentStart + "\n---\n".length);
+  const prompt_content = rawContent.replace(/\n---\s*$/, "").trim();
   if (prompt_content.length === 0) {
     return null;
   }

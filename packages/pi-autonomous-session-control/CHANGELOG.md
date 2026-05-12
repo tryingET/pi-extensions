@@ -72,6 +72,7 @@ All notable changes to this project should be documented here.
 - `DispatchSubagentRequest.env` is now fail-closed to `PI_PROVENANCE_*` keys so request callers cannot override child control-plane env such as `PATH`, `NODE_OPTIONS`, or `PI_CODING_AGENT_DIR`; rejected env fails before spawn as `env_policy_failed` without leaking `activeCount`.
 - Capability-map wording inside explicit crystallization/protection directives (for example `Remember: capability map stale` or `Mark as trap: capability map ...`) no longer hijacks routing into capability discovery.
 - `tests/public-execution-contract.test.mjs` now resolves package paths from the test module location so it can pass from the repo root as well as the package root.
+- Live prompt-vault harness readiness now discovers the monorepo sibling `pi-vault-client` package when the legacy installed extension path is absent, avoids treating non-runtime `@mariozechner/pi-coding-agent` package-root exports as unavailable, and parses current `vault_retrieve` output that omits a closing content fence.
 
 ## [0.1.4] - 2026-03-04
 

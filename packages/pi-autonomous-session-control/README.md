@@ -126,7 +126,7 @@ ASC owns two distinct prompt-related surfaces:
 - runtime prompt-envelope provenance returned by `dispatch_subagent` result details when callers provide `prompt_name`, `prompt_content`, `prompt_tags`, and `prompt_source`
 
 Keep those surfaces separate from repo-root `.pi/prompts/*` operator prompts in the monorepo root.
-Mock/unit prompt-vault contract tests run in the default package check. Live prompt-vault files use the non-default `.live.mjs` suffix, so `npm run check` does not discover them and reports zero live prompt-vault skips. The live cross-extension harness is host-dependent and opt-in; run `npm run test:live:prompt-vault` (or set `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1`) to prove the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain preserves prompt provenance coherently, including the `vault-client-live` source label.
+Mock/unit prompt-vault contract tests run in the default package check. Live prompt-vault files use the non-default `.live.mjs` suffix, so `npm run check` does not discover them and reports zero live prompt-vault skips. The live cross-extension harness is host-dependent and opt-in; run `npm run test:live:prompt-vault` (or set `ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1`) to prove the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain preserves prompt provenance coherently, including the `vault-client-live` source label. When no `PI_VAULT_CLIENT_DIR` / `VAULT_CLIENT_DIR` override is set, the harness tries the legacy installed extension path and then the monorepo sibling `../pi-vault-client` package.
 
 ### Prompt-vault compatibility self-check
 

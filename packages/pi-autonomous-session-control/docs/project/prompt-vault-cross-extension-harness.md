@@ -32,9 +32,10 @@ Add a **live cross-extension integration harness** that validates real tool chai
 
 Required for live run:
 
-- Vault-client extension path exists (`~/.pi/agent/extensions/vault-client/index.ts` by default).
+- Vault-client extension path exists. `PI_VAULT_CLIENT_DIR` / `VAULT_CLIENT_DIR` overrides are authoritative; otherwise the harness tries the legacy installed path (`~/.pi/agent/extensions/vault-client`) and then the monorepo sibling package (`packages/pi-vault-client`).
 - Prompt-vault DB path exists (`VAULT_DIR` or default prompt-vault-db path).
 - `dolt` is available in PATH.
+- Runtime dependencies used by the JavaScript vault-client entrypoint are resolvable from the vault-client package context.
 
 ## Expected assertions
 
@@ -59,43 +60,38 @@ The live cross-extension test (`tests/prompt-vault-cross-extension.live.mjs`) an
 
 ### Prerequisites
 
-1. **vault-client extension** installed at `~/.pi/agent/extensions/vault-client/`
+1. **vault-client extension/package** at either `~/.pi/agent/extensions/vault-client/`, `../pi-vault-client` from the ASC package, or an explicit `PI_VAULT_CLIENT_DIR` / `VAULT_CLIENT_DIR` path
 2. **prompt-vault DB** at `~/ai-society/core/prompt-vault/prompt-vault-db/`
 3. **dolt** available in PATH
-4. **Runtime dependencies** resolvable from vault-client context:
-   - `@mariozechner/pi-coding-agent`
+4. **Runtime dependencies** used by the JavaScript vault-client entrypoint resolvable from vault-client context:
    - `@mariozechner/pi-tui`
    - `typebox`
 
+`@mariozechner/pi-coding-agent` is a host/type-level dependency for vault-client source, but the ASC live harness does not treat package-root `ERR_PACKAGE_PATH_NOT_EXPORTED` as live runtime unavailability when the JavaScript extension entrypoint can be imported.
+
 ### Why the test skips
 
-The readiness gate checks if vault-client's runtime dependencies are resolvable via `createRequire`. This fails for ESM packages outside of Pi's runtime context because:
-
-1. `createRequire` cannot use ESM `exports` fields
-2. The vault-client's `node_modules` isn't in the test's module resolution path
+The readiness gate checks the vault-client entry path, prompt-vault DB, Dolt, and JavaScript-entry runtime dependencies. It skips after opt-in only when those concrete live prerequisites are unavailable.
 
 ### Recipe 1: Run within Pi session (recommended)
 
-The test runs automatically when executed inside a Pi session where the runtime provides correct module resolution:
+From the monorepo checkout with package dependencies installed:
 
 ```bash
-# Start pi in any directory with the extension loaded
-pi
-# Then in another terminal, run the live prompt-vault script
-cd ~/programming/pi-extensions/pi-autonomous-session-control
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
 npm run test:live:prompt-vault
 ```
 
+The harness should discover `../pi-vault-client` automatically when the legacy installed extension path is absent.
+
 ### Recipe 2: Manual environment setup
 
-Set `NODE_PATH` to include vault-client's node_modules:
+Point the harness at a specific vault-client checkout or installed extension:
 
 ```bash
-export NODE_PATH="$HOME/.pi/agent/extensions/vault-client/node_modules"
-ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.live.mjs tests/prompt-vault-cross-extension.live.mjs
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
+PI_VAULT_CLIENT_DIR=../pi-vault-client npm run test:live:prompt-vault
 ```
-
-Note: This may still fail for ESM packages with `exports` fields. Recipe 1 is the supported path.
 
 ### Diagnosing skip reasons
 
