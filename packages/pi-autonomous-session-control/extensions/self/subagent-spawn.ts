@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import type { InvariantIssue } from "./edge-contract-kernel.ts";
 import { type SubagentState, writeSessionStatus } from "./subagent-session.ts";
 
 export interface SubagentDef {
@@ -83,9 +84,81 @@ const SUBAGENT_STOP_REQUESTED_CLOSE_GRACE_MS = 25;
 const SUBAGENT_FORCE_KILL_GRACE_MS = 500;
 const ASSISTANT_ERROR_EXIT_CODE = 1;
 const ASSISTANT_ABORT_EXIT_CODE = 130;
+const SUBAGENT_REQUEST_ENV_ALLOWED_PATTERN = /^PI_PROVENANCE_[A-Z0-9_]+$/u;
+const SUBAGENT_REQUEST_ENV_POLICY_SUMMARY =
+  "DispatchSubagentRequest.env only allows PI_PROVENANCE_* keys; control-plane environment such as PATH, NODE_OPTIONS, and PI_CODING_AGENT_DIR is inherited from the parent runtime and cannot be overridden by request env.";
 const SUBAGENT_PROTOCOL_HELPER_PATH = fileURLToPath(
   new URL("./subagent-pi-json-filter.ts", import.meta.url),
 );
+
+export interface SubagentEnvPolicyIssue extends InvariantIssue {
+  key: string;
+}
+
+export interface SubagentEnvPolicyResult {
+  ok: boolean;
+  env?: Record<string, string>;
+  issues: SubagentEnvPolicyIssue[];
+}
+
+export class SubagentEnvPolicyError extends Error {
+  readonly issues: SubagentEnvPolicyIssue[];
+
+  constructor(issues: SubagentEnvPolicyIssue[]) {
+    super(formatSubagentEnvPolicyIssues(issues));
+    this.name = "SubagentEnvPolicyError";
+    this.issues = issues;
+  }
+}
+
+export function validateSubagentRequestEnv(
+  env: Record<string, string> | undefined,
+): SubagentEnvPolicyResult {
+  if (!env) {
+    return { ok: true, issues: [] };
+  }
+
+  const issues: SubagentEnvPolicyIssue[] = [];
+  const safeEnv: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(env)) {
+    if (!SUBAGENT_REQUEST_ENV_ALLOWED_PATTERN.test(key)) {
+      issues.push({
+        id: "dispatch.env.key_not_allowed",
+        key,
+        message: `${SUBAGENT_REQUEST_ENV_POLICY_SUMMARY} Rejected request env key: ${key}.`,
+        level: "error",
+      });
+      continue;
+    }
+
+    safeEnv[key] = value;
+  }
+
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+
+  return {
+    ok: true,
+    env: Object.keys(safeEnv).length > 0 ? safeEnv : undefined,
+    issues: [],
+  };
+}
+
+export function formatSubagentEnvPolicyIssues(issues: SubagentEnvPolicyIssue[]): string {
+  return `Invalid dispatch_subagent env: ${issues.map((issue) => `${issue.id} (${issue.message})`).join("; ")}`;
+}
+
+export function assertSafeSubagentRequestEnv(
+  env: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  const result = validateSubagentRequestEnv(env);
+  if (!result.ok) {
+    throw new SubagentEnvPolicyError(result.issues);
+  }
+  return result.env;
+}
 
 function isAssistantStopReason(value: unknown): value is AssistantStopReason {
   return (
@@ -680,9 +753,10 @@ export function spawnSubagentWithSpawn(
     }
 
     try {
+      const requestEnv = assertSafeSubagentRequestEnv(def.env);
       proc = spawnImpl(process.execPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, ...(def.env ?? {}) },
+        env: { ...process.env, ...(requestEnv ?? {}) },
         cwd: ctx.cwd || process.cwd(),
       });
       writeSessionStatus(state.sessionsDir, def.name, {

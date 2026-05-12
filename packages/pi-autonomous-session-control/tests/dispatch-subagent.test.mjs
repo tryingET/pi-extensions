@@ -193,6 +193,68 @@ test("dispatch_subagent rejects whitespace-only model strings before spawn witho
   }
 });
 
+test("dispatch_subagent allows PI_PROVENANCE request env through to the spawner", async () => {
+  const harness = await setup();
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-env-provenance-allowed",
+      {
+        profile: "reviewer",
+        objective: "Review changes",
+        env: {
+          PI_PROVENANCE_REVIEW_LANE_ID: "lane-dispatch",
+          PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-dispatch.json",
+        },
+      },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(result.details.status, "done");
+    assert.deepEqual(harness.getCapturedDef().env, {
+      PI_PROVENANCE_REVIEW_LANE_ID: "lane-dispatch",
+      PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-dispatch.json",
+    });
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent rejects dangerous request env before spawn without leaking activeCount", async () => {
+  for (const key of ["PATH", "NODE_OPTIONS", "PI_CODING_AGENT_DIR"]) {
+    const harness = await setup();
+
+    try {
+      const result = await harness.tool.execute(
+        `tc-env-reject-${key}`,
+        {
+          profile: "reviewer",
+          objective: "Review changes",
+          env: {
+            [key]: "malicious",
+          },
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      );
+
+      assert.equal(result.details.status, "error");
+      assert.equal(result.details.reason, "env_policy_failed");
+      assert.equal(result.details.failureKind, "env_policy_failed");
+      assert.equal(result.details.activeCount, 0);
+      assert.equal(harness.state.activeCount, 0);
+      assert.equal(harness.getCapturedDef(), undefined);
+      assert.match(result.content[0].text, /Invalid dispatch_subagent env/);
+      assert.match(result.content[0].text, new RegExp(`Rejected request env key: ${key}`));
+    } finally {
+      await harness.cleanup();
+    }
+  }
+});
+
 test("dispatch_subagent rejects empty requested/effective model selections before spawn", async () => {
   const cases = [
     {

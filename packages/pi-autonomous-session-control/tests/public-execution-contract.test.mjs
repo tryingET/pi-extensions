@@ -141,6 +141,51 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
   }
 });
 
+test("createAscExecutionRuntime rejects unapproved request env before spawn without leaking activeCount", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-env-policy-"));
+  let spawnerCalled = false;
+
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => "test/model",
+    spawner: async () => {
+      spawnerCalled = true;
+      return {
+        output: "should not spawn",
+        exitCode: 0,
+        elapsed: 1,
+        status: "done",
+      };
+    },
+  });
+
+  try {
+    for (const key of ["PATH", "NODE_OPTIONS", "PI_CODING_AGENT_DIR"]) {
+      const result = await runtime.execute(
+        {
+          profile: "reviewer",
+          objective: "Verify env policy failure shaping",
+          env: { [key]: "malicious" },
+        },
+        { cwd: process.cwd() },
+      );
+
+      assert.equal(result.ok, false);
+      assert.equal(result.details.status, "error");
+      assert.equal(result.details.reason, "env_policy_failed");
+      assert.equal(result.details.failureKind, "env_policy_failed");
+      assert.equal(result.details.activeCount, 0);
+      assert.equal(runtime.state.activeCount, 0);
+      assert.match(result.text, /Invalid dispatch_subagent env/);
+      assert.match(result.text, new RegExp(`Rejected request env key: ${key}`));
+    }
+
+    assert.equal(spawnerCalled, false);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createAscExecutionRuntime returns structured model-selection errors without leaking activeCount", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-model-failure-"));
   let spawnerCalled = false;

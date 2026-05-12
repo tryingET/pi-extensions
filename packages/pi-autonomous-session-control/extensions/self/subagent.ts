@@ -81,7 +81,11 @@ Prompt envelope (optional):
 
 Child extension bootstrap (optional):
 - extensions: explicit child-only extension allowlist loaded via --no-extensions + repeated --extension flags
-- use this when the subagent needs extension-provided providers/tools such as pi-multi-pass or vault-client without inheriting the full parent extension surface.`,
+- use this when the subagent needs extension-provided providers/tools such as pi-multi-pass or vault-client without inheriting the full parent extension surface.
+
+Request env policy (optional):
+- env only accepts PI_PROVENANCE_* keys for per-dispatch provenance sidecars.
+- PATH, NODE_OPTIONS, PI_CODING_AGENT_DIR, and any non-PI_PROVENANCE_* key fail before spawn.`,
     promptSnippet:
       "Spawn a focused subagent for parallel investigation, review, testing, or research.",
     promptGuidelines: [
@@ -117,6 +121,12 @@ Child extension bootstrap (optional):
         Type.Array(Type.String(), {
           description:
             "Optional child-only extension allowlist (for example ['pi-multi-pass', 'vault-client', '/abs/path/to/ext.ts'])",
+        }),
+      ),
+      env: Type.Optional(
+        Type.Record(Type.String(), Type.String(), {
+          description:
+            "Optional per-dispatch child env overlay. Only PI_PROVENANCE_* keys are accepted; control env such as PATH, NODE_OPTIONS, and PI_CODING_AGENT_DIR is rejected before spawn.",
         }),
       ),
       prompt_name: Type.Optional(

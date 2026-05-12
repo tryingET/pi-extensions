@@ -169,7 +169,7 @@ const result = await runtime.execute(
 
 What this seam guarantees:
 - the same core execution logic now backs both `dispatch_subagent` and public runtime consumers
-- prompt-envelope application, lifecycle invariants, runtime-owned concurrency reservation, session-name reservation, result shaping, assistant protocol classification, and abort propagation stay ASC-owned
+- prompt-envelope application, request env policy, lifecycle invariants, runtime-owned concurrency reservation, session-name reservation, result shaping, assistant protocol classification, and abort propagation stay ASC-owned
 - result surfaces now use one normalized failure taxonomy: canonical `result.details.status` (`done`, `aborted`, `timed_out`, `error`) plus `result.details.failureKind` for the specific failure branch
 - a dedicated parity harness now proves those shared semantics stay aligned across the public runtime and the tool path
 - downstream consumers should prefer `pi-autonomous-session-control/execution` over private `extensions/self/*` imports
@@ -356,6 +356,12 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 3. Fixed fallback: `openai-codex/gpt-5.4`
 
 The child still launches with `--no-extensions`, but ASC now supports explicit child-only extension bootstrap on top of that minimal base. Empty or whitespace-only requested/effective model selections fail before spawn as structured `model_selection_failed` results and do not expose internal concurrency counters. When the current model uses a numeric-suffix provider alias such as `openai-codex-2`, ASC auto-loads `pi-multi-pass` into the child so the same subscription-backed provider alias remains valid instead of being collapsed to the base provider. ASC also launches the raw child against an isolated copy of the Pi agent dir with a sanitized `settings.json`, so extensionless child runs do not inherit unrelated global default-model warnings from the parent's configured provider aliases.
+
+**Request env policy:**
+- `DispatchSubagentRequest.env` is a per-dispatch child environment overlay for provenance sidecars only.
+- Allowed keys must match `PI_PROVENANCE_*` (for example `PI_PROVENANCE_REVIEW_LANE_ID` or `PI_PROVENANCE_OUTPUT_FILE`).
+- All other request env keys, including `PATH`, `NODE_OPTIONS`, and `PI_CODING_AGENT_DIR`, fail before spawn as structured `env_policy_failed` results; there is no privileged passthrough escape hatch.
+- Allowed request env values reach the spawned helper/child process but are not echoed in result details.
 
 **Session storage:**
 - `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)

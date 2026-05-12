@@ -58,7 +58,7 @@ This keeps the tool path and the non-tool consumer path on the same core executi
 The public execution seam now also carries explicit transport-safety expectations:
 
 - optional `AbortSignal` propagation from consumer to subagent spawn path
-- request-scoped child environment overlays via `DispatchSubagentRequest.env`, applied only to that subagent execution without mutating ambient `process.env`
+- request-scoped child environment overlays via `DispatchSubagentRequest.env`, applied only to that subagent execution without mutating ambient `process.env`; this overlay is fail-closed to `PI_PROVENANCE_*` keys only, and rejects control-plane keys such as `PATH`, `NODE_OPTIONS`, and `PI_CODING_AGENT_DIR` before spawn
 - bounded assistant output capture with truncation signaling
 - helper `transport_ready` handshake before ASC arms the execution timeout, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget
 - assistant-only filtered subagent protocol between ASC and the child helper, so aggregate Pi JSON events are dropped before the runtime parser and raw Pi JSON is no longer accepted on the parent seam as a compatibility fallback
@@ -130,9 +130,9 @@ Useful properties:
 - `result.text` preserves the human-readable execution summary
 - `result.details.displayOutput` preserves the normalized body text consumers should render or forward, even when `fullOutput` is empty/whitespace on failing executions
 - `result.details.status` uses the canonical execution taxonomy (`done`, `aborted`, `timed_out`, `error`)
-- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, `model_selection_failed`, or the pre-execution guardrail reasons)
+- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, `env_policy_failed`, `model_selection_failed`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
-- request `env` values are intentionally not echoed into `result.details`; consumers that need provenance should read their own sidecar/output artifact
+- request `env` values are intentionally not echoed into `result.details`; only `PI_PROVENANCE_*` request env keys are accepted, there is no privileged passthrough escape hatch, and consumers that need provenance should read their own sidecar/output artifact
 - `getDispatchSubagentDisplayOutput(result)` is the exported compatibility helper for consumers that want the same normalized body shaping without reimplementing fallback logic
 
 ## Prompt-related surfaces outside this seam

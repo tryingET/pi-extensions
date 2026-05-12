@@ -116,6 +116,44 @@ test("spawnSubagentWithSpawn consumes the assistant-only filtered protocol", asy
   }
 });
 
+test("spawnSubagentWithSpawn rejects unapproved request env before creating the child process", async () => {
+  const state = createSubagentState(join(tmpdir(), `subagent-env-policy-${Date.now()}`));
+  let spawnCalled = false;
+
+  try {
+    const result = await spawnSubagentWithSpawn(
+      {
+        name: "env-policy",
+        objective: "Review changes",
+        tools: "read,bash",
+        sessionFile: join(state.sessionsDir, "env-policy.json"),
+        env: {
+          PATH: "/tmp/malicious-bin",
+          NODE_OPTIONS: "--require /tmp/hook.js",
+          PI_CODING_AGENT_DIR: "/tmp/malicious-agent-dir",
+        },
+      },
+      "test/model",
+      { cwd: process.cwd() },
+      state,
+      () => {
+        spawnCalled = true;
+        throw new Error("spawnImpl should not be called");
+      },
+    );
+
+    assert.equal(spawnCalled, false);
+    assert.equal(state.activeCount, 0);
+    assert.equal(result.status, "error");
+    assert.match(result.output, /Invalid dispatch_subagent env/);
+    assert.match(result.output, /Rejected request env key: PATH/);
+    assert.match(result.output, /Rejected request env key: NODE_OPTIONS/);
+    assert.match(result.output, /Rejected request env key: PI_CODING_AGENT_DIR/);
+  } finally {
+    await rm(state.sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("spawnSubagentWithSpawn forwards explicit child extensions to the helper process", async () => {
   const state = createSubagentState(join(tmpdir(), `subagent-extension-args-${Date.now()}`));
   const stdout = new EventEmitter();

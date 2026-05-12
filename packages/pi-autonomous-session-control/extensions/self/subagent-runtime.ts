@@ -30,11 +30,13 @@ import { reserveUniqueSessionName } from "./subagent-session-name.ts";
 import {
   type AssistantStopReason,
   type ExecutionState,
+  formatSubagentEnvPolicyIssues,
   type SubagentDef,
   type SubagentResult,
   type SubagentSpawner,
   type SubagentStatus,
   spawnSubagent,
+  validateSubagentRequestEnv,
 } from "./subagent-spawn.ts";
 
 export type DispatchSubagentProfile = keyof typeof SUBAGENT_PROFILES | "custom";
@@ -46,6 +48,7 @@ export type DispatchSubagentFailureKind =
   | "assistant_protocol_parse_error"
   | "transport_error"
   | "extension_bootstrap_missing"
+  | "env_policy_failed"
   | "invariant_failed"
   | "unknown_profile"
   | "rate_limited"
@@ -311,6 +314,24 @@ export async function executeDispatchSubagentRequest(options: {
     };
   }
 
+  const envPolicy = validateSubagentRequestEnv(env);
+
+  if (!envPolicy.ok) {
+    const output = formatSubagentEnvPolicyIssues(envPolicy.issues);
+    return {
+      ok: false,
+      text: output,
+      details: {
+        reason: "env_policy_failed",
+        failureKind: "env_policy_failed",
+        invariants: envPolicy.issues,
+        status: "error",
+        activeCount: options.state.activeCount,
+        maxConcurrent: options.state.maxConcurrent,
+      },
+    };
+  }
+
   const safeObjective = objective as string;
   const profileDef = SUBAGENT_PROFILES[profile];
   if (!profileDef && profile !== "custom") {
@@ -438,7 +459,7 @@ export async function executeDispatchSubagentRequest(options: {
       parentSessionKey,
       parentRepoRoot,
       extensionSources: extensionSelection.extensions,
-      env,
+      env: envPolicy.env,
     };
 
     options.onUpdate?.({

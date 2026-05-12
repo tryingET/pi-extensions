@@ -203,7 +203,31 @@ test("public runtime parity: prompt envelope, updates, and result shaping match 
   }
 });
 
-test("public runtime parity: invariant failures and rate-limit failures match dispatch_subagent", async () => {
+test("public runtime parity: env policy failures, invariant failures, and rate-limit failures match dispatch_subagent", async () => {
+  const envHarness = await createParityHarness();
+
+  try {
+    const invalidEnvRequest = {
+      profile: "reviewer",
+      objective: "Review env policy parity",
+      env: { PATH: "malicious" },
+    };
+
+    const runtimeResult = await executeRuntime(envHarness, invalidEnvRequest);
+    const toolResult = await executeTool(envHarness, invalidEnvRequest, "tc-parity-env-policy");
+
+    assert.deepEqual(toolResult, runtimeResult);
+    assert.deepEqual(envHarness.runtimeDefs, []);
+    assert.deepEqual(envHarness.toolDefs, []);
+    assert.equal(runtimeResult.ok, false);
+    assert.equal(runtimeResult.details.reason, "env_policy_failed");
+    assert.equal(runtimeResult.details.failureKind, "env_policy_failed");
+    assert.equal(envHarness.runtimeState.activeCount, 0);
+    assert.equal(envHarness.toolState.activeCount, 0);
+  } finally {
+    await envHarness.cleanup();
+  }
+
   const invariantHarness = await createParityHarness();
 
   try {
