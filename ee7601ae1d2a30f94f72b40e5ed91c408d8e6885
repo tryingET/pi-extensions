@@ -1,0 +1,34 @@
+Peer-assisted ASC live prompt-vault harness fix.
+
+Peer run: candidatepeer-mp23v0cv-619432e0
+Peer branch: candidate/asc-vault-client-readiness-fallback
+Peer session: session-019e1a5a-51fd-77cc-8c15-aa7423769663
+Peer worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/asc-vault-client-readiness-fallback
+Controller commit: ee7601a
+AK task: #2872
+
+Root cause:
+- ASC live harness defaulted only to legacy ~/.pi/agent/extensions/vault-client even though the monorepo package exists at packages/pi-vault-client.
+- Readiness treated @mariozechner/pi-coding-agent package-root ERR_PACKAGE_PATH_NOT_EXPORTED as live runtime unavailability despite the JavaScript vault-client entrypoint importing successfully.
+- Once readiness was fixed, live vault_retrieve output exposed a parser drift: current output starts content with --- but does not emit a closing content fence.
+
+Promoted changes:
+- Default vault-client discovery now tries legacy installed extension first, then sibling packages/pi-vault-client when no env override is set.
+- PI_VAULT_CLIENT_DIR / VAULT_CLIENT_DIR remain authoritative.
+- Readiness checks JavaScript runtime deps used by the vault-client entrypoint rather than type/host package-root exports.
+- Retrieved-template parser accepts current vault_retrieve output without a closing fence while preserving support for closing fences and internal markdown separators.
+- Added default unit coverage for sibling fallback, non-runtime pi-coding-agent export handling, and no-closing-fence retrieval output.
+- Updated README, changelog, and harness/assessment docs.
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/prompt-vault-cross-extension.test.mjs (pass 9/9, skip 0)
+- cd packages/pi-autonomous-session-control && node --test tests/prompt-vault-compat.test.mjs tests/prompt-vault-cross-extension.test.mjs tests/prompt-vault-dispatch-integration.test.mjs (pass 19/19, skip 0)
+- cd packages/pi-autonomous-session-control && npm run test:live:prompt-vault (pass 8/8, skip 0; discovered packages/pi-vault-client by default)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- git diff --check -- scoped ASC files (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass 195/195, skip 0; npm view 404 treated by release-check as expected for first unpublished release)
+
+Boundary notes:
+- No pi-vault-client code was changed.
+- Live tests remain explicit opt-in and .live.mjs files remain excluded from default discovery.
+- Unrelated dirty parent checkout files were not staged.
