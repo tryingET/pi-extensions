@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   createSidequestExtension,
   getGhosttySurfaceId,
+  ghosttyVersionSupportsSurfaceId,
   resolveGhosttyBin,
 } from "../extensions/sidequest.ts";
 
@@ -99,6 +100,13 @@ test("getGhosttySurfaceId only accepts Ghostty surface id formats", () => {
   assert.equal(getGhosttySurfaceId({}), undefined);
 });
 
+test("ghosttyVersionSupportsSurfaceId gates the 1.4+ surface-id action flag", () => {
+  assert.equal(ghosttyVersionSupportsSurfaceId("Ghostty 1.3.2-dev+0000000"), false);
+  assert.equal(ghosttyVersionSupportsSurfaceId("Ghostty 1.4.0"), true);
+  assert.equal(ghosttyVersionSupportsSurfaceId("  - version: 2.0.0\n"), true);
+  assert.equal(ghosttyVersionSupportsSurfaceId("not a version"), false);
+});
+
 test("resolveGhosttyBin prefers the current stock Ghostty session binary over the sidequest wrapper", () => {
   const resolved = resolveGhosttyBin({
     env: {
@@ -181,6 +189,7 @@ test("sidequest opens a new Ghostty window when the current Ghostty session lack
   const launchArgs = execStub.calls[1].args;
   assert.ok(!launchArgs.some((arg) => arg.startsWith("--surface-id=")));
   assert.ok(!launchArgs.some((arg) => arg.startsWith("--title=")));
+  assert.match(extractShellCommand(launchArgs), /cd '\/repo'/);
   assert.match(
     extractShellCommand(launchArgs),
     /PI_SESSION_PRESENCE_TITLE_BASE='Sidequest: trace this failure'/,
@@ -255,6 +264,9 @@ test("sidequest retries a new Ghostty window when live same-window tab attach fa
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
     }
+    if (args[0] === "+version") {
+      return { code: 0, stdout: "Ghostty 1.4.0\n" };
+    }
     if (args[0] === "+new-tab") {
       return {
         code: 1,
@@ -291,11 +303,12 @@ test("sidequest retries a new Ghostty window when live same-window tab attach fa
     execStub.calls.map(({ command, args }) => [command, args[0]]),
     [
       ["/usr/bin/ghostty", "+help"],
+      ["/usr/bin/ghostty", "+version"],
       ["/usr/bin/ghostty", "+new-tab"],
       ["/usr/bin/ghostty", "--working-directory=/repo"],
     ],
   );
-  assert.ok(execStub.calls[1].args.includes("--surface-id=0x2b2826e0"));
+  assert.ok(execStub.calls[2].args.includes("--surface-id=0x2b2826e0"));
   assert.equal(harness.notifications.length, 1);
   assert.equal(harness.notifications[0].type, "info");
   assert.match(harness.notifications[0].message, /new Ghostty window/);
@@ -306,6 +319,9 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
+    }
+    if (args[0] === "+version") {
+      return { code: 0, stdout: "Ghostty 1.4.0\n" };
     }
     if (args[0] === "+new-tab") {
       return { code: 0, stdout: "" };
@@ -337,13 +353,56 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
     execStub.calls.map(({ command, args }) => [command, args[0]]),
     [
       ["/usr/bin/ghostty", "+help"],
+      ["/usr/bin/ghostty", "+version"],
       ["/usr/bin/ghostty", "+new-tab"],
     ],
   );
-  assert.ok(execStub.calls[1].args.includes("--surface-id=19"));
+  assert.ok(execStub.calls[2].args.includes("--surface-id=19"));
+  assert.match(extractShellCommand(execStub.calls[2].args), /cd '\/repo'/);
   assert.equal(harness.notifications.length, 1);
   assert.equal(harness.notifications[0].type, "info");
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
+});
+
+test("sidequest omits surface-id for Ghostty builds before the action flag exists", async () => {
+  const execStub = createExecStub(({ args }) => {
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
+    }
+    if (args[0] === "+version") {
+      return { code: 0, stdout: "Ghostty 1.3.2-dev+0000000\n" };
+    }
+    if (args[0] === "+new-tab") {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      GHOSTTY_SURFACE_ID: "19",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const sidequest = commands.get("sidequest");
+  const harness = createContext();
+
+  await sidequest.handler("avoid unsupported surface flag", harness.ctx);
+
+  const launchCall = execStub.calls.find(
+    (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+  );
+  assert.ok(launchCall);
+  assert.ok(!launchCall.args.some((arg) => arg.startsWith("--surface-id=")));
 });
 
 test("sidequest refuses to launch when the current Pi session has not been saved", async () => {
@@ -767,7 +826,11 @@ test("scout_peer_spawn reportBack none makes intercom disabled explicit", async 
     createContext({ cwd: "/controller" }).ctx,
   );
 
-  const prompt = extractPiArgs(execStub.calls[1].args).at(-1);
+  const launchCall = execStub.calls.find(
+    (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+  );
+  assert.ok(launchCall);
+  const prompt = extractPiArgs(launchCall.args).at(-1);
   assert.match(prompt, /No intercom boot ACK is required because reportBack is none/);
   assert.match(prompt, /No automatic report-back is requested/);
   assert.doesNotMatch(prompt, /Only allowed pre-ACK tool: `intercom`/);
@@ -833,7 +896,12 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
     harness.ctx,
   );
 
-  const prompt = extractPiArgs(execStub.calls[1].args).at(-1);
+  const launchCall = execStub.calls.find(
+    (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+  );
+  assert.ok(launchCall);
+  assert.match(extractShellCommand(launchCall.args), /cd '\/repo'/);
+  const prompt = extractPiArgs(launchCall.args).at(-1);
 
   assert.match(prompt, /visible scout peer launched in a clean Pi session/i);
   assert.match(prompt, /spawned scout peer/i);
@@ -918,6 +986,9 @@ function createCandidatePeerExecStub({ repoRoot = "/repo", dirty = "" } = {}) {
 
       if (command === "/usr/bin/ghostty" && args[0] === "+help") {
         return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
+      }
+      if (command === "/usr/bin/ghostty" && args[0] === "+version") {
+        return { code: 0, stdout: "Ghostty 1.4.0\n" };
       }
       if (command === "/usr/bin/ghostty" && args[0] === "+new-tab") {
         return { code: 0, stdout: "" };

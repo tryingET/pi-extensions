@@ -283,7 +283,7 @@ function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
-function buildPiShellCommand(titleBase?: string): string {
+function buildPiShellCommand(titleBase: string | undefined, cwd: string): string {
   const titleSetup = titleBase
     ? [
         `export PI_SESSION_PRESENCE_TITLE_BASE=${shellSingleQuote(titleBase)}`,
@@ -292,6 +292,10 @@ function buildPiShellCommand(titleBase?: string): string {
     : [];
 
   return [
+    `cd ${shellSingleQuote(cwd)}`,
+    "status=$?",
+    'if [ "$status" -ne 0 ]; then echo; echo "[sidequest] failed to enter working directory"; echo "[sidequest] leaving an interactive shell open for debugging"; exec "$' +
+      '{SHELL:-/bin/bash}" -i; fi',
     ...titleSetup,
     'cmd="$1"',
     "shift",
@@ -409,6 +413,31 @@ async function supportsGhosttyNewTab(execRunner: ExecRunner, ghosttyBin: string)
   }
 }
 
+export function ghosttyVersionSupportsSurfaceId(output: string): boolean {
+  const match =
+    output.match(/Ghostty\s+(\d+)\.(\d+)\.(\d+)/) ??
+    output.match(/version:\s*(\d+)\.(\d+)\.(\d+)/i);
+  if (!match) return false;
+  const major = Number.parseInt(match[1] || "", 10);
+  const minor = Number.parseInt(match[2] || "", 10);
+  if (!Number.isInteger(major) || !Number.isInteger(minor)) return false;
+  return major > 1 || (major === 1 && minor >= 4);
+}
+
+async function supportsGhosttySurfaceId(
+  execRunner: ExecRunner,
+  ghosttyBin: string,
+): Promise<boolean> {
+  try {
+    const result = await execRunner(ghosttyBin, ["+version"], {
+      timeout: GHOSTTY_PROBE_TIMEOUT_MS,
+    });
+    return result.code === 0 && ghosttyVersionSupportsSurfaceId(String(result.stdout || ""));
+  } catch {
+    return false;
+  }
+}
+
 function buildGhosttyArgs({
   cwd,
   title,
@@ -431,7 +460,7 @@ function buildGhosttyArgs({
     "-e",
     "/bin/sh",
     "-lc",
-    buildPiShellCommand(title),
+    buildPiShellCommand(title, cwd),
     "sidequest-pi",
     ...piArgs,
   );
@@ -535,7 +564,11 @@ async function launchPiQuestSession({
   const title = buildTitle(titlePrompt, titlePrefix);
   const supportsNewTab =
     process.platform === "linux" ? await supportsGhosttyNewTab(execRunner, ghosttyBin) : false;
-  const surfaceId = getGhosttySurfaceId(env);
+  const requestedSurfaceId = getGhosttySurfaceId(env);
+  const surfaceId =
+    supportsNewTab && requestedSurfaceId && (await supportsGhosttySurfaceId(execRunner, ghosttyBin))
+      ? requestedSurfaceId
+      : undefined;
   const windowFallbackReason = describeWindowFallback({
     supportsNewTab,
     env,
@@ -1861,7 +1894,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         handler: (args, ctx) =>
           runCandidatePeerCommand(args, ctx, PARALLELQUEST_COMMAND, "Parallelquest"),
       });
+
     }
+
 
     if (!registerTools) return;
 
