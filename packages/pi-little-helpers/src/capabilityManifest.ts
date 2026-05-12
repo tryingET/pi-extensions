@@ -1,6 +1,11 @@
 export const LITTLE_HELPERS_CAPABILITY_ID = "pi-little-helpers.visible-peer-spawn";
 
-export const LITTLE_HELPERS_COMMAND_NAMES = ["sidequest", "scoutpeer", "parallelquest"] as const;
+export const LITTLE_HELPERS_COMMAND_NAMES = [
+  "sidequest",
+  "scoutpeer",
+  "parallelquest",
+  "visible-loop",
+] as const;
 export const LITTLE_HELPERS_PEER_TOOL_NAMES = [
   "fork_peer_spawn",
   "scout_peer_spawn",

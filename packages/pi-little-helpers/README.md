@@ -28,6 +28,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `sidequest` | Human slash command to fork the current Pi session into the current Ghostty window as a new tab when supported; otherwise a new Ghostty window |
 | `scoutpeer` | Launch a clean visible read-only scout/review peer in the current workspace |
 | `parallelquest` | Human slash command to launch a clean visible candidate peer in an isolated git worktree |
+| `visible-loop` | Launch one clean visible Ghostty Pi tab that queues the default prompt sequence as follow-ups and repeats it for a requested iteration count |
 | `stash` | Persist and restore stashed editor content across sessions |
 
 ## Visible peer tools
@@ -118,9 +119,10 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Then in Pi:
 
 1. run `/reload`
-2. verify `/codeblocks`, `/artifacts`, `/show-artifacts`, `Ctrl+Shift+S`, `/sidequest "test prompt"`, `/scoutpeer "test prompt"`, `/parallelquest "test prompt"`, `/session-presence`, the `stash` shortcuts/commands, `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, and any `write`/`edit` flow that produces an `.html` file in a real session
-3. for `/sidequest` and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
-4. if `/sidequest` or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
+2. verify `/codeblocks`, `/artifacts`, `/show-artifacts`, `Ctrl+Shift+S`, `/sidequest "test prompt"`, `/scoutpeer "test prompt"`, `/parallelquest "test prompt"`, `/visible-loop --count 1`, `/session-presence`, the `stash` shortcuts/commands, `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, and any `write`/`edit` flow that produces an `.html` file in a real session
+3. verify `/visible-loop --count 1` opens one visible Ghostty Pi tab, queues the default sequence as follow-up prompts, and increments completion only after the final fix-bugs prompt finishes
+4. for `/sidequest`, `/visible-loop`, and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
+5. if `/sidequest`, `/visible-loop`, or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
 
 ## Docs discovery
 

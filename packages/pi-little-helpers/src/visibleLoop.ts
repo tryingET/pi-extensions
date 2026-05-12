@@ -1,0 +1,763 @@
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+export const VISIBLE_LOOP_COMMAND = "visible-loop";
+export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
+
+const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
+  "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
+  "1) Select the single best-matching template for this task.",
+  "- `vault_query(..., include_content:false)`",
+  "2) Retrieve that template's full content.",
+  "- `vault_retrieve(..., include_content:true)`",
+  "3) Execute it as written.",
+  "4) If the template has an OUTPUT FORMAT, follow it exactly.",
+  "5) Do not reference unretrieved frameworks.",
+  "6) If vault is unavailable, continue best-effort and say so.",
+  "Use as many frameworks as necessary, and as few as possible.",
+  "Grounding (one line at end):",
+  "`grounding: template=<name>, vault_status=<ok|unavailable>`",
+].join("\n");
+
+export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
+  "read @docs/project/vision.md and @docs/project/product_posture.md what is the next highest leverage item. Reason from first principles. and consider multi-order effects.",
+  "proceed",
+  "proceed",
+  "proceed",
+  "/deep-review",
+  "proceed with nexus implementation until completion and verification",
+  [
+    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
+    "",
+    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
+  ].join("\n"),
+] as const;
+
+export type VisibleLoopReportBack = "intercom" | "manual" | "none";
+
+export interface VisibleLoopRunConfig {
+  schemaVersion: 1;
+  runId: string;
+  loopCount: number;
+  cwd: string;
+  prompts: string[];
+  reportBack: VisibleLoopReportBack;
+  parentPeerTarget?: string;
+  title?: string;
+  createdAt: string;
+}
+
+type SendUserMessageOptions = { deliverAs?: "followUp" | "steer" };
+type SendUserMessage = (message: string, options?: SendUserMessageOptions) => void;
+
+type VisibleLoopContext = {
+  cwd?: string;
+  hasUI?: boolean;
+  model?: { id?: string };
+  ui?: {
+    notify?(message: string, type?: string): void;
+    setStatus?(key: string, value: unknown): void;
+  };
+  sessionManager?: {
+    getSessionId?(): string;
+    getSessionName?(): string | undefined;
+    getCwd?(): string;
+  };
+};
+
+type PeerMessagingRuntime = {
+  send(request: {
+    to: string;
+    message: { id: string; timestamp: number; content: { text: string } };
+  }): Promise<{ delivered: boolean; reason?: string }>;
+  disconnect?(): Promise<void>;
+};
+
+type PeerMessagingModule = {
+  createPeerMessagingRuntime(options: {
+    id: string;
+    name?: string;
+    cwd: string;
+    model: string;
+    packageRoot?: string;
+  }): Promise<PeerMessagingRuntime>;
+};
+
+export type VisibleLoopCommandParseResult =
+  | { ok: true; loopCount: number; reportBack: VisibleLoopReportBack; parentPeerTarget?: string }
+  | { ok: false; error: string; usage: string };
+
+export function parseVisibleLoopCommandArgs(
+  args: string | undefined,
+): VisibleLoopCommandParseResult {
+  const usage = `Usage: /${VISIBLE_LOOP_COMMAND} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none]`;
+  const tokens = tokenizeArgs(args ?? "");
+  let loopCount: number | undefined;
+  let parentPeerTarget: string | undefined;
+  let reportBack: VisibleLoopReportBack | undefined;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token) continue;
+
+    if (token === "--count" || token === "-n") {
+      index += 1;
+      const value = tokens[index];
+      const parsed = parseLoopCount(value);
+      if (!parsed) return { ok: false, error: `Invalid loop count: ${value ?? ""}`, usage };
+      loopCount = parsed;
+      continue;
+    }
+
+    if (token.startsWith("--count=")) {
+      const parsed = parseLoopCount(token.slice("--count=".length));
+      if (!parsed) return { ok: false, error: `Invalid loop count: ${token}`, usage };
+      loopCount = parsed;
+      continue;
+    }
+
+    if (token === "--parentPeerTarget" || token === "--parent" || token === "--to") {
+      index += 1;
+      parentPeerTarget = normalizeOptionalString(tokens[index]);
+      if (!parentPeerTarget) return { ok: false, error: "Missing parent peer target.", usage };
+      continue;
+    }
+
+    if (token.startsWith("--parentPeerTarget=")) {
+      parentPeerTarget = normalizeOptionalString(token.slice("--parentPeerTarget=".length));
+      if (!parentPeerTarget) return { ok: false, error: "Missing parent peer target.", usage };
+      continue;
+    }
+
+    if (token === "--reportBack" || token === "--report-back") {
+      index += 1;
+      const parsed = parseReportBack(tokens[index]);
+      if (!parsed) return { ok: false, error: `Invalid reportBack: ${tokens[index] ?? ""}`, usage };
+      reportBack = parsed;
+      continue;
+    }
+
+    if (token.startsWith("--reportBack=") || token.startsWith("--report-back=")) {
+      const raw = token.includes("--reportBack=")
+        ? token.slice("--reportBack=".length)
+        : token.slice("--report-back=".length);
+      const parsed = parseReportBack(raw);
+      if (!parsed) return { ok: false, error: `Invalid reportBack: ${raw}`, usage };
+      reportBack = parsed;
+      continue;
+    }
+
+    if (token === "--manual") {
+      reportBack = "manual";
+      continue;
+    }
+
+    if (token === "--none") {
+      reportBack = "none";
+      continue;
+    }
+
+    if (!token.startsWith("-") && loopCount === undefined) {
+      const parsed = parseLoopCount(token);
+      if (!parsed) return { ok: false, error: `Invalid loop count: ${token}`, usage };
+      loopCount = parsed;
+      continue;
+    }
+
+    return { ok: false, error: `Unknown argument: ${token}`, usage };
+  }
+
+  return {
+    ok: true,
+    loopCount: loopCount ?? 1,
+    reportBack: reportBack ?? "intercom",
+    parentPeerTarget,
+  };
+}
+
+export function createVisibleLoopRunConfig(input: {
+  loopCount: number;
+  cwd: string;
+  reportBack: VisibleLoopReportBack;
+  parentPeerTarget?: string;
+  prompts?: readonly string[];
+  runId?: string;
+}): VisibleLoopRunConfig {
+  return {
+    schemaVersion: 1,
+    runId: input.runId ?? `visible-loop-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
+    loopCount: input.loopCount,
+    cwd: input.cwd,
+    prompts: [...(input.prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS)],
+    reportBack: input.reportBack,
+    ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
+    title: "Visible loop",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export function getVisibleLoopStateDir(env: NodeJS.ProcessEnv = process.env): string {
+  const stateHome = env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
+  return join(stateHome, "pi-little-helpers", "visible-loop");
+}
+
+export function writeVisibleLoopRunConfig(
+  config: VisibleLoopRunConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const dir = getVisibleLoopStateDir(env);
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, `${config.runId}.json`);
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  return path;
+}
+
+export function resolveParentPeerTarget(ctx: VisibleLoopContext): string | undefined {
+  const raw = ctx.sessionManager?.getSessionId?.()?.trim();
+  if (!raw) return undefined;
+  const normalized = raw.startsWith("session-") ? raw : `session-${raw}`;
+  return normalized.replace(/[^a-zA-Z0-9-]/g, "-");
+}
+
+export async function startVisibleLoopChildRunner(
+  configPathArg: string | undefined,
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const configPath = normalizeOptionalString(configPathArg);
+  if (!configPath) {
+    ctx.ui?.notify?.(`Usage: /${VISIBLE_LOOP_CHILD_COMMAND} <config-path>`, "warning");
+    return;
+  }
+
+  const configResult = loadVisibleLoopRunConfig(configPath, env);
+  if (!configResult.ok) {
+    ctx.ui?.notify?.(`visible-loop child failed: ${configResult.error}`, "error");
+    return;
+  }
+
+  const config = configResult.config;
+  const sendUserMessage = getSendUserMessage(pi);
+  if (!sendUserMessage) {
+    ctx.ui?.notify?.("visible-loop child failed: pi.sendUserMessage is unavailable", "error");
+    return;
+  }
+
+  const state: ActiveVisibleLoopState = {
+    config,
+    configPath,
+    completedPromptCount: 0,
+    completedIterations: 0,
+    sendUserMessage,
+    peerRuntime: null,
+    stopped: false,
+    followupsQueuedForIteration: null,
+  };
+  appendVisibleLoopStatus(config, {
+    event: "child_started",
+    reportBack: config.reportBack,
+    parentPeerTarget: config.parentPeerTarget ?? null,
+  });
+  persistActiveVisibleLoopState(state, ctx, env);
+
+  activeVisibleLoop = state;
+  ctx.ui?.setStatus?.("visible-loop", `loop 0/${config.loopCount}`);
+  ctx.ui?.notify?.(
+    `visible-loop started: ${config.loopCount} iteration(s), ${config.prompts.length} prompt(s) each`,
+    "info",
+  );
+
+  await sendVisibleLoopIntercom(
+    state,
+    ctx,
+    `PEER_ACK peer_run_id=${config.runId}: visible-loop started (${config.loopCount} iteration(s), ${config.prompts.length} prompt(s) each)`,
+  );
+  queueVisibleLoopIteration(state, ctx, env);
+}
+
+export function handleVisibleLoopAgentStart(
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env);
+  if (!state || state.stopped || state.followupsQueuedForIteration === state.completedIterations) {
+    return;
+  }
+
+  state.followupsQueuedForIteration = state.completedIterations;
+  persistActiveVisibleLoopState(state, ctx, env);
+  queueVisibleLoopFollowups(state, ctx);
+}
+
+export function handleVisibleLoopAgentEnd(
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env);
+  if (!state || state.stopped) return;
+
+  state.completedPromptCount += 1;
+  const promptCount = state.config.prompts.length;
+  if (promptCount <= 0) return;
+
+  const completedInIteration = state.completedPromptCount % promptCount;
+  if (completedInIteration !== 0) {
+    ctx.ui?.setStatus?.(
+      "visible-loop",
+      `loop ${state.completedIterations}/${state.config.loopCount} step ${completedInIteration}/${promptCount}`,
+    );
+    appendVisibleLoopStatus(state.config, {
+      event: "prompt_completed",
+      completedPromptCount: state.completedPromptCount,
+      completedIterations: state.completedIterations,
+      completedInIteration,
+    });
+    persistActiveVisibleLoopState(state, ctx, env);
+    return;
+  }
+
+  state.completedIterations += 1;
+  appendVisibleLoopStatus(state.config, {
+    event: "iteration_completed",
+    completedPromptCount: state.completedPromptCount,
+    completedIterations: state.completedIterations,
+  });
+  ctx.ui?.setStatus?.(
+    "visible-loop",
+    `loop ${state.completedIterations}/${state.config.loopCount}`,
+  );
+
+  void sendVisibleLoopIntercom(
+    state,
+    ctx,
+    `VISIBLE_LOOP_ITERATION peer_run_id=${state.config.runId}: completed iteration ${state.completedIterations}/${state.config.loopCount}`,
+  );
+
+  if (state.completedIterations >= state.config.loopCount) {
+    state.stopped = true;
+    void sendVisibleLoopIntercom(
+      state,
+      ctx,
+      `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${state.completedIterations}/${state.config.loopCount} iteration(s)`,
+    ).finally(async () => {
+      await state.peerRuntime?.disconnect?.();
+      removeActiveVisibleLoopState(ctx, env);
+      if (activeVisibleLoop === state) activeVisibleLoop = null;
+      ctx.ui?.setStatus?.("visible-loop", undefined);
+    });
+    return;
+  }
+
+  persistActiveVisibleLoopState(state, ctx, env);
+
+  setTimeout(() => {
+    if (activeVisibleLoop === state && !state.stopped) {
+      queueVisibleLoopIteration(state, ctx, env);
+    }
+  }, 250);
+}
+
+interface ActiveVisibleLoopState {
+  config: VisibleLoopRunConfig;
+  configPath: string;
+  completedPromptCount: number;
+  completedIterations: number;
+  sendUserMessage: SendUserMessage;
+  peerRuntime: PeerMessagingRuntime | null;
+  stopped: boolean;
+  followupsQueuedForIteration: number | null;
+}
+
+let activeVisibleLoop: ActiveVisibleLoopState | null = null;
+
+interface PersistedActiveVisibleLoopState {
+  schemaVersion: 1;
+  runId: string;
+  configPath: string;
+  completedPromptCount: number;
+  completedIterations: number;
+  followupsQueuedForIteration: number | null;
+  stopped: boolean;
+}
+
+function getVisibleLoopSessionKey(ctx: VisibleLoopContext): string | undefined {
+  const raw = ctx.sessionManager?.getSessionId?.()?.trim();
+  if (!raw) return undefined;
+  const normalized = raw.startsWith("session-") ? raw : `session-${raw}`;
+  return normalized.replace(/[^a-zA-Z0-9-]/g, "-");
+}
+
+function getActiveVisibleLoopStatePath(
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const sessionKey = getVisibleLoopSessionKey(ctx);
+  if (!sessionKey) return undefined;
+  return join(getVisibleLoopStateDir(env), "active", `${sessionKey}.json`);
+}
+
+function persistActiveVisibleLoopState(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const path = getActiveVisibleLoopStatePath(ctx, env);
+  if (!path) return;
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    const persisted: PersistedActiveVisibleLoopState = {
+      schemaVersion: 1,
+      runId: state.config.runId,
+      configPath: state.configPath,
+      completedPromptCount: state.completedPromptCount,
+      completedIterations: state.completedIterations,
+      followupsQueuedForIteration: state.followupsQueuedForIteration,
+      stopped: state.stopped,
+    };
+    writeFileSync(path, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
+  } catch {
+    // Diagnostic persistence only; keep visible loop running.
+  }
+}
+
+function restoreActiveVisibleLoopState(
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): ActiveVisibleLoopState | null {
+  const path = getActiveVisibleLoopStatePath(ctx, env);
+  if (!path || !existsSync(path)) return null;
+  const sendUserMessage = getSendUserMessage(pi);
+  if (!sendUserMessage) return null;
+
+  try {
+    const persisted = JSON.parse(
+      readFileSync(path, "utf8"),
+    ) as Partial<PersistedActiveVisibleLoopState>;
+    if (persisted.schemaVersion !== 1 || !persisted.configPath) return null;
+    const configResult = loadVisibleLoopRunConfig(persisted.configPath, env);
+    if (!configResult.ok) return null;
+    const state: ActiveVisibleLoopState = {
+      config: configResult.config,
+      configPath: persisted.configPath,
+      completedPromptCount: Number.isInteger(persisted.completedPromptCount)
+        ? Number(persisted.completedPromptCount)
+        : 0,
+      completedIterations: Number.isInteger(persisted.completedIterations)
+        ? Number(persisted.completedIterations)
+        : 0,
+      sendUserMessage,
+      peerRuntime: null,
+      stopped: Boolean(persisted.stopped),
+      followupsQueuedForIteration:
+        typeof persisted.followupsQueuedForIteration === "number"
+          ? persisted.followupsQueuedForIteration
+          : null,
+    };
+    activeVisibleLoop = state;
+    appendVisibleLoopStatus(state.config, {
+      event: "active_state_restored",
+      completedPromptCount: state.completedPromptCount,
+      completedIterations: state.completedIterations,
+    });
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+function removeActiveVisibleLoopState(
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const path = getActiveVisibleLoopStatePath(ctx, env);
+  if (!path) return;
+  try {
+    rmSync(path, { force: true });
+  } catch {
+    // Diagnostic persistence only; ignore cleanup failures.
+  }
+}
+
+function queueVisibleLoopIteration(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const prompts = state.config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
+  if (prompts.length === 0) {
+    state.stopped = true;
+    ctx.ui?.notify?.("visible-loop stopped: no prompts configured", "error");
+    return;
+  }
+
+  ctx.ui?.notify?.(
+    `visible-loop queueing iteration ${state.completedIterations + 1}/${state.config.loopCount}`,
+    "info",
+  );
+  state.followupsQueuedForIteration = null;
+  persistActiveVisibleLoopState(state, ctx, env);
+  state.sendUserMessage(prompts[0]);
+  setTimeout(() => {
+    if (
+      activeVisibleLoop === state &&
+      !state.stopped &&
+      state.followupsQueuedForIteration !== state.completedIterations
+    ) {
+      state.followupsQueuedForIteration = state.completedIterations;
+      persistActiveVisibleLoopState(state, ctx, env);
+      queueVisibleLoopFollowups(state, ctx);
+    }
+  }, 1000);
+}
+
+function queueVisibleLoopFollowups(state: ActiveVisibleLoopState, _ctx: VisibleLoopContext): void {
+  const prompts = state.config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
+  prompts.slice(1).forEach((prompt, index) => {
+    setTimeout(() => {
+      if (activeVisibleLoop !== state || state.stopped) return;
+      state.sendUserMessage(prompt, { deliverAs: "followUp" });
+    }, 150 * index);
+  });
+}
+
+async function sendVisibleLoopIntercom(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  text: string,
+): Promise<void> {
+  if (state.config.reportBack !== "intercom" || !state.config.parentPeerTarget) {
+    return;
+  }
+
+  try {
+    const runtime = state.peerRuntime ?? (await createVisibleLoopPeerRuntime(state.config, ctx));
+    state.peerRuntime = runtime;
+    const result = await runtime.send({
+      to: state.config.parentPeerTarget,
+      message: {
+        id: `${state.config.runId}-${randomUUID()}`,
+        timestamp: Date.now(),
+        content: { text },
+      },
+    });
+    if (!result.delivered) {
+      const reason = result.reason ?? "not delivered";
+      appendVisibleLoopStatus(state.config, { event: "intercom_send_failed", text, reason });
+      ctx.ui?.notify?.(`visible-loop intercom send failed: ${reason}`, "warning");
+      return;
+    }
+    appendVisibleLoopStatus(state.config, { event: "intercom_delivered", text });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    appendVisibleLoopStatus(state.config, { event: "intercom_unavailable", text, error: message });
+    ctx.ui?.notify?.(`visible-loop intercom unavailable: ${message}`, "warning");
+  }
+}
+
+async function createVisibleLoopPeerRuntime(
+  config: VisibleLoopRunConfig,
+  ctx: VisibleLoopContext,
+): Promise<PeerMessagingRuntime> {
+  const module = await loadPeerMessagingModule();
+  return module.createPeerMessagingRuntime({
+    id: config.runId,
+    name: "visible-loop",
+    cwd: config.cwd || ctx.cwd || process.cwd(),
+    model: ctx.model?.id?.trim() || "unknown",
+  });
+}
+
+async function loadPeerMessagingModule(): Promise<PeerMessagingModule> {
+  const siblingPeerMessagingPath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../pi-peer-messaging/index.ts",
+  );
+  const attempts = ["@tryinget/pi-peer-messaging", pathToFileURL(siblingPeerMessagingPath).href];
+  const errors: string[] = [];
+
+  for (const specifier of attempts) {
+    try {
+      const loaded = (await import(specifier)) as Partial<PeerMessagingModule>;
+      if (typeof loaded.createPeerMessagingRuntime === "function") {
+        return loaded as PeerMessagingModule;
+      }
+      errors.push(`${specifier}: missing createPeerMessagingRuntime`);
+    } catch (error) {
+      errors.push(`${specifier}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  throw new Error(errors.join("; "));
+}
+
+export function getVisibleLoopStatusPath(
+  configOrRunId: Pick<VisibleLoopRunConfig, "runId"> | string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const runId = typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId;
+  return join(getVisibleLoopStateDir(env), `${runId}.status.jsonl`);
+}
+
+function appendVisibleLoopStatus(
+  config: VisibleLoopRunConfig,
+  event: Record<string, unknown>,
+): void {
+  try {
+    mkdirSync(getVisibleLoopStateDir(), { recursive: true });
+    const entry = {
+      timestamp: new Date().toISOString(),
+      runId: config.runId,
+      ...event,
+    };
+    writeFileSync(getVisibleLoopStatusPath(config), `${JSON.stringify(entry)}\n`, {
+      encoding: "utf8",
+      flag: "a",
+    });
+  } catch {
+    // Status sidecar is diagnostic only. Never break the visible loop for it.
+  }
+}
+
+function loadVisibleLoopRunConfig(
+  configPath: string,
+  env: NodeJS.ProcessEnv,
+): { ok: true; config: VisibleLoopRunConfig } | { ok: false; error: string } {
+  const resolvedPath = resolve(configPath);
+  const stateDir = resolve(getVisibleLoopStateDir(env));
+  if (!isPathInsideOrEqual(stateDir, resolvedPath)) {
+    return { ok: false, error: "config path is outside visible-loop state directory" };
+  }
+
+  if (!existsSync(resolvedPath)) {
+    return { ok: false, error: "config file does not exist" };
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(resolvedPath, "utf8")) as unknown;
+    return { ok: true, config: assertVisibleLoopRunConfig(parsed) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("VisibleLoopRunConfig must be an object.");
+  }
+  const record = value as Record<string, unknown>;
+  if (record.schemaVersion !== 1) throw new TypeError("Unsupported visible-loop schemaVersion.");
+  const runId = requireNonEmptyString(record.runId, "runId");
+  const loopCount = requirePositiveInteger(record.loopCount, "loopCount");
+  const cwd = requireNonEmptyString(record.cwd, "cwd");
+  const prompts = Array.isArray(record.prompts)
+    ? record.prompts.map((prompt, index) => requireNonEmptyString(prompt, `prompts[${index}]`))
+    : undefined;
+  if (!prompts || prompts.length === 0) throw new TypeError("prompts must be a non-empty array.");
+  const reportBack = parseReportBack(String(record.reportBack ?? "manual"));
+  if (!reportBack) throw new TypeError("reportBack must be intercom, manual, or none.");
+  const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
+  const title = normalizeOptionalString(record.title);
+  const createdAt = requireNonEmptyString(record.createdAt, "createdAt");
+
+  return {
+    schemaVersion: 1,
+    runId,
+    loopCount,
+    cwd,
+    prompts,
+    reportBack,
+    ...(parentPeerTarget ? { parentPeerTarget } : {}),
+    ...(title ? { title } : {}),
+    createdAt,
+  };
+}
+
+function getSendUserMessage(pi: ExtensionAPI): SendUserMessage | undefined {
+  const candidate = (pi as unknown as { sendUserMessage?: SendUserMessage }).sendUserMessage;
+  return typeof candidate === "function" ? candidate.bind(pi) : undefined;
+}
+
+function parseLoopCount(value: string | undefined): number | undefined {
+  const numberValue = Number(value);
+  if (!Number.isInteger(numberValue) || numberValue < 1 || numberValue > 100) return undefined;
+  return numberValue;
+}
+
+function parseReportBack(value: string | undefined): VisibleLoopReportBack | undefined {
+  if (value === "intercom" || value === "manual" || value === "none") return value;
+  return undefined;
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function requireNonEmptyString(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new TypeError(`${label} must be a non-empty string.`);
+  }
+  return value.trim();
+}
+
+function requirePositiveInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 100) {
+    throw new TypeError(`${label} must be an integer between 1 and 100.`);
+  }
+  return value;
+}
+
+function tokenizeArgs(input: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaping = false;
+
+  for (const char of input) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = null;
+      else current += char;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+
+  if (escaping) current += "\\";
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function isPathInsideOrEqual(parent: string, child: string): boolean {
+  const normalizedParent = resolve(parent);
+  const normalizedChild = resolve(child);
+  if (normalizedParent === normalizedChild) return true;
+  const rel = relative(normalizedParent, normalizedChild);
+  return Boolean(rel) && !rel.startsWith("..") && !rel.includes(`..${sep}`) && !isAbsolute(rel);
+}

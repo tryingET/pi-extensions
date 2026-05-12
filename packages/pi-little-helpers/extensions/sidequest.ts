@@ -9,6 +9,18 @@ import {
   LITTLE_HELPERS_COMMAND_NAMES,
   LITTLE_HELPERS_PEER_TOOL_NAMES,
 } from "../src/capabilityManifest.ts";
+import {
+  createVisibleLoopRunConfig,
+  getVisibleLoopStatusPath,
+  handleVisibleLoopAgentEnd,
+  handleVisibleLoopAgentStart,
+  parseVisibleLoopCommandArgs,
+  resolveParentPeerTarget,
+  startVisibleLoopChildRunner,
+  VISIBLE_LOOP_CHILD_COMMAND,
+  VISIBLE_LOOP_COMMAND,
+  writeVisibleLoopRunConfig,
+} from "../src/visibleLoop.ts";
 
 export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
 
@@ -1486,6 +1498,61 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
     }
 
+    async function runVisibleLoopCommand(args: string | undefined, ctx: PiCommandContext) {
+      const parsed = parseVisibleLoopCommandArgs(args);
+      if (!parsed.ok) {
+        if (ctx.hasUI) ctx.ui.notify(`${parsed.error}\n${parsed.usage}`, "warning");
+        return;
+      }
+
+      const cwd = ctx.cwd || process.cwd();
+      const parentPeerTarget = parsed.parentPeerTarget ?? resolveParentPeerTarget(ctx);
+      const reportBack =
+        parsed.reportBack === "intercom" && !parentPeerTarget ? "manual" : parsed.reportBack;
+      const config = createVisibleLoopRunConfig({
+        loopCount: parsed.loopCount,
+        cwd,
+        reportBack,
+        parentPeerTarget,
+      });
+      const configPath = writeVisibleLoopRunConfig(config, options.env ?? process.env);
+      const childPrompt = `/${VISIBLE_LOOP_CHILD_COMMAND} ${configPath}`;
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt: childPrompt,
+        titlePrompt: `visible loop x${parsed.loopCount}`,
+        titlePrefix: "Visible loop",
+        cwd,
+      });
+
+      if (!launch.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `${VISIBLE_LOOP_COMMAND} failed to launch Ghostty: ${launch.failure}`,
+            "error",
+          );
+        }
+        return;
+      }
+
+      if (ctx.hasUI) {
+        const modeLabel =
+          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+        const reportBackNote =
+          reportBack === "intercom"
+            ? `; watch with intercom({ action: "peer_watch", peerRunId: "${config.runId}", waitFor: "final" })`
+            : "; intercom disabled/manual because no exact parent peer target was available";
+        const statusPath = getVisibleLoopStatusPath(config, options.env ?? process.env);
+        ctx.ui.notify(
+          `Opened visible-loop in ${modeLabel}: ${parsed.loopCount} iteration(s)${reportBackNote}; status ${statusPath}${suffix}`,
+          "info",
+        );
+      }
+    }
+
     async function runCandidatePeerCommand(
       args: string | undefined,
       ctx: PiCommandContext,
@@ -1895,8 +1962,26 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           runCandidatePeerCommand(args, ctx, PARALLELQUEST_COMMAND, "Parallelquest"),
       });
 
+      pi.registerCommand(VISIBLE_LOOP_COMMAND, {
+        description:
+          "Launch a visible Ghostty Pi tab that runs the default prompt sequence for N iterations",
+        handler: runVisibleLoopCommand,
+      });
+
+      pi.registerCommand(VISIBLE_LOOP_CHILD_COMMAND, {
+        description: "Internal helper for visible-loop launched child sessions",
+        handler: (args, ctx) =>
+          startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env),
+      });
     }
 
+    pi.on?.("agent_start", async (_event, ctx) => {
+      handleVisibleLoopAgentStart(pi, ctx ?? {}, options.env ?? process.env);
+    });
+
+    pi.on?.("agent_end", async (_event, ctx) => {
+      handleVisibleLoopAgentEnd(pi, ctx ?? {}, options.env ?? process.env);
+    });
 
     if (!registerTools) return;
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -25,6 +25,8 @@ function isLocalGhosttyBin(path) {
 function registerExtension(extension, { thinkingLevel = "medium" } = {}) {
   const commands = new Map();
   const tools = new Map();
+  const events = new Map();
+  const userMessages = [];
 
   extension({
     getThinkingLevel() {
@@ -36,9 +38,17 @@ function registerExtension(extension, { thinkingLevel = "medium" } = {}) {
     registerTool(definition) {
       tools.set(definition.name, definition);
     },
+    on(name, handler) {
+      const handlers = events.get(name) ?? [];
+      handlers.push(handler);
+      events.set(name, handlers);
+    },
+    sendUserMessage(message, options) {
+      userMessages.push({ message, options });
+    },
   });
 
-  return { commands, tools };
+  return { commands, tools, events, userMessages };
 }
 
 function createContext(options = {}) {
@@ -63,6 +73,15 @@ function createContext(options = {}) {
       sessionManager: {
         getSessionFile() {
           return sessionFile;
+        },
+        getSessionId() {
+          return "019e10d2-15f5-705a-aea4-01ba49d2bbac";
+        },
+        getSessionName() {
+          return "controller";
+        },
+        getCwd() {
+          return cwd;
         },
       },
     },
@@ -433,7 +452,7 @@ test("sidequest refuses to launch when the current Pi session has not been saved
   assert.match(harness.notifications[0].message, /needs a saved Pi session/i);
 });
 
-test("sidequest defaults to slash commands and standard peer-spawn tools", () => {
+test("sidequest defaults to slash commands, visible-loop, and standard peer-spawn tools", () => {
   const extension = createSidequestExtension();
   const { commands, tools } = registerExtension(extension);
 
@@ -442,6 +461,8 @@ test("sidequest defaults to slash commands and standard peer-spawn tools", () =>
   assert.ok(commands.has("scoutpeer"));
   assert.equal(commands.has("candidatepeer"), false);
   assert.ok(commands.has("parallelquest"));
+  assert.ok(commands.has("visible-loop"));
+  assert.ok(commands.has("visible-loop-child"));
   assert.ok(tools.has("fork_peer_spawn"));
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
@@ -457,6 +478,149 @@ test("sidequest can suppress commands while registering toolbox peer tools", () 
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
   assert.equal(tools.has("parallelquest_spawn"), false);
+});
+
+test("visible-loop writes config and launches one clean Ghostty tab with the child command", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-state-`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("visible-loop").handler("--count 2", harness.ctx);
+
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.ok(ghosttyCall);
+    assert.equal(ghosttyCall.args[0], "+new-tab");
+    const piArgs = extractPiArgs(ghosttyCall.args);
+    assert.equal(piArgs[0], "pi");
+    assert.match(piArgs.at(-1), /^\/visible-loop-child /);
+    const configPath = piArgs.at(-1).replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.equal(config.loopCount, 2);
+    assert.equal(config.cwd, "/repo");
+    assert.equal(config.reportBack, "intercom");
+    assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
+    assert.equal(config.prompts.length, 7);
+    assert.equal(
+      config.prompts[0],
+      "read @docs/project/vision.md and @docs/project/product_posture.md what is the next highest leverage item. Reason from first principles. and consider multi-order effects.",
+    );
+    assert.doesNotMatch(config.prompts[0], /Prompt Vault/);
+    assert.equal(config.prompts[1], "proceed");
+    assert.equal(config.prompts[4], "/deep-review");
+    assert.match(config.prompts[6], /fix any bugs/);
+    assert.match(config.prompts[6], /Prompt Vault/);
+    assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop child queues follow-up prompts and starts next iteration only after final prompt agent_end", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-child-state-`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands, events, userMessages } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    const configPath = extractPiArgs(ghosttyCall.args)
+      .at(-1)
+      .replace(/^\/visible-loop-child\s+/, "");
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    assert.equal(userMessages.length, 1);
+    assert.equal(userMessages[0].options, undefined);
+
+    const agentStart = events.get("agent_start")[0];
+    await agentStart({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+
+    assert.equal(userMessages.length, 7);
+    assert.equal(userMessages[1].message, "proceed");
+    assert.equal(userMessages[4].message, "/deep-review");
+    assert.match(userMessages[6].message, /Prompt Vault/);
+    assert.deepEqual(
+      userMessages.slice(1).map((entry) => entry.options),
+      Array(6).fill({ deliverAs: "followUp" }),
+    );
+
+    const agentEnd = events.get("agent_end")[0];
+    for (let index = 0; index < 6; index += 1) {
+      await agentEnd({}, harness.ctx);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.equal(
+      userMessages.length,
+      7,
+      "next iteration should not queue before final prompt ends",
+    );
+
+    await agentEnd({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 360));
+    assert.equal(userMessages.length, 8);
+    assert.equal(userMessages[7].options, undefined);
+
+    await agentStart({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    assert.equal(userMessages.length, 14);
+    assert.deepEqual(
+      userMessages.slice(8).map((entry) => entry.options),
+      Array(6).fill({ deliverAs: "followUp" }),
+    );
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
 });
 
 test("fork_peer_spawn launches a forked-context peer", async () => {
