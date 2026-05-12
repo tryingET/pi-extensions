@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "4d587ad0b94cdb751769264d10b2e2ab95e224e9"
-created_at: "2026-05-12T14:49:21Z"
+created_at: "2026-05-12T14:50:00Z"
 intent: "Add pi-little-helpers visible-loop command and child runner support."
 files:
   - "packages/pi-little-helpers/README.md"
@@ -18,7 +18,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-little-helpers run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 2
   total: 2
