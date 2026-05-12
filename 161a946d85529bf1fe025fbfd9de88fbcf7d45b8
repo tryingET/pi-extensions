@@ -1,0 +1,28 @@
+Promoted from peer-session candidate branch candidate/asc-execution-export-typecheck.
+
+Peer run: candidatepeer-mp20388f-16b02f12
+Peer session: session-019e19f9-a759-723e-b1ea-616293d5cfd7
+Candidate worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/candidate-asc-execution-export-typecheck
+Candidate commit: 9f543660 fix(asc): typecheck public execution export
+Controller promoted commit: 161a946
+Controller session: session-019e0b49-3ba1-7069-8acd-97b9adce0e7c
+AK task: #2853
+
+Promoted files:
+- packages/pi-autonomous-session-control/tsconfig.json
+- packages/pi-autonomous-session-control/tests/public-execution-contract.test.mjs
+- packages/pi-autonomous-session-control/docs/project/public-execution-contract.md
+- packages/pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/public-execution-contract.test.mjs (pass, 9/9)
+- cd packages/pi-autonomous-session-control && npm run typecheck (pass)
+- git diff --check -- scoped ASC files (pass)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass, 180 pass / 1 skip; npm view 404 treated by release-check as expected for first unpublished release)
+
+Review notes:
+- Adds execution.ts to tsconfig.json#include so the published ./execution export target is typechecked by the package quality gate.
+- Adds a public contract assertion that package exports/files and tsconfig include stay aligned.
+- Documents the export/typecheck contract in ASC public seam docs and checklist.
+- Unrelated dirty parent files were not staged.
