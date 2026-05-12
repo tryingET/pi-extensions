@@ -1,0 +1,11 @@
+Operator requested fixing remaining docs-list strict frontmatter issues.
+
+Change:
+- Added summary/read_when frontmatter to packages/pi-workstation-inference-provider/prompts/implementation-planning.md
+- Added summary/read_when frontmatter to packages/pi-workstation-inference-provider/prompts/security-review.md
+
+Validation:
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-workstation-inference-provider --strict: pass
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict: pass
+- git diff --check for changed prompt files: pass
+- pre-commit hook during commit: pass
