@@ -130,7 +130,7 @@ The live cross-extension harness proves the `vault_query` -> `vault_retrieve` ->
 
 ### Prompt-vault compatibility self-check
 
-The `self-prompt-vault-compat` command reports the ASC package version, vault-client version, and prompt-vault schema version. Its ASC version floor is bounded by the readable, semver-parseable package manifest version so the current source package does not report itself below its own prompt-vault minimum when the manifest still carries the package's actual published version. If the manifest version is unavailable or not semver-parseable, the check falls back to the historical prompt-envelope floor (`0.1.3`).
+The `self-prompt-vault-compat` command reports the ASC package version, vault-client version, and prompt-vault schema version. Its ASC floor now comes from a safer feature/manifest policy: source manifests that declare the ASC package name, the public `./execution` export, and shipped `extensions/self` runtime files may use the package source floor (`0.1.0`), while missing/unparseable or feature-incomplete manifests fall back to the historical prompt-envelope floor (`0.1.3`). This avoids certifying arbitrary low manifests (for example `0.0.1`) solely because their checked package version is low. The Dolt schema probe is timeout-bounded and reports schema unavailable instead of hanging when the prompt-vault DB is slow or wedged.
 
 ### Capability discovery surfaces
 
@@ -355,7 +355,7 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 2. Current session model (`<provider>/<model-id>`) when available
 3. Fixed fallback: `openai-codex/gpt-5.4`
 
-The child still launches with `--no-extensions`, but ASC now supports explicit child-only extension bootstrap on top of that minimal base. When the current model uses a numeric-suffix provider alias such as `openai-codex-2`, ASC auto-loads `pi-multi-pass` into the child so the same subscription-backed provider alias remains valid instead of being collapsed to the base provider. ASC also launches the raw child against an isolated copy of the Pi agent dir with a sanitized `settings.json`, so extensionless child runs do not inherit unrelated global default-model warnings from the parent's configured provider aliases.
+The child still launches with `--no-extensions`, but ASC now supports explicit child-only extension bootstrap on top of that minimal base. Empty or whitespace-only requested/effective model selections fail before spawn as structured `model_selection_failed` results and do not expose internal concurrency counters. When the current model uses a numeric-suffix provider alias such as `openai-codex-2`, ASC auto-loads `pi-multi-pass` into the child so the same subscription-backed provider alias remains valid instead of being collapsed to the base provider. ASC also launches the raw child against an isolated copy of the Pi agent dir with a sanitized `settings.json`, so extensionless child runs do not inherit unrelated global default-model warnings from the parent's configured provider aliases.
 
 **Session storage:**
 - `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)

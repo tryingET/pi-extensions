@@ -55,6 +55,7 @@ All notable changes to this project should be documented here.
 - `dispatch_subagent` now routes raw `pi --mode json` output through a package-local assistant-only filter helper before ASC parses the stream, dropping aggregate Pi events that the runtime does not semantically need and treating the helper protocol as the only accepted parent-side seam
 - Subagents now inherit the current session-selected model when available; `PI_SUBAGENT_MODEL` still overrides, and `openai-codex/gpt-5.4` remains the fallback when no live model is available
 - `dispatch_subagent` now records selected child model plus explicit child bootstrap details (`requestedModel`, `effectiveModel`, `loadedExtensions`, `extensionWarnings`) on execution results
+- `self-prompt-vault-compat` now uses a feature/manifest policy for the ASC autonomy floor instead of certifying arbitrary low checked manifest versions, and its Dolt schema probe is timeout-bounded.
 - Documentation updated to reflect scoped cross-session persistence, filtered subagent transport, and new memory contract surfaces
 
 ### Fixed
@@ -64,7 +65,10 @@ All notable changes to this project should be documented here.
 - Timeout/abort shutdown now tears down the raw `pi` child before the parent-side helper force kill window closes, preventing orphaned subprocesses
 - Subagents no longer fail at startup when the live session model comes from a numeric-suffix extension provider alias such as `openai-codex-2`; ASC now preserves the alias and explicitly bootstraps `pi-multi-pass` into the child runtime instead of collapsing to the base provider
 - Extensionless raw-child runs now use an isolated Pi agent dir with sanitized child settings, so unrelated global default-model warnings from extension-backed provider aliases no longer leak into subagent stderr
-- `self-prompt-vault-compat` no longer reports the current ASC package below its own autonomy-version floor when the package manifest is still below the historical prompt-envelope introduction version and other prompt-vault inputs are supported
+- `self-prompt-vault-compat` no longer reports the current ASC package below its own autonomy-version floor when source feature shape proves prompt-envelope support, but it also no longer certifies arbitrary low package manifests such as `0.0.1`.
+- Empty or whitespace-only subagent model selections now fail before spawn as structured `model_selection_failed` results without leaking `activeCount` / `maxConcurrent`.
+- Capability-map wording inside explicit crystallization/protection directives (for example `Remember: capability map stale` or `Mark as trap: capability map ...`) no longer hijacks routing into capability discovery.
+- `tests/public-execution-contract.test.mjs` now resolves package paths from the test module location so it can pass from the repo root as well as the package root.
 
 ## [0.1.4] - 2026-03-04
 

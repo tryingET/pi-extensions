@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION = "0.1.3";
+const SOURCE_MANIFEST_PROMPT_ENVELOPE_FLOOR = "0.1.0";
 const MIN_VAULT_CLIENT_VERSION = "1.2.0";
 const EXPECTED_SCHEMA_VERSION = 1;
+const DEFAULT_SCHEMA_PROBE_TIMEOUT_MS = 2000;
 
 const DEFAULT_AUTONOMY_PACKAGE_PATH = fileURLToPath(new URL("../../package.json", import.meta.url));
 const DEFAULT_VAULT_CLIENT_DIR = join(homedir(), ".pi", "agent", "extensions", "vault-client");
@@ -75,26 +77,53 @@ function isGteSemver(value: string | undefined, minimum: string): boolean | unde
   return result >= 0;
 }
 
-function lowerSemver(a: string, b: string): string | undefined {
-  const result = compareSemver(a, b);
-  if (result === null) return undefined;
-  return result <= 0 ? a : b;
-}
-
-function readVersionFromPackageJson(path: string): string | undefined {
+function readPackageJson(path: string): Record<string, unknown> | undefined {
   if (!existsSync(path)) {
     return undefined;
   }
 
   try {
     const parsed = JSON.parse(readFileSync(path, "utf-8"));
-    return typeof parsed.version === "string" ? parsed.version : undefined;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 }
 
-function readVaultSchemaVersion(vaultDir: string): {
+function readVersionFromPackageJson(path: string): string | undefined {
+  const parsed = readPackageJson(path);
+  return typeof parsed?.version === "string" ? parsed.version : undefined;
+}
+
+function packageManifestDeclaresPromptEnvelopeSupport(path: string): boolean {
+  const parsed = readPackageJson(path);
+  const exportsField = parsed?.exports;
+  const filesField = parsed?.files;
+
+  return (
+    parsed?.name === "pi-autonomous-session-control" &&
+    exportsField !== null &&
+    typeof exportsField === "object" &&
+    !Array.isArray(exportsField) &&
+    (exportsField as Record<string, unknown>)["./execution"] === "./execution.ts" &&
+    Array.isArray(filesField) &&
+    filesField.includes("extensions/self")
+  );
+}
+
+function resolveSchemaProbeTimeoutMs(): number {
+  const configured = Number(process.env.PI_PROMPT_VAULT_SCHEMA_PROBE_TIMEOUT_MS);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.floor(configured);
+  }
+
+  return DEFAULT_SCHEMA_PROBE_TIMEOUT_MS;
+}
+
+function readVaultSchemaVersion(
+  vaultDir: string,
+  timeoutMs = resolveSchemaProbeTimeoutMs(),
+): {
   schemaVersion?: number;
   schemaError?: string;
 } {
@@ -110,6 +139,7 @@ function readVaultSchemaVersion(vaultDir: string): {
         cwd: vaultDir,
         encoding: "utf-8",
         maxBuffer: 1024 * 1024,
+        timeout: timeoutMs,
       },
     );
 
@@ -126,6 +156,20 @@ function readVaultSchemaVersion(vaultDir: string): {
 
     return { schemaVersion: numeric };
   } catch (error) {
+    const maybeTimeout = error as {
+      code?: unknown;
+      killed?: unknown;
+      signal?: unknown;
+    };
+
+    if (
+      maybeTimeout.code === "ETIMEDOUT" ||
+      maybeTimeout.killed === true ||
+      maybeTimeout.signal === "SIGTERM"
+    ) {
+      return { schemaError: `Dolt schema probe timed out after ${timeoutMs}ms` };
+    }
+
     return {
       schemaError: error instanceof Error ? error.message : String(error),
     };
@@ -150,15 +194,19 @@ function resolveCompatibilityPaths(
 }
 
 function resolveMinimumAutonomyVersion(paths: RuntimeCompatibilityPaths): string {
-  const currentPackageVersion = readVersionFromPackageJson(paths.autonomyPackagePath);
-  if (!currentPackageVersion) {
-    return PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION;
+  const manifestVersion = readVersionFromPackageJson(paths.autonomyPackagePath);
+  const sourceManifestHasFeature = packageManifestDeclaresPromptEnvelopeSupport(
+    paths.autonomyPackagePath,
+  );
+
+  if (
+    sourceManifestHasFeature &&
+    isGteSemver(manifestVersion, SOURCE_MANIFEST_PROMPT_ENVELOPE_FLOOR) === true
+  ) {
+    return SOURCE_MANIFEST_PROMPT_ENVELOPE_FLOOR;
   }
 
-  return (
-    lowerSemver(currentPackageVersion, PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION) ||
-    PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION
-  );
+  return PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION;
 }
 
 export function evaluatePromptVaultCompatibility(

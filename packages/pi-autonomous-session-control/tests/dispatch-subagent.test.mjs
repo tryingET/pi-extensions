@@ -153,6 +153,7 @@ test("dispatch_subagent returns a structured model-selection error without leaki
     assert.equal(result.details.reason, "model_selection_failed");
     assert.equal(result.details.failureKind, "model_selection_failed");
     assert.equal(result.details.activeCount, 0);
+    assert.equal(typeof result.details.maxConcurrent, "number");
     assert.equal(harness.state.activeCount, 0);
     assert.equal(harness.getCapturedDef(), undefined);
     assert.equal(harness.getCapturedModel(), undefined);
@@ -160,6 +161,79 @@ test("dispatch_subagent returns a structured model-selection error without leaki
     assert.match(result.content[0].text, /model provider exploded/);
   } finally {
     await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent rejects whitespace-only model strings before spawn without leaking activeCount", async () => {
+  const harness = await setup(undefined, () => "   ");
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-model-provider-empty-string",
+      {
+        profile: "reviewer",
+        objective: "Review changes",
+      },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(result.details.status, "error");
+    assert.equal(result.details.reason, "model_selection_failed");
+    assert.equal(result.details.failureKind, "model_selection_failed");
+    assert.equal(result.details.activeCount, 0);
+    assert.equal(typeof result.details.maxConcurrent, "number");
+    assert.equal(harness.state.activeCount, 0);
+    assert.equal(harness.getCapturedDef(), undefined);
+    assert.equal(harness.getCapturedModel(), undefined);
+    assert.match(result.content[0].text, /empty model string/);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent rejects empty requested/effective model selections before spawn", async () => {
+  const cases = [
+    {
+      name: "requested",
+      selection: { requestedModel: "   ", effectiveModel: "test/model", source: "session" },
+      message: /empty requested model string/,
+    },
+    {
+      name: "effective",
+      selection: { requestedModel: "test/model", effectiveModel: "   ", source: "session" },
+      message: /empty effective model string/,
+    },
+  ];
+
+  for (const testCase of cases) {
+    const harness = await setup(undefined, () => testCase.selection);
+
+    try {
+      const result = await harness.tool.execute(
+        `tc-model-provider-empty-${testCase.name}`,
+        {
+          profile: "reviewer",
+          objective: "Review changes",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      );
+
+      assert.equal(result.details.status, "error");
+      assert.equal(result.details.reason, "model_selection_failed");
+      assert.equal(result.details.failureKind, "model_selection_failed");
+      assert.equal(result.details.activeCount, 0);
+      assert.equal(typeof result.details.maxConcurrent, "number");
+      assert.equal(harness.state.activeCount, 0);
+      assert.equal(harness.getCapturedDef(), undefined);
+      assert.equal(harness.getCapturedModel(), undefined);
+      assert.match(result.content[0].text, testCase.message);
+    } finally {
+      await harness.cleanup();
+    }
   }
 });
 

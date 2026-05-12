@@ -43,7 +43,7 @@ The seam is therefore an anti-drift boundary, not a goal by itself.
 The public runtime preserves the existing ASC execution-plane behavior:
 - request normalization and invariant checks
 - runtime-owned concurrency reservation before spawn so `maxConcurrent` applies even to custom spawners
-- model selection failure shaping before spawn, including deterministic release of the reserved concurrency slot
+- model selection failure shaping before spawn, including whitespace/empty model rejection, deterministic release of the reserved concurrency slot, and no exposure of internal concurrency counters on `model_selection_failed`
 - prompt-envelope application
 - session-name reservation and artifact-backed session lifecycle
 - subagent spawn execution
@@ -165,7 +165,7 @@ This now covers the first two execution-boundary slices in the AK sequence:
 
 Current proof shape:
 - **ASC package-local contract truth**
-  - `tests/public-execution-contract.test.mjs` proves the supported package entrypoint exists, can bind the tool surface, and returns structured model-selection failures without leaking reserved concurrency slots
+  - `tests/public-execution-contract.test.mjs` proves the supported package entrypoint exists, can bind the tool surface, is package-root independent when invoked from the repo root, and returns structured model-selection failures without leaking reserved concurrency slots
   - `tests/public-execution-parity.test.mjs` proves the public runtime and `dispatch_subagent` stay aligned for:
     - prompt-envelope application
     - rate-limit / invariant failures

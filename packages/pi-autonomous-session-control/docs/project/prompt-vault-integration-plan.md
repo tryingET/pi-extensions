@@ -21,19 +21,16 @@ system4d:
 
 ## Compatibility guard notes (current contract)
 
-`self-prompt-vault-compat` evaluates the ASC package version against a manifest-bounded autonomy floor instead of a hard-coded release bump. The floor is the lower of:
+`self-prompt-vault-compat` evaluates the ASC package version against a feature/manifest policy instead of deriving the compatibility floor solely from the checked package manifest version. A source manifest may use the package source floor (`0.1.0`) only when it declares the expected ASC package identity plus the prompt-envelope-era feature shape (`exports["./execution"] == "./execution.ts"` and shipped `extensions/self` files). Otherwise the guard falls back to the historical prompt-envelope introduction version (`0.1.3`).
 
-1. the readable, semver-parseable ASC `package.json` version for this installed/source package; and
-2. the historical prompt-envelope introduction version (`0.1.3`).
-
-If the ASC package manifest cannot be read or its version cannot be parsed as semver, the guard falls back to the historical `0.1.3` floor.
+This prevents arbitrary low manifests (for example `0.0.1`) from being certified as supported just because the checked package version is low.
 
 | autonomous-session-control | vault-client | prompt-vault schema | Status | Guard behavior |
 |---|---|---|---|---|
-| `>= manifest-bounded floor` | `>=1.2.0` | `schema_version = 1` | ✅ supported | Prompt envelope supported by the loaded code; fallback warnings emitted when envelope metadata is partial/invalid |
-| `< manifest-bounded floor` | `>=1.2.0` | `schema_version = 1` | ⚠️ limited | ASC version is below the installed/source package's own compatibility floor; upgrade or point `PI_AUTONOMY_PACKAGE_JSON` at the intended package manifest |
+| `>= feature/manifest floor` | `>=1.2.0` | `schema_version = 1` | ✅ supported | Prompt envelope supported by the loaded code; fallback warnings emitted when envelope metadata is partial/invalid |
+| `< feature/manifest floor` | `>=1.2.0` | `schema_version = 1` | ⚠️ limited | ASC version is below the compatibility floor proven by source feature shape or historical release floor; upgrade or point `PI_AUTONOMY_PACKAGE_JSON` at the intended package manifest |
 
-This keeps the live/current package from reporting itself below its own minimum while the manifest still carries the real package version, without implying an unrelated release/version bump.
+The Dolt schema probe is bounded by a timeout and reports the schema as unavailable with `schemaError` instead of hanging the compatibility command.
 
 Runtime guards in this repo:
 - If prompt envelope metadata is present without `prompt_content`, dispatch continues with legacy prompt and returns `prompt_warning`.

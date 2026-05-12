@@ -3,10 +3,12 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
 import { createAscExecutionRuntime, getDispatchSubagentDisplayOutput } from "../execution.ts";
 import { registerDispatchSubagentTool } from "../extensions/self/subagent.ts";
+
+const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
 const timeoutEmptyOutputCase = loadExecutionSeamCase("timeout-empty-output");
 const timeoutWhitespaceOutputCase = loadExecutionSeamCase("timeout-whitespace-output");
@@ -18,8 +20,8 @@ function escapeRegExp(value) {
 
 test("public execution export target stays published and typechecked", async () => {
   const [packageJson, tsconfigJson] = await Promise.all([
-    readFile("package.json", "utf8"),
-    readFile("tsconfig.json", "utf8"),
+    readFile(join(packageRoot, "package.json"), "utf8"),
+    readFile(join(packageRoot, "tsconfig.json"), "utf8"),
   ]);
   const packageDefinition = JSON.parse(packageJson);
   const tsconfig = JSON.parse(tsconfigJson);
@@ -175,6 +177,7 @@ test("createAscExecutionRuntime returns structured model-selection errors withou
     assert.equal(result.details.reason, "model_selection_failed");
     assert.equal(result.details.failureKind, "model_selection_failed");
     assert.equal(result.details.activeCount, 0);
+    assert.equal(typeof result.details.maxConcurrent, "number");
     assert.equal(result.details.displayOutput, result.details.fullOutput);
     assert.match(result.text, /^✗ \[reviewer\] error before spawn/);
     assert.match(result.text, /model provider exploded/);
@@ -183,9 +186,55 @@ test("createAscExecutionRuntime returns structured model-selection errors withou
   }
 });
 
+test("createAscExecutionRuntime rejects whitespace-only model strings before spawn", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-empty-model-"));
+  let spawnerCalled = false;
+
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => ({
+      requestedModel: "   ",
+      effectiveModel: "test/model",
+      source: "session",
+    }),
+    spawner: async () => {
+      spawnerCalled = true;
+      return {
+        output: "should not spawn",
+        exitCode: 0,
+        elapsed: 1,
+        status: "done",
+      };
+    },
+  });
+
+  try {
+    const result = await runtime.execute(
+      {
+        profile: "reviewer",
+        objective: "Verify empty model failure shaping",
+      },
+      { cwd: process.cwd() },
+    );
+
+    assert.equal(spawnerCalled, false);
+    assert.equal(runtime.state.activeCount, 0);
+    assert.equal(result.ok, false);
+    assert.equal(result.details.status, "error");
+    assert.equal(result.details.reason, "model_selection_failed");
+    assert.equal(result.details.failureKind, "model_selection_failed");
+    assert.equal(result.details.activeCount, 0);
+    assert.equal(typeof result.details.maxConcurrent, "number");
+    assert.match(result.text, /^✗ \[reviewer\] error before spawn/);
+    assert.match(result.text, /empty requested model string/);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("execution entrypoint stays headless-importable without package-local node_modules", async () => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), "asc-public-runtime-headless-"));
-  const packageRoot = join(fixtureRoot, "package");
+  const fixturePackageRoot = join(fixtureRoot, "package");
   const requiredFiles = [
     "execution.ts",
     "extensions/self/cross-extension-harness.ts",
@@ -206,13 +255,15 @@ test("execution entrypoint stays headless-importable without package-local node_
 
   try {
     for (const relativePath of requiredFiles) {
-      const sourcePath = join(process.cwd(), relativePath);
-      const destinationPath = join(packageRoot, relativePath);
+      const sourcePath = join(packageRoot, relativePath);
+      const destinationPath = join(fixturePackageRoot, relativePath);
       await mkdir(dirname(destinationPath), { recursive: true });
       await cp(sourcePath, destinationPath);
     }
 
-    await import(`${pathToFileURL(join(packageRoot, "execution.ts")).href}?headless=${Date.now()}`);
+    await import(
+      `${pathToFileURL(join(fixturePackageRoot, "execution.ts")).href}?headless=${Date.now()}`
+    );
   } finally {
     await rm(fixtureRoot, { recursive: true, force: true });
   }

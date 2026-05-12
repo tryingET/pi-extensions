@@ -35,6 +35,33 @@ test("self query: remember pattern", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: remember capability-map content is not hijacked by capability discovery", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-capability-map-remember",
+    { query: "Remember: capability map stale for ASC routing" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.intent, "crystallization");
+  assert.ok(
+    result.content[0].text.includes("Pattern crystallized"),
+    "should remember capability-map content as a pattern",
+  );
+  assert.ok(result.details.data.patternId, "should return pattern ID");
+
+  await cleanup(tempDir);
+});
+
 test("self query: recall patterns", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

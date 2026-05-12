@@ -32,6 +32,30 @@ test("self query: mark trap", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: mark trap with capability-map content is not hijacked by capability discovery", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-capability-map-trap",
+    { query: "Mark as trap: capability map can be stale during routing" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.intent, "protection");
+  assert.ok(result.content[0].text.includes("Trap marked"), "should confirm trap marking");
+  assert.ok(result.details.data.trapId, "should return trap ID");
+
+  await cleanup(tempDir);
+});
+
 test("self query: check traps", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

@@ -217,16 +217,31 @@ function normalizeModelProviderResult(
   result: SubagentModelProviderResult,
 ): ResolvedSubagentModelSelection {
   if (typeof result === "string") {
+    const model = result.trim();
+    if (model.length === 0) {
+      throw new Error("model provider returned an empty model string");
+    }
+
     return {
-      requestedModel: result,
-      effectiveModel: result,
+      requestedModel: model,
+      effectiveModel: model,
       source: "custom",
     };
   }
 
   const effectiveModel = result.effectiveModel.trim();
+  const requestedModel = (result.requestedModel ?? effectiveModel).trim();
+
+  if (effectiveModel.length === 0) {
+    throw new Error("model provider returned an empty effective model string");
+  }
+
+  if (requestedModel.length === 0) {
+    throw new Error("model provider returned an empty requested model string");
+  }
+
   return {
-    requestedModel: (result.requestedModel || effectiveModel).trim(),
+    requestedModel,
     effectiveModel,
     source: result.source,
     warning: result.warning,

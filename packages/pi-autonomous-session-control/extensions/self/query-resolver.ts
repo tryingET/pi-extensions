@@ -192,6 +192,37 @@ function presentSemanticPressureResponse(response: SelfResponse): SelfResponse {
   };
 }
 
+function unquoteDirectiveContent(value: string): string {
+  const trimmed = value.trim();
+  const quoted = trimmed.match(/^"([\s\S]*)"$/) || trimmed.match(/^'([\s\S]*)'$/);
+  return (quoted?.[1] ?? trimmed).trim();
+}
+
+function normalizeColonDirectiveContext(
+  query: SelfQuery,
+  field: "pattern" | "description",
+  pattern: RegExp,
+): SelfQuery {
+  const context = query.context ?? {};
+  if (typeof context[field] === "string" && context[field].trim().length > 0) {
+    return query;
+  }
+
+  const match = query.query.match(pattern);
+  const content = match?.[1] ? unquoteDirectiveContent(match[1]) : "";
+  if (content.length === 0) {
+    return query;
+  }
+
+  return {
+    ...query,
+    context: {
+      ...context,
+      [field]: content,
+    },
+  };
+}
+
 // ============================================================================
 // INTENT CLASSIFICATION
 // ============================================================================
@@ -199,10 +230,11 @@ function presentSemanticPressureResponse(response: SelfResponse): SelfResponse {
 export function classifyIntent(query: string): QueryIntent {
   const lower = query.toLowerCase();
 
-  // Check capabilities FIRST (meta-query about the tool itself)
-  for (const keyword of CAPABILITY_KEYWORDS) {
+  // Check explicit action/crystallization/protection requests before capability discovery so
+  // content like "Remember: capability map stale" is stored instead of being hijacked as meta.
+  for (const keyword of ACTION_KEYWORDS) {
     if (lower.includes(keyword)) {
-      return { domain: "meta", intent: "list_capabilities" };
+      return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
     }
   }
 
@@ -211,26 +243,6 @@ export function classifyIntent(query: string): QueryIntent {
       domain: "crystallization",
       intent: mapSemanticPressureIntent(lower),
     };
-  }
-
-  // Check action domain (highest priority for domain queries)
-  for (const keyword of ACTION_KEYWORDS) {
-    if (lower.includes(keyword)) {
-      return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
-    }
-  }
-
-  // Then check perception domain
-  for (const keyword of PERCEPTION_KEYWORDS) {
-    if (lower.includes(keyword)) {
-      return { domain: "perception", intent: mapPerceptionIntent(lower) as PerceptionIntent };
-    }
-  }
-
-  for (const keyword of DIRECTION_KEYWORDS) {
-    if (lower.includes(keyword)) {
-      return { domain: "direction", intent: mapDirectionIntent(lower) as DirectionIntent };
-    }
   }
 
   for (const keyword of CRYSTALLIZATION_KEYWORDS) {
@@ -245,6 +257,26 @@ export function classifyIntent(query: string): QueryIntent {
   for (const keyword of PROTECTION_KEYWORDS) {
     if (lower.includes(keyword)) {
       return { domain: "protection", intent: mapProtectionIntent(lower) as ProtectionIntent };
+    }
+  }
+
+  // Check capabilities after explicit domain requests (meta-query about the tool itself).
+  for (const keyword of CAPABILITY_KEYWORDS) {
+    if (lower.includes(keyword)) {
+      return { domain: "meta", intent: "list_capabilities" };
+    }
+  }
+
+  // Then check perception domain
+  for (const keyword of PERCEPTION_KEYWORDS) {
+    if (lower.includes(keyword)) {
+      return { domain: "perception", intent: mapPerceptionIntent(lower) as PerceptionIntent };
+    }
+  }
+
+  for (const keyword of DIRECTION_KEYWORDS) {
+    if (lower.includes(keyword)) {
+      return { domain: "direction", intent: mapDirectionIntent(lower) as DirectionIntent };
     }
   }
 
@@ -273,14 +305,26 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
     case "crystallization": {
       const usesSemanticPressureSurface = SEMANTIC_PRESSURE_INTENTS.has(intent.intent);
       const normalizedIntent = normalizeCrystallizationIntent(intent.intent);
-      const normalizedQuery = usesSemanticPressureSurface
-        ? normalizeSemanticPressureQuery(query)
-        : query;
+      const baseQuery = usesSemanticPressureSurface ? normalizeSemanticPressureQuery(query) : query;
+      const normalizedQuery =
+        normalizedIntent === "remember_pattern"
+          ? normalizeColonDirectiveContext(baseQuery, "pattern", /^\s*remember\s*:\s*([\s\S]+)$/i)
+          : baseQuery;
       const response = resolveCrystallizationQuery(normalizedIntent, normalizedQuery, state);
+
       return usesSemanticPressureSurface ? presentSemanticPressureResponse(response) : response;
     }
-    case "protection":
-      return resolveProtectionQuery(intent.intent, query, state);
+    case "protection": {
+      const normalizedQuery =
+        intent.intent === "mark_trap"
+          ? normalizeColonDirectiveContext(
+              query,
+              "description",
+              /^\s*mark\s+as\s+trap\s*:\s*([\s\S]+)$/i,
+            )
+          : query;
+      return resolveProtectionQuery(intent.intent, normalizedQuery, state);
+    }
     case "action":
       return resolveActionQuery(intent.intent, query, state);
     default:
