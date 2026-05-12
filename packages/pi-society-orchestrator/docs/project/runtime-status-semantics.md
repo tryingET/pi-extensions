@@ -44,6 +44,7 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
 
 1. `/runtime-status` from `extensions/runtime-footer.ts`
    - opens an editor-backed report with the runtime truth, live routing state, DB/vault status, footer contract, and a read-only AK close-frame/readiness section when AK can detect exactly one active strategic frame and implementation wave for the current cwd
+   - the AK section preserves route posture, common proceed rule, route policy/state machine, active task, closeout readiness, close-frame blockers, closeout-domain blockers, safe read commands, and lifecycle/source-owner non-authorizations without running AK lifecycle writes
 2. `session_start` from `extensions/runtime-footer.ts`
    - announces DB/vault status plus the current routing scope
    - advertises `/agents-team` as a routing selector and `/runtime-status` as the direct inspector
@@ -68,7 +69,7 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
 ## Wording constraints
 
 - Do **not** imply that `pi-society-orchestrator` owns the execution runtime.
-- Do **not** imply that Pi owns AK lifecycle state; `/runtime-status` may display AK closeout/readiness/close-frame readbacks, but it must not run AK lifecycle writes.
+- Do **not** imply that Pi owns AK lifecycle state; `/runtime-status` may display AK closeout/readiness/close-frame readbacks, route policy, active task, safe commands, and non-authorizations, but it must not run AK lifecycle writes.
 - Do **not** regress to stale footer/status wording such as `orchestra` or `Team: ...` for the operator-facing runtime surfaces covered here.
 - Prefer `Routing` when describing the active agent-scope selection.
 - Keep footer/status wording short; put richer explanation in `/runtime-status` and docs.

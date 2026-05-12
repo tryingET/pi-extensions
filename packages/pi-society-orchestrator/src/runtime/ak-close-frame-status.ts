@@ -14,13 +14,20 @@ export interface AkCloseFrameStatusSnapshot {
   strategicFrame?: string;
   implementationWave?: string;
   routePosture?: string;
+  genericProceedRule?: string;
   genericProceedAllowed?: boolean;
+  routePolicyStatus?: string;
+  routePolicyStateMachine?: string;
+  routePolicyRecommendedAction?: string;
   activeTask?: AkCloseFrameActiveTaskSummary;
   closeoutReady?: boolean;
+  closeoutReadinessState?: string;
   readyForOperatorGate?: boolean;
   closeFrameApplySupported?: boolean;
   closeFrameBlockers: string[];
+  closeoutBlockers: string[];
   nonActions: string[];
+  nonAuthorizations: string[];
   safeReadCommands: string[];
   errors: string[];
 }
@@ -140,9 +147,20 @@ function activeTaskFromOpenFrame(
   };
 }
 
+function routeGuidanceFromOpenFrame(payload: Record<string, unknown>) {
+  return isRecord(payload.route_guidance) ? payload.route_guidance : undefined;
+}
+
+function routePolicyFromOpenFrame(payload: Record<string, unknown>) {
+  return isRecord(payload.route_selection_policy) ? payload.route_selection_policy : undefined;
+}
+
 function routePostureFromOpenFrame(payload: Record<string, unknown>) {
-  const routeGuidance = isRecord(payload.route_guidance) ? payload.route_guidance : undefined;
-  return asString(routeGuidance?.posture);
+  return asString(routeGuidanceFromOpenFrame(payload)?.posture);
+}
+
+function genericProceedRuleFromOpenFrame(payload: Record<string, unknown>) {
+  return asString(routeGuidanceFromOpenFrame(payload)?.generic_proceed_rule);
 }
 
 function genericProceedAllowedFromOpenFrame(payload: Record<string, unknown>) {
@@ -154,7 +172,16 @@ function closeoutReadyFromOpenFrame(payload: Record<string, unknown>) {
   const closeout = isRecord(payload.closeout_status) ? payload.closeout_status : undefined;
   return {
     closeoutReady: asBoolean(closeout?.closeout_ready),
+    closeoutReadinessState: asString(closeout?.readiness_state),
     readyForOperatorGate: asBoolean(closeout?.ready_for_operator_gate),
+    closeoutBlockers: Array.isArray(closeout?.blockers)
+      ? closeout.blockers.flatMap((entry) => {
+          if (!isRecord(entry)) return [];
+          const domain = asString(entry.domain);
+          const reason = asString(entry.reason);
+          return domain ? [`${domain}${reason ? ` (${reason})` : ""}`] : [];
+        })
+      : [],
   };
 }
 
@@ -173,7 +200,9 @@ export async function readAkCloseFrameStatus(
     status: "unavailable",
     repo: params.cwd,
     closeFrameBlockers: [],
+    closeoutBlockers: [],
     nonActions: [],
+    nonAuthorizations: [],
     safeReadCommands: [],
     errors: [],
   };
@@ -246,9 +275,8 @@ export async function readAkCloseFrameStatus(
   }
 
   const closeout = closeoutReadyFromOpenFrame(openFrame.value);
-  const routeGuidance = isRecord(openFrame.value.route_guidance)
-    ? openFrame.value.route_guidance
-    : undefined;
+  const routeGuidance = routeGuidanceFromOpenFrame(openFrame.value);
+  const routePolicy = routePolicyFromOpenFrame(openFrame.value);
 
   return {
     status: "available",
@@ -256,13 +284,20 @@ export async function readAkCloseFrameStatus(
     strategicFrame,
     implementationWave,
     routePosture: routePostureFromOpenFrame(openFrame.value),
+    genericProceedRule: genericProceedRuleFromOpenFrame(openFrame.value),
     genericProceedAllowed: genericProceedAllowedFromOpenFrame(openFrame.value),
+    routePolicyStatus: asString(routePolicy?.status),
+    routePolicyStateMachine: asString(routePolicy?.state_machine),
+    routePolicyRecommendedAction: asString(routePolicy?.recommended_action),
     activeTask: activeTaskFromOpenFrame(openFrame.value),
     closeoutReady: closeout.closeoutReady,
+    closeoutReadinessState: closeout.closeoutReadinessState,
     readyForOperatorGate: closeout.readyForOperatorGate,
     closeFrameApplySupported: asBoolean(closeFrame.value.apply_supported),
     closeFrameBlockers: stringArray(closeFrame.value.blockers),
+    closeoutBlockers: closeout.closeoutBlockers,
     nonActions: stringArray(closeFrame.value.non_actions),
+    nonAuthorizations: stringArray(routeGuidance?.non_authorizations),
     safeReadCommands: stringArray(routeGuidance?.safe_commands),
     errors: [],
   };
@@ -290,12 +325,20 @@ export function formatAkCloseFrameStatusSection(snapshot: AkCloseFrameStatusSnap
     `- repo: \`${snapshot.repo}\``,
     `- frame/wave: \`${snapshot.strategicFrame}\` / \`${snapshot.implementationWave}\``,
     `- route posture: \`${snapshot.routePosture || "unknown"}\``,
+    `- common proceed: \`${snapshot.genericProceedRule || "unknown"}\``,
     `- generic proceed allowed: ${formatBool(snapshot.genericProceedAllowed)}`,
+    `- route-policy: \`${snapshot.routePolicyStatus || "unknown"}\`${snapshot.routePolicyStateMachine ? ` (${snapshot.routePolicyStateMachine})` : ""}`,
+    snapshot.routePolicyRecommendedAction
+      ? `- recommended action: ${snapshot.routePolicyRecommendedAction}`
+      : "- recommended action: unknown",
     `- active task: ${taskText}`,
     `- closeout ready: ${formatBool(snapshot.closeoutReady)}`,
+    `- readiness state: \`${snapshot.closeoutReadinessState || "unknown"}\``,
     `- ready for operator gate: ${formatBool(snapshot.readyForOperatorGate)}`,
     `- close-frame apply supported: ${formatBool(snapshot.closeFrameApplySupported)}`,
-    `- blockers: ${formatList(snapshot.closeFrameBlockers)}`,
+    `- close-frame blockers: ${formatList(snapshot.closeFrameBlockers)}`,
+    `- closeout blockers: ${formatList(snapshot.closeoutBlockers)}`,
+    `- non-authorized: ${formatList(snapshot.nonAuthorizations)}`,
     `- non-actions: ${formatList(snapshot.nonActions)}`,
     snapshot.safeReadCommands.length > 0
       ? `- safe read commands: ${snapshot.safeReadCommands.map((command) => `\`${command}\``).join(", ")}`

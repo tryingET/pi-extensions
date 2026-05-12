@@ -1300,10 +1300,22 @@ test("AK close-frame status reader uses read-only AK surfaces", async () => {
         ok: true,
         stdout: JSON.stringify({
           active_execution_task: { status: "present", task_id: 2692, title: "Await next route" },
-          closeout_status: { closeout_ready: true, ready_for_operator_gate: true },
+          closeout_status: {
+            closeout_ready: true,
+            readiness_state: "ready",
+            ready_for_operator_gate: true,
+            blockers: [{ domain: "packet_lineage", reason: "packet check needed" }],
+          },
           route_guidance: {
             posture: "route_wait",
+            generic_proceed_rule: "inspect_status_before_proceeding",
             safe_commands: ["ak strategy open-frame-status --repo . SF4 -F json"],
+            non_authorizations: ["no_sf4_closeout", "no_lifecycle_state_mutation"],
+          },
+          route_selection_policy: {
+            status: "inspect_status",
+            state_machine: "product_posture_first_route_selection_v1",
+            recommended_action: "inspect status before proceeding",
           },
           route_wait_context: { generic_proceed_allowed: false },
         }),
@@ -1335,15 +1347,28 @@ test("AK close-frame status reader uses read-only AK surfaces", async () => {
   assert.equal(snapshot.strategicFrame, "SF4");
   assert.equal(snapshot.implementationWave, "IW8");
   assert.equal(snapshot.routePosture, "route_wait");
+  assert.equal(snapshot.genericProceedRule, "inspect_status_before_proceeding");
   assert.equal(snapshot.genericProceedAllowed, false);
+  assert.equal(snapshot.routePolicyStatus, "inspect_status");
+  assert.equal(snapshot.routePolicyStateMachine, "product_posture_first_route_selection_v1");
+  assert.equal(snapshot.closeoutReadinessState, "ready");
   assert.equal(snapshot.closeFrameApplySupported, false);
   assert.deepEqual(snapshot.closeFrameBlockers, ["unsafe_execution_task_posture"]);
+  assert.deepEqual(snapshot.closeoutBlockers, ["packet_lineage (packet check needed)"]);
+  assert.deepEqual(snapshot.nonAuthorizations, ["no_sf4_closeout", "no_lifecycle_state_mutation"]);
   assert.ok(calls.every((args) => !args.includes("--apply")));
 
   const section = formatAkCloseFrameStatusSection(snapshot);
   assert.match(section, /AK close-frame\/readiness/);
+  assert.match(section, /common proceed: `inspect_status_before_proceeding`/);
   assert.match(section, /generic proceed allowed: false/);
+  assert.match(
+    section,
+    /route-policy: `inspect_status` \(product_posture_first_route_selection_v1\)/,
+  );
   assert.match(section, /close-frame apply supported: false/);
+  assert.match(section, /closeout blockers: packet_lineage \(packet check needed\)/);
+  assert.match(section, /non-authorized: no_sf4_closeout, no_lifecycle_state_mutation/);
   assert.match(section, /writes: none; Pi only displays AK readbacks/);
 });
 
