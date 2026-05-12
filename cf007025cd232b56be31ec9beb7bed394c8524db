@@ -1,0 +1,28 @@
+Peer-assisted ASC release/version truth cleanup.
+
+Candidate peer: candidatepeer-mp273cg6-51ff65a2
+Candidate branch: candidate/asc-release-version-truth-cleanup
+Candidate commit: b9dba2e4
+Controller commit: cf007025
+AK task: #2876
+Evidence: #1844
+
+Promoted changes:
+- Bumped packages/pi-autonomous-session-control/package.json version from 0.1.0 to 0.1.5.
+- Synced root .release-please-manifest.json for the ASC component to 0.1.5.
+- Moved current ASC changelog Unreleased entries under ## [0.1.5] - 2026-05-12, leaving Unreleased reset.
+
+Version rationale:
+- CHANGELOG.md already records 0.1.4 dated 2026-03-04, so the next truthful monotonic ASC component release is 0.1.5.
+- npm view pi-autonomous-session-control currently returns E404; release-check treats this as expected first-publish state.
+
+Validation in parent checkout:
+- npm run release:components:check (pass)
+- cd packages/pi-autonomous-session-control && npm run release:check:quick (pass; npm view E404 expected first publish)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- git diff --check HEAD~1..HEAD (pass)
+
+Boundary notes:
+- No publish, tag, push, or GitHub Release was created.
+- No tech-stack-core or tpl-template-repo mutation in this slice.
+- Unrelated dirty parent checkout files were not staged.
