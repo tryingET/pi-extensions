@@ -1,0 +1,19 @@
+Promoted from candidate peer candidatepeer-mp2qbvwu-75667df1 (branch candidate/root-manage-all-release-components; worktree /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/root-manage-all-release-components) with controller fixes.
+
+Operator intent: make remaining pi-extensions packages one-way root-managed release components and explain prior exclusions.
+
+Controller adjustments beyond peer patch:
+- Updated .copier-answers.yml release_config_mode from none to component for converted packages to prevent future template drift.
+- Scoped pi-session-compaction npm identity to @tryinget/pi-session-compaction while preserving release component key pi-session-compaction.
+- Removed recursive release:check scripts for newly converted packages; quick checks now use npm pack --dry-run --json because package-quality-gate already invokes release:check:quick during quality:ci.
+- Updated stale docs that still described converted packages as private.
+
+Validation:
+- npm run -s release:components:check: pass
+- node --test ./scripts/release-components.test.mjs: pass (3/3)
+- changed package npm run check + npm run release:check:quick for pi-model-selection, pi-prompt-template-execution, pi-session-compaction, pi-activity-strip: pass
+- changed package docs strict checks: pass
+- git diff --check for changed paths: pass
+- pre-commit hook during git commit: pass
+
+Known unrelated validation note: full repo docs strict still fails on pre-existing pi-workstation-inference-provider prompt frontmatter issues, not touched here.
