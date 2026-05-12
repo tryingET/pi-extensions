@@ -18,23 +18,24 @@ Keep the current bundled `@tryinget/pi-autonomous-session-control` bridge only a
 
 ## Current topology
 
+Retirement status: **completed after ASC `0.1.5` became visible on npm**.
+
 Today orchestrator uses:
 
-- `"@tryinget/pi-autonomous-session-control": "file:../pi-autonomous-session-control"`
-- `"bundleDependencies": ["@tryinget/pi-autonomous-session-control"]`
+- `"@tryinget/pi-autonomous-session-control": "^0.1.5"`
+- no `bundleDependencies` / `bundledDependencies` entry for ASC
 
-Why this exists:
+Why the bridge existed:
 
-- the execution-plane ownership cutover is already complete
-- orchestrator must still be installable from its own tarball
-- ASC does not yet have release evidence that lets orchestrator consume it as a normal published dependency
-- installed-package smoke currently needs to prove the packaged import graph that includes the bundled ASC copy
+- the execution-plane ownership cutover was already complete
+- orchestrator still had to be installable from its own tarball before ASC had registry-backed release evidence
+- installed-package smoke needed to prove the packaged import graph that included the bundled ASC copy
 
-This bridge is therefore a packaging compatibility measure, **not** a statement that orchestrator should permanently ship ASC inside its own tarball.
+The bridge was therefore a packaging compatibility measure, **not** a statement that orchestrator should permanently ship ASC inside its own tarball.
 
 ## Allowed lifetime
 
-The bridge may remain only while all of the following are still true:
+The bridge may remain only while all of the following are still true. These conditions are no longer true after ASC `0.1.5` publication and the orchestrator dependency cutover:
 
 1. orchestrator needs ASC at install time to expose the supported execution seam
 2. ASC has not yet been proven as a standalone published package dependency in the orchestrator release path
@@ -44,7 +45,7 @@ If any of those statements stops being true, start the bridge-removal cutover in
 
 ## Exit criteria
 
-Retire the bridge in the same bounded change that satisfies all criteria below:
+The bridge is retired in the same bounded change that satisfies all criteria below:
 
 1. **ASC publish path is real**
    - `@tryinget/pi-autonomous-session-control` has a registry-backed release path proven through the existing monorepo component release flow
@@ -56,7 +57,7 @@ Retire the bridge in the same bounded change that satisfies all criteria below:
    - `packages/pi-society-orchestrator/scripts/release-smoke.mjs` no longer needs bundled-dependency lifting for ASC
    - `npm run release:check` passes with the registry-backed/install-time dependency model
 4. **Docs and handoff stay truthful**
-   - update `README.md`, `next_session_prompt.md`, and the execution-boundary packet docs in both packages so they no longer describe bundling as the active topology
+   - update active package docs so they no longer describe bundling as the active topology
 
 ## Review trigger
 

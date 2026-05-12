@@ -101,10 +101,7 @@
   },
   "dependencies": {
     "@tryinget/pi-autoresearch": "file:../pi-autoresearch",
-    "@tryinget/pi-autonomous-session-control": "file:../pi-autonomous-session-control",
+    "@tryinget/pi-autonomous-session-control": "^0.1.5",
     "@tryinget/pi-vault-client": "file:../pi-vault-client"
-  },
-  "bundleDependencies": [
-    "@tryinget/pi-autonomous-session-control"
-  ]
+  }
 }
