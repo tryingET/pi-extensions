@@ -1,0 +1,30 @@
+Promoted from peer-session candidate branch candidate/asc-live-prompt-vault-test-isolation.
+
+Peer run: candidatepeer-mp22pxd5-24ef5796
+Peer session: session-019e1a3d-127c-734f-b76b-f7a2885e9383
+Candidate worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/candidate-asc-live-prompt-vault-test-isolation
+Controller promoted commit: 4ba8764
+Controller session: session-019e0b49-3ba1-7069-8acd-97b9adce0e7c
+AK task: #2861
+
+Promoted files:
+- packages/pi-autonomous-session-control/package.json
+- packages/pi-autonomous-session-control/tests/prompt-vault-db-integration.test.mjs
+- packages/pi-autonomous-session-control/tests/prompt-vault-cross-extension-live.test.mjs
+- packages/pi-autonomous-session-control/README.md
+- packages/pi-autonomous-session-control/docs/project/prompt-vault-integration-assessment.md
+- packages/pi-autonomous-session-control/docs/project/prompt-vault-cross-extension-harness.md
+- packages/pi-autonomous-session-control/docs/project/public-execution-contract.md
+- packages/pi-autonomous-session-control/CHANGELOG.md
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/prompt-vault-db-integration.test.mjs tests/prompt-vault-cross-extension-live.test.mjs (pass 6 / skip 2; default no live host probing)
+- cd packages/pi-autonomous-session-control && npm run test:live:prompt-vault (pass 7 / skip 1; live DB path passed, cross-extension skipped because vault-client extension path unavailable)
+- git diff --check -- scoped ASC files (pass)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass, 192 pass / 2 skip; npm view 404 treated by release-check as expected for first unpublished release)
+
+Review notes:
+- Default check now keeps parser/unit prompt-vault contract truth while skipping host-dependent live DB/vault-client probes unless ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1.
+- Added npm run test:live:prompt-vault as explicit live validation surface.
+- Unrelated dirty parent files were not staged.
