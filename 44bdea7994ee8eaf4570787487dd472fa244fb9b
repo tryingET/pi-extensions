@@ -1,0 +1,38 @@
+Promoted from peer-session candidate branch candidate/asc-nexus-contract-probe-hardening with controller adjustment preserving model-selection activeCount/maxConcurrent evidence.
+
+Peer run: candidatepeer-mp20x8ox-372157ee
+Peer session: session-019e1a0f-063d-7650-a1da-304770f8c259
+Candidate worktree: /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/candidate-asc-nexus-contract-probe-hardening
+Controller promoted commit: 44bdea7
+Controller session: session-019e0b49-3ba1-7069-8acd-97b9adce0e7c
+AK task: #2857
+
+Promoted files:
+- packages/pi-autonomous-session-control/CHANGELOG.md
+- packages/pi-autonomous-session-control/README.md
+- packages/pi-autonomous-session-control/docs/project/prompt-vault-integration-assessment.md
+- packages/pi-autonomous-session-control/docs/project/prompt-vault-integration-plan.md
+- packages/pi-autonomous-session-control/docs/project/public-execution-contract.md
+- packages/pi-autonomous-session-control/extensions/self/prompt-vault-compat.ts
+- packages/pi-autonomous-session-control/extensions/self/query-resolver.ts
+- packages/pi-autonomous-session-control/extensions/self/subagent-runtime.ts
+- packages/pi-autonomous-session-control/tests/dispatch-subagent.test.mjs
+- packages/pi-autonomous-session-control/tests/prompt-vault-compat.test.mjs
+- packages/pi-autonomous-session-control/tests/public-execution-contract.test.mjs
+- packages/pi-autonomous-session-control/tests/self/crystallization.test.mjs
+- packages/pi-autonomous-session-control/tests/self/protection.test.mjs
+
+Validation in parent checkout:
+- cd packages/pi-autonomous-session-control && node --test tests/dispatch-subagent.test.mjs tests/public-execution-contract.test.mjs tests/prompt-vault-compat.test.mjs tests/self/crystallization.test.mjs tests/self/protection.test.mjs (pass, 46/46)
+- node --test packages/pi-autonomous-session-control/tests/public-execution-contract.test.mjs from repo root (pass, 10/10)
+- git diff --check -- scoped ASC files (pass)
+- node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs packages/pi-autonomous-session-control --strict (pass)
+- cd packages/pi-autonomous-session-control && npm run check (pass, 189 pass / 1 skip; npm view 404 treated by release-check as expected for first unpublished release)
+
+Review notes:
+- Rejects empty/whitespace model strings and empty requested/effective model selections before spawn as model_selection_failed.
+- Preserves activeCount/maxConcurrent on model-selection failure details so no-leak evidence remains visible.
+- Prompt-vault compatibility now uses a feature/manifest floor that rejects arbitrary low versions and bounds Dolt schema probes with a timeout.
+- Capability discovery no longer hijacks explicit Remember:/Mark as trap: capability-map directives.
+- Public execution contract tests are package-root independent.
+- Unrelated dirty parent files were not staged.
