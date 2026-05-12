@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "5a3d7676c2aba712f22e6e5c77d84d460f022047"
-created_at: "2026-05-12T14:47:54Z"
+created_at: "2026-05-12T14:50:00Z"
 intent: "Harden pi-little-helpers Ghostty tab launches for cwd correctness and surface-id compatibility."
 files:
   - "packages/pi-little-helpers/docs/project/2026-04-16-sidequest-ghostty-launch-contract.md"
@@ -15,7 +15,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-little-helpers run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 2
