@@ -21,10 +21,19 @@ system4d:
 
 ## Compatibility guard notes (current contract)
 
+`self-prompt-vault-compat` evaluates the ASC package version against a manifest-bounded autonomy floor instead of a hard-coded release bump. The floor is the lower of:
+
+1. the readable, semver-parseable ASC `package.json` version for this installed/source package; and
+2. the historical prompt-envelope introduction version (`0.1.3`).
+
+If the ASC package manifest cannot be read or its version cannot be parsed as semver, the guard falls back to the historical `0.1.3` floor.
+
 | autonomous-session-control | vault-client | prompt-vault schema | Status | Guard behavior |
 |---|---|---|---|---|
-| `>=0.1.3` | `>=1.2.0` | `schema_version = 1` | ✅ supported | Prompt envelope supported; fallback warnings emitted when envelope metadata is partial/invalid |
-| `<0.1.3` | `>=1.2.0` | `schema_version = 1` | ⚠️ limited | No explicit prompt-envelope fields; use legacy `systemPrompt` path only |
+| `>= manifest-bounded floor` | `>=1.2.0` | `schema_version = 1` | ✅ supported | Prompt envelope supported by the loaded code; fallback warnings emitted when envelope metadata is partial/invalid |
+| `< manifest-bounded floor` | `>=1.2.0` | `schema_version = 1` | ⚠️ limited | ASC version is below the installed/source package's own compatibility floor; upgrade or point `PI_AUTONOMY_PACKAGE_JSON` at the intended package manifest |
+
+This keeps the live/current package from reporting itself below its own minimum while the manifest still carries the real package version, without implying an unrelated release/version bump.
 
 Runtime guards in this repo:
 - If prompt envelope metadata is present without `prompt_content`, dispatch continues with legacy prompt and returns `prompt_warning`.

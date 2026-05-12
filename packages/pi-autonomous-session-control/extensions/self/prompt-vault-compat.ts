@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const MIN_AUTONOMY_VERSION = "0.1.3";
+const PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION = "0.1.3";
 const MIN_VAULT_CLIENT_VERSION = "1.2.0";
 const EXPECTED_SCHEMA_VERSION = 1;
 
@@ -37,6 +37,7 @@ interface RuntimeCompatibilityChecks {
 export interface PromptVaultCompatibilitySnapshot {
   status: CompatibilityStatus;
   autonomyVersion?: string;
+  minimumAutonomyVersion: string;
   vaultClientVersion?: string;
   schemaVersion?: number;
   schemaError?: string;
@@ -72,6 +73,12 @@ function isGteSemver(value: string | undefined, minimum: string): boolean | unde
   const result = compareSemver(value, minimum);
   if (result === null) return undefined;
   return result >= 0;
+}
+
+function lowerSemver(a: string, b: string): string | undefined {
+  const result = compareSemver(a, b);
+  if (result === null) return undefined;
+  return result <= 0 ? a : b;
 }
 
 function readVersionFromPackageJson(path: string): string | undefined {
@@ -142,12 +149,25 @@ function resolveCompatibilityPaths(
   };
 }
 
+function resolveMinimumAutonomyVersion(paths: RuntimeCompatibilityPaths): string {
+  const currentPackageVersion = readVersionFromPackageJson(paths.autonomyPackagePath);
+  if (!currentPackageVersion) {
+    return PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION;
+  }
+
+  return (
+    lowerSemver(currentPackageVersion, PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION) ||
+    PROMPT_ENVELOPE_INTRODUCED_AUTONOMY_VERSION
+  );
+}
+
 export function evaluatePromptVaultCompatibility(
   input: RuntimeCompatibilityInput,
 ): PromptVaultCompatibilitySnapshot {
   const paths = resolveCompatibilityPaths(input.paths);
+  const minimumAutonomyVersion = resolveMinimumAutonomyVersion(paths);
   const checks: RuntimeCompatibilityChecks = {
-    autonomyVersionOk: isGteSemver(input.autonomyVersion, MIN_AUTONOMY_VERSION),
+    autonomyVersionOk: isGteSemver(input.autonomyVersion, minimumAutonomyVersion),
     vaultClientVersionOk: isGteSemver(input.vaultClientVersion, MIN_VAULT_CLIENT_VERSION),
     schemaVersionOk:
       typeof input.schemaVersion === "number"
@@ -165,7 +185,7 @@ export function evaluatePromptVaultCompatibility(
     );
   } else if (checks.autonomyVersionOk === false) {
     issues.push(
-      `Autonomy package version ${input.autonomyVersion} is below recommended ${MIN_AUTONOMY_VERSION}.`,
+      `Autonomy package version ${input.autonomyVersion} is below recommended ${minimumAutonomyVersion}.`,
     );
     recommendations.push(
       "Upgrade pi-autonomous-session-control to a prompt-envelope-compatible release.",
@@ -236,6 +256,7 @@ export function evaluatePromptVaultCompatibility(
   return {
     status,
     autonomyVersion: input.autonomyVersion,
+    minimumAutonomyVersion,
     vaultClientVersion: input.vaultClientVersion,
     schemaVersion: input.schemaVersion,
     schemaError: input.schemaError,
@@ -282,7 +303,7 @@ export function formatPromptVaultCompatibilityReport(
     `- schema_version: ${typeof snapshot.schemaVersion === "number" ? snapshot.schemaVersion : "unknown"}`,
     "",
     "## Matrix checks",
-    `- autonomy >= ${MIN_AUTONOMY_VERSION}: ${renderCheckLabel(snapshot.checks.autonomyVersionOk)}`,
+    `- autonomy >= ${snapshot.minimumAutonomyVersion}: ${renderCheckLabel(snapshot.checks.autonomyVersionOk)}`,
     `- vault-client >= ${MIN_VAULT_CLIENT_VERSION}: ${renderCheckLabel(snapshot.checks.vaultClientVersionOk)}`,
     `- schema_version == ${EXPECTED_SCHEMA_VERSION}: ${renderCheckLabel(snapshot.checks.schemaVersionOk)}`,
     "",

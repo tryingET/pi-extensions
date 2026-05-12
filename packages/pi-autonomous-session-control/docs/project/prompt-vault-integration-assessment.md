@@ -39,6 +39,7 @@ Implemented in this repo since initial assessment:
 - Quality-gate coverage for nested tests (`tests/**/*.test.*`) and mocked vault payload integration path.
 - Default extension entrypoint now wires delegation runtime (resolving previous default-export drift).
 - Package manifest includes `extensions/self/` runtime modules required by `extensions/self.ts`.
+- Runtime compatibility checks now bound the ASC autonomy-version floor to the readable, semver-parseable package manifest version, avoiding a self-contradictory below-minimum result for the current package when vault-client and schema inputs are otherwise supported while falling back to the historical `0.1.3` floor when the manifest is unavailable or unparseable.
 
 ## Method prompts applied (from prompt-vault)
 
@@ -197,6 +198,7 @@ Required in this repo:
 
 ## Test strategy
 - Integration-oriented mocked vault payload tests now cover prompt envelope application/fallback.
+- Prompt-vault compatibility tests cover the current package manifest version so the live self-check does not fail ASC's own autonomy-version floor by construction.
 - Live prompt-vault DB integration test now validates template retrieval compatibility with envelope application (`tests/prompt-vault-db-integration.test.mjs`).
 - Nested self tests are now exercised by CI quality gate.
 - Remaining gap: live cross-extension integration test exists but may skip in CI when runtime dependencies/environment are unavailable.

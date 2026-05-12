@@ -64,6 +64,7 @@ All notable changes to this project should be documented here.
 - Timeout/abort shutdown now tears down the raw `pi` child before the parent-side helper force kill window closes, preventing orphaned subprocesses
 - Subagents no longer fail at startup when the live session model comes from a numeric-suffix extension provider alias such as `openai-codex-2`; ASC now preserves the alias and explicitly bootstraps `pi-multi-pass` into the child runtime instead of collapsing to the base provider
 - Extensionless raw-child runs now use an isolated Pi agent dir with sanitized child settings, so unrelated global default-model warnings from extension-backed provider aliases no longer leak into subagent stderr
+- `self-prompt-vault-compat` no longer reports the current ASC package below its own autonomy-version floor when the package manifest is still below the historical prompt-envelope introduction version and other prompt-vault inputs are supported
 
 ## [0.1.4] - 2026-03-04
 

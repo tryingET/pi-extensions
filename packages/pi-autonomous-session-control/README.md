@@ -128,6 +128,10 @@ ASC owns two distinct prompt-related surfaces:
 Keep those surfaces separate from repo-root `.pi/prompts/*` operator prompts in the monorepo root.
 The live cross-extension harness proves the `vault_query` -> `vault_retrieve` -> `dispatch_subagent` chain preserves prompt provenance coherently, including the `vault-client-live` source label.
 
+### Prompt-vault compatibility self-check
+
+The `self-prompt-vault-compat` command reports the ASC package version, vault-client version, and prompt-vault schema version. Its ASC version floor is bounded by the readable, semver-parseable package manifest version so the current source package does not report itself below its own prompt-vault minimum when the manifest still carries the package's actual published version. If the manifest version is unavailable or not semver-parseable, the check falls back to the historical prompt-envelope floor (`0.1.3`).
+
 ### Capability discovery surfaces
 
 The `self` tool accepts capability meta-queries such as `What can you do?`, `capability discovery`, and `capability routing`. Its response intentionally distinguishes three surfaces:
