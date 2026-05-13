@@ -704,19 +704,33 @@ function formatAutoresearchMatrixCampaignReviewReport(
     `- posture: ${review.closeout.posture}`,
     `- summary: ${review.closeout.summary}`,
     `- packet paths: ${review.closeout.packetPaths.length}`,
+    "- closeout packet inventory:",
+    ...review.closeout.packetInventory.map(
+      (lane) =>
+        `  - ${lane.cellId}/${lane.laneId}: packet=${lane.packetPath ?? "none"}; state=${lane.state}; selected=${lane.selected ? "yes" : "no"}`,
+    ),
     ...review.closeout.selectedLanes.map(
       (lane) =>
         `- selected ${lane.cellId}: lane=${lane.laneId}; packet=${lane.sourcePacketPath ?? "none"}`,
     ),
+    `- evidence_handoff_blockers: ${review.closeout.evidenceHandoffBlockers.value} (target=${review.closeout.evidenceHandoffBlockers.target}, ${review.closeout.evidenceHandoffBlockers.direction} is better; ${review.closeout.evidenceHandoffBlockers.status})`,
     `- evidence projection: ${review.closeout.evidenceProjection.posture} via ${review.closeout.evidenceProjection.ownerSurface}; anchor=${review.closeout.evidenceProjection.requiredAnchor}`,
     `- evidence projection key: ${review.closeout.evidenceProjection.projectionKey}`,
+    `- evidence handoff: ${review.closeout.evidenceProjection.exactHandoff}`,
     ...(review.closeout.evidenceProjection.exactRecordCall
       ? [`- evidence record call: ${review.closeout.evidenceProjection.exactRecordCall}`]
       : []),
+    ...review.closeout.evidenceProjection.guidance.map((item) => `- projection guidance: ${item}`),
     `- evidence boundary: ${review.closeout.evidenceProjection.boundary}`,
     `- dashboard first: ${review.closeout.ownerDecisionRoute.dashboardFirst}`,
     `- overlay fallback: ${review.closeout.ownerDecisionRoute.overlayFallback}`,
     `- final decision: ${review.closeout.ownerDecisionRoute.finalDecision}`,
+    `- owner route order: ${review.closeout.ownerDecisionRoute.routeOrder.join(" -> ")}`,
+    `- evidence after review: ${review.closeout.ownerDecisionRoute.evidenceAfterReview ? "yes" : "no"}`,
+    "- evidence handoff proof checklist:",
+    ...review.closeout.evidenceHandoffBlockers.proofs.map(
+      (item) => `  - ${item.status}: ${item.proof} via ${item.source}`,
+    ),
     "- next legal owner actions:",
     ...review.closeout.nextLegalOwnerActions.map((action) => `  - ${action}`),
     "- not done:",

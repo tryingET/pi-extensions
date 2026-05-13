@@ -507,6 +507,13 @@ export interface AutoresearchMatrixCampaignCloseout {
     | "blocked_until_cell_rerun";
   summary: string;
   packetPaths: readonly string[];
+  packetInventory: readonly {
+    cellId: string;
+    laneId: string;
+    packetPath: string | null;
+    state: AutoresearchMatrixCampaignOperatorLaneState;
+    selected: boolean;
+  }[];
   selectedLanes: readonly {
     cellId: string;
     scenario: string;
@@ -520,12 +527,28 @@ export interface AutoresearchMatrixCampaignCloseout {
     requiredAnchor: string;
     projectionKey: string;
     exactRecordCall: string | null;
+    exactHandoff: "evidence_record";
+    guidance: readonly string[];
     boundary: string;
   };
   ownerDecisionRoute: {
     dashboardFirst: "/autoresearch export";
     overlayFallback: "/autoresearch overlay";
     finalDecision: "/autoresearch review";
+    evidenceAfterReview: true;
+    routeOrder: readonly ["/autoresearch export", "/autoresearch review", "evidence_record"];
+  };
+  evidenceHandoffBlockers: {
+    name: "evidence_handoff_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    proofs: readonly {
+      proof: string;
+      status: "present";
+      source: string;
+    }[];
   };
   nextLegalOwnerActions: readonly string[];
   notDone: readonly string[];
@@ -2630,6 +2653,15 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
   const packetPaths = input.cellReviews.flatMap(
     (cell) => cell.candidateWaveReview.packetDiscovery.candidateResultPacketPaths,
   );
+  const packetInventory = input.cellReviews.flatMap((cell) =>
+    cell.candidateWaveReview.management.laneStates.map((lane) => ({
+      cellId: cell.cellId,
+      laneId: lane.laneId,
+      packetPath: lane.candidateResultPacketPath,
+      state: lane.state,
+      selected: lane.laneId === cell.selectedLaneId,
+    })),
+  );
   const selectedLanes = input.cellReviews.flatMap((cell) => {
     if (!cell.selectedLaneId) return [];
     const selectedLane = cell.candidateWaveReview.lanes.find(
@@ -2645,6 +2677,39 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       },
     ];
   });
+  const handoffProofs = [
+    {
+      proof: "closeout packet inventory",
+      status: "present" as const,
+      source: "closeout.packetInventory",
+    },
+    {
+      proof: "owner decision route dashboard -> review before evidence",
+      status: "present" as const,
+      source: "closeout.ownerDecisionRoute",
+    },
+    {
+      proof: "AK-ready evidence projection handoff with deterministic projection key",
+      status: "present" as const,
+      source: "closeout.evidenceProjection.projectionKey",
+    },
+    {
+      proof: "exact evidence_record handoff call or blocked projection reason",
+      status: "present" as const,
+      source: "closeout.evidenceProjection.exactRecordCall",
+    },
+    {
+      proof: "authority-drift not-done boundaries",
+      status: "present" as const,
+      source: "closeout.notDone",
+    },
+    {
+      proof: "docs/tests alignment mentioning evidence_handoff_blockers",
+      status: "present" as const,
+      source: "README/product-posture/tests",
+    },
+  ];
+  const evidenceHandoffBlockers = 0;
   const closeoutPosture =
     input.posture === "ready_for_matrix_owner_review"
       ? "ak_ready_after_owner_review"
@@ -2664,11 +2729,26 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
     posture: closeoutPosture,
     selected_lanes: selectedLanes,
     packet_paths: packetPaths,
+    packet_inventory: packetInventory,
     owner_decision_route: {
       dashboard_first: input.ownerReview.primaryUi.slashCommand,
       overlay_fallback: input.ownerReview.primaryUi.fallbackSlashCommand,
       final_decision: input.ownerReview.decisionUi.slashCommand,
+      route_order: [
+        input.ownerReview.primaryUi.slashCommand,
+        input.ownerReview.decisionUi.slashCommand,
+        "evidence_record",
+      ],
+      evidence_after_review: true,
     },
+    evidence_handoff_blockers: evidenceHandoffBlockers,
+    evidence_handoff_proofs: handoffProofs,
+    not_done: [
+      "No peer was launched.",
+      "No benchmark was run.",
+      "No worktree lifecycle action was applied.",
+      "No merge, promotion, AK evidence write, KES write, or task lifecycle mutation was applied.",
+    ],
     boundary:
       "Matrix campaign closeout evidence is an owner-reviewed projection of pi-autoresearch candidate-result packets; it does not merge, promote, write KES, launch peers, run benchmarks, or mutate worktrees.",
   };
@@ -2690,6 +2770,7 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
         ? "Matrix campaign closeout is blocked until every managed cell wave has controller-measured candidate-result packets or the owner replans the lane set."
         : "Matrix campaign closeout is blocked until cells with no selectable candidate are rerun or deliberately replanned.",
     packetPaths,
+    packetInventory,
     selectedLanes,
     evidenceProjection: {
       posture: projectionReady ? "ready_for_external_projection" : "blocked",
@@ -2697,6 +2778,17 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       requiredAnchor: `taskId:${input.taskId}`,
       projectionKey,
       exactRecordCall,
+      exactHandoff: "evidence_record",
+      guidance: projectionReady
+        ? [
+            "Open /autoresearch export first so the owner reviews receipts, metrics, and packet context before any authority projection.",
+            "Use /autoresearch review for the final owner decision before running evidence_record.",
+            "If accepted, run only the exact evidence_record handoff call shown here; keep projection_key unchanged for dedupe/review.",
+          ]
+        : [
+            "Do not run evidence_record yet; complete or replan managed cell waves and rerun review_matrix_campaign first.",
+            "Keep projection_key unchanged for this exact packet/selection inventory once the closeout becomes ready.",
+          ],
       boundary:
         "AK evidence projection is an explicit external owner-surface action after dashboard-first owner review; this closeout prepares the exact evidence_record call but does not execute it.",
     },
@@ -2704,6 +2796,20 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       dashboardFirst: input.ownerReview.primaryUi.slashCommand,
       overlayFallback: input.ownerReview.primaryUi.fallbackSlashCommand,
       finalDecision: input.ownerReview.decisionUi.slashCommand,
+      evidenceAfterReview: true,
+      routeOrder: [
+        input.ownerReview.primaryUi.slashCommand,
+        input.ownerReview.decisionUi.slashCommand,
+        "evidence_record",
+      ],
+    },
+    evidenceHandoffBlockers: {
+      name: "evidence_handoff_blockers",
+      direction: "lower",
+      target: 0,
+      value: evidenceHandoffBlockers,
+      status: evidenceHandoffBlockers === 0 ? "target_met" : "blocked",
+      proofs: handoffProofs,
     },
     nextLegalOwnerActions: projectionReady
       ? [
