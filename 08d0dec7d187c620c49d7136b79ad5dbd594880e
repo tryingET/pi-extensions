@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "08d0dec7d187c620c49d7136b79ad5dbd594880e"
-created_at: "2026-05-13T15:16:10Z"
+created_at: "2026-05-13T15:24:51Z"
 intent: "Add loop-run status parsing plus /loop-tree and /loop-runs operator views."
 files:
   - "packages/pi-society-orchestrator/src/loops/engine.ts"
@@ -14,8 +14,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "pass"
 group:
   index: 5
-  total: 7
+  total: 10
   rationale: "Loop engine UI/status helpers and nexus boundary tests form one package-local feature."
