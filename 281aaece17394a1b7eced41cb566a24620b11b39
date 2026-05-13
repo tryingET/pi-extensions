@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "281aaece17394a1b7eced41cb566a24620b11b39"
+created_at: "2026-05-13T15:19:36Z"
+intent: "Add checkpointed matrix campaign runner contracts that expose candidate peer launch before benchmark/export/review calls."
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/docs/project/2026-05-10-matrix-campaign-implementation-wave-implementation-check.md"
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 9
+  total: 9
+  rationale: "Package-local matrix runner implementation, docs, and regression coverage form one coherent control-plane feature."
