@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ef20877c4af94a31b45c45ef1c551bf5bccdf9a3"
+created_at: "2026-05-13T19:30:15Z"
+intent: "Add skill profile/selection plumbing to dispatch_subagent so child sessions can use named skill profiles"
+files:
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-edge-contract.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-pi-json-filter.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-runtime.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-skill-selection.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-spawn.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent.ts"
+validation:
+  fast_gate:
+    command: "npm run check"
+    status: "fail"
+  full_gate:
+    command: "just test"
+    status: "pending"
+group:
+  index: 1
+  total: 2
+  rationale: "All pi-autonomous-session-control skill-profile changes form one coherent feature slice"
