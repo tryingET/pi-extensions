@@ -373,9 +373,11 @@ export interface AutoresearchMatrixCampaignRunnerLane {
   cellId: string;
   laneId: string;
   objective: string;
+  cellObjective: string;
   candidatePeerCall: string;
   measurementPlan: readonly string[];
   candidateResultPacketPath: string;
+  reviewCandidateWaveCall: string;
 }
 
 export interface AutoresearchMatrixCampaignRunnerContract {
@@ -435,8 +437,61 @@ export interface AutoresearchMatrixCampaignRunnerCheckpoint {
   requiredToken: string;
   benchmarkExportReviewCalls: readonly string[];
   reviewMatrixCampaignCall: string | null;
+  controllerCommandPacket: AutoresearchMatrixCampaignControllerCommandPacket | null;
   boundaries: readonly string[];
   nextStep: string;
+}
+
+export interface AutoresearchMatrixCampaignControllerCommandPacket {
+  kind: "autoresearch.matrix_cell_controller_command_packet.v1";
+  checkpointAccepted: true;
+  manifestPath: string;
+  exactTaskId: number;
+  exactCwd: string;
+  cellMetric: {
+    name: string;
+    direction: "lower" | "higher";
+    target: number | null;
+  };
+  manualControllerGlueBlockers: {
+    name: "manual_controller_glue_blockers";
+    direction: "lower";
+    target: 0;
+    proofChecklist: readonly {
+      proof: string;
+      status: "present";
+      source: string;
+    }[];
+  };
+  checkpointAndLineageVerification: {
+    requiredToken: string;
+    controllerVerifiedLineageRequired: true;
+    peerFinalIsCommunicationOnly: true;
+    verificationSteps: readonly string[];
+  };
+  cells: readonly {
+    cellId: string;
+    objective: string;
+    exactControllerSequence: readonly [
+      "autoresearch_candidate_bind",
+      "autoresearch_runtime_run",
+      "candidate_result_export",
+      "review_candidate_wave",
+      "review_matrix_campaign",
+    ];
+    lanes: readonly {
+      laneId: string;
+      candidateResultPacketPath: string;
+      bindCall: string;
+      metricRunCall: string;
+      candidateResultExportCall: string;
+      metricBindingSummary: string;
+    }[];
+    reviewCandidateWaveCall: string;
+    reviewMatrixCampaignCall: string;
+  }[];
+  flattenedNextCallBundle: readonly string[];
+  boundaries: readonly string[];
 }
 
 export type AutoresearchMatrixCampaignOperatorLaneState =
@@ -2115,12 +2170,22 @@ function buildAutoresearchMatrixCampaignOperatorFollowup(input: {
         source: "operatorFollowup.primaryMetric",
       },
       {
-        proof: "runner checkpoint UX coverage",
+        proof: "runner checkpoint and lineage verification coverage",
         status: "present",
         source: "operatorFollowup.checkpointState",
       },
       {
-        proof: "docs/tests alignment",
+        proof: "exact per-cell controller sequence / next-call bundle coverage",
+        status: "present",
+        source: "controllerCommandPacket.flattenedNextCallBundle",
+      },
+      {
+        proof: "no hidden execution or promotion boundary coverage",
+        status: "present",
+        source: "controllerCommandPacket.boundaries",
+      },
+      {
+        proof: "docs/tests alignment for manual_controller_glue_blockers",
         status: "present",
         source: "README/product-posture/tests",
       },
@@ -2243,6 +2308,8 @@ export function planAutoresearchMatrixCampaign(
 function buildAutoresearchMatrixCampaignRunnerLanes(input: {
   identity: SessionIdentity;
   direction: "lower" | "higher";
+  metricName: string;
+  metricThreshold: number | null;
   candidateCountPerCell: number;
   cells: readonly AutoresearchMatrixCampaignCell[];
   filesInScope: readonly string[];
@@ -2279,14 +2346,48 @@ function buildAutoresearchMatrixCampaignRunnerLanes(input: {
       maxWallClockMinutesPerCandidate: input.maxWallClockMinutesPerCandidate,
     });
 
-    return wave.lanes.map((lane) => ({
-      cellId: cell.cellId,
-      laneId: lane.laneId,
-      objective: lane.objective,
-      candidatePeerCall: lane.candidatePeerCall,
-      measurementPlan: lane.measurementPlan,
-      candidateResultPacketPath: lane.candidateResultPacketPath,
-    }));
+    return wave.lanes.map((lane) => {
+      const metricRunPayload: Record<string, unknown> = {
+        cwd: input.identity.cwd,
+        runKind: "ordinary",
+        name: `matrix-${cell.cellId}-${lane.laneId}`,
+        description: `Measure ${cell.cellId}/${lane.laneId} for ${input.metricName}: ${lane.objective}`,
+        hypothesisId: `${cell.cellId}-${lane.laneId}`,
+        hypothesis: lane.objective,
+        metricName: input.metricName,
+        direction: input.direction,
+        candidateSource: "candidate_peer_spawn",
+        candidateWorktree: `<${cell.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`,
+        candidateBranch: `<${cell.cellId}-${lane.laneId}-branch-from-candidate_peer_spawn>`,
+        candidateBaseRef: `<${cell.cellId}-${lane.laneId}-base-ref-from-candidate_peer_spawn>`,
+        candidateDiffSummary: `<${cell.cellId}-${lane.laneId}-controller-verified-diff-summary>`,
+        candidateFilesChanged: [`<${cell.cellId}-${lane.laneId}-changed-files>`],
+      };
+      if (input.metricThreshold !== null) metricRunPayload.metricThreshold = input.metricThreshold;
+
+      const bindCall = formatToolCall("autoresearch_candidate_bind", {
+        cwd: input.identity.cwd,
+        candidateWorktree: `<${cell.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`,
+        candidateBaseRef: `<${cell.cellId}-${lane.laneId}-base-ref-from-candidate_peer_spawn>`,
+      });
+      const metricRunCall = formatToolCall("autoresearch_runtime_run", metricRunPayload);
+      const resultCall = formatToolCall("autoresearch_runtime_status", {
+        cwd: input.identity.cwd,
+        action: "candidate_result_export",
+        outPath: lane.candidateResultPacketPath,
+      });
+
+      return {
+        cellId: cell.cellId,
+        laneId: lane.laneId,
+        objective: lane.objective,
+        cellObjective: cell.objective,
+        candidatePeerCall: lane.candidatePeerCall,
+        measurementPlan: [bindCall, metricRunCall, resultCall],
+        candidateResultPacketPath: lane.candidateResultPacketPath,
+        reviewCandidateWaveCall: cell.reviewCandidateWaveCall,
+      };
+    });
   });
 }
 
@@ -2315,6 +2416,8 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
   const lanes = buildAutoresearchMatrixCampaignRunnerLanes({
     identity,
     direction,
+    metricName: primaryMetricName,
+    metricThreshold: primaryMetricTarget,
     candidateCountPerCell,
     filesInScope,
     offLimits,
@@ -2430,6 +2533,121 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
   };
 }
 
+function buildAutoresearchMatrixCampaignControllerCommandPacket(input: {
+  contract: AutoresearchMatrixCampaignRunnerContract;
+  reviewMatrixCampaignCall: string;
+}): AutoresearchMatrixCampaignControllerCommandPacket {
+  const lanesByCell = new Map<string, AutoresearchMatrixCampaignRunnerLane[]>();
+  for (const lane of input.contract.lanes) {
+    const lanes = lanesByCell.get(lane.cellId) ?? [];
+    lanes.push(lane);
+    lanesByCell.set(lane.cellId, lanes);
+  }
+
+  const cells = Array.from(lanesByCell.entries()).map(([cellId, lanes]) => {
+    const firstLane = lanes[0];
+    const reviewCandidateWaveCall = firstLane?.reviewCandidateWaveCall ?? "";
+    return {
+      cellId,
+      objective: firstLane?.cellObjective ?? input.contract.objective,
+      exactControllerSequence: [
+        "autoresearch_candidate_bind",
+        "autoresearch_runtime_run",
+        "candidate_result_export",
+        "review_candidate_wave",
+        "review_matrix_campaign",
+      ] as const,
+      lanes: lanes.map((lane) => ({
+        laneId: lane.laneId,
+        candidateResultPacketPath: lane.candidateResultPacketPath,
+        bindCall: lane.measurementPlan[0] ?? "",
+        metricRunCall: lane.measurementPlan[1] ?? "",
+        candidateResultExportCall: lane.measurementPlan[2] ?? "",
+        metricBindingSummary:
+          input.contract.operatorFollowup.primaryMetric.target === null
+            ? `${input.contract.operatorFollowup.primaryMetric.name} (${input.contract.direction} is better; no target supplied)`
+            : `${input.contract.operatorFollowup.primaryMetric.name} (${input.contract.direction} is better; target=${input.contract.operatorFollowup.primaryMetric.target})`,
+      })),
+      reviewCandidateWaveCall,
+      reviewMatrixCampaignCall: input.reviewMatrixCampaignCall,
+    };
+  });
+
+  return {
+    kind: "autoresearch.matrix_cell_controller_command_packet.v1",
+    checkpointAccepted: true,
+    manifestPath: input.contract.manifest.path,
+    exactTaskId: input.contract.taskId,
+    exactCwd: input.contract.cwd,
+    cellMetric: {
+      name: input.contract.operatorFollowup.primaryMetric.name,
+      direction: input.contract.direction,
+      target: input.contract.operatorFollowup.primaryMetric.target,
+    },
+    manualControllerGlueBlockers: {
+      name: "manual_controller_glue_blockers",
+      direction: "lower",
+      target: 0,
+      proofChecklist: [
+        {
+          proof: "exact per-cell controller sequence",
+          status: "present",
+          source: "controllerCommandPacket.cells[].exactControllerSequence",
+        },
+        {
+          proof: "metric-specific run/export templates",
+          status: "present",
+          source: "controllerCommandPacket.cells[].lanes[]",
+        },
+        {
+          proof: "checkpoint and lineage verification preserved",
+          status: "present",
+          source: "controllerCommandPacket.checkpointAndLineageVerification",
+        },
+        {
+          proof: "no hidden execution, promotion, merge, evidence, or durable authority mutation",
+          status: "present",
+          source: "controllerCommandPacket.boundaries",
+        },
+        {
+          proof: "docs/tests alignment mentioning manual_controller_glue_blockers",
+          status: "present",
+          source: "README/product-posture/tests",
+        },
+      ],
+    },
+    checkpointAndLineageVerification: {
+      requiredToken: input.contract.checkpointGate.requiredToken,
+      controllerVerifiedLineageRequired: true,
+      peerFinalIsCommunicationOnly: true,
+      verificationSteps: [
+        "Confirm the exact checkpoint token came from the prepared manifest for this taskId + cwd.",
+        "Verify every visible PEER_FINAL against the candidate worktree path, branch, base ref, and changed files before bind.",
+        "Treat intercom output as communication only; pi-autoresearch candidate-result packets are the measured comparison input.",
+      ],
+    },
+    cells,
+    flattenedNextCallBundle: [
+      ...cells.flatMap((cell) => [
+        ...cell.lanes.flatMap((lane) => [
+          lane.bindCall,
+          lane.metricRunCall,
+          lane.candidateResultExportCall,
+        ]),
+        cell.reviewCandidateWaveCall,
+      ]),
+      input.reviewMatrixCampaignCall,
+    ],
+    boundaries: [
+      "This packet is a controller-command packet only; it does not execute bind, benchmark, export, review, evidence, merge, or promotion calls.",
+      "candidate_peer_spawn remains the visible peer/worktree launch owner; this packet starts after the controller checkpoint.",
+      "pi-autoresearch remains owner of benchmark/check execution, metric receipts, and candidate-result export writes.",
+      "review_candidate_wave and review_matrix_campaign remain comparison choreography, not winner-selection or promotion authority.",
+      "AK/KES/evidence writes, merge, promotion, reset, and worktree cleanup remain explicit owner actions outside this packet.",
+    ],
+  };
+}
+
 export function checkpointAutoresearchMatrixCampaignRunner(
   input: AutoresearchMatrixCampaignRunnerRequest,
 ): AutoresearchMatrixCampaignRunnerCheckpoint {
@@ -2451,9 +2669,13 @@ export function checkpointAutoresearchMatrixCampaignRunner(
     offLimits: input.offLimits,
     constraints: input.constraints,
   });
-  const benchmarkExportReviewCalls = accepted
-    ? [...contract.lanes.flatMap((lane) => lane.measurementPlan), reviewCall]
-    : [];
+  const controllerCommandPacket = accepted
+    ? buildAutoresearchMatrixCampaignControllerCommandPacket({
+        contract,
+        reviewMatrixCampaignCall: reviewCall,
+      })
+    : null;
+  const benchmarkExportReviewCalls = controllerCommandPacket?.flattenedNextCallBundle ?? [];
 
   return {
     kind: "autoresearch.matrix_campaign_runner_checkpoint.v1",
@@ -2506,12 +2728,13 @@ export function checkpointAutoresearchMatrixCampaignRunner(
     requiredToken: contract.checkpointGate.requiredToken,
     benchmarkExportReviewCalls,
     reviewMatrixCampaignCall: accepted ? reviewCall : null,
+    controllerCommandPacket,
     boundaries: accepted
       ? [
-          "Checkpoint unlock only exposes exact benchmark/export/review calls; it still does not execute them.",
+          "Checkpoint unlock only exposes the exact controller-command packet and next-call bundle; it still does not execute them.",
           "The checkpoint token is a controller confirmation string, not cryptographic proof of peer completion.",
           "Controller must verify candidate worktree lineage before running each measurement call.",
-          "pi-autoresearch owns benchmark/check execution and candidate-result packet writes.",
+          "pi-autoresearch owns benchmark/check execution, metric receipts, and candidate-result packet writes.",
           "Owner review remains required before evidence, promotion, merge, or lifecycle mutation.",
         ]
       : [

@@ -656,8 +656,10 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
       "operator follow-up/current-state summary",
       "next legal actions",
       "cell primary metric operator_ux_blockers",
-      "runner checkpoint UX coverage",
-      "docs/tests alignment",
+      "runner checkpoint and lineage verification coverage",
+      "exact per-cell controller sequence / next-call bundle coverage",
+      "no hidden execution or promotion boundary coverage",
+      "docs/tests alignment for manual_controller_glue_blockers",
     ],
   );
   assert.equal(
@@ -916,7 +918,7 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
     cwd,
     objective: "checkpoint matrix campaign runner",
     direction: "lower",
-    metricName: "operator_ux_blockers",
+    metricName: "manual_controller_glue_blockers",
     metricThreshold: 0,
     scenarios: ["safety"],
     hypotheses: ["checkpointed launch"],
@@ -942,6 +944,7 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
   );
   assert.deepEqual(blocked.details.matrixCampaignRunnerCheckpoint.benchmarkExportReviewCalls, []);
   assert.equal(blocked.details.matrixCampaignRunnerCheckpoint.reviewMatrixCampaignCall, null);
+  assert.equal(blocked.details.matrixCampaignRunnerCheckpoint.controllerCommandPacket, null);
   assert.equal(
     blocked.details.matrixCampaignRunnerCheckpoint.operatorFollowup.checkpointState.posture,
     "blocked",
@@ -979,10 +982,38 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
       call.includes("candidate_result_export"),
     ),
   );
+  assert.ok(
+    unlocked.details.matrixCampaignRunnerCheckpoint.benchmarkExportReviewCalls.some((call) =>
+      call.includes("review_candidate_wave"),
+    ),
+  );
   assert.match(
     unlocked.details.matrixCampaignRunnerCheckpoint.reviewMatrixCampaignCall,
     /review_matrix_campaign/,
   );
+  const packet = unlocked.details.matrixCampaignRunnerCheckpoint.controllerCommandPacket;
+  assert.equal(packet.kind, "autoresearch.matrix_cell_controller_command_packet.v1");
+  assert.equal(packet.manualControllerGlueBlockers.name, "manual_controller_glue_blockers");
+  assert.equal(packet.manualControllerGlueBlockers.target, 0);
+  assert.equal(packet.cellMetric.name, "manual_controller_glue_blockers");
+  assert.deepEqual(packet.cells[0].exactControllerSequence, [
+    "autoresearch_candidate_bind",
+    "autoresearch_runtime_run",
+    "candidate_result_export",
+    "review_candidate_wave",
+    "review_matrix_campaign",
+  ]);
+  assert.match(
+    packet.cells[0].lanes[0].metricRunCall,
+    /"metricName": "manual_controller_glue_blockers"/,
+  );
+  assert.match(packet.cells[0].lanes[0].metricRunCall, /"metricThreshold": 0/);
+  assert.match(packet.flattenedNextCallBundle.join("\n"), /review_candidate_wave/);
+  assert.match(packet.flattenedNextCallBundle.join("\n"), /review_matrix_campaign/);
+  assert.ok(packet.checkpointAndLineageVerification.controllerVerifiedLineageRequired);
+  assert.ok(packet.checkpointAndLineageVerification.peerFinalIsCommunicationOnly);
+  assert.ok(packet.boundaries.some((boundary) => /does not execute/.test(boundary)));
+  assert.ok(packet.boundaries.some((boundary) => /promotion/.test(boundary)));
   assert.equal(
     unlocked.details.matrixCampaignRunnerCheckpoint.operatorFollowup.checkpointState.posture,
     "accepted",
@@ -995,6 +1026,12 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
   assert.match(unlocked.content[0].text, /Checkpoint accepted: yes/);
   assert.match(unlocked.content[0].text, /checkpoint state: accepted/);
   assert.match(unlocked.content[0].text, /Unlocked benchmark\/export\/review calls/);
+  assert.match(unlocked.content[0].text, /Controller-command packet \/ next-call bundle/);
+  assert.match(unlocked.content[0].text, /manual_controller_glue_blockers/);
+  assert.match(
+    unlocked.content[0].text,
+    /autoresearch_candidate_bind -> autoresearch_runtime_run -> candidate_result_export -> review_candidate_wave -> review_matrix_campaign/,
+  );
   assert.match(unlocked.content[0].text, /not cryptographic proof/);
 });
 

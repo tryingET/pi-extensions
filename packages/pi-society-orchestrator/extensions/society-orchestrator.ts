@@ -81,6 +81,7 @@ import {
   type AutoresearchLiveStopResult,
   AutoresearchLiveSupervisionRunner,
   type AutoresearchLiveSupervisionSessionV1,
+  type AutoresearchMatrixCampaignControllerCommandPacket,
   type AutoresearchMatrixCampaignOperatorFollowup,
   type AutoresearchMatrixCampaignPlan,
   type AutoresearchMatrixCampaignReview,
@@ -636,6 +637,45 @@ function formatAutoresearchMatrixCampaignRunnerContractReport(
   ].join("\n");
 }
 
+function formatAutoresearchMatrixCampaignControllerCommandPacketReport(
+  packet: AutoresearchMatrixCampaignControllerCommandPacket | null,
+): string[] {
+  if (!packet) return ["Controller-command packet: locked until exact checkpoint"];
+
+  return [
+    "Controller-command packet / next-call bundle:",
+    `- kind: ${packet.kind}`,
+    `- manifest: ${packet.manifestPath}`,
+    `- exact task/cwd: #${packet.exactTaskId} @ ${packet.exactCwd}`,
+    `- cell metric: ${packet.cellMetric.name} (${packet.cellMetric.direction} is better; target=${packet.cellMetric.target ?? "none"})`,
+    `- glue metric: ${packet.manualControllerGlueBlockers.name} target=${packet.manualControllerGlueBlockers.target}`,
+    `- lineage verification required: ${packet.checkpointAndLineageVerification.controllerVerifiedLineageRequired ? "yes" : "no"}`,
+    `- PEER_FINAL communication only: ${packet.checkpointAndLineageVerification.peerFinalIsCommunicationOnly ? "yes" : "no"}`,
+    "- verification steps:",
+    ...packet.checkpointAndLineageVerification.verificationSteps.map((step) => `  - ${step}`),
+    "- proof checklist:",
+    ...packet.manualControllerGlueBlockers.proofChecklist.map(
+      (item) => `  - ${item.status}: ${item.proof} via ${item.source}`,
+    ),
+    "- per-cell controller sequence:",
+    ...packet.cells.flatMap((cell) => [
+      `  - ${cell.cellId}: ${cell.exactControllerSequence.join(" -> ")}`,
+      ...cell.lanes.flatMap((lane) => [
+        `    - ${lane.laneId} bind: ${lane.bindCall}`,
+        `    - ${lane.laneId} metric run: ${lane.metricRunCall}`,
+        `    - ${lane.laneId} export: ${lane.candidateResultExportCall}`,
+        `    - ${lane.laneId} metric: ${lane.metricBindingSummary}`,
+      ]),
+      `    - review candidate wave: ${cell.reviewCandidateWaveCall}`,
+      `    - review matrix campaign: ${cell.reviewMatrixCampaignCall}`,
+    ]),
+    "- flattened next-call bundle:",
+    ...packet.flattenedNextCallBundle.map((call) => `  - ${call}`),
+    "- boundaries:",
+    ...packet.boundaries.map((boundary) => `  - ${boundary}`),
+  ];
+}
+
 function formatAutoresearchMatrixCampaignRunnerCheckpointReport(
   checkpoint: AutoresearchMatrixCampaignRunnerCheckpoint,
 ): string {
@@ -659,6 +699,10 @@ function formatAutoresearchMatrixCampaignRunnerCheckpointReport(
     checkpoint.reviewMatrixCampaignCall
       ? `Matrix review call: ${checkpoint.reviewMatrixCampaignCall}`
       : "Matrix review call: locked",
+    "",
+    ...formatAutoresearchMatrixCampaignControllerCommandPacketReport(
+      checkpoint.controllerCommandPacket,
+    ),
     "",
     "Boundaries:",
     ...checkpoint.boundaries.map((boundary) => `- ${boundary}`),
@@ -1750,7 +1794,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       "Use action=plan_candidate_wave when the operator wants multiple visible candidate experiments in parallel; this returns explicit candidate_peer_spawn and pi-autoresearch measurement/review calls, but does not launch or promote anything by itself.",
       "Use action=plan_matrix_campaign when the operator wants implementation-wave work dogfooded as a scenario × hypothesis matrix; this returns cell-scoped plan_candidate_wave/review_candidate_wave calls and keeps AK as the task spine.",
       "Use action=prepare_matrix_campaign_runner for the safer manifest/checkpoint runner contract: it exposes visible candidate_peer_spawn launch calls only, withholds benchmark/export/review calls, and emits an exact controller checkpoint token.",
-      "Use action=checkpoint_matrix_campaign_runner only after visible candidate peers have reported back and the controller has verified lineage; without the exact checkpointConfirmation token, benchmark/export/review calls remain withheld.",
+      "Use action=checkpoint_matrix_campaign_runner only after visible candidate peers have reported back and the controller has verified lineage; without the exact checkpointConfirmation token, benchmark/export/review calls remain withheld, and with it the tool returns an explicit controller-command packet: bind -> metric runtime_run -> candidate_result_export -> review_candidate_wave -> review_matrix_campaign.",
       "Use action=review_matrix_campaign after matrix cells have exported candidate-result packets; this aggregates managed cell-wave reviews without launching, measuring, writing evidence, or selecting promotion authority.",
       "Use action=review_candidate_wave after multiple pi-autoresearch candidate measurements have produced result summaries; this compares lanes for owner selection, but still does not choose winners as promotion authority.",
       "For DSPx/DSPy planning, set planner=dspx_program and runDspxProgramGen=true; this asks pi-autoresearch to materialize and run a bounded DSPx-generated DSPy planner assembly, then validate the generated DSPy output from behavior_results.json as the campaign plan. Orchestrator still does not synthesize or apply a DSPy program itself.",
