@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "76e7e6ca7825b712f45aa8cad3702e3cc45f88d0"
-created_at: "2026-05-13T19:30:47Z"
+created_at: "2026-05-13T19:31:07Z"
 intent: "Add matrix_campaign_cockpit.v1 dashboard to checkpoint and matrix-review reports"
 files:
   - "packages/pi-autoresearch/README.md"
@@ -18,7 +18,7 @@ validation:
     status: "fail"
   full_gate:
     command: "just test"
-    status: "pending"
+    status: "fail"
 group:
   index: 2
   total: 2
