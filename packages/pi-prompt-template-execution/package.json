@@ -75,7 +75,7 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
-    "@tryinget/pi-model-selection": "file:../pi-interaction/pi-model-selection"
+    "@tryinget/pi-model-selection": "file:../pi-model-selection"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",

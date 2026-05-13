@@ -23,6 +23,22 @@ function resolveTagEnv(tag) {
   });
 }
 
+function listComponents() {
+  return JSON.parse(
+    execFileSync(process.execPath, [SCRIPT, "list", "--json"], {
+      cwd: ROOT,
+      encoding: "utf-8",
+    }),
+  );
+}
+
+test("list reports pi-model-selection as a top-level support package", () => {
+  const components = listComponents();
+  const component = components.find((entry) => entry.component === "pi-model-selection");
+  assert.equal(component?.packagePath, "packages/pi-model-selection");
+  assert.equal(component?.packageName, "@tryinget/pi-model-selection");
+});
+
 test("resolve-tag reports latest dist-tag for stable versions", () => {
   const result = resolveTag("pi-society-orchestrator-v0.1.0");
   assert.equal(result.packageName, "@tryinget/pi-society-orchestrator");

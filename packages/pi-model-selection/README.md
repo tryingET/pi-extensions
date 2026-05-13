@@ -8,6 +8,8 @@ read_when:
 
 Shared Pi model-selection and auth-resolution primitives.
 
+This is a top-level support package at `packages/pi-model-selection`, not a `pi-interaction` subpackage. Consumers should depend on `@tryinget/pi-model-selection` directly rather than depending on `@tryinget/pi-interaction` for model-selection helpers.
+
 This package owns prompt-template-model-compatible model resolver semantics that are needed by more than one extension:
 
 - exact `modelId`

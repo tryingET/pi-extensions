@@ -16,12 +16,12 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tryingET/pi-extensions.git",
-    "directory": "packages/pi-interaction/pi-model-selection"
+    "directory": "packages/pi-model-selection"
   },
   "bugs": {
     "url": "https://github.com/tryingET/pi-extensions/issues"
   },
-  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-interaction/pi-model-selection",
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-model-selection",
   "keywords": [
     "pi-package",
     "model-selection",
@@ -35,13 +35,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "fix": "bash ../../../scripts/package-quality-gate.sh fix . --mode simple-package",
-    "lint": "bash ../../../scripts/package-quality-gate.sh lint . --mode simple-package",
-    "typecheck": "bash ../../../scripts/package-quality-gate.sh typecheck . --mode simple-package",
-    "test": "bash ../../../scripts/package-quality-gate.sh test . --mode simple-package",
-    "quality:pre-commit": "bash ../../../scripts/package-quality-gate.sh pre-commit . --mode simple-package",
-    "quality:pre-push": "bash ../../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
-    "quality:ci": "bash ../../../scripts/package-quality-gate.sh ci . --mode simple-package",
+    "fix": "bash ../../scripts/package-quality-gate.sh fix . --mode simple-package",
+    "lint": "bash ../../scripts/package-quality-gate.sh lint . --mode simple-package",
+    "typecheck": "bash ../../scripts/package-quality-gate.sh typecheck . --mode simple-package",
+    "test": "bash ../../scripts/package-quality-gate.sh test . --mode simple-package",
+    "quality:pre-commit": "bash ../../scripts/package-quality-gate.sh pre-commit . --mode simple-package",
+    "quality:pre-push": "bash ../../scripts/package-quality-gate.sh pre-push . --mode simple-package",
+    "quality:ci": "bash ../../scripts/package-quality-gate.sh ci . --mode simple-package",
     "check": "npm run quality:ci",
     "release:check": "npm pack --dry-run --json",
     "release:check:quick": "npm pack --dry-run --json"
@@ -53,7 +53,7 @@
   ],
   "x-pi-template": {
     "scaffoldMode": "simple-package",
-    "workspacePath": "packages/pi-interaction/pi-model-selection",
+    "workspacePath": "packages/pi-model-selection",
     "releaseComponent": "pi-model-selection",
     "releaseConfigMode": "component"
   },

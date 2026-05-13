@@ -34,7 +34,7 @@ Current live owner:
    Closure count after adding live-entrypoint tests: 62 tests passing.
 2. Shared model resolver checks passed:
    ```bash
-   cd packages/pi-interaction/pi-model-selection
+   cd packages/pi-model-selection
    npm run check
    ```
    Closure count: 12 tests passing.

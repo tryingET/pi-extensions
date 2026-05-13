@@ -35,7 +35,7 @@ Initial package-local slice:
 
 Follow-up shared-resolver extraction:
 
-- generic prompt-template-model-compatible resolver semantics moved to `packages/pi-interaction/pi-model-selection` (`@tryinget/pi-model-selection`)
+- generic prompt-template-model-compatible resolver semantics moved to `packages/pi-model-selection` (`@tryinget/pi-model-selection`)
 - `pi-session-compaction` now imports shared `parseProviderModel`, `parseModelSpecList`, `selectModelCandidate`, `resolveModelReference`, and `resolveModelAuth`
 - compaction package keeps only compaction-owned preset, thinking-level, and summarizer-specific error behavior
 

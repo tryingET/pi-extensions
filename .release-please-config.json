@@ -37,10 +37,6 @@
       "release-type": "node",
       "component": "pi-interaction-kit"
     },
-    "packages/pi-interaction/pi-model-selection": {
-      "release-type": "node",
-      "component": "pi-model-selection"
-    },
     "packages/pi-interaction/pi-runtime-registry": {
       "release-type": "node",
       "component": "pi-runtime-registry"
@@ -52,6 +48,10 @@
     "packages/pi-little-helpers": {
       "release-type": "node",
       "component": "pi-little-helpers"
+    },
+    "packages/pi-model-selection": {
+      "release-type": "node",
+      "component": "pi-model-selection"
     },
     "packages/pi-ontology-workflows": {
       "release-type": "node",

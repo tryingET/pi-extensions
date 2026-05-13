@@ -25,6 +25,8 @@ That means:
 
 should be treated as shared runtime/library packages inside the same Node.js + pi host process.
 
+`@tryinget/pi-model-selection` follows this package-boundary style but is now a top-level support package at `packages/pi-model-selection`, not a member of the `packages/pi-interaction/` package group.
+
 ## Why not API boundaries?
 
 These packages are:
@@ -59,12 +61,15 @@ without buying meaningful isolation.
 - `@tryinget/pi-editor-registry`
   - editor ownership / mount primitives
   - depends on trigger/runtime surfaces as needed
-- `@tryinget/pi-model-selection`
-  - prompt-template-model-compatible model fallback and auth-resolution primitives
-  - depends only on Pi host-shaped registry objects, not on prompt-template execution or compaction presets
 - `@tryinget/pi-interaction`
   - umbrella runtime / extension package
   - depends on the shared libraries above
+
+### Top-level support package
+
+- `@tryinget/pi-model-selection` (`packages/pi-model-selection`)
+  - prompt-template-model-compatible model fallback and auth-resolution primitives
+  - depends only on Pi host-shaped registry objects, not on prompt-template execution, compaction presets, or `@tryinget/pi-interaction`
 
 ### Consumer shape
 
@@ -79,7 +84,7 @@ Current bridge rule:
 - do **not** hand-fork shared logic casually
 - if a consumer cannot yet depend on the published shared packages directly, use a **generated vendoring bridge**
 - generated vendoring must:
-  - pull from the canonical `packages/pi-interaction/` sources
+  - pull from the canonical package source, for example `packages/pi-interaction/` for interaction helpers or `packages/pi-model-selection/` for model-selection helpers
   - be refreshable by script
   - be validated in release checks
   - be clearly documented as a bridge, not the final architecture

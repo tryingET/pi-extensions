@@ -16,8 +16,9 @@ This directory is a logical package group (single git root, no nested repos):
 - `pi-editor-registry/`
 - `pi-interaction-kit/`
 - `pi-trigger-adapter/`
-- `pi-model-selection/`
 - `pi-interaction/` (umbrella + extension entrypoint)
+
+`@tryinget/pi-model-selection` is now the top-level support package at `../pi-model-selection/`, not part of this package group.
 
 ## Working contract
 
@@ -37,6 +38,7 @@ Treat it as a private coordination shell for the split package family.
 
 Support libraries inside the group (`pi-editor-registry`, `pi-interaction-kit`, `pi-trigger-adapter`) are still legitimate package boundaries.
 They should remain process-local library packages rather than being promoted to service/API boundaries.
+`@tryinget/pi-model-selection` follows the same package-seam principle as a top-level support package because it is shared by packages outside the interaction family.
 See [Package-boundary architecture](docs/dev/package-boundary-architecture.md).
 
 ### Support-library publish readiness
@@ -58,7 +60,7 @@ See [Package-boundary architecture](docs/dev/package-boundary-architecture.md).
 - Re-homed trigger broker + picker registration into `pi-trigger-adapter`.
 - Re-homed fuzzy ranking/selection primitives into `pi-interaction-kit`.
 - Re-homed editor mounting primitives into `pi-editor-registry`.
-- Added `pi-model-selection` as a private shared resolver package for prompt-template-model-compatible model fallback/auth semantics.
+- Promoted `pi-model-selection` to top-level `packages/pi-model-selection` as a shared resolver package for prompt-template-model-compatible model fallback/auth semantics.
 - Updated umbrella extension entrypoint to compose split package surfaces.
 - Added umbrella runtime helpers:
   - `createInteractionRuntime`

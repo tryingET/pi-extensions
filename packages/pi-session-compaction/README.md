@@ -114,7 +114,7 @@ The full implementation should port and reconcile these sources:
 - installed prompt frontmatter model semantics from `npm:pi-prompt-template-model` (`/home/tryinget/.npm-global/lib/node_modules/pi-prompt-template-model/model-selection.ts` and `prompt-loader.ts`)
 - observed prompt-template model lifecycle ideas from `packages/pi-prompt-template-accelerator/src/ptxRuntimeRegistry.js`
 
-The live `/commit` prompt now gets its model behavior from `packages/pi-prompt-template-execution`, not from Pi core prompt-template loading and not from `pi-prompt-template-accelerator`. The shared resolver semantics live in `packages/pi-interaction/pi-model-selection` (`@tryinget/pi-model-selection`): exact specs, comma fallback, current-model preservation, auth-aware candidate selection, and provider priority `openai-codex -> anthropic -> github-copilot -> openrouter`. This package keeps only compaction-specific preset, thinking, and summarizer resolution logic.
+The live `/commit` prompt now gets its model behavior from `packages/pi-prompt-template-execution`, not from Pi core prompt-template loading and not from `pi-prompt-template-accelerator`. The shared resolver semantics live in `packages/pi-model-selection` (`@tryinget/pi-model-selection`): exact specs, comma fallback, current-model preservation, auth-aware candidate selection, and provider priority `openai-codex -> anthropic -> github-copilot -> openrouter`. This package keeps only compaction-specific preset, thinking, and summarizer resolution logic.
 
 ## Validation
 
