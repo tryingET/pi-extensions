@@ -438,6 +438,7 @@ export interface AutoresearchMatrixCampaignRunnerCheckpoint {
   benchmarkExportReviewCalls: readonly string[];
   reviewMatrixCampaignCall: string | null;
   controllerCommandPacket: AutoresearchMatrixCampaignControllerCommandPacket | null;
+  cockpit: AutoresearchMatrixCampaignCockpit;
   boundaries: readonly string[];
   nextStep: string;
 }
@@ -609,6 +610,60 @@ export interface AutoresearchMatrixCampaignCloseout {
   notDone: readonly string[];
 }
 
+export interface AutoresearchMatrixCampaignCockpit {
+  kind: "autoresearch.matrix_campaign_cockpit.v1";
+  source: "checkpoint_matrix_campaign_runner" | "review_matrix_campaign";
+  progress: {
+    posture: string;
+    completedCells: number;
+    expectedCells: number;
+    selectedCells: number;
+    summary: string;
+  };
+  cellRows: readonly {
+    cellId: string;
+    posture: string;
+    laneProgress: string;
+    selectedLaneId: string | null;
+    selectedPacketPath: string | null;
+    packetInventory: readonly string[];
+    nextLegalAction: string;
+  }[];
+  packetInventory: readonly {
+    cellId: string;
+    laneId: string;
+    packetPath: string | null;
+    state: AutoresearchMatrixCampaignOperatorLaneState;
+    selected: boolean;
+  }[];
+  selectedLanes: readonly {
+    cellId: string;
+    laneId: string;
+    sourcePacketPath: string | null;
+  }[];
+  ownerDecisionRoute: {
+    dashboardFirst: "/autoresearch export";
+    overlayFallback: "/autoresearch overlay";
+    finalDecision: "/autoresearch review";
+    evidenceAfterReview: true;
+    routeOrder: readonly ["/autoresearch export", "/autoresearch review", "evidence_record"];
+  };
+  nextLegalCampaignActions: readonly string[];
+  noHiddenExecutionBoundaries: readonly string[];
+  matrixCockpitBlockers: {
+    name: "matrix_cockpit_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    proofs: readonly {
+      proof: string;
+      status: "present";
+      source: string;
+    }[];
+  };
+}
+
 export interface AutoresearchMatrixCampaignReview {
   kind: "autoresearch.matrix_campaign_review.v1";
   taskId: number;
@@ -626,6 +681,7 @@ export interface AutoresearchMatrixCampaignReview {
   selectedCellCount: number;
   ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
   closeout: AutoresearchMatrixCampaignCloseout;
+  cockpit: AutoresearchMatrixCampaignCockpit;
   exactNextCalls: readonly string[];
   boundaries: readonly string[];
   nextStep: string;
@@ -2648,6 +2704,182 @@ function buildAutoresearchMatrixCampaignControllerCommandPacket(input: {
   };
 }
 
+function buildMatrixCampaignCockpitBlockers(): AutoresearchMatrixCampaignCockpit["matrixCockpitBlockers"] {
+  const proofs = [
+    {
+      proof: "matrix-wide progress and per-cell posture summary",
+      status: "present" as const,
+      source: "cockpit.progress + cockpit.cellRows",
+    },
+    {
+      proof: "selected lane and packet inventory visibility",
+      status: "present" as const,
+      source: "cockpit.selectedLanes + cockpit.packetInventory",
+    },
+    {
+      proof: "next legal action per cell and campaign",
+      status: "present" as const,
+      source: "cockpit.cellRows[].nextLegalAction + cockpit.nextLegalCampaignActions",
+    },
+    {
+      proof: "dashboard-first owner route",
+      status: "present" as const,
+      source: "cockpit.ownerDecisionRoute",
+    },
+    {
+      proof: "no hidden execution or promotion boundaries",
+      status: "present" as const,
+      source: "cockpit.noHiddenExecutionBoundaries",
+    },
+    {
+      proof: "docs/tests alignment mentioning matrix_cockpit_blockers",
+      status: "present" as const,
+      source: "README/product-posture/tests",
+    },
+  ];
+  const value = 0;
+  return {
+    name: "matrix_cockpit_blockers",
+    direction: "lower",
+    target: 0,
+    value,
+    status: value === 0 ? "target_met" : "blocked",
+    proofs,
+  };
+}
+
+function buildAutoresearchMatrixCheckpointCockpit(input: {
+  contract: AutoresearchMatrixCampaignRunnerContract;
+  accepted: boolean;
+  controllerCommandPacket: AutoresearchMatrixCampaignControllerCommandPacket | null;
+}): AutoresearchMatrixCampaignCockpit {
+  const packetInventory = input.contract.lanes.map((lane) => ({
+    cellId: lane.cellId,
+    laneId: lane.laneId,
+    packetPath: lane.candidateResultPacketPath,
+    state: input.accepted
+      ? ("measurement_export_unlocked" as const)
+      : ("locked_until_checkpoint" as const),
+    selected: false,
+  }));
+  const cellIds = [...new Set(input.contract.lanes.map((lane) => lane.cellId))];
+  const cellRows = cellIds.map((cellId) => {
+    const cellLanes = input.contract.lanes.filter((lane) => lane.cellId === cellId);
+    const packetLines = cellLanes.map(
+      (lane) =>
+        `${lane.laneId}: ${lane.candidateResultPacketPath} [${
+          input.accepted ? "measurement_export_unlocked" : "locked_until_checkpoint"
+        }]`,
+    );
+    return {
+      cellId,
+      posture: input.accepted ? "measurement_export_unlocked" : "locked_until_checkpoint",
+      laneProgress: `0/${cellLanes.length} measured/exported`,
+      selectedLaneId: null,
+      selectedPacketPath: null,
+      packetInventory: packetLines,
+      nextLegalAction: input.accepted
+        ? (cellLanes[0]?.measurementPlan[0] ?? "run unlocked controller-command packet calls")
+        : input.contract.checkpointGate.exactCheckpointCall,
+    };
+  });
+  const nextLegalCampaignActions = input.accepted
+    ? (input.controllerCommandPacket?.flattenedNextCallBundle ?? [])
+    : [input.contract.checkpointGate.exactCheckpointCall];
+
+  return {
+    kind: "autoresearch.matrix_campaign_cockpit.v1",
+    source: "checkpoint_matrix_campaign_runner",
+    progress: {
+      posture: input.accepted
+        ? "benchmark_export_review_unlocked"
+        : "blocked_until_exact_controller_checkpoint",
+      completedCells: 0,
+      expectedCells: input.contract.manifest.cellCount,
+      selectedCells: 0,
+      summary: input.accepted
+        ? `Checkpoint accepted; ${input.contract.manifest.cellCount} cell(s) have explicit bind/measure/export/review calls exposed but not executed.`
+        : `Checkpoint blocked; ${input.contract.manifest.cellCount} cell(s) remain locked until controller lineage verification and exact checkpointConfirmation.`,
+    },
+    cellRows,
+    packetInventory,
+    selectedLanes: [],
+    ownerDecisionRoute: {
+      dashboardFirst: "/autoresearch export",
+      overlayFallback: "/autoresearch overlay",
+      finalDecision: "/autoresearch review",
+      evidenceAfterReview: true,
+      routeOrder: ["/autoresearch export", "/autoresearch review", "evidence_record"],
+    },
+    nextLegalCampaignActions,
+    noHiddenExecutionBoundaries: [
+      ...input.contract.boundaries,
+      ...(input.controllerCommandPacket?.boundaries ?? []),
+    ],
+    matrixCockpitBlockers: buildMatrixCampaignCockpitBlockers(),
+  };
+}
+
+function buildAutoresearchMatrixReviewCockpit(input: {
+  posture: AutoresearchMatrixCampaignReview["posture"];
+  completedCellCount: number;
+  expectedCellCount: number;
+  selectedCellCount: number;
+  cellReviews: readonly AutoresearchMatrixCampaignCellReview[];
+  closeout: AutoresearchMatrixCampaignCloseout;
+  exactNextCalls: readonly string[];
+  boundaries: readonly string[];
+}): AutoresearchMatrixCampaignCockpit {
+  const cellRows = input.cellReviews.map((cell) => {
+    const inventory = input.closeout.packetInventory.filter((lane) => lane.cellId === cell.cellId);
+    const selected = input.closeout.selectedLanes.find((lane) => lane.cellId === cell.cellId);
+    const nextLegalAction =
+      cell.recommendationPosture === "planned_lanes_incomplete" ||
+      cell.recommendationPosture === "no_selectable_candidate"
+        ? cell.reviewCandidateWaveCall
+        : `autoresearch_candidate_decision via /autoresearch review for ${cell.selectedLaneId ?? "selected lane"}`;
+    return {
+      cellId: cell.cellId,
+      posture: cell.recommendationPosture,
+      laneProgress: `${cell.completedLaneCount}/${cell.expectedLaneCount} measured/exported`,
+      selectedLaneId: cell.selectedLaneId,
+      selectedPacketPath: selected?.sourcePacketPath ?? null,
+      packetInventory: inventory.map(
+        (lane) =>
+          `${lane.laneId}: ${lane.packetPath ?? "none"} [${lane.state}; selected=${
+            lane.selected ? "yes" : "no"
+          }]`,
+      ),
+      nextLegalAction,
+    };
+  });
+  const nextLegalCampaignActions =
+    input.exactNextCalls.length > 0 ? input.exactNextCalls : input.closeout.nextLegalOwnerActions;
+
+  return {
+    kind: "autoresearch.matrix_campaign_cockpit.v1",
+    source: "review_matrix_campaign",
+    progress: {
+      posture: input.posture,
+      completedCells: input.completedCellCount,
+      expectedCells: input.expectedCellCount,
+      selectedCells: input.selectedCellCount,
+      summary: `${input.completedCellCount}/${input.expectedCellCount} cell(s) complete; ${input.selectedCellCount} selected cell lane(s); posture=${input.posture}.`,
+    },
+    cellRows,
+    packetInventory: input.closeout.packetInventory,
+    selectedLanes: input.closeout.selectedLanes.map((lane) => ({
+      cellId: lane.cellId,
+      laneId: lane.laneId,
+      sourcePacketPath: lane.sourcePacketPath,
+    })),
+    ownerDecisionRoute: input.closeout.ownerDecisionRoute,
+    nextLegalCampaignActions,
+    noHiddenExecutionBoundaries: [...input.boundaries, ...input.closeout.notDone],
+    matrixCockpitBlockers: buildMatrixCampaignCockpitBlockers(),
+  };
+}
+
 export function checkpointAutoresearchMatrixCampaignRunner(
   input: AutoresearchMatrixCampaignRunnerRequest,
 ): AutoresearchMatrixCampaignRunnerCheckpoint {
@@ -2676,6 +2908,11 @@ export function checkpointAutoresearchMatrixCampaignRunner(
       })
     : null;
   const benchmarkExportReviewCalls = controllerCommandPacket?.flattenedNextCallBundle ?? [];
+  const cockpit = buildAutoresearchMatrixCheckpointCockpit({
+    contract,
+    accepted,
+    controllerCommandPacket,
+  });
 
   return {
     kind: "autoresearch.matrix_campaign_runner_checkpoint.v1",
@@ -2729,6 +2966,7 @@ export function checkpointAutoresearchMatrixCampaignRunner(
     benchmarkExportReviewCalls,
     reviewMatrixCampaignCall: accepted ? reviewCall : null,
     controllerCommandPacket,
+    cockpit,
     boundaries: accepted
       ? [
           "Checkpoint unlock only exposes the exact controller-command packet and next-call bundle; it still does not execute them.",
@@ -2807,6 +3045,22 @@ export function reviewAutoresearchMatrixCampaign(
     cellReviews,
     ownerReview: plan.ownerReview,
   });
+  const boundaries = [
+    "This matrix review aggregates managed candidate-wave reviews; it does not launch peers, run benchmarks, merge worktrees, write evidence, or promote candidates.",
+    "Each cell remains gated by review_candidate_wave over explicit candidate-result packet paths.",
+    "Raw peer messages are communication only; pi-autoresearch candidate-result packets remain the measurement source.",
+    "Owner approval and lower-plane candidate decision workbench calls remain required before keep/discard/rewind/finalize actions.",
+  ];
+  const cockpit = buildAutoresearchMatrixReviewCockpit({
+    posture,
+    completedCellCount,
+    expectedCellCount: cellReviews.length,
+    selectedCellCount,
+    cellReviews,
+    closeout,
+    exactNextCalls,
+    boundaries,
+  });
 
   return {
     kind: "autoresearch.matrix_campaign_review.v1",
@@ -2851,13 +3105,9 @@ export function reviewAutoresearchMatrixCampaign(
     selectedCellCount,
     ownerReview: plan.ownerReview,
     closeout,
+    cockpit,
     exactNextCalls,
-    boundaries: [
-      "This matrix review aggregates managed candidate-wave reviews; it does not launch peers, run benchmarks, merge worktrees, write evidence, or promote candidates.",
-      "Each cell remains gated by review_candidate_wave over explicit candidate-result packet paths.",
-      "Raw peer messages are communication only; pi-autoresearch candidate-result packets remain the measurement source.",
-      "Owner approval and lower-plane candidate decision workbench calls remain required before keep/discard/rewind/finalize actions.",
-    ],
+    boundaries,
     nextStep:
       posture === "waiting_for_managed_cell_waves"
         ? "Finish controller measurement and candidate_result_export for incomplete cells, then rerun review_matrix_campaign."

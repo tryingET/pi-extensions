@@ -81,6 +81,7 @@ import {
   type AutoresearchLiveStopResult,
   AutoresearchLiveSupervisionRunner,
   type AutoresearchLiveSupervisionSessionV1,
+  type AutoresearchMatrixCampaignCockpit,
   type AutoresearchMatrixCampaignControllerCommandPacket,
   type AutoresearchMatrixCampaignOperatorFollowup,
   type AutoresearchMatrixCampaignPlan,
@@ -517,6 +518,50 @@ function formatAutoresearchMatrixCampaignOperatorFollowupReport(
   ];
 }
 
+function formatAutoresearchMatrixCampaignCockpitReport(
+  cockpit: AutoresearchMatrixCampaignCockpit,
+): string[] {
+  return [
+    "Matrix campaign cockpit/dashboard:",
+    `- kind: ${cockpit.kind}`,
+    `- source: ${cockpit.source}`,
+    `- matrix_cockpit_blockers: ${cockpit.matrixCockpitBlockers.value} (target=${cockpit.matrixCockpitBlockers.target}, ${cockpit.matrixCockpitBlockers.direction} is better; ${cockpit.matrixCockpitBlockers.status})`,
+    `- progress: ${cockpit.progress.summary}`,
+    `- cell progress: ${cockpit.progress.completedCells}/${cockpit.progress.expectedCells}; selected=${cockpit.progress.selectedCells}; posture=${cockpit.progress.posture}`,
+    "- compact cell table:",
+    ...cockpit.cellRows.flatMap((cell) => [
+      `  - ${cell.cellId}: posture=${cell.posture}; lanes=${cell.laneProgress}; selected=${cell.selectedLaneId ?? "none"}; selectedPacket=${cell.selectedPacketPath ?? "none"}`,
+      `    next legal action: ${cell.nextLegalAction}`,
+      ...cell.packetInventory.map((packet) => `    packet: ${packet}`),
+    ]),
+    "- selected lane inventory:",
+    ...(cockpit.selectedLanes.length > 0
+      ? cockpit.selectedLanes.map(
+          (lane) => `  - ${lane.cellId}/${lane.laneId}: packet=${lane.sourcePacketPath ?? "none"}`,
+        )
+      : ["  - none selected yet"]),
+    "- packet inventory:",
+    ...cockpit.packetInventory.map(
+      (lane) =>
+        `  - ${lane.cellId}/${lane.laneId}: packet=${lane.packetPath ?? "none"}; state=${lane.state}; selected=${lane.selected ? "yes" : "no"}`,
+    ),
+    `- dashboard-first owner route: ${cockpit.ownerDecisionRoute.routeOrder.join(" -> ")}`,
+    `- dashboard first: ${cockpit.ownerDecisionRoute.dashboardFirst}`,
+    `- overlay fallback: ${cockpit.ownerDecisionRoute.overlayFallback}`,
+    `- final decision: ${cockpit.ownerDecisionRoute.finalDecision}`,
+    `- evidence after review: ${cockpit.ownerDecisionRoute.evidenceAfterReview ? "yes" : "no"}`,
+    "- next legal campaign actions:",
+    ...cockpit.nextLegalCampaignActions.map((action) => `  - ${action}`),
+    "- no-hidden-execution/promotion boundaries:",
+    ...cockpit.noHiddenExecutionBoundaries.map((boundary) => `  - ${boundary}`),
+    "- cockpit proof checklist:",
+    ...cockpit.matrixCockpitBlockers.proofs.map(
+      (proof) => `  - ${proof.status}: ${proof.proof} via ${proof.source}`,
+    ),
+    "",
+  ];
+}
+
 function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCampaignPlan): string {
   return [
     "Autoresearch live supervision — plan_matrix_campaign",
@@ -689,6 +734,7 @@ function formatAutoresearchMatrixCampaignRunnerCheckpointReport(
     `Posture: ${checkpoint.posture}`,
     `Required token: ${checkpoint.requiredToken}`,
     ...formatAutoresearchMatrixCampaignOperatorFollowupReport(checkpoint.operatorFollowup),
+    ...formatAutoresearchMatrixCampaignCockpitReport(checkpoint.cockpit),
     ...(checkpoint.benchmarkExportReviewCalls.length > 0
       ? [
           "",
@@ -724,6 +770,7 @@ function formatAutoresearchMatrixCampaignReviewReport(
     `Cell progress: ${review.completedCellCount}/${review.expectedCellCount}`,
     `Selected cells: ${review.selectedCellCount}`,
     ...formatAutoresearchMatrixCampaignOperatorFollowupReport(review.operatorFollowup),
+    ...formatAutoresearchMatrixCampaignCockpitReport(review.cockpit),
     "Managed cell reviews:",
     ...review.cells.flatMap((cell) => [
       `- ${cell.cellId}: scenario=${cell.scenario}; hypothesis=${cell.hypothesis}`,

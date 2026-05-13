@@ -1014,6 +1014,18 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
   assert.ok(packet.checkpointAndLineageVerification.peerFinalIsCommunicationOnly);
   assert.ok(packet.boundaries.some((boundary) => /does not execute/.test(boundary)));
   assert.ok(packet.boundaries.some((boundary) => /promotion/.test(boundary)));
+  const cockpit = unlocked.details.matrixCampaignRunnerCheckpoint.cockpit;
+  assert.equal(cockpit.kind, "autoresearch.matrix_campaign_cockpit.v1");
+  assert.equal(cockpit.source, "checkpoint_matrix_campaign_runner");
+  assert.equal(cockpit.matrixCockpitBlockers.name, "matrix_cockpit_blockers");
+  assert.equal(cockpit.matrixCockpitBlockers.value, 0);
+  assert.equal(cockpit.progress.expectedCells, 1);
+  assert.equal(cockpit.cellRows[0].posture, "measurement_export_unlocked");
+  assert.match(cockpit.cellRows[0].nextLegalAction, /autoresearch_candidate_bind/);
+  assert.equal(cockpit.ownerDecisionRoute.dashboardFirst, "/autoresearch export");
+  assert.ok(
+    cockpit.noHiddenExecutionBoundaries.some((boundary) => /does not execute/.test(boundary)),
+  );
   assert.equal(
     unlocked.details.matrixCampaignRunnerCheckpoint.operatorFollowup.checkpointState.posture,
     "accepted",
@@ -1027,6 +1039,10 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
   assert.match(unlocked.content[0].text, /checkpoint state: accepted/);
   assert.match(unlocked.content[0].text, /Unlocked benchmark\/export\/review calls/);
   assert.match(unlocked.content[0].text, /Controller-command packet \/ next-call bundle/);
+  assert.match(unlocked.content[0].text, /Matrix campaign cockpit\/dashboard/);
+  assert.match(unlocked.content[0].text, /matrix_cockpit_blockers: 0/);
+  assert.match(unlocked.content[0].text, /compact cell table/);
+  assert.match(unlocked.content[0].text, /dashboard-first owner route/);
   assert.match(unlocked.content[0].text, /manual_controller_glue_blockers/);
   assert.match(
     unlocked.content[0].text,
@@ -1166,6 +1182,30 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
       result.details.matrixCampaignReview.closeout.evidenceProjection.exactRecordCall,
       /autoresearch:matrix-campaign:closeout/,
     );
+    const cockpit = result.details.matrixCampaignReview.cockpit;
+    assert.equal(cockpit.kind, "autoresearch.matrix_campaign_cockpit.v1");
+    assert.equal(cockpit.source, "review_matrix_campaign");
+    assert.equal(cockpit.matrixCockpitBlockers.name, "matrix_cockpit_blockers");
+    assert.equal(cockpit.matrixCockpitBlockers.value, 0);
+    assert.equal(cockpit.progress.completedCells, 2);
+    assert.equal(cockpit.progress.expectedCells, 2);
+    assert.equal(cockpit.progress.selectedCells, 2);
+    assert.equal(cockpit.cellRows.length, 2);
+    assert.equal(cockpit.cellRows[0].selectedLaneId, "candidate-01");
+    assert.match(cockpit.cellRows[0].nextLegalAction, /autoresearch_candidate_decision/);
+    assert.equal(cockpit.packetInventory.length, 4);
+    assert.equal(cockpit.selectedLanes.length, 2);
+    assert.equal(cockpit.ownerDecisionRoute.dashboardFirst, "/autoresearch export");
+    assert.ok(
+      cockpit.matrixCockpitBlockers.proofs.some((proof) =>
+        proof.proof.includes("docs/tests alignment mentioning matrix_cockpit_blockers"),
+      ),
+    );
+    assert.ok(
+      cockpit.noHiddenExecutionBoundaries.some((boundary) =>
+        /does not launch peers/.test(boundary),
+      ),
+    );
     assert.equal(result.details.matrixCampaignReview.closeout.selectedLanes.length, 2);
     assert.equal(result.details.matrixCampaignReview.closeout.packetInventory.length, 4);
     assert.equal(
@@ -1224,6 +1264,19 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.match(result.content[0].text, /Cell progress: 2\/2/);
     assert.match(result.content[0].text, /primary UI command: \/autoresearch export/);
     assert.match(result.content[0].text, /final decision UI command: \/autoresearch review/);
+    assert.match(result.content[0].text, /Matrix campaign cockpit\/dashboard/);
+    assert.match(result.content[0].text, /matrix_cockpit_blockers: 0/);
+    assert.match(result.content[0].text, /compact cell table/);
+    assert.match(result.content[0].text, /selected lane inventory/);
+    assert.match(result.content[0].text, /next legal action: autoresearch_candidate_decision/);
+    assert.match(
+      result.content[0].text,
+      /dashboard-first owner route: \/autoresearch export -> \/autoresearch review -> evidence_record/,
+    );
+    assert.match(
+      result.content[0].text,
+      /docs\/tests alignment mentioning matrix_cockpit_blockers/,
+    );
     assert.match(result.content[0].text, /Campaign closeout/);
     assert.match(result.content[0].text, /autoresearch\.matrix_campaign_closeout\.v1/);
     assert.match(result.content[0].text, /closeout packet inventory/);
