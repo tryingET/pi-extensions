@@ -34,7 +34,8 @@ const GHOSTTY_LAUNCH_TIMEOUT_MS = 15000;
 const TITLE_MAX_LEN = 48;
 const GHOSTTY_BIN_NAME = "ghostty";
 const LOCAL_GHOSTTY_WRAPPER = join(homedir(), ".local", "bin", "ghostty-sidequest");
-const LOCAL_GHOSTTY_BIN = join(homedir(), ".local", "opt", "ghostty-sidequest", "bin", "ghostty");
+const LOCAL_GHOSTTY_OPT_DIR = join(homedir(), ".local", "opt");
+const LOCAL_GHOSTTY_BIN = join(LOCAL_GHOSTTY_OPT_DIR, "ghostty-sidequest", "bin", "ghostty");
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 type PiCommandContext = Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1];
@@ -393,7 +394,7 @@ export function resolveGhosttyBin({
   const wrapperExists = pathExists(LOCAL_GHOSTTY_WRAPPER);
   const normalizedCurrentSessionGhosttyBin = currentSessionGhosttyBin?.trim();
   if (normalizedCurrentSessionGhosttyBin && pathExists(normalizedCurrentSessionGhosttyBin)) {
-    if (normalizedCurrentSessionGhosttyBin === LOCAL_GHOSTTY_BIN && wrapperExists) {
+    if (isLocalGhosttySidequestBin(normalizedCurrentSessionGhosttyBin) && wrapperExists) {
       return LOCAL_GHOSTTY_WRAPPER;
     }
     return normalizedCurrentSessionGhosttyBin;
@@ -412,6 +413,18 @@ export function resolveGhosttyBin({
     return LOCAL_GHOSTTY_BIN;
   }
   return GHOSTTY_BIN_NAME;
+}
+
+function isLocalGhosttySidequestBin(path: string): boolean {
+  const normalizedPath = resolve(path);
+  if (normalizedPath === LOCAL_GHOSTTY_BIN) return true;
+
+  const relativePath = relative(LOCAL_GHOSTTY_OPT_DIR, normalizedPath);
+  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) return false;
+  const [installDir, binDir, binName] = relativePath.split(sep);
+  return Boolean(
+    installDir?.startsWith("ghostty-sidequest") && binDir === "bin" && binName === GHOSTTY_BIN_NAME,
+  );
 }
 
 async function supportsGhosttyNewTab(execRunner: ExecRunner, ghosttyBin: string): Promise<boolean> {

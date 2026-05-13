@@ -12,7 +12,12 @@ import {
 
 const LOCAL_GHOSTTY_WRAPPER_SUFFIX = "/.local/bin/ghostty-sidequest";
 const LOCAL_GHOSTTY_BIN_SUFFIX = "/.local/opt/ghostty-sidequest/bin/ghostty";
+const LOCAL_GHOSTTY_NEXT_BIN_SUFFIX = "/.local/opt/ghostty-sidequest-next/bin/ghostty";
+const LOCAL_GHOSTTY_PREV_BIN_SUFFIX =
+  "/.local/opt/ghostty-sidequest-prev-20260512T211350/bin/ghostty";
 const LOCAL_GHOSTTY_BIN = `/home/tryinget${LOCAL_GHOSTTY_BIN_SUFFIX}`;
+const LOCAL_GHOSTTY_NEXT_BIN = `/home/tryinget${LOCAL_GHOSTTY_NEXT_BIN_SUFFIX}`;
+const LOCAL_GHOSTTY_PREV_BIN = `/home/tryinget${LOCAL_GHOSTTY_PREV_BIN_SUFFIX}`;
 
 function isLocalGhosttyWrapper(path) {
   return path.endsWith(LOCAL_GHOSTTY_WRAPPER_SUFFIX);
@@ -20,6 +25,14 @@ function isLocalGhosttyWrapper(path) {
 
 function isLocalGhosttyBin(path) {
   return path.endsWith(LOCAL_GHOSTTY_BIN_SUFFIX);
+}
+
+function isAnyLocalSidequestGhosttyBin(path) {
+  return (
+    path.endsWith(LOCAL_GHOSTTY_BIN_SUFFIX) ||
+    path.endsWith(LOCAL_GHOSTTY_NEXT_BIN_SUFFIX) ||
+    path.endsWith(LOCAL_GHOSTTY_PREV_BIN_SUFFIX)
+  );
 }
 
 function registerExtension(extension, { thinkingLevel = "medium" } = {}) {
@@ -142,18 +155,28 @@ test("resolveGhosttyBin prefers the current stock Ghostty session binary over th
 });
 
 test("resolveGhosttyBin uses the sidequest wrapper when the current session already runs in the sidequest fork", () => {
-  const resolved = resolveGhosttyBin({
-    env: {
-      TERM_PROGRAM: "ghostty",
-      GHOSTTY_BIN_DIR: "/usr/bin",
-    },
-    currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
-    pathExists(path) {
-      return path === "/usr/bin/ghostty" || isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
-    },
-  });
+  for (const currentSessionGhosttyBin of [
+    LOCAL_GHOSTTY_BIN,
+    LOCAL_GHOSTTY_NEXT_BIN,
+    LOCAL_GHOSTTY_PREV_BIN,
+  ]) {
+    const resolved = resolveGhosttyBin({
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+      },
+      currentSessionGhosttyBin,
+      pathExists(path) {
+        return (
+          path === "/usr/bin/ghostty" ||
+          isLocalGhosttyWrapper(path) ||
+          isAnyLocalSidequestGhosttyBin(path)
+        );
+      },
+    });
 
-  assert.ok(isLocalGhosttyWrapper(resolved));
+    assert.ok(isLocalGhosttyWrapper(resolved), currentSessionGhosttyBin);
+  }
 });
 
 test("resolveGhosttyBin falls back to the local wrapper before the raw local Ghostty binary", () => {
@@ -525,10 +548,15 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.reportBack, "intercom");
     assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
     assert.equal(config.prompts.length, 7);
-    assert.equal(
+    assert.match(
       config.prompts[0],
-      "read @docs/project/vision.md and @docs/project/product_posture.md what is the next highest leverage item. Reason from first principles. and consider multi-order effects.",
+      /^read @docs\/project\/vision\.md and @docs\/project\/product-posture\.md\./,
     );
+    assert.match(config.prompts[0], /design membrane/);
+    assert.match(config.prompts[0], /TRUST \/ SECURITY MODEL/);
+    assert.match(config.prompts[0], /ADVERSARIAL TEST PLAN/);
+    assert.match(config.prompts[0], /Do not optimize for smallest diff/);
+    assert.match(config.prompts[0], /Proceed until completed and validated\./);
     assert.doesNotMatch(config.prompts[0], /Prompt Vault/);
     assert.equal(config.prompts[1], "proceed");
     assert.equal(config.prompts[4], "/deep-review");
