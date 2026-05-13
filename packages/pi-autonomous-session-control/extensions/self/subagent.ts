@@ -85,7 +85,12 @@ Child extension bootstrap (optional):
 
 Request env policy (optional):
 - env only accepts PI_PROVENANCE_* keys for per-dispatch provenance sidecars.
-- PATH, NODE_OPTIONS, PI_CODING_AGENT_DIR, and any non-PI_PROVENANCE_* key fail before spawn.`,
+- PATH, NODE_OPTIONS, PI_CODING_AGENT_DIR, and any non-PI_PROVENANCE_* key fail before spawn.
+
+Child skill profile bootstrap (optional):
+- skillProfile resolves a named, allowlisted skill-library profile and starts the child with --no-skills + a materialized --skill directory.
+- noSkills disables ordinary child skill discovery when no profile is needed.
+- raw skills[] paths are currently rejected fail-closed; use named profiles.`,
     promptSnippet:
       "Spawn a focused subagent for parallel investigation, review, testing, or research.",
     promptGuidelines: [
@@ -127,6 +132,24 @@ Request env policy (optional):
         Type.Record(Type.String(), Type.String(), {
           description:
             "Optional per-dispatch child env overlay. Only PI_PROVENANCE_* keys are accepted; control env such as PATH, NODE_OPTIONS, and PI_CODING_AGENT_DIR is rejected before spawn.",
+        }),
+      ),
+      skillProfile: Type.Optional(
+        Type.String({
+          description:
+            "Optional named child skill profile (for example 'minimal', 'ak', 'governance', or 'dspx-skill-authoring'). Resolved through an allowlisted registry before spawn.",
+        }),
+      ),
+      noSkills: Type.Optional(
+        Type.Boolean({
+          description:
+            "When true, starts the child with --no-skills. skillProfile implies this and adds a materialized --skill directory.",
+        }),
+      ),
+      skills: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Reserved for future allowlisted explicit skill selection. Raw skill paths are currently rejected fail-closed; use skillProfile.",
         }),
       ),
       prompt_name: Type.Optional(

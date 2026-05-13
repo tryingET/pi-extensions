@@ -28,6 +28,10 @@ import {
 } from "./subagent-session.ts";
 import { reserveUniqueSessionName } from "./subagent-session-name.ts";
 import {
+  resolveSubagentSkillSelection,
+  SubagentSkillSelectionError,
+} from "./subagent-skill-selection.ts";
+import {
   type AssistantStopReason,
   type ExecutionState,
   formatSubagentEnvPolicyIssues,
@@ -49,6 +53,7 @@ export type DispatchSubagentFailureKind =
   | "transport_error"
   | "extension_bootstrap_missing"
   | "env_policy_failed"
+  | "skill_profile_failed"
   | "invariant_failed"
   | "unknown_profile"
   | "rate_limited"
@@ -63,6 +68,9 @@ export interface DispatchSubagentRequest {
   timeout?: number;
   extensions?: string[];
   env?: Record<string, string>;
+  skillProfile?: string;
+  noSkills?: boolean;
+  skills?: string[];
   prompt_name?: string;
   prompt_content?: string;
   prompt_tags?: string[];
@@ -90,6 +98,11 @@ export interface DispatchSubagentDetails {
   modelSelectionWarning?: string;
   loadedExtensions?: string[];
   extensionWarnings?: string[];
+  skillProfile?: string;
+  loadedSkills?: string[];
+  librarySkills?: string[];
+  skillWarnings?: string[];
+  skillRegistry?: string;
   prompt_name?: string;
   prompt_source?: string;
   prompt_tags?: string[];
@@ -259,6 +272,14 @@ function formatExtensionSelectionWarnings(selection: ResolvedSubagentExtensionSe
   return `\nExtension note: ${selection.warnings.join(" ")}`;
 }
 
+function formatSkillSelectionWarnings(selection: { skillWarnings: string[] }): string {
+  if (selection.skillWarnings.length === 0) {
+    return "";
+  }
+
+  return `\nSkill note: ${selection.skillWarnings.join(" ")}`;
+}
+
 export function getDispatchSubagentDisplayOutput(result: DispatchSubagentExecutionResult): string {
   if (typeof result.details.displayOutput === "string") {
     return result.details.displayOutput;
@@ -293,6 +314,9 @@ export async function executeDispatchSubagentRequest(options: {
     timeout,
     extensions,
     env,
+    skillProfile,
+    noSkills,
+    skills,
     prompt_name,
     prompt_content,
     prompt_tags,
@@ -404,6 +428,36 @@ export async function executeDispatchSubagentRequest(options: {
     requestedExtensions: extensions,
     ctx: options.ctx,
   });
+
+  let skillSelection: Awaited<ReturnType<typeof resolveSubagentSkillSelection>>;
+  try {
+    skillSelection = await resolveSubagentSkillSelection({
+      requestedSkillProfile: skillProfile,
+      requestedNoSkills: noSkills,
+      requestedSkills: skills,
+      ctx: options.ctx,
+    });
+  } catch (error) {
+    executionSlot.release();
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      text: `Subagent child runtime skill-profile resolution failed: ${message}`,
+      details: {
+        profile: profile as DispatchSubagentProfile,
+        objective: safeObjective,
+        requestedModel: selectedModel.requestedModel,
+        effectiveModel: selectedModel.effectiveModel,
+        modelSelectionSource: selectedModel.source,
+        modelSelectionWarning: selectedModel.warning,
+        status: "error",
+        reason:
+          error instanceof SubagentSkillSelectionError ? error.reason : "skill_profile_failed",
+        failureKind: "skill_profile_failed",
+      },
+    };
+  }
+
   if (extensionSelection.missingRequired.length > 0) {
     executionSlot.release();
     return {
@@ -459,6 +513,8 @@ export async function executeDispatchSubagentRequest(options: {
       parentSessionKey,
       parentRepoRoot,
       extensionSources: extensionSelection.extensions,
+      noSkills: skillSelection.noSkills,
+      skillSources: skillSelection.skillSources,
       env: envPolicy.env,
     };
 
@@ -482,6 +538,17 @@ export async function executeDispatchSubagentRequest(options: {
         ...(extensionSelection.warnings.length > 0
           ? { extensionWarnings: extensionSelection.warnings }
           : {}),
+        ...(skillSelection.skillProfile ? { skillProfile: skillSelection.skillProfile } : {}),
+        ...(skillSelection.loadedSkills.length > 0
+          ? { loadedSkills: skillSelection.loadedSkills }
+          : {}),
+        ...(skillSelection.librarySkills.length > 0
+          ? { librarySkills: skillSelection.librarySkills }
+          : {}),
+        ...(skillSelection.skillWarnings.length > 0
+          ? { skillWarnings: skillSelection.skillWarnings }
+          : {}),
+        ...(skillSelection.skillRegistry ? { skillRegistry: skillSelection.skillRegistry } : {}),
       },
     });
 
@@ -531,6 +598,7 @@ export async function executeDispatchSubagentRequest(options: {
     ? `\nModel selection note: ${selectedModel.warning}`
     : "";
   const extensionSelectionWarning = formatExtensionSelectionWarnings(extensionSelection);
+  const skillSelectionWarning = formatSkillSelectionWarnings(skillSelection);
   const promptWarning = promptEnvelope.prompt_warning
     ? `\nPrompt envelope warning: ${promptEnvelope.prompt_warning}`
     : "";
@@ -541,7 +609,7 @@ export async function executeDispatchSubagentRequest(options: {
 
   return {
     ok: status === "done",
-    text: `${summary}${modelSelectionWarning}${extensionSelectionWarning}${promptWarning}\n\n${truncated}`,
+    text: `${summary}${modelSelectionWarning}${extensionSelectionWarning}${skillSelectionWarning}${promptWarning}\n\n${truncated}`,
     details: {
       profile: profile as DispatchSubagentProfile,
       objective: safeObjective,
@@ -562,6 +630,11 @@ export async function executeDispatchSubagentRequest(options: {
       modelSelectionWarning: selectedModel.warning,
       loadedExtensions: extensionSelection.extensions,
       extensionWarnings: extensionSelection.warnings,
+      skillProfile: skillSelection.skillProfile,
+      loadedSkills: skillSelection.loadedSkills,
+      librarySkills: skillSelection.librarySkills,
+      skillWarnings: skillSelection.skillWarnings,
+      skillRegistry: skillSelection.skillRegistry,
       prompt_name: promptEnvelope.prompt_name,
       prompt_source: promptEnvelope.prompt_source,
       prompt_tags: promptEnvelope.prompt_tags,

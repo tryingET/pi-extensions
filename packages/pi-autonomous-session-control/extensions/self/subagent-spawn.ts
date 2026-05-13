@@ -14,6 +14,8 @@ export interface SubagentDef {
   sessionFile: string | null;
   timeout?: number; // milliseconds, 0 = no timeout
   env?: Record<string, string>;
+  noSkills?: boolean;
+  skillSources?: string[];
   executionSlotReserved?: boolean;
   parentSessionKey?: string;
   parentRepoRoot?: string;
@@ -429,6 +431,16 @@ export function spawnSubagentWithSpawn(
   for (const extensionSource of def.extensionSources ?? []) {
     if (typeof extensionSource === "string" && extensionSource.trim().length > 0) {
       args.push("--extension", extensionSource);
+    }
+  }
+
+  if (def.noSkills) {
+    args.push("--no-skills", "true");
+  }
+
+  for (const skillSource of def.skillSources ?? []) {
+    if (typeof skillSource === "string" && skillSource.trim().length > 0) {
+      args.push("--skill", skillSource);
     }
   }
 

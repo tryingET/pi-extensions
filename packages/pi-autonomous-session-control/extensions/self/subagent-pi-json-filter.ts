@@ -23,6 +23,8 @@ interface RunnerOptions {
   objective: string;
   systemPrompt?: string;
   extensionSources: string[];
+  noSkills: boolean;
+  skillSources: string[];
 }
 
 async function main(): Promise<void> {
@@ -44,6 +46,14 @@ async function main(): Promise<void> {
 
   for (const extensionSource of options.extensionSources) {
     args.push("--extension", extensionSource);
+  }
+
+  if (options.noSkills) {
+    args.push("--no-skills");
+  }
+
+  for (const skillSource of options.skillSources) {
+    args.push("--skill", skillSource);
   }
 
   args.push(
@@ -301,6 +311,8 @@ function parseArgs(argv: string[]): RunnerOptions {
     objective,
     systemPrompt,
     extensionSources: values.get("--extension") ?? [],
+    noSkills: firstArg(values, "--no-skills") === "true",
+    skillSources: values.get("--skill") ?? [],
   };
 }
 
