@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5ebd82551095565d79c486d2c89295d9ee884078"
+created_at: "2026-05-13T15:15:59Z"
+intent: "Harden visible loop defaults and sidequest Ghostty fork resolution in pi-little-helpers."
+files:
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/src/visibleLoop.ts"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 3
+  total: 7
+  rationale: "Package-local launch behavior changes share the sidequest visible-loop test surface."
