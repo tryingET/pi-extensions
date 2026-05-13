@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "76e7e6ca7825b712f45aa8cad3702e3cc45f88d0"
+created_at: "2026-05-13T19:30:47Z"
+intent: "Add matrix_campaign_cockpit.v1 dashboard to checkpoint and matrix-review reports"
+files:
+  - "packages/pi-autoresearch/README.md"
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run check"
+    status: "fail"
+  full_gate:
+    command: "just test"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "Orchestrator cockpit slice plus autoresearch README contract update form one coherent feature slice"
