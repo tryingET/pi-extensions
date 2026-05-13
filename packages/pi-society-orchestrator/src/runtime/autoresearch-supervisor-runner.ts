@@ -276,6 +276,8 @@ export interface AutoresearchCandidateWavePlan {
 export interface AutoresearchMatrixCampaignRequest extends AutoresearchLiveSupervisionRequest {
   objective: string;
   direction?: "lower" | "higher";
+  metricName?: string;
+  metricThreshold?: number;
   scenarios?: readonly string[];
   hypotheses?: readonly string[];
   candidateCountPerCell?: number;
@@ -344,6 +346,7 @@ export interface AutoresearchMatrixCampaignPlan {
   cwd: string;
   objective: string;
   direction: "lower" | "higher";
+  operatorFollowup: AutoresearchMatrixCampaignOperatorFollowup;
   scenarios: readonly string[];
   hypotheses: readonly string[];
   candidateCountPerCell: number;
@@ -381,6 +384,7 @@ export interface AutoresearchMatrixCampaignRunnerContract {
   cwd: string;
   objective: string;
   direction: "lower" | "higher";
+  operatorFollowup: AutoresearchMatrixCampaignOperatorFollowup;
   manifest: {
     path: string;
     identityAnchor: string;
@@ -424,6 +428,7 @@ export interface AutoresearchMatrixCampaignRunnerCheckpoint {
   taskId: number;
   cwd: string;
   objective: string;
+  operatorFollowup: AutoresearchMatrixCampaignOperatorFollowup;
   manifestPath: string;
   checkpointAccepted: boolean;
   posture: "blocked_until_exact_controller_checkpoint" | "benchmark_export_review_unlocked";
@@ -432,6 +437,53 @@ export interface AutoresearchMatrixCampaignRunnerCheckpoint {
   reviewMatrixCampaignCall: string | null;
   boundaries: readonly string[];
   nextStep: string;
+}
+
+export type AutoresearchMatrixCampaignOperatorLaneState =
+  | "planned"
+  | "locked_until_checkpoint"
+  | "measurement_export_unlocked"
+  | "missing_packet"
+  | "packet_missing"
+  | "measured_exported_selectable"
+  | "measured_exported_not_selectable";
+
+export interface AutoresearchMatrixCampaignOperatorFollowup {
+  kind: "autoresearch.matrix_campaign_operator_followup.v1";
+  currentState: string;
+  primaryMetric: {
+    name: string;
+    direction: "lower" | "higher";
+    target: number | null;
+    targetSummary: string;
+  };
+  lanePacketPaths: readonly {
+    cellId: string;
+    laneId: string;
+    packetPath: string;
+    state: AutoresearchMatrixCampaignOperatorLaneState;
+  }[];
+  checkpointState: {
+    posture: "not_applicable" | "controller_checkpoint_required" | "blocked" | "accepted";
+    manifestPath: string | null;
+    requiredToken: string | null;
+    checkpointAccepted: boolean | null;
+    warning: string;
+  };
+  measurementReviewState: {
+    posture: string;
+    completedCells: number;
+    expectedCells: number;
+    selectedCells: number;
+    benchmarkExportReviewCallsExposed: boolean;
+    reviewMatrixCampaignCall: string | null;
+  };
+  nextLegalActions: readonly string[];
+  blockersChecklist: readonly {
+    proof: string;
+    status: "present";
+    source: string;
+  }[];
 }
 
 export interface AutoresearchMatrixCampaignCellReview {
@@ -485,6 +537,7 @@ export interface AutoresearchMatrixCampaignReview {
   cwd: string;
   objective: string;
   direction: "lower" | "higher";
+  operatorFollowup: AutoresearchMatrixCampaignOperatorFollowup;
   posture:
     | "waiting_for_managed_cell_waves"
     | "ready_for_matrix_owner_review"
@@ -1792,6 +1845,8 @@ function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCam
   scenarios: string[];
   hypotheses: string[];
   direction: "lower" | "higher";
+  primaryMetricName: string;
+  primaryMetricTarget: number | null;
   candidateCountPerCell: number;
   filesInScope: string[];
   offLimits: string[];
@@ -1815,6 +1870,13 @@ function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCam
   }
 
   const direction = input.direction ?? "lower";
+  const primaryMetricName = input.metricName?.trim() || "operator_ux_blockers";
+  const primaryMetricTarget =
+    typeof input.metricThreshold === "number" && Number.isFinite(input.metricThreshold)
+      ? input.metricThreshold
+      : primaryMetricName === "operator_ux_blockers"
+        ? 0
+        : null;
   const candidateCountPerCell = resolveMatrixCellCandidateCount(input.candidateCountPerCell);
   const filesInScope = nonEmptyStrings(input.filesInScope);
   const offLimits = nonEmptyStrings(input.offLimits);
@@ -1893,6 +1955,8 @@ function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCam
     scenarios,
     hypotheses,
     direction,
+    primaryMetricName,
+    primaryMetricTarget,
     candidateCountPerCell,
     filesInScope,
     offLimits,
@@ -1932,11 +1996,129 @@ function buildMatrixCampaignRunnerCheckpointToken(input: {
   ].join("|");
 }
 
+function buildAutoresearchMatrixCampaignOperatorFollowup(input: {
+  currentState: string;
+  metricName: string;
+  metricDirection: "lower" | "higher";
+  metricTarget: number | null;
+  cells?: readonly AutoresearchMatrixCampaignCell[];
+  lanes?: readonly Pick<
+    AutoresearchMatrixCampaignRunnerLane,
+    "cellId" | "laneId" | "candidateResultPacketPath"
+  >[];
+  laneStates?: readonly {
+    cellId: string;
+    laneId: string;
+    packetPath: string;
+    state: AutoresearchMatrixCampaignOperatorLaneState;
+  }[];
+  checkpoint?: {
+    posture: AutoresearchMatrixCampaignOperatorFollowup["checkpointState"]["posture"];
+    manifestPath: string | null;
+    requiredToken: string | null;
+    checkpointAccepted: boolean | null;
+  };
+  measurementReview?: Partial<AutoresearchMatrixCampaignOperatorFollowup["measurementReviewState"]>;
+  nextLegalActions: readonly string[];
+}): AutoresearchMatrixCampaignOperatorFollowup {
+  const lanePacketPaths =
+    input.laneStates ??
+    input.lanes?.map((lane) => ({
+      cellId: lane.cellId,
+      laneId: lane.laneId,
+      packetPath: lane.candidateResultPacketPath,
+      state: "locked_until_checkpoint" as const,
+    })) ??
+    input.cells?.flatMap((cell) =>
+      cell.candidateResultPacketPaths.map((packetPath, index) => ({
+        cellId: cell.cellId,
+        laneId: `candidate-${String(index + 1).padStart(2, "0")}`,
+        packetPath,
+        state: "planned" as const,
+      })),
+    ) ??
+    [];
+  const expectedCells =
+    input.cells?.length ?? new Set(lanePacketPaths.map((lane) => lane.cellId)).size;
+  const checkpointState = input.checkpoint ?? {
+    posture: "not_applicable" as const,
+    manifestPath: null,
+    requiredToken: null,
+    checkpointAccepted: null,
+  };
+
+  return {
+    kind: "autoresearch.matrix_campaign_operator_followup.v1",
+    currentState: input.currentState,
+    primaryMetric: {
+      name: input.metricName,
+      direction: input.metricDirection,
+      target: input.metricTarget,
+      targetSummary:
+        input.metricTarget === null
+          ? `${input.metricName} (${input.metricDirection} is better; no target supplied)`
+          : `${input.metricName} (${input.metricDirection} is better; target=${input.metricTarget})`,
+    },
+    lanePacketPaths,
+    checkpointState: {
+      ...checkpointState,
+      warning:
+        "Checkpoint token is a controller confirmation string, not cryptographic proof; controller must verify PEER_FINAL lineage and candidate worktrees before measurement/export/review.",
+    },
+    measurementReviewState: {
+      posture: "planned_not_measured",
+      completedCells: 0,
+      expectedCells,
+      selectedCells: 0,
+      benchmarkExportReviewCallsExposed: false,
+      reviewMatrixCampaignCall: null,
+      ...input.measurementReview,
+    },
+    nextLegalActions: input.nextLegalActions,
+    blockersChecklist: [
+      {
+        proof: "operator follow-up/current-state summary",
+        status: "present",
+        source: "operatorFollowup.currentState",
+      },
+      {
+        proof: "next legal actions",
+        status: "present",
+        source: "operatorFollowup.nextLegalActions",
+      },
+      {
+        proof: `cell primary metric ${input.metricName}`,
+        status: "present",
+        source: "operatorFollowup.primaryMetric",
+      },
+      {
+        proof: "runner checkpoint UX coverage",
+        status: "present",
+        source: "operatorFollowup.checkpointState",
+      },
+      {
+        proof: "docs/tests alignment",
+        status: "present",
+        source: "README/product-posture/tests",
+      },
+    ],
+  };
+}
+
 export function planAutoresearchMatrixCampaign(
   input: AutoresearchMatrixCampaignRequest,
 ): AutoresearchMatrixCampaignPlan {
-  const { identity, objective, scenarios, hypotheses, direction, candidateCountPerCell, cells } =
-    resolveAutoresearchMatrixCampaignPlanParts(input);
+  const {
+    identity,
+    objective,
+    scenarios,
+    hypotheses,
+    direction,
+    primaryMetricName,
+    primaryMetricTarget,
+    candidateCountPerCell,
+    cells,
+  } = resolveAutoresearchMatrixCampaignPlanParts(input);
 
   const managedWaveSubstrate: AutoresearchMatrixManagedWaveSubstrate = {
     kind: "autoresearch.matrix_managed_candidate_wave_substrate.v1",
@@ -1968,6 +2150,19 @@ export function planAutoresearchMatrixCampaign(
     cwd: identity.cwd,
     objective,
     direction,
+    operatorFollowup: buildAutoresearchMatrixCampaignOperatorFollowup({
+      currentState: "planned_matrix_campaign_waiting_for_visible_candidate_lane_launch",
+      metricName: primaryMetricName,
+      metricDirection: direction,
+      metricTarget: primaryMetricTarget,
+      cells,
+      nextLegalActions: [
+        "Review this operator follow-up summary before launching any candidate lane.",
+        "Launch only approved visible candidate_peer_spawn lanes for selected matrix cells.",
+        "After PEER_FINAL, verify lineage and candidate worktrees before measurement/export/review.",
+        "Run review_matrix_campaign only after candidate-result packets exist or missing lanes are deliberately owner-replanned.",
+      ],
+    }),
     scenarios,
     hypotheses,
     candidateCountPerCell,
@@ -2079,6 +2274,8 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
     identity,
     objective,
     direction,
+    primaryMetricName,
+    primaryMetricTarget,
     candidateCountPerCell,
     filesInScope,
     offLimits,
@@ -2111,6 +2308,8 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
     cwd: identity.cwd,
     objective,
     direction,
+    metricName: primaryMetricName,
+    metricThreshold: primaryMetricTarget ?? undefined,
     scenarios: input.scenarios,
     hypotheses: input.hypotheses,
     candidateCountPerCell,
@@ -2128,6 +2327,35 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
     cwd: identity.cwd,
     objective,
     direction,
+    operatorFollowup: buildAutoresearchMatrixCampaignOperatorFollowup({
+      currentState: parentPeerTarget
+        ? "prepared_runner_waiting_for_visible_candidate_peers"
+        : "prepared_runner_blocked_missing_parent_peer_target",
+      metricName: primaryMetricName,
+      metricDirection: direction,
+      metricTarget: primaryMetricTarget,
+      lanes,
+      checkpoint: {
+        posture: "controller_checkpoint_required",
+        manifestPath,
+        requiredToken: checkpointToken,
+        checkpointAccepted: false,
+      },
+      measurementReview: {
+        posture: "locked_until_controller_checkpoint",
+        expectedCells: cells.length,
+      },
+      nextLegalActions: parentPeerTarget
+        ? [
+            "Launch the visible candidate_peer_spawn calls only from the prepared manifest.",
+            "Wait for PEER_FINAL reports, then verify candidate worktree lineage outside this token.",
+            "Call checkpoint_matrix_campaign_runner with the exact checkpointConfirmation token only after verification.",
+          ]
+        : [
+            "Provide parentPeerTarget before launching visible peers.",
+            "Keep benchmark/export/review calls withheld until the exact checkpoint is confirmed.",
+          ],
+    }),
     manifest: {
       path: manifestPath,
       identityAnchor: buildAutoresearchLiveSupervisionSessionKey(identity),
@@ -2190,6 +2418,8 @@ export function checkpointAutoresearchMatrixCampaignRunner(
     cwd: contract.cwd,
     objective: contract.objective,
     direction: contract.direction,
+    metricName: input.metricName,
+    metricThreshold: input.metricThreshold,
     scenarios: input.scenarios,
     hypotheses: input.hypotheses,
     candidateCountPerCell: input.candidateCountPerCell,
@@ -2207,6 +2437,44 @@ export function checkpointAutoresearchMatrixCampaignRunner(
     taskId: contract.taskId,
     cwd: contract.cwd,
     objective: contract.objective,
+    operatorFollowup: buildAutoresearchMatrixCampaignOperatorFollowup({
+      currentState: accepted
+        ? "checkpoint_accepted_measurement_export_review_unlocked"
+        : "checkpoint_blocked_waiting_for_exact_controller_confirmation",
+      metricName: contract.operatorFollowup.primaryMetric.name,
+      metricDirection: contract.direction,
+      metricTarget: contract.operatorFollowup.primaryMetric.target,
+      laneStates: contract.lanes.map((lane) => ({
+        cellId: lane.cellId,
+        laneId: lane.laneId,
+        packetPath: lane.candidateResultPacketPath,
+        state: accepted ? "measurement_export_unlocked" : "locked_until_checkpoint",
+      })),
+      checkpoint: {
+        posture: accepted ? "accepted" : "blocked",
+        manifestPath: contract.manifest.path,
+        requiredToken: contract.checkpointGate.requiredToken,
+        checkpointAccepted: accepted,
+      },
+      measurementReview: {
+        posture: accepted
+          ? "measurement_export_review_calls_exposed_not_executed"
+          : "locked_until_controller_checkpoint",
+        expectedCells: contract.manifest.cellCount,
+        benchmarkExportReviewCallsExposed: accepted,
+        reviewMatrixCampaignCall: accepted ? reviewCall : null,
+      },
+      nextLegalActions: accepted
+        ? [
+            "Run each unlocked bind/benchmark/export call deliberately from verified candidate worktrees.",
+            "Rerun review_matrix_campaign after candidate-result packets exist.",
+            "Do not merge, promote, write evidence, or mutate lifecycle without owner review.",
+          ]
+        : [
+            "Verify visible peer reports and candidate worktree lineage first.",
+            "Rerun checkpoint_matrix_campaign_runner with the exact checkpointConfirmation token.",
+          ],
+    }),
     manifestPath: contract.manifest.path,
     checkpointAccepted: accepted,
     posture: accepted
@@ -2236,7 +2504,7 @@ export function checkpointAutoresearchMatrixCampaignRunner(
 export function reviewAutoresearchMatrixCampaign(
   input: AutoresearchMatrixCampaignRequest,
 ): AutoresearchMatrixCampaignReview {
-  const { identity, objective, direction, cells } =
+  const { identity, objective, direction, primaryMetricName, primaryMetricTarget, cells } =
     resolveAutoresearchMatrixCampaignPlanParts(input);
   const plan = planAutoresearchMatrixCampaign(input);
   const cellReviews = cells.map((cell): AutoresearchMatrixCampaignCellReview => {
@@ -2300,6 +2568,36 @@ export function reviewAutoresearchMatrixCampaign(
     cwd: identity.cwd,
     objective,
     direction,
+    operatorFollowup: buildAutoresearchMatrixCampaignOperatorFollowup({
+      currentState: posture,
+      metricName: primaryMetricName,
+      metricDirection: direction,
+      metricTarget: primaryMetricTarget,
+      laneStates: cellReviews.flatMap((cell) =>
+        cell.candidateWaveReview.management.laneStates.map((lane) => ({
+          cellId: cell.cellId,
+          laneId: lane.laneId,
+          packetPath:
+            lane.candidateResultPacketPath ?? `${cell.cellId}/${lane.laneId}:missing-packet`,
+          state: lane.state,
+        })),
+      ),
+      checkpoint: {
+        posture: "not_applicable",
+        manifestPath: null,
+        requiredToken: null,
+        checkpointAccepted: null,
+      },
+      measurementReview: {
+        posture,
+        completedCells: completedCellCount,
+        expectedCells: cellReviews.length,
+        selectedCells: selectedCellCount,
+        benchmarkExportReviewCallsExposed: false,
+        reviewMatrixCampaignCall: null,
+      },
+      nextLegalActions: exactNextCalls.length > 0 ? exactNextCalls : closeout.nextLegalOwnerActions,
+    }),
     posture,
     cells: cellReviews,
     completedCellCount,

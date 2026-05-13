@@ -81,6 +81,7 @@ import {
   type AutoresearchLiveStopResult,
   AutoresearchLiveSupervisionRunner,
   type AutoresearchLiveSupervisionSessionV1,
+  type AutoresearchMatrixCampaignOperatorFollowup,
   type AutoresearchMatrixCampaignPlan,
   type AutoresearchMatrixCampaignReview,
   type AutoresearchMatrixCampaignRunnerCheckpoint,
@@ -474,6 +475,47 @@ function formatAutoresearchCandidateWavePlanReport(plan: AutoresearchCandidateWa
   return lines.join("\n");
 }
 
+function formatAutoresearchMatrixCampaignOperatorFollowupReport(
+  followup: AutoresearchMatrixCampaignOperatorFollowup,
+): string[] {
+  return [
+    "Operator follow-up/current-state summary:",
+    `- kind: ${followup.kind}`,
+    `- current state: ${followup.currentState}`,
+    `- cell primary metric: ${followup.primaryMetric.targetSummary}`,
+    `- checkpoint state: ${followup.checkpointState.posture}`,
+    `- checkpoint manifest: ${followup.checkpointState.manifestPath ?? "none"}`,
+    `- checkpoint accepted: ${
+      followup.checkpointState.checkpointAccepted === null
+        ? "n/a"
+        : followup.checkpointState.checkpointAccepted
+          ? "yes"
+          : "no"
+    }`,
+    `- checkpoint warning: ${followup.checkpointState.warning}`,
+    `- measurement/review state: ${followup.measurementReviewState.posture}`,
+    `- cell progress: ${followup.measurementReviewState.completedCells}/${followup.measurementReviewState.expectedCells}`,
+    `- selected cells: ${followup.measurementReviewState.selectedCells}`,
+    `- benchmark/export/review calls exposed: ${
+      followup.measurementReviewState.benchmarkExportReviewCallsExposed ? "yes" : "no"
+    }`,
+    `- review_matrix_campaign call: ${
+      followup.measurementReviewState.reviewMatrixCampaignCall ?? "not exposed here"
+    }`,
+    "- lane packet paths:",
+    ...followup.lanePacketPaths.map(
+      (lane) => `  - ${lane.cellId}/${lane.laneId}: ${lane.packetPath} [${lane.state}]`,
+    ),
+    "- next legal actions:",
+    ...followup.nextLegalActions.map((action) => `  - ${action}`),
+    "- UX proof checklist:",
+    ...followup.blockersChecklist.map(
+      (item) => `  - ${item.status}: ${item.proof} via ${item.source}`,
+    ),
+    "",
+  ];
+}
+
 function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCampaignPlan): string {
   return [
     "Autoresearch live supervision — plan_matrix_campaign",
@@ -481,6 +523,7 @@ function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCamp
     `CWD: ${plan.cwd}`,
     `Objective: ${plan.objective}`,
     `Direction: ${plan.direction} is better`,
+    ...formatAutoresearchMatrixCampaignOperatorFollowupReport(plan.operatorFollowup),
     `Matrix: ${plan.scenarios.length} scenario(s) × ${plan.hypotheses.length} hypothesis/hypotheses = ${plan.cells.length} cell(s)`,
     `Candidates per cell: ${plan.candidateCountPerCell}`,
     "",
@@ -554,7 +597,7 @@ function formatAutoresearchMatrixCampaignRunnerContractReport(
     `CWD: ${contract.cwd}`,
     `Objective: ${contract.objective}`,
     `Direction: ${contract.direction} is better`,
-    "",
+    ...formatAutoresearchMatrixCampaignOperatorFollowupReport(contract.operatorFollowup),
     "Runner manifest:",
     `- kind: ${contract.kind}`,
     `- path: ${contract.manifest.path}`,
@@ -605,6 +648,7 @@ function formatAutoresearchMatrixCampaignRunnerCheckpointReport(
     `Checkpoint accepted: ${checkpoint.checkpointAccepted ? "yes" : "no"}`,
     `Posture: ${checkpoint.posture}`,
     `Required token: ${checkpoint.requiredToken}`,
+    ...formatAutoresearchMatrixCampaignOperatorFollowupReport(checkpoint.operatorFollowup),
     ...(checkpoint.benchmarkExportReviewCalls.length > 0
       ? [
           "",
@@ -635,7 +679,7 @@ function formatAutoresearchMatrixCampaignReviewReport(
     `Posture: ${review.posture}`,
     `Cell progress: ${review.completedCellCount}/${review.expectedCellCount}`,
     `Selected cells: ${review.selectedCellCount}`,
-    "",
+    ...formatAutoresearchMatrixCampaignOperatorFollowupReport(review.operatorFollowup),
     "Managed cell reviews:",
     ...review.cells.flatMap((cell) => [
       `- ${cell.cellId}: scenario=${cell.scenario}; hypothesis=${cell.hypothesis}`,
@@ -1830,13 +1874,18 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       checksCommand: Type.Optional(
         Type.String({ description: "Optional explicit pi-autoresearch checks command" }),
       ),
-      metricName: Type.Optional(Type.String({ description: "Optional explicit metric name" })),
+      metricName: Type.Optional(
+        Type.String({
+          description:
+            "Optional explicit metric name for start_campaign or matrix campaign operator follow-up (for example operator_ux_blockers).",
+        }),
+      ),
       metricUnit: Type.Optional(Type.String({ description: "Optional explicit metric unit" })),
       direction: Type.Optional(Type.Union([Type.Literal("lower"), Type.Literal("higher")])),
       metricThreshold: Type.Optional(
         Type.Number({
           description:
-            "Optional explicit metric success threshold forwarded to pi-autoresearch for action=start_campaign.",
+            "Optional explicit metric success threshold forwarded to pi-autoresearch for action=start_campaign or rendered in matrix campaign operator follow-up.",
         }),
       ),
       reconfigure: Type.Optional(
@@ -2128,6 +2177,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             ...identity,
             objective: matrixObjective,
             direction,
+            metricName,
+            metricThreshold,
             scenarios,
             hypotheses,
             candidateCountPerCell,
@@ -2161,6 +2212,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             ...identity,
             objective: matrixObjective,
             direction,
+            metricName,
+            metricThreshold,
             scenarios,
             hypotheses,
             candidateCountPerCell,
@@ -2196,6 +2249,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             ...identity,
             objective: matrixObjective,
             direction,
+            metricName,
+            metricThreshold,
             scenarios,
             hypotheses,
             candidateCountPerCell,
@@ -2231,6 +2286,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             ...identity,
             objective: matrixObjective,
             direction,
+            metricName,
+            metricThreshold,
             scenarios,
             hypotheses,
             candidateCountPerCell,

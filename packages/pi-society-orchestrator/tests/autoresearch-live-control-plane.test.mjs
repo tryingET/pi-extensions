@@ -617,6 +617,8 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
       cwd,
       objective: "dogfood matrix campaigns instead of hand-authored implementation waves",
       direction: "lower",
+      metricName: "operator_ux_blockers",
+      metricThreshold: 0,
       scenarios: ["operator happy path", "missing packet recovery"],
       hypotheses: ["cell-scoped candidate waves"],
       candidateCountPerCell: 2,
@@ -639,6 +641,25 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.equal(result.details.matrixCampaign.taskId, 2722);
   assert.equal(result.details.matrixCampaign.cells.length, 2);
   assert.equal(result.details.matrixCampaign.candidateCountPerCell, 2);
+  const planFollowup = result.details.matrixCampaign.operatorFollowup;
+  assert.equal(planFollowup.kind, "autoresearch.matrix_campaign_operator_followup.v1");
+  assert.equal(
+    planFollowup.currentState,
+    "planned_matrix_campaign_waiting_for_visible_candidate_lane_launch",
+  );
+  assert.equal(planFollowup.primaryMetric.name, "operator_ux_blockers");
+  assert.equal(planFollowup.primaryMetric.target, 0);
+  assert.equal(planFollowup.lanePacketPaths.length, 4);
+  assert.deepEqual(
+    planFollowup.blockersChecklist.map((item) => item.proof),
+    [
+      "operator follow-up/current-state summary",
+      "next legal actions",
+      "cell primary metric operator_ux_blockers",
+      "runner checkpoint UX coverage",
+      "docs/tests alignment",
+    ],
+  );
   assert.equal(
     result.details.matrixCampaign.managedWaveSubstrate.kind,
     "autoresearch.matrix_managed_candidate_wave_substrate.v1",
@@ -743,6 +764,9 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /plan_matrix_campaign/);
   assert.match(result.content[0].text, /2 scenario\(s\) × 1 hypothesis/);
   assert.match(result.content[0].text, /Implementation-wave substrate/);
+  assert.match(result.content[0].text, /Operator follow-up\/current-state summary/);
+  assert.match(result.content[0].text, /cell primary metric: operator_ux_blockers/);
+  assert.match(result.content[0].text, /next legal actions/);
   assert.match(result.content[0].text, /Managed candidate-wave substrate/);
   assert.match(result.content[0].text, /expected candidate lanes: 4/);
   assert.match(result.content[0].text, /explicit packet paths gate selection: yes/);
@@ -785,6 +809,8 @@ test("autoresearch_live_supervision prepare_matrix_campaign_runner exposes only 
       cwd,
       objective: "checkpoint matrix campaign runner",
       direction: "lower",
+      metricName: "operator_ux_blockers",
+      metricThreshold: 0,
       scenarios: ["safety"],
       hypotheses: ["checkpointed launch"],
       candidateCountPerCell: 2,
@@ -806,6 +832,19 @@ test("autoresearch_live_supervision prepare_matrix_campaign_runner exposes only 
   assert.equal(result.details.action, "prepare_matrix_campaign_runner");
   const contract = result.details.matrixCampaignRunner;
   assert.equal(contract.kind, "autoresearch.matrix_campaign_runner_contract.v1");
+  assert.equal(
+    contract.operatorFollowup.currentState,
+    "prepared_runner_waiting_for_visible_candidate_peers",
+  );
+  assert.equal(contract.operatorFollowup.primaryMetric.name, "operator_ux_blockers");
+  assert.equal(contract.operatorFollowup.checkpointState.posture, "controller_checkpoint_required");
+  assert.equal(
+    contract.operatorFollowup.measurementReviewState.posture,
+    "locked_until_controller_checkpoint",
+  );
+  assert.equal(contract.operatorFollowup.lanePacketPaths.length, 2);
+  assert.equal(contract.operatorFollowup.lanePacketPaths[0].state, "locked_until_checkpoint");
+  assert.equal(contract.operatorFollowup.nextLegalActions.length, 3);
   assert.equal(contract.manifest.identityAnchor, `2801|${path.resolve(cwd)}`);
   assert.equal(contract.manifest.path, ".autoresearch/matrix-campaign/checkpoint-runner.json");
   assert.equal(contract.manifest.exactTaskId, 2801);
@@ -837,6 +876,9 @@ test("autoresearch_live_supervision prepare_matrix_campaign_runner exposes only 
   assert.deepEqual(contract.lockedBenchmarkExportReview.calls, []);
   assert.match(contract.checkpointGate.exactCheckpointCall, /checkpoint_matrix_campaign_runner/);
   assert.match(result.content[0].text, /prepare_matrix_campaign_runner/);
+  assert.match(result.content[0].text, /Operator follow-up\/current-state summary/);
+  assert.match(result.content[0].text, /checkpoint state: controller_checkpoint_required/);
+  assert.match(result.content[0].text, /benchmark\/export\/review calls exposed: no/);
   assert.match(result.content[0].text, /Runner manifest/);
   assert.match(result.content[0].text, /allowed tool: candidate_peer_spawn/);
   assert.match(
@@ -874,6 +916,8 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
     cwd,
     objective: "checkpoint matrix campaign runner",
     direction: "lower",
+    metricName: "operator_ux_blockers",
+    metricThreshold: 0,
     scenarios: ["safety"],
     hypotheses: ["checkpointed launch"],
     candidateCountPerCell: 1,
@@ -898,6 +942,16 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
   );
   assert.deepEqual(blocked.details.matrixCampaignRunnerCheckpoint.benchmarkExportReviewCalls, []);
   assert.equal(blocked.details.matrixCampaignRunnerCheckpoint.reviewMatrixCampaignCall, null);
+  assert.equal(
+    blocked.details.matrixCampaignRunnerCheckpoint.operatorFollowup.checkpointState.posture,
+    "blocked",
+  );
+  assert.equal(
+    blocked.details.matrixCampaignRunnerCheckpoint.operatorFollowup.measurementReviewState
+      .benchmarkExportReviewCallsExposed,
+    false,
+  );
+  assert.match(blocked.content[0].text, /checkpoint state: blocked/);
   assert.match(blocked.content[0].text, /Unlocked benchmark\/export\/review calls: none/);
 
   const requiredToken = blocked.details.matrixCampaignRunnerCheckpoint.requiredToken;
@@ -929,7 +983,17 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
     unlocked.details.matrixCampaignRunnerCheckpoint.reviewMatrixCampaignCall,
     /review_matrix_campaign/,
   );
+  assert.equal(
+    unlocked.details.matrixCampaignRunnerCheckpoint.operatorFollowup.checkpointState.posture,
+    "accepted",
+  );
+  assert.equal(
+    unlocked.details.matrixCampaignRunnerCheckpoint.operatorFollowup.measurementReviewState
+      .benchmarkExportReviewCallsExposed,
+    true,
+  );
   assert.match(unlocked.content[0].text, /Checkpoint accepted: yes/);
+  assert.match(unlocked.content[0].text, /checkpoint state: accepted/);
   assert.match(unlocked.content[0].text, /Unlocked benchmark\/export\/review calls/);
   assert.match(unlocked.content[0].text, /not cryptographic proof/);
 });
@@ -992,6 +1056,8 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
         cwd,
         objective: "aggregate matrix managed cell-wave reviews",
         direction: "lower",
+        metricName: "operator_ux_blockers",
+        metricThreshold: 0,
         scenarios: ["operator happy path", "missing planned lane recovery"],
         hypotheses: ["managed fan-in beats loose sidequests"],
         candidateCountPerCell: 2,
@@ -1011,6 +1077,18 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.equal(result.details.matrixCampaignReview.completedCellCount, 2);
     assert.equal(result.details.matrixCampaignReview.expectedCellCount, 2);
     assert.equal(result.details.matrixCampaignReview.selectedCellCount, 2);
+    const reviewFollowup = result.details.matrixCampaignReview.operatorFollowup;
+    assert.equal(reviewFollowup.currentState, "ready_for_matrix_owner_review");
+    assert.equal(reviewFollowup.primaryMetric.name, "operator_ux_blockers");
+    assert.equal(reviewFollowup.measurementReviewState.completedCells, 2);
+    assert.equal(reviewFollowup.measurementReviewState.selectedCells, 2);
+    assert.equal(reviewFollowup.lanePacketPaths.length, 4);
+    assert.equal(reviewFollowup.lanePacketPaths[0].state, "measured_exported_selectable");
+    assert.ok(
+      reviewFollowup.nextLegalActions.some((call) =>
+        call.includes("autoresearch_candidate_decision"),
+      ),
+    );
     assert.equal(
       result.details.matrixCampaignReview.ownerReview.primaryUi.surface,
       "pi-autoresearch_html_dashboard",
@@ -1063,6 +1141,12 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     );
     assert.match(result.content[0].text, /review_matrix_campaign/);
     assert.match(result.content[0].text, /ready_for_matrix_owner_review/);
+    assert.match(result.content[0].text, /Operator follow-up\/current-state summary/);
+    assert.match(
+      result.content[0].text,
+      /measurement\/review state: ready_for_matrix_owner_review/,
+    );
+    assert.match(result.content[0].text, /UX proof checklist/);
     assert.match(result.content[0].text, /Managed cell reviews/);
     assert.match(result.content[0].text, /Cell progress: 2\/2/);
     assert.match(result.content[0].text, /primary UI command: \/autoresearch export/);
