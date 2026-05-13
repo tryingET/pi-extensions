@@ -1,0 +1,28 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f77d86ba54189df0bcf96ec34afc97549055b258"
+created_at: "2026-05-13T19:04:46Z"
+intent: "Port Wave 2 cell-01 manual controller-glue reduction patch from matrix campaign candidate A into main worktree."
+files:
+  - "packages/pi-autoresearch/README.md"
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test --test-name-pattern 'checkpoint_matrix_campaign_runner|prepare_matrix_campaign_runner|plan_matrix_campaign|review_matrix_campaign' tests/autoresearch-live-control-plane.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-society-orchestrator && npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Single logical group: Wave 2 cell-01 controller command packet and manual glue reduction docs/tests."
+links:
+  task_ids:
+    - 2907
