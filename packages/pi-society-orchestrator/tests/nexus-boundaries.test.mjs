@@ -6,7 +6,11 @@ import path from "node:path";
 import test from "node:test";
 import {
   buildLoopExecuteInvocation,
+  buildLoopTreeSnapshotFromStatusRecords,
+  formatVaultExecuteTemplateResultLabel,
+  parseLoopStatusRecord,
   parseTranscendentIterationPreviewInput,
+  renderLoopTreeSnapshotText,
   resolveTranscendentIterationObjective,
 } from "../src/loops/engine.ts";
 import {
@@ -236,4 +240,106 @@ test("parseTranscendentIterationPreviewInput recognizes compact preview syntax",
   );
   assert.equal(parseTranscendentIterationPreviewInput("$$ /transcendent-iteration"), null);
   assert.equal(parseTranscendentIterationPreviewInput("/transcendent-iteration"), null);
+});
+
+test("formatVaultExecuteTemplateResultLabel shows progress instead of blocked for updates", () => {
+  assert.equal(
+    formatVaultExecuteTemplateResultLabel({
+      content: [{ type: "text", text: "Starting transcendent.diagnose" }],
+      details: { status: "phase_start" },
+    }),
+    "Starting transcendent.diagnose",
+  );
+  assert.equal(
+    formatVaultExecuteTemplateResultLabel({
+      content: [{ type: "text", text: "" }],
+      details: { ok: false, error: "vault-dispatch-check-failed" },
+    }),
+    "vault-dispatch-check-failed",
+  );
+});
+
+test("parseLoopStatusRecord extracts loop run identity from hidden phase status files", () => {
+  const record = parseLoopStatusRecord(
+    "/tmp/scout-first-principles-4.status.json",
+    JSON.stringify({
+      status: "running",
+      sessionName: "scout-first-principles-4",
+      objective:
+        "# Loop: TRANSCENDENT\n## Phase: diagnose\n## Session: transcendent-123\n\n## Objective\nImprove the last answer\n\n## Phase Protocol\nDiagnose",
+      createdAt: "2026-05-10T06:23:10.000Z",
+      updatedAt: "2026-05-10T06:24:32.000Z",
+      resultPreview: "diagnosis",
+    }),
+  );
+
+  assert.equal(record?.loop, "transcendent");
+  assert.equal(record?.phase, "diagnose");
+  assert.equal(record?.loopSessionId, "transcendent-123");
+  assert.equal(record?.objective, "Improve the last answer");
+  assert.equal(record?.sessionName, "scout-first-principles-4");
+});
+
+test("buildLoopTreeSnapshotFromStatusRecords groups phases and fills pending loop phases", () => {
+  const records = [
+    parseLoopStatusRecord(
+      "/tmp/scout.status.json",
+      JSON.stringify({
+        status: "done",
+        sessionName: "scout-first-principles-4",
+        objective:
+          "# Loop: TRANSCENDENT\n## Phase: diagnose\n## Session: transcendent-123\n\n## Objective\nImprove the last answer",
+        createdAt: "2026-05-10T06:23:10.000Z",
+        updatedAt: "2026-05-10T06:24:32.000Z",
+      }),
+    ),
+    parseLoopStatusRecord(
+      "/tmp/builder.status.json",
+      JSON.stringify({
+        status: "running",
+        sessionName: "builder-nexus-9",
+        objective:
+          "# Loop: TRANSCENDENT\n## Phase: first-100x\n## Session: transcendent-123\n\n## Objective\nImprove the last answer",
+        updatedAt: "2026-05-10T06:29:13.000Z",
+      }),
+    ),
+  ].filter(Boolean);
+
+  const snapshot = buildLoopTreeSnapshotFromStatusRecords(records, "/tmp/loops");
+  assert.equal(snapshot.runs.length, 1);
+  assert.equal(snapshot.runs[0].sessionId, "transcendent-123");
+  assert.equal(snapshot.runs[0].status, "running");
+  assert.equal(snapshot.runs[0].currentPhase, "first-100x");
+  assert.equal(snapshot.runs[0].startedAt, "2026-05-10T06:23:10.000Z");
+  assert.equal(snapshot.runs[0].phases[0].phase, "diagnose");
+  assert.equal(snapshot.runs[0].phases[0].status, "done");
+  assert.equal(snapshot.runs[0].phases.at(-1).phase, "closure-gate");
+  assert.equal(snapshot.runs[0].phases.at(-1).status, "pending");
+});
+
+test("renderLoopTreeSnapshotText provides a safe non-interactive loop-runs fallback", () => {
+  const snapshot = buildLoopTreeSnapshotFromStatusRecords(
+    [
+      parseLoopStatusRecord(
+        "/tmp/scout.status.json",
+        JSON.stringify({
+          status: "done",
+          sessionName: "scout-first-principles-4",
+          objective:
+            "# Loop: TRANSCENDENT\n## Phase: diagnose\n## Session: transcendent-123\n\n## Objective\nImprove the last answer",
+          elapsed: 1200,
+          createdAt: "2026-05-10T06:23:10.000Z",
+          updatedAt: "2026-05-10T06:24:32.000Z",
+        }),
+      ),
+    ].filter(Boolean),
+    "/tmp/loops",
+  );
+
+  const text = renderLoopTreeSnapshotText(snapshot);
+  assert.match(text, /# Loop Runs/);
+  assert.match(text, /TRANSCENDENT transcendent-123/);
+  assert.match(text, /started: 2026-05-10 06:23:10Z/);
+  assert.match(text, /✓ diagnose: done\s+scout-first-principles-4\s+1s/);
+  assert.match(text, /○ closure-gate: pending/);
 });
