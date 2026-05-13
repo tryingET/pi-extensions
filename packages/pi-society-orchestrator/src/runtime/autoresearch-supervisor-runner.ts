@@ -361,6 +361,79 @@ export interface AutoresearchMatrixCampaignPlan {
   nextStep: string;
 }
 
+export interface AutoresearchMatrixCampaignRunnerRequest extends AutoresearchMatrixCampaignRequest {
+  runnerManifestPath?: string;
+  checkpointConfirmation?: string;
+}
+
+export interface AutoresearchMatrixCampaignRunnerLane {
+  cellId: string;
+  laneId: string;
+  objective: string;
+  candidatePeerCall: string;
+  measurementPlan: readonly string[];
+  candidateResultPacketPath: string;
+}
+
+export interface AutoresearchMatrixCampaignRunnerContract {
+  kind: "autoresearch.matrix_campaign_runner_contract.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  direction: "lower" | "higher";
+  manifest: {
+    path: string;
+    identityAnchor: string;
+    exactTaskId: number;
+    exactCwd: string;
+    cellCount: number;
+    candidateLaneCount: number;
+    packageOwnerBoundary: "pi-society-orchestrator_matrix_choreography_only";
+    durableEvidence: false;
+  };
+  launchPhase: {
+    posture: "ready_to_launch_visible_candidate_peers" | "blocked_missing_parent_peer_target";
+    allowedTool: "candidate_peer_spawn";
+    launchCalls: readonly string[];
+    parentPeerTarget: string | null;
+  };
+  checkpointGate: {
+    posture: "controller_checkpoint_required_before_benchmark_export_review";
+    requiredToken: string;
+    confirmationParameter: "checkpointConfirmation";
+    exactCheckpointCall: string;
+    blockedUntilConfirmed: readonly [
+      "autoresearch_candidate_bind",
+      "autoresearch_runtime_run",
+      "candidate_result_export",
+      "review_candidate_wave",
+      "review_matrix_campaign",
+    ];
+  };
+  lockedBenchmarkExportReview: {
+    posture: "withheld_until_checkpoint";
+    calls: readonly [];
+  };
+  lanes: readonly AutoresearchMatrixCampaignRunnerLane[];
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
+export interface AutoresearchMatrixCampaignRunnerCheckpoint {
+  kind: "autoresearch.matrix_campaign_runner_checkpoint.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  manifestPath: string;
+  checkpointAccepted: boolean;
+  posture: "blocked_until_exact_controller_checkpoint" | "benchmark_export_review_unlocked";
+  requiredToken: string;
+  benchmarkExportReviewCalls: readonly string[];
+  reviewMatrixCampaignCall: string | null;
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
 export interface AutoresearchMatrixCampaignCellReview {
   cellId: string;
   scenario: string;
@@ -1829,6 +1902,36 @@ function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCam
   };
 }
 
+function resolveMatrixCampaignRunnerManifestPath(value: string | undefined): string {
+  const candidate = value?.trim() || ".autoresearch/matrix-campaign/runner-manifest.json";
+  const normalized = candidate.replaceAll("\\", "/");
+  if (
+    path.isAbsolute(normalized) ||
+    normalized.split("/").includes("..") ||
+    !normalized.startsWith(".autoresearch/matrix-campaign/") ||
+    normalized.endsWith("/")
+  ) {
+    throw new Error(
+      `runnerManifestPath must be a repo-relative file under .autoresearch/matrix-campaign/, received: ${candidate}`,
+    );
+  }
+  return normalized;
+}
+
+function buildMatrixCampaignRunnerCheckpointToken(input: {
+  taskId: number;
+  cwd: string;
+  manifestPath: string;
+}): string {
+  const resolvedCwd = path.resolve(input.cwd);
+  return [
+    "controller-checkpoint:matrix-visible-peers-reported",
+    `task:${input.taskId}`,
+    `cwd:${resolvedCwd}`,
+    `manifest:${input.manifestPath}`,
+  ].join("|");
+}
+
 export function planAutoresearchMatrixCampaign(
   input: AutoresearchMatrixCampaignRequest,
 ): AutoresearchMatrixCampaignPlan {
@@ -1916,6 +2019,217 @@ export function planAutoresearchMatrixCampaign(
     ],
     nextStep:
       "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, reject controller-inline implementation as a process violation, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
+  };
+}
+
+function buildAutoresearchMatrixCampaignRunnerLanes(input: {
+  identity: SessionIdentity;
+  direction: "lower" | "higher";
+  candidateCountPerCell: number;
+  cells: readonly AutoresearchMatrixCampaignCell[];
+  filesInScope: readonly string[];
+  offLimits: readonly string[];
+  constraints: readonly string[];
+  parentPeerTarget?: string;
+  maxIterationsPerCandidate?: number;
+  maxWallClockMinutesPerCandidate?: number;
+}): AutoresearchMatrixCampaignRunnerLane[] {
+  return input.cells.flatMap((cell) => {
+    const candidateObjectives = Array.from(
+      { length: input.candidateCountPerCell },
+      (_, index) => `${cell.hypothesis} [sample ${index + 1}] under scenario: ${cell.scenario}`,
+    );
+    const wave = planAutoresearchCandidateWave({
+      taskId: input.identity.taskId,
+      cwd: input.identity.cwd,
+      objective: cell.objective,
+      direction: input.direction,
+      candidateCount: input.candidateCountPerCell,
+      candidateObjectives,
+      candidatePacketDirectory: cell.candidatePacketDirectory,
+      filesInScope: input.filesInScope,
+      offLimits: input.offLimits,
+      constraints: [
+        ...input.constraints,
+        `Matrix cell: ${cell.cellId}`,
+        `Scenario: ${cell.scenario}`,
+        `Hypothesis: ${cell.hypothesis}`,
+        "Benchmark/export/review remains locked until the controller checkpoint confirms visible peer reports were received.",
+      ],
+      parentPeerTarget: input.parentPeerTarget,
+      maxIterationsPerCandidate: input.maxIterationsPerCandidate,
+      maxWallClockMinutesPerCandidate: input.maxWallClockMinutesPerCandidate,
+    });
+
+    return wave.lanes.map((lane) => ({
+      cellId: cell.cellId,
+      laneId: lane.laneId,
+      objective: lane.objective,
+      candidatePeerCall: lane.candidatePeerCall,
+      measurementPlan: lane.measurementPlan,
+      candidateResultPacketPath: lane.candidateResultPacketPath,
+    }));
+  });
+}
+
+export function buildAutoresearchMatrixCampaignRunnerContract(
+  input: AutoresearchMatrixCampaignRunnerRequest,
+): AutoresearchMatrixCampaignRunnerContract {
+  const {
+    identity,
+    objective,
+    direction,
+    candidateCountPerCell,
+    filesInScope,
+    offLimits,
+    constraints,
+    parentPeerTarget,
+    cells,
+  } = resolveAutoresearchMatrixCampaignPlanParts(input);
+  const manifestPath = resolveMatrixCampaignRunnerManifestPath(input.runnerManifestPath);
+  const checkpointToken = buildMatrixCampaignRunnerCheckpointToken({
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestPath,
+  });
+  const lanes = buildAutoresearchMatrixCampaignRunnerLanes({
+    identity,
+    direction,
+    candidateCountPerCell,
+    filesInScope,
+    offLimits,
+    constraints,
+    parentPeerTarget,
+    cells,
+    maxIterationsPerCandidate: input.maxIterationsPerCandidate,
+    maxWallClockMinutesPerCandidate: input.maxWallClockMinutesPerCandidate,
+  });
+
+  const exactCheckpointCall = formatToolCall("autoresearch_live_supervision", {
+    action: "checkpoint_matrix_campaign_runner",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction,
+    scenarios: input.scenarios,
+    hypotheses: input.hypotheses,
+    candidateCountPerCell,
+    parentPeerTarget,
+    filesInScope,
+    offLimits,
+    constraints,
+    runnerManifestPath: manifestPath,
+    checkpointConfirmation: checkpointToken,
+  });
+
+  return {
+    kind: "autoresearch.matrix_campaign_runner_contract.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction,
+    manifest: {
+      path: manifestPath,
+      identityAnchor: buildAutoresearchLiveSupervisionSessionKey(identity),
+      exactTaskId: identity.taskId,
+      exactCwd: identity.cwd,
+      cellCount: cells.length,
+      candidateLaneCount: lanes.length,
+      packageOwnerBoundary: "pi-society-orchestrator_matrix_choreography_only",
+      durableEvidence: false,
+    },
+    launchPhase: {
+      posture: parentPeerTarget
+        ? "ready_to_launch_visible_candidate_peers"
+        : "blocked_missing_parent_peer_target",
+      allowedTool: "candidate_peer_spawn",
+      launchCalls: lanes.map((lane) => lane.candidatePeerCall),
+      parentPeerTarget: parentPeerTarget ?? null,
+    },
+    checkpointGate: {
+      posture: "controller_checkpoint_required_before_benchmark_export_review",
+      requiredToken: checkpointToken,
+      confirmationParameter: "checkpointConfirmation",
+      exactCheckpointCall,
+      blockedUntilConfirmed: [
+        "autoresearch_candidate_bind",
+        "autoresearch_runtime_run",
+        "candidate_result_export",
+        "review_candidate_wave",
+        "review_matrix_campaign",
+      ],
+    },
+    lockedBenchmarkExportReview: {
+      posture: "withheld_until_checkpoint",
+      calls: [],
+    },
+    lanes,
+    boundaries: [
+      "The runner contract is a manifest/checkpoint contract; it does not spawn peers, run benchmarks, export packets, review candidates, write evidence, merge, or promote by itself.",
+      "The only calls exposed before checkpoint are visible candidate_peer_spawn calls for isolated candidate worktrees.",
+      "Benchmark, candidate_result_export, review_candidate_wave, and review_matrix_campaign calls are withheld until the exact controller checkpoint token is supplied.",
+      "The checkpoint token is a controller confirmation string, not cryptographic proof; the controller must still verify PEER_FINAL lineage and candidate worktrees.",
+      "Exact taskId+cwd anchoring is preserved in the manifest identity anchor.",
+      "Raw peer/intercom output remains communication until the controller verifies candidate worktree lineage and pi-autoresearch measurement packets.",
+      "pi-autoresearch remains owner of benchmark/check execution and candidate-result exports; pi-society-orchestrator owns only above-seam choreography.",
+    ],
+    nextStep: parentPeerTarget
+      ? "Launch the visible candidate_peer_spawn calls from the manifest, wait for PEER_FINAL reports, verify worktree lineage, then provide the exact checkpointConfirmation token to unlock benchmark/export/review calls."
+      : "Provide parentPeerTarget first; visible peer launch remains blocked and benchmark/export/review calls stay withheld.",
+  };
+}
+
+export function checkpointAutoresearchMatrixCampaignRunner(
+  input: AutoresearchMatrixCampaignRunnerRequest,
+): AutoresearchMatrixCampaignRunnerCheckpoint {
+  const contract = buildAutoresearchMatrixCampaignRunnerContract(input);
+  const accepted = input.checkpointConfirmation === contract.checkpointGate.requiredToken;
+  const reviewCall = formatToolCall("autoresearch_live_supervision", {
+    action: "review_matrix_campaign",
+    taskId: contract.taskId,
+    cwd: contract.cwd,
+    objective: contract.objective,
+    direction: contract.direction,
+    scenarios: input.scenarios,
+    hypotheses: input.hypotheses,
+    candidateCountPerCell: input.candidateCountPerCell,
+    parentPeerTarget: input.parentPeerTarget,
+    filesInScope: input.filesInScope,
+    offLimits: input.offLimits,
+    constraints: input.constraints,
+  });
+  const benchmarkExportReviewCalls = accepted
+    ? [...contract.lanes.flatMap((lane) => lane.measurementPlan), reviewCall]
+    : [];
+
+  return {
+    kind: "autoresearch.matrix_campaign_runner_checkpoint.v1",
+    taskId: contract.taskId,
+    cwd: contract.cwd,
+    objective: contract.objective,
+    manifestPath: contract.manifest.path,
+    checkpointAccepted: accepted,
+    posture: accepted
+      ? "benchmark_export_review_unlocked"
+      : "blocked_until_exact_controller_checkpoint",
+    requiredToken: contract.checkpointGate.requiredToken,
+    benchmarkExportReviewCalls,
+    reviewMatrixCampaignCall: accepted ? reviewCall : null,
+    boundaries: accepted
+      ? [
+          "Checkpoint unlock only exposes exact benchmark/export/review calls; it still does not execute them.",
+          "The checkpoint token is a controller confirmation string, not cryptographic proof of peer completion.",
+          "Controller must verify candidate worktree lineage before running each measurement call.",
+          "pi-autoresearch owns benchmark/check execution and candidate-result packet writes.",
+          "Owner review remains required before evidence, promotion, merge, or lifecycle mutation.",
+        ]
+      : [
+          "Benchmark/export/review calls remain withheld because the exact controller checkpoint token was not supplied.",
+          "Do not infer readiness from raw PEER_FINAL/intercom messages without controller verification.",
+        ],
+    nextStep: accepted
+      ? "Run the unlocked measurement/export calls deliberately, then run review_matrix_campaign after packets exist; do not auto-merge or promote."
+      : "Launch/verify visible candidate peers first, then rerun with the exact checkpointConfirmation token shown in requiredToken.",
   };
 }
 
@@ -2280,6 +2594,18 @@ export class AutoresearchLiveSupervisionRunner {
 
   planMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignPlan {
     return planAutoresearchMatrixCampaign(input);
+  }
+
+  prepareMatrixCampaignRunner(
+    input: AutoresearchMatrixCampaignRunnerRequest,
+  ): AutoresearchMatrixCampaignRunnerContract {
+    return buildAutoresearchMatrixCampaignRunnerContract(input);
+  }
+
+  checkpointMatrixCampaignRunner(
+    input: AutoresearchMatrixCampaignRunnerRequest,
+  ): AutoresearchMatrixCampaignRunnerCheckpoint {
+    return checkpointAutoresearchMatrixCampaignRunner(input);
   }
 
   reviewMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignReview {

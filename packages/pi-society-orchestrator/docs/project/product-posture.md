@@ -145,6 +145,8 @@ scenario × hypothesis cell -> managed candidate wave -> packetized review -> AK
 
 These slices are still plan/review choreography: they do not launch peers, run benchmarks, write evidence, merge, or promote. Their job is to prevent matrix campaigns from multiplying loose sidequests by requiring every cell to pass through managed candidate-wave planning, controller-measured candidate-result packets, explicit missing-lane gates, and matrix-level review before owner selection.
 
+A checkpointed runner-contract slice now adds `autoresearch.matrix_campaign_runner_contract.v1` for the same matrix shape. It is intentionally narrower than a broad executor: `prepare_matrix_campaign_runner` exposes only visible `candidate_peer_spawn` launch calls and a manifest/checkpoint token, while `checkpoint_matrix_campaign_runner` withholds benchmark/export/review calls until the exact controller checkpoint confirms visible peer reports and lineage verification are ready. It still does not execute peer launch, benchmark, export, review, evidence, merge, or promotion itself.
+
 An integrated closeout slice now makes the full supervised matrix campaign handoff reviewable as `autoresearch.matrix_campaign_closeout.v1`: selected cell lanes, packet paths, dashboard-first owner route, AK projection readiness after owner review, an exact `evidence_record` handoff call with deterministic projection key, and explicit not-done boundaries. The dogfood contract is `scripts/dogfood-integrated-matrix-campaign-closeout-contract.mjs` with expected metric `unresolved_integrated_matrix_campaign_closeout_blockers=0`.
 
 ### Bet 3 — Owner-facing review UX polish — first slice landed

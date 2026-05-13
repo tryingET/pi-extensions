@@ -26,6 +26,7 @@ Follow-up conformance hardening in this check:
 - added explicit regression coverage that `candidatePacketDirectory` rejects path escapes outside `.autoresearch/`.
 - added a campaign peer-runner handoff contract that exposes `candidate_peer_spawn -> candidate worktree -> autoresearch_candidate_bind -> autoresearch_runtime_run -> candidate_result_export -> review_candidate_wave` and classifies controller-inline implementation as a process violation for campaign-style implementation work.
 - hardened `review_candidate_wave` selection so packets are non-selectable unless candidate metadata proves candidate-runner lineage (`source: candidate_peer_spawn`, distinct worktree, branch, base ref, and changed files; peer/runner ids are propagated when present).
+- added a manifest/checkpoint runner contract (`prepare_matrix_campaign_runner` / `checkpoint_matrix_campaign_runner`) that exposes only visible `candidate_peer_spawn` launch calls before controller checkpoint confirmation and withholds benchmark/export/review calls until the exact checkpoint token is supplied.
 
 ## Conformance matrix
 
@@ -47,7 +48,8 @@ Follow-up conformance hardening in this check:
 | Uses dashboard first, decision workbench last | Conforms | Matrix owner route now surfaces `/autoresearch export` as the primary run-history/metrics UI, `/autoresearch overlay` as the live TUI fallback, and keeps matrix cell `ownerUiCommand` / implementation substrate `/autoresearch review` as the final decision UI only. |
 | First exact cell call as next implementation action | Conforms | `implementationWaveSubstrate.nextExactCalls` contains the first cell's `planCandidateWaveCall`. |
 | Plan-only / no hidden execution | Conforms | Runtime planner returns data only; extension renders and returns details only. No peer spawn, benchmark, packet export, AK/KES/evidence write, merge, promotion, or worktree lifecycle action is invoked. |
-| README/current truth documents boundary | Conforms | README describes `plan_matrix_campaign` as plan-only and owner-boundary-preserving. |
+| Checkpointed runner phase gates | Conforms after runner-contract hardening | `prepare_matrix_campaign_runner` returns `autoresearch.matrix_campaign_runner_contract.v1` with exact `taskId` + `cwd` manifest identity, candidate-peer launch calls, and zero benchmark/export/review calls; `checkpoint_matrix_campaign_runner` returns zero calls until the exact `checkpointConfirmation` token is supplied. |
+| README/current truth documents boundary | Conforms | README describes `plan_matrix_campaign` and the checkpointed runner contract as owner-boundary-preserving. |
 
 ## Validation commands
 
@@ -64,5 +66,5 @@ node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict --r
 
 Status: **conforms for first-slice dogfood**.
 
-The implementation satisfies the ADR for a plan-only matrix choreography surface.
-The next process step is not controller-inline implementation; it is dogfooding the first matrix cell through the emitted `plan_candidate_wave` / visible `candidate_peer_spawn` / candidate worktree / candidate-result packet / `/autoresearch export` dashboard / `review_candidate_wave` / `/autoresearch review` final-decision path under the owning AK task and direction node.
+The implementation satisfies the ADR for a plan-only matrix choreography surface, plus a safer checkpointed runner contract for operators who want a single manifest-shaped launch surface without broad auto-execution.
+The next process step is not controller-inline implementation; it is dogfooding the first matrix cell through either the emitted `plan_candidate_wave` path or the checkpointed runner manifest: visible `candidate_peer_spawn` / candidate worktree / explicit controller checkpoint / candidate-result packet / `/autoresearch export` dashboard / `review_candidate_wave` / `/autoresearch review` final-decision path under the owning AK task and direction node.

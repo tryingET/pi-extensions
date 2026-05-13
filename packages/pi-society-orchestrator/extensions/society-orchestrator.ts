@@ -83,6 +83,8 @@ import {
   type AutoresearchLiveSupervisionSessionV1,
   type AutoresearchMatrixCampaignPlan,
   type AutoresearchMatrixCampaignReview,
+  type AutoresearchMatrixCampaignRunnerCheckpoint,
+  type AutoresearchMatrixCampaignRunnerContract,
   describeAutoresearchLiveNextStep,
 } from "../src/runtime/autoresearch-supervisor-runner.ts";
 import {
@@ -171,6 +173,8 @@ type AutoresearchLiveSupervisionAction =
   | "start_campaign"
   | "plan_candidate_wave"
   | "plan_matrix_campaign"
+  | "prepare_matrix_campaign_runner"
+  | "checkpoint_matrix_campaign_runner"
   | "review_matrix_campaign"
   | "review_candidate_wave"
   | "stop";
@@ -192,6 +196,8 @@ type AutoresearchLiveSupervisionToolDetails = {
   campaign?: AutoresearchLiveStartCampaignResult["campaign"];
   candidateWave?: AutoresearchCandidateWavePlan;
   matrixCampaign?: AutoresearchMatrixCampaignPlan;
+  matrixCampaignRunner?: AutoresearchMatrixCampaignRunnerContract;
+  matrixCampaignRunnerCheckpoint?: AutoresearchMatrixCampaignRunnerCheckpoint;
   matrixCampaignReview?: AutoresearchMatrixCampaignReview;
   candidateWaveReview?: AutoresearchCandidateWaveReview;
   stopped?: boolean;
@@ -536,6 +542,84 @@ function formatAutoresearchMatrixCampaignPlanReport(plan: AutoresearchMatrixCamp
     ...plan.boundaries.map((boundary) => `- ${boundary}`),
     "",
     `Next step: ${plan.nextStep}`,
+  ].join("\n");
+}
+
+function formatAutoresearchMatrixCampaignRunnerContractReport(
+  contract: AutoresearchMatrixCampaignRunnerContract,
+): string {
+  return [
+    "Autoresearch live supervision — prepare_matrix_campaign_runner",
+    `Task: #${contract.taskId}`,
+    `CWD: ${contract.cwd}`,
+    `Objective: ${contract.objective}`,
+    `Direction: ${contract.direction} is better`,
+    "",
+    "Runner manifest:",
+    `- kind: ${contract.kind}`,
+    `- path: ${contract.manifest.path}`,
+    `- identity anchor: ${contract.manifest.identityAnchor}`,
+    `- exact task id: ${contract.manifest.exactTaskId}`,
+    `- exact cwd: ${contract.manifest.exactCwd}`,
+    `- cells: ${contract.manifest.cellCount}`,
+    `- candidate lanes: ${contract.manifest.candidateLaneCount}`,
+    `- package owner boundary: ${contract.manifest.packageOwnerBoundary}`,
+    `- durable evidence: ${contract.manifest.durableEvidence ? "yes" : "no"}`,
+    "",
+    "Launch phase:",
+    `- posture: ${contract.launchPhase.posture}`,
+    `- allowed tool: ${contract.launchPhase.allowedTool}`,
+    `- parent peer target: ${contract.launchPhase.parentPeerTarget ?? "required before launch"}`,
+    ...contract.launchPhase.launchCalls.map((call) => `- launch: ${call}`),
+    "",
+    "Checkpoint gate:",
+    `- posture: ${contract.checkpointGate.posture}`,
+    `- confirmation parameter: ${contract.checkpointGate.confirmationParameter}`,
+    `- required token: ${contract.checkpointGate.requiredToken}`,
+    `- exact checkpoint call: ${contract.checkpointGate.exactCheckpointCall}`,
+    `- blocked until confirmed: ${contract.checkpointGate.blockedUntilConfirmed.join(", ")}`,
+    `- benchmark/export/review calls: ${contract.lockedBenchmarkExportReview.posture}; count=${contract.lockedBenchmarkExportReview.calls.length}`,
+    "",
+    "Lanes:",
+    ...contract.lanes.flatMap((lane) => [
+      `- ${lane.cellId}/${lane.laneId}: ${lane.objective}`,
+      `  packet path: ${lane.candidateResultPacketPath}`,
+    ]),
+    "",
+    "Boundaries:",
+    ...contract.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${contract.nextStep}`,
+  ].join("\n");
+}
+
+function formatAutoresearchMatrixCampaignRunnerCheckpointReport(
+  checkpoint: AutoresearchMatrixCampaignRunnerCheckpoint,
+): string {
+  return [
+    "Autoresearch live supervision — checkpoint_matrix_campaign_runner",
+    `Task: #${checkpoint.taskId}`,
+    `CWD: ${checkpoint.cwd}`,
+    `Objective: ${checkpoint.objective}`,
+    `Manifest: ${checkpoint.manifestPath}`,
+    `Checkpoint accepted: ${checkpoint.checkpointAccepted ? "yes" : "no"}`,
+    `Posture: ${checkpoint.posture}`,
+    `Required token: ${checkpoint.requiredToken}`,
+    ...(checkpoint.benchmarkExportReviewCalls.length > 0
+      ? [
+          "",
+          "Unlocked benchmark/export/review calls:",
+          ...checkpoint.benchmarkExportReviewCalls.map((call) => `- ${call}`),
+        ]
+      : ["", "Unlocked benchmark/export/review calls: none"]),
+    checkpoint.reviewMatrixCampaignCall
+      ? `Matrix review call: ${checkpoint.reviewMatrixCampaignCall}`
+      : "Matrix review call: locked",
+    "",
+    "Boundaries:",
+    ...checkpoint.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${checkpoint.nextStep}`,
   ].join("\n");
 }
 
@@ -1607,6 +1691,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
       "Use action=plan_candidate_wave when the operator wants multiple visible candidate experiments in parallel; this returns explicit candidate_peer_spawn and pi-autoresearch measurement/review calls, but does not launch or promote anything by itself.",
       "Use action=plan_matrix_campaign when the operator wants implementation-wave work dogfooded as a scenario × hypothesis matrix; this returns cell-scoped plan_candidate_wave/review_candidate_wave calls and keeps AK as the task spine.",
+      "Use action=prepare_matrix_campaign_runner for the safer manifest/checkpoint runner contract: it exposes visible candidate_peer_spawn launch calls only, withholds benchmark/export/review calls, and emits an exact controller checkpoint token.",
+      "Use action=checkpoint_matrix_campaign_runner only after visible candidate peers have reported back and the controller has verified lineage; without the exact checkpointConfirmation token, benchmark/export/review calls remain withheld.",
       "Use action=review_matrix_campaign after matrix cells have exported candidate-result packets; this aggregates managed cell-wave reviews without launching, measuring, writing evidence, or selecting promotion authority.",
       "Use action=review_candidate_wave after multiple pi-autoresearch candidate measurements have produced result summaries; this compares lanes for owner selection, but still does not choose winners as promotion authority.",
       "For DSPx/DSPy planning, set planner=dspx_program and runDspxProgramGen=true; this asks pi-autoresearch to materialize and run a bounded DSPx-generated DSPy planner assembly, then validate the generated DSPy output from behavior_results.json as the campaign plan. Orchestrator still does not synthesize or apply a DSPy program itself.",
@@ -1625,6 +1711,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("start_campaign"),
           Type.Literal("plan_candidate_wave"),
           Type.Literal("plan_matrix_campaign"),
+          Type.Literal("prepare_matrix_campaign_runner"),
+          Type.Literal("checkpoint_matrix_campaign_runner"),
           Type.Literal("review_matrix_campaign"),
           Type.Literal("review_candidate_wave"),
           Type.Literal("stop"),
@@ -1635,7 +1723,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       objective: Type.Optional(
         Type.String({
           description:
-            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, action=plan_matrix_campaign, action=review_matrix_campaign, or action=review_candidate_wave.",
+            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, matrix campaign actions, or action=review_candidate_wave.",
         }),
       ),
       candidateCount: Type.Optional(
@@ -1659,18 +1747,18 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       ),
       scenarios: Type.Optional(
         Type.Array(Type.String(), {
-          description: "Scenario axis values for action=plan_matrix_campaign.",
+          description: "Scenario axis values for matrix campaign actions.",
         }),
       ),
       hypotheses: Type.Optional(
         Type.Array(Type.String(), {
-          description: "Hypothesis axis values for action=plan_matrix_campaign.",
+          description: "Hypothesis axis values for matrix campaign actions.",
         }),
       ),
       candidateCountPerCell: Type.Optional(
         Type.Number({
           description:
-            "Number of candidate lanes generated inside each matrix cell for action=plan_matrix_campaign (1-6, default 3).",
+            "Number of candidate lanes generated inside each matrix cell for matrix campaign actions (1-6, default 3).",
           minimum: 1,
           maximum: 6,
         }),
@@ -1708,6 +1796,18 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         Type.Array(Type.String(), {
           description:
             "Paths to exported autoresearch.candidate_result.v1 packet JSON files for action=review_candidate_wave.",
+        }),
+      ),
+      runnerManifestPath: Type.Optional(
+        Type.String({
+          description:
+            "Optional repo-relative manifest path for action=prepare_matrix_campaign_runner or checkpoint_matrix_campaign_runner.",
+        }),
+      ),
+      checkpointConfirmation: Type.Optional(
+        Type.String({
+          description:
+            "Exact controller checkpoint token required by action=checkpoint_matrix_campaign_runner before benchmark/export/review calls are exposed.",
         }),
       ),
       maxIterations: Type.Optional(
@@ -1812,6 +1912,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         parentPeerTarget,
         candidateResults,
         candidateResultPacketPaths,
+        runnerManifestPath,
+        checkpointConfirmation,
         maxIterations,
         maxWallClockMinutes,
         benchmarkCommand,
@@ -1860,6 +1962,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           caveat?: string;
         }>;
         candidateResultPacketPaths?: string[];
+        runnerManifestPath?: string;
+        checkpointConfirmation?: string;
         maxIterations?: number;
         maxWallClockMinutes?: number;
         benchmarkCommand?: string;
@@ -2044,6 +2148,76 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
               sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
               nextStep: result.nextStep,
               matrixCampaign: result,
+            },
+          );
+        }
+
+        if (action === "prepare_matrix_campaign_runner") {
+          const matrixObjective = objective?.trim() ?? "";
+          if (matrixObjective.length === 0) {
+            throw new Error("prepare_matrix_campaign_runner requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.prepareMatrixCampaignRunner({
+            ...identity,
+            objective: matrixObjective,
+            direction,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            filesInScope,
+            offLimits,
+            constraints,
+            parentPeerTarget,
+            maxIterationsPerCandidate: maxIterations,
+            maxWallClockMinutesPerCandidate: maxWallClockMinutes,
+            runnerManifestPath,
+            checkpointConfirmation,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchMatrixCampaignRunnerContractReport(result),
+            {
+              ok: true,
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              matrixCampaignRunner: result,
+            },
+          );
+        }
+
+        if (action === "checkpoint_matrix_campaign_runner") {
+          const matrixObjective = objective?.trim() ?? "";
+          if (matrixObjective.length === 0) {
+            throw new Error("checkpoint_matrix_campaign_runner requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.checkpointMatrixCampaignRunner({
+            ...identity,
+            objective: matrixObjective,
+            direction,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            filesInScope,
+            offLimits,
+            constraints,
+            parentPeerTarget,
+            maxIterationsPerCandidate: maxIterations,
+            maxWallClockMinutesPerCandidate: maxWallClockMinutes,
+            runnerManifestPath,
+            checkpointConfirmation,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchMatrixCampaignRunnerCheckpointReport(result),
+            {
+              ok: true,
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              matrixCampaignRunnerCheckpoint: result,
             },
           );
         }

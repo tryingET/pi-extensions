@@ -767,6 +767,173 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /This matrix plan is a non-mutating/);
 });
 
+test("autoresearch_live_supervision prepare_matrix_campaign_runner exposes only visible peer launch before checkpoint", async () => {
+  const cwd = "/tmp/matrix-campaign-runner";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+  assert.ok(tool.parameters.properties.runnerManifestPath, "schema exposes runnerManifestPath");
+  assert.ok(
+    tool.parameters.properties.checkpointConfirmation,
+    "schema exposes checkpointConfirmation",
+  );
+
+  const result = await tool.execute(
+    "tc-prepare-matrix-campaign-runner",
+    {
+      action: "prepare_matrix_campaign_runner",
+      taskId: 2801,
+      cwd,
+      objective: "checkpoint matrix campaign runner",
+      direction: "lower",
+      scenarios: ["safety"],
+      hypotheses: ["checkpointed launch"],
+      candidateCountPerCell: 2,
+      parentPeerTarget: "controller-peer-1",
+      runnerManifestPath: ".autoresearch/matrix-campaign/checkpoint-runner.json",
+      filesInScope: [
+        "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+      ],
+      constraints: ["do not auto benchmark"],
+      maxIterations: 1,
+      maxWallClockMinutes: 5,
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.action, "prepare_matrix_campaign_runner");
+  const contract = result.details.matrixCampaignRunner;
+  assert.equal(contract.kind, "autoresearch.matrix_campaign_runner_contract.v1");
+  assert.equal(contract.manifest.identityAnchor, `2801|${path.resolve(cwd)}`);
+  assert.equal(contract.manifest.path, ".autoresearch/matrix-campaign/checkpoint-runner.json");
+  assert.equal(contract.manifest.exactTaskId, 2801);
+  assert.equal(contract.manifest.exactCwd, cwd);
+  assert.equal(contract.manifest.candidateLaneCount, 2);
+  assert.equal(contract.launchPhase.posture, "ready_to_launch_visible_candidate_peers");
+  assert.equal(contract.launchPhase.allowedTool, "candidate_peer_spawn");
+  assert.equal(contract.launchPhase.launchCalls.length, 2);
+  assert.match(contract.launchPhase.launchCalls[0], /candidate_peer_spawn/);
+  assert.doesNotMatch(contract.launchPhase.launchCalls[0], /autoresearch_runtime_run/);
+  assert.equal(
+    contract.checkpointGate.posture,
+    "controller_checkpoint_required_before_benchmark_export_review",
+  );
+  assert.match(contract.checkpointGate.requiredToken, /task:2801/);
+  assert.match(
+    contract.checkpointGate.requiredToken,
+    /manifest:\.autoresearch\/matrix-campaign\/checkpoint-runner\.json/,
+  );
+  assert.equal(contract.checkpointGate.confirmationParameter, "checkpointConfirmation");
+  assert.deepEqual(contract.checkpointGate.blockedUntilConfirmed, [
+    "autoresearch_candidate_bind",
+    "autoresearch_runtime_run",
+    "candidate_result_export",
+    "review_candidate_wave",
+    "review_matrix_campaign",
+  ]);
+  assert.equal(contract.lockedBenchmarkExportReview.posture, "withheld_until_checkpoint");
+  assert.deepEqual(contract.lockedBenchmarkExportReview.calls, []);
+  assert.match(contract.checkpointGate.exactCheckpointCall, /checkpoint_matrix_campaign_runner/);
+  assert.match(result.content[0].text, /prepare_matrix_campaign_runner/);
+  assert.match(result.content[0].text, /Runner manifest/);
+  assert.match(result.content[0].text, /allowed tool: candidate_peer_spawn/);
+  assert.match(
+    result.content[0].text,
+    /benchmark\/export\/review calls: withheld_until_checkpoint; count=0/,
+  );
+  assert.match(result.content[0].text, /exact task id: 2801/);
+
+  const invalidPath = await tool.execute(
+    "tc-prepare-matrix-campaign-runner-invalid-path",
+    {
+      action: "prepare_matrix_campaign_runner",
+      taskId: 2801,
+      cwd,
+      objective: "checkpoint matrix campaign runner",
+      scenarios: ["safety"],
+      hypotheses: ["checkpointed launch"],
+      runnerManifestPath: "../outside.json",
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+  assert.equal(invalidPath.details.ok, false);
+  assert.match(invalidPath.content[0].text, /runnerManifestPath must be a repo-relative file/);
+});
+
+test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benchmark export review calls", async () => {
+  const cwd = "/tmp/matrix-campaign-runner-checkpoint";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+  const baseRequest = {
+    action: "checkpoint_matrix_campaign_runner",
+    taskId: 2802,
+    cwd,
+    objective: "checkpoint matrix campaign runner",
+    direction: "lower",
+    scenarios: ["safety"],
+    hypotheses: ["checkpointed launch"],
+    candidateCountPerCell: 1,
+    parentPeerTarget: "controller-peer-1",
+    runnerManifestPath: ".autoresearch/matrix-campaign/checkpoint-runner.json",
+  };
+
+  const blocked = await tool.execute(
+    "tc-checkpoint-matrix-campaign-runner-blocked",
+    baseRequest,
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(blocked.details.ok, true);
+  assert.equal(blocked.details.action, "checkpoint_matrix_campaign_runner");
+  assert.equal(blocked.details.matrixCampaignRunnerCheckpoint.checkpointAccepted, false);
+  assert.equal(
+    blocked.details.matrixCampaignRunnerCheckpoint.posture,
+    "blocked_until_exact_controller_checkpoint",
+  );
+  assert.deepEqual(blocked.details.matrixCampaignRunnerCheckpoint.benchmarkExportReviewCalls, []);
+  assert.equal(blocked.details.matrixCampaignRunnerCheckpoint.reviewMatrixCampaignCall, null);
+  assert.match(blocked.content[0].text, /Unlocked benchmark\/export\/review calls: none/);
+
+  const requiredToken = blocked.details.matrixCampaignRunnerCheckpoint.requiredToken;
+  const unlocked = await tool.execute(
+    "tc-checkpoint-matrix-campaign-runner-unlocked",
+    { ...baseRequest, checkpointConfirmation: requiredToken },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(unlocked.details.ok, true);
+  assert.equal(unlocked.details.matrixCampaignRunnerCheckpoint.checkpointAccepted, true);
+  assert.equal(
+    unlocked.details.matrixCampaignRunnerCheckpoint.posture,
+    "benchmark_export_review_unlocked",
+  );
+  assert.ok(
+    unlocked.details.matrixCampaignRunnerCheckpoint.benchmarkExportReviewCalls.some((call) =>
+      call.includes("autoresearch_runtime_run"),
+    ),
+  );
+  assert.ok(
+    unlocked.details.matrixCampaignRunnerCheckpoint.benchmarkExportReviewCalls.some((call) =>
+      call.includes("candidate_result_export"),
+    ),
+  );
+  assert.match(
+    unlocked.details.matrixCampaignRunnerCheckpoint.reviewMatrixCampaignCall,
+    /review_matrix_campaign/,
+  );
+  assert.match(unlocked.content[0].text, /Checkpoint accepted: yes/);
+  assert.match(unlocked.content[0].text, /Unlocked benchmark\/export\/review calls/);
+  assert.match(unlocked.content[0].text, /not cryptographic proof/);
+});
+
 test("autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves", async () => {
   await withTempDir(async (cwd) => {
     const packetDir = path.join(cwd, ".autoresearch", "matrix-campaign");
