@@ -292,6 +292,40 @@ test("adapter keeps peer protocol state after the inbound reply is resolved", as
   assert.match(status.content[0]?.text ?? "", /PEER_ACK/);
 });
 
+test("adapter treats visible-loop iteration messages as allowed peer progress", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("PEER_ACK peer_run_id=visible-loop-1: started", { id: "visible-ack-1" }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("VISIBLE_LOOP_ITERATION peer_run_id=visible-loop-1: completed iteration 1/1", {
+      id: "visible-progress-1",
+    }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("PEER_FINAL peer_run_id=visible-loop-1: done", { id: "visible-final-1" }),
+  );
+
+  const result = await adapter.execute(runtime, {
+    action: "peer_status",
+    peerRunId: "visible-loop-1",
+  });
+
+  assert.equal(result.isError, undefined);
+  assert.equal(result.details?.state, "final_received");
+  assert.equal(result.details?.ackCount, 1);
+  assert.equal(result.details?.finalCount, 1);
+  assert.equal(result.details?.progressCount, 1);
+  assert.equal(result.details?.violationCount, 0);
+  assert.match(result.content[0]?.text ?? "", /VISIBLE_LOOP_ITERATION/);
+  assert.match(result.content[0]?.text ?? "", /PROGRESS=1/);
+});
+
 test("adapter reports quest protocol duplicates and violations", async () => {
   const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
   const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });

@@ -48,9 +48,14 @@ interface PendingInboundMessage {
   receivedAt: number;
 }
 
-type PeerProtocolKind = "PEER_ACK" | "PEER_FINAL" | "QUEST_ACK" | "QUEST_FINAL";
+type PeerProtocolKind =
+  | "PEER_ACK"
+  | "PEER_FINAL"
+  | "QUEST_ACK"
+  | "QUEST_FINAL"
+  | "VISIBLE_LOOP_ITERATION";
 
-type PeerProtocolPhase = "ack" | "final" | "unknown";
+type PeerProtocolPhase = "ack" | "final" | "progress" | "unknown";
 
 type PeerProtocolVocabulary = "peer" | "quest" | "unknown";
 
@@ -82,6 +87,7 @@ interface PeerProtocolSnapshot {
   state: PeerProtocolState;
   ackCount: number;
   finalCount: number;
+  progressCount: number;
   duplicateAckCount: number;
   duplicateFinalCount: number;
   violationCount: number;
@@ -245,6 +251,17 @@ function parsePeerProtocolMessage(text: string): ParsedPeerProtocolMessage | und
     };
   }
 
+  const visibleLoopProgress = text.match(/\b(VISIBLE_LOOP_ITERATION)\s+peer_run_id=([^\s:]+)\s*:/);
+  if (visibleLoopProgress?.[1] && visibleLoopProgress[2]) {
+    return {
+      runId: visibleLoopProgress[2],
+      kind: "VISIBLE_LOOP_ITERATION",
+      phase: "progress",
+      vocabulary: "peer",
+      token: "peer_run_id",
+    };
+  }
+
   const unknown = text.match(/\b([A-Z][A-Z_]+)\s+(peer_run_id|quest_id)=([^\s:]+)\s*:/);
   if (unknown?.[2] && unknown[3]) {
     return {
@@ -301,6 +318,7 @@ class PeerProtocolLedger {
     const messages = [...(this.messagesByRunId.get(peerRunId) ?? [])];
     const ackCount = messages.filter((message) => message.phase === "ack").length;
     const finalCount = messages.filter((message) => message.phase === "final").length;
+    const progressCount = messages.filter((message) => message.phase === "progress").length;
     const violationCount = messages.filter((message) => message.phase === "unknown").length;
     const state: PeerProtocolState = violationCount
       ? "protocol_violation"
@@ -316,6 +334,7 @@ class PeerProtocolLedger {
       state,
       ackCount,
       finalCount,
+      progressCount,
       duplicateAckCount: Math.max(0, ackCount - 1),
       duplicateFinalCount: Math.max(0, finalCount - 1),
       violationCount,
@@ -519,7 +538,7 @@ export class IntercomCompatibleAdapter {
 
     return [
       `${label} ${snapshot.peerRunId}: ${snapshot.state}`,
-      `ACK=${snapshot.ackCount} FINAL=${snapshot.finalCount} duplicateACK=${snapshot.duplicateAckCount} duplicateFINAL=${snapshot.duplicateFinalCount} violations=${snapshot.violationCount}`,
+      `ACK=${snapshot.ackCount} FINAL=${snapshot.finalCount} PROGRESS=${snapshot.progressCount} duplicateACK=${snapshot.duplicateAckCount} duplicateFINAL=${snapshot.duplicateFinalCount} violations=${snapshot.violationCount}`,
       "Messages:",
       rows,
     ].join("\n");
