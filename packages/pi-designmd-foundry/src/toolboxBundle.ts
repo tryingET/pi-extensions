@@ -36,6 +36,7 @@ const PROFILE_TOOLS: Record<string, ToolboxRegisteredToolSummary[]> = {
     { name: "designmd_session_variants", profile: "mutating", risk: "mutating" },
     { name: "designmd_session_closeout", profile: "mutating", risk: "mutating" },
     { name: "designmd_session_handoff", profile: "mutating", risk: "mutating" },
+    { name: "designmd_session_guided_run", profile: "mutating", risk: "mutating" },
     { name: "designmd_session_promotion_candidate", profile: "mutating", risk: "mutating" },
     { name: "designmd_import_penpot", profile: "mutating", risk: "mutating" },
   ],

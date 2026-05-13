@@ -85,6 +85,8 @@ interface PenpotMcpBridgeParams extends BaseParams {
   endpoint?: string;
   boardName?: string;
   maxNodes?: number;
+  updateLatest?: boolean;
+  updateBoardId?: string;
 }
 
 interface PenpotMcpExportParams extends BaseParams {
@@ -113,6 +115,13 @@ interface SessionCloseoutParams extends BaseParams {
 }
 
 interface SessionHandoffParams extends BaseParams {
+  projectId?: string;
+  sessionId?: string;
+  laneId?: string;
+  materialize?: boolean;
+}
+
+interface SessionGuidedRunParams extends BaseParams {
   projectId?: string;
   sessionId?: string;
   laneId?: string;
@@ -652,7 +661,7 @@ export default function (pi: ExtensionAPI) {
     name: "designmd_penpot_mcp_bridge",
     label: "DesignMD Penpot MCP bridge",
     description:
-      "Plan or explicitly apply a bounded DesignMD canvas-bridge to Penpot through the official Penpot MCP server. Plan-only by default; apply requires a connected Penpot MCP plugin and creates one board.",
+      "Plan or explicitly apply a bounded DesignMD canvas-bridge to Penpot through the official Penpot MCP server. Plan-only by default; apply requires a connected Penpot MCP plugin and creates one board unless updateLatest/updateBoardId selects an existing DesignMD bridge board to rebuild.",
     parameters: asPiToolParameters(
       Type.Object({
         ...baseFields,
@@ -686,6 +695,18 @@ export default function (pi: ExtensionAPI) {
             description: "Optional positive maximum number of bridge nodes to render.",
           }),
         ),
+        updateLatest: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, update the latest existing DesignMD bridge board instead of creating a new board. Still plan-only unless apply=true.",
+          }),
+        ),
+        updateBoardId: Type.Optional(
+          Type.String({
+            description:
+              "Optional exact existing DesignMD bridge board id to update instead of creating a new board. Still plan-only unless apply=true.",
+          }),
+        ),
       }),
     ),
     async execute(_toolCallId, params) {
@@ -697,8 +718,13 @@ export default function (pi: ExtensionAPI) {
         : undefined;
       if (resolvedOutputPath) args.push("--output", resolvedOutputPath);
       if (request.endpoint) args.push("--endpoint", request.endpoint);
+      if (request.updateLatest && request.updateBoardId) {
+        return messageResult("Pass either updateLatest or updateBoardId, not both.", { ok: false });
+      }
       if (request.boardName) args.push("--board-name", request.boardName);
       if (request.maxNodes !== undefined) args.push("--max-nodes", String(request.maxNodes));
+      if (request.updateLatest) args.push("--update-latest");
+      if (request.updateBoardId) args.push("--update-board-id", request.updateBoardId);
       return toolResult(
         await runDesignmdWithSession(request, args, {
           toolName: "designmd_penpot_mcp_bridge",
@@ -961,6 +987,62 @@ export default function (pi: ExtensionAPI) {
             title: request.materialize
               ? "DesignMD materialized session handoff result"
               : "DesignMD session handoff packet",
+            mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_session_guided_run",
+    label: "DesignMD guided design run",
+    description:
+      "Build or materialize the full local DesignMD Guided Design Run loop: plan, memory, variant lanes, handoff, and report-back instructions. This prepares Watch Mode orchestration only; it does not execute Pi or promote authority.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sessionId: Type.Optional(
+          Type.String({
+            description:
+              "Watch Mode session id. Defaults to current running session in local Foundry storage.",
+          }),
+        ),
+        laneId: Type.Optional(
+          Type.String({
+            description:
+              "Optional variant lane id or suffix such as safe-iterate, edge-remix, evidence-audit, or microscope-a11y-motion.",
+          }),
+        ),
+        materialize: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, write source lifecycle packets plus the guided run packet as local session artifacts/checks. Defaults to false.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as SessionGuidedRunParams;
+      const args = ["session-guided-run", request.sessionId || "current"];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.laneId) args.push("--lane", request.laneId);
+      if (request.materialize) args.push("--materialize");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_session_guided_run",
+          objective: request.materialize
+            ? "Materialize DesignMD guided design run"
+            : "Build DesignMD guided design run",
+          artifact: (result) => ({
+            kind: "json",
+            title: request.materialize
+              ? "DesignMD materialized guided design run result"
+              : "DesignMD guided design run packet",
             mimeType: "application/json; charset=utf-8",
             content: result.stdout,
           }),

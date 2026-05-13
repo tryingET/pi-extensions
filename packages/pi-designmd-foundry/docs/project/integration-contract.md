@@ -28,11 +28,12 @@ The extension exposes operations that are readiness-verified in DesignMD Foundry
 - `designmd_import_penpot`
 - `designmd_palette_from_text`
 - `designmd_penpot_mcp_inspect` for read-only active-file bridge-board snapshots through official Penpot MCP
-- `designmd_penpot_mcp_bridge` for plan-by-default / explicit-apply DesignMD canvas bridge boards through official Penpot MCP
+- `designmd_penpot_mcp_bridge` for plan-by-default / explicit-apply DesignMD canvas bridge board create/update operations through official Penpot MCP
 - `designmd_penpot_mcp_export` for read-only SVG export of an existing DesignMD bridge board through official Penpot MCP
 - `designmd_session_plan` for local `designmd.session-plan.v1` Watch Mode planning packets without canonical authority claims
 - `designmd_session_variants` for local `designmd.session-variants.v1` proposal lanes without accepted-variant or canonical direction claims
 - `designmd_session_handoff` for local `designmd.session-handoff.v1` prompts that bind one proposal lane into agent/operator guidance without canonical authority claims
+- `designmd_session_guided_run` for local `designmd.guided-design-run.v1` orchestration packets that prepare plan, memory, variants, handoff, and report-back instructions without executing Pi or claiming canonical authority
 - `designmd_session_closeout` for local `designmd.session-closeout.v1` Watch Mode evidence packets without canonical promotion claims
 - `designmd_session_promotion_candidate` for local `designmd.promotion-candidate.v1` owner-review packets without promotion, publish, merge, or AK/society mutation claims
 - `designmd_readiness`
@@ -57,7 +58,7 @@ The CLI entrypoint uses `dist/cli.js` when present, otherwise source mode throug
 
 ## Safety posture
 
-Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export, Penpot MCP bridge-apply SVG proof output, and read-only Penpot MCP existing-board SVG export. The session plan, variants, handoff, closeout, and promotion-candidate tools can materialize only local Watch Mode artifacts/checks and explicitly do not create or promote AK/society authority. Variant lanes are proposals until accepted through the owning surface, and promotion candidates are owner-review packets only. Penpot MCP inspect and export are read-only. Penpot MCP mutation requires `apply: true` and a human-connected plugin; plan mode is the default.
+Tools return command metadata and bounded stdout/stderr. Canonical writes are avoided; generated prompt, token, palette, and snapshot text is returned to the agent/operator for review. Artifact writes require an explicit output path, as with restricted OpenPencil export, Penpot MCP bridge-apply SVG proof output, and read-only Penpot MCP existing-board SVG export. The session plan, variants, handoff, closeout, and promotion-candidate tools can materialize only local Watch Mode artifacts/checks and explicitly do not create or promote AK/society authority. Variant lanes are proposals until accepted through the owning surface, and promotion candidates are owner-review packets only. Penpot MCP inspect and export are read-only. Penpot MCP mutation requires `apply: true` and a human-connected plugin; plan mode is the default. Update selectors such as `updateLatest` and `updateBoardId` may target only existing DesignMD bridge boards, are mutually exclusive, and remain non-mutating unless `apply: true` is set. Bridge plans/results include `designmd.penpot-mcp-transaction.v1` selector, target-resolution, postcondition, and rollback-classification evidence.
 
 ## Optional Watch Mode reporting
 

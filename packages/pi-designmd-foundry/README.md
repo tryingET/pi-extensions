@@ -36,11 +36,12 @@ When `DESIGNMD_SESSION_ENDPOINT` is set, tools also report start/pass/fail activ
 - `designmd_import_penpot` — convert DTCG/Penpot token JSON into DESIGN.md text.
 - `designmd_palette_from_text` — parse or apply Pigmnts-style hex palette text.
 - `designmd_penpot_mcp_inspect` — read-only inspect of the active Penpot file through the official Penpot MCP server.
-- `designmd_penpot_mcp_bridge` — plan or explicitly apply one bounded `designmd.canvas-bridge.v1` board mutation through the official Penpot MCP server.
+- `designmd_penpot_mcp_bridge` — plan or explicitly apply one bounded `designmd.canvas-bridge.v1` board create/update mutation through the official Penpot MCP server; update selectors only rebuild selected/latest DesignMD bridge boards.
 - `designmd_penpot_mcp_export` — read-only SVG export of an existing DesignMD bridge board through the official Penpot MCP server.
 - `designmd_session_plan` — build or materialize a local `designmd.session-plan.v1` Watch Mode planning packet without claiming canonical AK/society authority.
 - `designmd_session_variants` — build or materialize local `designmd.session-variants.v1` proposal lanes without claiming accepted durable variants or canonical direction.
 - `designmd_session_handoff` — build or materialize a local `designmd.session-handoff.v1` prompt for one executable variant lane without claiming canonical authority.
+- `designmd_session_guided_run` — build or materialize the full local `designmd.guided-design-run.v1` loop (plan, memory, variants, handoff, report-back instructions) without executing Pi or claiming canonical authority.
 - `designmd_session_browser_agent_handoff` — build or materialize a local `designmd.browser-agent-handoff.v1` prompt for optional browser-side review such as Sitegeist without granting mutation or promotion authority.
 - `designmd_session_closeout` — build or materialize a local `designmd.session-closeout.v1` Watch Mode evidence packet without claiming canonical AK/society promotion.
 - `designmd_session_promotion_candidate` — build or materialize a local `designmd.promotion-candidate.v1` owner-review packet without promoting, publishing, merging, or mutating AK/society authority.
