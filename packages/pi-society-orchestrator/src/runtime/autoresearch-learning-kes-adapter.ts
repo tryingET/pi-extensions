@@ -1,4 +1,6 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   createKesArtifactPlan,
@@ -29,6 +31,33 @@ export interface AutoresearchLearningPacketV1 {
   adapterBoundary: string;
 }
 
+export type AutoresearchPacketHashKind = "raw_file" | "normalized_packet";
+
+export interface AutoresearchLearningPacketSource {
+  packetPath: string;
+  packetRawSha256: string;
+  packetDir: string;
+  campaignRoot: string | null;
+}
+
+export interface AutoresearchSourceEvidencePolicy {
+  allowReceiptSnapshot?: boolean;
+  maxReceiptBytes?: number;
+}
+
+export interface AutoresearchSourceEvidenceSnapshot {
+  packetSha256: string;
+  packetHashKind: AutoresearchPacketHashKind;
+  packetPath: string | null;
+  receiptPath: string | null;
+  receiptExists: boolean | null;
+  receiptSha256: string | null;
+  receiptBytes: number | null;
+  receiptLineCount: number | null;
+  receiptTailPreview: string[];
+  warnings: string[];
+}
+
 export interface AutoresearchLearningKesAdapterResult {
   kind: typeof AUTORESEARCH_LEARNING_KES_ADAPTER_KIND;
   action: AutoresearchLearningKesAdapterAction;
@@ -41,7 +70,10 @@ export interface AutoresearchLearningKesAdapterResult {
     suggestedPath: string;
     empiricalDecisionClass: string | null;
     promotionReady: boolean | null;
+    receiptPath: string | null;
   };
+  sourceEvidenceWarnings: string[];
+  sourceEvidenceSnapshot: AutoresearchSourceEvidenceSnapshot;
   kesPlan: KesArtifactPlan;
   writtenArtifacts: string[];
   effect: {
@@ -60,13 +92,294 @@ export interface BuildAutoresearchLearningKesAdapterInput {
   action?: AutoresearchLearningKesAdapterAction;
   sessionId?: string;
   timestamp?: Date;
+  packetSource?: AutoresearchLearningPacketSource;
+  sourceEvidencePolicy?: AutoresearchSourceEvidencePolicy;
+}
+
+export interface LoadedAutoresearchLearningPacket {
+  packet: unknown;
+  source: AutoresearchLearningPacketSource;
 }
 
 const KES_ADAPTER_BOUNDARY =
   "pi-society-orchestrator consumes autoresearch.learning.v1 as the KES/learning owner seam; plan is non-mutating, materialize writes only package-owned KES diary and candidate-only docs/learnings artifacts, and neither action mutates pi-autoresearch, AK, Prompt Vault, ROCS, Oracle/DSPx, or promotion state.";
+const DEFAULT_MAX_SOURCE_PACKET_BYTES = 1024 * 1024;
+const DEFAULT_MAX_RECEIPT_SNAPSHOT_BYTES = 1024 * 1024;
+const ABSOLUTE_MAX_SOURCE_EVIDENCE_BYTES = 10 * 1024 * 1024;
+
+function sha256Hex(content: string | Buffer): string {
+  return crypto.createHash("sha256").update(content).digest("hex");
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function normalizeMaxBytes(
+  value: number | undefined,
+  defaultValue: number,
+  fieldName: string,
+): number {
+  if (value === undefined) return defaultValue;
+  if (!Number.isSafeInteger(value) || value < 1 || value > ABSOLUTE_MAX_SOURCE_EVIDENCE_BYTES) {
+    throw new Error(
+      `${fieldName} must be a safe integer between 1 and ${ABSOLUTE_MAX_SOURCE_EVIDENCE_BYTES}`,
+    );
+  }
+  return value;
+}
+
+function readRegularFileBounded(filePath: string, maxBytes: number, label: string): Buffer {
+  const noFollowFlag = "O_NOFOLLOW" in fs.constants ? fs.constants.O_NOFOLLOW : 0;
+  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | noFollowFlag);
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      throw new Error(`${label} is not a regular file: ${filePath}`);
+    }
+    if (stat.size > maxBytes) {
+      throw new Error(`${label} exceeds source evidence limit (${stat.size} > ${maxBytes} bytes)`);
+    }
+
+    const chunks: Buffer[] = [];
+    const buffer = Buffer.alloc(Math.min(64 * 1024, maxBytes + 1));
+    let total = 0;
+    while (total <= maxBytes) {
+      const bytesRead = fs.readSync(
+        fd,
+        buffer,
+        0,
+        Math.min(buffer.length, maxBytes + 1 - total),
+        null,
+      );
+      if (bytesRead === 0) break;
+      chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
+      total += bytesRead;
+    }
+    if (total > maxBytes) {
+      throw new Error(`${label} exceeds source evidence limit while reading (> ${maxBytes} bytes)`);
+    }
+    return Buffer.concat(chunks, total);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function inferCampaignRootFromPacketPath(packetPath: string): string | null {
+  const packetDir = path.dirname(packetPath);
+  return path.basename(packetDir) === ".autoresearch" ? path.dirname(packetDir) : null;
+}
+
+function redactReceiptPreviewLine(line: string): string {
+  return line
+    .replace(/(authorization\s*[:=]\s*bearer\s+)[^\s"']+/giu, "$1[REDACTED]")
+    .replace(
+      /((?:password|passwd|secret|token|api[_-]?key)\s*["']?\s*[:=]\s*["']?)[^"'\s,}]+/giu,
+      "$1[REDACTED]",
+    );
+}
+
+function resolveReceiptPathForSnapshot(input: {
+  receiptPath: string;
+  packetSource?: AutoresearchLearningPacketSource;
+}): string | null {
+  if (path.isAbsolute(input.receiptPath)) return path.resolve(input.receiptPath);
+  if (!input.packetSource?.campaignRoot) return null;
+  return path.resolve(input.packetSource.campaignRoot, input.receiptPath);
+}
+
+function verifyPacketSource(
+  source: AutoresearchLearningPacketSource,
+  packet: AutoresearchLearningPacketV1,
+): AutoresearchLearningPacketSource {
+  const packetContent = readRegularFileBounded(
+    source.packetPath,
+    DEFAULT_MAX_SOURCE_PACKET_BYTES,
+    "source packet",
+  );
+  const actualHash = sha256Hex(packetContent);
+  if (actualHash !== source.packetRawSha256) {
+    throw new Error("packetSource.packetRawSha256 does not match packetSource.packetPath content");
+  }
+  const sourcePacket = validateAutoresearchLearningPacket(
+    JSON.parse(packetContent.toString("utf8")),
+  );
+  if (JSON.stringify(sourcePacket) !== JSON.stringify(packet)) {
+    throw new Error("packetSource.packetPath content does not match the packet being adapted");
+  }
+  return {
+    packetPath: path.resolve(source.packetPath),
+    packetRawSha256: actualHash,
+    packetDir: path.dirname(path.resolve(source.packetPath)),
+    campaignRoot: inferCampaignRootFromPacketPath(path.resolve(source.packetPath)),
+  };
+}
+
+function buildSourceEvidenceSnapshot(
+  packet: AutoresearchLearningPacketV1,
+  packetSource?: AutoresearchLearningPacketSource,
+  policy: AutoresearchSourceEvidencePolicy = {},
+): AutoresearchSourceEvidenceSnapshot {
+  const warnings: string[] = [];
+  const verifiedPacketSource = packetSource ? verifyPacketSource(packetSource, packet) : undefined;
+  const snapshot: AutoresearchSourceEvidenceSnapshot = {
+    packetSha256: verifiedPacketSource?.packetRawSha256 ?? sha256Hex(JSON.stringify(packet)),
+    packetHashKind: verifiedPacketSource ? "raw_file" : "normalized_packet",
+    packetPath: verifiedPacketSource?.packetPath ?? null,
+    receiptPath: null,
+    receiptExists: null,
+    receiptSha256: null,
+    receiptBytes: null,
+    receiptLineCount: null,
+    receiptTailPreview: [],
+    warnings,
+  };
+
+  if (!verifiedPacketSource) {
+    warnings.push(
+      "source packet hash is semantic only; raw packet bytes were not supplied to the adapter core",
+    );
+  }
+  if (policy.allowReceiptSnapshot === false) {
+    warnings.push("receipt snapshot disabled by source evidence policy");
+    return snapshot;
+  }
+
+  const receiptPath = packet.closeout.receiptPath?.trim();
+  if (!receiptPath) {
+    warnings.push(
+      "closeout receiptPath is absent; the candidate-only learning has no direct local receipt reference to inspect before promotion",
+    );
+    return snapshot;
+  }
+
+  const resolvedReceiptPath = resolveReceiptPathForSnapshot({
+    receiptPath,
+    packetSource: verifiedPacketSource,
+  });
+  if (!resolvedReceiptPath) {
+    warnings.push(
+      `relative closeout receiptPath cannot be snapshotted without a packet-derived campaign root: ${receiptPath}`,
+    );
+    return snapshot;
+  }
+  snapshot.receiptPath = resolvedReceiptPath;
+
+  if (!verifiedPacketSource?.campaignRoot) {
+    warnings.push(
+      "receipt snapshot skipped because packet path is not under a .autoresearch campaign export directory",
+    );
+    return snapshot;
+  }
+
+  let realCampaignRoot: string;
+  let realReceiptPath: string;
+  try {
+    realCampaignRoot = fs.realpathSync(verifiedPacketSource.campaignRoot);
+    realReceiptPath = fs.realpathSync(resolvedReceiptPath);
+  } catch {
+    realCampaignRoot = fs.realpathSync(verifiedPacketSource.campaignRoot);
+    realReceiptPath = resolvedReceiptPath;
+  }
+  snapshot.receiptPath = realReceiptPath;
+  if (!isPathInside(realCampaignRoot, realReceiptPath)) {
+    warnings.push(
+      `closeout receiptPath is outside the packet-derived campaign root and was not read: ${realReceiptPath}`,
+    );
+    return snapshot;
+  }
+
+  const tmpRoots = Array.from(
+    new Set([os.tmpdir(), "/tmp"].map((tmpRoot) => path.resolve(tmpRoot))),
+  );
+  if (
+    tmpRoots.some(
+      (tmpRoot) =>
+        realReceiptPath === tmpRoot || realReceiptPath.startsWith(`${tmpRoot}${path.sep}`),
+    )
+  ) {
+    warnings.push(
+      `closeout receiptPath is under a temp directory and may disappear before review: ${realReceiptPath}`,
+    );
+  }
+  if (!fs.existsSync(realReceiptPath)) {
+    snapshot.receiptExists = false;
+    warnings.push(
+      `closeout receiptPath does not exist at adapter time; preserve or regenerate source evidence before promotion: ${realReceiptPath}`,
+    );
+    return snapshot;
+  }
+
+  const maxReceiptBytes = normalizeMaxBytes(
+    policy.maxReceiptBytes,
+    DEFAULT_MAX_RECEIPT_SNAPSHOT_BYTES,
+    "sourceEvidencePolicy.maxReceiptBytes",
+  );
+
+  try {
+    const receiptStat = fs.statSync(realReceiptPath);
+    if (!receiptStat.isFile()) {
+      warnings.push(
+        `closeout receiptPath is not a regular file and was not read: ${realReceiptPath}`,
+      );
+      return snapshot;
+    }
+    if (receiptStat.size > maxReceiptBytes) {
+      snapshot.receiptExists = true;
+      snapshot.receiptBytes = receiptStat.size;
+      warnings.push(
+        `closeout receiptPath exceeds source evidence snapshot limit (${receiptStat.size} > ${maxReceiptBytes} bytes) and was not read: ${realReceiptPath}`,
+      );
+      return snapshot;
+    }
+
+    const receiptContent = readRegularFileBounded(
+      realReceiptPath,
+      maxReceiptBytes,
+      "closeout receiptPath",
+    );
+    const receiptText = receiptContent.toString("utf8");
+    const receiptLines = receiptText.split(/\r?\n/u).filter((line) => line.length > 0);
+    snapshot.receiptExists = true;
+    snapshot.receiptSha256 = sha256Hex(receiptContent);
+    snapshot.receiptBytes = receiptContent.byteLength;
+    snapshot.receiptLineCount = receiptLines.length;
+    snapshot.receiptTailPreview = receiptLines
+      .slice(-5)
+      .map(redactReceiptPreviewLine)
+      .map((line) => (line.length > 500 ? `${line.slice(0, 500)}…[truncated]` : line));
+  } catch (error) {
+    snapshot.receiptExists = false;
+    warnings.push(
+      `closeout receiptPath could not be snapshotted at adapter time: ${realReceiptPath}; ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  return snapshot;
+}
+
+export function loadAutoresearchLearningPacketWithSource(
+  packetPath: string,
+): LoadedAutoresearchLearningPacket {
+  const resolvedPacketPath = path.resolve(packetPath);
+  const packetContent = readRegularFileBounded(
+    resolvedPacketPath,
+    DEFAULT_MAX_SOURCE_PACKET_BYTES,
+    "source packet",
+  );
+  return {
+    packet: JSON.parse(packetContent.toString("utf8")),
+    source: {
+      packetPath: resolvedPacketPath,
+      packetRawSha256: sha256Hex(packetContent),
+      packetDir: path.dirname(resolvedPacketPath),
+      campaignRoot: inferCampaignRootFromPacketPath(resolvedPacketPath),
+    },
+  };
+}
 
 export function loadAutoresearchLearningPacket(packetPath: string): unknown {
-  return JSON.parse(fs.readFileSync(path.resolve(packetPath), "utf8"));
+  return loadAutoresearchLearningPacketWithSource(packetPath).packet;
 }
 
 export function buildAutoresearchLearningKesAdapterResult(
@@ -84,6 +397,12 @@ export function buildAutoresearchLearningKesAdapterResult(
     typeof packet.closeout.empiricalPosture?.promotionReady === "boolean"
       ? packet.closeout.empiricalPosture.promotionReady
       : null;
+  const sourceEvidenceSnapshot = buildSourceEvidenceSnapshot(
+    packet,
+    input.packetSource,
+    input.sourceEvidencePolicy,
+  );
+  const sourceEvidenceWarnings = sourceEvidenceSnapshot.warnings;
 
   const kesPlan = createKesArtifactPlan(packageRoot, {
     diary: {
@@ -98,6 +417,11 @@ export function buildAutoresearchLearningKesAdapterResult(
       actions: [
         "Validated an autoresearch.learning.v1 packet through the pi-society-orchestrator KES owner seam.",
         "Prepared package-owned diary capture plus candidate-only learning artifact without mutating pi-autoresearch, AK, Prompt Vault, ROCS, Oracle/DSPx, or external authority.",
+        `Snapshotted source packet ${sourceEvidenceSnapshot.packetHashKind} hash ${sourceEvidenceSnapshot.packetSha256}.`,
+        ...(sourceEvidenceSnapshot.receiptSha256
+          ? [`Snapshotted receipt hash ${sourceEvidenceSnapshot.receiptSha256}.`]
+          : []),
+        ...sourceEvidenceWarnings.map((warning) => `Recorded source-evidence warning: ${warning}`),
       ],
       surprises: [
         "The adapter preserves pi-autoresearch as packet producer and pi-society-orchestrator/KES as the persistence owner.",
@@ -108,6 +432,10 @@ export function buildAutoresearchLearningKesAdapterResult(
       candidateHints: [packet.title],
       followUps: [
         "Review the candidate-only KES learning before promoting it beyond the package-owned learning surface.",
+        ...sourceEvidenceWarnings.map(
+          (warning) =>
+            `Resolve or explicitly accept source-evidence warning before broader promotion: ${warning}`,
+        ),
       ],
       metadata: {
         adapter_kind: AUTORESEARCH_LEARNING_KES_ADAPTER_KIND,
@@ -118,6 +446,8 @@ export function buildAutoresearchLearningKesAdapterResult(
         empirical_decision_class: empiricalDecisionClass,
         promotion_ready: promotionReady,
         receipt_path: packet.closeout.receiptPath ?? null,
+        source_evidence_warnings: sourceEvidenceWarnings,
+        source_evidence_snapshot: sourceEvidenceSnapshot,
         packet_adapter_boundary: packet.adapterBoundary,
       },
       timestamp: input.timestamp,
@@ -131,6 +461,14 @@ export function buildAutoresearchLearningKesAdapterResult(
         `Campaign: ${campaign ?? "unnamed"}.`,
         `Empirical decision: ${empiricalDecisionClass ?? "unknown"}.`,
         `Promotion ready: ${promotionReady === null ? "unknown" : String(promotionReady)}.`,
+        `Source packet sha256 (${sourceEvidenceSnapshot.packetHashKind}): ${sourceEvidenceSnapshot.packetSha256}.`,
+        sourceEvidenceSnapshot.receiptSha256
+          ? `Source receipt sha256: ${sourceEvidenceSnapshot.receiptSha256} (${sourceEvidenceSnapshot.receiptBytes ?? "unknown"} bytes, ${sourceEvidenceSnapshot.receiptLineCount ?? "unknown"} lines).`
+          : "Source receipt sha256: unavailable.",
+        ...sourceEvidenceSnapshot.receiptTailPreview.map(
+          (line) => `Source receipt tail preview: ${line}`,
+        ),
+        ...sourceEvidenceWarnings.map((warning) => `Source evidence warning: ${warning}`),
       ],
       heuristics: [
         "Keep autoresearch learning persistence outside pi-autoresearch; use owner-routed KES/notes surfaces for durable learning candidates.",
@@ -141,6 +479,10 @@ export function buildAutoresearchLearningKesAdapterResult(
       followUps: [
         packet.closeout.recommendedAction ??
           "Review the learning candidate before any broader activation.",
+        ...sourceEvidenceWarnings.map(
+          (warning) =>
+            `Resolve or explicitly accept source-evidence warning before broader promotion: ${warning}`,
+        ),
       ],
       metadata: {
         adapter_kind: AUTORESEARCH_LEARNING_KES_ADAPTER_KIND,
@@ -150,6 +492,8 @@ export function buildAutoresearchLearningKesAdapterResult(
         empirical_decision_class: empiricalDecisionClass,
         promotion_ready: promotionReady,
         receipt_path: packet.closeout.receiptPath ?? null,
+        source_evidence_warnings: sourceEvidenceWarnings,
+        source_evidence_snapshot: sourceEvidenceSnapshot,
       },
     },
   });
@@ -177,7 +521,10 @@ export function buildAutoresearchLearningKesAdapterResult(
       suggestedPath: packet.suggestedPath,
       empiricalDecisionClass,
       promotionReady,
+      receiptPath: packet.closeout.receiptPath ?? null,
     },
+    sourceEvidenceWarnings,
+    sourceEvidenceSnapshot,
     kesPlan: materializedPlan,
     writtenArtifacts,
     effect: {

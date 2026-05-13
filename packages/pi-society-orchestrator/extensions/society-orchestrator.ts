@@ -57,7 +57,7 @@ import {
   type AutoresearchLearningKesAdapterAction,
   type AutoresearchLearningKesAdapterResult,
   buildAutoresearchLearningKesAdapterResult,
-  loadAutoresearchLearningPacket,
+  loadAutoresearchLearningPacketWithSource,
 } from "../src/runtime/autoresearch-learning-kes-adapter.ts";
 import {
   type AutoresearchManifestCampaignEvidenceResult,
@@ -913,6 +913,10 @@ function formatAutoresearchLearningKesAdapterReport(
     `Suggested source path: ${result.source.suggestedPath}`,
     `Empirical decision: ${result.source.empiricalDecisionClass ?? "-"}`,
     `Promotion ready: ${result.source.promotionReady === null ? "-" : String(result.source.promotionReady)}`,
+    `Receipt path: ${result.source.receiptPath ?? "-"}`,
+    `Source packet sha256 (${result.sourceEvidenceSnapshot.packetHashKind}): ${result.sourceEvidenceSnapshot.packetSha256}`,
+    `Source receipt sha256: ${result.sourceEvidenceSnapshot.receiptSha256 ?? "-"}`,
+    `Source evidence warnings: ${result.sourceEvidenceWarnings.join("; ") || "-"}`,
     `KES diary plan: ${result.kesPlan.diary.relativePath}`,
     `KES learning candidate: ${result.kesPlan.learningCandidate?.relativePath ?? "-"}`,
     `Written artifacts: ${result.writtenArtifacts.join(", ") || "-"}`,
@@ -2532,10 +2536,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         if (!request.packetPath || request.packetPath.trim().length === 0) {
           throw new Error("autoresearch_learning_kes_adapter requires packetPath.");
         }
-        const packet = loadAutoresearchLearningPacket(request.packetPath);
+        const loadedPacket = loadAutoresearchLearningPacketWithSource(request.packetPath);
         const result = buildAutoresearchLearningKesAdapterResult({
           packageRoot: autoresearchLearningKesPackageRoot,
-          packet,
+          packet: loadedPacket.packet,
+          packetSource: loadedPacket.source,
           action,
           sessionId: request.sessionId,
         });
