@@ -1,0 +1,13 @@
+Promoted @tryinget/pi-model-selection from packages/pi-interaction/pi-model-selection to top-level packages/pi-model-selection after operator clarified it should be a small shared support package, not a broad pi-interaction dependency.
+
+Task: AK #2909
+Candidate peer: candidatepeer-mp4fl3hc-20c7ee5c (worktree /home/tryinget/.local/state/pi-quests/worktrees/pi-extensions-01450151/candidate-promote-pi-model-selection-top-level), controller-reviewed and applied with validation.
+Validation:
+- npm run -s release:components:check
+- node --test ./scripts/release-components.test.mjs
+- npm run -s release:contracts:validate
+- cd packages/pi-model-selection && npm run check && npm run release:check:quick
+- cd packages/pi-prompt-template-execution && npm run check && npm run release:check:quick
+- cd packages/pi-session-compaction && npm run check && npm run release:check:quick
+- docs-list strict for packages/pi-model-selection, pi-prompt-template-execution, pi-session-compaction, and repo root
+Notes: no npm publish/tag/push performed; existing remote tag pi-model-selection-v0.1.0 predates this move and should be treated as stale before OIDC proof.
