@@ -369,6 +369,11 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - All other request env keys, including `PATH`, `NODE_OPTIONS`, and `PI_CODING_AGENT_DIR`, fail before spawn as structured `env_policy_failed` results; there is no privileged passthrough escape hatch.
 - Allowed request env values reach the spawned helper/child process but are not echoed in result details.
 
+**Child skill profile policy:**
+- `DispatchSubagentRequest.skillProfile` resolves a named profile through the ai-society skill registry, starts the child with `--no-skills`, and passes a temporary materialized `--skill <dir>`.
+- Raw `skills[]` path requests are reserved and rejected fail-closed; use named profiles rather than caller-supplied paths.
+- ASC reports `skillProfile`, `loadedSkills`, `librarySkills`, `skillWarnings`, and `skillRegistry` in result/update details, but does not install, promote, or mutate skill-library sources.
+
 **Session storage:**
 - `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)
 - `PI_SUBAGENT_CLEAR_ON_SESSION_START` — set to `true` to clear `*.json` subagent sessions on `session_start` (default: off / non-destructive)
@@ -383,7 +388,8 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - Unless `PI_SUBAGENT_MODEL` overrides it, subagents inherit the current session model when Pi exposes one; the fixed fallback `openai-codex/gpt-5.4` is only used when no current model is available.
 - When that requested model points at a numeric-suffix provider alias supplied by an extension (for example `openai-codex-2` from multi-pass), ASC preserves that exact requested/effective model and auto-loads `pi-multi-pass` into the child runtime.
 - `dispatch_subagent` also accepts `extensions: ["vault-client", "/abs/path/to/ext.ts", ...]` so a subagent can opt into specific extension-provided tools without inheriting the full parent extension surface.
-- Result details now expose both the selected model (`requestedModel` / `effectiveModel`) and the explicit child bootstrap set (`loadedExtensions`, `extensionWarnings`).
+- `dispatch_subagent` accepts `skillProfile: "minimal" | "ak" | "governance" | "dspx-skill-authoring"` when the child should load an allowlisted skill profile without inheriting all parent skills.
+- Result details now expose both the selected model (`requestedModel` / `effectiveModel`) and explicit child bootstrap metadata (`loadedExtensions`, `extensionWarnings`, `skillProfile`, `loadedSkills`, `librarySkills`, `skillWarnings`, `skillRegistry`).
 - Subagent transport now runs through a package-local assistant-only JSON filter helper, so large aggregate Pi events (`agent_end`, `turn_end`, `tool_execution_end`) are dropped before ASC parses the stream.
 - ASC now treats the helper protocol as authoritative: raw Pi JSON events on the parent seam fail closed instead of being accepted as a compatibility fallback.
 - Parent-side execution timeouts now arm only after the helper emits its `transport_ready` handshake, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget.

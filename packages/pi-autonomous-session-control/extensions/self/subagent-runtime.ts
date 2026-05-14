@@ -429,6 +429,29 @@ export async function executeDispatchSubagentRequest(options: {
     ctx: options.ctx,
   });
 
+  if (extensionSelection.missingRequired.length > 0) {
+    executionSlot.release();
+    return {
+      ok: false,
+      text: [
+        "Subagent child runtime is missing required extension bootstrap.",
+        ...extensionSelection.missingRequired.map((item) => `- ${item}`),
+      ].join("\n"),
+      details: {
+        profile: profile as DispatchSubagentProfile,
+        objective: safeObjective,
+        requestedModel: selectedModel.requestedModel,
+        effectiveModel: selectedModel.effectiveModel,
+        modelSelectionSource: selectedModel.source,
+        modelSelectionWarning: selectedModel.warning,
+        loadedExtensions: extensionSelection.extensions,
+        extensionWarnings: extensionSelection.warnings,
+        status: "error",
+        failureKind: "extension_bootstrap_missing",
+      },
+    };
+  }
+
   let skillSelection: Awaited<ReturnType<typeof resolveSubagentSkillSelection>>;
   try {
     skillSelection = await resolveSubagentSkillSelection({
@@ -458,28 +481,6 @@ export async function executeDispatchSubagentRequest(options: {
     };
   }
 
-  if (extensionSelection.missingRequired.length > 0) {
-    executionSlot.release();
-    return {
-      ok: false,
-      text: [
-        "Subagent child runtime is missing required extension bootstrap.",
-        ...extensionSelection.missingRequired.map((item) => `- ${item}`),
-      ].join("\n"),
-      details: {
-        profile: profile as DispatchSubagentProfile,
-        objective: safeObjective,
-        requestedModel: selectedModel.requestedModel,
-        effectiveModel: selectedModel.effectiveModel,
-        modelSelectionSource: selectedModel.source,
-        modelSelectionWarning: selectedModel.warning,
-        loadedExtensions: extensionSelection.extensions,
-        extensionWarnings: extensionSelection.warnings,
-        status: "error",
-        failureKind: "extension_bootstrap_missing",
-      },
-    };
-  }
   let sessionReservation:
     | {
         sessionName: string;
@@ -567,6 +568,7 @@ export async function executeDispatchSubagentRequest(options: {
       status: "error",
     };
   } finally {
+    await skillSelection.cleanup?.().catch(() => undefined);
     sessionReservation?.release();
     executionSlot.release();
   }

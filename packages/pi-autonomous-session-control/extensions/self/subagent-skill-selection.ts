@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { SessionScopedContext } from "./session-context.ts";
@@ -32,6 +32,7 @@ export interface ResolvedSubagentSkillSelection {
   librarySkills: string[];
   skillWarnings: string[];
   skillRegistry?: string;
+  cleanup?: () => Promise<void>;
 }
 
 export interface SubagentSkillSelectionOptions {
@@ -91,36 +92,46 @@ export async function resolveSubagentSkillSelection(
   }
 
   const registry = await readSkillRegistry(registryPath);
+  const knownProfiles = getKnownSkillProfiles(registry);
+  if (!knownProfiles.has(profile)) {
+    throw new SubagentSkillSelectionError(
+      `Unknown skillProfile: ${profile}. Available profiles: ${[...knownProfiles].sort().join(", ") || "none"}.`,
+    );
+  }
+
   const libraryRoot = await resolveLibraryRoot(registryPath, registry);
   const byName = new Map((registry.skills ?? []).map((entry) => [entry.name, entry]));
   const visibleSkills = selectVisibleSkills(profile, registry);
   if (visibleSkills.length === 0) {
-    throw new SubagentSkillSelectionError(
-      `Unknown or empty skillProfile: ${profile}. Available profiles are inferred from registry profile_fit values.`,
-    );
+    throw new SubagentSkillSelectionError(`skillProfile=${profile} resolved no visible skills.`);
   }
 
   const librarySkills = DEFAULT_PROFILE_LIBRARY_SKILLS[profile] ?? [];
   const selected = [...new Set([...visibleSkills, ...librarySkills])];
   const outDir = await mkdtemp(join(tmpdir(), `asc-skill-profile-${profile}-`));
 
-  for (const name of selected) {
-    const entry = byName.get(name);
-    if (!entry) {
-      throw new SubagentSkillSelectionError(
-        `skillProfile=${profile} references missing registry skill: ${name}.`,
-      );
+  try {
+    for (const name of selected) {
+      const entry = byName.get(name);
+      if (!entry) {
+        throw new SubagentSkillSelectionError(
+          `skillProfile=${profile} references missing registry skill: ${name}.`,
+        );
+      }
+      const sourcePath = await resolveRegistrySkillPath(libraryRoot, entry.path);
+      await assertPathWithinRoot(sourcePath, libraryRoot, name);
+      const text = await readFile(sourcePath, "utf8");
+      const visible = visibleSkills.includes(name);
+      const materializedText = visible
+        ? removeDisableModelInvocation(text)
+        : ensureDisableModelInvocation(text);
+      const destination = join(outDir, name, "SKILL.md");
+      await mkdir(dirname(destination), { recursive: true });
+      await writeFile(destination, materializedText, "utf8");
     }
-    const sourcePath = await resolveRegistrySkillPath(libraryRoot, entry.path);
-    await assertPathWithinRoot(sourcePath, libraryRoot, name);
-    const text = await readFile(sourcePath, "utf8");
-    const visible = visibleSkills.includes(name);
-    const materializedText = visible
-      ? removeDisableModelInvocation(text)
-      : ensureDisableModelInvocation(text);
-    const destination = join(outDir, name, "SKILL.md");
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, materializedText, "utf8");
+  } catch (error) {
+    await rm(outDir, { recursive: true, force: true });
+    throw error;
   }
 
   return {
@@ -131,6 +142,7 @@ export async function resolveSubagentSkillSelection(
     librarySkills,
     skillWarnings: [],
     skillRegistry: registryPath,
+    cleanup: () => rm(outDir, { recursive: true, force: true }),
   };
 }
 
@@ -183,6 +195,19 @@ async function resolveLibraryRoot(
       : resolve(dirname(registryPath), declared)
     : resolve(dirname(registryPath), "../..");
   return realpath(candidate);
+}
+
+function getKnownSkillProfiles(registry: SkillRegistryPayload): Set<string> {
+  const profiles = new Set<string>(["minimal"]);
+  for (const entry of registry.skills ?? []) {
+    for (const profile of entry.profile_fit ?? []) {
+      const normalized = profile.trim();
+      if (normalized.length > 0) {
+        profiles.add(normalized);
+      }
+    }
+  }
+  return profiles;
 }
 
 function selectVisibleSkills(profile: string, registry: SkillRegistryPayload): string[] {

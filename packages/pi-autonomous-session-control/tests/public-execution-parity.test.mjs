@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -43,6 +43,50 @@ function createDeferred() {
     resolve = innerResolve;
   });
   return { promise, resolve };
+}
+
+async function createSkillRegistryFixture() {
+  const root = await mkdtemp(join(tmpdir(), "asc-public-skill-registry-"));
+  const libraryRoot = join(root, "skills");
+  const skillDir = join(libraryRoot, "skill-librarian");
+  await mkdir(skillDir, { recursive: true });
+  await writeFile(
+    join(skillDir, "SKILL.md"),
+    [
+      "---",
+      "name: skill-librarian",
+      "description: Test skill librarian",
+      "disable-model-invocation: true",
+      "---",
+      "",
+      "# skill-librarian",
+      "",
+    ].join("\n"),
+  );
+  const registryPath = join(root, "skills-registry.json");
+  await writeFile(
+    registryPath,
+    `${JSON.stringify(
+      {
+        schema_version: "ai-society-skill-registry-v1-test",
+        library_root: libraryRoot,
+        skills: [
+          {
+            name: "skill-librarian",
+            path: join(skillDir, "SKILL.md"),
+            profile_fit: ["minimal"],
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  return {
+    registryPath,
+    cleanup: () => rm(root, { recursive: true, force: true }),
+  };
 }
 
 async function withEnv(overrides, fn) {
@@ -200,6 +244,38 @@ test("public runtime parity: prompt envelope, updates, and result shaping match 
     assert.match(runtimeResult.text, /^✓ \[custom\] done in 1s/);
   } finally {
     await harness.cleanup();
+  }
+});
+
+test("public runtime parity: skillProfile metadata and noSkills spawn shaping match dispatch_subagent", async () => {
+  const fixture = await createSkillRegistryFixture();
+  const harness = await createParityHarness();
+
+  try {
+    await withEnv({ ASC_SKILL_REGISTRY_PATH: fixture.registryPath }, async () => {
+      const request = {
+        profile: "reviewer",
+        objective: "Review skill profile parity",
+        skillProfile: "minimal",
+      };
+
+      const runtimeResult = await executeRuntime(harness, request);
+      const toolResult = await executeTool(harness, request, "tc-parity-skill-profile");
+
+      assert.deepEqual(toolResult, runtimeResult);
+      assert.deepEqual(harness.toolUpdates, harness.runtimeUpdates);
+      assert.equal(runtimeResult.details.skillProfile, "minimal");
+      assert.deepEqual(runtimeResult.details.loadedSkills, ["skill-librarian"]);
+      assert.deepEqual(runtimeResult.details.librarySkills, []);
+      assert.equal(runtimeResult.details.skillRegistry, fixture.registryPath);
+      assert.equal(harness.runtimeDefs[0].noSkills, true);
+      assert.equal(harness.toolDefs[0].noSkills, true);
+      assert.equal(harness.runtimeDefs[0].skillSources.length, 1);
+      assert.equal(harness.toolDefs[0].skillSources.length, 1);
+    });
+  } finally {
+    await harness.cleanup();
+    await fixture.cleanup();
   }
 });
 

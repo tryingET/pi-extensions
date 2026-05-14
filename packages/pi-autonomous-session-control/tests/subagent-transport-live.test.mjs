@@ -104,6 +104,52 @@ test("end-to-end: helper enforces raw pi line size even when the newline arrives
   );
 });
 
+test("end-to-end: helper forwards noSkills and skillSources to raw pi args", async () => {
+  await withFakePiOnPath(
+    [
+      "#!/usr/bin/env node",
+      "console.log(JSON.stringify({",
+      '  type: "message_end",',
+      "  message: {",
+      '    role: "assistant",',
+      '    content: [{ type: "text", text: JSON.stringify(process.argv.slice(2)) }],',
+      '    stopReason: "stop",',
+      "  },",
+      "}));",
+      "",
+    ].join("\n"),
+    async (tempRoot) => {
+      const state = createSubagentState(join(tempRoot, "sessions"));
+      const skillSource = join(tempRoot, "skills");
+      await mkdir(skillSource, { recursive: true });
+
+      const result = await spawnSubagentWithSpawn(
+        {
+          name: "skill-args",
+          objective: "Review changes",
+          tools: "read,bash",
+          sessionFile: join(state.sessionsDir, "skill-args.json"),
+          noSkills: true,
+          skillSources: [skillSource],
+        },
+        "test/model",
+        { cwd: tempRoot },
+        state,
+      );
+
+      const args = JSON.parse(result.output);
+      const noSkillsIndex = args.indexOf("--no-skills");
+      const skillIndex = args.indexOf("--skill");
+
+      assert.equal(result.status, "done");
+      assert.notEqual(noSkillsIndex, -1);
+      assert.notEqual(args[noSkillsIndex + 1], "true");
+      assert.notEqual(skillIndex, -1);
+      assert.equal(args[skillIndex + 1], skillSource);
+    },
+  );
+});
+
 test("end-to-end: raw pi buffering no longer inherits the filtered protocol buffer env", async () => {
   const oversizedRawPiLine = JSON.stringify({
     type: "message_end",

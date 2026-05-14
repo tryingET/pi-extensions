@@ -295,6 +295,7 @@ test("execution entrypoint stays headless-importable without package-local node_
     "extensions/self/subagent-runtime.ts",
     "extensions/self/subagent-session-name.ts",
     "extensions/self/subagent-session.ts",
+    "extensions/self/subagent-skill-selection.ts",
     "extensions/self/subagent-spawn.ts",
   ];
 
