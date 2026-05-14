@@ -1,0 +1,20 @@
+Canonicalized legacy pi-evalset-lab into the pi-extensions monorepo using the pi-extensions-template.
+
+Task: AK #2934
+Candidate peer: candidatepeer-mp4z46fd-f8694ee0; candidate branch candidate/migrate-pi-evalset-lab; controller amended prompt frontmatter and cherry-picked as d9f1d925.
+Source legacy repo: /home/tryinget/programming/pi-extensions/pi-evalset-lab
+Canonical package: packages/pi-evalset-lab
+Template: /home/tryinget/ai-society/softwareco/owned/pi-extensions-template via copier simple-package; .copier-answers.yml retained.
+
+Validation:
+- npm run -s release:components:check
+- node --test ./scripts/release-components.test.mjs
+- npm run -s release:contracts:validate (24 publishable packages)
+- cd packages/pi-evalset-lab && npm install --ignore-scripts && npm run check && npm run release:check:quick && npm run evalset:export-html -- --help
+- docs-list strict for packages/pi-evalset-lab, docs/project, and repo root
+- legacy-package-deprecation.sh inspect/render-handoff dry-run; session relocation recommended skip-no-history
+
+Notes:
+- Legacy repo was not archived, deleted, or mutated.
+- @tryinget/pi-evalset-lab is not yet published; release check reports expected npm 404 for first scoped publish.
+- Legacy unscoped pi-evalset-lab@0.2.0 remains separately published on npm.
