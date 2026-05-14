@@ -1,0 +1,20 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: Land cell-01 live export observability for matrix endurance campaign #2921.
+files:
+  - packages/pi-autoresearch/src/core/runtime.ts
+  - packages/pi-autoresearch/tests/runtime.test.ts
+validation:
+  fast_gate:
+    command: npm run quality:pre-commit
+    status: pass
+  full_gate:
+    command: npm --prefix packages/pi-autoresearch run check
+    status: pass
+group:
+  index: 1
+  total: 1
+  rationale: Candidate B selected for smaller read-only dashboard artifact discovery; controller fixed posture precedence and validated package check.
+links:
+  task_ids:
+    - 2921
