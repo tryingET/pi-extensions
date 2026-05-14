@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -614,13 +614,16 @@ test("visible-loop child queues follow-up prompts and starts next iteration only
     await agentStart({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 900));
 
-    assert.equal(userMessages.length, 7);
+    assert.equal(userMessages.length, 8);
     assert.equal(userMessages[1].message, "proceed");
     assert.equal(userMessages[4].message, "/deep-review");
     assert.match(userMessages[6].message, /Prompt Vault/);
+    assert.match(userMessages[7].message, /^VISIBLE-LOOP INTERNAL COMPLETION SENTINEL\./);
+    assert.match(userMessages[7].message, /PEER_FINAL peer_run_id=/);
+    assert.match(userMessages[7].message, /\/visible-loop-child-complete /);
     assert.deepEqual(
       userMessages.slice(1).map((entry) => entry.options),
-      Array(6).fill({ deliverAs: "followUp" }),
+      Array(7).fill({ deliverAs: "followUp" }),
     );
 
     const agentEnd = events.get("agent_end")[0];
@@ -630,21 +633,118 @@ test("visible-loop child queues follow-up prompts and starts next iteration only
     await new Promise((resolve) => setTimeout(resolve, 80));
     assert.equal(
       userMessages.length,
-      7,
+      8,
       "next iteration should not queue before final prompt ends",
     );
 
     await agentEnd({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
-    assert.equal(userMessages.length, 8);
-    assert.equal(userMessages[7].options, undefined);
+    assert.equal(userMessages.length, 9);
+    assert.equal(userMessages[8].options, undefined);
 
     await agentStart({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 900));
-    assert.equal(userMessages.length, 14);
+    assert.equal(userMessages.length, 16);
     assert.deepEqual(
-      userMessages.slice(8).map((entry) => entry.options),
-      Array(6).fill({ deliverAs: "followUp" }),
+      userMessages.slice(9).map((entry) => entry.options),
+      Array(7).fill({ deliverAs: "followUp" }),
+    );
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop completion sentinel finalizes when agent_end events are absent", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-sentinel-state-`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands, events, userMessages } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("visible-loop").handler("--count 1 --manual", harness.ctx);
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    const configPath = extractPiArgs(ghosttyCall.args)
+      .at(-1)
+      .replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    const agentStart = events.get("agent_start")[0];
+    await agentStart({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+
+    const completionMessage = userMessages.at(-1).message;
+    assert.match(completionMessage, /^VISIBLE-LOOP INTERNAL COMPLETION SENTINEL\./);
+    assert.match(
+      completionMessage,
+      new RegExp(
+        `PEER_FINAL peer_run_id=${config.runId}: visible-loop complete after 1/1 iteration\\(s\\)`,
+      ),
+    );
+    const fallbackCommand = completionMessage.match(
+      /\/visible-loop-child-complete\s+([^\n]+)/,
+    )?.[1];
+    assert.ok(fallbackCommand);
+    await commands.get("visible-loop-child-complete").handler(fallbackCommand, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    const statusEntries = readFileSync(statusPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(
+      statusEntries.some(
+        (entry) => entry.event === "iteration_completed" && entry.source === "completion_sentinel",
+      ),
+    );
+    assert.ok(
+      statusEntries.some(
+        (entry) => entry.event === "loop_completed" && entry.source === "completion_sentinel",
+      ),
+    );
+    assert.equal(
+      existsSync(
+        `${stateHome}/pi-little-helpers/visible-loop/active/session-019e10d2-15f5-705a-aea4-01ba49d2bbac.json`,
+      ),
+      false,
+    );
+
+    await commands.get("visible-loop-child-complete").handler(fallbackCommand, harness.ctx);
+    const afterDuplicateEntries = readFileSync(statusPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(
+      afterDuplicateEntries.some(
+        (entry) =>
+          entry.event === "completion_ignored" &&
+          entry.source === "completion_sentinel" &&
+          entry.reason === "loop already completed",
+      ),
     );
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
@@ -1197,6 +1297,73 @@ function withTempDir(fn) {
     .then(() => fn(dir))
     .finally(() => rmSync(dir, { recursive: true, force: true }));
 }
+
+test("candidate_peer_spawn staggers concurrent Ghostty launches", async () => {
+  await withTempDir(async (stateHome) => {
+    const baseExecStub = createCandidatePeerExecStub();
+    const launchTimes = [];
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        PI_SIDEQUEST_LAUNCH_STAGGER_MS: "30",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec(command, args, options) {
+        if (command === "/usr/bin/ghostty" && args[0] === "+new-tab") {
+          launchTimes.push(Date.now());
+        }
+        return baseExecStub.exec(command, args, options);
+      },
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension);
+    const candidatePeerSpawn = tools.get("candidate_peer_spawn");
+    const context = createContext({ cwd: "/repo" }).ctx;
+
+    const [first, second] = await Promise.all([
+      candidatePeerSpawn.execute(
+        "tool-call-1",
+        {
+          objective: "try candidate one",
+          cwd: "/repo",
+          parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+          branchName: "candidatepeer/stagger-one",
+          workspaceName: "stagger-one",
+        },
+        undefined,
+        undefined,
+        context,
+      ),
+      candidatePeerSpawn.execute(
+        "tool-call-2",
+        {
+          objective: "try candidate two",
+          cwd: "/repo",
+          parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+          branchName: "candidatepeer/stagger-two",
+          workspaceName: "stagger-two",
+        },
+        undefined,
+        undefined,
+        context,
+      ),
+    ]);
+
+    assert.equal(first.details.ok, true);
+    assert.equal(second.details.ok, true);
+    assert.equal(launchTimes.length, 2);
+    assert.ok(
+      launchTimes[1] - launchTimes[0] >= 20,
+      `expected staggered launches, got ${launchTimes.join(", ")}`,
+    );
+  });
+});
 
 test("/parallelquest launches a human candidate peer worktree", async () => {
   await withTempDir(async (stateHome) => {

@@ -16,8 +16,10 @@ import {
   handleVisibleLoopAgentStart,
   parseVisibleLoopCommandArgs,
   resolveParentPeerTarget,
+  startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
   VISIBLE_LOOP_CHILD_COMMAND,
+  VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
   VISIBLE_LOOP_COMMAND,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
@@ -31,6 +33,7 @@ const [FORK_PEER_SPAWN_TOOL, SCOUT_PEER_SPAWN_TOOL, CANDIDATE_PEER_SPAWN_TOOL] =
 const DEFAULT_PI_BIN = process.env.PI_SIDEQUEST_PI_BIN || "pi";
 const GHOSTTY_PROBE_TIMEOUT_MS = 4000;
 const GHOSTTY_LAUNCH_TIMEOUT_MS = 15000;
+const DEFAULT_PEER_LAUNCH_STAGGER_MS = 1000;
 const TITLE_MAX_LEN = 48;
 const GHOSTTY_BIN_NAME = "ghostty";
 const LOCAL_GHOSTTY_WRAPPER = join(homedir(), ".local", "bin", "ghostty-sidequest");
@@ -502,6 +505,54 @@ function normalizeExecResult(result: ExecResult): LaunchResult {
   };
 }
 
+let peerLaunchStaggerTail: Promise<void> = Promise.resolve();
+let lastPeerLaunchStartedAt = 0;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+function resolvePeerLaunchStaggerMs({
+  env,
+  hasCustomExec,
+}: {
+  env: NodeJS.ProcessEnv;
+  hasCustomExec: boolean;
+}): number {
+  const raw = env.PI_SIDEQUEST_LAUNCH_STAGGER_MS?.trim();
+  if (raw) {
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+
+  // Unit tests and dry harnesses usually provide a custom exec stub. Keep them fast unless
+  // they explicitly opt into exercising the stagger behavior.
+  return hasCustomExec ? 0 : DEFAULT_PEER_LAUNCH_STAGGER_MS;
+}
+
+async function waitForPeerLaunchStagger(options: {
+  env: NodeJS.ProcessEnv;
+  hasCustomExec: boolean;
+}): Promise<number> {
+  const staggerMs = resolvePeerLaunchStaggerMs(options);
+  if (staggerMs <= 0) return 0;
+
+  const previous = peerLaunchStaggerTail.catch(() => undefined);
+  let waitedMs = 0;
+  const next = previous.then(async () => {
+    const elapsedMs =
+      lastPeerLaunchStartedAt > 0 ? Date.now() - lastPeerLaunchStartedAt : staggerMs;
+    waitedMs = Math.max(0, staggerMs - elapsedMs);
+    if (waitedMs > 0) {
+      await sleep(waitedMs);
+    }
+    lastPeerLaunchStartedAt = Date.now();
+  });
+  peerLaunchStaggerTail = next;
+  await next;
+  return waitedMs;
+}
+
 async function runGhosttyLaunch(
   execRunner: ExecRunner,
   ghosttyBin: string,
@@ -604,6 +655,7 @@ async function launchPiQuestSession({
     ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
     : [piBin, ...modelArgs, prompt];
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
+  await waitForPeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
   let launchResult = await runGhosttyLaunch(
     execRunner,
     ghosttyBin,
@@ -1985,6 +2037,12 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         description: "Internal helper for visible-loop launched child sessions",
         handler: (args, ctx) =>
           startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env),
+      });
+
+      pi.registerCommand(VISIBLE_LOOP_CHILD_COMPLETE_COMMAND, {
+        description: "Internal completion sentinel for visible-loop launched child sessions",
+        handler: (args, ctx) =>
+          startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env),
       });
     }
 
