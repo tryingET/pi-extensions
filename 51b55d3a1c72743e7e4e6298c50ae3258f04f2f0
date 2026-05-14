@@ -1,0 +1,12 @@
+Deleted the former /home/tryinget/programming/pi-extensions workspace at operator request and updated canonical pi-extensions documentation to remove stale archive-path claims.
+
+Task: AK #2951
+Commit: 51b55d3a
+Actions:
+- rm -rf /home/tryinget/programming/pi-extensions
+- Updated docs/project/legacy-transition-backlog.md to state the parent workspace is gone and no local archive recovery path remains.
+- Updated packages/pi-evalset-lab README/CHANGELOG/next_session_prompt/docs/project/legacy-canonicalization.md to remove stale archive references.
+Validation:
+- test ! -e /home/tryinget/programming/pi-extensions
+- docs-list strict for packages/pi-evalset-lab
+- docs-list strict for docs/project
