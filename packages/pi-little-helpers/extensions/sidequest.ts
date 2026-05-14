@@ -241,6 +241,17 @@ const scoutPeerSpawnParameters = asPiToolParameters(
   }),
 );
 
+const visibleLoopChildCompleteToolParameters = asPiToolParameters(
+  Type.Object({
+    configPath: Type.String({
+      description: "Exact visible-loop config path from the internal completion sentinel.",
+    }),
+    iteration: Type.Number({
+      description: "The visible-loop iteration that just completed.",
+    }),
+  }),
+);
+
 const candidatePeerSpawnParameters = asPiToolParameters(
   Type.Object({
     objective: Type.String({ description: "Required non-empty candidate mutation objective." }),
@@ -2055,6 +2066,35 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     });
 
     if (!registerTools) return;
+
+    if (registerCommands) {
+      pi.registerTool({
+        name: "visible_loop_child_complete",
+        label: "Visible Loop Child Complete",
+        description:
+          "Internal tool for visible-loop child sessions to mark an iteration complete. Use only when an internal visible-loop completion sentinel asks for it; do not call from ordinary work.",
+        promptSnippet:
+          "Internal visible-loop completion tool. Use only when a VISIBLE-LOOP INTERNAL COMPLETION SENTINEL prompt tells you to call visible_loop_child_complete with its configPath and iteration.",
+        parameters: visibleLoopChildCompleteToolParameters,
+        execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
+          const request = params as { configPath?: string; iteration?: number };
+          const configPath = typeof request.configPath === "string" ? request.configPath : "";
+          const iteration = Number(request.iteration);
+          await startVisibleLoopChildCompleteRunner(
+            `${configPath} --iteration ${iteration}`,
+            pi,
+            ctx,
+            options.env ?? process.env,
+          );
+          return successToolResult("visible-loop completion request processed", {
+            ok: Boolean(configPath && Number.isInteger(iteration) && iteration > 0),
+            configPath,
+            iteration,
+            note: "status sidecar/intercom contain diagnostic outcome",
+          });
+        },
+      });
+    }
 
     pi.registerTool({
       name: FORK_PEER_SPAWN_TOOL,

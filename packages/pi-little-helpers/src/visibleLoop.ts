@@ -613,13 +613,17 @@ function buildVisibleLoopCompletionPrompt(
     "Do not continue implementation work from this sentinel.",
     isFinalIteration
       ? "Report final completion to the parent/controller now."
-      : "Report iteration progress to the parent/controller now, then run the local completion command so the next iteration can queue.",
+      : "Report iteration progress to the parent/controller now, then call the visible_loop_child_complete tool so the next iteration can queue.",
     "Use the intercom tool if available with this exact canonical message:",
     isFinalIteration ? finalMessage : progressMessage,
     isFinalIteration
       ? "The PEER_FINAL line must include `peer_run_id=` exactly as shown so peer_watch can recognize it."
       : "Do not send PEER_FINAL for a non-final iteration.",
-    `Then run this local completion command or report it visibly if command execution is unavailable: ${fallbackCommand}`,
+    "Then call the model tool `visible_loop_child_complete` with:",
+    `configPath: ${state.configPath}`,
+    `iteration: ${iteration}`,
+    "Do not run `/visible-loop-child-complete` in bash; it is not a shell executable.",
+    `If the tool is unavailable in this session, report that visibly and include this Pi slash-command fallback for the human/operator only: ${fallbackCommand}`,
   ].join("\n");
 }
 

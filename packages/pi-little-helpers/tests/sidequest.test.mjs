@@ -621,6 +621,8 @@ test("visible-loop child queues follow-up prompts and starts next iteration only
     assert.match(userMessages[7].message, /^VISIBLE-LOOP INTERNAL COMPLETION SENTINEL\./);
     assert.match(userMessages[7].message, /VISIBLE_LOOP_ITERATION peer_run_id=/);
     assert.doesNotMatch(userMessages[7].message, /PEER_FINAL peer_run_id=/);
+    assert.match(userMessages[7].message, /visible_loop_child_complete/);
+    assert.match(userMessages[7].message, /Do not run `\/visible-loop-child-complete` in bash/);
     assert.match(userMessages[7].message, /\/visible-loop-child-complete /);
     assert.deepEqual(
       userMessages.slice(1).map((entry) => entry.options),
@@ -704,6 +706,8 @@ test("visible-loop completion sentinel finalizes when agent_end events are absen
 
     const completionMessage = userMessages.at(-1).message;
     assert.match(completionMessage, /^VISIBLE-LOOP INTERNAL COMPLETION SENTINEL\./);
+    assert.match(completionMessage, /visible_loop_child_complete/);
+    assert.match(completionMessage, /Do not run `\/visible-loop-child-complete` in bash/);
     assert.match(
       completionMessage,
       new RegExp(
