@@ -18,6 +18,7 @@ const controlledEnvNames = [
   "PI_AUTORESEARCH_GOAL_LEDGER_DOGFOOD_ROOT",
   "PI_AUTORESEARCH_LONG_CAMPAIGN_DOGFOOD_ROOT",
   "PI_AUTORESEARCH_RESUME_UI_DOGFOOD_CWD",
+  "PI_AUTORESEARCH_SELF_HOSTING_DOGFOOD_ROOT",
 ];
 
 const contracts = [
@@ -88,6 +89,18 @@ const contracts = [
       {
         envName: "PI_AUTORESEARCH_GOAL_LEDGER_DOGFOOD_ROOT",
         prefix: "autoresearch-suite-goal-ledger-",
+        kind: "directory",
+      },
+    ],
+  },
+  {
+    id: "self-hosting-endurance-contract",
+    script: "scripts/dogfood-self-hosting-endurance-contract.mjs",
+    metricName: "unresolved_self_hosting_safety_blockers",
+    tempPaths: [
+      {
+        envName: "PI_AUTORESEARCH_SELF_HOSTING_DOGFOOD_ROOT",
+        prefix: "autoresearch-suite-self-hosting-",
         kind: "directory",
       },
     ],
