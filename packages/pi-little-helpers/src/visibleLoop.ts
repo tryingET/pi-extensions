@@ -7,6 +7,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 export const VISIBLE_LOOP_COMMAND = "visible-loop";
 export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
+export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete";
 
 const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
@@ -549,20 +550,22 @@ function queueVisibleLoopIteration(
       event: "iteration_queued",
       iteration,
       promptCount: prompts.length,
-      completionSentinel: true,
+      completionCommand: true,
     },
     env,
   );
   state.followupsQueuedForIteration = null;
   persistActiveVisibleLoopState(state, ctx, env);
   state.sendUserMessage(prompts[0]);
+  const queuedCompletedIterations = state.completedIterations;
   setTimeout(() => {
     if (
       activeVisibleLoop === state &&
       !state.stopped &&
-      state.followupsQueuedForIteration !== state.completedIterations
+      state.completedIterations === queuedCompletedIterations &&
+      state.followupsQueuedForIteration !== queuedCompletedIterations
     ) {
-      state.followupsQueuedForIteration = state.completedIterations;
+      state.followupsQueuedForIteration = queuedCompletedIterations;
       persistActiveVisibleLoopState(state, ctx, env);
       queueVisibleLoopFollowups(state, ctx, env);
     }
@@ -576,15 +579,14 @@ function queueVisibleLoopFollowups(
 ): void {
   const prompts = state.config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
   const iteration = state.completedIterations + 1;
-  const completionPrompt = buildVisibleLoopCompletionPrompt(state, iteration);
-  const followups = [...prompts.slice(1), completionPrompt];
+  const followups = prompts.slice(1);
   appendVisibleLoopStatus(
     state.config,
     {
       event: "followups_queued",
       iteration,
       promptFollowupCount: Math.max(0, prompts.length - 1),
-      completionSentinel: true,
+      completionCommand: false,
     },
     env,
   );
@@ -596,38 +598,11 @@ function queueVisibleLoopFollowups(
   });
 }
 
-function buildVisibleLoopCompletionPrompt(
-  state: ActiveVisibleLoopState,
-  iteration: number,
-): string {
-  const isFinalIteration = iteration >= state.config.loopCount;
-  const progressMessage = `VISIBLE_LOOP_ITERATION peer_run_id=${state.config.runId}: completed iteration ${iteration}/${state.config.loopCount}`;
-  const finalMessage = `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${iteration}/${state.config.loopCount} iteration(s)`;
-  return [
-    "VISIBLE-LOOP INTERNAL COMPLETION SENTINEL.",
-    `The requested visible-loop prompt sequence has reached iteration ${iteration}/${state.config.loopCount}.`,
-    "Do not continue implementation work from this sentinel.",
-    isFinalIteration
-      ? "Report final completion to the parent/controller now."
-      : "Report iteration progress to the parent/controller now, then call the visible_loop_child_complete tool so the next iteration can queue.",
-    "Use the intercom tool if available with this exact canonical message:",
-    isFinalIteration ? finalMessage : progressMessage,
-    isFinalIteration
-      ? "The PEER_FINAL line must include `peer_run_id=` exactly as shown so peer_watch can recognize it."
-      : "Do not send PEER_FINAL for a non-final iteration.",
-    "Then call the model tool `visible_loop_child_complete` with:",
-    `configPath: ${state.configPath}`,
-    `iteration: ${iteration}`,
-    "Do not run a slash command or shell command for completion; this is an internal tool-only step.",
-    "If the tool is unavailable in this session, report that visibly to the parent/controller instead of attempting a shell fallback.",
-  ].join("\n");
-}
-
 function completeVisibleLoopIteration(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv,
-  source: "agent_end" | "completion_sentinel",
+  source: "agent_end" | "completion_command",
   expectedIteration?: number,
 ): void {
   if (state.stopped) {
@@ -747,7 +722,7 @@ function recreateActiveVisibleLoopState(
     config,
     {
       event: "active_state_recreated",
-      reason: "completion_sentinel_without_active_state",
+      reason: "completion_command_without_active_state",
       sessionKey: getVisibleLoopSessionKey(ctx) ?? null,
     },
     env,
@@ -871,20 +846,43 @@ export async function startVisibleLoopChildCompleteRunner(
     return;
   }
 
+  const existingState = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env);
+  if (!parsed.configPath) {
+    if (!existingState) {
+      ctx.ui?.notify?.(
+        "visible-loop completion ignored: missing config path and no active visible-loop state",
+        "warning",
+      );
+      return;
+    }
+    completeVisibleLoopIteration(
+      existingState,
+      ctx,
+      env,
+      "completion_command",
+      parsed.iteration ?? existingState.completedIterations + 1,
+    );
+    return;
+  }
+
   const configResult = loadVisibleLoopRunConfig(parsed.configPath, env);
   if (!configResult.ok) {
     ctx.ui?.notify?.(`visible-loop completion ignored: ${configResult.error}`, "warning");
     return;
   }
 
-  if (!activeVisibleLoop && hasVisibleLoopAlreadyCompleted(configResult.config, env)) {
+  if (
+    !activeVisibleLoop &&
+    !existingState &&
+    hasVisibleLoopAlreadyCompleted(configResult.config, env)
+  ) {
     appendVisibleLoopStatus(
       configResult.config,
       {
         event: "completion_ignored",
-        source: "completion_sentinel",
+        source: "completion_command",
         reason: "loop already completed",
-        iteration: parsed.iteration,
+        iteration: parsed.iteration ?? null,
       },
       env,
     );
@@ -892,17 +890,16 @@ export async function startVisibleLoopChildCompleteRunner(
   }
 
   const state =
-    activeVisibleLoop ??
-    restoreActiveVisibleLoopState(pi, ctx, env) ??
+    existingState ??
     recreateActiveVisibleLoopState(configResult.config, parsed.configPath, pi, ctx, env);
   if (!state) {
     appendVisibleLoopStatus(
       configResult.config,
       {
         event: "completion_ignored",
-        source: "completion_sentinel",
+        source: "completion_command",
         reason: "active state unavailable",
-        iteration: parsed.iteration,
+        iteration: parsed.iteration ?? null,
       },
       env,
     );
@@ -915,11 +912,11 @@ export async function startVisibleLoopChildCompleteRunner(
       configResult.config,
       {
         event: "completion_ignored",
-        source: "completion_sentinel",
+        source: "completion_command",
         reason: "active state runId mismatch",
         activeRunId: state.config.runId,
         requestedRunId: configResult.config.runId,
-        iteration: parsed.iteration,
+        iteration: parsed.iteration ?? null,
       },
       env,
     );
@@ -927,7 +924,13 @@ export async function startVisibleLoopChildCompleteRunner(
     return;
   }
 
-  completeVisibleLoopIteration(state, ctx, env, "completion_sentinel", parsed.iteration);
+  completeVisibleLoopIteration(
+    state,
+    ctx,
+    env,
+    "completion_command",
+    parsed.iteration ?? state.completedIterations + 1,
+  );
 }
 
 function loadVisibleLoopRunConfig(
@@ -1025,13 +1028,12 @@ function parseReportBack(value: string | undefined): VisibleLoopReportBack | und
 
 function parseVisibleLoopCompletionArgs(
   args: string | undefined,
-): { ok: true; configPath: string; iteration: number } | { ok: false; error: string } {
+): { ok: true; configPath?: string; iteration?: number } | { ok: false; error: string } {
   const tokens = tokenizeArgs(args ?? "");
-  const configPath = normalizeOptionalString(tokens[0]);
-  if (!configPath) return { ok: false, error: "missing config path" };
-
+  let configPath: string | undefined;
   let iteration: number | undefined;
-  for (let index = 1; index < tokens.length; index += 1) {
+
+  for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
     if (token === "--iteration") {
       index += 1;
@@ -1044,11 +1046,14 @@ function parseVisibleLoopCompletionArgs(
       if (!iteration) return { ok: false, error: `invalid iteration: ${token}` };
       continue;
     }
+    if (!token?.startsWith("-") && !configPath) {
+      configPath = normalizeOptionalString(token);
+      continue;
+    }
     return { ok: false, error: `unknown argument: ${token ?? ""}` };
   }
 
-  if (!iteration) return { ok: false, error: "missing iteration" };
-  return { ok: true, configPath, iteration };
+  return { ok: true, ...(configPath ? { configPath } : {}), ...(iteration ? { iteration } : {}) };
 }
 
 function normalizeOptionalString(value: unknown): string | undefined {

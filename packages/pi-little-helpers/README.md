@@ -28,7 +28,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `sidequest` | Human slash command to fork the current Pi session into the current Ghostty window as a new tab when supported; otherwise a new Ghostty window |
 | `scoutpeer` | Launch a clean visible read-only scout/review peer in the current workspace |
 | `parallelquest` | Human slash command to launch a clean visible candidate peer in an isolated git worktree |
-| `visible-loop` | Launch one clean visible Ghostty Pi tab that queues the default prompt sequence as follow-ups, appends an internal canonical `PEER_FINAL peer_run_id=...` completion sentinel, and repeats it for a requested iteration count |
+| `visible-loop` | Launch one clean visible Ghostty Pi tab that queues the default prompt sequence as follow-ups, repeats it for a requested iteration count after final-prompt `agent_end`, and emits canonical intercom progress/final messages from persisted loop state |
 | `stash` | Persist and restore stashed editor content across sessions |
 
 ## Visible peer tools
@@ -122,7 +122,7 @@ Then in Pi:
 
 1. run `/reload`
 2. verify `/codeblocks`, `/artifacts`, `/show-artifacts`, `Ctrl+Shift+S`, `/sidequest "test prompt"`, `/scoutpeer "test prompt"`, `/parallelquest "test prompt"`, `/visible-loop --count 1`, `/session-presence`, the `stash` shortcuts/commands, `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, and any `write`/`edit` flow that produces an `.html` file in a real session
-3. verify `/visible-loop --count 1` opens one visible Ghostty Pi tab, queues the default sequence as follow-up prompts, emits `VISIBLE_LOOP_ITERATION` and canonical `PEER_FINAL peer_run_id=...`, and increments completion only after the final fix-bugs prompt finishes; completion is backed by an internal canonical sentinel prompt plus the `visible_loop_child_complete` model tool so parent `peer_watch` does not depend solely on Pi `agent_end` hooks
+3. verify `/visible-loop --count 1` opens one visible Ghostty Pi tab, queues the default sequence as follow-up prompts, emits `VISIBLE_LOOP_ITERATION` and canonical `PEER_FINAL peer_run_id=...`, and increments completion only after the final fix-bugs prompt finishes; do not queue internal completion commands as follow-ups because extension-originated command prompts are intercepted at enqueue time rather than after prior follow-ups finish
 4. for `/sidequest`, `/visible-loop`, and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
 5. if `/sidequest`, `/visible-loop`, or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
 

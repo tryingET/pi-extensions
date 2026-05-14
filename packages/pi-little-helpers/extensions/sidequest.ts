@@ -23,6 +23,7 @@ import {
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
   VISIBLE_LOOP_CHILD_COMMAND,
+  VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
   VISIBLE_LOOP_COMMAND,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
@@ -247,7 +248,7 @@ const scoutPeerSpawnParameters = asPiToolParameters(
 const visibleLoopChildCompleteToolParameters = asPiToolParameters(
   Type.Object({
     configPath: Type.String({
-      description: "Exact visible-loop config path from the internal completion sentinel.",
+      description: "Exact visible-loop config path from the internal completion command/tool.",
     }),
     iteration: Type.Number({
       description: "The visible-loop iteration that just completed.",
@@ -2239,6 +2240,12 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         handler: (args, ctx) =>
           startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env),
       });
+
+      pi.registerCommand(VISIBLE_LOOP_CHILD_COMPLETE_COMMAND, {
+        description: "Internal helper that advances a visible-loop child iteration",
+        handler: (args, ctx) =>
+          startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env),
+      });
     }
 
     pi.on?.("agent_start", async (_event, ctx) => {
@@ -2256,9 +2263,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         name: "visible_loop_child_complete",
         label: "Visible Loop Child Complete",
         description:
-          "Internal tool for visible-loop child sessions to mark an iteration complete. Use only when an internal visible-loop completion sentinel asks for it; do not call from ordinary work.",
+          "Internal fallback tool for visible-loop child sessions to mark an iteration complete. Ordinary visible-loop runs complete from agent_end after the final prompt; do not call from ordinary work.",
         promptSnippet:
-          "Internal visible-loop completion tool. Use only when a VISIBLE-LOOP INTERNAL COMPLETION SENTINEL prompt tells you to call visible_loop_child_complete with its configPath and iteration.",
+          "Internal visible-loop completion fallback tool. Use only when explicitly asked to mark visible-loop completion with configPath and iteration.",
         parameters: visibleLoopChildCompleteToolParameters,
         execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
           const request = params as { configPath?: string; iteration?: number };
