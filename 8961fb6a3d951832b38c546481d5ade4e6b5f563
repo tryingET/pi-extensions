@@ -1,0 +1,30 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8961fb6a3d951832b38c546481d5ade4e6b5f563"
+created_at: "2026-05-14T16:55:35Z"
+intent: "Level-2 checkpointed campaign automation slices 1-2: add packet-only planning schema, anti-narrowing posture, token vocabulary, and candidate-result binding with blocker metrics"
+files:
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+  - "packages/pi-society-orchestrator/README.md"
+validation:
+  fast_gate:
+    command: "git diff --check --cached"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check && npm --prefix packages/pi-little-helpers run check && npm --prefix packages/pi-toolbox-discovery run check"
+    status: "pending"
+group:
+  index: 1
+  total: 5
+  rationale: "Orchestrator implementation slices 1-2 for level-2 campaign automation"
+links:
+  task_ids:
+    - 2976
+    - 2979
+  evidence_ids:
+    - 2012
+    - 2017
