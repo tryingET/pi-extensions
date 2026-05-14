@@ -1060,6 +1060,16 @@ test("autoresearch_live_supervision prepare_matrix_campaign_runner exposes only 
   assert.equal(contract.launchPhase.posture, "ready_to_launch_visible_candidate_peers");
   assert.equal(contract.launchPhase.allowedTool, "candidate_peer_spawn");
   assert.equal(contract.launchPhase.launchCalls.length, 2);
+  assert.equal(
+    contract.launchPhase.visibleCandidateLaneBinding.name,
+    "visible_candidate_lane_binding_blockers",
+  );
+  assert.equal(contract.launchPhase.visibleCandidateLaneBinding.value, 0);
+  assert.equal(contract.launchPhase.visibleCandidateLaneBinding.status, "target_met");
+  assert.equal(contract.launchPhase.visibleCandidateLaneBinding.expectedLaneCount, 2);
+  assert.equal(contract.launchPhase.visibleCandidateLaneBinding.visibleLaunchCallCount, 2);
+  assert.equal(contract.launchPhase.visibleCandidateLaneBinding.hiddenLaunchCallCount, 0);
+  assert.equal(contract.launchPhase.visibleCandidateLaneBinding.missingParentPeerTarget, false);
   assert.match(contract.launchPhase.launchCalls[0], /candidate_peer_spawn/);
   assert.doesNotMatch(contract.launchPhase.launchCalls[0], /autoresearch_runtime_run/);
   assert.equal(
@@ -1088,11 +1098,45 @@ test("autoresearch_live_supervision prepare_matrix_campaign_runner exposes only 
   assert.match(result.content[0].text, /benchmark\/export\/review calls exposed: no/);
   assert.match(result.content[0].text, /Runner manifest/);
   assert.match(result.content[0].text, /allowed tool: candidate_peer_spawn/);
+  assert.match(result.content[0].text, /visible_candidate_lane_binding_blockers: 0/);
+  assert.match(result.content[0].text, /visible launch calls: 2\/2/);
+  assert.match(result.content[0].text, /hidden launch calls: 0/);
   assert.match(
     result.content[0].text,
     /benchmark\/export\/review calls: withheld_until_checkpoint; count=0/,
   );
   assert.match(result.content[0].text, /exact task id: 2801/);
+
+  const missingParent = await tool.execute(
+    "tc-prepare-matrix-campaign-runner-missing-parent",
+    {
+      action: "prepare_matrix_campaign_runner",
+      taskId: 2801,
+      cwd,
+      objective: "checkpoint matrix campaign runner",
+      direction: "lower",
+      scenarios: ["safety"],
+      hypotheses: ["checkpointed launch"],
+      candidateCountPerCell: 1,
+      runnerManifestPath: ".autoresearch/matrix-campaign/checkpoint-runner.json",
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+  assert.equal(
+    missingParent.details.matrixCampaignRunner.launchPhase.visibleCandidateLaneBinding.status,
+    "blocked",
+  );
+  assert.equal(
+    missingParent.details.matrixCampaignRunner.launchPhase.visibleCandidateLaneBinding.value,
+    1,
+  );
+  assert.equal(
+    missingParent.details.matrixCampaignRunner.launchPhase.visibleCandidateLaneBinding
+      .missingParentPeerTarget,
+    true,
+  );
 
   const invalidPath = await tool.execute(
     "tc-prepare-matrix-campaign-runner-invalid-path",
@@ -1429,6 +1473,16 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     );
     assert.equal(reviewPacket.wholeMatrixMetricPosture.value, 0);
     assert.equal(reviewPacket.wholeMatrixMetricPosture.status, "target_met");
+    assert.equal(reviewPacket.packetChainMetric.name, "candidate_review_packet_chain_blockers");
+    assert.equal(reviewPacket.packetChainMetric.value, 0);
+    assert.equal(reviewPacket.packetChainMetric.status, "target_met");
+    assert.equal(reviewPacket.candidateResultPacketRefs.length, 4);
+    assert.deepEqual(
+      reviewPacket.candidateResultPacketRefs
+        .filter((ref) => ref.selected)
+        .map((ref) => `${ref.cellId}/${ref.laneId}`),
+      ["cell-01-01/candidate-01", "cell-02-01/candidate-01"],
+    );
     assert.equal(reviewPacket.canCloseMatrixTarget, true);
     assert.equal(cockpit.matrixCockpitBlockers.name, "matrix_cockpit_blockers");
     assert.equal(cockpit.matrixCockpitBlockers.value, 0);
@@ -1745,6 +1799,20 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
     assert.equal(preflight.finalizerTokenRequest.metricPosture.value, 0);
     assert.equal(preflight.finalizerTokenRequest.metricPosture.status, "target_met");
     assert.equal(
+      preflight.finalizerTokenRequest.packetChainTrace.sourceReviewPacketKind,
+      "autoresearch.review_candidate_wave_packet.v1",
+    );
+    assert.equal(
+      preflight.finalizerTokenRequest.packetChainTrace.metric.name,
+      "candidate_review_packet_chain_blockers",
+    );
+    assert.equal(preflight.finalizerTokenRequest.packetChainTrace.metric.value, 0);
+    assert.equal(preflight.finalizerTokenRequest.packetChainTrace.metric.status, "target_met");
+    assert.deepEqual(
+      preflight.finalizerTokenRequest.packetChainTrace.selectedCandidateResultPacketRefs,
+      [packetB],
+    );
+    assert.equal(
       preflight.finalizerTokenRequest.permittedFinalizerScope.applyCommandsWithheldUntilToken,
       true,
     );
@@ -1753,6 +1821,25 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
       "promotion",
       "ak_owner_write",
     ]);
+    assert.equal(
+      preflight.authorizedFinalizerCleanupGate.name,
+      "authorized_finalizer_cleanup_blockers",
+    );
+    assert.equal(preflight.authorizedFinalizerCleanupGate.value, 0);
+    assert.equal(preflight.authorizedFinalizerCleanupGate.status, "target_met");
+    assert.equal(preflight.authorizedFinalizerCleanupGate.finalizedWithToken, false);
+    assert.equal(preflight.authorizedFinalizerCleanupGate.cleanupAuthorized, false);
+    assert.equal(preflight.authorizedFinalizerCleanupGate.promotionAuthorized, false);
+    assert.deepEqual(preflight.authorizedFinalizerCleanupGate.requiredSeparateTokens, [
+      "candidate_cleanup",
+      "promotion",
+    ]);
+    assert.deepEqual(preflight.authorizedFinalizerCleanupGate.forbiddenCommandMatches, []);
+    assert.ok(
+      preflight.finalizerTokenRequest.nextLegalActions.some((action) =>
+        /candidate cleanup.*candidate_cleanup/i.test(action),
+      ),
+    );
     assert.equal(preflight.exactApplyCommandPacket, null);
 
     const authorized = runner.finalizePostFanin({
@@ -1789,11 +1876,38 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
       authorized.exactApplyCommandPacket.exactCommands.join("\n"),
       /git -C .* commit -m/,
     );
+    const forbiddenCleanupPromotionCommands =
+      /\b(?:merge|push|rebase|tag|release|publish)\b|worktree remove|branch -d|branch -D|rm -rf|candidate_cleanup|promotion/i;
+    assert.doesNotMatch(
+      authorized.exactApplyCommandPacket.exactCommands.join("\n"),
+      forbiddenCleanupPromotionCommands,
+    );
     assert.equal(authorized.manualPostFaninResidue.name, "manual_post_fanin_residue");
     assert.equal(authorized.manualPostFaninResidue.value, 0);
     assert.equal(authorized.manualPostFaninResidue.status, "target_met");
+    assert.equal(authorized.authorizedFinalizerCleanupGate.value, 0);
+    assert.equal(authorized.authorizedFinalizerCleanupGate.status, "target_met");
+    assert.equal(authorized.authorizedFinalizerCleanupGate.finalizedWithToken, true);
+    assert.equal(authorized.authorizedFinalizerCleanupGate.cleanupAuthorized, false);
+    assert.equal(authorized.authorizedFinalizerCleanupGate.promotionAuthorized, false);
+    assert.deepEqual(authorized.authorizedFinalizerCleanupGate.forbiddenCommandMatches, []);
+    assert.match(authorized.nextStep, /Cleanup requires candidate_cleanup/);
+    assert.match(authorized.nextStep, /promotion requires promotion/);
+    assert.ok(
+      authorized.exactApplyCommandPacket.rollbackNotes.some((note) =>
+        /candidate_cleanup token/.test(note),
+      ),
+    );
+    assert.ok(
+      authorized.exactApplyCommandPacket.rollbackNotes.some((note) => /promotion token/.test(note)),
+    );
     assert.ok(
       authorized.boundaries.some((boundary) => /No checkout, merge, commit/.test(boundary)),
+    );
+    assert.ok(
+      authorized.boundaries.some((boundary) =>
+        /candidate_cleanup authority, or promotion authority/.test(boundary),
+      ),
     );
   });
 });
@@ -1829,6 +1943,9 @@ test("post-fan-in finalizer fails closed on missing finals, off-limits drift, di
 
     assert.equal(blocked.outcome, "failed_closed");
     assert.equal(blocked.finalizerTokenRequest.metricPosture.status, "blocked");
+    assert.equal(blocked.authorizedFinalizerCleanupGate.value, 0);
+    assert.equal(blocked.authorizedFinalizerCleanupGate.cleanupAuthorized, false);
+    assert.equal(blocked.authorizedFinalizerCleanupGate.promotionAuthorized, false);
     assert.equal(blocked.exactApplyCommandPacket, null);
     assert.equal(blocked.preflight.status, "blocked");
     assert.ok(blocked.preflight.blockerCount >= 5);
@@ -2131,6 +2248,27 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       "level2_candidate_binding_blockers",
     );
     assert.equal(result.details.candidateWaveReview.level2CandidateBinding.metric.value, 0);
+    assert.equal(
+      result.details.candidateWaveReview.reviewPacket.packetChainMetric.name,
+      "candidate_review_packet_chain_blockers",
+    );
+    assert.equal(result.details.candidateWaveReview.reviewPacket.packetChainMetric.value, 0);
+    assert.equal(
+      result.details.candidateWaveReview.reviewPacket.packetChainMetric.status,
+      "target_met",
+    );
+    assert.deepEqual(
+      result.details.candidateWaveReview.reviewPacket.candidateResultPacketRefs.map((ref) => ({
+        laneId: ref.laneId,
+        sourcePacketPath: ref.sourcePacketPath,
+        packetPresent: ref.packetPresent,
+        selected: ref.selected,
+      })),
+      [
+        { laneId: "candidate-01", sourcePacketPath: packetA, packetPresent: true, selected: false },
+        { laneId: "candidate-02", sourcePacketPath: packetB, packetPresent: true, selected: true },
+      ],
+    );
     assert.equal(
       result.details.candidateWaveReview.level2CandidateBinding.controllerVerifiedLaneCount,
       2,

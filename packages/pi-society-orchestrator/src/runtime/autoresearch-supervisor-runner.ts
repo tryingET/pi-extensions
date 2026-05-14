@@ -236,6 +236,25 @@ export interface AutoresearchPostFaninFinalizerPreflightCheck {
   evidence: readonly string[];
 }
 
+export interface AutoresearchCandidateReviewPacketChainMetric {
+  name: "candidate_review_packet_chain_blockers";
+  direction: "lower";
+  target: 0;
+  value: number;
+  status: "target_met" | "blocked";
+  sourceMetricName: string;
+  sourceMetricStatus: string;
+}
+
+export interface AutoresearchCandidateReviewPacketChainRef {
+  cellId: string | null;
+  laneId: string;
+  sourcePacketPath: string | null;
+  packetPresent: boolean;
+  selected: boolean;
+  bindingStatus: AutoresearchLevel2CandidateBindingLane["bindingStatus"];
+}
+
 export interface AutoresearchPostFaninFinalizerTokenRequestPacket {
   kind: "autoresearch.post_fanin_finalizer_token_request.v1";
   sourceReview: "review_candidate_wave" | "review_matrix_campaign";
@@ -259,6 +278,15 @@ export interface AutoresearchPostFaninFinalizerTokenRequestPacket {
     status: "target_met" | "blocked";
     sourceMetricName: string;
     sourceMetricStatus: string;
+  };
+  packetChainTrace: {
+    sourceReviewPacketKind:
+      | "autoresearch.review_candidate_wave_packet.v1"
+      | "autoresearch.review_matrix_campaign_packet.v1"
+      | "missing_review_packet";
+    candidateResultPacketRefs: readonly AutoresearchCandidateReviewPacketChainRef[];
+    selectedCandidateResultPacketRefs: readonly string[];
+    metric: AutoresearchCandidateReviewPacketChainMetric;
   };
   permittedFinalizerScope: {
     selectedLanes: readonly {
@@ -297,6 +325,20 @@ export interface AutoresearchPostFaninFinalizerApplyCommandPacket {
   boundary: string;
 }
 
+export interface AutoresearchAuthorizedFinalizerCleanupGate {
+  name: "authorized_finalizer_cleanup_blockers";
+  direction: "lower";
+  target: 0;
+  value: number;
+  status: "target_met" | "blocked";
+  finalizedWithToken: boolean;
+  cleanupAuthorized: false;
+  promotionAuthorized: false;
+  requiredSeparateTokens: readonly ["candidate_cleanup", "promotion"];
+  forbiddenCommandMatches: readonly string[];
+  proofs: readonly string[];
+}
+
 export interface AutoresearchPostFaninFinalizerResult {
   kind: "autoresearch.post_fanin_finalizer_result.v1";
   outcome: "committed_cleaned" | "review_blocked" | "failed_closed";
@@ -313,6 +355,7 @@ export interface AutoresearchPostFaninFinalizerResult {
     value: number;
     status: "target_met" | "blocked";
   };
+  authorizedFinalizerCleanupGate: AutoresearchAuthorizedFinalizerCleanupGate;
   finalizerTokenRequest: AutoresearchPostFaninFinalizerTokenRequestPacket;
   exactApplyCommandPacket: AutoresearchPostFaninFinalizerApplyCommandPacket | null;
   nextStep: string;
@@ -664,6 +707,17 @@ export interface AutoresearchMatrixCampaignRunnerContract {
     allowedTool: "candidate_peer_spawn";
     launchCalls: readonly string[];
     parentPeerTarget: string | null;
+    visibleCandidateLaneBinding: {
+      name: "visible_candidate_lane_binding_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+      expectedLaneCount: number;
+      visibleLaunchCallCount: number;
+      hiddenLaunchCallCount: number;
+      missingParentPeerTarget: boolean;
+    };
   };
   checkpointGate: {
     posture: "controller_checkpoint_required_before_benchmark_export_review";
@@ -1039,6 +1093,8 @@ export interface AutoresearchCandidateWaveReviewPacket {
   candidateWaveReviewKind: "autoresearch.candidate_wave_review.v1";
   laneDispositionOptions: readonly AutoresearchReviewPacketDispositionOption[];
   bindingMetric: AutoresearchLevel2CandidateBinding["metric"];
+  candidateResultPacketRefs: readonly AutoresearchCandidateReviewPacketChainRef[];
+  packetChainMetric: AutoresearchCandidateReviewPacketChainMetric;
   recommendedLaneId: string | null;
   selectableLaneCount: number;
   nextLegalActions: readonly string[];
@@ -1066,6 +1122,8 @@ export interface AutoresearchMatrixCampaignReviewPacket {
   matrixCampaignReviewKind: "autoresearch.matrix_campaign_review.v1";
   laneDispositionOptions: readonly AutoresearchReviewPacketDispositionOption[];
   wholeMatrixMetricPosture: AutoresearchWholeMatrixMetricPosture;
+  candidateResultPacketRefs: readonly AutoresearchCandidateReviewPacketChainRef[];
+  packetChainMetric: AutoresearchCandidateReviewPacketChainMetric;
   selectedLaneCount: number;
   expectedCellCount: number;
   canCloseMatrixTarget: boolean;
@@ -2233,18 +2291,66 @@ function buildReviewPacketAuthorityBoundary(input: {
   };
 }
 
+function buildCandidateReviewPacketChainMetric(input: {
+  refs: readonly AutoresearchCandidateReviewPacketChainRef[];
+  sourceMetricName: string;
+  sourceMetricStatus: string;
+  requireSelectedPacketRefs?: boolean;
+}): AutoresearchCandidateReviewPacketChainMetric {
+  const missingPackets = input.refs.filter((ref) => !ref.packetPresent).length;
+  const sourceBlocked = input.sourceMetricStatus === "blocked" ? 1 : 0;
+  const selectedMissing = input.requireSelectedPacketRefs
+    ? input.refs.filter((ref) => ref.selected && !ref.sourcePacketPath).length
+    : 0;
+  const value = missingPackets + sourceBlocked + selectedMissing;
+  return {
+    name: "candidate_review_packet_chain_blockers",
+    direction: "lower",
+    target: 0,
+    value,
+    status: value === 0 ? "target_met" : "blocked",
+    sourceMetricName: input.sourceMetricName,
+    sourceMetricStatus: input.sourceMetricStatus,
+  };
+}
+
+function buildCandidateReviewPacketChainRefs(input: {
+  binding: AutoresearchLevel2CandidateBinding;
+  selectedLaneId: string | null;
+  cellId?: string | null;
+}): AutoresearchCandidateReviewPacketChainRef[] {
+  return input.binding.lanes.map((lane) => ({
+    cellId: input.cellId ?? null,
+    laneId: lane.laneId,
+    sourcePacketPath: lane.sourcePacketPath,
+    packetPresent: lane.controllerVerifiedFacts.packetPresent,
+    selected: Boolean(input.selectedLaneId && lane.laneId === input.selectedLaneId),
+    bindingStatus: lane.bindingStatus,
+  }));
+}
+
 function buildCandidateWaveReviewPacket(input: {
   review: Pick<
     AutoresearchCandidateWaveReview,
     "kind" | "level2CandidateBinding" | "recommendation" | "lanes"
   >;
 }): AutoresearchCandidateWaveReviewPacket {
+  const candidateResultPacketRefs = buildCandidateReviewPacketChainRefs({
+    binding: input.review.level2CandidateBinding,
+    selectedLaneId: input.review.recommendation.laneId,
+  });
   return {
     kind: "autoresearch.review_candidate_wave_packet.v1",
     generatedFrom: "bound_candidate_results",
     candidateWaveReviewKind: input.review.kind,
     laneDispositionOptions: buildReviewPacketDispositionOptions(),
     bindingMetric: input.review.level2CandidateBinding.metric,
+    candidateResultPacketRefs,
+    packetChainMetric: buildCandidateReviewPacketChainMetric({
+      refs: candidateResultPacketRefs,
+      sourceMetricName: input.review.level2CandidateBinding.metric.name,
+      sourceMetricStatus: input.review.level2CandidateBinding.metric.status,
+    }),
     recommendedLaneId: input.review.recommendation.laneId,
     selectableLaneCount: input.review.lanes.filter((lane) => lane.selectable).length,
     nextLegalActions: input.review.recommendation.exactNextCalls,
@@ -2789,7 +2895,15 @@ function buildPostFaninFinalizerTokenRequestPacket(input: {
   reviewPosture: string;
   sourceMetricName: string;
   sourceMetricStatus: string;
+  sourceReviewPacketKind:
+    | "autoresearch.review_candidate_wave_packet.v1"
+    | "autoresearch.review_matrix_campaign_packet.v1"
+    | "missing_review_packet";
+  packetChainRefs: readonly AutoresearchCandidateReviewPacketChainRef[];
 }): AutoresearchPostFaninFinalizerTokenRequestPacket {
+  const selectedCandidateResultPacketRefs = input.selectedLanes
+    .map((lane) => lane.sourcePacketPath)
+    .filter((packetPath): packetPath is string => Boolean(packetPath));
   return {
     kind: "autoresearch.post_fanin_finalizer_token_request.v1",
     sourceReview: input.sourceReview,
@@ -2799,9 +2913,7 @@ function buildPostFaninFinalizerTokenRequestPacket(input: {
     requiredTokenName: "finalize_post_fanin",
     exactAuthorizationToken: input.authorizationToken,
     requestExecution: "not_executed_by_orchestrator",
-    candidateResultPacketRefs: input.selectedLanes
-      .map((lane) => lane.sourcePacketPath)
-      .filter((packetPath): packetPath is string => Boolean(packetPath)),
+    candidateResultPacketRefs: selectedCandidateResultPacketRefs,
     reviewResultReference: {
       sourceReview: input.sourceReview,
       posture: input.reviewPosture,
@@ -2815,6 +2927,17 @@ function buildPostFaninFinalizerTokenRequestPacket(input: {
       status: input.blockerCount === 0 ? "target_met" : "blocked",
       sourceMetricName: input.sourceMetricName,
       sourceMetricStatus: input.sourceMetricStatus,
+    },
+    packetChainTrace: {
+      sourceReviewPacketKind: input.sourceReviewPacketKind,
+      candidateResultPacketRefs: input.packetChainRefs,
+      selectedCandidateResultPacketRefs,
+      metric: buildCandidateReviewPacketChainMetric({
+        refs: input.packetChainRefs,
+        sourceMetricName: input.sourceMetricName,
+        sourceMetricStatus: input.sourceMetricStatus,
+        requireSelectedPacketRefs: true,
+      }),
     },
     permittedFinalizerScope: {
       selectedLanes: input.selectedLanes.map((lane) => ({
@@ -2840,13 +2963,13 @@ function buildPostFaninFinalizerTokenRequestPacket(input: {
     nextLegalActions:
       input.blockerCount === 0
         ? [
-            "Owner may copy the exact finalize_post_fanin token into a deliberate finalize_post_fanin call to expose apply commands.",
-            "Run validation again in the apply lane before commit/promotion decisions.",
-            "Keep cleanup and promotion requests separate after finalizer review.",
+            "Owner may copy the exact finalize_post_fanin token into a deliberate finalize_post_fanin call to expose finalizer apply commands only.",
+            "Run validation again in the apply lane before any commit decision; merge/release/promotion remains forbidden without a separate promotion token.",
+            "Keep candidate cleanup requests separate; candidate worktree removal or branch deletion requires candidate_cleanup.",
           ]
         : [
             "Resolve preflight/review blockers and rerun finalize_post_fanin token-request preparation.",
-            "Do not infer finalize_post_fanin authorization from this blocked request.",
+            "Do not infer finalize_post_fanin, candidate_cleanup, or promotion authorization from this blocked request.",
           ],
   };
 }
@@ -2901,10 +3024,53 @@ function buildPostFaninFinalizerApplyCommandPacket(input: {
     rollbackNotes: [
       "The orchestrator did not run these commands; rollback belongs to the explicit controller/apply lane that executes them.",
       "If validation or post-apply status fails, stop before commit or revert the explicit commit in the controller lane.",
-      "Do not delete candidate worktrees or non-selected lanes from this finalizer packet; lifecycle cleanup needs a separate owner-approved action.",
+      "Do not delete candidate worktrees or non-selected lanes from this finalizer packet; lifecycle cleanup needs a separate candidate_cleanup token.",
+      "Do not merge, push, release, or promote from this finalizer packet; promotion requires a separate promotion token.",
     ],
     boundary:
-      "This packet is an exact explicit apply recipe only; pi-society-orchestrator does not checkout, merge, commit, clean, delete, promote, or write evidence from finalizer construction.",
+      "This packet is an exact explicit finalizer-apply recipe only; pi-society-orchestrator does not checkout, merge, commit, clean, delete, promote, or write evidence from finalizer construction, and this packet carries no candidate_cleanup or promotion authority.",
+  };
+}
+
+function findForbiddenFinalizerCleanupPromotionCommandMatches(
+  packet: AutoresearchPostFaninFinalizerApplyCommandPacket | null,
+): string[] {
+  const forbiddenPatterns = [
+    /\b(?:merge|push|rebase|tag|release|publish)\b/iu,
+    /\b(?:worktree\s+remove|branch\s+-d|branch\s+-D|rm\s+-rf|rm\s+-r)\b/iu,
+    /promotion|candidate_cleanup/iu,
+  ];
+  return (packet?.exactCommands ?? []).filter((command) =>
+    forbiddenPatterns.some((pattern) => pattern.test(command)),
+  );
+}
+
+function buildAuthorizedFinalizerCleanupGate(input: {
+  exactApplyCommandPacket: AutoresearchPostFaninFinalizerApplyCommandPacket | null;
+  finalizedWithToken: boolean;
+}): AutoresearchAuthorizedFinalizerCleanupGate {
+  const forbiddenCommandMatches = findForbiddenFinalizerCleanupPromotionCommandMatches(
+    input.exactApplyCommandPacket,
+  );
+  return {
+    name: "authorized_finalizer_cleanup_blockers",
+    direction: "lower",
+    target: 0,
+    value: forbiddenCommandMatches.length,
+    status: forbiddenCommandMatches.length === 0 ? "target_met" : "blocked",
+    finalizedWithToken: input.finalizedWithToken,
+    cleanupAuthorized: false,
+    promotionAuthorized: false,
+    requiredSeparateTokens: ["candidate_cleanup", "promotion"],
+    forbiddenCommandMatches,
+    proofs: [
+      "finalize_post_fanin authorization only exposes finalizer apply commands; it does not authorize candidate cleanup",
+      "candidate_cleanup remains required before worktree removal, branch deletion, reset, or non-selected lane cleanup",
+      "promotion remains required before merge, push, PR, release, publish, tag, or promotion authority handoff",
+      input.exactApplyCommandPacket
+        ? "authorized finalizer apply packet was scanned for cleanup/promotion command leakage"
+        : "no finalizer apply packet was emitted, so cleanup/promotion commands remain absent",
+    ],
   };
 }
 
@@ -2969,6 +3135,12 @@ export function finalizeAutoresearchPostFanin(
   const sourceMetricStatus = candidateReview
     ? candidateReview.reviewPacket.bindingMetric.status
     : (matrixReview?.reviewPacket.wholeMatrixMetricPosture.status ?? "blocked");
+  const sourceReviewPacketKind = candidateReview
+    ? candidateReview.reviewPacket.kind
+    : (matrixReview?.reviewPacket.kind ?? "missing_review_packet");
+  const packetChainRefs = candidateReview
+    ? candidateReview.reviewPacket.candidateResultPacketRefs
+    : (matrixReview?.reviewPacket.candidateResultPacketRefs ?? []);
   const packetPaths = selectedLanes
     .map((lane) => lane.sourcePacketPath)
     .filter((packetPath): packetPath is string => Boolean(packetPath));
@@ -3138,6 +3310,8 @@ export function finalizeAutoresearchPostFanin(
     reviewPosture,
     sourceMetricName,
     sourceMetricStatus,
+    sourceReviewPacketKind,
+    packetChainRefs,
   });
   const exactApplyCommandPacket =
     preflightPassed && input.applyAuthorizationToken === authorizationToken
@@ -3150,10 +3324,16 @@ export function finalizeAutoresearchPostFanin(
           validation,
         })
       : null;
+  const finalizedWithToken =
+    preflightPassed && input.applyAuthorizationToken === authorizationToken;
+  const authorizedFinalizerCleanupGate = buildAuthorizedFinalizerCleanupGate({
+    exactApplyCommandPacket,
+    finalizedWithToken,
+  });
   const outcome: AutoresearchPostFaninFinalizerResult["outcome"] =
-    !preflightPassed || wrongAuthorization
+    !preflightPassed || wrongAuthorization || authorizedFinalizerCleanupGate.status === "blocked"
       ? "failed_closed"
-      : input.applyAuthorizationToken === authorizationToken
+      : finalizedWithToken
         ? "committed_cleaned"
         : "review_blocked";
   const manualResidueValue =
@@ -3175,11 +3355,12 @@ export function finalizeAutoresearchPostFanin(
       value: manualResidueValue,
       status: manualResidueValue === 0 ? "target_met" : "blocked",
     },
+    authorizedFinalizerCleanupGate,
     finalizerTokenRequest,
     exactApplyCommandPacket,
     nextStep:
       outcome === "committed_cleaned"
-        ? "Exact authorization token accepted; run the emitted apply command packet deliberately in the controller/apply lane if promotion is approved. The orchestrator has not executed it."
+        ? "Exact finalize_post_fanin token accepted; run the emitted finalizer apply command packet deliberately in the controller/apply lane only if still intended. Cleanup requires candidate_cleanup, and merge/release/promotion requires promotion. The orchestrator has not executed it."
         : outcome === "review_blocked"
           ? "Preflight passed and a finalize_post_fanin token request was prepared, but apply commands are withheld until the exact authorization token is supplied deliberately."
           : wrongAuthorization
@@ -3187,8 +3368,8 @@ export function finalizeAutoresearchPostFanin(
             : "Fail closed: resolve preflight blockers, rerun fan-in review/finalizer, and do not apply hidden promotion or cleanup.",
     boundaries: [
       "No checkout, merge, commit, cleanup, worktree deletion, evidence write, AK/KES/Prompt Vault/ROCS mutation, or promotion was executed by this finalizer.",
-      "Missing finals, failed validation, off-limits drift, dirty overlap, selected-lane mismatch, stale packets, and wrong authorization fail closed.",
-      "The exact apply command packet is communication for an explicit owner-approved apply lane; it is not durable evidence or completion authority.",
+      "Missing finals, failed validation, off-limits drift, dirty overlap, selected-lane mismatch, stale packets, wrong authorization, and cleanup/promotion command leakage fail closed.",
+      "The exact apply command packet is communication for an explicit owner-approved finalizer apply lane; it is not durable evidence, completion authority, candidate_cleanup authority, or promotion authority.",
     ],
   };
 }
@@ -4292,6 +4473,14 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
     runnerManifestPath: manifestPath,
     checkpointConfirmation: checkpointToken,
   });
+  const hiddenLaunchCallCount = lanes.filter(
+    (lane) =>
+      !lane.candidatePeerCall.includes("candidate_peer_spawn(") ||
+      lane.candidatePeerCall.includes("scout_peer_spawn(") ||
+      lane.candidatePeerCall.includes("fork_peer_spawn("),
+  ).length;
+  const visibleLaneBindingBlockerCount =
+    (parentPeerTarget ? 0 : 1) + hiddenLaunchCallCount + (lanes.length === 0 ? 1 : 0);
 
   return {
     kind: "autoresearch.matrix_campaign_runner_contract.v1",
@@ -4345,6 +4534,17 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
       allowedTool: "candidate_peer_spawn",
       launchCalls: lanes.map((lane) => lane.candidatePeerCall),
       parentPeerTarget: parentPeerTarget ?? null,
+      visibleCandidateLaneBinding: {
+        name: "visible_candidate_lane_binding_blockers",
+        direction: "lower",
+        target: 0,
+        value: visibleLaneBindingBlockerCount,
+        status: visibleLaneBindingBlockerCount === 0 ? "target_met" : "blocked",
+        expectedLaneCount: lanes.length,
+        visibleLaunchCallCount: lanes.length - hiddenLaunchCallCount,
+        hiddenLaunchCallCount,
+        missingParentPeerTarget: !parentPeerTarget,
+      },
     },
     checkpointGate: {
       posture: "controller_checkpoint_required_before_benchmark_export_review",
@@ -4742,13 +4942,27 @@ function buildMatrixCampaignReviewPacket(input: {
   expectedCellCount: number;
   exactNextCalls: readonly string[];
   closeout: AutoresearchMatrixCampaignCloseout;
+  cellReviews: readonly AutoresearchMatrixCampaignCellReview[];
 }): AutoresearchMatrixCampaignReviewPacket {
+  const candidateResultPacketRefs = input.cellReviews.flatMap((cell) =>
+    buildCandidateReviewPacketChainRefs({
+      binding: cell.candidateWaveReview.level2CandidateBinding,
+      selectedLaneId: cell.selectedLaneId,
+      cellId: cell.cellId,
+    }),
+  );
   return {
     kind: "autoresearch.review_matrix_campaign_packet.v1",
     generatedFrom: "managed_cell_candidate_wave_reviews",
     matrixCampaignReviewKind: input.reviewKind,
     laneDispositionOptions: buildReviewPacketDispositionOptions(),
     wholeMatrixMetricPosture: input.wholeMatrixMetricPosture,
+    candidateResultPacketRefs,
+    packetChainMetric: buildCandidateReviewPacketChainMetric({
+      refs: candidateResultPacketRefs,
+      sourceMetricName: input.wholeMatrixMetricPosture.name,
+      sourceMetricStatus: input.wholeMatrixMetricPosture.status,
+    }),
     selectedLaneCount: input.selectedCellCount,
     expectedCellCount: input.expectedCellCount,
     canCloseMatrixTarget: input.wholeMatrixMetricPosture.targetClosureAllowed,
@@ -5016,6 +5230,7 @@ export function reviewAutoresearchMatrixCampaign(
     expectedCellCount: cellReviews.length,
     exactNextCalls,
     closeout,
+    cellReviews,
   });
   const cockpit = buildAutoresearchMatrixReviewCockpit({
     posture,
