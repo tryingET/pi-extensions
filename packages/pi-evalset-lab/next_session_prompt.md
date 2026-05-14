@@ -20,8 +20,7 @@ Continue from the canonical monorepo package. Do not reopen or recreate the form
 - workspace path: `packages/pi-evalset-lab`
 - release component key: `pi-evalset-lab`
 - primary extension entry: `extensions/evalset.ts`
-- legacy archive: `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz`
-- legacy working copy: removed after archive; session relocation was `skip-no-history`
+- legacy working copy: removed when `~/programming/pi-extensions/` was deleted; session relocation was `skip-no-history`
 
 ## Quick start
 

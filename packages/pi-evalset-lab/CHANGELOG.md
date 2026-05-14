@@ -20,7 +20,7 @@ All notable changes to this project should be documented here.
 - Canonicalized the legacy standalone `pi-evalset-lab` package into the `pi-extensions` monorepo at `packages/pi-evalset-lab`.
 - Switched npm identity to scoped monorepo package name `@tryinget/pi-evalset-lab` while preserving legacy runtime version `0.2.0`.
 - Moved release automation to root-managed component metadata (`pi-evalset-lab`).
-- Archived the former standalone working copy to `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz` and removed it after validation; no legacy Pi session-history directory existed to relocate.
+- Removed the former standalone `~/programming/pi-extensions/` workspace after canonicalization; no legacy Pi session-history directory existed for `pi-evalset-lab` to relocate.
 
 ## [0.2.0](https://github.com/tryingET/pi-evalset-lab/compare/v0.1.0...v0.2.0) (2026-02-17)
 

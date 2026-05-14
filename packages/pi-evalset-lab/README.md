@@ -17,8 +17,8 @@ Monorepo package for fixed-task-set eval workflows in Pi (`/evalset run|compare`
 - Workspace path: `packages/pi-evalset-lab`
 - Release component key: `pi-evalset-lab`
 - Former legacy standalone source: `~/programming/pi-extensions/pi-evalset-lab`
-- Canonical package status: canonicalized here; the legacy repo was archived to `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz` and removed after validation.
-- Session-history migration: no legacy Pi session-history directory existed for the old path, so relocation was recorded as `skip-no-history`.
+- Canonical package status: canonicalized here; the former `~/programming/pi-extensions/` workspace was later deleted at operator request.
+- Session-history migration: no legacy Pi session-history directory existed for the old package path, so relocation was recorded as `skip-no-history`.
 
 Primary category fit: **Model & Prompt Management**, **Review & Quality Loops**, **UX & Observability**, **Safety & Governance**.
 

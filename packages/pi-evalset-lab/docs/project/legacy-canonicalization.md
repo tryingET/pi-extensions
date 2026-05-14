@@ -5,9 +5,9 @@ read_when:
   - "Checking the disposition of the former standalone repo."
 system4d:
   container: "Migration and deprecation record for a package-level canonical home."
-  compass: "Treat the monorepo package as authoritative and keep the legacy archive read-only."
-  engine: "Scaffold -> port runtime/docs/assets -> validate -> archive legacy repo -> delete legacy working copy."
-  fog: "Historical generated reports and standalone governance files are archive context, not live package state."
+  compass: "Treat the monorepo package as authoritative; the former standalone workspace is gone."
+  engine: "Scaffold -> port runtime/docs/assets -> validate -> delete legacy workspace."
+  fog: "Historical generated reports and standalone governance files were discarded with the deleted legacy workspace."
 ---
 
 # pi-evalset-lab legacy canonicalization and deprecation
@@ -32,12 +32,11 @@ Intentionally not canonicalized into the live package:
 
 ## Legacy deprecation result
 
-The standard legacy-package deprecation workflow has been applied.
+The standard legacy-package deprecation workflow was applied, then the entire `~/programming/pi-extensions/` parent workspace was deleted at operator request.
 
-- Final archive: `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz`
 - Legacy working copy: removed from `~/programming/pi-extensions/pi-evalset-lab`
-- Legacy handoff files written before archive: `NEXT_SESSION_PROMPT.md` and `next_session_prompt.md`
+- Legacy parent workspace: removed from `~/programming/pi-extensions/`
 - Session-history relocation: `skip-no-history`; no directory existed at `~/.pi/agent/sessions/--home-tryinget-programming-pi-extensions-pi-evalset-lab--`
 - Canonical package validation after migration: `npm run check`, `npm run release:check:quick`, root release component checks, release contract validation, and docs strict
 
-The archive is read-only historical context. New implementation, docs, release, and install work belongs in this package directory.
+New implementation, docs, release, and install work belongs in this package directory.
