@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "dc7b4dda33a8f90fcc5cc3e5f8be1cd2a83b82f1"
+created_at: "2026-05-14T18:32:32Z"
+intent: "visible-loop per-iteration session launch with cross-session iteration persistence"
+files:
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/src/visibleLoop.ts"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+  - "packages/pi-little-helpers/README.md"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-little-helpers/tests/sidequest.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "single logical change: per-iteration visible-loop session launch"
