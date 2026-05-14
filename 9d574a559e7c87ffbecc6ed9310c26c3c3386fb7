@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9d574a559e7c87ffbecc6ed9310c26c3c3386fb7"
+created_at: "2026-05-14T03:42:58Z"
+intent: "Make /autoresearch export prioritize discovered matrix campaign progress over empty local runtime segment fields"
+files:
+  - "packages/pi-autoresearch/src/core/runtime.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+  - "packages/pi-autoresearch/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "cd packages/pi-autoresearch && node --import tsx --test --test-name-pattern 'dashboard export discovers and renders matrix campaign artifacts|exportAutoresearchDashboardHtml writes a browser dashboard artifact|browser dashboard export surfaces metric-readiness trust posture' tests/runtime.test.ts"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pass"
+group:
+  rationale: "Bounded visible-progress slice; read-only matrix artifact dashboard mode, no orchestrator execution ownership change."
