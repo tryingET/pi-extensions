@@ -119,6 +119,17 @@ export interface VisibleLoopRunConfig {
 type SendUserMessageOptions = { deliverAs?: "followUp" | "steer" };
 type SendUserMessage = (message: string, options?: SendUserMessageOptions) => void;
 
+export type ContinueVisibleLoopInNewSession = (input: {
+  config: VisibleLoopRunConfig;
+  configPath: string;
+  completedIterations: number;
+  nextIteration: number;
+}) => Promise<void> | void;
+
+export interface VisibleLoopChildRunnerOptions {
+  continueInNewSession?: ContinueVisibleLoopInNewSession;
+}
+
 type VisibleLoopContext = {
   cwd?: string;
   hasUI?: boolean;
@@ -293,6 +304,7 @@ export async function startVisibleLoopChildRunner(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): Promise<void> {
   const configPath = normalizeOptionalString(configPathArg);
   if (!configPath) {
@@ -313,15 +325,22 @@ export async function startVisibleLoopChildRunner(
     return;
   }
 
+  const restoredIterations = readCompletedVisibleLoopIterations(config, env);
+  if (restoredIterations >= config.loopCount) {
+    ctx.ui?.notify?.("visible-loop child ignored: loop is already complete", "warning");
+    return;
+  }
+
   const state: ActiveVisibleLoopState = {
     config,
     configPath,
-    completedPromptCount: 0,
-    completedIterations: 0,
+    completedPromptCount: restoredIterations * config.prompts.length,
+    completedIterations: restoredIterations,
     sendUserMessage,
     peerRuntime: null,
     stopped: false,
     followupsQueuedForIteration: null,
+    continueInNewSession: runnerOptions.continueInNewSession,
   };
   appendVisibleLoopStatus(
     config,
@@ -335,18 +354,20 @@ export async function startVisibleLoopChildRunner(
   persistActiveVisibleLoopState(state, ctx, env);
 
   activeVisibleLoop = state;
-  ctx.ui?.setStatus?.("visible-loop", `loop 0/${config.loopCount}`);
+  ctx.ui?.setStatus?.("visible-loop", `loop ${restoredIterations}/${config.loopCount}`);
   ctx.ui?.notify?.(
-    `visible-loop started: ${config.loopCount} iteration(s), ${config.prompts.length} prompt(s) each`,
+    `visible-loop started: iteration ${restoredIterations + 1}/${config.loopCount} (${config.prompts.length} prompt(s))`,
     "info",
   );
 
-  await sendVisibleLoopIntercom(
-    state,
-    ctx,
-    `PEER_ACK peer_run_id=${config.runId}: visible-loop started (${config.loopCount} iteration(s), ${config.prompts.length} prompt(s) each)`,
-    env,
-  );
+  if (restoredIterations === 0) {
+    await sendVisibleLoopIntercom(
+      state,
+      ctx,
+      `PEER_ACK peer_run_id=${config.runId}: visible-loop started (${config.loopCount} iteration(s), ${config.prompts.length} prompt(s) each)`,
+      env,
+    );
+  }
   queueVisibleLoopIteration(state, ctx, env);
 }
 
@@ -354,8 +375,9 @@ export function handleVisibleLoopAgentStart(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
-  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env);
+  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
   if (!state || state.stopped || state.followupsQueuedForIteration === state.completedIterations) {
     return;
   }
@@ -369,8 +391,9 @@ export function handleVisibleLoopAgentEnd(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
-  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env);
+  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
   if (!state || state.stopped) return;
 
   state.completedPromptCount += 1;
@@ -410,6 +433,7 @@ interface ActiveVisibleLoopState {
   peerRuntime: PeerMessagingRuntime | null;
   stopped: boolean;
   followupsQueuedForIteration: number | null;
+  continueInNewSession?: ContinueVisibleLoopInNewSession;
 }
 
 let activeVisibleLoop: ActiveVisibleLoopState | null = null;
@@ -468,6 +492,7 @@ function restoreActiveVisibleLoopState(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): ActiveVisibleLoopState | null {
   const path = getActiveVisibleLoopStatePath(ctx, env);
   if (!path || !existsSync(path)) return null;
@@ -497,6 +522,7 @@ function restoreActiveVisibleLoopState(
         typeof persisted.followupsQueuedForIteration === "number"
           ? persisted.followupsQueuedForIteration
           : null,
+      continueInNewSession: runnerOptions.continueInNewSession,
     };
     activeVisibleLoop = state;
     appendVisibleLoopStatus(
@@ -550,7 +576,7 @@ function queueVisibleLoopIteration(
       event: "iteration_queued",
       iteration,
       promptCount: prompts.length,
-      completionCommand: true,
+      completionCommand: false,
     },
     env,
   );
@@ -690,6 +716,45 @@ function completeVisibleLoopIteration(
   }
 
   persistActiveVisibleLoopState(state, ctx, env);
+
+  if (state.continueInNewSession) {
+    const nextIteration = state.completedIterations + 1;
+    state.stopped = true;
+    persistActiveVisibleLoopState(state, ctx, env);
+    void Promise.resolve(
+      state.continueInNewSession({
+        config: state.config,
+        configPath: state.configPath,
+        completedIterations: state.completedIterations,
+        nextIteration,
+      }),
+    )
+      .then(() => {
+        removeActiveVisibleLoopState(ctx, env);
+        if (activeVisibleLoop === state) activeVisibleLoop = null;
+        ctx.ui?.setStatus?.("visible-loop", undefined);
+      })
+      .catch((error) => {
+        state.stopped = false;
+        persistActiveVisibleLoopState(state, ctx, env);
+        appendVisibleLoopStatus(
+          state.config,
+          {
+            event: "next_iteration_spawn_failed",
+            nextIteration,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          env,
+        );
+        ctx.ui?.notify?.(
+          `visible-loop failed to launch iteration ${nextIteration}/${state.config.loopCount}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          "error",
+        );
+      });
+    return;
+  }
 
   setTimeout(() => {
     if (activeVisibleLoop === state && !state.stopped) {
@@ -975,6 +1040,33 @@ function hasVisibleLoopAlreadyCompleted(
       });
   } catch {
     return false;
+  }
+}
+
+function readCompletedVisibleLoopIterations(
+  config: VisibleLoopRunConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const statusPath = getVisibleLoopStatusPath(config, env);
+  if (!existsSync(statusPath)) return 0;
+  try {
+    return readFileSync(statusPath, "utf8")
+      .split("\n")
+      .reduce((maxCompleted, line) => {
+        if (!line.trim()) return maxCompleted;
+        try {
+          const entry = JSON.parse(line) as { event?: unknown; completedIterations?: unknown };
+          if (entry.event !== "iteration_completed" && entry.event !== "loop_completed") {
+            return maxCompleted;
+          }
+          const completed = Number(entry.completedIterations);
+          return Number.isInteger(completed) && completed > maxCompleted ? completed : maxCompleted;
+        } catch {
+          return maxCompleted;
+        }
+      }, 0);
+  } catch {
+    return 0;
   }
 }
 

@@ -14,6 +14,7 @@ import {
   LITTLE_HELPERS_PEER_TOOL_NAMES,
 } from "../src/capabilityManifest.ts";
 import {
+  type ContinueVisibleLoopInNewSession,
   createVisibleLoopRunConfig,
   getVisibleLoopStatusPath,
   handleVisibleLoopAgentEnd,
@@ -1579,6 +1580,32 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
     }
 
+    function createVisibleLoopContinuation(ctx: PiCommandContext): ContinueVisibleLoopInNewSession {
+      return async ({ config, configPath, nextIteration }) => {
+        const launch = await launchPiQuestSession({
+          pi,
+          ctx,
+          options,
+          prompt: `/${VISIBLE_LOOP_CHILD_COMMAND} ${configPath}`,
+          titlePrompt: `visible loop ${nextIteration}/${config.loopCount}`,
+          titlePrefix: "Visible loop",
+          cwd: config.cwd || ctx.cwd || process.cwd(),
+        });
+        if (!launch.ok) {
+          throw new Error(launch.failure);
+        }
+        if (ctx.hasUI) {
+          const modeLabel =
+            launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+          const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+          ctx.ui.notify(
+            `Opened visible-loop iteration ${nextIteration}/${config.loopCount} in ${modeLabel}${suffix}`,
+            "info",
+          );
+        }
+      };
+    }
+
     async function runVisibleLoopCommand(args: string | undefined, ctx: PiCommandContext) {
       const parsed = parseVisibleLoopCommandArgs(args);
       if (!parsed.ok) {
@@ -2238,7 +2265,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       pi.registerCommand(VISIBLE_LOOP_CHILD_COMMAND, {
         description: "Internal helper for visible-loop launched child sessions",
         handler: (args, ctx) =>
-          startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env),
+          startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env, {
+            continueInNewSession: createVisibleLoopContinuation(ctx),
+          }),
       });
 
       pi.registerCommand(VISIBLE_LOOP_CHILD_COMPLETE_COMMAND, {
@@ -2249,11 +2278,17 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     }
 
     pi.on?.("agent_start", async (_event, ctx) => {
-      handleVisibleLoopAgentStart(pi, ctx ?? {}, options.env ?? process.env);
+      const commandCtx = ctx ?? {};
+      handleVisibleLoopAgentStart(pi, commandCtx, options.env ?? process.env, {
+        continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+      });
     });
 
     pi.on?.("agent_end", async (_event, ctx) => {
-      handleVisibleLoopAgentEnd(pi, ctx ?? {}, options.env ?? process.env);
+      const commandCtx = ctx ?? {};
+      handleVisibleLoopAgentEnd(pi, commandCtx, options.env ?? process.env, {
+        continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+      });
     });
 
     if (!registerTools) return;

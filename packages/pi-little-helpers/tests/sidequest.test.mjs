@@ -569,7 +569,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
   }
 });
 
-test("visible-loop child queues follow-up prompts and starts next iteration only after final prompt agent_end", async () => {
+test("visible-loop child queues follow-ups and launches next iteration in a fresh session after final prompt agent_end", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-child-state-`);
   try {
     const execStub = createExecStub(({ command, args }) => {
@@ -638,18 +638,12 @@ test("visible-loop child queues follow-up prompts and starts next iteration only
 
     await agentEnd({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
-    assert.equal(userMessages.length, 8);
-    assert.equal(userMessages[7].options, undefined);
-
-    await agentStart({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    assert.equal(userMessages.length, 14);
-    assert.match(userMessages[13].message, /Prompt Vault/);
-    assert.doesNotMatch(userMessages[13].message, /\/visible-loop-child-complete/);
-    assert.deepEqual(
-      userMessages.slice(8).map((entry) => entry.options),
-      Array(6).fill({ deliverAs: "followUp" }),
+    assert.equal(userMessages.length, 7);
+    const visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
+    assert.equal(visibleLoopLaunches.length, 2);
+    assert.match(extractPiArgs(visibleLoopLaunches[1].args).at(-1), /^\/visible-loop-child /);
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
   }
@@ -701,9 +695,12 @@ test("visible-loop manual completion command advances non-final iterations", asy
     await commands.get("visible-loop-child-complete").handler("", harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
 
-    assert.equal(userMessages.length, 8);
-    assert.equal(userMessages[7].options, undefined);
-    assert.match(userMessages[7].message, /^read @docs\/project\/vision\.md/);
+    assert.equal(userMessages.length, 7);
+    const visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(visibleLoopLaunches.length, 2);
+    assert.match(extractPiArgs(visibleLoopLaunches[1].args).at(-1), /^\/visible-loop-child /);
 
     const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
     const statusEntries = readFileSync(statusPath, "utf8")
