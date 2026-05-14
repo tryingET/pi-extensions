@@ -5491,6 +5491,18 @@ function formatAutoresearchGuidedCandidateJourneyLines(cwd: string): string[] {
   ];
 }
 
+function formatAutoresearchAuthorityHandoffLines(cwd: string): string[] {
+  const cwdLiteral = JSON.stringify(cwd);
+  return [
+    `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "closeout" })`,
+    `- AK evidence packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "ak_evidence", akTaskId: <ak-task-id> }) -> review the returned suggested evidence_record(...) call; pi-autoresearch does not call evidence_record itself.`,
+    `- learning_export/KES adapter: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "learning_export", outPath: "${AUTORESEARCH_LEARNING_EXPORT_FILE}" }) -> autoresearch_learning_kes_adapter({ action: "plan", packetPath: "${AUTORESEARCH_LEARNING_EXPORT_FILE}" })`,
+    `- Oracle evidence export: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "oracle_evidence_export", outPath: "${AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE}" })`,
+    `- DSPx owner preflight command: dspx oracle autoresearch-evidence publish-preflight --packet ${AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE} --target shared-postgres --publication-label retained --out <autoresearch_oracle_publication_preflight.json> --json; run this from the DSPx owner surface before any shared Oracle write.`,
+    "- boundary: these are next-call handoffs only; dashboard rendering does not run exports, call AK/KES/Oracle, mutate external authority, or change promotion state.",
+  ];
+}
+
 function formatAutoresearchMatrixCampaignSummaryLines(
   summary: AutoresearchMatrixCampaignArtifactSummary,
 ): string[] {
@@ -5560,6 +5572,7 @@ export function formatAutoresearchDashboard(
     'autoresearch_learning_kes_adapter({ action: "plan", packetPath: "<exported-learning-packet>" })';
   const setupGuideLines = formatAutoresearchSetupGuideLines(dashboardCwd);
   const guidedCandidateJourneyLines = formatAutoresearchGuidedCandidateJourneyLines(dashboardCwd);
+  const authorityHandoffLines = formatAutoresearchAuthorityHandoffLines(dashboardCwd);
   const matrixSummary = discoverAutoresearchMatrixCampaignArtifacts(dashboardCwd);
   const matrixSummaryLines = formatAutoresearchMatrixCampaignSummaryLines(matrixSummary);
   const dashboardMode = formatAutoresearchDashboardMode(matrixSummary);
@@ -5630,6 +5643,9 @@ export function formatAutoresearchDashboard(
     "## Resume apply plan-only proposal",
     ...resumeApplyPlanLines,
     "",
+    "## Authority handoff",
+    ...authorityHandoffLines,
+    "",
     "## Learning handoff",
     `- export learning packet: ${learningExportCall}`,
     `- KES adapter plan: ${learningKesAdapterCall}`,
@@ -5649,7 +5665,7 @@ export function formatAutoresearchDashboard(
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "status" })`,
     `- resume plan: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "resume_plan" })`,
     `- resume apply plan-only proposal: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "resume_apply_plan" })`,
-    `- closeout packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "closeout" })`,
+    ...authorityHandoffLines,
     `- learning export: ${learningExportCall}`,
     `- learning KES adapter plan: ${learningKesAdapterCall}`,
     `- candidate bind: ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, candidateWorktree: ${JSON.stringify(dashboardCwd)}, action: "plan_run" })`,
@@ -5689,6 +5705,7 @@ function renderAutoresearchDashboardHtml(
     'autoresearch_learning_kes_adapter({ action: "plan", packetPath: "<exported-learning-packet>" })';
   const setupGuideLines = formatAutoresearchSetupGuideLines(closeout.cwd);
   const guidedCandidateJourneyLines = formatAutoresearchGuidedCandidateJourneyLines(closeout.cwd);
+  const authorityHandoffLines = formatAutoresearchAuthorityHandoffLines(closeout.cwd);
   const generatedAt = new Date().toLocaleString();
   const metricUnit = closeout.metricUnit || segment.metricUnit || "";
   const metricName = closeout.metricName ?? segment.metricName ?? "metric";
@@ -5915,6 +5932,12 @@ code { color: #a5d6ff; }
     <div class="card-copy">${escapeHtml(resumeApplyPlan.packetKind)} · execution authorized=${resumeApplyPlan.executionAuthorized ? "yes" : "no"} · blockers=${escapeHtml(resumeApplyPlanBlockers)}</div>
     <div class="card-copy"><code>${escapeHtml(resumeApplyPlan.futureForegroundCall ?? `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "resume_apply_plan" })`)}</code></div>
     <div class="card-copy">Plan-only: execution is not authorized here; use autoresearch_runtime_resume_apply only with exact foreground confirmation and explicit budgets.</div>
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Authority handoff</div>
+    <div class="card-value" style="font-size:18px">closeout → AK evidence → learning/KES → Oracle-ready DSPx preflight</div>
+    ${authorityHandoffLines.map((line) => `<div class="card-copy"><code>${escapeHtml(line.replace(/^- /u, ""))}</code></div>`).join("\n")}
   </section>
 
   <section class="card" style="margin-top:14px">
