@@ -637,6 +637,28 @@ export interface AutoresearchMatrixCampaignCellSummary {
   nextLegalAction: string;
 }
 
+export interface AutoresearchDashboardChartPoint {
+  iteration: number | null;
+  label: string;
+  status: string;
+  runKind: string;
+  decision: string;
+  metric: number;
+  description: string;
+  source: "runtime_receipt" | "matrix_closeout" | "matrix_candidate_result" | "matrix_progress";
+}
+
+export interface AutoresearchMatrixCampaignDashboardChart {
+  kind: "autoresearch.matrix_campaign_dashboard_chart.v1";
+  mode: "metric" | "cell_progress" | "empty";
+  metricName: string;
+  metricUnit: string;
+  direction: MetricDirection;
+  sourceDescription: string;
+  emptyMessage: string;
+  points: AutoresearchDashboardChartPoint[];
+}
+
 export interface AutoresearchMatrixCampaignArtifactSummary {
   kind: "autoresearch.matrix_campaign_artifact_summary.v1";
   cwd: string;
@@ -653,6 +675,7 @@ export interface AutoresearchMatrixCampaignArtifactSummary {
   metricTarget: number | null;
   latestArtifactPath: string | null;
   cells: AutoresearchMatrixCampaignCellSummary[];
+  chart: AutoresearchMatrixCampaignDashboardChart;
   nextLegalActions: string[];
   exportVisibilityBlockers: {
     name: "export_visibility_blockers";
@@ -5069,6 +5092,177 @@ function summarizeMatrixCockpitArtifact(
   }
 }
 
+function addMatrixCampaignChartPoint(
+  points: AutoresearchDashboardChartPoint[],
+  point: AutoresearchDashboardChartPoint,
+): void {
+  const duplicate = points.some(
+    (existing) =>
+      existing.source === point.source &&
+      existing.label === point.label &&
+      existing.metric === point.metric &&
+      existing.description === point.description,
+  );
+  if (!duplicate) points.push(point);
+}
+
+function addCandidateResultMatrixChartPoint(
+  json: unknown,
+  relativePath: string,
+  points: AutoresearchDashboardChartPoint[],
+): void {
+  if (
+    !isRecord(json) ||
+    getStringField(json, "packetKind") !== "autoresearch.candidate_result.v1"
+  ) {
+    return;
+  }
+  const candidateRun = getRecordField(json, "candidateRun");
+  const metric = getNumberField(candidateRun, "metric");
+  if (metric === null) return;
+  const cellId = inferMatrixCellIdFromPath(relativePath) ?? "matrix-cell";
+  const candidate = getRecordField(json, "candidate");
+  const laneId =
+    getStringField(candidate, "branch") ??
+    getStringField(candidate, "worktreePath") ??
+    path.basename(relativePath).replace(/\.candidate-result\.json$/u, "");
+  addMatrixCampaignChartPoint(points, {
+    iteration: getNumberField(candidateRun, "iteration"),
+    label: `${cellId} ${laneId}`,
+    status: getStringField(candidateRun, "status") ?? "candidate",
+    runKind: getStringField(candidateRun, "runKind") ?? "matrix_candidate_result",
+    decision: getStringField(json, "empiricalDecisionClass") ?? "candidate_result",
+    metric,
+    description:
+      getStringField(candidateRun, "description") ??
+      getStringField(json, "resultSummary") ??
+      `Candidate-result metric from ${relativePath}`,
+    source: "matrix_candidate_result",
+  });
+}
+
+function addMatrixCloseoutChartPoints(
+  artifact: Record<string, unknown>,
+  relativePath: string,
+  points: AutoresearchDashboardChartPoint[],
+): { name: string | null; direction: MetricDirection | null; target: number | null } {
+  const closeoutMetric = getRecordField(getRecordField(artifact, "closeout"), "metric");
+  if (!closeoutMetric) return { name: null, direction: null, target: null };
+  const name = getStringField(closeoutMetric, "name");
+  const directionValue = getStringField(closeoutMetric, "direction");
+  const direction: MetricDirection | null =
+    directionValue === "lower" || directionValue === "higher" ? directionValue : null;
+  const target = getNumberField(closeoutMetric, "target");
+  const baseline = getNumberField(closeoutMetric, "baseline");
+  const final = getNumberField(closeoutMetric, "final");
+  if (baseline !== null) {
+    addMatrixCampaignChartPoint(points, {
+      iteration: 1,
+      label: "matrix baseline",
+      status: "baseline",
+      runKind: "matrix_closeout",
+      decision: "baseline",
+      metric: baseline,
+      description: `${name ?? "matrix closeout metric"} baseline from ${relativePath}`,
+      source: "matrix_closeout",
+    });
+  }
+  if (final !== null) {
+    addMatrixCampaignChartPoint(points, {
+      iteration: baseline !== null ? 2 : 1,
+      label: "matrix final",
+      status: target !== null && final === target ? "keep" : "candidate",
+      runKind: "matrix_closeout",
+      decision: target !== null && final === target ? "threshold_satisfied" : "candidate_result",
+      metric: final,
+      description: `${name ?? "matrix closeout metric"} final from ${relativePath}`,
+      source: "matrix_closeout",
+    });
+  }
+  return { name, direction, target };
+}
+
+function buildMatrixCampaignDashboardChart(input: {
+  metricPoints: AutoresearchDashboardChartPoint[];
+  completedCellCount: number;
+  resolvedCellCount: number;
+  metricName: string | null;
+  metricDirection: MetricDirection | null;
+}): AutoresearchMatrixCampaignDashboardChart {
+  if (input.metricPoints.length > 0) {
+    return {
+      kind: "autoresearch.matrix_campaign_dashboard_chart.v1",
+      mode: "metric",
+      metricName: input.metricName ?? "matrix_metric",
+      metricUnit: "",
+      direction: input.metricDirection ?? "lower",
+      sourceDescription:
+        "Derived from matrix closeout metrics and candidate-result packet metrics discovered in local .autoresearch artifacts.",
+      emptyMessage: "No matrix metric points were discovered yet.",
+      points: input.metricPoints.map((point, index) => ({
+        ...point,
+        iteration: point.iteration ?? index + 1,
+      })),
+    };
+  }
+
+  if (input.resolvedCellCount > 0) {
+    return {
+      kind: "autoresearch.matrix_campaign_dashboard_chart.v1",
+      mode: "cell_progress",
+      metricName: "matrix_cells_completed",
+      metricUnit: " cell(s)",
+      direction: "higher",
+      sourceDescription:
+        "Derived from matrix plan/cockpit/review cell-progress artifacts because no metric receipt series was available.",
+      emptyMessage: "No matrix cell progress was discovered yet.",
+      points: [
+        {
+          iteration: 1,
+          label: "matrix planned",
+          status: "planned",
+          runKind: "matrix_progress",
+          decision: "planned",
+          metric: 0,
+          description: `${input.resolvedCellCount} matrix cell(s) planned`,
+          source: "matrix_progress",
+        },
+        {
+          iteration: 2,
+          label: "matrix discovered progress",
+          status:
+            input.completedCellCount >= input.resolvedCellCount
+              ? "keep"
+              : input.completedCellCount > 0
+                ? "candidate"
+                : "planned",
+          runKind: "matrix_progress",
+          decision:
+            input.completedCellCount >= input.resolvedCellCount
+              ? "threshold_satisfied"
+              : "in_progress",
+          metric: input.completedCellCount,
+          description: `${input.completedCellCount}/${input.resolvedCellCount} matrix cell(s) complete`,
+          source: "matrix_progress",
+        },
+      ],
+    };
+  }
+
+  return {
+    kind: "autoresearch.matrix_campaign_dashboard_chart.v1",
+    mode: "empty",
+    metricName: input.metricName ?? "matrix_progress",
+    metricUnit: "",
+    direction: input.metricDirection ?? "higher",
+    sourceDescription:
+      "No chartable matrix closeout, candidate-result, or cell-progress points were discovered.",
+    emptyMessage:
+      "No matrix chart data yet; export candidate-result packets or matrix review/cockpit artifacts to fill this graph.",
+    points: [],
+  };
+}
+
 export function discoverAutoresearchMatrixCampaignArtifacts(
   cwdInput: string,
 ): AutoresearchMatrixCampaignArtifactSummary {
@@ -5082,6 +5276,7 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
   const exportedPackets = new Set<string>();
   const campaignKeys = new Set<string>();
   const blockers: string[] = [];
+  const matrixChartMetricPoints: AutoresearchDashboardChartPoint[] = [];
   let completedCellCount = 0;
   let selectedCellCount = 0;
   let expectedCellCount = 0;
@@ -5109,6 +5304,7 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
       if (extracted.length === 0) {
         if (getStringField(json, "packetKind") === "autoresearch.candidate_result.v1") {
           exportedPackets.add(relativePath);
+          addCandidateResultMatrixChartPoint(json, relativePath, matrixChartMetricPoints);
           const cellId = inferMatrixCellIdFromPath(relativePath);
           if (cellId) {
             upsertMatrixCampaignCellSummary(cells, {
@@ -5163,6 +5359,14 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
           item.kind === "autoresearch.matrix_campaign_review.v1"
         ) {
           summarizeMatrixFollowupArtifact(followup ?? {}, cells, nextLegalActions);
+          const closeoutMetric = addMatrixCloseoutChartPoints(
+            item.artifact,
+            relativePath,
+            matrixChartMetricPoints,
+          );
+          metricName ??= closeoutMetric.name;
+          metricDirection ??= closeoutMetric.direction;
+          metricTarget ??= closeoutMetric.target;
           const cockpit = getRecordField(item.artifact, "cockpit");
           if (cockpit) summarizeMatrixCockpitArtifact(cockpit, cells, nextLegalActions);
           completedCellCount = Math.max(
@@ -5206,6 +5410,13 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
     cellList.reduce((total, cell) => total + cell.packetInventory.length, 0),
   );
   const blockerValue = blockers.length;
+  const chart = buildMatrixCampaignDashboardChart({
+    metricPoints: matrixChartMetricPoints,
+    completedCellCount,
+    resolvedCellCount,
+    metricName,
+    metricDirection,
+  });
 
   return {
     kind: "autoresearch.matrix_campaign_artifact_summary.v1",
@@ -5223,6 +5434,7 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
     metricTarget,
     latestArtifactPath,
     cells: cellList,
+    chart,
     nextLegalActions: [...nextLegalActions].slice(0, 8),
     exportVisibilityBlockers: {
       name: "export_visibility_blockers",
@@ -5498,13 +5710,15 @@ function renderAutoresearchDashboardHtml(
       return `<tr${run.metric === bestMetric && bestMetric !== null ? ` class="best-row"` : ""}><td class="mono">${escapeHtml(String(run.iteration ?? "-"))}</td><td><span class="status ${statusClass}">${escapeHtml(run.status)}</span></td><td>${escapeHtml(run.runKind)}</td><td class="mono metric-cell">${escapeHtml(formatAutoresearchDashboardNumber(run.metric, metricUnit))}</td><td><span class="decision ${decisionClass}">${escapeHtml(run.empiricalDecisionClass)}</span></td><td>${escapeHtml(run.description)}</td></tr>`;
     })
     .join("\n");
-  const chartData = rows.map((run) => ({
+  const runtimeChartPoints: AutoresearchDashboardChartPoint[] = rows.map((run) => ({
     iteration: run.iteration,
+    label: run.iteration === null ? run.runKind : `run ${run.iteration}`,
     status: run.status,
     runKind: run.runKind,
     decision: run.empiricalDecisionClass,
     metric: run.metric,
     description: run.description,
+    source: "runtime_receipt",
   }));
   const matrixCellRows = matrixSummary.cells
     .map(
@@ -5518,6 +5732,18 @@ function renderAutoresearchDashboardHtml(
     .join("\n");
   const dashboardMode = formatAutoresearchDashboardMode(matrixSummary);
   const matrixMode = dashboardMode === "matrix_campaign";
+  const chartPoints = matrixMode ? matrixSummary.chart.points : runtimeChartPoints;
+  const chartMode = matrixMode ? "matrix_campaign" : "runtime_segment";
+  const chartMetricName = matrixMode ? matrixSummary.chart.metricName : metricName;
+  const chartMetricUnit = matrixMode ? matrixSummary.chart.metricUnit : metricUnit;
+  const chartDirection = matrixMode ? matrixSummary.chart.direction : direction;
+  const chartTitle = matrixMode ? "Matrix progress trajectory" : "Metric trajectory";
+  const chartSourceDescription = matrixMode
+    ? matrixSummary.chart.sourceDescription
+    : "Derived from local autoresearch runtime receipts for this cwd.";
+  const chartEmptyMessage = matrixMode
+    ? matrixSummary.chart.emptyMessage
+    : "No local runtime metric data yet.";
   const matrixProgressCards = `<div class="cards">
     <section class="card"><div class="card-label">Matrix cells</div><div class="card-value">${escapeHtml(`${matrixSummary.completedCellCount}/${matrixSummary.cellCount}`)}</div></section>
     <section class="card"><div class="card-label">Selected lanes</div><div class="card-value">${escapeHtml(String(matrixSummary.selectedCellCount))}</div></section>
@@ -5738,7 +5964,8 @@ code { color: #a5d6ff; }
   </div>
 
   <section class="chart-panel">
-    <div class="chart-head"><span>Metric trajectory</span><span class="mono">${escapeHtml(metricName)} / ${escapeHtml(direction ?? "direction unset")}</span></div>
+    <div class="chart-head"><span>${escapeHtml(chartTitle)}</span><span class="mono">${escapeHtml(chartMetricName)} / ${escapeHtml(chartDirection ?? "direction unset")}</span></div>
+    <div class="card-copy">${escapeHtml(chartSourceDescription)}</div>
     <div class="chart-wrap">
       <canvas id="metric-chart" aria-label="Autoresearch metric trajectory"></canvas>
       <div class="chart-crosshair" id="chart-crosshair"></div>
@@ -5757,7 +5984,7 @@ code { color: #a5d6ff; }
   </section>
 </div>
 <script>
-const DASHBOARD_DATA = ${escapeScriptJson(JSON.stringify({ rows: chartData, metricUnit, metricName, direction }))};
+const DASHBOARD_DATA = ${escapeScriptJson(JSON.stringify({ rows: chartPoints, metricUnit: chartMetricUnit, metricName: chartMetricName, direction: chartDirection, chartMode, chartTitle, emptyMessage: chartEmptyMessage }))};
 const DASHBOARD_SHARE_SVG = ${escapeScriptJson(JSON.stringify(shareSvg))};
 const canvas = document.getElementById('metric-chart');
 const tooltip = document.getElementById('chart-tooltip');
@@ -5773,6 +6000,9 @@ function formatMetric(value) {
   const n = Number(value);
   const body = Math.abs(n) >= 100 ? n.toFixed(0) : Number.isInteger(n) ? String(n) : n.toFixed(2);
   return body + (DASHBOARD_DATA.metricUnit || '');
+}
+function escapeClientHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }
 function drawChart() {
   if (!canvas) return;
@@ -5798,7 +6028,7 @@ function drawChart() {
     ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
   }
   if (rows.length === 0) {
-    ctx.fillText('No metric data yet', pad.left, pad.top + 24);
+    ctx.fillText(DASHBOARD_DATA.emptyMessage || 'No metric data yet', pad.left, pad.top + 24);
     return;
   }
   const values = rows.map(r => Number(r.metric)).filter(Number.isFinite);
@@ -5842,7 +6072,7 @@ canvas?.addEventListener('mousemove', (event) => {
   tooltip.classList.add('visible');
   tooltip.style.left = Math.min(rect.width - 220, nearest.x + 12) + 'px';
   tooltip.style.top = Math.max(8, nearest.y - 24) + 'px';
-  tooltip.innerHTML = '<div class="tt-run">run ' + (nearest.iteration ?? '—') + ' / ' + nearest.runKind + '</div><div class="tt-metric">' + formatMetric(nearest.metric) + '</div><span class="tt-status">' + nearest.status + '</span><div class="tt-desc">' + (nearest.description || '') + '</div>';
+  tooltip.innerHTML = '<div class="tt-run">' + escapeClientHtml(nearest.label || ('run ' + (nearest.iteration ?? '—'))) + ' / ' + escapeClientHtml(nearest.runKind) + '</div><div class="tt-metric">' + escapeClientHtml(formatMetric(nearest.metric)) + '</div><span class="tt-status">' + escapeClientHtml(nearest.status) + '</span><div class="tt-desc">' + escapeClientHtml(nearest.description || '') + '</div>';
 });
 canvas?.addEventListener('mouseleave', () => { tooltip.classList.remove('visible'); crosshair.style.opacity = '0'; });
 window.addEventListener('resize', drawChart);

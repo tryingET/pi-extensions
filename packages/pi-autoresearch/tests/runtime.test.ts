@@ -2621,6 +2621,8 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /Auto-refreshes every 2s/);
     assert.match(html, /Metric readiness \/ trust/);
     assert.match(html, /metric readiness blockers=1/);
+    assert.match(html, /Metric trajectory/);
+    assert.match(html, /"chartMode":"runtime_segment"/);
     assert.match(html, /Resume plan/);
     assert.match(html, /autoresearch\.resume_plan\.v1/);
     assert.match(html, /Read-only: no benchmark run/);
@@ -2774,6 +2776,16 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
           ],
           nextLegalCampaignActions: ["Run review_matrix_campaign for task 2921."],
         },
+        closeout: {
+          kind: "autoresearch.matrix_campaign_closeout.v1",
+          metric: {
+            name: "export_visibility_blockers",
+            baseline: 2,
+            final: 0,
+            target: 0,
+            direction: "lower",
+          },
+        },
         nextStep: "Owner reviews the matrix cockpit, then records evidence after review.",
       }),
     );
@@ -2790,6 +2802,12 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
     assert.equal(summary.exportedPacketCount, 1);
     assert.equal(summary.cells[0]?.cellId, "cell-01-01");
     assert.equal(summary.cells[0]?.selectedLaneId, "candidate-01");
+    assert.equal(summary.chart.mode, "metric");
+    assert.equal(summary.chart.metricName, "export_visibility_blockers");
+    assert.deepEqual(
+      summary.chart.points.map((point) => point.metric),
+      [2, 0],
+    );
 
     const textDashboard = formatAutoresearchDashboard(buildAutoresearchRuntimeStatus(cwd));
     assert.match(textDashboard, /mode: matrix_campaign/);
@@ -2804,6 +2822,12 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
     assert.match(html, /mode: matrix_campaign/);
     assert.match(html, /Dashboard mode/);
     assert.match(html, /Matrix campaign progress/);
+    assert.match(html, /Matrix progress trajectory/);
+    assert.match(html, /Derived from matrix closeout metrics/);
+    assert.match(html, /"chartMode":"matrix_campaign"/);
+    assert.match(html, /"rows":\[\{"iteration":1,"label":"matrix baseline"/);
+    assert.match(html, /"metric":2/);
+    assert.match(html, /"metric":0/);
     assert.match(html, /Matrix cells/);
     assert.match(html, /1\/1/);
     assert.match(html, /Local runtime segment snapshot/);
@@ -2817,6 +2841,50 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
     assert.match(html, /candidate-01\.candidate-result\.json/);
     assert.match(html, /Run review_matrix_campaign, then \/autoresearch review/);
     assert.match(html, /Matrix campaign discovery is read-only/);
+  }));
+
+test("matrix dashboard chart falls back to cell progress when metric points are absent", () =>
+  withTempDir((cwd) => {
+    const campaignDir = path.join(cwd, ".autoresearch", "campaigns", "2922");
+    mkdirSync(campaignDir, { recursive: true });
+    writeFileSync(
+      path.join(campaignDir, "matrix-review.json"),
+      JSON.stringify({
+        kind: "autoresearch.matrix_campaign_review.v1",
+        taskId: 2922,
+        cwd,
+        objective: "Matrix progress fallback",
+        direction: "higher",
+        completedCellCount: 2,
+        expectedCellCount: 3,
+        selectedCellCount: 1,
+        cockpit: {
+          kind: "autoresearch.matrix_campaign_cockpit.v1",
+          progress: { completedCells: 2, expectedCells: 3, selectedCells: 1 },
+          cellRows: [
+            { cellId: "cell-01-01", posture: "ready_for_matrix_owner_review", laneProgress: "1/1" },
+            { cellId: "cell-02-01", posture: "ready_for_matrix_owner_review", laneProgress: "1/1" },
+            { cellId: "cell-03-01", posture: "planned", laneProgress: "0/1" },
+          ],
+        },
+      }),
+    );
+
+    const summary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
+    assert.equal(summary.chart.mode, "cell_progress");
+    assert.equal(summary.chart.metricName, "matrix_cells_completed");
+    assert.deepEqual(
+      summary.chart.points.map((point) => point.metric),
+      [0, 2],
+    );
+
+    const result = exportAutoresearchDashboardHtml({ cwd });
+    const html = readFileSync(result.path, "utf8");
+    assert.match(html, /Matrix progress trajectory/);
+    assert.match(html, /matrix_cells_completed/);
+    assert.match(html, /"chartMode":"matrix_campaign"/);
+    assert.match(html, /"metric":2/);
+    assert.match(html, /Derived from matrix plan\/cockpit\/review cell-progress artifacts/);
   }));
 
 test("/autoresearch export off stops browser dashboard refresh without opening a browser", async () => {
