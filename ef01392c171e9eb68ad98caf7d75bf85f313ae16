@@ -1,0 +1,20 @@
+Updated pi-evalset-lab package documentation after canonicalization and completed legacy repo deprecation/archive.
+
+Task: AK #2942
+Commit: ef01392c
+Canonical package: packages/pi-evalset-lab
+Legacy repo: /home/tryinget/programming/pi-extensions/pi-evalset-lab
+Archive: /home/tryinget/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz
+
+Actions:
+- Updated package README, CHANGELOG, next_session_prompt, and legacy-canonicalization doc to state the legacy repo is archived/deleted and this package is canonical.
+- Updated root legacy transition backlog to mark pi-evalset-lab archived/removed.
+- Rendered legacy deprecation handoff into NEXT_SESSION_PROMPT.md and next_session_prompt.md before archiving.
+- Created final tar.gz archive and removed the legacy working copy.
+- Session relocation was skip-no-history because no full-path-derived legacy session directory existed.
+
+Validation:
+- docs-list strict for packages/pi-evalset-lab
+- npm run -s release:components:check
+- npm run -s release:contracts:validate
+- archive sanity check contains package root, package.json, extension entry, and handoff files
