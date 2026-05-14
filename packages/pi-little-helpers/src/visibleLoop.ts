@@ -601,19 +601,25 @@ function buildVisibleLoopCompletionPrompt(
   state: ActiveVisibleLoopState,
   iteration: number,
 ): string {
-  const finalMessage = `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${iteration}/${state.config.loopCount} iteration(s)`;
   const fallbackCommand = `/${VISIBLE_LOOP_CHILD_COMPLETE_COMMAND} ${quoteCommandArg(
     state.configPath,
   )} --iteration ${iteration}`;
+  const isFinalIteration = iteration >= state.config.loopCount;
+  const progressMessage = `VISIBLE_LOOP_ITERATION peer_run_id=${state.config.runId}: completed iteration ${iteration}/${state.config.loopCount}`;
+  const finalMessage = `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${iteration}/${state.config.loopCount} iteration(s)`;
   return [
     "VISIBLE-LOOP INTERNAL COMPLETION SENTINEL.",
-    "The requested visible-loop prompt sequence has reached its final completion step.",
+    `The requested visible-loop prompt sequence has reached iteration ${iteration}/${state.config.loopCount}.`,
     "Do not continue implementation work from this sentinel.",
-    "Report completion to the parent/controller now.",
+    isFinalIteration
+      ? "Report final completion to the parent/controller now."
+      : "Report iteration progress to the parent/controller now, then run the local completion command so the next iteration can queue.",
     "Use the intercom tool if available with this exact canonical message:",
-    finalMessage,
-    "The PEER_FINAL line must include `peer_run_id=` exactly as shown so peer_watch can recognize it.",
-    `If intercom is unavailable, run this local completion command or report it visibly: ${fallbackCommand}`,
+    isFinalIteration ? finalMessage : progressMessage,
+    isFinalIteration
+      ? "The PEER_FINAL line must include `peer_run_id=` exactly as shown so peer_watch can recognize it."
+      : "Do not send PEER_FINAL for a non-final iteration.",
+    `Then run this local completion command or report it visibly if command execution is unavailable: ${fallbackCommand}`,
   ].join("\n");
 }
 

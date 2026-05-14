@@ -619,7 +619,8 @@ test("visible-loop child queues follow-up prompts and starts next iteration only
     assert.equal(userMessages[4].message, "/deep-review");
     assert.match(userMessages[6].message, /Prompt Vault/);
     assert.match(userMessages[7].message, /^VISIBLE-LOOP INTERNAL COMPLETION SENTINEL\./);
-    assert.match(userMessages[7].message, /PEER_FINAL peer_run_id=/);
+    assert.match(userMessages[7].message, /VISIBLE_LOOP_ITERATION peer_run_id=/);
+    assert.doesNotMatch(userMessages[7].message, /PEER_FINAL peer_run_id=/);
     assert.match(userMessages[7].message, /\/visible-loop-child-complete /);
     assert.deepEqual(
       userMessages.slice(1).map((entry) => entry.options),
@@ -645,6 +646,11 @@ test("visible-loop child queues follow-up prompts and starts next iteration only
     await agentStart({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 900));
     assert.equal(userMessages.length, 16);
+    assert.match(userMessages[15].message, /PEER_FINAL peer_run_id=/);
+    assert.doesNotMatch(
+      userMessages[15].message,
+      /Do not send PEER_FINAL for a non-final iteration/,
+    );
     assert.deepEqual(
       userMessages.slice(9).map((entry) => entry.options),
       Array(7).fill({ deliverAs: "followUp" }),
