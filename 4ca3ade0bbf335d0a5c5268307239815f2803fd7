@@ -1,0 +1,12 @@
+OIDC trusted publishing proof succeeded for @tryinget/pi-model-selection.
+
+Sequence:
+- Re-ran pi-model-selection-v0.1.0 after operator created package/trust; npm rejected it as already published, proving npm now recognized 0.1.0 under the package.
+- Created release bump commit caefa7e / cherry-picked locally as 4ca3ade0: @tryinget/pi-model-selection 0.1.1 with release-please manifest and changelog update.
+- Pushed tag pi-model-selection-v0.1.1 -> caefa7e0651928849c2b9b316dbfbe3e9d8ba706.
+- Ran publish.yml workflow_dispatch: https://github.com/tryingET/pi-extensions/actions/runs/25839444353
+- Workflow passed and published @tryinget/pi-model-selection@0.1.1 using npm OIDC + provenance.
+- npm view confirms latest=0.1.1, repository.directory=packages/pi-model-selection.
+- Sigstore transparency log index: 1529964178.
+
+Caveat: tag points at caefa7e release worktree commit; current branch carries equivalent cherry-pick 4ca3ade0 for repo continuity.
