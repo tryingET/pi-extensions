@@ -106,6 +106,62 @@
       ]
     },
     {
+      "id": "autoresearch-runtime-packet-contract",
+      "title": "pi-autoresearch runtime status and packet export contract",
+      "owner": "pi-autoresearch",
+      "why": "Protect the direct pi-autoresearch runtime/status/export scenario where receipts become closeout, candidate-result, learning, and owner-routed adapter packets without mutating AK/KES/evidence authorities.",
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
+      "packages": [
+        "packages/pi-autoresearch"
+      ],
+      "upstreamSurfaces": [
+        "runtime receipt projection",
+        "runtime status packet export",
+        "candidate-result packet export seam",
+        "learning packet export seam"
+      ],
+      "cwd": "packages/pi-autoresearch",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "--test-name-pattern",
+        "segment closeout summarizes empirical decisions and candidate bindings|autoresearch_runtime_status can request closeout, setup, and finalize packets",
+        "tests/runtime.test.ts"
+      ],
+      "notes": "Focused direct runtime packet/export canary: receipt parsing/status projection, closeout packet generation, candidate-result export, and learning export boundaries. It does not launch peers, write AK/KES evidence, or promote candidates."
+    },
+    {
+      "id": "orchestrator-autoresearch-supervision-contract",
+      "title": "orchestrator autoresearch live supervision contract",
+      "owner": "pi-society-orchestrator",
+      "why": "Protect the pi-society-orchestrator supervision/report choreography where start_campaign, status polling, terminal closeout review, and owner-visible handoff calls wrap pi-autoresearch packets without taking packet ownership.",
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
+      "packages": [
+        "packages/pi-society-orchestrator"
+      ],
+      "upstreamSurfaces": [
+        "TypeBox tool schema compatibility",
+        "start_campaign/status/closeout supervision seam",
+        "registered tool execution result details",
+        "supervision report rendering for pi-autoresearch packet handoffs"
+      ],
+      "cwd": "packages/pi-society-orchestrator",
+      "command": [
+        "bash",
+        "-lc",
+        "npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves' tests/autoresearch-live-control-plane.test.mjs"
+      ],
+      "notes": "Focused orchestrator supervision canary for live start/status/session management and dashboard-first matrix closeout reporting. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules. It does not launch peers, run benchmarks, merge candidates, or write AK/KES evidence."
+    },
+    {
       "id": "orchestrator-autoresearch-matrix-closeout",
       "title": "orchestrator autoresearch matrix closeout contract",
       "owner": "monorepo-root",
@@ -124,13 +180,11 @@
       ],
       "cwd": "packages/pi-society-orchestrator",
       "command": [
-        "node",
-        "--test",
-        "--test-name-pattern",
-        "plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares",
-        "tests/autoresearch-live-control-plane.test.mjs"
+        "bash",
+        "-lc",
+        "npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares' tests/autoresearch-live-control-plane.test.mjs"
       ],
-      "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers."
+      "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules."
     }
   ]
 }

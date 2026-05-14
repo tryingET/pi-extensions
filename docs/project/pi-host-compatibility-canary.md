@@ -48,6 +48,8 @@ Each profile resolves an **exact host contract** before any scenario runs:
 The manifest now declares explicit leaf package roots for each scenario. The runner validates those package roots, auto-aligns them to the selected host contract before executing the scenario command, and restores the prior host-package versions after the run.
 That removes directory-shape inference, keeps execution scope consistent with the declared seam, and reduces local environment contamination after upgrade checks.
 
+Coverage health for the critical root canary is tracked with `critical_uncovered_host_surfaces`; the current target is `critical_uncovered_host_surfaces=0`.
+
 ### `current`
 Run against the root-owned pinned host contract recorded in `policy/pi-host-compatibility-canary.json`. This is the canary baseline contract, not a claim that every checked-in package tree already matches it.
 
@@ -103,6 +105,43 @@ Protected host surfaces:
 - `tool_result` correlation
 - parallel tool execution
 
+### `autoresearch-runtime-packet-contract`
+Anchors the direct `pi-autoresearch` runtime packet/export surface: runtime receipts become status, closeout, candidate-result, and learning-export packets without crossing into orchestrator-owned reporting.
+
+Current command:
+
+```bash
+cd packages/pi-autoresearch
+node --import tsx --test --test-name-pattern "segment closeout summarizes empirical decisions and candidate bindings|autoresearch_runtime_status can request closeout, setup, and finalize packets" tests/runtime.test.ts
+```
+
+Protected host surfaces:
+- runtime receipt projection
+- runtime status packet export
+- candidate-result packet export seam
+- learning packet export seam
+
+This is the direct pi-autoresearch runtime/status/export scenario. It proves packet construction, local export paths, suggested owner handoff calls, and non-authority side-effect flags without launching peers or writing AK/KES/evidence.
+
+### `orchestrator-autoresearch-supervision-contract`
+Anchors the `pi-society-orchestrator` supervision/report choreography around `pi-autoresearch`: start a supervised campaign plan, report status for the exact session identity, and render the closeout path for owner review.
+
+Current command:
+
+```bash
+cd packages/pi-society-orchestrator
+npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null
+node --test --test-name-pattern "autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves" tests/autoresearch-live-control-plane.test.mjs
+```
+
+Protected host surfaces:
+- TypeBox tool schema compatibility
+- start_campaign/status/closeout supervision seam
+- registered tool execution result details
+- supervision report rendering for pi-autoresearch packet handoffs
+
+This scenario proves the orchestrator supervision scenario covers start_campaign/status/closeout seam while keeping package ownership truthful: `pi-autoresearch` owns runtime packets/receipts, and `pi-society-orchestrator` owns supervision/report choreography. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from `node_modules`.
+
 ### `orchestrator-autoresearch-matrix-closeout`
 Anchors the highest-stack supervised campaign path currently proven inside `pi-society-orchestrator`: matrix campaign planning, managed candidate-wave packet review, dashboard-first owner routing, and the matrix closeout evidence handoff.
 
@@ -110,6 +149,7 @@ Current command:
 
 ```bash
 cd packages/pi-society-orchestrator
+npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null
 node --test --test-name-pattern "plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares" tests/autoresearch-live-control-plane.test.mjs
 ```
 

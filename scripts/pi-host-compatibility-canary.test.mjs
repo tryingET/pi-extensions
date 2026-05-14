@@ -57,6 +57,44 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
 });
 
+test("compatibility canary covers direct autoresearch runtime packet exports", () => {
+  const result = runJson(["list", "--profile", "current"]);
+  const scenario = result.scenarios.find(
+    (entry) => entry.id === "autoresearch-runtime-packet-contract",
+  );
+
+  assert.ok(scenario);
+  assert.equal(scenario.owner, "pi-autoresearch");
+  assert.deepEqual(scenario.packages, ["packages/pi-autoresearch"]);
+  assert.ok(scenario.upstreamSurfaces.includes("candidate-result packet export seam"));
+  assert.ok(scenario.upstreamSurfaces.includes("learning packet export seam"));
+  assert.deepEqual(scenario.command, [
+    "node",
+    "--import",
+    "tsx",
+    "--test",
+    "--test-name-pattern",
+    "segment closeout summarizes empirical decisions and candidate bindings|autoresearch_runtime_status can request closeout, setup, and finalize packets",
+    "tests/runtime.test.ts",
+  ]);
+});
+
+test("compatibility canary covers orchestrator start_campaign/status/closeout supervision", () => {
+  const result = runJson(["list", "--profile", "current"]);
+  const scenario = result.scenarios.find(
+    (entry) => entry.id === "orchestrator-autoresearch-supervision-contract",
+  );
+
+  assert.ok(scenario);
+  assert.equal(scenario.owner, "pi-society-orchestrator");
+  assert.deepEqual(scenario.packages, ["packages/pi-society-orchestrator"]);
+  assert.ok(scenario.upstreamSurfaces.includes("start_campaign/status/closeout supervision seam"));
+  assert.equal(scenario.command[0], "bash");
+  assert.match(scenario.command.join(" "), /pi-autonomous-session-control/);
+  assert.match(scenario.command.join(" "), /start_campaign delegates execution then supervises/);
+  assert.match(scenario.command.join(" "), /review_matrix_campaign aggregates managed cell waves/);
+});
+
 test("compatibility canary list uses explicit leaf package roots from the manifest", () => {
   const result = runJson(["list", "--profile", "current"]);
   const interactionScenario = result.scenarios.find(
