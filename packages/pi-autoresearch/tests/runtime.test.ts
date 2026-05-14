@@ -73,6 +73,7 @@ import {
   buildAutoresearchSegmentCloseout,
   createConfigReceipt,
   createRunReceipt,
+  discoverAutoresearchMatrixCampaignArtifacts,
   executeAutoresearchResumeApply,
   exportAutoresearchDashboardHtml,
   formatAutoresearchAdapterContractCatalog,
@@ -2636,7 +2637,119 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /candidate_result_export/);
     assert.match(html, /autoresearch_live_supervision/);
     assert.match(html, /taskId/);
+    assert.match(html, /Matrix campaign artifact summary/);
+    assert.match(html, /export_visibility_blockers=0/);
+    assert.match(html, /No matrix campaign artifacts discovered/);
     assert.match(html, /Browser export is read-only/);
+  }));
+
+test("dashboard export discovers and renders matrix campaign artifacts", () =>
+  withTempDir((cwd) => {
+    const campaignDir = path.join(cwd, ".autoresearch", "campaigns", "2921");
+    const cellDir = path.join(cwd, ".autoresearch", "matrix-campaign", "cell-01-01");
+    mkdirSync(campaignDir, { recursive: true });
+    mkdirSync(cellDir, { recursive: true });
+    writeFileSync(
+      path.join(campaignDir, "matrix-plan.json"),
+      JSON.stringify({
+        kind: "autoresearch.matrix_campaign_plan.v1",
+        taskId: 2921,
+        cwd,
+        objective: "Matrix endurance dashboard export",
+        direction: "lower",
+        operatorFollowup: {
+          primaryMetric: { name: "export_visibility_blockers", direction: "lower", target: 0 },
+          nextLegalActions: ["Open /autoresearch export before review_matrix_campaign."],
+        },
+        cells: [
+          {
+            cellId: "cell-01-01",
+            scenario: "long-running campaign",
+            hypothesis: "dashboard watch surface",
+            candidatePacketDirectory: ".autoresearch/matrix-campaign/cell-01-01",
+            candidateResultPacketPaths: [
+              ".autoresearch/matrix-campaign/cell-01-01/candidate-01.candidate-result.json",
+              ".autoresearch/matrix-campaign/cell-01-01/candidate-02.candidate-result.json",
+            ],
+            managedWavePosture: "managed_candidate_wave_required",
+            planCandidateWaveCall:
+              'autoresearch_live_supervision({ action: "plan_candidate_wave" })',
+            reviewCandidateWaveCall:
+              'autoresearch_live_supervision({ action: "review_candidate_wave" })',
+          },
+        ],
+        nextStep: "Launch approved visible candidate lanes, then export candidate-result packets.",
+      }),
+    );
+    writeFileSync(
+      path.join(campaignDir, "matrix-review.json"),
+      JSON.stringify({
+        kind: "autoresearch.matrix_campaign_review.v1",
+        taskId: 2921,
+        cwd,
+        objective: "Matrix endurance dashboard export",
+        direction: "lower",
+        completedCellCount: 1,
+        expectedCellCount: 1,
+        selectedCellCount: 1,
+        operatorFollowup: {
+          primaryMetric: { name: "export_visibility_blockers", direction: "lower", target: 0 },
+          nextLegalActions: ["Review selected lane in /autoresearch review after dashboard scan."],
+          lanePacketPaths: [
+            {
+              cellId: "cell-01-01",
+              laneId: "candidate-01",
+              packetPath:
+                ".autoresearch/matrix-campaign/cell-01-01/candidate-01.candidate-result.json",
+              state: "measured_exported_selectable",
+            },
+          ],
+        },
+        cockpit: {
+          kind: "autoresearch.matrix_campaign_cockpit.v1",
+          progress: { completedCells: 1, expectedCells: 1, selectedCells: 1 },
+          cellRows: [
+            {
+              cellId: "cell-01-01",
+              posture: "ready_for_matrix_owner_review",
+              laneProgress: "1/2",
+              selectedLaneId: "candidate-01",
+              selectedPacketPath:
+                ".autoresearch/matrix-campaign/cell-01-01/candidate-01.candidate-result.json",
+              packetInventory: [
+                ".autoresearch/matrix-campaign/cell-01-01/candidate-01.candidate-result.json",
+              ],
+              nextLegalAction: "Run review_matrix_campaign, then /autoresearch review.",
+            },
+          ],
+          nextLegalCampaignActions: ["Run review_matrix_campaign for task 2921."],
+        },
+        nextStep: "Owner reviews the matrix cockpit, then records evidence after review.",
+      }),
+    );
+    writeFileSync(
+      path.join(cellDir, "candidate-01.candidate-result.json"),
+      JSON.stringify({ packetKind: "autoresearch.candidate_result.v1" }),
+    );
+
+    const summary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
+    assert.equal(summary.exportVisibilityBlockers.value, 0);
+    assert.equal(summary.metricName, "export_visibility_blockers");
+    assert.equal(summary.completedCellCount, 1);
+    assert.equal(summary.selectedCellCount, 1);
+    assert.equal(summary.exportedPacketCount, 1);
+    assert.equal(summary.cells[0]?.cellId, "cell-01-01");
+    assert.equal(summary.cells[0]?.selectedLaneId, "candidate-01");
+
+    const result = exportAutoresearchDashboardHtml({ cwd });
+    const html = readFileSync(result.path, "utf8");
+    assert.match(html, /Matrix campaign artifact summary/);
+    assert.match(html, /export_visibility_blockers=0/);
+    assert.match(html, /cell-01-01/);
+    assert.match(html, /ready_for_matrix_owner_review/);
+    assert.match(html, /candidate-01\.candidate-result\.json/);
+    assert.match(html, /Run review_matrix_campaign, then \/autoresearch review/);
+    assert.match(html, /Matrix campaign discovery is read-only/);
   }));
 
 test("/autoresearch export off stops browser dashboard refresh without opening a browser", async () => {

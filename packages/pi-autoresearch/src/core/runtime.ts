@@ -5,8 +5,10 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -606,6 +608,61 @@ export interface AutoresearchDashboardExportResult {
   fileUrl: string;
   refreshedAt: number;
   status: AutoresearchRuntimeStatus;
+}
+
+export type AutoresearchMatrixCampaignArtifactKind =
+  | "autoresearch.matrix_campaign_plan.v1"
+  | "autoresearch.matrix_campaign_runner_contract.v1"
+  | "autoresearch.matrix_campaign_runner_checkpoint.v1"
+  | "autoresearch.matrix_campaign_review.v1"
+  | "autoresearch.matrix_campaign_cockpit.v1"
+  | "autoresearch.matrix_campaign_operator_followup.v1";
+
+export interface AutoresearchMatrixCampaignArtifactReference {
+  kind: AutoresearchMatrixCampaignArtifactKind;
+  path: string;
+  source: string;
+}
+
+export interface AutoresearchMatrixCampaignCellSummary {
+  cellId: string;
+  scenario: string | null;
+  hypothesis: string | null;
+  posture: string;
+  laneProgress: string;
+  selectedLaneId: string | null;
+  selectedPacketPath: string | null;
+  candidatePacketDirectory: string | null;
+  packetInventory: string[];
+  nextLegalAction: string;
+}
+
+export interface AutoresearchMatrixCampaignArtifactSummary {
+  kind: "autoresearch.matrix_campaign_artifact_summary.v1";
+  cwd: string;
+  artifactRoots: string[];
+  artifacts: AutoresearchMatrixCampaignArtifactReference[];
+  campaignCount: number;
+  cellCount: number;
+  completedCellCount: number;
+  selectedCellCount: number;
+  candidateLaneCount: number;
+  exportedPacketCount: number;
+  metricName: string | null;
+  metricDirection: MetricDirection | null;
+  metricTarget: number | null;
+  latestArtifactPath: string | null;
+  cells: AutoresearchMatrixCampaignCellSummary[];
+  nextLegalActions: string[];
+  exportVisibilityBlockers: {
+    name: "export_visibility_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    blockers: string[];
+  };
+  boundary: string;
 }
 
 export interface AutoresearchResumePlan {
@@ -4722,6 +4779,464 @@ export function formatAutoresearchPeerAssistPlan(plan: AutoresearchPeerAssistPla
   ].join("\n");
 }
 
+export const AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_ROOTS = [
+  ".autoresearch/campaigns",
+  ".autoresearch/matrix-campaign",
+] as const;
+
+const AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_KINDS = new Set<string>([
+  "autoresearch.matrix_campaign_plan.v1",
+  "autoresearch.matrix_campaign_runner_contract.v1",
+  "autoresearch.matrix_campaign_runner_checkpoint.v1",
+  "autoresearch.matrix_campaign_review.v1",
+  "autoresearch.matrix_campaign_cockpit.v1",
+  "autoresearch.matrix_campaign_operator_followup.v1",
+]);
+
+function getStringField(value: unknown, field: string): string | null {
+  if (!isRecord(value)) return null;
+  const candidate = value[field];
+  return typeof candidate === "string" && candidate.trim().length > 0 ? candidate : null;
+}
+
+function getNumberField(value: unknown, field: string): number | null {
+  if (!isRecord(value)) return null;
+  const candidate = value[field];
+  return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null;
+}
+
+function getRecordField(value: unknown, field: string): Record<string, unknown> | null {
+  if (!isRecord(value)) return null;
+  const candidate = value[field];
+  return isRecord(candidate) ? candidate : null;
+}
+
+function getArrayField(value: unknown, field: string): unknown[] {
+  if (!isRecord(value)) return [];
+  const candidate = value[field];
+  return Array.isArray(candidate) ? candidate : [];
+}
+
+function getStringArrayField(value: unknown, field: string): string[] {
+  return getArrayField(value, field).filter(
+    (candidate): candidate is string => typeof candidate === "string" && candidate.length > 0,
+  );
+}
+
+function isAutoresearchMatrixCampaignArtifactKind(
+  value: string | null,
+): value is AutoresearchMatrixCampaignArtifactKind {
+  return value !== null && AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_KINDS.has(value);
+}
+
+function collectJsonFiles(root: string): string[] {
+  if (!existsSync(root)) return [];
+  const files: string[] = [];
+  const visit = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith(".json")) {
+        files.push(fullPath);
+      }
+    }
+  };
+  visit(root);
+  return files.sort();
+}
+
+type ExtractedMatrixCampaignArtifact = {
+  kind: AutoresearchMatrixCampaignArtifactKind;
+  artifact: Record<string, unknown>;
+  source: string;
+};
+
+function extractMatrixArtifactsFromJson(value: unknown): ExtractedMatrixCampaignArtifact[] {
+  const found: ExtractedMatrixCampaignArtifact[] = [];
+  const maybeAdd = (candidate: unknown, source: string) => {
+    if (!isRecord(candidate)) return;
+    const kind = getStringField(candidate, "kind");
+    if (isAutoresearchMatrixCampaignArtifactKind(kind)) {
+      found.push({ kind, artifact: candidate, source });
+    }
+  };
+
+  maybeAdd(value, "root");
+  const details = getRecordField(value, "details");
+  const unwrapSources: [string, unknown][] = [
+    ["matrixCampaign", getRecordField(value, "matrixCampaign")],
+    ["matrixCampaignRunner", getRecordField(value, "matrixCampaignRunner")],
+    ["matrixCampaignRunnerCheckpoint", getRecordField(value, "matrixCampaignRunnerCheckpoint")],
+    ["matrixCampaignReview", getRecordField(value, "matrixCampaignReview")],
+    ["cockpit", getRecordField(value, "cockpit")],
+    ["operatorFollowup", getRecordField(value, "operatorFollowup")],
+    ["details.matrixCampaign", getRecordField(details, "matrixCampaign")],
+    ["details.matrixCampaignRunner", getRecordField(details, "matrixCampaignRunner")],
+    [
+      "details.matrixCampaignRunnerCheckpoint",
+      getRecordField(details, "matrixCampaignRunnerCheckpoint"),
+    ],
+    ["details.matrixCampaignReview", getRecordField(details, "matrixCampaignReview")],
+  ];
+  for (const [source, candidate] of unwrapSources) maybeAdd(candidate, source);
+
+  return found;
+}
+
+function readMatrixArtifactJson(filePath: string): unknown | null {
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8")) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function relativeAutoresearchPath(cwd: string, filePath: string): string {
+  return path.relative(cwd, filePath).replaceAll(path.sep, "/");
+}
+
+function inferMatrixCellIdFromPath(relativePath: string): string | null {
+  return relativePath.match(/(cell-\d{2}-\d{2})/u)?.[1] ?? null;
+}
+
+function matrixCellPostureRank(posture: string | null | undefined): number {
+  switch (posture) {
+    case "ready_for_matrix_owner_review":
+      return 50;
+    case "measurement_export_unlocked":
+      return 40;
+    case "measured_exported_selectable":
+      return 30;
+    case "locked_until_checkpoint":
+      return 20;
+    case "managed_candidate_wave_required":
+      return 10;
+    case "planned":
+      return 0;
+    default:
+      return 5;
+  }
+}
+
+function chooseMatrixCellPosture(existing: string, incoming: string | undefined): string {
+  if (!incoming) return existing;
+  return matrixCellPostureRank(incoming) >= matrixCellPostureRank(existing) ? incoming : existing;
+}
+
+function upsertMatrixCampaignCellSummary(
+  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
+  input: Partial<AutoresearchMatrixCampaignCellSummary> & { cellId: string },
+): void {
+  const existing = cells.get(input.cellId) ?? {
+    cellId: input.cellId,
+    scenario: null,
+    hypothesis: null,
+    posture: "planned",
+    laneProgress: "0/0",
+    selectedLaneId: null,
+    selectedPacketPath: null,
+    candidatePacketDirectory: null,
+    packetInventory: [],
+    nextLegalAction: "Review matrix campaign artifacts before acting.",
+  };
+  const packetInventory = Array.from(
+    new Set([...(existing.packetInventory ?? []), ...(input.packetInventory ?? [])]),
+  );
+  const posture = chooseMatrixCellPosture(existing.posture, input.posture);
+  const incomingPostureWon = posture === input.posture;
+  cells.set(input.cellId, {
+    ...existing,
+    ...input,
+    scenario: input.scenario ?? existing.scenario,
+    hypothesis: input.hypothesis ?? existing.hypothesis,
+    posture,
+    laneProgress: input.laneProgress ?? existing.laneProgress,
+    selectedLaneId: input.selectedLaneId ?? existing.selectedLaneId,
+    selectedPacketPath: input.selectedPacketPath ?? existing.selectedPacketPath,
+    candidatePacketDirectory: input.candidatePacketDirectory ?? existing.candidatePacketDirectory,
+    packetInventory,
+    nextLegalAction: incomingPostureWon
+      ? (input.nextLegalAction ?? existing.nextLegalAction)
+      : existing.nextLegalAction,
+  });
+}
+
+function summarizeMatrixPlanArtifact(
+  artifact: Record<string, unknown>,
+  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
+  nextLegalActions: Set<string>,
+): void {
+  for (const cell of getArrayField(artifact, "cells")) {
+    if (!isRecord(cell)) continue;
+    const cellId = getStringField(cell, "cellId");
+    if (!cellId) continue;
+    const packets = getStringArrayField(cell, "candidateResultPacketPaths");
+    upsertMatrixCampaignCellSummary(cells, {
+      cellId,
+      scenario: getStringField(cell, "scenario"),
+      hypothesis: getStringField(cell, "hypothesis"),
+      posture: getStringField(cell, "managedWavePosture") ?? "planned",
+      laneProgress: `0/${packets.length}`,
+      candidatePacketDirectory: getStringField(cell, "candidatePacketDirectory"),
+      packetInventory: packets,
+      nextLegalAction:
+        getStringField(cell, "planCandidateWaveCall") ??
+        getStringField(cell, "reviewCandidateWaveCall") ??
+        "Launch/review the planned matrix cell through orchestrator surfaces.",
+    });
+  }
+  const nextStep = getStringField(artifact, "nextStep");
+  if (nextStep) nextLegalActions.add(nextStep);
+}
+
+function summarizeMatrixRunnerArtifact(
+  artifact: Record<string, unknown>,
+  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
+  nextLegalActions: Set<string>,
+): void {
+  const lanesByCell = new Map<string, string[]>();
+  for (const lane of getArrayField(artifact, "lanes")) {
+    if (!isRecord(lane)) continue;
+    const cellId = getStringField(lane, "cellId");
+    const packet = getStringField(lane, "candidateResultPacketPath");
+    if (!cellId) continue;
+    const packets = lanesByCell.get(cellId) ?? [];
+    if (packet) packets.push(packet);
+    lanesByCell.set(cellId, packets);
+  }
+  for (const [cellId, packets] of lanesByCell) {
+    upsertMatrixCampaignCellSummary(cells, {
+      cellId,
+      posture: "locked_until_checkpoint",
+      laneProgress: `0/${packets.length}`,
+      packetInventory: packets,
+      nextLegalAction:
+        "Wait for visible PEER_FINAL reports, verify lineage, then checkpoint before measurement/export/review.",
+    });
+  }
+  const launchPhase = getRecordField(artifact, "launchPhase");
+  for (const call of getStringArrayField(launchPhase, "launchCalls").slice(0, 3)) {
+    nextLegalActions.add(call);
+  }
+  const nextStep = getStringField(artifact, "nextStep");
+  if (nextStep) nextLegalActions.add(nextStep);
+}
+
+function summarizeMatrixFollowupArtifact(
+  artifact: Record<string, unknown>,
+  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
+  nextLegalActions: Set<string>,
+): void {
+  for (const action of getStringArrayField(artifact, "nextLegalActions"))
+    nextLegalActions.add(action);
+  for (const lane of getArrayField(artifact, "lanePacketPaths")) {
+    if (!isRecord(lane)) continue;
+    const cellId = getStringField(lane, "cellId");
+    const packet = getStringField(lane, "packetPath");
+    if (!cellId) continue;
+    upsertMatrixCampaignCellSummary(cells, {
+      cellId,
+      posture: getStringField(lane, "state") ?? "planned",
+      packetInventory: packet ? [packet] : [],
+      nextLegalAction: "Follow the operator follow-up next legal actions for this matrix cell.",
+    });
+  }
+}
+
+function summarizeMatrixCockpitArtifact(
+  artifact: Record<string, unknown>,
+  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
+  nextLegalActions: Set<string>,
+): void {
+  for (const action of getStringArrayField(artifact, "nextLegalCampaignActions")) {
+    nextLegalActions.add(action);
+  }
+  for (const row of getArrayField(artifact, "cellRows")) {
+    if (!isRecord(row)) continue;
+    const cellId = getStringField(row, "cellId");
+    if (!cellId) continue;
+    upsertMatrixCampaignCellSummary(cells, {
+      cellId,
+      posture: getStringField(row, "posture") ?? "planned",
+      laneProgress: getStringField(row, "laneProgress") ?? "0/0",
+      selectedLaneId: getStringField(row, "selectedLaneId"),
+      selectedPacketPath: getStringField(row, "selectedPacketPath"),
+      packetInventory: getStringArrayField(row, "packetInventory"),
+      nextLegalAction:
+        getStringField(row, "nextLegalAction") ?? "Review the cockpit row before acting.",
+    });
+  }
+}
+
+export function discoverAutoresearchMatrixCampaignArtifacts(
+  cwdInput: string,
+): AutoresearchMatrixCampaignArtifactSummary {
+  const cwd = path.resolve(cwdInput);
+  const artifactRoots = AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_ROOTS.map((root) =>
+    path.join(cwd, root),
+  );
+  const artifacts: AutoresearchMatrixCampaignArtifactReference[] = [];
+  const cells = new Map<string, AutoresearchMatrixCampaignCellSummary>();
+  const nextLegalActions = new Set<string>();
+  const exportedPackets = new Set<string>();
+  const campaignKeys = new Set<string>();
+  const blockers: string[] = [];
+  let completedCellCount = 0;
+  let selectedCellCount = 0;
+  let expectedCellCount = 0;
+  let candidateLaneCount = 0;
+  let metricName: string | null = null;
+  let metricDirection: MetricDirection | null = null;
+  let metricTarget: number | null = null;
+  let latestArtifactPath: string | null = null;
+  let latestMtime = 0;
+
+  for (const root of artifactRoots) {
+    for (const filePath of collectJsonFiles(root)) {
+      const relativePath = relativeAutoresearchPath(cwd, filePath);
+      const mtime = statSync(filePath).mtimeMs;
+      if (mtime >= latestMtime) {
+        latestMtime = mtime;
+        latestArtifactPath = relativePath;
+      }
+      const json = readMatrixArtifactJson(filePath);
+      if (json === null) {
+        blockers.push(`unreadable JSON artifact: ${relativePath}`);
+        continue;
+      }
+      const extracted = extractMatrixArtifactsFromJson(json);
+      if (extracted.length === 0) {
+        if (getStringField(json, "packetKind") === "autoresearch.candidate_result.v1") {
+          exportedPackets.add(relativePath);
+          const cellId = inferMatrixCellIdFromPath(relativePath);
+          if (cellId) {
+            upsertMatrixCampaignCellSummary(cells, {
+              cellId,
+              posture: "measured_exported_selectable",
+              packetInventory: [relativePath],
+              nextLegalAction:
+                "Run review_candidate_wave/review_matrix_campaign after packet review.",
+            });
+          }
+        }
+        continue;
+      }
+
+      for (const item of extracted) {
+        artifacts.push({ kind: item.kind, path: relativePath, source: item.source });
+        campaignKeys.add(
+          getStringField(item.artifact, "objective") ??
+            getStringField(item.artifact, "manifestPath") ??
+            relativePath,
+        );
+        const direction = getStringField(item.artifact, "direction");
+        if ((direction === "lower" || direction === "higher") && metricDirection === null) {
+          metricDirection = direction;
+        }
+        const followup = getRecordField(item.artifact, "operatorFollowup");
+        const primaryMetric = getRecordField(followup, "primaryMetric");
+        metricName ??= getStringField(primaryMetric, "name");
+        const followupDirection = getStringField(primaryMetric, "direction");
+        if (
+          (followupDirection === "lower" || followupDirection === "higher") &&
+          metricDirection === null
+        ) {
+          metricDirection = followupDirection;
+        }
+        metricTarget ??= getNumberField(primaryMetric, "target");
+
+        if (item.kind === "autoresearch.matrix_campaign_plan.v1") {
+          summarizeMatrixPlanArtifact(item.artifact, cells, nextLegalActions);
+        }
+        if (item.kind === "autoresearch.matrix_campaign_runner_contract.v1") {
+          summarizeMatrixRunnerArtifact(item.artifact, cells, nextLegalActions);
+        }
+        if (item.kind === "autoresearch.matrix_campaign_operator_followup.v1") {
+          summarizeMatrixFollowupArtifact(item.artifact, cells, nextLegalActions);
+        }
+        if (item.kind === "autoresearch.matrix_campaign_cockpit.v1") {
+          summarizeMatrixCockpitArtifact(item.artifact, cells, nextLegalActions);
+        }
+        if (
+          item.kind === "autoresearch.matrix_campaign_runner_checkpoint.v1" ||
+          item.kind === "autoresearch.matrix_campaign_review.v1"
+        ) {
+          summarizeMatrixFollowupArtifact(followup ?? {}, cells, nextLegalActions);
+          const cockpit = getRecordField(item.artifact, "cockpit");
+          if (cockpit) summarizeMatrixCockpitArtifact(cockpit, cells, nextLegalActions);
+          completedCellCount = Math.max(
+            completedCellCount,
+            getNumberField(item.artifact, "completedCellCount") ??
+              getNumberField(getRecordField(cockpit, "progress"), "completedCells") ??
+              0,
+          );
+          selectedCellCount = Math.max(
+            selectedCellCount,
+            getNumberField(item.artifact, "selectedCellCount") ??
+              getNumberField(getRecordField(cockpit, "progress"), "selectedCells") ??
+              0,
+          );
+        }
+
+        expectedCellCount = Math.max(
+          expectedCellCount,
+          getArrayField(item.artifact, "cells").length,
+          getNumberField(
+            getRecordField(getRecordField(item.artifact, "cockpit"), "progress"),
+            "expectedCells",
+          ) ?? 0,
+          getNumberField(getRecordField(followup, "measurementReviewState"), "expectedCells") ?? 0,
+        );
+        candidateLaneCount = Math.max(
+          candidateLaneCount,
+          getArrayField(item.artifact, "lanes").length,
+          getArrayField(followup, "lanePacketPaths").length,
+        );
+      }
+    }
+  }
+
+  const cellList = [...cells.values()].sort((left, right) =>
+    left.cellId.localeCompare(right.cellId),
+  );
+  const resolvedCellCount = Math.max(expectedCellCount, cellList.length);
+  const resolvedCandidateLaneCount = Math.max(
+    candidateLaneCount,
+    cellList.reduce((total, cell) => total + cell.packetInventory.length, 0),
+  );
+  const blockerValue = blockers.length;
+
+  return {
+    kind: "autoresearch.matrix_campaign_artifact_summary.v1",
+    cwd,
+    artifactRoots: artifactRoots.map((root) => relativeAutoresearchPath(cwd, root)),
+    artifacts,
+    campaignCount: campaignKeys.size,
+    cellCount: resolvedCellCount,
+    completedCellCount,
+    selectedCellCount,
+    candidateLaneCount: resolvedCandidateLaneCount,
+    exportedPacketCount: exportedPackets.size,
+    metricName,
+    metricDirection,
+    metricTarget,
+    latestArtifactPath,
+    cells: cellList,
+    nextLegalActions: [...nextLegalActions].slice(0, 8),
+    exportVisibilityBlockers: {
+      name: "export_visibility_blockers",
+      direction: "lower",
+      target: 0,
+      value: blockerValue,
+      status: blockerValue === 0 ? "target_met" : "blocked",
+      blockers,
+    },
+    boundary:
+      "Matrix campaign discovery is read-only: it parses local .autoresearch artifacts and never launches peers, runs benchmarks, exports packets, writes evidence, merges, or promotes.",
+  };
+}
+
 export function exportAutoresearchDashboardHtml(input: {
   cwd: string;
   outputPath?: string;
@@ -4730,8 +5245,13 @@ export function exportAutoresearchDashboardHtml(input: {
   const outputPath = path.resolve(cwd, input.outputPath ?? AUTORESEARCH_DASHBOARD_EXPORT_FILE);
   const status = buildAutoresearchRuntimeStatus(cwd);
   const closeout = buildAutoresearchSegmentCloseout(cwd);
+  const matrixSummary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
   mkdirSync(path.dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderAutoresearchDashboardHtml(status, closeout), "utf8");
+  writeFileSync(
+    outputPath,
+    renderAutoresearchDashboardHtml(status, closeout, matrixSummary),
+    "utf8",
+  );
   return {
     cwd,
     path: outputPath,
@@ -4756,6 +5276,33 @@ function formatAutoresearchGuidedCandidateJourneyLines(cwd: string): string[] {
     `- export candidate result packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "candidate_result_export", outPath: "${AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE}" })`,
     `- witness/aggregate review handoff: autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`,
     "- boundary: these are exact next legal calls only; the dashboard does not spawn a candidate, run benchmarks, mutate worktrees, write AK/KES evidence, or promote.",
+  ];
+}
+
+function formatAutoresearchMatrixCampaignSummaryLines(
+  summary: AutoresearchMatrixCampaignArtifactSummary,
+): string[] {
+  if (summary.artifacts.length === 0 && summary.cells.length === 0) {
+    return [
+      "- no matrix campaign artifacts discovered under .autoresearch/campaigns or .autoresearch/matrix-campaign",
+      `- export_visibility_blockers: ${summary.exportVisibilityBlockers.value} (target=0; ${summary.exportVisibilityBlockers.status})`,
+      `- boundary: ${summary.boundary}`,
+    ];
+  }
+
+  return [
+    `- campaigns: ${summary.campaignCount}; cells: ${summary.completedCellCount}/${summary.cellCount}; selected: ${summary.selectedCellCount}; lanes: ${summary.candidateLaneCount}; exported packets: ${summary.exportedPacketCount}`,
+    `- metric: ${summary.metricName ?? "(unknown)"} (${summary.metricDirection ?? "unknown"} is better; target=${summary.metricTarget ?? "none"})`,
+    `- latest artifact: ${summary.latestArtifactPath ?? "(unknown)"}`,
+    `- export_visibility_blockers: ${summary.exportVisibilityBlockers.value} (target=0; ${summary.exportVisibilityBlockers.status})`,
+    ...summary.cells
+      .slice(0, 12)
+      .map(
+        (cell) =>
+          `- ${cell.cellId}: posture=${cell.posture}; lanes=${cell.laneProgress}; selected=${cell.selectedLaneId ?? "none"}; next=${cell.nextLegalAction}`,
+      ),
+    ...summary.nextLegalActions.slice(0, 5).map((action) => `- next legal action: ${action}`),
+    `- boundary: ${summary.boundary}`,
   ];
 }
 
@@ -4789,6 +5336,8 @@ export function formatAutoresearchDashboard(
     'autoresearch_learning_kes_adapter({ action: "plan", packetPath: "<exported-learning-packet>" })';
   const setupGuideLines = formatAutoresearchSetupGuideLines(dashboardCwd);
   const guidedCandidateJourneyLines = formatAutoresearchGuidedCandidateJourneyLines(dashboardCwd);
+  const matrixSummary = discoverAutoresearchMatrixCampaignArtifacts(dashboardCwd);
+  const matrixSummaryLines = formatAutoresearchMatrixCampaignSummaryLines(matrixSummary);
 
   return [
     "# PI-AUTORESEARCH DASHBOARD",
@@ -4846,6 +5395,9 @@ export function formatAutoresearchDashboard(
     "## Guided candidate journey: bind -> measure -> candidate_result_export",
     ...guidedCandidateJourneyLines,
     "",
+    "## Matrix campaign artifacts",
+    ...matrixSummaryLines,
+    "",
     "## Next legal surfaces",
     `- start/review: ${AUTORESEARCH_CAMPAIGN_START_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, objective: "<bounded objective>", runMode: "plan_only", peerMode: "plan", candidatePolicy: { mode: "worktree", keep: "preserve_branch", discard: "suggest_cleanup", rewind: "reset_worktree_to_base" } })`,
     `- full status: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(dashboardCwd)}, action: "status" })`,
@@ -4867,6 +5419,7 @@ export function formatAutoresearchDashboard(
 function renderAutoresearchDashboardHtml(
   status: AutoresearchRuntimeStatus,
   closeout: AutoresearchSegmentCloseout,
+  matrixSummary: AutoresearchMatrixCampaignArtifactSummary,
 ): string {
   const segment = status.currentSegment;
   const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd: closeout.cwd });
@@ -4911,6 +5464,16 @@ function renderAutoresearchDashboardHtml(
     metric: run.metric,
     description: run.description,
   }));
+  const matrixCellRows = matrixSummary.cells
+    .map(
+      (cell) =>
+        `<tr><td class="mono">${escapeHtml(cell.cellId)}</td><td>${escapeHtml(cell.posture)}</td><td class="mono">${escapeHtml(cell.laneProgress)}</td><td>${escapeHtml(cell.selectedLaneId ?? "—")}</td><td>${escapeHtml(cell.packetInventory.slice(0, 3).join(", ") || cell.selectedPacketPath || "—")}</td><td>${escapeHtml(cell.nextLegalAction)}</td></tr>`,
+    )
+    .join("\n");
+  const matrixNextLegalActions = matrixSummary.nextLegalActions
+    .slice(0, 5)
+    .map((action) => `<div class="card-copy"><code>${escapeHtml(action)}</code></div>`)
+    .join("\n");
   const shareSvg = renderAutoresearchDashboardShareSvg({
     metricName,
     posture: status.empiricalPosture.classification,
@@ -5068,6 +5631,19 @@ code { color: #a5d6ff; }
     <div class="card-label">Bind → measure → candidate_result_export journey</div>
     <div class="card-value" style="font-size:18px">next legal candidate calls</div>
     ${guidedCandidateJourneyLines.map((line) => `<div class="card-copy"><code>${escapeHtml(line.replace(/^- /u, ""))}</code></div>`).join("\n")}
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Matrix campaign artifact summary</div>
+    <div class="card-value ${matrixSummary.exportVisibilityBlockers.status === "target_met" ? "good" : "warn"}" style="font-size:18px">export_visibility_blockers=${matrixSummary.exportVisibilityBlockers.value}</div>
+    <div class="card-copy">campaigns=${matrixSummary.campaignCount} · cells=${matrixSummary.completedCellCount}/${matrixSummary.cellCount} · selected=${matrixSummary.selectedCellCount} · lanes=${matrixSummary.candidateLaneCount} · exported packets=${matrixSummary.exportedPacketCount}</div>
+    <div class="card-copy">metric=${escapeHtml(matrixSummary.metricName ?? "(unknown)")} (${escapeHtml(matrixSummary.metricDirection ?? "unknown")} is better; target=${escapeHtml(String(matrixSummary.metricTarget ?? "none"))}) · latest=${escapeHtml(matrixSummary.latestArtifactPath ?? "none")}</div>
+    <div class="card-copy">${escapeHtml(matrixSummary.boundary)}</div>
+    ${matrixNextLegalActions || '<div class="card-copy">No matrix next legal actions discovered yet.</div>'}
+  </section>
+
+  <section class="table-panel">
+    <table><thead><tr><th>Cell</th><th>Posture</th><th>Lanes</th><th>Selected</th><th>Packet inventory</th><th>Next legal action</th></tr></thead><tbody>${matrixCellRows || `<tr><td colspan="6" class="muted">No matrix campaign artifacts discovered under .autoresearch/campaigns or .autoresearch/matrix-campaign.</td></tr>`}</tbody></table>
   </section>
 
   <div class="cards">
