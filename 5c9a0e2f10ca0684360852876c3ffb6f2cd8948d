@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5c9a0e2f10ca0684360852876c3ffb6f2cd8948d"
+created_at: "2026-05-14T03:52:45Z"
+intent: "Add candidate-wave reliability recovery for long-running matrix campaign fan-in."
+files:
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "node /tmp/candidate-wave-reliability-metric.js . && node --test --test-name-pattern 'review_candidate_wave' packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs && npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Candidate B selected for smaller typed reliabilityRecovery output and focused recovery tests."
+links:
+  task_ids:
+    - 2926
