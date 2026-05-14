@@ -7,7 +7,6 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 export const VISIBLE_LOOP_COMMAND = "visible-loop";
 export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
-export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete";
 
 const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
@@ -601,9 +600,6 @@ function buildVisibleLoopCompletionPrompt(
   state: ActiveVisibleLoopState,
   iteration: number,
 ): string {
-  const fallbackCommand = `/${VISIBLE_LOOP_CHILD_COMPLETE_COMMAND} ${quoteCommandArg(
-    state.configPath,
-  )} --iteration ${iteration}`;
   const isFinalIteration = iteration >= state.config.loopCount;
   const progressMessage = `VISIBLE_LOOP_ITERATION peer_run_id=${state.config.runId}: completed iteration ${iteration}/${state.config.loopCount}`;
   const finalMessage = `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${iteration}/${state.config.loopCount} iteration(s)`;
@@ -622,8 +618,8 @@ function buildVisibleLoopCompletionPrompt(
     "Then call the model tool `visible_loop_child_complete` with:",
     `configPath: ${state.configPath}`,
     `iteration: ${iteration}`,
-    "Do not run `/visible-loop-child-complete` in bash; it is not a shell executable.",
-    `If the tool is unavailable in this session, report that visibly and include this Pi slash-command fallback for the human/operator only: ${fallbackCommand}`,
+    "Do not run a slash command or shell command for completion; this is an internal tool-only step.",
+    "If the tool is unavailable in this session, report that visibly to the parent/controller instead of attempting a shell fallback.",
   ].join("\n");
 }
 
@@ -1053,11 +1049,6 @@ function parseVisibleLoopCompletionArgs(
 
   if (!iteration) return { ok: false, error: "missing iteration" };
   return { ok: true, configPath, iteration };
-}
-
-function quoteCommandArg(value: string): string {
-  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 function normalizeOptionalString(value: unknown): string | undefined {

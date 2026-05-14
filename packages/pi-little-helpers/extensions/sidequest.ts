@@ -19,7 +19,6 @@ import {
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
   VISIBLE_LOOP_CHILD_COMMAND,
-  VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
   VISIBLE_LOOP_COMMAND,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
@@ -2048,12 +2047,6 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         description: "Internal helper for visible-loop launched child sessions",
         handler: (args, ctx) =>
           startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env),
-      });
-
-      pi.registerCommand(VISIBLE_LOOP_CHILD_COMPLETE_COMMAND, {
-        description: "Internal completion sentinel for visible-loop launched child sessions",
-        handler: (args, ctx) =>
-          startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env),
       });
     }
 

@@ -622,8 +622,8 @@ test("visible-loop child queues follow-up prompts and starts next iteration only
     assert.match(userMessages[7].message, /VISIBLE_LOOP_ITERATION peer_run_id=/);
     assert.doesNotMatch(userMessages[7].message, /PEER_FINAL peer_run_id=/);
     assert.match(userMessages[7].message, /visible_loop_child_complete/);
-    assert.match(userMessages[7].message, /Do not run `\/visible-loop-child-complete` in bash/);
-    assert.match(userMessages[7].message, /\/visible-loop-child-complete /);
+    assert.match(userMessages[7].message, /tool-only step/);
+    assert.doesNotMatch(userMessages[7].message, /\/visible-loop-child-complete/);
     assert.deepEqual(
       userMessages.slice(1).map((entry) => entry.options),
       Array(7).fill({ deliverAs: "followUp" }),
@@ -687,7 +687,7 @@ test("visible-loop completion sentinel finalizes when agent_end events are absen
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, events, userMessages } = registerExtension(extension);
+    const { commands, events, tools, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
     await commands.get("visible-loop").handler("--count 1 --manual", harness.ctx);
@@ -707,18 +707,18 @@ test("visible-loop completion sentinel finalizes when agent_end events are absen
     const completionMessage = userMessages.at(-1).message;
     assert.match(completionMessage, /^VISIBLE-LOOP INTERNAL COMPLETION SENTINEL\./);
     assert.match(completionMessage, /visible_loop_child_complete/);
-    assert.match(completionMessage, /Do not run `\/visible-loop-child-complete` in bash/);
+    assert.match(completionMessage, /tool-only step/);
+    assert.doesNotMatch(completionMessage, /\/visible-loop-child-complete/);
     assert.match(
       completionMessage,
       new RegExp(
         `PEER_FINAL peer_run_id=${config.runId}: visible-loop complete after 1/1 iteration\\(s\\)`,
       ),
     );
-    const fallbackCommand = completionMessage.match(
-      /\/visible-loop-child-complete\s+([^\n]+)/,
-    )?.[1];
-    assert.ok(fallbackCommand);
-    await commands.get("visible-loop-child-complete").handler(fallbackCommand, harness.ctx);
+    assert.equal(commands.has("visible-loop-child-complete"), false);
+    await tools
+      .get("visible_loop_child_complete")
+      .execute("call-1", { configPath, iteration: 1 }, undefined, undefined, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 80));
 
     const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
@@ -743,7 +743,9 @@ test("visible-loop completion sentinel finalizes when agent_end events are absen
       false,
     );
 
-    await commands.get("visible-loop-child-complete").handler(fallbackCommand, harness.ctx);
+    await tools
+      .get("visible_loop_child_complete")
+      .execute("call-2", { configPath, iteration: 1 }, undefined, undefined, harness.ctx);
     const afterDuplicateEntries = readFileSync(statusPath, "utf8")
       .trim()
       .split("\n")
