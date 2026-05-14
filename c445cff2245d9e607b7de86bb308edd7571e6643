@@ -1,0 +1,21 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: Add scoped package fan-out for monorepo quality-gate throughput and drift reduction campaign #3.
+files:
+  - README.md
+  - scripts/ci/packages.sh
+  - scripts/ci-packages.test.mjs
+validation:
+  fast_gate:
+    command: npm run quality:pre-commit
+    status: pass
+  full_gate:
+    command: node --test scripts/ci-packages.test.mjs scripts/package-quality-gate.test.mjs && ./scripts/ci/packages.sh test --package pi-autoresearch --package pi-society-orchestrator
+    status: pass
+group:
+  index: 1
+  total: 1
+  rationale: Candidate B selected after peer review because it supports bare package names and direct path targets with focused tests.
+links:
+  task_ids:
+    - 2919
