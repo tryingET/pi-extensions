@@ -770,6 +770,39 @@ export interface AutoresearchCandidateWavePacketDiscovery {
   message: string;
 }
 
+export type AutoresearchCandidateWaveReliabilityRecoveryPosture =
+  | "complete"
+  | "missing_or_stalled_lane_recovery_required"
+  | "selection_ready_with_non_selected_lane_guidance"
+  | "no_selectable_lane_recovery_required";
+
+export type AutoresearchCandidateWaveReliabilityLaneRecoveryKind =
+  | "missing_or_stalled_packet"
+  | "late_packet_reconcile"
+  | "selected_candidate"
+  | "non_selected_stop_cancel"
+  | "not_selectable_rerun_or_discard";
+
+export interface AutoresearchCandidateWaveReliabilityLaneRecovery {
+  laneId: string;
+  kind: AutoresearchCandidateWaveReliabilityLaneRecoveryKind;
+  packetPath: string | null;
+  planOnly: true;
+  guidance: string;
+  exactNextCalls: readonly string[];
+}
+
+export interface AutoresearchCandidateWaveReliabilityRecovery {
+  kind: "autoresearch.candidate_wave_reliability_recovery.v1";
+  posture: AutoresearchCandidateWaveReliabilityRecoveryPosture;
+  missingOrStalledLaneIds: readonly string[];
+  latePacketPolicy: string;
+  nonSelectedLaneIds: readonly string[];
+  laneRecovery: readonly AutoresearchCandidateWaveReliabilityLaneRecovery[];
+  summary: string;
+  boundaries: readonly string[];
+}
+
 export interface AutoresearchCandidateWaveOwnerDecisionOption {
   optionId: string;
   laneId: string;
@@ -865,6 +898,7 @@ export interface AutoresearchCandidateWaveReview {
     ownerDecisionForm: AutoresearchCandidateWaveOwnerDecisionForm | null;
   };
   management: AutoresearchCandidateWaveManagement;
+  reliabilityRecovery: AutoresearchCandidateWaveReliabilityRecovery;
   ownerReviewRoute: AutoresearchOwnerReviewRoute;
   nextStep: string;
   boundaries: string[];
@@ -1297,6 +1331,107 @@ function buildReviewedCandidateWaveManagement(input: {
       "After owner selection, issue explicit stop/cancel guidance for non-selected active peers before any merge/promotion work.",
     ],
     exactNextCalls: input.exactNextCalls,
+  };
+}
+
+function buildCandidateWaveReliabilityRecovery(input: {
+  cwd: string;
+  lanes: readonly AutoresearchCandidateWaveReviewLane[];
+  winner: AutoresearchCandidateWaveReviewLane | null;
+  aggregateReviewCall: string;
+}): AutoresearchCandidateWaveReliabilityRecovery {
+  const missingOrStalledLanes = input.lanes.filter(
+    (lane) => normalizeReviewToken(lane.status) === "missing_packet",
+  );
+  const nonSelectedLanes = input.winner
+    ? input.lanes.filter((lane) => lane.selectable && lane.laneId !== input.winner?.laneId)
+    : [];
+  const posture: AutoresearchCandidateWaveReliabilityRecoveryPosture =
+    missingOrStalledLanes.length > 0
+      ? "missing_or_stalled_lane_recovery_required"
+      : input.winner
+        ? nonSelectedLanes.length > 0
+          ? "selection_ready_with_non_selected_lane_guidance"
+          : "complete"
+        : "no_selectable_lane_recovery_required";
+  const latePacketPolicy =
+    "If a late candidate-result packet appears after this review, do not promote or select from stale output; rerun the same review_candidate_wave aggregate call so the late lane is scored with the full explicit lane set.";
+
+  return {
+    kind: "autoresearch.candidate_wave_reliability_recovery.v1",
+    posture,
+    missingOrStalledLaneIds: missingOrStalledLanes.map((lane) => lane.laneId),
+    latePacketPolicy,
+    nonSelectedLaneIds: nonSelectedLanes.map((lane) => lane.laneId),
+    laneRecovery: input.lanes.map((lane) => {
+      const missing = normalizeReviewToken(lane.status) === "missing_packet";
+      if (missing) {
+        return {
+          laneId: lane.laneId,
+          kind: "missing_or_stalled_packet",
+          packetPath: lane.sourcePacketPath,
+          planOnly: true,
+          guidance:
+            "Treat this as a missing/stalled/late lane: wait for controller measurement plus candidate_result_export, or explicitly replan without this lane before any owner selection.",
+          exactNextCalls: [
+            ...(lane.sourcePacketPath
+              ? [
+                  formatToolCall("autoresearch_runtime_status", {
+                    cwd: input.cwd,
+                    action: "candidate_result_export",
+                    outPath: lane.sourcePacketPath,
+                  }),
+                ]
+              : []),
+            input.aggregateReviewCall,
+          ],
+        };
+      }
+      if (input.winner && lane.laneId === input.winner.laneId) {
+        return {
+          laneId: lane.laneId,
+          kind: "selected_candidate",
+          packetPath: lane.sourcePacketPath,
+          planOnly: true,
+          guidance:
+            "Selected by recommendation only; owner review must still choose a plan-only lifecycle action before any promotion/merge work.",
+          exactNextCalls: input.aggregateReviewCall ? [input.aggregateReviewCall] : [],
+        };
+      }
+      if (input.winner && lane.selectable) {
+        return {
+          laneId: lane.laneId,
+          kind: "non_selected_stop_cancel",
+          packetPath: lane.sourcePacketPath,
+          planOnly: true,
+          guidance:
+            "Non-selected selectable lane: after owner approval of the winner, issue explicit stop/cancel guidance for the visible peer/worktree; do not merge, delete, reset, or promote from this review.",
+          exactNextCalls: [],
+        };
+      }
+      return {
+        laneId: lane.laneId,
+        kind: input.winner ? "not_selectable_rerun_or_discard" : "late_packet_reconcile",
+        packetPath: lane.sourcePacketPath,
+        planOnly: true,
+        guidance:
+          "Not selectable in this review; plan a rerun, discard, or late-packet reconciliation through owner-approved review, not hidden execution.",
+        exactNextCalls: [input.aggregateReviewCall],
+      };
+    }),
+    summary:
+      posture === "missing_or_stalled_lane_recovery_required"
+        ? "Missing/stalled lanes gate final owner selection until exported or owner-replanned."
+        : posture === "selection_ready_with_non_selected_lane_guidance"
+          ? "Selection is ready for owner review and non-selected lanes have plan-only stop/cancel guidance."
+          : posture === "complete"
+            ? "All reviewed lanes have concrete plan-only reliability guidance."
+            : "No lane is selectable; use plan-only rerun/discard/late-packet recovery guidance.",
+    boundaries: [
+      "Reliability recovery is plan-only; it launches no peers, runs no benchmarks, writes no evidence, and applies no promotion or cleanup.",
+      "Missing, stalled, or late lanes are recovered by explicit candidate_result_export plus aggregate review, or by owner-approved replanning without the lane.",
+      "Non-selected lane stop/cancel is guidance for visible peer/worktree lifecycle only after owner approval; this review does not perform that lifecycle action.",
+    ],
   };
 }
 
@@ -1788,9 +1923,19 @@ export function reviewAutoresearchCandidateWave(
   if (packetDiscovery.candidateResultPacketPaths.length > 0) {
     aggregateReviewPayload.candidateResultPacketPaths = packetDiscovery.candidateResultPacketPaths;
   }
+  const aggregateReviewCall = formatToolCall(
+    "autoresearch_live_supervision",
+    aggregateReviewPayload,
+  );
   const ownerReviewRoute = buildAutoresearchOwnerReviewRoute({
     scopeLabel: `candidate wave ${objective}`,
-    aggregateReviewCall: formatToolCall("autoresearch_live_supervision", aggregateReviewPayload),
+    aggregateReviewCall,
+  });
+  const reliabilityRecovery = buildCandidateWaveReliabilityRecovery({
+    cwd: identity.cwd,
+    lanes,
+    winner: selectableWinner,
+    aggregateReviewCall,
   });
 
   return {
@@ -1828,6 +1973,7 @@ export function reviewAutoresearchCandidateWave(
             ownerDecisionForm,
           },
     management,
+    reliabilityRecovery,
     ownerReviewRoute,
     nextStep: plannedLanesIncomplete
       ? "Wait for every explicit planned lane to reach controller-measured candidate_result_export, or rerun review_candidate_wave with a deliberately revised packet path set after owner replanning."

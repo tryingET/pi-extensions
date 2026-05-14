@@ -72,6 +72,7 @@ The package currently owns:
 - `autoresearch_live_supervision` for exact runtime observe/start/status/stop, campaign start delegation, candidate-wave planning, candidate-wave review, and matrix-campaign planning;
 - candidate-wave review from inline summaries or `autoresearch.candidate_result.v1` packet paths, including explicit missing-packet lane visibility and owner decision options;
 - candidate-wave fan-in gating: explicit planned missing packet paths block final owner selection until measured/exported or owner-replanned;
+- candidate-wave reliability/recovery output: `review_candidate_wave` emits typed plan-only guidance for missing lane, stalled lane, late packet, and non-selected lane stop/cancel handling without launching peers, promoting, merging, or cleaning worktrees;
 - `autoresearch_manifest_campaign_supervision` for exact manifest observation and evidence-only AK projection;
 - `autoresearch_self_hosting_supervision` for exact self-hosting artifact observation and evidence-only projection;
 - owner-routed `autoresearch_learning_kes_adapter` for KES diary/learning-candidate materialization from `pi-autoresearch` learning packets;

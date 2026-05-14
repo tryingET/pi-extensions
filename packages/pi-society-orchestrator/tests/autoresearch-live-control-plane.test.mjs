@@ -1431,6 +1431,27 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
     ],
   );
   assert.equal(
+    result.details.candidateWaveReview.reliabilityRecovery.kind,
+    "autoresearch.candidate_wave_reliability_recovery.v1",
+  );
+  assert.equal(
+    result.details.candidateWaveReview.reliabilityRecovery.posture,
+    "selection_ready_with_non_selected_lane_guidance",
+  );
+  assert.deepEqual(result.details.candidateWaveReview.reliabilityRecovery.nonSelectedLaneIds, [
+    "candidate-01",
+  ]);
+  assert.match(
+    result.details.candidateWaveReview.reliabilityRecovery.laneRecovery.find(
+      (lane) => lane.laneId === "candidate-01",
+    ).guidance,
+    /stop\/cancel/,
+  );
+  assert.match(
+    result.details.candidateWaveReview.reliabilityRecovery.latePacketPolicy,
+    /late candidate-result packet.*rerun/i,
+  );
+  assert.equal(
     result.details.candidateWaveReview.lanes.find((lane) => lane.laneId === "candidate-03")
       .selectable,
     false,
@@ -1860,6 +1881,23 @@ test("autoresearch_live_supervision review_candidate_wave gates explicit incompl
     assert.equal(candidate02.status, "missing_packet");
     assert.equal(candidate02.selectable, false);
     assert.equal(candidate02.sourcePacketPath, missingPacket);
+    assert.equal(
+      result.details.candidateWaveReview.reliabilityRecovery.posture,
+      "missing_or_stalled_lane_recovery_required",
+    );
+    assert.deepEqual(
+      result.details.candidateWaveReview.reliabilityRecovery.missingOrStalledLaneIds,
+      ["candidate-02"],
+    );
+    const missingRecovery =
+      result.details.candidateWaveReview.reliabilityRecovery.laneRecovery.find(
+        (lane) => lane.laneId === "candidate-02",
+      );
+    assert.equal(missingRecovery.kind, "missing_or_stalled_packet");
+    assert.match(missingRecovery.guidance, /missing\/stalled\/late lane/);
+    assert.match(missingRecovery.guidance, /replan without this lane/);
+    assert.match(missingRecovery.exactNextCalls.join("\n"), /candidate_result_export/);
+    assert.match(missingRecovery.exactNextCalls.join("\n"), /review_candidate_wave/);
     assert.match(result.details.candidateWaveReview.recommendation.reason, /candidate-02/);
     assert.match(result.content[0].text, /Recommendation: planned_lanes_incomplete/);
     assert.match(result.content[0].text, /waiting_for_planned_lanes/);
