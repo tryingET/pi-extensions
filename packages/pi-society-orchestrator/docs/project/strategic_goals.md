@@ -1,7 +1,7 @@
 ---
-summary: "Strategic goals for pi-society-orchestrator after the bounded KES contract, loop emission, proof packet, and first TG3 hardening slice all landed."
+summary: "Strategic goals for pi-society-orchestrator after the bounded KES contract, loop emission, proof packet, first TG3 hardening slice, and TG3 reassessment all closed."
 read_when:
-  - "You need the current package-level strategic direction after the first KES packet and first TG3 hardening slice completed."
+  - "You need the current package-level strategic direction after the first KES packet, first TG3 hardening slice, and task 1110 reassessment completed."
   - "You are deciding whether loop hardening, KES maintenance, or no package-local work is the truthful next bet."
 system4d:
   container: "Strategic layer for pi-society-orchestrator after the first TG3 hardening slice."
@@ -11,6 +11,8 @@ system4d:
 ---
 
 # Strategic goals — package-owned KES follow-through
+
+This KES/TG3 follow-through area is closed until AK materializes a new bounded package-local slice. Current broader autoresearch campaign waves are tracked separately in AK direction (`IW1` / `IW2`) and should not be inferred from this completed KES packet.
 
 ## Selection basis
 
@@ -30,29 +32,33 @@ Current package-local truth:
 - the runtime-truth wave and prompt-plane cutover are landed history in this package
 - the first bounded KES packet is complete through `task:1089`, `task:1090`, and `task:1091`
 - the first bounded TG3 hardening slice is complete through `task:1107` and `task:1108`
+- the AK-bound TG3 reassessment is complete through `task:1110`; it found no further package-local TG3 implementation task ready
 - `src/kes/` owns the bounded artifact contract for package-local diary and learning-candidate outputs
 - loop execution emits package-owned KES artifacts through that seam
 - invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and a structured `loop_execute` failure surface
 - installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and explicit about that boundary
-- package-local AK task `task:1110` now binds the truthful post-hardening state into an explicit reassessment slice while no further TG3 implementation task is ready yet
 
 ## Eisenhower-3D ranking
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Harden loop-family and evidence semantics on top of the bounded KES base | 5 | 4 | 4 | **active** | The KES packet and first TG3 hardening slice are now complete, and `task:1110` keeps the post-hardening reassessment state bound to authority while AK waits for another bounded implementation slice. |
-| 2 | Keep package-owned KES outputs truthful, bounded, and reusable as later work evolves | 4 | 3 | 2 | next | The just-landed hardening slice becomes part of the baseline that later loop work must preserve instead of silently eroding. |
+| 1 | Harden loop-family and evidence semantics on top of the bounded KES base | 5 | 4 | 4 | **done / parked** | The KES packet, first TG3 hardening slice, and `task:1110` reassessment are complete; no next TG3 implementation slice exists until AK creates one. |
+| 2 | Keep package-owned KES outputs truthful, bounded, and reusable as later work evolves | 4 | 3 | 2 | guardrail | The landed hardening slice is now baseline behavior that later loop work must preserve instead of silently eroding. |
 
 ## Active strategic goal
 
+None for this completed KES/TG3 follow-through area.
+
+## Parked strategic goal
+
 ### SG2 — Harden loop-family and evidence semantics on top of the bounded KES base
 
-Intent:
+Intent if reopened:
 - start any later loop-family or evidence semantic tightening from the now-proved KES base
 - keep higher-order execution-plane follow-on explicitly downstream of the lower prompt/KES/loop packet
 - require AK-backed bounded scope before implementation begins again
 
-Success signal:
+Success signal if reopened:
 - any new package-local follow-through is first materialized as a bounded AK task
 - later work tightens loop-family/evidence semantics without reopening the KES contract, loop emission, installed-package proof packet, or the new fail-closed invalid-root contract
 - if AK remains empty, package docs and handoff say stop instead of inventing work from stale memory

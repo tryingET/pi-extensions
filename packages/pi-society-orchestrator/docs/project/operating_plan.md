@@ -1,7 +1,7 @@
 ---
-summary: "Operating state for pi-society-orchestrator after the bounded KES contract, loop emission, proof packet, and first TG3 hardening slice all landed."
+summary: "Operating state for pi-society-orchestrator after the bounded KES contract, loop emission, proof packet, first TG3 hardening slice, and TG3 reassessment all closed."
 read_when:
-  - "You need the current package-local operating state and exact AK bindings after tasks 1107-1108."
+  - "You need the current package-local operating state and exact AK bindings after tasks 1107-1110."
   - "You are about to decide whether any new package-local slice is actually ready."
 system4d:
   container: "Operating layer for package-local follow-through after the first TG3 hardening slice."
@@ -12,17 +12,17 @@ system4d:
 
 # Operating plan — package-owned KES follow-through
 
-Active strategic goal: **SG2 — Harden loop-family and evidence semantics on top of the bounded KES base**
+Active strategic goal: **none in this completed KES/TG3 follow-through area**
 
-Active tactical goal: **TG3 — Harden loop family/evidence contracts around the proved KES base**
+Active tactical goal: **none; TG3 is closed until AK materializes a new bounded slice**
 
-## Current operating state after `task:1108`
+## Current operating state after `task:1110`
 
 - `src/kes/` owns the bounded KES contract for path resolution, diary/learning-candidate scaffolding, and lazy materialization
 - loop execution emits package-owned KES artifacts through that seam
 - invalid or unwritable package-owned KES roots now fail closed with a typed materialization error and a structured `loop_execute` failure surface
 - installed-package release smoke now proves successful KES writes under the true installed package root while keeping the import harness copy-isolated and explicit about that boundary
-- package-local AK task `task:1110` now binds the truthful post-hardening state into an explicit reassessment slice while no further implementation task is ready yet
+- package-local AK task `task:1110` closed the truthful post-hardening reassessment: the ready queue was empty, direction/docs checks passed at closeout time, and no further TG3 implementation slice materialized
 
 ## Current bounded TG3 slices
 
@@ -39,8 +39,8 @@ Active tactical goal: **TG3 — Harden loop family/evidence contracts around the
 
 ### OP6 — Reassess the next TG3 loop-hardening slice from AK without inventing synthetic implementation work
 - **AK task:** `task:1110`
-- **State:** active
-- **Deliverable:** keep the post-hardening state bound into AK and only open the next TG3 implementation slice when a real bounded task is ready.
+- **State:** done
+- **Deliverable:** the post-hardening state is bound into AK, task `1110` is closed, and no next TG3 implementation slice exists yet; only open the next TG3 slice when a real bounded AK task is ready.
 
 ## Completed bounded KES packet
 

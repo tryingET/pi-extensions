@@ -1,7 +1,7 @@
 ---
-summary: "Tactical goals for pi-society-orchestrator after the first package-owned KES packet and first TG3 hardening slice closed."
+summary: "Tactical goals for pi-society-orchestrator after the first package-owned KES packet, first TG3 hardening slice, and TG3 reassessment closed."
 read_when:
-  - "You need the medium-sized package-local waves after the first KES packet and first TG3 hardening slice completed."
+  - "You need the medium-sized package-local waves after the first KES packet, first TG3 hardening slice, and task 1110 reassessment completed."
   - "You are deciding whether the next slice is loop hardening or whether no package-local task is actually ready."
 system4d:
   container: "Tactical layer for package-local loop follow-through after KES proof and first TG3 hardening landed."
@@ -12,7 +12,7 @@ system4d:
 
 # Tactical goals — package-owned KES follow-through
 
-Active strategic goal: **SG2 — Harden loop-family and evidence semantics on top of the bounded KES base**
+Active strategic goal: **none in this completed KES/TG3 follow-through area; reopen only with a new bounded AK task**
 
 ## Tactical goal set
 
@@ -29,12 +29,11 @@ Active strategic goal: **SG2 — Harden loop-family and evidence semantics on to
 - **Carry-forward guardrail:** replace ad-hoc diary behavior rather than layering a second writer beside it, and treat the proof packet as landed history rather than a still-pending follow-up.
 
 ### TG3 — Harden loop family/evidence contracts around the proved KES base
-- **State:** active
+- **State:** done
 - **Completed slice:** `task:1107` + `task:1108`
-- **Current execution anchor:** `task:1110`
-- **Why this is active:** the lower prompt/KES packet is now strong enough to support loop-hardening follow-through, and the first hardening slice already landed by making invalid KES roots fail closed and by strengthening installed-package KES proof under the installed package root.
-- **Current execution note:** `task:1110` is the authority-bound reassessment slice for the truthful post-hardening state while no further package-local TG3 implementation task is ready yet.
-- **Success signal:** any new slice is bounded in AK before implementation starts, tightens loop-family/evidence semantics without reopening the KES contract or proof packet, and keeps higher-order ASC self explicitly downstream.
+- **Completed reassessment:** `task:1110`
+- **Why this is done:** the lower prompt/KES packet supported the first hardening slice, invalid KES roots now fail closed, installed-package KES proof runs under the installed package root, and `task:1110` found no further package-local TG3 implementation task ready.
+- **Carry-forward guardrail:** any new slice must be bounded in AK before implementation starts, tighten loop-family/evidence semantics without reopening the KES contract or proof packet, and keep higher-order ASC self explicitly downstream.
 
 ## Not the active tactical path
 
