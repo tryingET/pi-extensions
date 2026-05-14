@@ -1248,6 +1248,33 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
         proof.proof.includes("docs/tests alignment mentioning evidence_handoff_blockers"),
       ),
     );
+    const learningActivation = result.details.matrixCampaignReview.closeout.learningActivation;
+    assert.equal(learningActivation.posture, "ready_for_owner_routed_learning_handoff");
+    assert.equal(learningActivation.ownerSurface, "autoresearch_learning_kes_adapter");
+    assert.equal(learningActivation.requiredPacketKind, "autoresearch.learning.v1");
+    assert.match(learningActivation.exactLearningExportCall, /learning_export/);
+    assert.match(learningActivation.exactAdapterPlanCall, /"action": "plan"/);
+    assert.match(learningActivation.exactAdapterMaterializeCall, /"action": "materialize"/);
+    assert.deepEqual(learningActivation.routeOrder, [
+      "autoresearch_runtime_status.learning_export",
+      "autoresearch_learning_kes_adapter.plan",
+      "owner_review",
+      "autoresearch_learning_kes_adapter.materialize",
+    ]);
+    assert.equal(
+      result.details.matrixCampaignReview.closeout.learningActivationBlockers.name,
+      "learning_activation_blockers",
+    );
+    assert.equal(result.details.matrixCampaignReview.closeout.learningActivationBlockers.value, 0);
+    assert.equal(
+      result.details.matrixCampaignReview.closeout.learningActivationBlockers.status,
+      "target_met",
+    );
+    assert.ok(
+      result.details.matrixCampaignReview.closeout.learningActivationBlockers.proofs.some((proof) =>
+        proof.proof.includes("docs/tests alignment mentioning learning_activation_blockers"),
+      ),
+    );
     assert.deepEqual(
       result.details.matrixCampaignReview.cells.map((cell) => cell.selectedLaneId),
       ["candidate-01", "candidate-01"],
@@ -1294,6 +1321,21 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.match(
       result.content[0].text,
       /docs\/tests alignment mentioning evidence_handoff_blockers/,
+    );
+    assert.match(result.content[0].text, /learning_activation_blockers: 0/);
+    assert.match(result.content[0].text, /learning export call: autoresearch_runtime_status/);
+    assert.match(result.content[0].text, /adapter plan call: autoresearch_learning_kes_adapter/);
+    assert.match(
+      result.content[0].text,
+      /adapter materialize call: autoresearch_learning_kes_adapter/,
+    );
+    assert.match(
+      result.content[0].text,
+      /autoresearch_runtime_status\.learning_export -> autoresearch_learning_kes_adapter\.plan -> owner_review -> autoresearch_learning_kes_adapter\.materialize/,
+    );
+    assert.match(
+      result.content[0].text,
+      /docs\/tests alignment mentioning learning_activation_blockers/,
     );
     assert.match(result.content[0].text, /No peer was launched/);
     assert.match(result.content[0].text, /Raw peer messages are communication only/);

@@ -606,6 +606,34 @@ export interface AutoresearchMatrixCampaignCloseout {
       source: string;
     }[];
   };
+  learningActivation: {
+    posture: "ready_for_owner_routed_learning_handoff" | "blocked";
+    ownerSurface: "autoresearch_learning_kes_adapter";
+    requiredPacketKind: "autoresearch.learning.v1";
+    exactLearningExportCall: string | null;
+    exactAdapterPlanCall: string | null;
+    exactAdapterMaterializeCall: string | null;
+    routeOrder: readonly [
+      "autoresearch_runtime_status.learning_export",
+      "autoresearch_learning_kes_adapter.plan",
+      "owner_review",
+      "autoresearch_learning_kes_adapter.materialize",
+    ];
+    guidance: readonly string[];
+    boundary: string;
+  };
+  learningActivationBlockers: {
+    name: "learning_activation_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    proofs: readonly {
+      proof: string;
+      status: "present";
+      source: string;
+    }[];
+  };
   nextLegalOwnerActions: readonly string[];
   notDone: readonly string[];
 }
@@ -3041,6 +3069,7 @@ export function reviewAutoresearchMatrixCampaign(
             .map((cell) => cell.reviewCandidateWaveCall);
   const closeout = buildAutoresearchMatrixCampaignCloseout({
     taskId: identity.taskId,
+    cwd: identity.cwd,
     posture,
     cellReviews,
     ownerReview: plan.ownerReview,
@@ -3119,6 +3148,7 @@ export function reviewAutoresearchMatrixCampaign(
 
 function buildAutoresearchMatrixCampaignCloseout(input: {
   taskId: number;
+  cwd: string;
   posture: AutoresearchMatrixCampaignReview["posture"];
   cellReviews: readonly AutoresearchMatrixCampaignCellReview[];
   ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
@@ -3182,6 +3212,33 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       source: "README/product-posture/tests",
     },
   ];
+  const learningActivationProofs = [
+    {
+      proof: "explicit pi-autoresearch learning_export call after closeout",
+      status: "present" as const,
+      source: "closeout.learningActivation.exactLearningExportCall",
+    },
+    {
+      proof: "owner-routed KES adapter plan call for autoresearch.learning.v1",
+      status: "present" as const,
+      source: "closeout.learningActivation.exactAdapterPlanCall",
+    },
+    {
+      proof: "materialization remains an explicit owner adapter action",
+      status: "present" as const,
+      source: "closeout.learningActivation.exactAdapterMaterializeCall",
+    },
+    {
+      proof: "authority-drift boundary blocks hidden AK/KES/Prompt Vault/ROCS mutation",
+      status: "present" as const,
+      source: "closeout.learningActivation.boundary",
+    },
+    {
+      proof: "docs/tests alignment mentioning learning_activation_blockers",
+      status: "present" as const,
+      source: "README/product-posture/tests",
+    },
+  ];
   const evidenceHandoffBlockers = 0;
   const closeoutPosture =
     input.posture === "ready_for_matrix_owner_review"
@@ -3190,6 +3247,27 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
         ? "blocked_until_managed_cell_waves_complete"
         : "blocked_until_cell_rerun";
   const projectionReady = input.posture === "ready_for_matrix_owner_review";
+  const learningPacketPath = path.join(input.cwd, ".autoresearch", "learning.json");
+  const exactLearningExportCall = projectionReady
+    ? formatToolCall("autoresearch_runtime_status", {
+        cwd: input.cwd,
+        action: "learning_export",
+        overwrite: true,
+      })
+    : null;
+  const exactAdapterPlanCall = projectionReady
+    ? formatToolCall("autoresearch_learning_kes_adapter", {
+        action: "plan",
+        packetPath: learningPacketPath,
+      })
+    : null;
+  const exactAdapterMaterializeCall = projectionReady
+    ? formatToolCall("autoresearch_learning_kes_adapter", {
+        action: "materialize",
+        packetPath: learningPacketPath,
+      })
+    : null;
+  const learningActivationBlockers = projectionReady ? 0 : 1;
   const projectionKey = buildAutoresearchMatrixCampaignCloseoutProjectionKey({
     taskId: input.taskId,
     selectedLanes,
@@ -3216,6 +3294,20 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
     },
     evidence_handoff_blockers: evidenceHandoffBlockers,
     evidence_handoff_proofs: handoffProofs,
+    learning_activation_blockers: learningActivationBlockers,
+    learning_activation: {
+      required_packet_kind: "autoresearch.learning.v1",
+      export_call: exactLearningExportCall,
+      adapter_plan_call: exactAdapterPlanCall,
+      adapter_materialize_call: exactAdapterMaterializeCall,
+      route_order: [
+        "autoresearch_runtime_status.learning_export",
+        "autoresearch_learning_kes_adapter.plan",
+        "owner_review",
+        "autoresearch_learning_kes_adapter.materialize",
+      ],
+      proofs: learningActivationProofs,
+    },
     not_done: [
       "No peer was launched.",
       "No benchmark was run.",
@@ -3284,10 +3376,44 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       status: evidenceHandoffBlockers === 0 ? "target_met" : "blocked",
       proofs: handoffProofs,
     },
+    learningActivation: {
+      posture: projectionReady ? "ready_for_owner_routed_learning_handoff" : "blocked",
+      ownerSurface: "autoresearch_learning_kes_adapter",
+      requiredPacketKind: "autoresearch.learning.v1",
+      exactLearningExportCall,
+      exactAdapterPlanCall,
+      exactAdapterMaterializeCall,
+      routeOrder: [
+        "autoresearch_runtime_status.learning_export",
+        "autoresearch_learning_kes_adapter.plan",
+        "owner_review",
+        "autoresearch_learning_kes_adapter.materialize",
+      ],
+      guidance: projectionReady
+        ? [
+            "After reviewing the matrix closeout, export the pi-autoresearch learning packet explicitly from the campaign cwd.",
+            "Run the owner-routed KES adapter in action=plan first; materialize only after owner review accepts the candidate learning draft.",
+            "Keep learning activation advisory/packetized until the adapter action explicitly writes package-owned KES artifacts.",
+          ]
+        : [
+            "Do not export or materialize learning yet; complete or replan managed cell waves and rerun review_matrix_campaign first.",
+          ],
+      boundary:
+        "Learning activation is an owner-routed handoff from pi-autoresearch learning_export to autoresearch_learning_kes_adapter; this closeout prepares calls only and does not write KES, AK, Prompt Vault, ROCS, or promotion state.",
+    },
+    learningActivationBlockers: {
+      name: "learning_activation_blockers",
+      direction: "lower",
+      target: 0,
+      value: learningActivationBlockers,
+      status: learningActivationBlockers === 0 ? "target_met" : "blocked",
+      proofs: learningActivationProofs,
+    },
     nextLegalOwnerActions: projectionReady
       ? [
           "Open /autoresearch export for dashboard-first review of receipts, metrics, and candidate packets.",
           "Use /autoresearch review for final keep/discard/rewind/more-samples/finalize decisions per selected lane.",
+          "Export the pi-autoresearch learning packet and run autoresearch_learning_kes_adapter action=plan before any learning materialization.",
           "Record AK/KES/evidence only through explicit owner surfaces after accepting the reviewed closeout.",
         ]
       : [
@@ -3298,7 +3424,7 @@ function buildAutoresearchMatrixCampaignCloseout(input: {
       "No peer was launched.",
       "No benchmark was run.",
       "No worktree lifecycle action was applied.",
-      "No merge, promotion, AK evidence write, KES write, or task lifecycle mutation was applied.",
+      "No merge, promotion, AK evidence write, KES write, learning materialization, or task lifecycle mutation was applied.",
     ],
   };
 }

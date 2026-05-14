@@ -822,6 +822,26 @@ function formatAutoresearchMatrixCampaignReviewReport(
     ...review.closeout.evidenceHandoffBlockers.proofs.map(
       (item) => `  - ${item.status}: ${item.proof} via ${item.source}`,
     ),
+    "- learning activation:",
+    `  - posture: ${review.closeout.learningActivation.posture}`,
+    `  - required packet: ${review.closeout.learningActivation.requiredPacketKind}`,
+    `  - learning_activation_blockers: ${review.closeout.learningActivationBlockers.value} (target=${review.closeout.learningActivationBlockers.target}, ${review.closeout.learningActivationBlockers.direction} is better; ${review.closeout.learningActivationBlockers.status})`,
+    review.closeout.learningActivation.exactLearningExportCall
+      ? `  - learning export call: ${review.closeout.learningActivation.exactLearningExportCall}`
+      : "  - learning export call: blocked",
+    review.closeout.learningActivation.exactAdapterPlanCall
+      ? `  - adapter plan call: ${review.closeout.learningActivation.exactAdapterPlanCall}`
+      : "  - adapter plan call: blocked",
+    review.closeout.learningActivation.exactAdapterMaterializeCall
+      ? `  - adapter materialize call: ${review.closeout.learningActivation.exactAdapterMaterializeCall}`
+      : "  - adapter materialize call: blocked",
+    `  - route order: ${review.closeout.learningActivation.routeOrder.join(" -> ")}`,
+    ...review.closeout.learningActivation.guidance.map((item) => `  - guidance: ${item}`),
+    `  - boundary: ${review.closeout.learningActivation.boundary}`,
+    "- learning activation proof checklist:",
+    ...review.closeout.learningActivationBlockers.proofs.map(
+      (item) => `  - ${item.status}: ${item.proof} via ${item.source}`,
+    ),
     "- next legal owner actions:",
     ...review.closeout.nextLegalOwnerActions.map((action) => `  - ${action}`),
     "- not done:",
