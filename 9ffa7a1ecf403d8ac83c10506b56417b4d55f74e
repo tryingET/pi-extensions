@@ -11,3 +11,11 @@ Validation:
 - cd packages/pi-session-compaction && npm run check && npm run release:check:quick
 - docs-list strict for packages/pi-model-selection, pi-prompt-template-execution, pi-session-compaction, and repo root
 Notes: no npm publish/tag/push performed; existing remote tag pi-model-selection-v0.1.0 predates this move and should be treated as stale before OIDC proof.
+
+Follow-up publish proof after top-level move:
+- Forced remote tag pi-model-selection-v0.1.0 from stale 15a5924a to 9ffa7a1e.
+- Ran publish.yml workflow_dispatch on ref/tag pi-model-selection-v0.1.0: https://github.com/tryingET/pi-extensions/actions/runs/25837941859
+- Workflow passed checkout, npm upgrade, release metadata/tests, tag resolution, install, package check, and release check.
+- Publish step signed provenance to Sigstore transparency log index 1529496600, then npm rejected registry PUT with E404 for @tryinget/pi-model-selection@0.1.0.
+- Interpretation: repo/OIDC path is functioning up to npm; first package creation/trusted-publisher permission remains blocked on npm-side auth/config. Local npm whoami now returns E401 unauthorized.
+- Bound to AK task #2892 with evidence.
