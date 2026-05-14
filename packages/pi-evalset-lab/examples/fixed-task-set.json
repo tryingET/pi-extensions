@@ -1,0 +1,22 @@
+{
+  "name": "maintainer-clarity-smoke",
+  "systemPrompt": "Answer concisely and explicitly. No fluff.",
+  "cases": [
+    {
+      "id": "fixed-task-set-definition",
+      "input": "In one sentence, define what a fixed task set means for eval workflows.",
+      "expectContains": ["same tasks"]
+    },
+    {
+      "id": "extension-gaps",
+      "input": "Name two extension-level gaps that can affect reproducible eval workflows in pi.",
+      "expectContains": ["trace", "reproducibility"]
+    },
+    {
+      "id": "do-not-overclaim",
+      "input": "Should this be pitched as a huge replacement right away? Answer yes or no and one short reason.",
+      "expectContains": ["no"],
+      "expectNotContains": ["huge replacement"]
+    }
+  ]
+}

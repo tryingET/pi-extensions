@@ -25,6 +25,10 @@
       "release-type": "node",
       "component": "pi-designmd-foundry"
     },
+    "packages/pi-evalset-lab": {
+      "release-type": "node",
+      "component": "pi-evalset-lab"
+    },
     "packages/pi-interaction/pi-editor-registry": {
       "release-type": "node",
       "component": "pi-editor-registry"

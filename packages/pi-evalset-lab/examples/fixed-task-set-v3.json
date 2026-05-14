@@ -1,0 +1,126 @@
+{
+  "name": "maintainer-clarity-v3",
+  "systemPrompt": "Answer in concise, plain English. Prefer direct wording over jargon.",
+  "cases": [
+    {
+      "id": "fixed-task-set-definition",
+      "input": "In plain English, what does a fixed task set mean in eval workflows?",
+      "expectContains": ["same", "tasks"]
+    },
+    {
+      "id": "fixed-task-set-benefit",
+      "input": "Why does a fixed task set improve comparison quality across runs?",
+      "expectContains": ["compar"]
+    },
+    {
+      "id": "reproducibility-two-factors",
+      "input": "Name two things you should lock or record for reproducible eval runs.",
+      "expectContains": ["model", "dataset"]
+    },
+    {
+      "id": "pass-rate-calculation",
+      "input": "If 18 of 24 scored cases pass, what pass rate should be reported?",
+      "expectContains": ["75"]
+    },
+    {
+      "id": "scored-case-definition",
+      "input": "What makes a case scored in this evalset format?",
+      "expectRegex": "([Ee]xpect|[Cc]heck|[Cc]riteria|[Rr]ule)"
+    },
+    {
+      "id": "variant-hash-purpose",
+      "input": "What does variantHash help you verify?",
+      "expectContains": ["variant", "hash"]
+    },
+    {
+      "id": "dataset-hash-purpose",
+      "input": "Why is datasetHash useful when comparing two reports?",
+      "expectContains": ["dataset", "hash"]
+    },
+    {
+      "id": "delta-interpretation-speed-cost",
+      "input": "Candidate delta avg latency is -800ms and delta total cost is +0.0003. Summarize the tradeoff.",
+      "expectContains": ["faster"]
+    },
+    {
+      "id": "command-non-interactive-pattern",
+      "input": "Show the correct non-interactive pattern to run compare from shell.",
+      "expectContains": ["pi", "-p", "evalset"]
+    },
+    {
+      "id": "slash-command-shell",
+      "input": "Can you run /evalset directly in bash without pi? Answer yes or no and one reason.",
+      "expectContains": ["no", "slash"]
+    },
+    {
+      "id": "report-default-location",
+      "input": "If --out is omitted, where are evalset reports written by default?",
+      "expectContains": ["evalset", "report"]
+    },
+    {
+      "id": "model-prerequisite",
+      "input": "What should you do before /evalset run if no active model is selected?",
+      "expectContains": ["/model"]
+    },
+    {
+      "id": "max-cases-behavior",
+      "input": "What does --max-cases 5 do during run/compare?",
+      "expectRegex": "([Ff]irst|[Ll]imit|5.*case|case.*5)"
+    },
+    {
+      "id": "temperature-range",
+      "input": "What is the accepted numeric range for --temperature in this extension?",
+      "expectContains": ["0", "2"]
+    },
+    {
+      "id": "system-merge-behavior",
+      "input": "If dataset.systemPrompt exists and --system-file is provided, are prompts merged or replaced?",
+      "expectContains": ["merge"]
+    },
+    {
+      "id": "mutually-exclusive-system-options",
+      "input": "Can --system-file and --system-text be used together?",
+      "expectRegex": "([Nn]o|[Ee]ither|[Oo]ne|not together|[Bb]oth)"
+    },
+    {
+      "id": "run-identity-fields",
+      "input": "Name any three run identity fields in a run report.",
+      "expectContains": ["run", "dataset", "case"]
+    },
+    {
+      "id": "compare-identity-fields",
+      "input": "Name the two run-id fields that link baseline and candidate inside compare.run.",
+      "expectContains": ["baseline", "candidate", "run"]
+    },
+    {
+      "id": "delta-passrate-zero",
+      "input": "If delta pass rate is 0, what does that imply?",
+      "expectRegex": "([Nn]o change|same pass rate|[Uu]nchanged)"
+    },
+    {
+      "id": "keyword-check-limitation",
+      "input": "Why can simple keyword checks be misleading for quality?",
+      "expectRegex": "([Kk]eyword).*(mislead|false|[Ee]rror|[Bb]rittle)|([Mm]islead|false|[Ee]rror|[Bb]rittle).*[Kk]eyword"
+    },
+    {
+      "id": "improve-weak-evalset",
+      "input": "Give two concrete ways to improve a weak 3-case evalset.",
+      "expectContains": ["more", "cases"]
+    },
+    {
+      "id": "no-overclaim-rollout",
+      "input": "Should this be pitched as a huge replacement right away? Answer yes or no and one short reason.",
+      "expectContains": ["no", "phase"]
+    },
+    {
+      "id": "stakeholder-brief",
+      "input": "Write a one-line stakeholder brief that includes pilot scope and measurement.",
+      "expectContains": ["pilot", "measure"]
+    },
+    {
+      "id": "tie-communication",
+      "input": "Baseline and candidate both scored 33.3% pass rate. How should that be communicated?",
+      "expectRegex": "([Ss]ame|[Nn]o difference|[Uu]nchanged)"
+    }
+  ]
+}

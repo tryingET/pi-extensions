@@ -36,6 +36,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-session-compaction` (live local compaction owner after guarded cutover; tested handler, registration guard, and non-live branch augmentation helpers)
   - `packages/pi-toolbox-discovery` (lazy capability discovery/activation broker for keeping heavy custom tools off by default)
   - `packages/pi-designmd-foundry` (DesignMD Foundry skill and CLI-backed tools for DESIGN.md lint/export/prompt/import readiness workflows)
+  - `packages/pi-evalset-lab` (`/evalset run|compare` fixed-task-set prompt/system evaluation with JSON + HTML reports)
   - `packages/pi-interaction/*`
 - Extra-stack / boundary-heavy starting points:
   - `packages/pi-autoresearch`
@@ -62,6 +63,7 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-vault-client` — Prompt Vault query/retrieve/mutate/rate flows, schema compatibility, and prompt-plane governance
 - `packages/pi-ontology-workflows` — ontology inspection/change workflows and ROCS-facing operator surfaces
 - `packages/pi-designmd-foundry` — DESIGN.md-centered design contract handoff, lint/export/prompt/import tools, and verified DesignMD Foundry workflow skill
+- `packages/pi-evalset-lab` — fixed-task-set prompt/system evaluation, `/evalset run|compare`, sample datasets, and JSON-to-HTML eval report export
 - monorepo root docs — only for package-family selection, release/governance control-plane surfaces, and repo-owned prompts/skills such as `.pi/prompts/commit.md` and `.pi/prompts/pi-extensions-deep-dive.md`
 
 Generic prompts that stop depending on pi-extensions-specific routing or workflow should move to a shared owner instead of accumulating in the root `.pi/prompts/` directory.

@@ -1,0 +1,127 @@
+{
+  "name": "maintainer-clarity-v2",
+  "systemPrompt": "Answer in concise, plain English. Prefer direct wording over jargon.",
+  "cases": [
+    {
+      "id": "fixed-task-set-definition",
+      "input": "In plain English, what does a fixed task set mean in eval workflows?",
+      "expectContains": ["same", "tasks"]
+    },
+    {
+      "id": "fixed-task-set-benefit",
+      "input": "Why does using a fixed task set improve comparison quality across runs?",
+      "expectContains": ["compare", "runs"]
+    },
+    {
+      "id": "reproducibility-two-factors",
+      "input": "Name two things you should lock or record for reproducible eval runs.",
+      "expectContains": ["model", "dataset"]
+    },
+    {
+      "id": "pass-rate-calculation",
+      "input": "If 18 of 24 scored cases pass, what pass rate should be reported?",
+      "expectContains": ["75"]
+    },
+    {
+      "id": "scored-case-definition",
+      "input": "What makes a case \"scored\" in this evalset format?",
+      "expectContains": ["checks", "scored"]
+    },
+    {
+      "id": "variant-hash-purpose",
+      "input": "What does variantHash help you verify?",
+      "expectContains": ["variant", "hash"]
+    },
+    {
+      "id": "dataset-hash-purpose",
+      "input": "Why is datasetHash useful when comparing two reports?",
+      "expectContains": ["dataset", "same"]
+    },
+    {
+      "id": "delta-interpretation-speed-cost",
+      "input": "Candidate delta avg latency is -800ms and delta total cost is +0.0003. Summarize the tradeoff.",
+      "expectContains": ["faster", "cost"]
+    },
+    {
+      "id": "command-non-interactive-pattern",
+      "input": "Show the correct non-interactive pattern to run compare with a local extension file.",
+      "expectContains": ["pi -e", "-p", "/evalset compare"]
+    },
+    {
+      "id": "slash-command-shell",
+      "input": "Can you run /evalset directly in bash without pi? Answer yes or no and one reason.",
+      "expectContains": ["no", "pi"]
+    },
+    {
+      "id": "report-default-location",
+      "input": "If --out is omitted, where are evalset reports written by default?",
+      "expectContains": [".evalset/reports"]
+    },
+    {
+      "id": "model-prerequisite",
+      "input": "What should you do before /evalset run if no active model is selected?",
+      "expectContains": ["/model"]
+    },
+    {
+      "id": "max-cases-behavior",
+      "input": "What does --max-cases 5 do during run/compare?",
+      "expectContains": ["first", "5"]
+    },
+    {
+      "id": "temperature-range",
+      "input": "What is the accepted numeric range for --temperature in this extension?",
+      "expectContains": ["0", "2"]
+    },
+    {
+      "id": "system-merge-behavior",
+      "input": "If dataset.systemPrompt exists and --system-file is provided, are prompts merged or replaced?",
+      "expectContains": ["merge"]
+    },
+    {
+      "id": "mutually-exclusive-system-options",
+      "input": "Can --system-file and --system-text be used together?",
+      "expectContains": ["no"]
+    },
+    {
+      "id": "run-identity-fields",
+      "input": "Name any three run identity fields in a run report.",
+      "expectContains": ["runid", "datasethash", "caseshash"]
+    },
+    {
+      "id": "compare-identity-fields",
+      "input": "Name the two run-id fields that link baseline and candidate inside compare.run.",
+      "expectContains": ["baselinerunid", "candidaterunid"]
+    },
+    {
+      "id": "delta-passrate-zero",
+      "input": "If delta pass rate is 0, what does that imply?",
+      "expectContains": ["same", "pass rate"]
+    },
+    {
+      "id": "keyword-check-limitation",
+      "input": "Why can simple keyword checks be misleading for quality?",
+      "expectContains": ["wording", "false"]
+    },
+    {
+      "id": "improve-weak-evalset",
+      "input": "Give two concrete ways to improve a weak 3-case evalset.",
+      "expectContains": ["more", "cases", "criteria"]
+    },
+    {
+      "id": "no-overclaim-rollout",
+      "input": "Should this be pitched as a huge replacement right away? Answer yes or no and one short reason.",
+      "expectContains": ["no"],
+      "expectNotContains": ["huge replacement"]
+    },
+    {
+      "id": "stakeholder-brief",
+      "input": "Write a one-line stakeholder brief that includes pilot scope and measurement.",
+      "expectContains": ["pilot", "measure"]
+    },
+    {
+      "id": "tie-communication",
+      "input": "Baseline and candidate both scored 33.3% pass rate. How should that be communicated?",
+      "expectContains": ["same", "pass rate"]
+    }
+  ]
+}
