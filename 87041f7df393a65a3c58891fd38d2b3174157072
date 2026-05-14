@@ -1,0 +1,22 @@
+Archived remaining legacy working folders under /home/tryinget/programming/pi-extensions and updated the pi-extensions legacy disposition ledger.
+
+Task: AK #2944
+Commit: 87041f7
+Archives created:
+- /home/tryinget/programming/pi-extensions/issue-tracker-final-archive.tar.gz
+- /home/tryinget/programming/pi-extensions/pi-user-prompt-compaction-final-archive.tar.gz
+- /home/tryinget/programming/pi-extensions/secure-package-update-final-archive.tar.gz
+- /home/tryinget/programming/pi-extensions/system4d-intake-workflow-final-archive.tar.gz
+
+Actions:
+- Rendered/wrote deprecation handoffs before archiving.
+- Included legacy Pi session history inside the issue-tracker and pi-user-prompt-compaction archives.
+- Merged issue-tracker legacy sessions into /home/tryinget/ai-society/softwareco/infra/issue-tracker session history.
+- Merged pi-user-prompt-compaction legacy sessions into packages/pi-session-compaction session history.
+- Removed the four legacy working directories.
+- Left only non-target utility/template dirs under /home/tryinget/programming/pi-extensions.
+
+Validation:
+- Archive sanity checks for README + handoff files and session-history inclusion where applicable.
+- No legacy programming/pi-extensions package-like working dirs remain.
+- docs-list strict over docs/project passed.
