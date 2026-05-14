@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -15,7 +16,7 @@ import {
   isAscRewindTurnData,
   registerRewindRuntime,
 } from "../extensions/self/rewind/index.ts";
-import { createRewindGitHarness } from "./rewind-harness.mjs";
+import { createRewindGitHarness, gitStdout, runGitChecked } from "./rewind-harness.mjs";
 
 class SessionManagerStub {
   constructor({ sessionFile, id, cwd, parentSession }) {
@@ -684,6 +685,9 @@ test("rewind runtime projects bounded recovery milestones into Replay Fabric whe
   try {
     await withReplayFabricEnv(replayFabric.url, async () => {
       await gitHarness.writeRepoFile("tracked.txt", "target tree\n");
+      await runGitChecked(gitHarness.repoRoot, ["add", "tracked.txt"]);
+      await runGitChecked(gitHarness.repoRoot, ["commit", "-m", "target"]);
+      const headCommit = await gitStdout(gitHarness.repoRoot, ["rev-parse", "HEAD"]);
       const targetSnapshot = await ensureSnapshotForCurrentWorktree(gitHarness.git);
       await gitHarness.writeRepoFile("tracked.txt", "current tree\n");
 
@@ -744,10 +748,17 @@ test("rewind runtime projects bounded recovery milestones into Replay Fabric whe
 
       for (const request of replayFabric.requests) {
         const artifactPath = path.join(gitHarness.repoRoot, request.artifactRef);
-        const manifest = JSON.parse(await readFile(artifactPath, "utf8"));
+        const manifestText = await readFile(artifactPath, "utf8");
+        const manifest = JSON.parse(manifestText);
         assert.equal(manifest.eventKind, request.eventKind);
         assert.equal(manifest.sessionId, "session-projection");
         assert.equal(manifest.restoreMode, "tree-restore");
+        assert.deepEqual(request.metadata.artifactProvenance, {
+          artifactRef: request.artifactRef,
+          repoRelativePath: request.artifactRef,
+          headCommit,
+          contentSha256: createHash("sha256").update(manifestText).digest("hex"),
+        });
       }
     });
   } finally {

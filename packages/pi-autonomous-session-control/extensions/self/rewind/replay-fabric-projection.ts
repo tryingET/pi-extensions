@@ -1,5 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { execGitStdout } from "./git-runner.ts";
 import { getRepoRoot } from "./git-snapshot.ts";
 import type { GitRunner } from "./types.ts";
 
@@ -84,11 +86,25 @@ export function buildRewindCheckpointRef(options: {
   return `asc-rewind/${sanitizeChunk(options.sessionId, 24)}/${mode}/${entryChunk}`;
 }
 
+async function sha256File(filePath: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(filePath))
+    .digest("hex");
+}
+
+async function getHeadCommit(git: GitRunner): Promise<string | null> {
+  try {
+    return await execGitStdout(git, ["rev-parse", "HEAD"]);
+  } catch {
+    return null;
+  }
+}
+
 async function writeRecoveryManifest(
   repoRoot: string,
   config: ReplayFabricProjectionConfig,
   input: ReplayFabricRecoveryProjectionInput,
-): Promise<string> {
+): Promise<{ artifactRef: string; contentSha256: string }> {
   const manifestDir = join(repoRoot, MANIFEST_DIR);
   await mkdir(manifestDir, { recursive: true });
 
@@ -114,7 +130,10 @@ async function writeRecoveryManifest(
   };
 
   await writeFile(absolutePath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  return relativePath.replace(/\\/g, "/");
+  return {
+    artifactRef: relativePath.replace(/\\/g, "/"),
+    contentSha256: await sha256File(absolutePath),
+  };
 }
 
 async function postRecoveryMilestone(
@@ -154,7 +173,8 @@ export async function projectRecoveryMilestoneIfConfigured(
   }
 
   const repoRoot = await getRepoRoot(input.git);
-  const artifactRef = await writeRecoveryManifest(repoRoot, config, input);
+  const headCommit = await getHeadCommit(input.git);
+  const artifact = await writeRecoveryManifest(repoRoot, config, input);
   await postRecoveryMilestone(config.baseUrl, config.timeoutMs, {
     eventKind: input.eventKind,
     source: config.source,
@@ -164,10 +184,16 @@ export async function projectRecoveryMilestoneIfConfigured(
     correlationId: buildRewindCorrelationId(input.sessionId),
     status: input.status,
     repoPath: repoRoot,
-    artifactRef,
+    artifactRef: artifact.artifactRef,
     metadata: {
       guidanceOnly: true,
       boundary: BOUNDARY_NOTE,
+      artifactProvenance: {
+        artifactRef: artifact.artifactRef,
+        repoRelativePath: artifact.artifactRef,
+        headCommit,
+        contentSha256: artifact.contentSha256,
+      },
       targetEntryId: input.targetEntryId,
       targetCommitSha: input.targetCommitSha,
       undoCommitSha: input.undoCommitSha,
