@@ -2791,8 +2791,25 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
     assert.equal(summary.cells[0]?.cellId, "cell-01-01");
     assert.equal(summary.cells[0]?.selectedLaneId, "candidate-01");
 
+    const textDashboard = formatAutoresearchDashboard(buildAutoresearchRuntimeStatus(cwd));
+    assert.match(textDashboard, /mode: matrix_campaign/);
+    assert.match(textDashboard, /## Matrix campaign progress/);
+    assert.ok(
+      textDashboard.indexOf("## Matrix campaign progress") <
+        textDashboard.indexOf("## Local runtime segment snapshot"),
+    );
+
     const result = exportAutoresearchDashboardHtml({ cwd });
     const html = readFileSync(result.path, "utf8");
+    assert.match(html, /mode: matrix_campaign/);
+    assert.match(html, /Dashboard mode/);
+    assert.match(html, /Matrix campaign progress/);
+    assert.match(html, /Matrix cells/);
+    assert.match(html, /1\/1/);
+    assert.match(html, /Local runtime segment snapshot/);
+    assert.ok(
+      html.indexOf("Matrix campaign progress") < html.indexOf("Local runtime segment snapshot"),
+    );
     assert.match(html, /Matrix campaign artifact summary/);
     assert.match(html, /export_visibility_blockers=0/);
     assert.match(html, /cell-01-01/);

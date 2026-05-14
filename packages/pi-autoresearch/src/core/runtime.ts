@@ -5282,7 +5282,7 @@ function formatAutoresearchGuidedCandidateJourneyLines(cwd: string): string[] {
 function formatAutoresearchMatrixCampaignSummaryLines(
   summary: AutoresearchMatrixCampaignArtifactSummary,
 ): string[] {
-  if (summary.artifacts.length === 0 && summary.cells.length === 0) {
+  if (!hasAutoresearchMatrixCampaignProgress(summary)) {
     return [
       "- no matrix campaign artifacts discovered under .autoresearch/campaigns or .autoresearch/matrix-campaign",
       `- export_visibility_blockers: ${summary.exportVisibilityBlockers.value} (target=0; ${summary.exportVisibilityBlockers.status})`,
@@ -5304,6 +5304,18 @@ function formatAutoresearchMatrixCampaignSummaryLines(
     ...summary.nextLegalActions.slice(0, 5).map((action) => `- next legal action: ${action}`),
     `- boundary: ${summary.boundary}`,
   ];
+}
+
+function hasAutoresearchMatrixCampaignProgress(
+  summary: AutoresearchMatrixCampaignArtifactSummary,
+): boolean {
+  return summary.artifacts.length > 0 || summary.cells.length > 0 || summary.campaignCount > 0;
+}
+
+function formatAutoresearchDashboardMode(
+  summary: AutoresearchMatrixCampaignArtifactSummary,
+): "matrix_campaign" | "runtime_segment" {
+  return hasAutoresearchMatrixCampaignProgress(summary) ? "matrix_campaign" : "runtime_segment";
 }
 
 export function formatAutoresearchDashboard(
@@ -5338,6 +5350,7 @@ export function formatAutoresearchDashboard(
   const guidedCandidateJourneyLines = formatAutoresearchGuidedCandidateJourneyLines(dashboardCwd);
   const matrixSummary = discoverAutoresearchMatrixCampaignArtifacts(dashboardCwd);
   const matrixSummaryLines = formatAutoresearchMatrixCampaignSummaryLines(matrixSummary);
+  const dashboardMode = formatAutoresearchDashboardMode(matrixSummary);
   const metricReadiness = buildAutoresearchMetricReadinessReview(status);
   const metricReadinessBlockers =
     metricReadiness.blockedReasons.length > 0 ? metricReadiness.blockedReasons.join("; ") : "none";
@@ -5347,6 +5360,18 @@ export function formatAutoresearchDashboard(
     "",
     "Read-only operator dashboard. It summarizes campaign posture and next legal surfaces without running a benchmark, spawning peers, mutating worktrees, or promoting evidence.",
     "",
+    "## Dashboard mode",
+    `- mode: ${dashboardMode}`,
+    ...(dashboardMode === "matrix_campaign"
+      ? [
+          "- matrix campaign artifacts are the primary visible-progress source for this cwd.",
+          "- local single-segment runtime fields below are auxiliary and may be empty when orchestrator/candidate-wave artifacts carry the live campaign truth.",
+        ]
+      : ["- local runtime receipts are the primary visible-progress source for this cwd."]),
+    "",
+    ...(dashboardMode === "matrix_campaign"
+      ? ["## Matrix campaign progress", ...matrixSummaryLines, ""]
+      : []),
     "## Current posture",
     status.cwd ? `- cwd: ${status.cwd}` : "- cwd: (unset)",
     `- machine state: ${status.runtimeProjection.state}`,
@@ -5356,7 +5381,7 @@ export function formatAutoresearchDashboard(
     `- promotion ready: ${status.empiricalPosture.promotionReady ? "yes" : "no"}`,
     `- recommended next: ${status.empiricalPosture.recommendedNextAction}`,
     "",
-    "## Metric contract",
+    `## ${dashboardMode === "matrix_campaign" ? "Local runtime segment snapshot" : "Metric contract"}`,
     `- campaign: ${segment.name ?? "(not configured)"}`,
     `- primary metric: ${metricLine}`,
     `- success threshold: ${formatMetricThresholdValue(segment.metricThreshold, segment.metricUnit)}`,
@@ -5491,6 +5516,20 @@ function renderAutoresearchDashboardHtml(
     .slice(0, 5)
     .map((action) => `<div class="card-copy"><code>${escapeHtml(action)}</code></div>`)
     .join("\n");
+  const dashboardMode = formatAutoresearchDashboardMode(matrixSummary);
+  const matrixMode = dashboardMode === "matrix_campaign";
+  const matrixProgressCards = `<div class="cards">
+    <section class="card"><div class="card-label">Matrix cells</div><div class="card-value">${escapeHtml(`${matrixSummary.completedCellCount}/${matrixSummary.cellCount}`)}</div></section>
+    <section class="card"><div class="card-label">Selected lanes</div><div class="card-value">${escapeHtml(String(matrixSummary.selectedCellCount))}</div></section>
+    <section class="card"><div class="card-label">Exported packets</div><div class="card-value">${escapeHtml(String(matrixSummary.exportedPacketCount))}</div></section>
+    <section class="card"><div class="card-label">Visibility blockers</div><div class="card-value ${matrixSummary.exportVisibilityBlockers.status === "target_met" ? "good" : "warn"}">${escapeHtml(String(matrixSummary.exportVisibilityBlockers.value))}</div></section>
+  </div>`;
+  const runtimeProgressCards = `<div class="cards">
+    <section class="card"><div class="card-label">Baseline → Best</div><div class="card-value">${escapeHtml(formatAutoresearchDashboardNumber(baselineMetric, metricUnit))} → ${escapeHtml(formatAutoresearchDashboardNumber(bestMetric, metricUnit))}</div></section>
+    <section class="card"><div class="card-label">Improvement</div><div class="card-value ${improvement.className}">${escapeHtml(improvement.label)}</div></section>
+    <section class="card"><div class="card-label">Runs</div><div class="card-value">${closeout.runCount}</div></section>
+    <section class="card"><div class="card-label">Confidence</div><div class="card-value ${segment.confidence !== null && segment.confidence < 1 ? "warn" : ""}">${escapeHtml(segment.confidence === null ? "—" : `${segment.confidence.toFixed(1)}×`)}</div></section>
+  </div>`;
   const shareSvg = renderAutoresearchDashboardShareSvg({
     metricName,
     posture: status.empiricalPosture.classification,
@@ -5585,6 +5624,7 @@ code { color: #a5d6ff; }
       <h1 class="title">🔬 pi-autoresearch live dashboard${segment.name ? `: ${escapeHtml(segment.name)}` : ""}</h1>
       <div class="meta">Auto-refreshes every 2s while Pi rewrites this file. Generated ${escapeHtml(generatedAt)}.</div>
       <div class="badge-row">
+        <span class="badge ${matrixMode ? "good" : ""}">mode: ${escapeHtml(dashboardMode)}</span>
         <span class="badge">machine: ${escapeHtml(status.runtimeProjection.state)}</span>
         <span class="badge ${status.empiricalPosture.promotionReady ? "good" : "warn"}">promotion: ${status.empiricalPosture.promotionReady ? "ready" : "not ready"}</span>
         <span class="badge">posture: ${escapeHtml(status.empiricalPosture.classification)}</span>
@@ -5594,17 +5634,30 @@ code { color: #a5d6ff; }
     <button class="share-btn" id="share-btn" type="button">Export as image ↓</button>
   </div>
 
-  <div class="cards">
-    <section class="card"><div class="card-label">Baseline → Best</div><div class="card-value">${escapeHtml(formatAutoresearchDashboardNumber(baselineMetric, metricUnit))} → ${escapeHtml(formatAutoresearchDashboardNumber(bestMetric, metricUnit))}</div></section>
-    <section class="card"><div class="card-label">Improvement</div><div class="card-value ${improvement.className}">${escapeHtml(improvement.label)}</div></section>
-    <section class="card"><div class="card-label">Runs</div><div class="card-value">${closeout.runCount}</div></section>
-    <section class="card"><div class="card-label">Confidence</div><div class="card-value ${segment.confidence !== null && segment.confidence < 1 ? "warn" : ""}">${escapeHtml(segment.confidence === null ? "—" : `${segment.confidence.toFixed(1)}×`)}</div></section>
-  </div>
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Dashboard mode</div>
+    <div class="card-value" style="font-size:18px">${escapeHtml(dashboardMode)}</div>
+    <div class="card-copy">${matrixMode ? "Matrix campaign artifacts are the primary visible-progress source. Empty local runtime fields are auxiliary and do not mean the matrix has no progress." : "Local runtime receipts are the primary visible-progress source."}</div>
+  </section>
+
+  ${matrixMode ? matrixProgressCards : runtimeProgressCards}
+
+  ${
+    matrixMode
+      ? `<section class="card" style="margin-top:14px">
+    <div class="card-label">Matrix campaign progress</div>
+    <div class="card-value ${matrixSummary.exportVisibilityBlockers.status === "target_met" ? "good" : "warn"}" style="font-size:18px">${escapeHtml(matrixSummary.metricName ?? "matrix campaign")}</div>
+    <div class="card-copy">cells=${escapeHtml(`${matrixSummary.completedCellCount}/${matrixSummary.cellCount}`)} · selected=${escapeHtml(String(matrixSummary.selectedCellCount))} · lanes=${escapeHtml(String(matrixSummary.candidateLaneCount))} · packets=${escapeHtml(String(matrixSummary.exportedPacketCount))}</div>
+    <div class="card-copy">latest=${escapeHtml(matrixSummary.latestArtifactPath ?? "none")}</div>
+    ${matrixNextLegalActions || '<div class="card-copy">No matrix next legal actions discovered yet.</div>'}
+  </section>`
+      : ""
+  }
 
   <section class="card" style="margin-top:14px">
     <div class="card-label">Recommended next</div>
-    <div class="card-value" style="font-size:18px; font-family:inherit">${escapeHtml(status.empiricalPosture.recommendedNextAction)}</div>
-    <div class="card-copy">${escapeHtml(status.empiricalPosture.summary)}</div>
+    <div class="card-value" style="font-size:18px; font-family:inherit">${escapeHtml(matrixMode ? (matrixSummary.nextLegalActions[0] ?? "Review matrix campaign artifacts before acting.") : status.empiricalPosture.recommendedNextAction)}</div>
+    <div class="card-copy">${escapeHtml(matrixMode ? "Matrix-mode recommendation is derived from discovered local matrix artifacts; durable authority still requires owner review/evidence handoff." : status.empiricalPosture.summary)}</div>
   </section>
 
   <section class="card" style="margin-top:14px">
@@ -5669,6 +5722,11 @@ code { color: #a5d6ff; }
 
   <section class="table-panel">
     <table><thead><tr><th>Cell</th><th>Posture</th><th>Lanes</th><th>Selected</th><th>Packet inventory</th><th>Next legal action</th></tr></thead><tbody>${matrixCellRows || `<tr><td colspan="6" class="muted">No matrix campaign artifacts discovered under .autoresearch/campaigns or .autoresearch/matrix-campaign.</td></tr>`}</tbody></table>
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">${matrixMode ? "Local runtime segment snapshot" : "Runtime segment"}</div>
+    <div class="card-copy">${matrixMode ? "Auxiliary single-segment state for this cwd. Matrix progress above is authoritative for dashboard visibility; blank runtime fields here usually mean the matrix is driven by orchestrator/candidate-wave artifacts instead of one local autoresearch.jsonl segment." : "Primary local runtime segment state for this cwd."}</div>
   </section>
 
   <div class="cards">
