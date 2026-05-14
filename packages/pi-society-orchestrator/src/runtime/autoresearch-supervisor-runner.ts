@@ -406,6 +406,123 @@ export interface AutoresearchMatrixCampaignCell {
   fanInGate: string;
 }
 
+export type AutoresearchLevel2PacketPlanningAntiNarrowingPosture =
+  | "ready_for_level2_packet_planning"
+  | "blocked_anti_narrowing"
+  | "failed_closed_missing_or_duplicate_lanes"
+  | "incomplete_matrix_exception_recorded"
+  | "explicit_downgrade_recorded";
+
+export interface AutoresearchLevel2PacketPlanningBlockerMetric {
+  name: "level2_packet_planning_blockers";
+  direction: "lower";
+  target: 0;
+  value: number;
+  status: "target_met" | "blocked";
+}
+
+export interface AutoresearchLevel2PacketPlanningAntiNarrowing {
+  kind: "autoresearch.level2_packet_planning_anti_narrowing.v1";
+  posture: AutoresearchLevel2PacketPlanningAntiNarrowingPosture;
+  targetClosureAllowed: boolean;
+  proofOnlyBaselineOnlyTargetClosureBlocked: boolean;
+  incompleteMatrixExceptionRecorded: boolean;
+  explicitDowngradeRecorded: boolean;
+  missingLaneKeys: readonly string[];
+  duplicateLaneKeys: readonly string[];
+  proofOnlyBaselineOnlyLaneKeys: readonly string[];
+  blockerMetric: AutoresearchLevel2PacketPlanningBlockerMetric;
+  proofs: readonly {
+    proof: string;
+    status: "present";
+    source: string;
+  }[];
+  guidance: readonly string[];
+}
+
+export type AutoresearchLevel2PacketTokenName =
+  | "launch_visible_candidate_lanes"
+  | "finalize_post_fanin"
+  | "ak_owner_write"
+  | "candidate_cleanup"
+  | "promotion";
+
+export interface AutoresearchLevel2PacketTokenVocabularyEntry {
+  tokenName: AutoresearchLevel2PacketTokenName;
+  exactToken: string;
+  requiredFor: string;
+  ownerSurface: string;
+  description: string;
+}
+
+export interface AutoresearchLevel2PacketDescriptor {
+  packetName: AutoresearchLevel2PacketTokenName;
+  tokenName: AutoresearchLevel2PacketTokenName;
+  requiredToken: string;
+  posture:
+    | "blocked_missing_launch_token"
+    | "blocked_until_owner_token"
+    | "blocked_until_review_token";
+  execution: "not_executed_by_orchestrator";
+  exactCalls: readonly string[];
+  boundary: string;
+}
+
+export interface AutoresearchLevel2PacketPlanning {
+  kind: "autoresearch.level2_packet_planning.v1";
+  schemaVersion: 1;
+  taskId: number;
+  cwd: string;
+  objective: string;
+  packetOnly: true;
+  execution: "not_executed_by_orchestrator";
+  tokenVocabulary: {
+    launchVisibleCandidateLanes: AutoresearchLevel2PacketTokenVocabularyEntry & {
+      tokenName: "launch_visible_candidate_lanes";
+    };
+    postFaninFinalizer: AutoresearchLevel2PacketTokenVocabularyEntry & {
+      tokenName: "finalize_post_fanin";
+    };
+    akOwnerWrite: AutoresearchLevel2PacketTokenVocabularyEntry & {
+      tokenName: "ak_owner_write";
+    };
+    candidateCleanup: AutoresearchLevel2PacketTokenVocabularyEntry & {
+      tokenName: "candidate_cleanup";
+    };
+    promotion: AutoresearchLevel2PacketTokenVocabularyEntry & { tokenName: "promotion" };
+  };
+  packets: {
+    launchVisibleCandidateLanes: AutoresearchLevel2PacketDescriptor & {
+      packetName: "launch_visible_candidate_lanes";
+      tokenName: "launch_visible_candidate_lanes";
+      posture: "blocked_missing_launch_token";
+      allowedTool: "candidate_peer_spawn";
+      launchCalls: readonly [];
+      withheldLaunchCallCount: number;
+    };
+    postFaninFinalizer: AutoresearchLevel2PacketDescriptor & {
+      packetName: "finalize_post_fanin";
+      tokenName: "finalize_post_fanin";
+    };
+    akOwnerWrite: AutoresearchLevel2PacketDescriptor & {
+      packetName: "ak_owner_write";
+      tokenName: "ak_owner_write";
+    };
+    candidateCleanup: AutoresearchLevel2PacketDescriptor & {
+      packetName: "candidate_cleanup";
+      tokenName: "candidate_cleanup";
+    };
+    promotion: AutoresearchLevel2PacketDescriptor & {
+      packetName: "promotion";
+      tokenName: "promotion";
+    };
+  };
+  metric: AutoresearchLevel2PacketPlanningBlockerMetric;
+  antiNarrowing: AutoresearchLevel2PacketPlanningAntiNarrowing;
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
 export interface AutoresearchMatrixManagedWaveSubstrate {
   kind: "autoresearch.matrix_managed_candidate_wave_substrate.v1";
   cellCount: number;
@@ -414,6 +531,7 @@ export interface AutoresearchMatrixManagedWaveSubstrate {
   finalOnlyScoring: true;
   controllerMeasurementRequired: true;
   explicitPacketPathsGateSelection: true;
+  antiNarrowing: AutoresearchLevel2PacketPlanningAntiNarrowing;
   handoffContract: AutoresearchCampaignPeerRunnerHandoffContract;
   cellFanInCalls: readonly {
     cellId: string;
@@ -455,6 +573,7 @@ export interface AutoresearchMatrixCampaignPlan {
   candidateCountPerCell: number;
   cells: readonly AutoresearchMatrixCampaignCell[];
   managedWaveSubstrate: AutoresearchMatrixManagedWaveSubstrate;
+  level2PacketPlanning: AutoresearchLevel2PacketPlanning;
   implementationWaveSubstrate: {
     posture: "dogfood_matrix_replaces_hand_authored_wave_steps";
     akTaskId: number;
@@ -607,6 +726,24 @@ export type AutoresearchMatrixCampaignOperatorLaneState =
   | "measured_exported_selectable"
   | "measured_exported_not_selectable";
 
+export interface AutoresearchLevel2PacketPlanningBlockers {
+  name: "level2_packet_planning_blockers";
+  direction: "lower";
+  target: 0;
+  value: number;
+  status: "target_met" | "blocked";
+  missingTokens: readonly string[];
+  nextLegalActions: readonly string[];
+  forbiddenActions: readonly string[];
+  level1Fallback: string;
+  noHiddenExecutionBoundary: string;
+  proofs: readonly {
+    proof: string;
+    status: "present";
+    source: string;
+  }[];
+}
+
 export interface AutoresearchMatrixCampaignOperatorFollowup {
   kind: "autoresearch.matrix_campaign_operator_followup.v1";
   currentState: string;
@@ -616,6 +753,7 @@ export interface AutoresearchMatrixCampaignOperatorFollowup {
     target: number | null;
     targetSummary: string;
   };
+  level2PacketPlanningBlockers: AutoresearchLevel2PacketPlanningBlockers;
   lanePacketPaths: readonly {
     cellId: string;
     laneId: string;
@@ -867,6 +1005,57 @@ export interface AutoresearchCandidateWaveReviewLane {
   selectionReason: string;
 }
 
+export interface AutoresearchLevel2CandidateBindingLane {
+  laneId: string;
+  bindingKey: string;
+  sourcePacketPath: string | null;
+  candidateSource: string | null;
+  candidatePeerRunId: string | null;
+  candidateRunnerId: string | null;
+  controllerVerifiedFacts: {
+    packetPresent: boolean;
+    metricPresent: boolean;
+    checksStatus: string;
+    candidateWorktree: string | null;
+    candidateBranch: string | null;
+    candidateBaseRef: string | null;
+    candidateFilesChanged: readonly string[];
+  };
+  peerAssertions: {
+    peerRunId: string | null;
+    runnerId: string | null;
+    status: string;
+    caveat: string | null;
+  };
+  bindingStatus:
+    | "bound_controller_verified_packet"
+    | "blocked_missing_packet"
+    | "blocked_duplicate_lane"
+    | "peer_assertion_only"
+    | "manual_input_review_only";
+  blockers: readonly string[];
+}
+
+export interface AutoresearchLevel2CandidateBinding {
+  kind: "autoresearch.level2_candidate_binding.v1";
+  metric: {
+    name: "level2_candidate_binding_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  expectedLaneCount: number;
+  boundLaneCount: number;
+  controllerVerifiedLaneCount: number;
+  missingLaneIds: readonly string[];
+  duplicateLaneIds: readonly string[];
+  peerAssertionOnlyLaneIds: readonly string[];
+  lanes: readonly AutoresearchLevel2CandidateBindingLane[];
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
 export interface AutoresearchCandidateWavePacketDiscovery {
   mode: "explicit" | "default" | "manual";
   defaultDirectory: string;
@@ -1003,6 +1192,7 @@ export interface AutoresearchCandidateWaveReview {
   };
   management: AutoresearchCandidateWaveManagement;
   reliabilityRecovery: AutoresearchCandidateWaveReliabilityRecovery;
+  level2CandidateBinding: AutoresearchLevel2CandidateBinding;
   ownerReviewRoute: AutoresearchOwnerReviewRoute;
   nextStep: string;
   boundaries: string[];
@@ -1743,6 +1933,106 @@ function buildCandidateWaveMoreSamplesCall(
   });
 }
 
+function buildLevel2CandidateBinding(
+  lanes: readonly AutoresearchCandidateWaveReviewLane[],
+  packetDiscovery: AutoresearchCandidateWavePacketDiscovery,
+): AutoresearchLevel2CandidateBinding {
+  const laneCounts = new Map<string, number>();
+  for (const lane of lanes) laneCounts.set(lane.laneId, (laneCounts.get(lane.laneId) ?? 0) + 1);
+  const duplicateLaneIds = [...laneCounts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([laneId]) => laneId);
+  const duplicateSet = new Set(duplicateLaneIds);
+  const expectedLaneCount =
+    packetDiscovery.mode === "explicit"
+      ? packetDiscovery.candidateResultPacketPaths.length
+      : lanes.length;
+
+  const bindingLanes = lanes.map((lane): AutoresearchLevel2CandidateBindingLane => {
+    const blockers: string[] = [];
+    const packetPresent = Boolean(
+      lane.sourcePacketPath && normalizeReviewToken(lane.status) !== "missing_packet",
+    );
+    if (!packetPresent && packetDiscovery.mode === "explicit") blockers.push("missing_packet");
+    if (duplicateSet.has(lane.laneId)) blockers.push("duplicate_lane");
+    if (lane.candidatePeerRunId && !packetPresent) blockers.push("peer_assertion_without_packet");
+    const bindingStatus: AutoresearchLevel2CandidateBindingLane["bindingStatus"] = duplicateSet.has(
+      lane.laneId,
+    )
+      ? "blocked_duplicate_lane"
+      : !packetPresent && packetDiscovery.mode === "explicit"
+        ? "blocked_missing_packet"
+        : lane.candidatePeerRunId && !packetPresent
+          ? "peer_assertion_only"
+          : packetPresent
+            ? "bound_controller_verified_packet"
+            : "manual_input_review_only";
+
+    return {
+      laneId: lane.laneId,
+      bindingKey: `${lane.laneId}:${lane.sourcePacketPath ?? "manual"}`,
+      sourcePacketPath: lane.sourcePacketPath,
+      candidateSource: lane.candidateSource,
+      candidatePeerRunId: lane.candidatePeerRunId,
+      candidateRunnerId: lane.candidateRunnerId,
+      controllerVerifiedFacts: {
+        packetPresent,
+        metricPresent: lane.metric !== null,
+        checksStatus: lane.checksStatus,
+        candidateWorktree: lane.candidateWorktree,
+        candidateBranch: lane.candidateBranch,
+        candidateBaseRef: lane.candidateBaseRef,
+        candidateFilesChanged: lane.candidateFilesChanged,
+      },
+      peerAssertions: {
+        peerRunId: lane.candidatePeerRunId,
+        runnerId: lane.candidateRunnerId,
+        status: lane.status,
+        caveat: lane.caveat,
+      },
+      bindingStatus,
+      blockers,
+    };
+  });
+  const missingLaneIds = bindingLanes
+    .filter((lane) => lane.bindingStatus === "blocked_missing_packet")
+    .map((lane) => lane.laneId);
+  const peerAssertionOnlyLaneIds = bindingLanes
+    .filter((lane) => lane.bindingStatus === "peer_assertion_only")
+    .map((lane) => lane.laneId);
+  const blockerCount = bindingLanes.reduce((sum, lane) => sum + lane.blockers.length, 0);
+  const controllerVerifiedLaneCount = bindingLanes.filter(
+    (lane) => lane.bindingStatus === "bound_controller_verified_packet",
+  ).length;
+
+  return {
+    kind: "autoresearch.level2_candidate_binding.v1",
+    metric: {
+      name: "level2_candidate_binding_blockers",
+      direction: "lower",
+      target: 0,
+      value: blockerCount,
+      status: blockerCount === 0 ? "target_met" : "blocked",
+    },
+    expectedLaneCount,
+    boundLaneCount: bindingLanes.length,
+    controllerVerifiedLaneCount,
+    missingLaneIds,
+    duplicateLaneIds,
+    peerAssertionOnlyLaneIds,
+    lanes: bindingLanes,
+    boundaries: [
+      "Binding candidate results to lanes does not make peer/intercom text durable evidence.",
+      "Controller-verified facts come from candidate-result packets or explicit inline review input; owner evidence writes remain separate.",
+      "Missing, duplicate, or peer-assertion-only lanes fail closed before owner selection can be treated as complete.",
+    ],
+    nextStep:
+      blockerCount === 0
+        ? "Proceed to review_candidate_wave owner selection using bound controller-verified candidate facts."
+        : "Resolve level-2 candidate binding blockers before claiming fan-in completion or owner selection readiness.",
+  };
+}
+
 function buildCandidateWaveReviewNextCalls(input: {
   cwd: string;
   winner: AutoresearchCandidateWaveReviewLane | null;
@@ -2086,6 +2376,7 @@ export function reviewAutoresearchCandidateWave(
     winner: selectableWinner,
     exactNextCalls,
   });
+  const level2CandidateBinding = buildLevel2CandidateBinding(lanes, packetDiscovery);
   const aggregateReviewPayload: Record<string, unknown> = {
     action: "review_candidate_wave",
     taskId: identity.taskId,
@@ -2148,6 +2439,7 @@ export function reviewAutoresearchCandidateWave(
           },
     management,
     reliabilityRecovery,
+    level2CandidateBinding,
     ownerReviewRoute,
     nextStep: plannedLanesIncomplete
       ? "Wait for every explicit planned lane to reach controller-measured candidate_result_export, or rerun review_candidate_wave with a deliberately revised packet path set after owner replanning."
@@ -2159,6 +2451,7 @@ export function reviewAutoresearchCandidateWave(
       "When no inline results or packet paths are supplied, review_candidate_wave only auto-discovers existing packets under the default candidate-wave packet directory.",
       "Missing candidate-result packet paths are surfaced as non-selectable missing_packet lanes when paths are supplied explicitly, so partial candidate waves remain reviewable.",
       "Explicit planned packet paths gate final owner selection until every planned lane has a controller-measured pi-autoresearch candidate-result packet or the owner deliberately replans the lane set.",
+      "Level-2 candidate binding separates peer assertions from controller-verified packet facts before fan-in can be treated as complete.",
       "pi-autoresearch receipts and candidate-result packets remain the measurement source for each candidate.",
       "The recommendation is not promotion authority; owner approval and external promotion gates remain required.",
     ],
@@ -2857,6 +3150,149 @@ function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCam
   };
 }
 
+function normalizeLevel2PacketPlanningKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "_")
+    .replace(/^_+|_+$/gu, "");
+}
+
+function level2PlanningConstraintRecorded(
+  constraints: readonly string[],
+  pattern: RegExp,
+): boolean {
+  return constraints.some((constraint) => pattern.test(constraint));
+}
+
+function isLevel2ProofOnlyOrBaselineOnlyLabel(value: string): boolean {
+  const normalized = normalizeLevel2PacketPlanningKey(value);
+  if (normalized.length === 0) return false;
+  const narrowTokens =
+    /(^|_)(proof|prove|evidence|validation|validate|test|tests|doc|docs|readme|baseline|base_line|control|incumbent|current)(_|$)/u;
+  return narrowTokens.test(normalized);
+}
+
+function buildLevel2PacketPlanningAntiNarrowing(input: {
+  scenarios: readonly string[];
+  hypotheses: readonly string[];
+  candidateCountPerCell: number;
+  cells: readonly AutoresearchMatrixCampaignCell[];
+  constraints: readonly string[];
+}): AutoresearchLevel2PacketPlanningAntiNarrowing {
+  const expectedCellCount = input.scenarios.length * input.hypotheses.length;
+  const expectedLaneCount = expectedCellCount * input.candidateCountPerCell;
+  const scenarioKeys = input.scenarios.map(normalizeLevel2PacketPlanningKey);
+  const hypothesisKeys = input.hypotheses.map(normalizeLevel2PacketPlanningKey);
+  const duplicateLaneKeys = [
+    ...scenarioKeys
+      .filter((key, index) => key.length > 0 && scenarioKeys.indexOf(key) !== index)
+      .map((key) => `scenario:${key}`),
+    ...hypothesisKeys
+      .filter((key, index) => key.length > 0 && hypothesisKeys.indexOf(key) !== index)
+      .map((key) => `hypothesis:${key}`),
+  ];
+  const actualLaneKeys = input.cells.flatMap((cell) =>
+    cell.candidateResultPacketPaths.map((packetPath) => `${cell.cellId}:${packetPath}`),
+  );
+  const duplicateGeneratedLaneKeys = actualLaneKeys.filter(
+    (key, index) => actualLaneKeys.indexOf(key) !== index,
+  );
+  const missingLaneKeys =
+    actualLaneKeys.length === expectedLaneCount && input.cells.length === expectedCellCount
+      ? []
+      : [
+          `expected-cells:${expectedCellCount}:actual-cells:${input.cells.length}`,
+          `expected-lanes:${expectedLaneCount}:actual-lanes:${actualLaneKeys.length}`,
+        ];
+  const allAxisLabels = [...input.scenarios, ...input.hypotheses];
+  const proofOnlyBaselineOnlyLaneKeys = allAxisLabels.every(isLevel2ProofOnlyOrBaselineOnlyLabel)
+    ? input.cells.map((cell) => cell.cellId)
+    : [];
+  const incompleteMatrixExceptionRecorded = level2PlanningConstraintRecorded(
+    input.constraints,
+    /(?:incomplete[-_\s]?matrix\s+exception|exception\s*:\s*incomplete[-_\s]?matrix)/iu,
+  );
+  const explicitDowngradeRecorded =
+    level2PlanningConstraintRecorded(input.constraints, /(?:explicit\s+downgrade)/iu) ||
+    level2PlanningConstraintRecorded(input.constraints, /(?:downgrade\s+recorded)/iu) ||
+    level2PlanningConstraintRecorded(input.constraints, /(?:downgrade\s*:)/iu) ||
+    level2PlanningConstraintRecorded(
+      input.constraints,
+      /(?:downgraded\s+to\s+(?:packet[-_\s]?only|planning))/iu,
+    );
+  const missingOrDuplicateKeys = [
+    ...new Set([...missingLaneKeys, ...duplicateLaneKeys, ...duplicateGeneratedLaneKeys]),
+  ];
+  const proofOnlyBaselineOnlyBlocked =
+    proofOnlyBaselineOnlyLaneKeys.length > 0 &&
+    !incompleteMatrixExceptionRecorded &&
+    !explicitDowngradeRecorded;
+  const blockerCount =
+    missingOrDuplicateKeys.length +
+    (proofOnlyBaselineOnlyBlocked ? proofOnlyBaselineOnlyLaneKeys.length : 0);
+  const posture: AutoresearchLevel2PacketPlanningAntiNarrowingPosture =
+    missingOrDuplicateKeys.length > 0
+      ? "failed_closed_missing_or_duplicate_lanes"
+      : proofOnlyBaselineOnlyBlocked
+        ? "blocked_anti_narrowing"
+        : explicitDowngradeRecorded
+          ? "explicit_downgrade_recorded"
+          : incompleteMatrixExceptionRecorded
+            ? "incomplete_matrix_exception_recorded"
+            : "ready_for_level2_packet_planning";
+
+  return {
+    kind: "autoresearch.level2_packet_planning_anti_narrowing.v1",
+    posture,
+    targetClosureAllowed: blockerCount === 0 && !explicitDowngradeRecorded,
+    proofOnlyBaselineOnlyTargetClosureBlocked: proofOnlyBaselineOnlyBlocked,
+    incompleteMatrixExceptionRecorded,
+    explicitDowngradeRecorded,
+    missingLaneKeys,
+    duplicateLaneKeys: [...new Set([...duplicateLaneKeys, ...duplicateGeneratedLaneKeys])],
+    proofOnlyBaselineOnlyLaneKeys,
+    blockerMetric: {
+      name: "level2_packet_planning_blockers",
+      direction: "lower",
+      target: 0,
+      value: blockerCount,
+      status: blockerCount === 0 ? "target_met" : "blocked",
+    },
+    proofs: [
+      {
+        proof: "scenario × hypothesis packet-lane matrix cardinality",
+        status: "present",
+        source: "level2PacketPlanningAntiNarrowing.expected-vs-actual-lanes",
+      },
+      {
+        proof: "proof-only/baseline-only narrowing guard",
+        status: "present",
+        source: "level2PacketPlanningAntiNarrowing.proofOnlyBaselineOnlyLaneKeys",
+      },
+      {
+        proof: "incomplete-matrix exception / explicit downgrade record check",
+        status: "present",
+        source: "level2PacketPlanningAntiNarrowing.constraints",
+      },
+    ],
+    guidance:
+      blockerCount === 0
+        ? [
+            "Level-2 packet-only planning may proceed as recorded, but this posture still launches no peers and performs no external action.",
+            explicitDowngradeRecorded
+              ? "Target closure was explicitly downgraded; do not report target closure from proof-only/baseline-only evidence."
+              : incompleteMatrixExceptionRecorded
+                ? "Incomplete-matrix exception is recorded; keep the exception visible when reporting target status."
+                : "Maintain at least one non-proof/non-baseline matrix lane before claiming target closure.",
+          ]
+        : [
+            "Fail closed: do not claim level-2 target closure from proof-only/baseline-only packet evidence without an incomplete-matrix exception or explicit downgrade.",
+            "Fail closed: resolve missing or duplicate planned lane keys before exposing this packet-only plan as closure-ready.",
+          ],
+  };
+}
+
 function resolveMatrixCampaignRunnerManifestPath(value: string | undefined): string {
   const candidate = value?.trim() || ".autoresearch/matrix-campaign/runner-manifest.json";
   const normalized = candidate.replaceAll("\\", "/");
@@ -2887,6 +3323,225 @@ function buildMatrixCampaignRunnerCheckpointToken(input: {
   ].join("|");
 }
 
+const DEFAULT_LEVEL2_PACKET_FORBIDDEN_ACTIONS = [
+  "Do not spawn peers implicitly; only visible candidate_peer_spawn calls may launch candidate lanes.",
+  "Do not run benchmark, candidate_result_export, review_candidate_wave, or review_matrix_campaign below the checkpoint gate.",
+  "Do not write AK/KES/evidence, mutate Prompt Vault/ROCS, merge, promote, reset, or clean up worktrees from packet-only planning.",
+] as const;
+
+const LEVEL2_PACKET_LEVEL1_FALLBACK =
+  "Level-1 fallback: if level-2 matrix packet planning is blocked or too heavy, run action=plan_candidate_wave for one managed candidate wave/cell, then review_candidate_wave with explicit packet paths.";
+
+function buildAutoresearchLevel2PacketToken(input: {
+  taskId: number;
+  cwd: string;
+  objective: string;
+  tokenName: AutoresearchLevel2PacketTokenName;
+}): string {
+  const digest = createHash("sha256")
+    .update(`${input.taskId}\0${path.resolve(input.cwd)}\0${input.objective}\0${input.tokenName}`)
+    .digest("hex")
+    .slice(0, 16);
+  return `level2:${input.tokenName}:task:${input.taskId}:sha256:${digest}`;
+}
+
+function buildAutoresearchLevel2PacketPlanningBlockers(input: {
+  blockerMetric?: AutoresearchLevel2PacketPlanningBlockerMetric;
+  missingTokens?: readonly string[];
+  nextLegalActions: readonly string[];
+  forbiddenActions?: readonly string[];
+  level1Fallback?: string;
+  noHiddenExecutionBoundary?: string;
+}): AutoresearchLevel2PacketPlanningBlockers {
+  const missingTokens = input.missingTokens ?? [];
+  const forbiddenActions = input.forbiddenActions ?? DEFAULT_LEVEL2_PACKET_FORBIDDEN_ACTIONS;
+  const level1Fallback = input.level1Fallback ?? LEVEL2_PACKET_LEVEL1_FALLBACK;
+  const noHiddenExecutionBoundary =
+    input.noHiddenExecutionBoundary ??
+    "Packet-only level-2 planning may emit calls and command packets only; it does not launch peers, run benchmarks/exports/reviews, write evidence, merge, promote, or mutate lifecycle state.";
+  const metric = input.blockerMetric ?? {
+    name: "level2_packet_planning_blockers" as const,
+    direction: "lower" as const,
+    target: 0 as const,
+    value: 0,
+    status: "target_met" as const,
+  };
+  return {
+    ...metric,
+    missingTokens,
+    nextLegalActions: input.nextLegalActions,
+    forbiddenActions,
+    level1Fallback,
+    noHiddenExecutionBoundary,
+    proofs: [
+      {
+        proof: "next legal actions are operator-visible",
+        status: "present",
+        source: "operatorFollowup.nextLegalActions",
+      },
+      {
+        proof: "missing token list is explicit",
+        status: "present",
+        source: "operatorFollowup.level2PacketPlanningBlockers.missingTokens",
+      },
+      {
+        proof: "forbidden actions and no-hidden-execution boundary are explicit",
+        status: "present",
+        source:
+          "operatorFollowup.level2PacketPlanningBlockers.forbiddenActions + noHiddenExecutionBoundary",
+      },
+      {
+        proof: "level-1 fallback is explicit",
+        status: "present",
+        source: "operatorFollowup.level2PacketPlanningBlockers.level1Fallback",
+      },
+    ],
+  };
+}
+
+function buildAutoresearchLevel2PacketPlanning(input: {
+  taskId: number;
+  cwd: string;
+  objective: string;
+  candidateLaneCount: number;
+  antiNarrowing: AutoresearchLevel2PacketPlanningAntiNarrowing;
+}): AutoresearchLevel2PacketPlanning {
+  const token = (tokenName: AutoresearchLevel2PacketTokenName) =>
+    buildAutoresearchLevel2PacketToken({
+      taskId: input.taskId,
+      cwd: input.cwd,
+      objective: input.objective,
+      tokenName,
+    });
+  const tokenVocabulary: AutoresearchLevel2PacketPlanning["tokenVocabulary"] = {
+    launchVisibleCandidateLanes: {
+      tokenName: "launch_visible_candidate_lanes",
+      exactToken: token("launch_visible_candidate_lanes"),
+      requiredFor: "visible candidate_peer_spawn lane launch",
+      ownerSurface: "controller_visible_peer_launch",
+      description:
+        "Required before any level-2 packet plan may expose or run visible candidate lane launch calls.",
+    },
+    postFaninFinalizer: {
+      tokenName: "finalize_post_fanin",
+      exactToken: token("finalize_post_fanin"),
+      requiredFor: "post_fanin_finalizer packet construction after measured fan-in review",
+      ownerSurface: "pi-society-orchestrator.post_fanin_finalizer",
+      description:
+        "Required before post-fan-in finalizer apply-command packets can be treated as an owner-approved next step.",
+    },
+    akOwnerWrite: {
+      tokenName: "ak_owner_write",
+      exactToken: token("ak_owner_write"),
+      requiredFor: "owner-routed AK evidence/task write handoff",
+      ownerSurface: "AK",
+      description: "Required for any AK evidence/task lifecycle write outside this packet planner.",
+    },
+    candidateCleanup: {
+      tokenName: "candidate_cleanup",
+      exactToken: token("candidate_cleanup"),
+      requiredFor: "candidate worktree stop/delete/reset cleanup handoff",
+      ownerSurface: "candidate_worktree_lifecycle",
+      description:
+        "Required before cleanup of candidate peers or worktrees is proposed for execution.",
+    },
+    promotion: {
+      tokenName: "promotion",
+      exactToken: token("promotion"),
+      requiredFor: "merge/release/promotion authority handoff",
+      ownerSurface: "owner_promotion_gate",
+      description:
+        "Required before any selected candidate can be promoted, merged, released, or represented as completion authority.",
+    },
+  };
+  const basePacket = (
+    tokenName: AutoresearchLevel2PacketTokenName,
+    posture: AutoresearchLevel2PacketDescriptor["posture"],
+    boundary: string,
+  ): AutoresearchLevel2PacketDescriptor => ({
+    packetName: tokenName,
+    tokenName,
+    requiredToken: token(tokenName),
+    posture,
+    execution: "not_executed_by_orchestrator",
+    exactCalls: [],
+    boundary,
+  });
+
+  return {
+    kind: "autoresearch.level2_packet_planning.v1",
+    schemaVersion: 1,
+    taskId: input.taskId,
+    cwd: input.cwd,
+    objective: input.objective,
+    packetOnly: true,
+    execution: "not_executed_by_orchestrator",
+    tokenVocabulary,
+    packets: {
+      launchVisibleCandidateLanes: {
+        ...basePacket(
+          "launch_visible_candidate_lanes",
+          "blocked_missing_launch_token",
+          "Visible peer launch is blocked in this packet-only plan until the exact launch_visible_candidate_lanes token is supplied to an owner-approved launcher; no candidate_peer_spawn call is executed here.",
+        ),
+        packetName: "launch_visible_candidate_lanes",
+        tokenName: "launch_visible_candidate_lanes",
+        posture: "blocked_missing_launch_token",
+        allowedTool: "candidate_peer_spawn",
+        launchCalls: [],
+        withheldLaunchCallCount: input.candidateLaneCount,
+      },
+      postFaninFinalizer: {
+        ...basePacket(
+          "finalize_post_fanin",
+          "blocked_until_owner_token",
+          "Post-fan-in finalizer packets remain plan-only until owner review supplies finalize_post_fanin; no checkout, merge, commit, cleanup, or apply command is executed here.",
+        ),
+        packetName: "finalize_post_fanin",
+        tokenName: "finalize_post_fanin",
+      },
+      akOwnerWrite: {
+        ...basePacket(
+          "ak_owner_write",
+          "blocked_until_review_token",
+          "AK evidence/task writes are outside this planner and require an explicit ak_owner_write handoff after packet review.",
+        ),
+        packetName: "ak_owner_write",
+        tokenName: "ak_owner_write",
+      },
+      candidateCleanup: {
+        ...basePacket(
+          "candidate_cleanup",
+          "blocked_until_owner_token",
+          "Candidate stop/delete/reset cleanup is not performed by this planner and requires a separate candidate_cleanup token.",
+        ),
+        packetName: "candidate_cleanup",
+        tokenName: "candidate_cleanup",
+      },
+      promotion: {
+        ...basePacket(
+          "promotion",
+          "blocked_until_owner_token",
+          "Promotion, merge, release, and completion authority are outside this planner and require a separate promotion token.",
+        ),
+        packetName: "promotion",
+        tokenName: "promotion",
+      },
+    },
+    metric: input.antiNarrowing.blockerMetric,
+    antiNarrowing: input.antiNarrowing,
+    boundaries: [
+      "Packet-only level-2 planning does not launch peers, run benchmarks, export candidate results, review candidates, write evidence, clean worktrees, merge, release, or promote.",
+      "Prepared token values are request/coordination values only; consuming them requires the exact owner-approved command surface for that boundary.",
+      "Anti-narrowing posture must stay visible before any campaign closure claim.",
+    ],
+    nextStep:
+      input.antiNarrowing.blockerMetric.status === "blocked"
+        ? "Resolve level-2 packet planning blockers before claiming target closure or launching candidate lanes."
+        : "Use the prepared packet as review input; launch, finalizer, evidence, cleanup, and promotion actions still require explicit owner tokens.",
+  };
+}
+
 function buildAutoresearchMatrixCampaignOperatorFollowup(input: {
   currentState: string;
   metricName: string;
@@ -2911,6 +3566,13 @@ function buildAutoresearchMatrixCampaignOperatorFollowup(input: {
   };
   measurementReview?: Partial<AutoresearchMatrixCampaignOperatorFollowup["measurementReviewState"]>;
   nextLegalActions: readonly string[];
+  level2PacketPlanning?: {
+    blockerMetric?: AutoresearchLevel2PacketPlanningBlockerMetric;
+    missingTokens?: readonly string[];
+    forbiddenActions?: readonly string[];
+    level1Fallback?: string;
+    noHiddenExecutionBoundary?: string;
+  };
 }): AutoresearchMatrixCampaignOperatorFollowup {
   const lanePacketPaths =
     input.laneStates ??
@@ -2937,6 +3599,10 @@ function buildAutoresearchMatrixCampaignOperatorFollowup(input: {
     requiredToken: null,
     checkpointAccepted: null,
   };
+  const level2PacketPlanningBlockers = buildAutoresearchLevel2PacketPlanningBlockers({
+    nextLegalActions: input.nextLegalActions,
+    ...input.level2PacketPlanning,
+  });
 
   return {
     kind: "autoresearch.matrix_campaign_operator_followup.v1",
@@ -2950,6 +3616,7 @@ function buildAutoresearchMatrixCampaignOperatorFollowup(input: {
           ? `${input.metricName} (${input.metricDirection} is better; no target supplied)`
           : `${input.metricName} (${input.metricDirection} is better; target=${input.metricTarget})`,
     },
+    level2PacketPlanningBlockers,
     lanePacketPaths,
     checkpointState: {
       ...checkpointState,
@@ -3018,8 +3685,26 @@ export function planAutoresearchMatrixCampaign(
     primaryMetricName,
     primaryMetricTarget,
     candidateCountPerCell,
+    constraints,
+    parentPeerTarget,
     cells,
   } = resolveAutoresearchMatrixCampaignPlanParts(input);
+
+  const antiNarrowing = buildLevel2PacketPlanningAntiNarrowing({
+    scenarios,
+    hypotheses,
+    candidateCountPerCell,
+    cells,
+    constraints,
+  });
+
+  const level2PacketPlanning = buildAutoresearchLevel2PacketPlanning({
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    candidateLaneCount: cells.length * candidateCountPerCell,
+    antiNarrowing,
+  });
 
   const managedWaveSubstrate: AutoresearchMatrixManagedWaveSubstrate = {
     kind: "autoresearch.matrix_managed_candidate_wave_substrate.v1",
@@ -3029,6 +3714,7 @@ export function planAutoresearchMatrixCampaign(
     finalOnlyScoring: true,
     controllerMeasurementRequired: true,
     explicitPacketPathsGateSelection: true,
+    antiNarrowing,
     handoffContract: buildAutoresearchCampaignPeerRunnerHandoffContract(),
     cellFanInCalls: cells.map((cell) => ({
       cellId: cell.cellId,
@@ -3042,6 +3728,7 @@ export function planAutoresearchMatrixCampaign(
       "Score only controller-measured pi-autoresearch candidate-result packets for each lane.",
       "Use explicit cell reviewCandidateWaveCall packet paths so missing planned lanes gate final cell selection.",
       "Compare matrix cells only after their managed wave reviews are complete or deliberately owner-replanned.",
+      "Level-2 packet-only planning must keep anti-narrowing visible: proof-only/baseline-only closure is blocked unless an incomplete-matrix exception or explicit downgrade is recorded, and missing/duplicate lanes fail closed.",
     ],
   };
 
@@ -3059,16 +3746,25 @@ export function planAutoresearchMatrixCampaign(
       cells,
       nextLegalActions: [
         "Review this operator follow-up summary before launching any candidate lane.",
+        parentPeerTarget
+          ? "Missing token list: none for planning; launch_visible_candidate_lanes is still required before any owner-approved launcher consumes visible candidate lane calls."
+          : "Missing token list: parentPeerTarget before visible candidate lane launch.",
         "Launch only approved visible candidate_peer_spawn lanes for selected matrix cells.",
         "After PEER_FINAL, verify lineage and candidate worktrees before measurement/export/review.",
         "Run review_matrix_campaign only after candidate-result packets exist or missing lanes are deliberately owner-replanned.",
+        LEVEL2_PACKET_LEVEL1_FALLBACK,
       ],
+      level2PacketPlanning: {
+        blockerMetric: antiNarrowing.blockerMetric,
+        missingTokens: parentPeerTarget ? [] : ["parentPeerTarget"],
+      },
     }),
     scenarios,
     hypotheses,
     candidateCountPerCell,
     cells,
     managedWaveSubstrate,
+    level2PacketPlanning,
     implementationWaveSubstrate: {
       posture: "dogfood_matrix_replaces_hand_authored_wave_steps",
       akTaskId: identity.taskId,
@@ -3112,9 +3808,14 @@ export function planAutoresearchMatrixCampaign(
       "pi-autoresearch owns metrics, receipts, candidate packets, and candidate worktree measurement semantics.",
       "pi-society-orchestrator owns matrix choreography, aggregate review calls, and owner-decision surfacing only.",
       "AK remains the task/direction spine; no AK/KES/evidence write, merge, promotion, peer spawn, or worktree lifecycle action is applied by this plan.",
+      "Forbidden actions: no hidden peer launch, benchmark/export/review execution, evidence write, merge, promotion, or cleanup is performed by level-2 packet-only planning.",
+      LEVEL2_PACKET_LEVEL1_FALLBACK,
+      `Level-2 packet-only planning anti-narrowing posture: ${antiNarrowing.posture}; level2_packet_planning_blockers=${antiNarrowing.blockerMetric.value}.`,
     ],
     nextStep:
-      "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, reject controller-inline implementation as a process violation, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
+      antiNarrowing.blockerMetric.status === "blocked"
+        ? "Resolve level-2 packet-only planning blockers before claiming target closure; do not launch peers or run external actions from this plan."
+        : "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, reject controller-inline implementation as a process violation, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
   };
 }
 

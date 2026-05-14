@@ -693,6 +693,10 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   );
   assert.equal(planFollowup.primaryMetric.name, "operator_ux_blockers");
   assert.equal(planFollowup.primaryMetric.target, 0);
+  assert.equal(planFollowup.level2PacketPlanningBlockers.name, "level2_packet_planning_blockers");
+  assert.equal(planFollowup.level2PacketPlanningBlockers.value, 0);
+  assert.deepEqual(planFollowup.level2PacketPlanningBlockers.missingTokens, []);
+  assert.match(planFollowup.level2PacketPlanningBlockers.level1Fallback, /plan_candidate_wave/);
   assert.equal(planFollowup.lanePacketPaths.length, 4);
   assert.deepEqual(
     planFollowup.blockersChecklist.map((item) => item.proof),
@@ -736,6 +740,33 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
     "forbidden_below_seam",
   );
   assert.equal(result.details.matrixCampaign.managedWaveSubstrate.cellFanInCalls.length, 2);
+  const level2PacketPlanning = result.details.matrixCampaign.level2PacketPlanning;
+  assert.equal(level2PacketPlanning.kind, "autoresearch.level2_packet_planning.v1");
+  assert.equal(level2PacketPlanning.packetOnly, true);
+  assert.equal(level2PacketPlanning.execution, "not_executed_by_orchestrator");
+  assert.equal(level2PacketPlanning.metric.name, "level2_packet_planning_blockers");
+  assert.equal(level2PacketPlanning.metric.value, 0);
+  assert.equal(level2PacketPlanning.metric.status, "target_met");
+  assert.deepEqual(
+    Object.values(level2PacketPlanning.tokenVocabulary).map((entry) => entry.tokenName),
+    [
+      "launch_visible_candidate_lanes",
+      "finalize_post_fanin",
+      "ak_owner_write",
+      "candidate_cleanup",
+      "promotion",
+    ],
+  );
+  assert.equal(
+    level2PacketPlanning.packets.launchVisibleCandidateLanes.posture,
+    "blocked_missing_launch_token",
+  );
+  assert.equal(
+    level2PacketPlanning.packets.launchVisibleCandidateLanes.execution,
+    "not_executed_by_orchestrator",
+  );
+  assert.deepEqual(level2PacketPlanning.packets.launchVisibleCandidateLanes.launchCalls, []);
+  assert.equal(level2PacketPlanning.packets.launchVisibleCandidateLanes.withheldLaunchCallCount, 4);
   assert.equal(
     result.details.matrixCampaign.implementationWaveSubstrate.posture,
     "dogfood_matrix_replaces_hand_authored_wave_steps",
@@ -812,10 +843,20 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /Implementation-wave substrate/);
   assert.match(result.content[0].text, /Operator follow-up\/current-state summary/);
   assert.match(result.content[0].text, /cell primary metric: operator_ux_blockers/);
+  assert.match(result.content[0].text, /level2_packet_planning_blockers: 0/);
+  assert.match(result.content[0].text, /Missing token list: none/);
+  assert.match(result.content[0].text, /Level-1 fallback:.*plan_candidate_wave/);
   assert.match(result.content[0].text, /next legal actions/);
   assert.match(result.content[0].text, /Managed candidate-wave substrate/);
   assert.match(result.content[0].text, /expected candidate lanes: 4/);
   assert.match(result.content[0].text, /explicit packet paths gate selection: yes/);
+  assert.match(result.content[0].text, /Level-2 packet-only planning/);
+  assert.match(result.content[0].text, /launch token: launch_visible_candidate_lanes/);
+  assert.match(result.content[0].text, /finalizer token: finalize_post_fanin/);
+  assert.match(result.content[0].text, /evidence token: ak_owner_write/);
+  assert.match(result.content[0].text, /cleanup token: candidate_cleanup/);
+  assert.match(result.content[0].text, /promotion token: promotion/);
+  assert.match(result.content[0].text, /withheld launch calls: 4/);
   assert.match(result.content[0].text, /required runner: candidate_peer_spawn/);
   assert.match(result.content[0].text, /handoff: candidate_peer_spawn_to_candidate_worktree/);
   assert.match(result.content[0].text, /controller-inline implementation: process_violation/);
@@ -835,6 +876,126 @@ test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the 
   assert.match(result.content[0].text, /managed wave posture: managed_candidate_wave_required/);
   assert.match(result.content[0].text, /fan-in gate:/);
   assert.match(result.content[0].text, /This matrix plan is a non-mutating/);
+});
+
+test("autoresearch_live_supervision plan_matrix_campaign fails closed against level-2 packet-only narrowing", async () => {
+  const cwd = "/tmp/matrix-campaign-anti-narrowing";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+
+  const blocked = await tool.execute(
+    "tc-plan-matrix-campaign-anti-narrowing-blocked",
+    {
+      action: "plan_matrix_campaign",
+      taskId: 2910,
+      cwd,
+      objective: "level-2 packet-only planning closure",
+      metricName: "level2_packet_planning_blockers",
+      metricThreshold: 0,
+      scenarios: ["proof-only closure"],
+      hypotheses: ["baseline-only target"],
+      candidateCountPerCell: 1,
+      constraints: ["no hidden peer launch"],
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(blocked.details.ok, true);
+  const blockedAntiNarrowing = blocked.details.matrixCampaign.managedWaveSubstrate.antiNarrowing;
+  assert.equal(blockedAntiNarrowing.kind, "autoresearch.level2_packet_planning_anti_narrowing.v1");
+  assert.equal(blockedAntiNarrowing.posture, "blocked_anti_narrowing");
+  assert.equal(blockedAntiNarrowing.blockerMetric.name, "level2_packet_planning_blockers");
+  assert.equal(blockedAntiNarrowing.blockerMetric.status, "blocked");
+  assert.equal(blocked.details.matrixCampaign.level2PacketPlanning.metric.status, "blocked");
+  assert.equal(
+    blocked.details.matrixCampaign.operatorFollowup.level2PacketPlanningBlockers.status,
+    "blocked",
+  );
+  assert.equal(blockedAntiNarrowing.proofOnlyBaselineOnlyTargetClosureBlocked, true);
+  assert.equal(blockedAntiNarrowing.targetClosureAllowed, false);
+  assert.deepEqual(blockedAntiNarrowing.proofOnlyBaselineOnlyLaneKeys, ["cell-01-01"]);
+  assert.match(
+    blocked.details.matrixCampaign.nextStep,
+    /Resolve level-2 packet-only planning blockers/,
+  );
+
+  const downgraded = await tool.execute(
+    "tc-plan-matrix-campaign-anti-narrowing-downgraded",
+    {
+      action: "plan_matrix_campaign",
+      taskId: 2911,
+      cwd,
+      objective: "level-2 packet-only planning closure",
+      metricName: "level2_packet_planning_blockers",
+      metricThreshold: 0,
+      scenarios: ["proof-only closure"],
+      hypotheses: ["baseline-only target"],
+      candidateCountPerCell: 1,
+      constraints: ["explicit downgrade: packet-only planning report, not target closure"],
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  const downgradedAntiNarrowing =
+    downgraded.details.matrixCampaign.managedWaveSubstrate.antiNarrowing;
+  assert.equal(downgradedAntiNarrowing.posture, "explicit_downgrade_recorded");
+  assert.equal(downgradedAntiNarrowing.blockerMetric.status, "target_met");
+  assert.equal(downgradedAntiNarrowing.explicitDowngradeRecorded, true);
+  assert.equal(downgradedAntiNarrowing.targetClosureAllowed, false);
+
+  const incompleteException = await tool.execute(
+    "tc-plan-matrix-campaign-anti-narrowing-incomplete-exception",
+    {
+      action: "plan_matrix_campaign",
+      taskId: 2912,
+      cwd,
+      objective: "level-2 packet-only planning closure",
+      metricName: "level2_packet_planning_blockers",
+      metricThreshold: 0,
+      scenarios: ["proof-only closure"],
+      hypotheses: ["baseline-only target"],
+      candidateCountPerCell: 1,
+      constraints: ["incomplete-matrix exception: owner accepted proof/baseline-only slice"],
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  const exceptionAntiNarrowing =
+    incompleteException.details.matrixCampaign.managedWaveSubstrate.antiNarrowing;
+  assert.equal(exceptionAntiNarrowing.posture, "incomplete_matrix_exception_recorded");
+  assert.equal(exceptionAntiNarrowing.blockerMetric.value, 0);
+  assert.equal(exceptionAntiNarrowing.incompleteMatrixExceptionRecorded, true);
+  assert.equal(exceptionAntiNarrowing.targetClosureAllowed, true);
+
+  const duplicated = await tool.execute(
+    "tc-plan-matrix-campaign-anti-narrowing-duplicate-lane",
+    {
+      action: "plan_matrix_campaign",
+      taskId: 2913,
+      cwd,
+      objective: "level-2 packet-only planning closure",
+      metricName: "level2_packet_planning_blockers",
+      metricThreshold: 0,
+      scenarios: ["operator happy path", "operator happy path"],
+      hypotheses: ["candidate breadth"],
+      candidateCountPerCell: 1,
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  const duplicateAntiNarrowing =
+    duplicated.details.matrixCampaign.managedWaveSubstrate.antiNarrowing;
+  assert.equal(duplicateAntiNarrowing.posture, "failed_closed_missing_or_duplicate_lanes");
+  assert.equal(duplicateAntiNarrowing.blockerMetric.status, "blocked");
+  assert.deepEqual(duplicateAntiNarrowing.duplicateLaneKeys, ["scenario:operator_happy_path"]);
 });
 
 test("autoresearch_live_supervision prepare_matrix_campaign_runner exposes only visible peer launch before checkpoint", async () => {
@@ -1754,6 +1915,28 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
       2,
     );
     assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
+    assert.equal(
+      result.details.candidateWaveReview.level2CandidateBinding.kind,
+      "autoresearch.level2_candidate_binding.v1",
+    );
+    assert.equal(
+      result.details.candidateWaveReview.level2CandidateBinding.metric.name,
+      "level2_candidate_binding_blockers",
+    );
+    assert.equal(result.details.candidateWaveReview.level2CandidateBinding.metric.value, 0);
+    assert.equal(
+      result.details.candidateWaveReview.level2CandidateBinding.controllerVerifiedLaneCount,
+      2,
+    );
+    assert.deepEqual(result.details.candidateWaveReview.level2CandidateBinding.missingLaneIds, []);
+    assert.deepEqual(
+      result.details.candidateWaveReview.level2CandidateBinding.duplicateLaneIds,
+      [],
+    );
+    assert.deepEqual(
+      result.details.candidateWaveReview.level2CandidateBinding.peerAssertionOnlyLaneIds,
+      [],
+    );
     assert.deepEqual(
       result.details.candidateWaveReview.recommendation.ownerDecisionOptions.map(
         (option) => option.optionId,
@@ -1834,6 +2017,10 @@ test("autoresearch_live_supervision review_candidate_wave reads candidate result
     assert.match(result.content[0].text, /worktree=.*candidate-02/);
     assert.match(result.content[0].text, /caveat: candidate 02 improved more/);
     assert.match(result.content[0].text, /Packet discovery: explicit/);
+    assert.match(result.content[0].text, /Level-2 candidate binding/);
+    assert.match(result.content[0].text, /level2_candidate_binding_blockers: 0/);
+    assert.match(result.content[0].text, /controller-verified lanes: 2/);
+    assert.match(result.content[0].text, /binding candidate-02: bound_controller_verified_packet/);
     assert.match(result.content[0].text, /Owner decision form/);
     assert.match(
       result.content[0].text,
@@ -2172,6 +2359,13 @@ test("autoresearch_live_supervision review_candidate_wave gates explicit incompl
     assert.equal(candidate02.selectable, false);
     assert.equal(candidate02.sourcePacketPath, missingPacket);
     assert.equal(
+      result.details.candidateWaveReview.level2CandidateBinding.metric.status,
+      "blocked",
+    );
+    assert.deepEqual(result.details.candidateWaveReview.level2CandidateBinding.missingLaneIds, [
+      "candidate-02",
+    ]);
+    assert.equal(
       result.details.candidateWaveReview.reliabilityRecovery.posture,
       "missing_or_stalled_lane_recovery_required",
     );
@@ -2191,10 +2385,58 @@ test("autoresearch_live_supervision review_candidate_wave gates explicit incompl
     assert.match(result.details.candidateWaveReview.recommendation.reason, /candidate-02/);
     assert.match(result.content[0].text, /Recommendation: planned_lanes_incomplete/);
     assert.match(result.content[0].text, /waiting_for_planned_lanes/);
+    assert.match(result.content[0].text, /level2_candidate_binding_blockers: 1/);
+    assert.match(result.content[0].text, /missing lanes: candidate-02/);
     assert.match(result.content[0].text, /missing_packet guidance: verify\/export/);
     assert.match(result.content[0].text, /still running\/failed/);
     assert.match(result.content[0].text, /Wait for every explicit planned lane/);
   });
+});
+
+test("autoresearch_live_supervision review_candidate_wave fails closed on duplicate level-2 lane binding", async () => {
+  const cwd = "/tmp/candidate-wave-duplicate-binding";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+
+  const result = await tool.execute(
+    "tc-review-candidate-wave-duplicate-binding",
+    {
+      action: "review_candidate_wave",
+      taskId: 2674,
+      cwd,
+      objective: "detect duplicate candidate binding lanes",
+      direction: "lower",
+      candidateResults: [
+        {
+          laneId: "candidate-duplicate",
+          metric: 1,
+          status: "candidate_review_ready",
+          checksStatus: "pass",
+          candidateSource: "candidate_peer_spawn",
+          candidatePeerRunId: "candidatepeer-duplicate-a",
+        },
+        {
+          laneId: "candidate-duplicate",
+          metric: 2,
+          status: "candidate_review_ready",
+          checksStatus: "pass",
+          candidateSource: "candidate_peer_spawn",
+          candidatePeerRunId: "candidatepeer-duplicate-b",
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.candidateWaveReview.level2CandidateBinding.metric.status, "blocked");
+  assert.deepEqual(result.details.candidateWaveReview.level2CandidateBinding.duplicateLaneIds, [
+    "candidate-duplicate",
+  ]);
+  assert.match(result.content[0].text, /duplicate lanes: candidate-duplicate/);
+  assert.match(result.content[0].text, /blocked_duplicate_lane/);
 });
 
 test("autoresearch_live_supervision review_candidate_wave rejects invalid empirical/check postures", async () => {
