@@ -236,6 +236,45 @@ export interface AutoresearchPostFaninFinalizerPreflightCheck {
   evidence: readonly string[];
 }
 
+export interface AutoresearchPostFaninFinalizerTokenRequestPacket {
+  kind: "autoresearch.post_fanin_finalizer_token_request.v1";
+  sourceReview: "review_candidate_wave" | "review_matrix_campaign";
+  exactTaskId: number;
+  exactCwd: string;
+  objective: string;
+  requiredTokenName: "finalize_post_fanin";
+  exactAuthorizationToken: string;
+  requestExecution: "not_executed_by_orchestrator";
+  candidateResultPacketRefs: readonly string[];
+  reviewResultReference: {
+    sourceReview: "review_candidate_wave" | "review_matrix_campaign";
+    posture: string;
+    selectedLaneIds: readonly string[];
+  };
+  metricPosture: {
+    name: "level2_finalizer_token_request_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    sourceMetricName: string;
+    sourceMetricStatus: string;
+  };
+  permittedFinalizerScope: {
+    selectedLanes: readonly {
+      cellId: string | null;
+      laneId: string;
+      sourcePacketPath: string | null;
+      filesChanged: readonly string[];
+    }[];
+    validationCommand: string | null;
+    applyCommandsWithheldUntilToken: true;
+  };
+  separateOwnerTokensRequired: readonly ["candidate_cleanup", "promotion", "ak_owner_write"];
+  boundaries: readonly string[];
+  nextLegalActions: readonly string[];
+}
+
 export interface AutoresearchPostFaninFinalizerApplyCommandPacket {
   kind: "autoresearch.post_fanin_finalizer_apply_command_packet.v1";
   exactTaskId: number;
@@ -274,6 +313,7 @@ export interface AutoresearchPostFaninFinalizerResult {
     value: number;
     status: "target_met" | "blocked";
   };
+  finalizerTokenRequest: AutoresearchPostFaninFinalizerTokenRequestPacket;
   exactApplyCommandPacket: AutoresearchPostFaninFinalizerApplyCommandPacket | null;
   nextStep: string;
   boundaries: readonly string[];
@@ -879,6 +919,42 @@ export interface AutoresearchMatrixCampaignCloseout {
   notDone: readonly string[];
 }
 
+export interface AutoresearchLevel2OperatorUxMetric {
+  name:
+    | "level2_operator_ux_blockers"
+    | "dashboard_readiness_summary_blockers"
+    | "authority_boundary_clarity_blockers"
+    | "fallback_recovery_ux_blockers";
+  direction: "lower";
+  target: 0;
+  value: number;
+  status: "target_met" | "blocked";
+}
+
+export interface AutoresearchLevel2OperatorUxDashboard {
+  kind: "autoresearch.level2_operator_ux_dashboard.v1";
+  currentCheckpointState: string;
+  packetInventorySummary: string;
+  primaryMetric: AutoresearchLevel2OperatorUxMetric & {
+    name: "level2_operator_ux_blockers";
+  };
+  cellMetrics: readonly AutoresearchLevel2OperatorUxMetric[];
+  tokenAndAuthorityLegend: {
+    peerText: "communication_only";
+    candidateResultPackets: "review_inputs_not_durable_evidence";
+    reviewPackets: "owner_review_inputs_not_promotion";
+    akEvidence: "separate_owner_write_required";
+    finalizerCleanupPromotion: "separate_token_gates_required";
+  };
+  nextLegalActions: readonly string[];
+  fallbackAndRecovery: readonly string[];
+  proofs: readonly {
+    proof: string;
+    status: "present";
+    source: string;
+  }[];
+}
+
 export interface AutoresearchMatrixCampaignCockpit {
   kind: "autoresearch.matrix_campaign_cockpit.v1";
   source: "checkpoint_matrix_campaign_runner" | "review_matrix_campaign";
@@ -919,6 +995,7 @@ export interface AutoresearchMatrixCampaignCockpit {
   };
   nextLegalCampaignActions: readonly string[];
   noHiddenExecutionBoundaries: readonly string[];
+  operatorUxDashboard: AutoresearchLevel2OperatorUxDashboard;
   matrixCockpitBlockers: {
     name: "matrix_cockpit_blockers";
     direction: "lower";
@@ -931,6 +1008,69 @@ export interface AutoresearchMatrixCampaignCockpit {
       source: string;
     }[];
   };
+}
+
+export type AutoresearchReviewDispositionOption =
+  | "ignore"
+  | "inspect further"
+  | "fold into synthesis"
+  | "cherry-pick after review"
+  | "merge after review";
+
+export interface AutoresearchReviewPacketDispositionOption {
+  option: AutoresearchReviewDispositionOption;
+  posture: "owner_review_required";
+  description: string;
+  forbiddenWithoutOwnerToken: readonly string[];
+}
+
+export interface AutoresearchReviewPacketAuthorityBoundary {
+  durableEvidence: false;
+  promotionAuthority: false;
+  selectionAuthority: "recommendation_only" | "matrix_review_only";
+  forbiddenActions: readonly string[];
+  requiredOwnerTokens: readonly ["ak_owner_write", "candidate_cleanup", "promotion"];
+  boundary: string;
+}
+
+export interface AutoresearchCandidateWaveReviewPacket {
+  kind: "autoresearch.review_candidate_wave_packet.v1";
+  generatedFrom: "bound_candidate_results";
+  candidateWaveReviewKind: "autoresearch.candidate_wave_review.v1";
+  laneDispositionOptions: readonly AutoresearchReviewPacketDispositionOption[];
+  bindingMetric: AutoresearchLevel2CandidateBinding["metric"];
+  recommendedLaneId: string | null;
+  selectableLaneCount: number;
+  nextLegalActions: readonly string[];
+  authorityBoundary: AutoresearchReviewPacketAuthorityBoundary;
+}
+
+export interface AutoresearchWholeMatrixMetricPosture {
+  name: "level2_review_packet_generation_blockers";
+  direction: "lower";
+  target: 0;
+  value: number;
+  status: "target_met" | "blocked";
+  sourceMetricName: string;
+  sourceMetricTarget: number | null;
+  targetClosureAllowed: boolean;
+  incompleteMatrixExceptionRecorded: boolean;
+  explicitDowngradeRecorded: boolean;
+  proofOnlyBaselineOnlyTargetClosureBlocked: boolean;
+  guidance: readonly string[];
+}
+
+export interface AutoresearchMatrixCampaignReviewPacket {
+  kind: "autoresearch.review_matrix_campaign_packet.v1";
+  generatedFrom: "managed_cell_candidate_wave_reviews";
+  matrixCampaignReviewKind: "autoresearch.matrix_campaign_review.v1";
+  laneDispositionOptions: readonly AutoresearchReviewPacketDispositionOption[];
+  wholeMatrixMetricPosture: AutoresearchWholeMatrixMetricPosture;
+  selectedLaneCount: number;
+  expectedCellCount: number;
+  canCloseMatrixTarget: boolean;
+  nextLegalActions: readonly string[];
+  authorityBoundary: AutoresearchReviewPacketAuthorityBoundary;
 }
 
 export interface AutoresearchMatrixCampaignReview {
@@ -951,6 +1091,7 @@ export interface AutoresearchMatrixCampaignReview {
   ownerReview: AutoresearchMatrixCampaignOwnerReviewRoute;
   closeout: AutoresearchMatrixCampaignCloseout;
   cockpit: AutoresearchMatrixCampaignCockpit;
+  reviewPacket: AutoresearchMatrixCampaignReviewPacket;
   exactNextCalls: readonly string[];
   boundaries: readonly string[];
   nextStep: string;
@@ -1193,6 +1334,7 @@ export interface AutoresearchCandidateWaveReview {
   management: AutoresearchCandidateWaveManagement;
   reliabilityRecovery: AutoresearchCandidateWaveReliabilityRecovery;
   level2CandidateBinding: AutoresearchLevel2CandidateBinding;
+  reviewPacket: AutoresearchCandidateWaveReviewPacket;
   ownerReviewRoute: AutoresearchOwnerReviewRoute;
   nextStep: string;
   boundaries: string[];
@@ -2033,6 +2175,85 @@ function buildLevel2CandidateBinding(
   };
 }
 
+function buildReviewPacketDispositionOptions(): AutoresearchReviewPacketDispositionOption[] {
+  return [
+    {
+      option: "ignore",
+      posture: "owner_review_required",
+      description: "Leave the lane/cell unselected after review; no lifecycle action is implied.",
+      forbiddenWithoutOwnerToken: ["cleanup", "branch deletion", "evidence write"],
+    },
+    {
+      option: "inspect further",
+      posture: "owner_review_required",
+      description: "Open packet, diff, receipts, and dashboard context before deciding.",
+      forbiddenWithoutOwnerToken: ["benchmark", "merge", "promotion"],
+    },
+    {
+      option: "fold into synthesis",
+      posture: "owner_review_required",
+      description:
+        "Use ideas as review input for a later synthesized patch; do not treat the lane as selected.",
+      forbiddenWithoutOwnerToken: ["cherry-pick", "merge", "promotion"],
+    },
+    {
+      option: "cherry-pick after review",
+      posture: "owner_review_required",
+      description: "Possible only after owner review names exact commits/files and rollback.",
+      forbiddenWithoutOwnerToken: ["cherry-pick", "push", "evidence write"],
+    },
+    {
+      option: "merge after review",
+      posture: "owner_review_required",
+      description:
+        "Possible only after explicit promotion token, validation, and owner-approved rollback.",
+      forbiddenWithoutOwnerToken: ["merge", "push", "release", "promotion"],
+    },
+  ];
+}
+
+function buildReviewPacketAuthorityBoundary(input: {
+  selectionAuthority: AutoresearchReviewPacketAuthorityBoundary["selectionAuthority"];
+}): AutoresearchReviewPacketAuthorityBoundary {
+  return {
+    durableEvidence: false,
+    promotionAuthority: false,
+    selectionAuthority: input.selectionAuthority,
+    forbiddenActions: [
+      "peer launch",
+      "benchmark execution",
+      "candidate-result export",
+      "AK/KES/Oracle/DSPx/Prompt Vault/ROCS write",
+      "cleanup or branch deletion",
+      "merge, push, PR, release, or promotion",
+    ],
+    requiredOwnerTokens: ["ak_owner_write", "candidate_cleanup", "promotion"],
+    boundary:
+      "Review packets are non-authoritative owner-review inputs. They do not select winners, write durable evidence, clean up worktrees, merge, release, or promote.",
+  };
+}
+
+function buildCandidateWaveReviewPacket(input: {
+  review: Pick<
+    AutoresearchCandidateWaveReview,
+    "kind" | "level2CandidateBinding" | "recommendation" | "lanes"
+  >;
+}): AutoresearchCandidateWaveReviewPacket {
+  return {
+    kind: "autoresearch.review_candidate_wave_packet.v1",
+    generatedFrom: "bound_candidate_results",
+    candidateWaveReviewKind: input.review.kind,
+    laneDispositionOptions: buildReviewPacketDispositionOptions(),
+    bindingMetric: input.review.level2CandidateBinding.metric,
+    recommendedLaneId: input.review.recommendation.laneId,
+    selectableLaneCount: input.review.lanes.filter((lane) => lane.selectable).length,
+    nextLegalActions: input.review.recommendation.exactNextCalls,
+    authorityBoundary: buildReviewPacketAuthorityBoundary({
+      selectionAuthority: "recommendation_only",
+    }),
+  };
+}
+
 function buildCandidateWaveReviewNextCalls(input: {
   cwd: string;
   winner: AutoresearchCandidateWaveReviewLane | null;
@@ -2402,6 +2623,40 @@ export function reviewAutoresearchCandidateWave(
     winner: selectableWinner,
     aggregateReviewCall,
   });
+  const recommendation: AutoresearchCandidateWaveReview["recommendation"] = plannedLanesIncomplete
+    ? {
+        posture: "planned_lanes_incomplete",
+        laneId: null,
+        reason: `${missingPlannedLanes.length} explicit planned lane(s) are missing candidate-result packets: ${missingPlannedLanes.map((lane) => lane.laneId).join(", ")}. Final owner selection is gated until every planned lane is measured/exported or the owner replans the wave without that lane.`,
+        exactNextCalls,
+        ownerDecisionOptions,
+        ownerDecisionForm,
+      }
+    : winner
+      ? {
+          posture: "owner_selection_required",
+          laneId: winner.laneId,
+          reason: `Best selectable ${direction}-is-better metric is ${winner.metric}. Owner must still approve keep/finalize.`,
+          exactNextCalls,
+          ownerDecisionOptions,
+          ownerDecisionForm,
+        }
+      : {
+          posture: "no_selectable_candidate",
+          laneId: null,
+          reason: "No candidate had finite metrics with passing status/check gates.",
+          exactNextCalls,
+          ownerDecisionOptions,
+          ownerDecisionForm,
+        };
+  const reviewPacket = buildCandidateWaveReviewPacket({
+    review: {
+      kind: "autoresearch.candidate_wave_review.v1",
+      level2CandidateBinding,
+      recommendation,
+      lanes,
+    },
+  });
 
   return {
     kind: "autoresearch.candidate_wave_review.v1",
@@ -2411,35 +2666,11 @@ export function reviewAutoresearchCandidateWave(
     direction,
     lanes,
     packetDiscovery,
-    recommendation: plannedLanesIncomplete
-      ? {
-          posture: "planned_lanes_incomplete",
-          laneId: null,
-          reason: `${missingPlannedLanes.length} explicit planned lane(s) are missing candidate-result packets: ${missingPlannedLanes.map((lane) => lane.laneId).join(", ")}. Final owner selection is gated until every planned lane is measured/exported or the owner replans the wave without that lane.`,
-          exactNextCalls,
-          ownerDecisionOptions,
-          ownerDecisionForm,
-        }
-      : winner
-        ? {
-            posture: "owner_selection_required",
-            laneId: winner.laneId,
-            reason: `Best selectable ${direction}-is-better metric is ${winner.metric}. Owner must still approve keep/finalize.`,
-            exactNextCalls,
-            ownerDecisionOptions,
-            ownerDecisionForm,
-          }
-        : {
-            posture: "no_selectable_candidate",
-            laneId: null,
-            reason: "No candidate had finite metrics with passing status/check gates.",
-            exactNextCalls,
-            ownerDecisionOptions,
-            ownerDecisionForm,
-          },
+    recommendation,
     management,
     reliabilityRecovery,
     level2CandidateBinding,
+    reviewPacket,
     ownerReviewRoute,
     nextStep: plannedLanesIncomplete
       ? "Wait for every explicit planned lane to reach controller-measured candidate_result_export, or rerun review_candidate_wave with a deliberately revised packet path set after owner replanning."
@@ -2544,6 +2775,80 @@ function selectedLanesFromMatrixReview(
       },
     ];
   });
+}
+
+function buildPostFaninFinalizerTokenRequestPacket(input: {
+  identity: SessionIdentity;
+  sourceReview: AutoresearchPostFaninFinalizerRequest["sourceReview"];
+  objective: string;
+  authorizationToken: string;
+  selectedLanes: readonly AutoresearchPostFaninSelectedLane[];
+  validation: AutoresearchPostFaninValidationEvidence;
+  blockerCount: number;
+  reviewReady: boolean;
+  reviewPosture: string;
+  sourceMetricName: string;
+  sourceMetricStatus: string;
+}): AutoresearchPostFaninFinalizerTokenRequestPacket {
+  return {
+    kind: "autoresearch.post_fanin_finalizer_token_request.v1",
+    sourceReview: input.sourceReview,
+    exactTaskId: input.identity.taskId,
+    exactCwd: input.identity.cwd,
+    objective: input.objective,
+    requiredTokenName: "finalize_post_fanin",
+    exactAuthorizationToken: input.authorizationToken,
+    requestExecution: "not_executed_by_orchestrator",
+    candidateResultPacketRefs: input.selectedLanes
+      .map((lane) => lane.sourcePacketPath)
+      .filter((packetPath): packetPath is string => Boolean(packetPath)),
+    reviewResultReference: {
+      sourceReview: input.sourceReview,
+      posture: input.reviewPosture,
+      selectedLaneIds: input.selectedLanes.map((lane) => `${lane.cellId ?? "wave"}/${lane.laneId}`),
+    },
+    metricPosture: {
+      name: "level2_finalizer_token_request_blockers",
+      direction: "lower",
+      target: 0,
+      value: input.blockerCount,
+      status: input.blockerCount === 0 ? "target_met" : "blocked",
+      sourceMetricName: input.sourceMetricName,
+      sourceMetricStatus: input.sourceMetricStatus,
+    },
+    permittedFinalizerScope: {
+      selectedLanes: input.selectedLanes.map((lane) => ({
+        cellId: lane.cellId,
+        laneId: lane.laneId,
+        sourcePacketPath: lane.sourcePacketPath,
+        filesChanged: lane.filesChanged.map(normalizeRepoPath),
+      })),
+      validationCommand: input.validation.command.trim() || null,
+      applyCommandsWithheldUntilToken: true,
+    },
+    separateOwnerTokensRequired: ["candidate_cleanup", "promotion", "ak_owner_write"],
+    boundaries: [
+      "This is a finalize_post_fanin token request only; it emits no apply command packet until the exact token is supplied.",
+      "candidate_cleanup is separate and required before worktree removal or branch deletion.",
+      "promotion is separate and required before cherry-pick, merge, push, PR, release, or promotion.",
+      "ak_owner_write is separate and required before durable AK evidence/task/decision/direction writes.",
+      "Peer/intercom text and candidate-result packets remain review inputs, not durable evidence.",
+      input.reviewReady
+        ? "Review posture is ready for requesting a finalizer token."
+        : "Review posture is not ready; resolve review/preflight blockers before requesting authorization.",
+    ],
+    nextLegalActions:
+      input.blockerCount === 0
+        ? [
+            "Owner may copy the exact finalize_post_fanin token into a deliberate finalize_post_fanin call to expose apply commands.",
+            "Run validation again in the apply lane before commit/promotion decisions.",
+            "Keep cleanup and promotion requests separate after finalizer review.",
+          ]
+        : [
+            "Resolve preflight/review blockers and rerun finalize_post_fanin token-request preparation.",
+            "Do not infer finalize_post_fanin authorization from this blocked request.",
+          ],
+  };
 }
 
 function buildPostFaninFinalizerApplyCommandPacket(input: {
@@ -2653,6 +2958,17 @@ export function finalizeAutoresearchPostFanin(
   const reviewReady = candidateReview
     ? candidateReview.recommendation.posture === "owner_selection_required"
     : matrixReview?.posture === "ready_for_matrix_owner_review";
+  const reviewPosture = candidateReview
+    ? candidateReview.recommendation.posture
+    : (matrixReview?.posture ?? "missing_review");
+  const sourceMetricName = candidateReview
+    ? candidateReview.reviewPacket.bindingMetric.name
+    : (matrixReview?.reviewPacket.wholeMatrixMetricPosture.name ??
+      input.metricName ??
+      "unknown_metric");
+  const sourceMetricStatus = candidateReview
+    ? candidateReview.reviewPacket.bindingMetric.status
+    : (matrixReview?.reviewPacket.wholeMatrixMetricPosture.status ?? "blocked");
   const packetPaths = selectedLanes
     .map((lane) => lane.sourcePacketPath)
     .filter((packetPath): packetPath is string => Boolean(packetPath));
@@ -2809,16 +3125,31 @@ export function finalizeAutoresearchPostFanin(
     boundary:
       "Post-fan-in finalization is a governed preflight plus exact command packet surface; apply/commit/cleanup requires the exact authorization token and still runs outside this orchestrator helper.",
   };
-  const exactApplyCommandPacket = preflightPassed
-    ? buildPostFaninFinalizerApplyCommandPacket({
-        identity,
-        sourceReview: input.sourceReview,
-        objective,
-        authorizationToken,
-        selectedLanes,
-        validation,
-      })
-    : null;
+  const tokenRequestBlockerCount = blockerCount + (wrongAuthorization ? 1 : 0);
+  const finalizerTokenRequest = buildPostFaninFinalizerTokenRequestPacket({
+    identity,
+    sourceReview: input.sourceReview,
+    objective,
+    authorizationToken,
+    selectedLanes,
+    validation,
+    blockerCount: tokenRequestBlockerCount,
+    reviewReady,
+    reviewPosture,
+    sourceMetricName,
+    sourceMetricStatus,
+  });
+  const exactApplyCommandPacket =
+    preflightPassed && input.applyAuthorizationToken === authorizationToken
+      ? buildPostFaninFinalizerApplyCommandPacket({
+          identity,
+          sourceReview: input.sourceReview,
+          objective,
+          authorizationToken,
+          selectedLanes,
+          validation,
+        })
+      : null;
   const outcome: AutoresearchPostFaninFinalizerResult["outcome"] =
     !preflightPassed || wrongAuthorization
       ? "failed_closed"
@@ -2835,7 +3166,7 @@ export function finalizeAutoresearchPostFanin(
     preflight: {
       status: preflightPassed ? "passed" : "blocked",
       checks,
-      blockerCount: blockerCount + (wrongAuthorization ? 1 : 0),
+      blockerCount: tokenRequestBlockerCount,
     },
     manualPostFaninResidue: {
       name: "manual_post_fanin_residue",
@@ -2844,12 +3175,13 @@ export function finalizeAutoresearchPostFanin(
       value: manualResidueValue,
       status: manualResidueValue === 0 ? "target_met" : "blocked",
     },
+    finalizerTokenRequest,
     exactApplyCommandPacket,
     nextStep:
       outcome === "committed_cleaned"
         ? "Exact authorization token accepted; run the emitted apply command packet deliberately in the controller/apply lane if promotion is approved. The orchestrator has not executed it."
         : outcome === "review_blocked"
-          ? "Preflight passed, but apply is blocked until the exact authorization token is supplied deliberately."
+          ? "Preflight passed and a finalize_post_fanin token request was prepared, but apply commands are withheld until the exact authorization token is supplied deliberately."
           : wrongAuthorization
             ? "Fail closed: supplied applyAuthorizationToken did not match the contract token. Re-run preflight and authorize explicitly if still intended."
             : "Fail closed: resolve preflight blockers, rerun fan-in review/finalizer, and do not apply hidden promotion or cleanup.",
@@ -4162,6 +4494,82 @@ function buildAutoresearchMatrixCampaignControllerCommandPacket(input: {
   };
 }
 
+function level2OperatorUxMetric(
+  name: AutoresearchLevel2OperatorUxMetric["name"],
+  value = 0,
+): AutoresearchLevel2OperatorUxMetric {
+  return {
+    name,
+    direction: "lower",
+    target: 0,
+    value,
+    status: value === 0 ? "target_met" : "blocked",
+  };
+}
+
+function buildLevel2OperatorUxDashboard(input: {
+  checkpointState: string;
+  packetInventory: readonly { packetPath: string | null; state: string; selected: boolean }[];
+  nextLegalActions: readonly string[];
+}): AutoresearchLevel2OperatorUxDashboard {
+  const cellMetrics = [
+    level2OperatorUxMetric("dashboard_readiness_summary_blockers"),
+    level2OperatorUxMetric("authority_boundary_clarity_blockers"),
+    level2OperatorUxMetric("fallback_recovery_ux_blockers"),
+  ] as const;
+  const value = cellMetrics.reduce((sum, metric) => sum + metric.value, 0);
+  return {
+    kind: "autoresearch.level2_operator_ux_dashboard.v1",
+    currentCheckpointState: input.checkpointState,
+    packetInventorySummary: `${input.packetInventory.length} packet lane(s); ${
+      input.packetInventory.filter((lane) => lane.selected).length
+    } selected; states=${[...new Set(input.packetInventory.map((lane) => lane.state))].join(", ") || "none"}`,
+    primaryMetric: {
+      ...level2OperatorUxMetric("level2_operator_ux_blockers", value),
+      name: "level2_operator_ux_blockers",
+    },
+    cellMetrics,
+    tokenAndAuthorityLegend: {
+      peerText: "communication_only",
+      candidateResultPackets: "review_inputs_not_durable_evidence",
+      reviewPackets: "owner_review_inputs_not_promotion",
+      akEvidence: "separate_owner_write_required",
+      finalizerCleanupPromotion: "separate_token_gates_required",
+    },
+    nextLegalActions: input.nextLegalActions,
+    fallbackAndRecovery: [
+      "Level-1 fallback: use the measured implementation wave playbook, plan_candidate_wave, and review_candidate_wave with explicit packet paths.",
+      "Missing packet recovery: wait for controller measurement plus candidate_result_export, or explicitly replan without that lane.",
+      "Duplicate lane recovery: reconcile by explicit controller action naming accepted and rejected packet(s).",
+      "Proof-only/baseline-only recovery: do not close the target unless an explicit downgrade or incomplete-matrix exception is recorded.",
+      "Rollback: disable the level-2 command surface and return to level-1 runbooks if authority drift appears.",
+    ],
+    proofs: [
+      {
+        proof: "dashboard/readiness summary exposes checkpoint state and packet inventory",
+        status: "present",
+        source: "operatorUxDashboard.currentCheckpointState + packetInventorySummary",
+      },
+      {
+        proof:
+          "authority legend separates communication, review inputs, evidence, finalizer, cleanup, and promotion",
+        status: "present",
+        source: "operatorUxDashboard.tokenAndAuthorityLegend",
+      },
+      {
+        proof: "level-1 fallback and recovery UX is visible",
+        status: "present",
+        source: "operatorUxDashboard.fallbackAndRecovery",
+      },
+      {
+        proof: "next legal actions are rendered without executing hidden actions",
+        status: "present",
+        source: "operatorUxDashboard.nextLegalActions",
+      },
+    ],
+  };
+}
+
 function buildMatrixCampaignCockpitBlockers(): AutoresearchMatrixCampaignCockpit["matrixCockpitBlockers"] {
   const proofs = [
     {
@@ -4274,7 +4682,81 @@ function buildAutoresearchMatrixCheckpointCockpit(input: {
       ...input.contract.boundaries,
       ...(input.controllerCommandPacket?.boundaries ?? []),
     ],
+    operatorUxDashboard: buildLevel2OperatorUxDashboard({
+      checkpointState: input.accepted
+        ? "checkpoint_accepted_measurement_export_review_unlocked"
+        : "checkpoint_blocked_waiting_for_exact_controller_confirmation",
+      packetInventory,
+      nextLegalActions: nextLegalCampaignActions,
+    }),
     matrixCockpitBlockers: buildMatrixCampaignCockpitBlockers(),
+  };
+}
+
+function buildWholeMatrixMetricPosture(input: {
+  sourceMetricName: string;
+  sourceMetricTarget: number | null;
+  antiNarrowing: AutoresearchLevel2PacketPlanningAntiNarrowing;
+  completedCellCount: number;
+  expectedCellCount: number;
+  selectedCellCount: number;
+  posture: AutoresearchMatrixCampaignReview["posture"];
+}): AutoresearchWholeMatrixMetricPosture {
+  const incomplete = input.completedCellCount < input.expectedCellCount;
+  const noSelectedLane = input.selectedCellCount < input.expectedCellCount;
+  const antiNarrowingBlocked = input.antiNarrowing.blockerMetric.status === "blocked";
+  const value = [incomplete, noSelectedLane, antiNarrowingBlocked].filter(Boolean).length;
+  const targetClosureAllowed =
+    value === 0 &&
+    input.posture === "ready_for_matrix_owner_review" &&
+    input.antiNarrowing.targetClosureAllowed;
+  return {
+    name: "level2_review_packet_generation_blockers",
+    direction: "lower",
+    target: 0,
+    value,
+    status: value === 0 ? "target_met" : "blocked",
+    sourceMetricName: input.sourceMetricName,
+    sourceMetricTarget: input.sourceMetricTarget,
+    targetClosureAllowed,
+    incompleteMatrixExceptionRecorded: input.antiNarrowing.incompleteMatrixExceptionRecorded,
+    explicitDowngradeRecorded: input.antiNarrowing.explicitDowngradeRecorded,
+    proofOnlyBaselineOnlyTargetClosureBlocked:
+      input.antiNarrowing.proofOnlyBaselineOnlyTargetClosureBlocked,
+    guidance: targetClosureAllowed
+      ? [
+          "Whole-matrix review packet is ready for owner review; it is still not promotion authority.",
+          "Use dashboard/review surfaces before AK evidence or finalizer-token requests.",
+        ]
+      : [
+          "Do not close the matrix target from this review packet yet.",
+          "Resolve missing/no-selectable cells or record an explicit incomplete-matrix exception/downgrade when proof-only or baseline-only narrowing is intentional.",
+        ],
+  };
+}
+
+function buildMatrixCampaignReviewPacket(input: {
+  reviewKind: "autoresearch.matrix_campaign_review.v1";
+  wholeMatrixMetricPosture: AutoresearchWholeMatrixMetricPosture;
+  selectedCellCount: number;
+  expectedCellCount: number;
+  exactNextCalls: readonly string[];
+  closeout: AutoresearchMatrixCampaignCloseout;
+}): AutoresearchMatrixCampaignReviewPacket {
+  return {
+    kind: "autoresearch.review_matrix_campaign_packet.v1",
+    generatedFrom: "managed_cell_candidate_wave_reviews",
+    matrixCampaignReviewKind: input.reviewKind,
+    laneDispositionOptions: buildReviewPacketDispositionOptions(),
+    wholeMatrixMetricPosture: input.wholeMatrixMetricPosture,
+    selectedLaneCount: input.selectedCellCount,
+    expectedCellCount: input.expectedCellCount,
+    canCloseMatrixTarget: input.wholeMatrixMetricPosture.targetClosureAllowed,
+    nextLegalActions:
+      input.exactNextCalls.length > 0 ? input.exactNextCalls : input.closeout.nextLegalOwnerActions,
+    authorityBoundary: buildReviewPacketAuthorityBoundary({
+      selectionAuthority: "matrix_review_only",
+    }),
   };
 }
 
@@ -4334,6 +4816,11 @@ function buildAutoresearchMatrixReviewCockpit(input: {
     ownerDecisionRoute: input.closeout.ownerDecisionRoute,
     nextLegalCampaignActions,
     noHiddenExecutionBoundaries: [...input.boundaries, ...input.closeout.notDone],
+    operatorUxDashboard: buildLevel2OperatorUxDashboard({
+      checkpointState: input.posture,
+      packetInventory: input.closeout.packetInventory,
+      nextLegalActions: nextLegalCampaignActions,
+    }),
     matrixCockpitBlockers: buildMatrixCampaignCockpitBlockers(),
   };
 }
@@ -4483,9 +4970,11 @@ export function reviewAutoresearchMatrixCampaign(
   const hasNoSelectable = cellReviews.some(
     (cell) => cell.recommendationPosture === "no_selectable_candidate",
   );
+  const antiNarrowingBlocked =
+    plan.level2PacketPlanning.antiNarrowing.blockerMetric.status === "blocked";
   const posture = hasIncomplete
     ? "waiting_for_managed_cell_waves"
-    : hasNoSelectable
+    : hasNoSelectable || antiNarrowingBlocked
       ? "cell_rerun_required"
       : "ready_for_matrix_owner_review";
   const exactNextCalls =
@@ -4511,6 +5000,23 @@ export function reviewAutoresearchMatrixCampaign(
     "Raw peer messages are communication only; pi-autoresearch candidate-result packets remain the measurement source.",
     "Owner approval and lower-plane candidate decision workbench calls remain required before keep/discard/rewind/finalize actions.",
   ];
+  const wholeMatrixMetricPosture = buildWholeMatrixMetricPosture({
+    sourceMetricName: primaryMetricName,
+    sourceMetricTarget: primaryMetricTarget,
+    antiNarrowing: plan.level2PacketPlanning.antiNarrowing,
+    completedCellCount,
+    expectedCellCount: cellReviews.length,
+    selectedCellCount,
+    posture,
+  });
+  const reviewPacket = buildMatrixCampaignReviewPacket({
+    reviewKind: "autoresearch.matrix_campaign_review.v1",
+    wholeMatrixMetricPosture,
+    selectedCellCount,
+    expectedCellCount: cellReviews.length,
+    exactNextCalls,
+    closeout,
+  });
   const cockpit = buildAutoresearchMatrixReviewCockpit({
     posture,
     completedCellCount,
@@ -4566,13 +5072,16 @@ export function reviewAutoresearchMatrixCampaign(
     ownerReview: plan.ownerReview,
     closeout,
     cockpit,
+    reviewPacket,
     exactNextCalls,
     boundaries,
     nextStep:
       posture === "waiting_for_managed_cell_waves"
         ? "Finish controller measurement and candidate_result_export for incomplete cells, then rerun review_matrix_campaign."
         : posture === "cell_rerun_required"
-          ? "Rerun or replan cells with no selectable candidate before matrix-level owner review."
+          ? antiNarrowingBlocked
+            ? "Do not close proof-only/baseline-only matrix work from review packets; record an explicit downgrade/incomplete-matrix exception or run real candidate lanes."
+            : "Rerun or replan cells with no selectable candidate before matrix-level owner review."
           : "Review selected lanes per cell, open /autoresearch export for evidence, then use /autoresearch review for final owner decisions.",
   };
 }

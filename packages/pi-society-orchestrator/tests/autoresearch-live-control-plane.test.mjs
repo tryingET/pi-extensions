@@ -1228,6 +1228,25 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
   assert.equal(cockpit.cellRows[0].posture, "measurement_export_unlocked");
   assert.match(cockpit.cellRows[0].nextLegalAction, /autoresearch_candidate_bind/);
   assert.equal(cockpit.ownerDecisionRoute.dashboardFirst, "/autoresearch export");
+  assert.equal(cockpit.operatorUxDashboard.kind, "autoresearch.level2_operator_ux_dashboard.v1");
+  assert.equal(cockpit.operatorUxDashboard.primaryMetric.name, "level2_operator_ux_blockers");
+  assert.equal(cockpit.operatorUxDashboard.primaryMetric.value, 0);
+  assert.deepEqual(
+    cockpit.operatorUxDashboard.cellMetrics.map((metric) => metric.name),
+    [
+      "dashboard_readiness_summary_blockers",
+      "authority_boundary_clarity_blockers",
+      "fallback_recovery_ux_blockers",
+    ],
+  );
+  assert.equal(cockpit.operatorUxDashboard.tokenAndAuthorityLegend.peerText, "communication_only");
+  assert.equal(
+    cockpit.operatorUxDashboard.tokenAndAuthorityLegend.reviewPackets,
+    "owner_review_inputs_not_promotion",
+  );
+  assert.ok(
+    cockpit.operatorUxDashboard.fallbackAndRecovery.some((item) => /Level-1 fallback/.test(item)),
+  );
   assert.ok(
     cockpit.noHiddenExecutionBoundaries.some((boundary) => /does not execute/.test(boundary)),
   );
@@ -1390,6 +1409,27 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     const cockpit = result.details.matrixCampaignReview.cockpit;
     assert.equal(cockpit.kind, "autoresearch.matrix_campaign_cockpit.v1");
     assert.equal(cockpit.source, "review_matrix_campaign");
+    const reviewPacket = result.details.matrixCampaignReview.reviewPacket;
+    assert.equal(reviewPacket.kind, "autoresearch.review_matrix_campaign_packet.v1");
+    assert.equal(reviewPacket.authorityBoundary.durableEvidence, false);
+    assert.equal(reviewPacket.authorityBoundary.promotionAuthority, false);
+    assert.deepEqual(
+      reviewPacket.laneDispositionOptions.map((option) => option.option),
+      [
+        "ignore",
+        "inspect further",
+        "fold into synthesis",
+        "cherry-pick after review",
+        "merge after review",
+      ],
+    );
+    assert.equal(
+      reviewPacket.wholeMatrixMetricPosture.name,
+      "level2_review_packet_generation_blockers",
+    );
+    assert.equal(reviewPacket.wholeMatrixMetricPosture.value, 0);
+    assert.equal(reviewPacket.wholeMatrixMetricPosture.status, "target_met");
+    assert.equal(reviewPacket.canCloseMatrixTarget, true);
     assert.equal(cockpit.matrixCockpitBlockers.name, "matrix_cockpit_blockers");
     assert.equal(cockpit.matrixCockpitBlockers.value, 0);
     assert.equal(cockpit.progress.completedCells, 2);
@@ -1401,6 +1441,22 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.equal(cockpit.packetInventory.length, 4);
     assert.equal(cockpit.selectedLanes.length, 2);
     assert.equal(cockpit.ownerDecisionRoute.dashboardFirst, "/autoresearch export");
+    assert.equal(cockpit.operatorUxDashboard.primaryMetric.name, "level2_operator_ux_blockers");
+    assert.equal(cockpit.operatorUxDashboard.primaryMetric.value, 0);
+    assert.equal(
+      cockpit.operatorUxDashboard.tokenAndAuthorityLegend.candidateResultPackets,
+      "review_inputs_not_durable_evidence",
+    );
+    assert.equal(
+      cockpit.operatorUxDashboard.tokenAndAuthorityLegend.finalizerCleanupPromotion,
+      "separate_token_gates_required",
+    );
+    assert.match(cockpit.operatorUxDashboard.packetInventorySummary, /4 packet lane/);
+    assert.ok(
+      cockpit.operatorUxDashboard.fallbackAndRecovery.some((item) =>
+        /Duplicate lane recovery/.test(item),
+      ),
+    );
     assert.ok(
       cockpit.matrixCockpitBlockers.proofs.some((proof) =>
         proof.proof.includes("docs/tests alignment mentioning matrix_cockpit_blockers"),
@@ -1498,6 +1554,18 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.match(result.content[0].text, /final decision UI command: \/autoresearch review/);
     assert.match(result.content[0].text, /Matrix campaign cockpit\/dashboard/);
     assert.match(result.content[0].text, /matrix_cockpit_blockers: 0/);
+    assert.match(result.content[0].text, /level-2 operator UX dashboard/);
+    assert.match(result.content[0].text, /level2_operator_ux_blockers: 0/);
+    assert.match(result.content[0].text, /dashboard_readiness_summary_blockers: 0/);
+    assert.match(
+      result.content[0].text,
+      /candidate-result packets: review_inputs_not_durable_evidence/,
+    );
+    assert.match(result.content[0].text, /review packets: owner_review_inputs_not_promotion/);
+    assert.match(result.content[0].text, /Level-1 fallback/);
+    assert.match(result.content[0].text, /Review matrix-campaign packet/);
+    assert.match(result.content[0].text, /level2_review_packet_generation_blockers=0/);
+    assert.match(result.content[0].text, /promotion authority: no/);
     assert.match(result.content[0].text, /compact cell table/);
     assert.match(result.content[0].text, /selected lane inventory/);
     assert.match(result.content[0].text, /next legal action: autoresearch_candidate_decision/);
@@ -1547,7 +1615,93 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
   });
 });
 
-test("post-fan-in finalizer emits explicit apply packet only after clean preflight and authorization", async () => {
+test("autoresearch_live_supervision review_matrix_campaign blocks proof-only review packet closure without downgrade", async () => {
+  await withTempDir(async (cwd) => {
+    const packetPath = path.join(
+      cwd,
+      ".autoresearch",
+      "matrix-campaign",
+      "cell-01-01",
+      "candidate-01.candidate-result.json",
+    );
+    mkdirSync(path.dirname(packetPath), { recursive: true });
+    writeFileSync(
+      packetPath,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "proof-only-matrix-review",
+        candidate: {
+          source: "candidate_peer_spawn",
+          worktreePath: path.join(cwd, ".worktrees", "proof-only-candidate"),
+          branch: "candidate/proof-only",
+          baseRef: "HEAD",
+          diffSummary: "proof-only candidate packet",
+          filesChanged: ["packages/pi-society-orchestrator/README.md"],
+          peerRunId: "candidatepeer-proof-only",
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 0,
+          description: "Measure proof-only lane",
+          timestamp: 1,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-01",
+            hypothesis: "baseline-only target",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "baseline-only packet exists but must not close target",
+        closeout: { status: { confidence: 1.1 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const result = await tool.execute(
+      "tc-review-matrix-campaign-proof-only-blocked",
+      {
+        action: "review_matrix_campaign",
+        taskId: 2981,
+        cwd,
+        objective: "level-2 review-packet generation proof-only closure",
+        direction: "lower",
+        metricName: "level2_review_packet_generation_blockers",
+        metricThreshold: 0,
+        scenarios: ["proof-only closure"],
+        hypotheses: ["baseline-only target"],
+        candidateCountPerCell: 1,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    const review = result.details.matrixCampaignReview;
+    assert.equal(review.posture, "cell_rerun_required");
+    assert.equal(review.reviewPacket.kind, "autoresearch.review_matrix_campaign_packet.v1");
+    assert.equal(review.reviewPacket.canCloseMatrixTarget, false);
+    assert.equal(review.reviewPacket.wholeMatrixMetricPosture.status, "blocked");
+    assert.equal(
+      review.reviewPacket.wholeMatrixMetricPosture.proofOnlyBaselineOnlyTargetClosureBlocked,
+      true,
+    );
+    assert.equal(review.closeout.evidenceProjection.posture, "blocked");
+    assert.equal(review.closeout.evidenceProjection.exactRecordCall, null);
+    assert.match(review.nextStep, /Do not close proof-only\/baseline-only matrix work/);
+    assert.match(result.content[0].text, /can close matrix target: no/);
+    assert.match(result.content[0].text, /proof-only\/baseline-only closure blocked: yes/);
+  });
+});
+
+test("post-fan-in finalizer prepares token request while withholding apply packet until authorization", async () => {
   await withTempDir(async (cwd) => {
     const packetA = path.join(cwd, "candidate-01.candidate-result.json");
     const packetB = path.join(cwd, "candidate-02.candidate-result.json");
@@ -1580,15 +1734,26 @@ test("post-fan-in finalizer emits explicit apply packet only after clean preflig
     assert.equal(preflight.preflight.status, "passed");
     assert.equal(preflight.manualPostFaninResidue.value, 1);
     assert.equal(
-      preflight.exactApplyCommandPacket.kind,
-      "autoresearch.post_fanin_finalizer_apply_command_packet.v1",
+      preflight.finalizerTokenRequest.kind,
+      "autoresearch.post_fanin_finalizer_token_request.v1",
     );
-    assert.equal(preflight.exactApplyCommandPacket.applyExecution, "not_executed_by_orchestrator");
-    assert.match(
-      preflight.exactApplyCommandPacket.exactCommands.join("\n"),
-      /git -C .* checkout .*candidate\/candidate-02/,
+    assert.equal(preflight.finalizerTokenRequest.requiredTokenName, "finalize_post_fanin");
+    assert.equal(
+      preflight.finalizerTokenRequest.metricPosture.name,
+      "level2_finalizer_token_request_blockers",
     );
-    assert.match(preflight.exactApplyCommandPacket.exactCommands.join("\n"), /git -C .* commit -m/);
+    assert.equal(preflight.finalizerTokenRequest.metricPosture.value, 0);
+    assert.equal(preflight.finalizerTokenRequest.metricPosture.status, "target_met");
+    assert.equal(
+      preflight.finalizerTokenRequest.permittedFinalizerScope.applyCommandsWithheldUntilToken,
+      true,
+    );
+    assert.deepEqual(preflight.finalizerTokenRequest.separateOwnerTokensRequired, [
+      "candidate_cleanup",
+      "promotion",
+      "ak_owner_write",
+    ]);
+    assert.equal(preflight.exactApplyCommandPacket, null);
 
     const authorized = runner.finalizePostFanin({
       action: "post_fanin_finalizer",
@@ -1611,6 +1776,19 @@ test("post-fan-in finalizer emits explicit apply packet only after clean preflig
     });
 
     assert.equal(authorized.outcome, "committed_cleaned");
+    assert.equal(
+      authorized.exactApplyCommandPacket.kind,
+      "autoresearch.post_fanin_finalizer_apply_command_packet.v1",
+    );
+    assert.equal(authorized.exactApplyCommandPacket.applyExecution, "not_executed_by_orchestrator");
+    assert.match(
+      authorized.exactApplyCommandPacket.exactCommands.join("\n"),
+      /git -C .* checkout .*candidate\/candidate-02/,
+    );
+    assert.match(
+      authorized.exactApplyCommandPacket.exactCommands.join("\n"),
+      /git -C .* commit -m/,
+    );
     assert.equal(authorized.manualPostFaninResidue.name, "manual_post_fanin_residue");
     assert.equal(authorized.manualPostFaninResidue.value, 0);
     assert.equal(authorized.manualPostFaninResidue.status, "target_met");
@@ -1650,6 +1828,7 @@ test("post-fan-in finalizer fails closed on missing finals, off-limits drift, di
     });
 
     assert.equal(blocked.outcome, "failed_closed");
+    assert.equal(blocked.finalizerTokenRequest.metricPosture.status, "blocked");
     assert.equal(blocked.exactApplyCommandPacket, null);
     assert.equal(blocked.preflight.status, "blocked");
     assert.ok(blocked.preflight.blockerCount >= 5);
@@ -1739,6 +1918,34 @@ test("autoresearch_live_supervision review_candidate_wave compares measured lane
   assert.equal(result.details.action, "review_candidate_wave");
   assert.equal(result.details.candidateWaveReview.kind, "autoresearch.candidate_wave_review.v1");
   assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-02");
+  assert.equal(
+    result.details.candidateWaveReview.reviewPacket.kind,
+    "autoresearch.review_candidate_wave_packet.v1",
+  );
+  assert.equal(
+    result.details.candidateWaveReview.reviewPacket.generatedFrom,
+    "bound_candidate_results",
+  );
+  assert.equal(
+    result.details.candidateWaveReview.reviewPacket.authorityBoundary.durableEvidence,
+    false,
+  );
+  assert.equal(
+    result.details.candidateWaveReview.reviewPacket.authorityBoundary.promotionAuthority,
+    false,
+  );
+  assert.deepEqual(
+    result.details.candidateWaveReview.reviewPacket.laneDispositionOptions.map(
+      (option) => option.option,
+    ),
+    [
+      "ignore",
+      "inspect further",
+      "fold into synthesis",
+      "cherry-pick after review",
+      "merge after review",
+    ],
+  );
   assert.equal(
     result.details.candidateWaveReview.management.kind,
     "autoresearch.candidate_wave_management.v1",
