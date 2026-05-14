@@ -65,7 +65,7 @@ Snapshot summary:
 - `packages/pi-autoresearch`
 - `packages/pi-context-overlay`
 - `packages/pi-designmd-foundry`
-- `packages/pi-interaction/pi-model-selection`
+- `packages/pi-model-selection`
 - `packages/pi-little-helpers`
 - `packages/pi-ontology-workflows`
 - `packages/pi-prompt-template-execution`
@@ -105,7 +105,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
   - `packages/pi-autoresearch`
   - `packages/pi-context-overlay`
   - `packages/pi-designmd-foundry`
-  - `packages/pi-interaction/pi-model-selection`
+  - `packages/pi-model-selection`
   - `packages/pi-little-helpers`
   - `packages/pi-ontology-workflows`
   - `packages/pi-prompt-template-execution`
@@ -194,5 +194,5 @@ Notable refresh outcome for the current alignment wave:
 - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` sit in the `none` bucket after the two completed `none` pilots.
 - `packages/pi-peer-messaging` now also sits in the `none` bucket as a fresh simple-package scaffold that landed directly in the root-owned steady state without local tech-stack duplication.
 - `packages/pi-interaction/pi-interaction` now joins `packages/pi-interaction` in the `reduced-form` bucket after `#636`.
-- `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-designmd-foundry`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, `packages/pi-vault-client`, and `packages/pi-workstation-inference-provider` are among the current `legacy-full` package-local surfaces; `packages/pi-interaction/pi-model-selection`, `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
+- `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-designmd-foundry`, `packages/pi-little-helpers`, `packages/pi-model-selection`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, `packages/pi-vault-client`, and `packages/pi-workstation-inference-provider` are among the current `legacy-full` package-local surfaces; `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
 - no package is currently in a `policy-only` intermediate state.

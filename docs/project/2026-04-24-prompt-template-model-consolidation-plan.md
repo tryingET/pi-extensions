@@ -147,7 +147,7 @@ Goal: remove copied resolver semantics from `pi-session-compaction` without chan
 
 Options:
 
-1. Add a tiny shared pure module package, for example `packages/pi-interaction/pi-model-selection` or `packages/pi-prompt-template-execution/src/model-selection.js` exported for internal reuse.
+1. Add a tiny shared pure module package, now implemented as `packages/pi-model-selection`, exported for direct reuse.
 2. Move the current `pi-session-compaction/extensions/session-compaction/model-resolver.js` prompt-template-model-compatible pieces into that shared module.
 3. Keep compaction-specific preset resolution in `pi-session-compaction`.
 4. Update compaction tests to prove the same current-model/auth/provider-priority behavior through the shared module.
@@ -377,7 +377,7 @@ The safest next code slice is **shared resolver extraction**, not live command r
 4. Run `cd packages/pi-session-compaction && npm run check`.
 5. Add successor package only after the resolver is shared and stable.
 
-Status: implemented as a private shared package at `packages/pi-interaction/pi-model-selection` (`@tryinget/pi-model-selection`). `pi-session-compaction` imports that package and keeps compaction-specific preset/thinking behavior local.
+Status: implemented as a top-level shared support package at `packages/pi-model-selection` (`@tryinget/pi-model-selection`). `pi-session-compaction` imports that package directly and keeps compaction-specific preset/thinking behavior local.
 
 Follow-up status: `pi-session-compaction` also now has package-local files-touched collection and manifest helpers ported from dot314 grounded-compaction. This does not enable the live compaction hook.
 
