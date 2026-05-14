@@ -1,65 +1,45 @@
 ---
-summary: "Current backlog of legacy standalone extension repos still expected to transition into the pi-extensions monorepo."
+summary: "Disposition ledger for legacy standalone extension repos formerly under ~/programming/pi-extensions/."
 read_when:
-  - "Planning the next legacy-package migration from ~/programming/pi-extensions/."
-  - "Prioritizing remaining standalone repos after a canonical package move."
+  - "Checking whether legacy standalone pi-extension repos still need migration or archive cleanup."
+  - "Planning any future recovery from a legacy archive."
 system4d:
-  container: "Legacy transition backlog for pi-extensions."
-  compass: "Use one reusable migration/deprecation workflow across the remaining standalone repos."
-  engine: "Pick next package -> create canonical home -> validate -> deprecate legacy repo with the standard workflow."
-  fog: "Without an explicit backlog, transition work becomes opportunistic and package shutdowns drift."
+  container: "Legacy disposition ledger for pi-extensions."
+  compass: "Keep canonical work in the monorepo and treat legacy archives as read-only history."
+  engine: "Check ledger -> use canonical package/owner -> recover from archive only through a fresh owner decision."
+  fog: "Reviving archived standalone repos would split package ownership again."
 ---
 
 # Legacy transition backlog
 
-## Decision
+## Current status
 
-Because there are multiple remaining standalone repos to transition, the highest-leverage next step is to standardize the migration/deprecation workflow instead of handling each repo ad hoc.
+There are no active package-like legacy working copies left under `~/programming/pi-extensions/` after the archive cleanup.
 
-That workflow now lives in:
-- [legacy-package-deprecation-workflow.md](legacy-package-deprecation-workflow.md)
-- `scripts/legacy-package-deprecation.sh`
+Remaining utility/template directories there are not migration targets:
 
-## Remaining standalone repos to transition
+- `.pi/`
+- `_legacy-backups/`
+- `_template-smoke/`
+- `pi-extensions-template_copier/`
 
-These appear to be the active remaining candidates under `~/programming/pi-extensions/`, excluding:
-- already transitioned: `pi-autonomous-session-control`
-- already represented in monorepo: `pi-prompt-template-accelerator`
-- non-target utility/template dirs: `.pi`, `_legacy-backups`, `_template-smoke`, `pi-extensions-template_copier`
+## Disposition ledger
 
-| Legacy repo | Current package name | Canonical status |
+| Legacy repo | Former/current package name | Canonical/disposition status |
 |---|---|---|
-| `issue-tracker` | unknown/no package manifest detected | not yet transitioned |
-| `pi-evalset-lab` | `@tryinget/pi-evalset-lab` | canonicalized at `packages/pi-evalset-lab`; legacy repo archived to `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz` and removed |
-| `pi-little-helpers` | `@tryinget/pi-little-helpers` | not yet transitioned |
-| `pi-user-prompt-compaction` | `pi-user-prompt-compaction` | canonical successor started at `packages/pi-session-compaction`; legacy repo not deprecated yet |
-| `secure-package-update` | `@tryinget/secure-package-update` | not yet transitioned |
-| `system4d-intake-workflow` | `system4d-intake-workflow` | not yet transitioned |
-| `vault-client` | `@tryinget/vault-client` | not yet transitioned |
+| `issue-tracker` | unknown/no package manifest detected | archived to `~/programming/pi-extensions/issue-tracker-final-archive.tar.gz`; legacy sessions merged into `~/ai-society/softwareco/infra/issue-tracker` session history |
+| `pi-autonomous-session-control` | `@tryinget/pi-autonomous-session-control` | canonicalized at `packages/pi-autonomous-session-control`; legacy archive exists at `~/programming/pi-extensions/pi-autonomous-session-control-final-archive.tar.gz` |
+| `pi-evalset-lab` | `@tryinget/pi-evalset-lab` | canonicalized at `packages/pi-evalset-lab`; archived to `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz`; legacy working copy removed |
+| `pi-little-helpers` | `@tryinget/pi-little-helpers` | canonicalized at `packages/pi-little-helpers`; legacy archive exists at `~/programming/pi-extensions/pi-little-helpers-final-archive.tar.gz` |
+| `pi-user-prompt-compaction` | `pi-user-prompt-compaction` | canonical successor is `packages/pi-session-compaction`; archived to `~/programming/pi-extensions/pi-user-prompt-compaction-final-archive.tar.gz`; legacy sessions merged into the canonical package session history |
+| `secure-package-update` | `@tryinget/secure-package-update` | archive-only cleanup; archived to `~/programming/pi-extensions/secure-package-update-final-archive.tar.gz`; no canonical package selected |
+| `system4d-intake-workflow` | `system4d-intake-workflow` | archive-only cleanup; archived to `~/programming/pi-extensions/system4d-intake-workflow-final-archive.tar.gz`; no canonical package selected |
+| `vault-client` | `@tryinget/vault-client` | canonicalized at `packages/pi-vault-client`; legacy archive exists at `~/programming/pi-extensions/vault-client-final-archive.tar.gz` |
 
-## Recommended execution rule
+## Rule for future work
 
-For the remaining set, do this per package:
+Do not resume implementation in an archived standalone folder.
 
-1. choose the next canonical package or package-group shape
-2. migrate into `~/ai-society/softwareco/owned/pi-extensions/packages/...`
-3. validate the canonical home
-4. run the legacy deprecation workflow
-5. relocate Pi session history using full-path-derived folder names
-6. archive once with `tar.gz`
-7. delete the legacy repo
+For package work, use the canonical monorepo package under `packages/`. For `secure-package-update` or `system4d-intake-workflow`, create a fresh canonical package from `~/ai-society/softwareco/owned/pi-extensions-template/` only after an explicit owner decision that the capability should return.
 
-## Recommendation
-
-Do **not** try to archive/delete all seven manually from memory.
-
-Use the helper script first (inventory diff + session relocation plan + handoff rendering):
-
-```bash
-cd ~/ai-society/softwareco/owned/pi-extensions
-./scripts/legacy-package-deprecation.sh inspect \
-  --legacy ~/programming/pi-extensions/<legacy> \
-  --canonical ~/ai-society/softwareco/owned/pi-extensions/packages/<target>
-```
-
-Then apply the standard workflow doc before deletion.
+If historical context is needed, inspect the relevant `*-final-archive.tar.gz` read-only and port only the specific files required into a canonical owner surface.
