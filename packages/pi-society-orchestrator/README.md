@@ -145,7 +145,7 @@ Matrix runner manual-glue reduction contract:
 - `/workflow [objective]` (seed a thin `workflow_execute(...)` wrapper call into the editor)
 - `/workflows` (show workflow wrapper usage/examples)
 - `/loops`
-- `/loop <type> <objective>`
+- `/loop <type> <objective>` (activates `loop_execute` if registered, then dispatches the tool invocation; queues as a follow-up when the agent is already streaming)
 
 ## Current runtime reality
 

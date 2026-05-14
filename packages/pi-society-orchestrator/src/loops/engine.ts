@@ -20,6 +20,7 @@ import type {
   AgentToolResult,
   AgentToolUpdateCallback,
   ExtensionAPI,
+  ExtensionCommandContext,
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
 import { type Component, matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
@@ -1590,21 +1591,85 @@ export function buildVaultExecuteTemplateInvocation(
   return `vault_execute_template({ template_name: ${JSON.stringify(templateName)}, objective: ${JSON.stringify(objective)} })`;
 }
 
-function activateRequiredTools(pi: ExtensionAPI, toolNames: string[]): string[] {
-  const allToolNames = new Set(pi.getAllTools().map((tool) => tool.name));
-  const missing = toolNames.filter((name) => !allToolNames.has(name));
-  if (missing.length > 0) return missing;
+export interface DispatchToolActivationResult {
+  ok: boolean;
+  requiredTools: string[];
+  missingTools: string[];
+  activatedTools: string[];
+  activeTools: string[];
+}
 
-  const activeToolNames = new Set(pi.getActiveTools());
-  let changed = false;
-  for (const name of toolNames) {
-    if (!activeToolNames.has(name)) {
-      activeToolNames.add(name);
-      changed = true;
-    }
+export function ensureToolsActiveForDispatch(
+  pi: ExtensionAPI,
+  toolNames: string[],
+): DispatchToolActivationResult {
+  const requiredTools = [...new Set(toolNames)];
+  const allToolNames = new Set(pi.getAllTools().map((tool) => tool.name));
+  const missingTools = requiredTools.filter((name) => !allToolNames.has(name));
+  if (missingTools.length > 0) {
+    return {
+      ok: false,
+      requiredTools,
+      missingTools,
+      activatedTools: [],
+      activeTools: pi.getActiveTools(),
+    };
   }
-  if (changed) pi.setActiveTools([...activeToolNames]);
-  return [];
+
+  const activeTools = pi.getActiveTools();
+  const activeToolNames = new Set(activeTools);
+  const activatedTools = requiredTools.filter((name) => !activeToolNames.has(name));
+  if (activatedTools.length === 0) {
+    return { ok: true, requiredTools, missingTools: [], activatedTools, activeTools };
+  }
+
+  const nextActiveTools = [...activeTools, ...activatedTools];
+  pi.setActiveTools(nextActiveTools);
+  return {
+    ok: true,
+    requiredTools,
+    missingTools: [],
+    activatedTools,
+    activeTools: nextActiveTools,
+  };
+}
+
+interface CommandToolDispatchOptions {
+  commandName: string;
+  invocation: string;
+  requiredTools: string[];
+  notifyDispatch: string;
+  notifyDispatchQueued?: string;
+}
+
+async function dispatchToolInvocationFromCommand(
+  pi: ExtensionAPI,
+  ctx: ExtensionCommandContext,
+  options: CommandToolDispatchOptions,
+): Promise<boolean> {
+  const activation = ensureToolsActiveForDispatch(pi, options.requiredTools);
+  if (!activation.ok) {
+    ctx.ui.notify(
+      `Cannot dispatch ${options.commandName}; required tool(s) are not registered: ${activation.missingTools.join(", ")}. Install/enable the owning extension and /reload.`,
+      "error",
+    );
+    return false;
+  }
+
+  if (activation.activatedTools.length > 0) {
+    ctx.ui.notify(
+      `Activated required tool(s) for ${options.commandName}: ${activation.activatedTools.join(", ")}`,
+      "info",
+    );
+  }
+
+  const isIdle = ctx.isIdle();
+  ctx.ui.notify(
+    isIdle ? options.notifyDispatch : (options.notifyDispatchQueued ?? options.notifyDispatch),
+    "info",
+  );
+  await pi.sendUserMessage(options.invocation, isIdle ? undefined : { deliverAs: "followUp" });
+  return true;
 }
 
 type SessionTextEntry = {
@@ -2098,9 +2163,13 @@ export function registerLoopCommands(
         return;
       }
 
-      ctx.ui.notify(`Starting ${loopType.toUpperCase()} loop...`, "info");
-      // The actual execution happens via the loop_execute tool
-      ctx.ui.setEditorText(buildLoopExecuteInvocation(loopType, objective));
+      await dispatchToolInvocationFromCommand(pi, ctx, {
+        commandName: `/loop ${loopType}`,
+        invocation: buildLoopExecuteInvocation(loopType, objective),
+        requiredTools: ["loop_execute"],
+        notifyDispatch: `Dispatching ${loopType.toUpperCase()} loop through loop_execute...`,
+        notifyDispatchQueued: `Queued ${loopType.toUpperCase()} loop through loop_execute after the current turn...`,
+      });
     },
   });
 
@@ -2122,24 +2191,17 @@ export function registerLoopCommands(
       }
       const { objective } = objectiveResult;
 
-      const missingTools = activateRequiredTools(pi, ["vault_execute_template", "loop_execute"]);
-      if (missingTools.length > 0) {
-        ctx.ui.notify(
-          `Cannot dispatch transcendent-iteration; required tool(s) are not registered: ${missingTools.join(", ")}`,
-          "error",
-        );
-        return;
-      }
-
-      ctx.ui.notify(
-        objectiveResult.inferred
+      await dispatchToolInvocationFromCommand(pi, ctx, {
+        commandName: "/transcendent-iteration",
+        invocation: buildVaultExecuteTemplateInvocation("transcendent-iteration", objective),
+        requiredTools: ["vault_execute_template", "loop_execute"],
+        notifyDispatch: objectiveResult.inferred
           ? "Dispatching Transcendent Iteration v4 on the previous assistant output..."
           : "Dispatching Transcendent Iteration v4 through vault_execute_template...",
-        "info",
-      );
-      await pi.sendUserMessage(
-        buildVaultExecuteTemplateInvocation("transcendent-iteration", objective),
-      );
+        notifyDispatchQueued: objectiveResult.inferred
+          ? "Queued Transcendent Iteration v4 on the previous assistant output after the current turn..."
+          : "Queued Transcendent Iteration v4 through vault_execute_template after the current turn...",
+      });
     },
   });
 

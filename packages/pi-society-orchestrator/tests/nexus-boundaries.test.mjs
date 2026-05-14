@@ -7,9 +7,11 @@ import test from "node:test";
 import {
   buildLoopExecuteInvocation,
   buildLoopTreeSnapshotFromStatusRecords,
+  ensureToolsActiveForDispatch,
   formatVaultExecuteTemplateResultLabel,
   parseLoopStatusRecord,
   parseTranscendentIterationPreviewInput,
+  registerLoopCommands,
   renderLoopTreeSnapshotText,
   resolveTranscendentIterationObjective,
 } from "../src/loops/engine.ts";
@@ -240,6 +242,145 @@ test("parseTranscendentIterationPreviewInput recognizes compact preview syntax",
   );
   assert.equal(parseTranscendentIterationPreviewInput("$$ /transcendent-iteration"), null);
   assert.equal(parseTranscendentIterationPreviewInput("/transcendent-iteration"), null);
+});
+
+function createLoopCommandHarness({ allTools, activeTools, idle = true } = {}) {
+  const commands = new Map();
+  const events = new Map();
+  const notifications = [];
+  const editorTexts = [];
+  const userMessages = [];
+  let active = [...(activeTools ?? [])];
+  const all = [...(allTools ?? active)].map((name) => ({ name }));
+
+  const pi = {
+    on(event, handler) {
+      const handlers = events.get(event) ?? [];
+      handlers.push(handler);
+      events.set(event, handlers);
+    },
+    registerCommand(name, definition) {
+      commands.set(name, definition);
+    },
+    getAllTools() {
+      return all;
+    },
+    getActiveTools() {
+      return active;
+    },
+    setActiveTools(names) {
+      active = [...names];
+    },
+    sendUserMessage(content, options) {
+      userMessages.push({ content, options });
+    },
+  };
+
+  const ctx = {
+    hasUI: true,
+    isIdle() {
+      return idle;
+    },
+    ui: {
+      notify(message, type) {
+        notifications.push({ message, type });
+      },
+      setEditorText(text) {
+        editorTexts.push(text);
+      },
+    },
+    sessionManager: {
+      getBranch() {
+        return [
+          {
+            type: "message",
+            message: { role: "assistant", content: [{ type: "text", text: "previous answer" }] },
+          },
+        ];
+      },
+    },
+  };
+
+  registerLoopCommands(pi);
+  return {
+    commands,
+    ctx,
+    editorTexts,
+    events,
+    get activeTools() {
+      return active;
+    },
+    notifications,
+    pi,
+    userMessages,
+  };
+}
+
+test("ensureToolsActiveForDispatch activates registered tools without duplicates", () => {
+  let activeTools = ["read", "loop_execute"];
+  const pi = {
+    getAllTools: () => ["read", "loop_execute", "vault_execute_template"].map((name) => ({ name })),
+    getActiveTools: () => activeTools,
+    setActiveTools: (names) => {
+      activeTools = names;
+    },
+  };
+
+  const result = ensureToolsActiveForDispatch(pi, ["vault_execute_template", "loop_execute"]);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.activatedTools, ["vault_execute_template"]);
+  assert.deepEqual(activeTools, ["read", "loop_execute", "vault_execute_template"]);
+});
+
+test("ensureToolsActiveForDispatch fails closed without mutating active tools when registration is missing", () => {
+  let setActiveToolsCalled = false;
+  const pi = {
+    getAllTools: () => ["read"].map((name) => ({ name })),
+    getActiveTools: () => ["read"],
+    setActiveTools: () => {
+      setActiveToolsCalled = true;
+    },
+  };
+
+  const result = ensureToolsActiveForDispatch(pi, ["loop_execute"]);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missingTools, ["loop_execute"]);
+  assert.equal(setActiveToolsCalled, false);
+});
+
+test("/loop activates loop_execute and dispatches a tool invocation", async () => {
+  const harness = createLoopCommandHarness({
+    allTools: ["read", "loop_execute"],
+    activeTools: ["read"],
+  });
+
+  await harness.commands.get("loop").handler("ooda inspect the routing surface", harness.ctx);
+
+  assert.deepEqual(harness.activeTools, ["read", "loop_execute"]);
+  assert.deepEqual(harness.editorTexts, []);
+  assert.deepEqual(harness.userMessages, [
+    {
+      content: buildLoopExecuteInvocation("ooda", "inspect the routing surface"),
+      options: undefined,
+    },
+  ]);
+});
+
+test("/transcendent-iteration activates required tools and queues safely during streaming", async () => {
+  const harness = createLoopCommandHarness({
+    allTools: ["read", "loop_execute", "vault_execute_template"],
+    activeTools: ["read"],
+    idle: false,
+  });
+
+  await harness.commands.get("transcendent-iteration").handler("above", harness.ctx);
+
+  assert.deepEqual(harness.activeTools, ["read", "vault_execute_template", "loop_execute"]);
+  assert.equal(harness.userMessages.length, 1);
+  assert.match(harness.userMessages[0].content, /^vault_execute_template/);
+  assert.deepEqual(harness.userMessages[0].options, { deliverAs: "followUp" });
 });
 
 test("formatVaultExecuteTemplateResultLabel shows progress instead of blocked for updates", () => {
