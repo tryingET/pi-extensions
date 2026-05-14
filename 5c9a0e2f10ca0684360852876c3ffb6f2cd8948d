@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "5c9a0e2f10ca0684360852876c3ffb6f2cd8948d"
-created_at: "2026-05-14T03:52:45Z"
+created_at: "2026-05-14T03:53:50Z"
 intent: "Add candidate-wave reliability recovery for long-running matrix campaign fan-in."
 files:
   - "packages/pi-society-orchestrator/docs/project/product-posture.md"
@@ -23,3 +23,5 @@ group:
 links:
   task_ids:
     - 2926
+  evidence_ids:
+    - 1928
