@@ -1,0 +1,21 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: Add supervised self-hosting endurance dogfood proof for campaign #5.
+files:
+  - packages/pi-autoresearch/docs/project/product-posture.md
+  - packages/pi-autoresearch/scripts/dogfood-contract-suite.mjs
+  - packages/pi-autoresearch/scripts/dogfood-self-hosting-endurance-contract.mjs
+validation:
+  fast_gate:
+    command: npm run quality:pre-commit
+    status: pass
+  full_gate:
+    command: node packages/pi-autoresearch/scripts/dogfood-self-hosting-endurance-contract.mjs && node packages/pi-autoresearch/scripts/dogfood-contract-suite.mjs && npm --prefix packages/pi-autoresearch run check
+    status: pass
+group:
+  index: 1
+  total: 1
+  rationale: Candidate B selected because it avoids extension dependency fallback and proves core self-hosting safety boundaries in an isolated fixture.
+links:
+  task_ids:
+    - 2935
