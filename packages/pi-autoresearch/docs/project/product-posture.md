@@ -177,7 +177,7 @@ A compact read-only dashboard slice is now also landed:
 autoresearch_runtime_status({ action: "dashboard" })
 ```
 
-The dashboard summarizes current posture, metric contract, confidence/noise interpretation, candidate decision summary, candidate lifecycle policy, the learning export -> owner-routed KES adapter handoff, and next legal surfaces without running benchmarks or mutating worktrees.
+The dashboard summarizes current posture, metric contract, metric-readiness/trust posture, confidence/noise interpretation, candidate decision summary, candidate lifecycle policy, the learning export -> owner-routed KES adapter handoff, and next legal surfaces without running benchmarks or mutating worktrees.
 
 A first live-progress slice is now landed for bounded loops: `autoresearch_runtime_loop` and `autoresearch_campaign_start({ runMode: "bounded_loop" })` stream compact live progress cards during execution and return a final dashboard in the result. This gives an operator a truthful "start a bounded run, step away, and come back to final posture" path inside the active tool call.
 
@@ -187,7 +187,7 @@ A first persistent widget slice is also landed: session start registers an above
 
 A first fullscreen/overlay slice is also landed: `/autoresearch overlay` and `/autoresearch fullscreen` open a read-only live TUI dashboard overlay with periodic refresh, compact posture, metric contract, recent-run table, candidate decision summary, and candidate policy summary. It closes with `q`/Escape and supports simple keyboard scrolling.
 
-A browser export slice is now landed: `/autoresearch export` writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session. `/autoresearch export off` stops that session-local refresher. The export is read-only and does not own execution or promotion.
+A browser export slice is now landed: `/autoresearch export` writes `.autoresearch/autoresearch-dashboard.html`, opens it in the browser when possible, and refreshes the file every ~2s for the current Pi session. It includes a metric-readiness/trust card so long-running campaigns can be watched for threshold readiness, duration under-sampling, and baseline-drift blockers without scraping candidate-decision text. `/autoresearch export off` stops that session-local refresher. The export is read-only and does not own execution or promotion.
 
 A first candidate intake planner slice is now landed:
 
@@ -243,7 +243,7 @@ Threshold-style posture is now landed for both inferred and explicit targets. Ze
 - `threshold_regressed` — the candidate breaks an already-satisfied success threshold;
 - `threshold_not_met` — the candidate may have moved but has not satisfied the explicit threshold, so it is not promotion-ready.
 
-The status/dashboard/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. The empirical classifier now keeps explicit threshold misses out of generic promotion-ready improvement, including duration metrics after duration/noise gates pass. The candidate-decision workbench also summarizes metric readiness for threshold, duration-under-sampled, duration-baseline-drift, duration-review-ready, and generic non-duration metrics without letting explicit thresholds bypass duration/noise gates.
+The status/dashboard/export/setup/autoplan surfaces show the success threshold, and candidate-decision confirmation checklists require threshold review. The empirical classifier now keeps explicit threshold misses out of generic promotion-ready improvement, including duration metrics after duration/noise gates pass. The candidate-decision workbench and browser dashboard export also summarize metric readiness for threshold, duration-under-sampled, duration-baseline-drift, duration-review-ready, and generic non-duration metrics without letting explicit thresholds bypass duration/noise gates.
 
 ### Bet 5 — Consumer-driven adapter proof — owner-routed KES proof landed
 

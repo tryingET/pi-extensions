@@ -2619,6 +2619,8 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(result.fileUrl, /^file:/);
     assert.match(html, /pi-autoresearch live dashboard/);
     assert.match(html, /Auto-refreshes every 2s/);
+    assert.match(html, /Metric readiness \/ trust/);
+    assert.match(html, /metric readiness blockers=1/);
     assert.match(html, /Resume plan/);
     assert.match(html, /autoresearch\.resume_plan\.v1/);
     assert.match(html, /Read-only: no benchmark run/);
@@ -2641,6 +2643,54 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /export_visibility_blockers=0/);
     assert.match(html, /No matrix campaign artifacts discovered/);
     assert.match(html, /Browser export is read-only/);
+  }));
+
+test("browser dashboard export surfaces metric-readiness trust posture", () =>
+  withTempDir((cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "long-running-metric-readiness",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 100,
+        description: "baseline duration sample",
+        timestamp: 2,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 96,
+        description: "candidate duration sample during long campaign",
+        timestamp: 3,
+      }),
+    );
+
+    const dashboard = formatAutoresearchDashboard(buildAutoresearchRuntimeStatus(cwd));
+    const result = exportAutoresearchDashboardHtml({ cwd });
+    const html = readFileSync(result.path, "utf8");
+    const metricReadinessVisibilityBlockers = [
+      dashboard.includes("## Metric readiness / trust") ? null : "text dashboard missing section",
+      html.includes("Metric readiness / trust") ? null : "browser export missing card",
+      html.includes("duration_under_sampled") ? null : "browser export missing readiness class",
+      html.includes("metric readiness blockers=1") ? null : "browser export missing blocker count",
+      html.includes("duration metric is under-sampled")
+        ? null
+        : "browser export missing blocked reason",
+    ].filter((blocker): blocker is string => blocker !== null);
+
+    assert.deepEqual(metricReadinessVisibilityBlockers, []);
   }));
 
 test("dashboard export discovers and renders matrix campaign artifacts", () =>

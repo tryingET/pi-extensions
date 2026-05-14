@@ -5338,6 +5338,9 @@ export function formatAutoresearchDashboard(
   const guidedCandidateJourneyLines = formatAutoresearchGuidedCandidateJourneyLines(dashboardCwd);
   const matrixSummary = discoverAutoresearchMatrixCampaignArtifacts(dashboardCwd);
   const matrixSummaryLines = formatAutoresearchMatrixCampaignSummaryLines(matrixSummary);
+  const metricReadiness = buildAutoresearchMetricReadinessReview(status);
+  const metricReadinessBlockers =
+    metricReadiness.blockedReasons.length > 0 ? metricReadiness.blockedReasons.join("; ") : "none";
 
   return [
     "# PI-AUTORESEARCH DASHBOARD",
@@ -5364,6 +5367,12 @@ export function formatAutoresearchDashboard(
     `- best: ${formatMetricValue(segment.bestMetric, segment.metricUnit)}`,
     `- confidence: ${formatConfidenceValue(segment.confidence)}`,
     `- timing interpretation: ${formatMetricInterpretation(segment.metricInterpretation, segment.metricUnit)}`,
+    "",
+    "## Metric readiness / trust",
+    `- classification: ${metricReadiness.classification}`,
+    `- summary: ${metricReadiness.summary}`,
+    `- blockers: ${metricReadinessBlockers}`,
+    ...metricReadiness.checklist.map((item) => `- checklist: ${item}`),
     "",
     "## Candidate lifecycle policy",
     `- mode: ${candidatePolicy.mode}`,
@@ -5424,6 +5433,14 @@ function renderAutoresearchDashboardHtml(
   const segment = status.currentSegment;
   const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd: closeout.cwd });
   const candidateDecisionLabel = candidateDecision.candidate?.label ?? "no candidate bound yet";
+  const metricReadiness =
+    candidateDecision.metricReadiness ?? buildAutoresearchMetricReadinessReview(status);
+  const metricReadinessBlockers =
+    metricReadiness.blockedReasons.length > 0 ? metricReadiness.blockedReasons.join("; ") : "none";
+  const metricReadinessChecklist = metricReadiness.checklist
+    .slice(0, 4)
+    .map((item) => `<div class="card-copy">✓ ${escapeHtml(item)}</div>`)
+    .join("\n");
   const resumePlan = buildAutoresearchResumePlanFromStatus(closeout.cwd, status);
   const resumePlanBlockers =
     resumePlan.blockingReasons.length > 0 ? resumePlan.blockingReasons.join("; ") : "none";
@@ -5595,6 +5612,14 @@ code { color: #a5d6ff; }
     <div class="card-value" style="font-size:18px">${escapeHtml(candidateDecision.recommendedDecision)}</div>
     <div class="card-copy">${escapeHtml(candidateDecisionLabel)} — ${escapeHtml(candidateDecision.recommendationReason)}</div>
     <div class="card-copy"><code>${escapeHtml(candidateDecision.exactNextCalls[0] ?? `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(closeout.cwd)}, action: "status" })`)}</code></div>
+  </section>
+
+  <section class="card" style="margin-top:14px">
+    <div class="card-label">Metric readiness / trust</div>
+    <div class="card-value ${metricReadiness.blockedReasons.length === 0 ? "good" : "warn"}" style="font-size:18px">${escapeHtml(metricReadiness.classification)}</div>
+    <div class="card-copy">${escapeHtml(metricReadiness.summary)}</div>
+    <div class="card-copy">metric readiness blockers=${escapeHtml(String(metricReadiness.blockedReasons.length))}; ${escapeHtml(metricReadinessBlockers)}</div>
+    ${metricReadinessChecklist || '<div class="card-copy">No metric readiness checklist items recorded.</div>'}
   </section>
 
   <section class="card" style="margin-top:14px">
