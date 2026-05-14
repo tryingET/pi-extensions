@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "1544416dfbc0d15a87d503181f748a4f8ac9e458"
+created_at: "2026-05-14T00:56:56Z"
+intent: "Harden ASC child skill-profile resolution: reorder extension check before skill materialization, add cleanup, improve validation, expand tests/docs"
+files:
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-skill-selection.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-runtime.ts"
+  - "packages/pi-autonomous-session-control/tests/dispatch-subagent.test.mjs"
+  - "packages/pi-autonomous-session-control/tests/public-execution-contract.test.mjs"
+  - "packages/pi-autonomous-session-control/tests/public-execution-parity.test.mjs"
+  - "packages/pi-autonomous-session-control/tests/subagent-transport-live.test.mjs"
+  - "packages/pi-autonomous-session-control/docs/project/public-execution-contract.md"
+  - "packages/pi-autonomous-session-control/README.md"
+validation:
+  fast_gate:
+    command: "npm run check --prefix packages/pi-autonomous-session-control"
+    status: "pass"
+  full_gate:
+    command: "npm run check --prefix packages/pi-autonomous-session-control"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Single cohesive refinement of the prior skill-profile feature commit."
