@@ -16,8 +16,9 @@ Monorepo package for fixed-task-set eval workflows in Pi (`/evalset run|compare`
 
 - Workspace path: `packages/pi-evalset-lab`
 - Release component key: `pi-evalset-lab`
-- Legacy standalone source: `~/programming/pi-extensions/pi-evalset-lab`
-- Canonical package status: canonicalized here; legacy repo still needs the standard deprecation workflow before archive/delete.
+- Former legacy standalone source: `~/programming/pi-extensions/pi-evalset-lab`
+- Canonical package status: canonicalized here; the legacy repo was archived to `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz` and removed after validation.
+- Session-history migration: no legacy Pi session-history directory existed for the old path, so relocation was recorded as `skip-no-history`.
 
 Primary category fit: **Model & Prompt Management**, **Review & Quality Loops**, **UX & Observability**, **Safety & Governance**.
 
@@ -132,6 +133,8 @@ node ./scripts/release-components.mjs validate
 ```
 
 Release metadata is root-managed through `x-pi-template.releaseConfigMode=component` and component key `pi-evalset-lab`.
+
+The scoped package `@tryinget/pi-evalset-lab` is the canonical npm identity for future releases. The old unscoped `pi-evalset-lab@0.2.0` package remains historical registry state, not the canonical development target.
 
 ## Optional core hooks (future, not required)
 

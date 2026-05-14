@@ -13,13 +13,15 @@ system4d:
 
 ## Session objective
 
-Implement one focused package slice while preserving monorepo compatibility.
+Continue from the canonical monorepo package. Do not reopen or recreate the former standalone repo.
 
 ## Package context
 
 - workspace path: `packages/pi-evalset-lab`
 - release component key: `pi-evalset-lab`
 - primary extension entry: `extensions/evalset.ts`
+- legacy archive: `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz`
+- legacy working copy: removed after archive; session relocation was `skip-no-history`
 
 ## Quick start
 
@@ -31,8 +33,9 @@ npm run release:check:quick
 
 ## Session checklist
 
-1. Read `AGENTS.md` and relevant docs.
-2. Implement one scoped change.
+1. Read `AGENTS.md`, `README.md`, and `docs/project/legacy-canonicalization.md`.
+2. Implement one scoped package change.
 3. Run `npm run check`.
-4. If release surface changed, run `npm run release:check:quick`.
+4. If release surface changed, run `npm run release:check:quick` and root release component checks.
 5. Update docs and this handoff prompt.
+6. For first scoped npm publication, configure/verify npm Trusted Publisher for `@tryinget/pi-evalset-lab` and use the root `publish.yml` component tag flow.

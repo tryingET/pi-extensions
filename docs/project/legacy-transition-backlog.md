@@ -30,7 +30,7 @@ These appear to be the active remaining candidates under `~/programming/pi-exten
 | Legacy repo | Current package name | Canonical status |
 |---|---|---|
 | `issue-tracker` | unknown/no package manifest detected | not yet transitioned |
-| `pi-evalset-lab` | `@tryinget/pi-evalset-lab` | canonicalized at `packages/pi-evalset-lab`; legacy repo pending standard deprecation workflow |
+| `pi-evalset-lab` | `@tryinget/pi-evalset-lab` | canonicalized at `packages/pi-evalset-lab`; legacy repo archived to `~/programming/pi-extensions/pi-evalset-lab-final-archive.tar.gz` and removed |
 | `pi-little-helpers` | `@tryinget/pi-little-helpers` | not yet transitioned |
 | `pi-user-prompt-compaction` | `pi-user-prompt-compaction` | canonical successor started at `packages/pi-session-compaction`; legacy repo not deprecated yet |
 | `secure-package-update` | `@tryinget/secure-package-update` | not yet transitioned |
