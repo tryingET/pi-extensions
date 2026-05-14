@@ -66,8 +66,9 @@ Do not duplicate:
 - Keep this root `AGENTS.md` stable and structural; put package-family/operator depth into canonical docs and repo-owned skills instead of bloating this file.
 
 ## Direction workflow
-- When this repo's direction docs under `docs/project/` change, or when current posture needs verification, use `ak direction import|check|export` from the repo root.
-- Treat `ak direction check` as the authority-reconciliation gate between repo direction docs and AK's structured direction substrate.
+- When current direction posture needs verification, use `ak direction check` and `ak direction export` from the repo root.
+- Treat `ak direction check` as the authority-reconciliation gate for AK-native direction state.
+- Do not run `ak direction import` as a routine post-edit or posture-check habit. It is a legacy migration/backfill path only; use it only when intentionally importing legacy direction markdown into AK, and expect legacy importer assumptions to differ from AK-native truth.
 
 ## Read order
 1. `docs/_core/` (if present)

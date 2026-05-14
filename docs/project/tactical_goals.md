@@ -1,5 +1,5 @@
 ---
-summary: "Tactical goals for the routed cross-package wave at the pi-extensions monorepo root after the seam-first prompt-plane proof, first KES packet, and first TG3 hardening slice landed."
+summary: "Tactical goals for the routed cross-package wave at the pi-extensions monorepo root after the seam-first prompt-plane proof, first KES packet, first TG3 hardening slice, and TG3 reassessment closed."
 read_when:
   - "You need the medium-sized root waves under the active strategic goal."
   - "You need to know which tactical goal is active now and which cross-package follow-ons are next."
@@ -14,7 +14,7 @@ system4d:
 
 Active strategic goal: **SG1 — Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful**
 
-## Active tactical goals
+## Tactical goals
 
 ### TG1 — Bind the thin prompt-plane seam between `pi-vault-client` and `pi-society-orchestrator` before broader KES/loop activation
 - **State:** done
@@ -28,16 +28,15 @@ Active strategic goal: **SG1 — Bind the next cross-package cognition control-p
 - **Carry-forward guardrail:** keep KES outputs package-owned in `pi-society-orchestrator`, use bounded `diary/` + candidate-only `docs/learnings/` outputs, and do not reopen this packet as if the proof step were still pending.
 
 ### TG3 — Harden loop family/evidence contracts around the KES-first control-plane wave and keep higher-order self explicitly deferred
-- **State:** active
+- **State:** done
 - **Latest landed slice:** repo-local AK tasks `task:1107` and `task:1108`
-- **Current execution anchor:** repo-local AK task `task:1110`
-- **Why this is active:** the lower prompt/KES packet is now strong enough to support loop-hardening follow-through, and the first hardening slice already landed by making invalid KES roots fail closed and by strengthening installed-package KES proof under the installed package root.
-- **Current execution note:** `task:1110` is the authority-bound reassessment slice for the truthful post-hardening state while no further TG3 implementation task is ready yet.
-- **Success signal:** any new slice is bounded in AK before implementation starts, tightens loop-family/evidence semantics without reopening seam or KES proof, and keeps higher-order self explicitly downstream of the lower-plane packet.
+- **Completed reassessment:** repo-local AK task `task:1110`
+- **Why this is done:** the lower prompt/KES packet supported the first hardening slice, invalid KES roots now fail closed, installed-package KES proof runs under the installed package root, and `task:1110` found no further TG3 implementation task ready.
+- **Carry-forward guardrail:** any new slice must be bounded in AK before implementation starts, tighten loop-family/evidence semantics without reopening seam or KES proof, and keep higher-order self explicitly downstream of the lower-plane packet.
 
 ## Not the active tactical path
 
-These were truthful earlier or remain explicitly deferred, but they are not the current root tactical path now:
+These were truthful earlier, completed, or remain explicitly deferred; there is no current root TG3 execution path now:
 - the seam-first prompt-plane binding wave (`tasks:1050`, `1049`, `1051`), which is completed history
 - the first KES packet (`tasks:1089`, `1090`, `1091`), which is also completed history
 - the first TG3 hardening slice (`tasks:1107`, `1108`), which is now completed history too

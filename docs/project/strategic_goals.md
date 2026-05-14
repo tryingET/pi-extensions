@@ -1,5 +1,5 @@
 ---
-summary: "Top strategic goals for the pi-extensions monorepo root after the seam-first prompt-plane wave, the first KES packet, and the first TG3 loop-hardening hardening slice landed."
+summary: "Top strategic goals for the pi-extensions monorepo root after the seam-first prompt-plane wave, first KES packet, first TG3 hardening slice, and TG3 reassessment closed."
 read_when:
   - "You need the currently active and next strategic goals for the pi-extensions monorepo root."
   - "AK readiness is empty or noisy and you need to decide whether root work is complete or whether a new routed cross-package wave is now the truthful next bet."
@@ -34,7 +34,7 @@ Current repo-local truth:
 - the seam-first prompt-plane wave is complete through `tasks:1050`, `1051`, and orchestrator cutover task `1049`
 - the first bounded KES packet is complete through `tasks:1089`, `1090`, and `1091`, including package checks, installed-package release smoke, and root validation
 - the first bounded TG3 hardening slice is also complete through `task:1107` and `task:1108`: invalid package-owned KES roots now fail closed, and installed-package KES proof now asserts writes under the true installed package root while the import harness remains copy-isolated
-- repo-local AK task `task:1110` now binds the truthful post-hardening state into an explicit reassessment slice instead of leaving the only durable record in prose while no further TG3 implementation task is ready yet
+- repo-local AK task `task:1110` closed the truthful post-hardening reassessment instead of leaving the only durable record in prose; no further TG3 implementation task was ready at closeout
 - ASC higher-order `self` work is still not the next truthful root-local move
 - the root-local exploratory task `task:962` remains explicitly deferred so it does not displace the routed control-plane packet
 
@@ -42,7 +42,7 @@ Current repo-local truth:
 
 | Rank | Strategic goal | Importance | Urgency | Difficulty | State | Why now |
 |---|---|---:|---:|---:|---|---|
-| 1 | Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful | 5 | 5 | 3 | **active** | The prompt-plane seam, first KES packet, and first TG3 hardening slice are now landed history, and `task:1110` now binds the post-hardening reassessment state truthfully while AK waits for another bounded loop-hardening slice. |
+| 1 | Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful | 5 | 5 | 3 | **active / routed beyond completed TG3** | The prompt-plane seam, first KES packet, first TG3 hardening slice, and `task:1110` reassessment are landed history; another loop-hardening slice must wait for a new bounded AK task. |
 | 2 | Keep root compatibility/release control-plane contracts truthful as package seams evolve | 4 | 4 | 4 | next | The new TG3 hardening slice still depends on root validation and release surfaces staying truthful, especially where installed-package proof is stronger than before but still intentionally bounded. |
 
 ## Active strategic goal
@@ -52,7 +52,7 @@ Current repo-local truth:
 Intent:
 - make one routed cross-package wave explicit at monorepo root without pretending the root owns every package-local implementation detail
 - preserve the completed prompt-plane seam, KES packet, and first TG3 hardening slice as landed boundary truth rather than reopening them as active backlog
-- sequence later work clearly: another loop hardening slice only if AK materializes a bounded task, higher-order ASC self only after lower-plane truth remains solid
+- sequence later work clearly: the completed TG3 reassessment is not an active execution slice, another loop hardening slice only opens if AK materializes a bounded task, and higher-order ASC self waits until lower-plane truth remains solid
 
 Success signal:
 - the root direction chain records the seam-first wave, first KES packet, and first TG3 hardening slice as completed history

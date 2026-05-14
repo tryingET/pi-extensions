@@ -1,5 +1,5 @@
 ---
-summary: "Operating state for the routed loop-hardening area after the seam-first prompt-plane proof, first KES packet, and first TG3 hardening slice landed at the pi-extensions monorepo root."
+summary: "Operating state for the routed loop-hardening area after the seam-first prompt-plane proof, first KES packet, first TG3 hardening slice, and TG3 reassessment closed at the pi-extensions monorepo root."
 read_when:
   - "You need the current root operating state and its AK bindings."
   - "AK readiness is empty but you need to distinguish completed history from the next candidate routed wave."
@@ -14,15 +14,15 @@ system4d:
 
 Active strategic goal: **SG1 — Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful**
 
-Active tactical goal: **TG3 — Harden loop family/evidence contracts around the KES-first control-plane wave and keep higher-order self explicitly deferred**
+Active tactical goal: **none in the completed TG3/KES follow-through area; reopen only when AK materializes a new bounded slice**
 
-## Current operating state after `task:1108`
+## Current operating state after `task:1110`
 
 - the seam-first prompt-plane proof packet is complete through `task:1050`, `task:1049`, and `task:1051`
 - the first bounded KES packet is complete through `task:1089`, `task:1090`, and `task:1091`
 - the first bounded TG3 hardening slice is complete through `task:1107` and `task:1108`
-- repo-local AK task `task:1110` now binds the truthful post-hardening empty-ready state into an explicit reassessment slice, so the repo no longer depends on prose-only reminders for that state
-- the next truthful move is to reassess AK and current docs through that authority-bound slice before opening any new root-local loop-hardening work
+- repo-local AK task `task:1110` closed the truthful post-hardening empty-ready reassessment: the ready queue was empty, direction/docs checks passed at closeout time, and no further TG3 implementation slice materialized
+- the next truthful move is to stop this routed loop-hardening area until AK creates a real bounded root-local follow-up
 
 ## Current bounded TG3 slices
 
@@ -39,8 +39,8 @@ Active tactical goal: **TG3 — Harden loop family/evidence contracts around the
 
 ### OP6 — Reassess the next TG3 loop-hardening slice from AK without inventing synthetic implementation work
 - **AK task:** `task:1110`
-- **State:** active
-- **Deliverable:** keep the post-hardening empty-ready state bound into AK and only open the next TG3 implementation slice when a real bounded task is ready.
+- **State:** done
+- **Deliverable:** the post-hardening empty-ready state is bound into AK, `task:1110` is closed, and no next TG3 implementation slice exists yet; only open the next TG3 slice when a real bounded AK task is ready.
 
 ## Completed bounded KES packet
 
