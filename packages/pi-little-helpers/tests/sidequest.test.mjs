@@ -1801,7 +1801,36 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.equal(result.details.sessionMode, "clean");
     assert.equal(result.details.sourceSessionFile, undefined);
     assert.equal(result.details.titleBase, "Candidatepeer: Try bounded runner guard");
-    assert.match(result.details.nextStep, /Inspect the reported branch\/worktree/);
+    assert.equal(
+      result.details.registryPath,
+      `${stateHome}/pi-quests/peer-registry/${result.details.peerRunId}.json`,
+    );
+    assert.equal(
+      result.details.archiveDir,
+      `${stateHome}/pi-quests/archives/${result.details.peerRunId}`,
+    );
+    assert.equal(result.details.cleanupPacket.commands[0].id, "archive-metadata-and-diff");
+    assert.equal(result.details.cleanupPacket.commands[0].destructive, false);
+    assert.equal(result.details.cleanupPacket.commands[1].id, "remove-worktree");
+    assert.equal(result.details.cleanupPacket.commands[1].destructive, true);
+    assert.equal(result.details.cleanupPacket.commands[2].id, "delete-candidate-branch");
+    assert.equal(result.details.cleanupPacket.commands[2].destructive, true);
+    assert.ok(existsSync(result.details.registryPath));
+    const registry = JSON.parse(readFileSync(result.details.registryPath, "utf8"));
+    assert.equal(registry.schemaVersion, 1);
+    assert.equal(registry.peerRunId, result.details.peerRunId);
+    assert.equal(registry.repoRoot, "/repo");
+    assert.equal(registry.worktreePath, result.details.worktreePath);
+    assert.equal(registry.branchName, "candidatepeer/runner-guard");
+    assert.equal(registry.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
+    assert.deepEqual(registry.filesInScope, ["src/runner.ts", "tests/runner.test.mjs"]);
+    assert.equal(registry.launch.status, "launched");
+    assert.equal(registry.launch.launchMode, "tab");
+    assert.match(
+      registry.cleanupPacket.manualPreconditions.join("\n"),
+      /Archive commands must complete successfully/,
+    );
+    assert.match(result.details.nextStep, /registry metadata, cleanup packet/);
     assert.match(result.content[0]?.text ?? "", /Peer run id: candidatepeer-/);
     assert.match(result.content[0]?.text ?? "", /Expected intercom messages: PEER_ACK, PEER_FINAL/);
     assert.match(result.content[0]?.text ?? "", /peer_watch/);

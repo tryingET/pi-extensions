@@ -88,6 +88,7 @@ import {
   type AutoresearchMatrixCampaignReview,
   type AutoresearchMatrixCampaignRunnerCheckpoint,
   type AutoresearchMatrixCampaignRunnerContract,
+  type AutoresearchPostFaninFinalizerResult,
   describeAutoresearchLiveNextStep,
 } from "../src/runtime/autoresearch-supervisor-runner.ts";
 import {
@@ -180,6 +181,7 @@ type AutoresearchLiveSupervisionAction =
   | "checkpoint_matrix_campaign_runner"
   | "review_matrix_campaign"
   | "review_candidate_wave"
+  | "finalize_post_fanin"
   | "stop";
 
 type AutoresearchManifestCampaignSupervisionAction = "observe" | "record_evidence";
@@ -203,6 +205,7 @@ type AutoresearchLiveSupervisionToolDetails = {
   matrixCampaignRunnerCheckpoint?: AutoresearchMatrixCampaignRunnerCheckpoint;
   matrixCampaignReview?: AutoresearchMatrixCampaignReview;
   candidateWaveReview?: AutoresearchCandidateWaveReview;
+  postFaninFinalizer?: AutoresearchPostFaninFinalizerResult;
   stopped?: boolean;
   error?: string;
 };
@@ -854,6 +857,42 @@ function formatAutoresearchMatrixCampaignReviewReport(
     ...review.boundaries.map((boundary) => `- ${boundary}`),
     "",
     `Next step: ${review.nextStep}`,
+  ].join("\n");
+}
+
+function formatAutoresearchPostFaninFinalizerReport(
+  result: AutoresearchPostFaninFinalizerResult,
+): string {
+  return [
+    "Autoresearch live supervision — finalize_post_fanin",
+    `Task: #${result.contract.taskId}`,
+    `CWD: ${result.contract.cwd}`,
+    `Source review: ${result.contract.sourceReview}`,
+    `Outcome: ${result.outcome}`,
+    `Preflight: ${result.preflight.status} (${result.preflight.blockerCount} blocker(s))`,
+    `manual_post_fanin_residue: ${result.manualPostFaninResidue.value} (target=${result.manualPostFaninResidue.target}, ${result.manualPostFaninResidue.direction} is better; ${result.manualPostFaninResidue.status})`,
+    `Authorization token: ${result.contract.exactAuthorizationToken}`,
+    "",
+    "Preflight checks:",
+    ...result.preflight.checks.flatMap((check) => [
+      `- ${check.name}: ${check.status} — ${check.summary}`,
+      ...check.evidence.map((item) => `  - ${item}`),
+    ]),
+    "",
+    result.exactApplyCommandPacket
+      ? `Apply packet: ${result.exactApplyCommandPacket.kind} (${result.exactApplyCommandPacket.exactCommands.length} command(s); not executed by orchestrator)`
+      : "Apply packet: blocked",
+    ...(result.exactApplyCommandPacket
+      ? [
+          "Exact apply commands:",
+          ...result.exactApplyCommandPacket.exactCommands.map((command) => `- ${command}`),
+        ]
+      : []),
+    "",
+    "Boundaries:",
+    ...result.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${result.nextStep}`,
   ].join("\n");
 }
 
@@ -1884,6 +1923,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("checkpoint_matrix_campaign_runner"),
           Type.Literal("review_matrix_campaign"),
           Type.Literal("review_candidate_wave"),
+          Type.Literal("finalize_post_fanin"),
           Type.Literal("stop"),
         ]),
       ),
@@ -1892,7 +1932,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       objective: Type.Optional(
         Type.String({
           description:
-            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, matrix campaign actions, or action=review_candidate_wave.",
+            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, matrix campaign actions, action=review_candidate_wave, or action=finalize_post_fanin.",
         }),
       ),
       candidateCount: Type.Optional(
@@ -1947,11 +1987,14 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             status: Type.Optional(Type.String()),
             checksStatus: Type.Optional(Type.String()),
             confidence: Type.Optional(Type.Number()),
+            candidateSource: Type.Optional(Type.String()),
             candidateWorktree: Type.Optional(Type.String()),
             candidateBranch: Type.Optional(Type.String()),
             candidateBaseRef: Type.Optional(Type.String()),
             candidateDiffSummary: Type.Optional(Type.String()),
             candidateFilesChanged: Type.Optional(Type.Array(Type.String())),
+            candidatePeerRunId: Type.Optional(Type.String()),
+            candidateRunnerId: Type.Optional(Type.String()),
             sourcePacketPath: Type.Optional(Type.String()),
             caveat: Type.Optional(Type.String()),
           }),
@@ -1964,7 +2007,53 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       candidateResultPacketPaths: Type.Optional(
         Type.Array(Type.String(), {
           description:
-            "Paths to exported autoresearch.candidate_result.v1 packet JSON files for action=review_candidate_wave.",
+            "Paths to exported autoresearch.candidate_result.v1 packet JSON files for action=review_candidate_wave or action=finalize_post_fanin.",
+        }),
+      ),
+      sourceReview: Type.Optional(
+        Type.Union(
+          [Type.Literal("review_candidate_wave"), Type.Literal("review_matrix_campaign")],
+          {
+            description:
+              "Fan-in review source for action=finalize_post_fanin; defaults to review_candidate_wave.",
+          },
+        ),
+      ),
+      selectedLaneId: Type.Optional(
+        Type.String({ description: "Expected selected lane id for action=finalize_post_fanin." }),
+      ),
+      selectedCellId: Type.Optional(
+        Type.String({
+          description: "Expected selected matrix cell id for action=finalize_post_fanin.",
+        }),
+      ),
+      dirtyFiles: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Repo-relative dirty controller/parent paths that must not overlap selected finalizer files.",
+        }),
+      ),
+      reviewedAtEpochMs: Type.Optional(
+        Type.Number({ description: "Review timestamp used to detect selected packet staleness." }),
+      ),
+      applyAuthorizationToken: Type.Optional(
+        Type.String({
+          description:
+            "Exact finalizer authorization token required for terminal authorized posture.",
+        }),
+      ),
+      validation: Type.Optional(
+        Type.Object({
+          command: Type.String({
+            description: "Validation command that was run after selected patch application.",
+          }),
+          status: Type.Union([
+            Type.Literal("passed"),
+            Type.Literal("failed"),
+            Type.Literal("missing"),
+          ]),
+          summary: Type.Optional(Type.String()),
+          artifactPath: Type.Optional(Type.String()),
         }),
       ),
       runnerManifestPath: Type.Optional(
@@ -2028,7 +2117,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       offLimits: Type.Optional(
         Type.Array(Type.String(), {
           description:
-            "Optional off-limits file/path specs forwarded to pi-autoresearch for action=start_campaign peer handoff planning.",
+            "Optional off-limits file/path specs forwarded to pi-autoresearch for action=start_campaign peer handoff planning and enforced during review_candidate_wave selection.",
         }),
       ),
       constraints: Type.Optional(
@@ -2086,6 +2175,13 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         parentPeerTarget,
         candidateResults,
         candidateResultPacketPaths,
+        sourceReview,
+        selectedLaneId,
+        selectedCellId,
+        dirtyFiles,
+        reviewedAtEpochMs,
+        applyAuthorizationToken,
+        validation,
         runnerManifestPath,
         checkpointConfirmation,
         maxIterations,
@@ -2127,15 +2223,30 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           status?: string;
           checksStatus?: string;
           confidence?: number;
+          candidateSource?: string;
           candidateWorktree?: string;
           candidateBranch?: string;
           candidateBaseRef?: string;
           candidateDiffSummary?: string;
           candidateFilesChanged?: string[];
+          candidatePeerRunId?: string;
+          candidateRunnerId?: string;
           sourcePacketPath?: string;
           caveat?: string;
         }>;
         candidateResultPacketPaths?: string[];
+        sourceReview?: "review_candidate_wave" | "review_matrix_campaign";
+        selectedLaneId?: string;
+        selectedCellId?: string;
+        dirtyFiles?: string[];
+        reviewedAtEpochMs?: number;
+        applyAuthorizationToken?: string;
+        validation?: {
+          command: string;
+          status: "passed" | "failed" | "missing";
+          summary?: string;
+          artifactPath?: string;
+        };
         runnerManifestPath?: string;
         checkpointConfirmation?: string;
         maxIterations?: number;
@@ -2448,6 +2559,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             direction,
             candidateResults,
             candidateResultPacketPaths,
+            offLimits,
             intervalSeconds,
             signal,
           });
@@ -2459,6 +2571,44 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
               sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
               nextStep: result.nextStep,
               candidateWaveReview: result,
+            },
+          );
+        }
+
+        if (action === "finalize_post_fanin") {
+          const finalizerObjective = objective?.trim() ?? "";
+          if (finalizerObjective.length === 0) {
+            throw new Error("finalize_post_fanin requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.finalizePostFanin({
+            ...identity,
+            objective: finalizerObjective,
+            sourceReview: sourceReview ?? "review_candidate_wave",
+            direction,
+            metricName,
+            metricThreshold,
+            candidateResultPacketPaths,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            selectedLaneId,
+            selectedCellId,
+            validation,
+            offLimits,
+            dirtyFiles,
+            reviewedAtEpochMs,
+            applyAuthorizationToken,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchPostFaninFinalizerReport(result),
+            {
+              ok: result.outcome !== "failed_closed",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              postFaninFinalizer: result,
             },
           );
         }

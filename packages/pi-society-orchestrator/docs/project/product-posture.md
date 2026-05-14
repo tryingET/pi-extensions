@@ -162,6 +162,12 @@ Keep evidence projection boring: exact anchors, dedupe, fail-closed verification
 
 The first hardening slice records the exact AK task anchor in projected autoresearch milestone evidence and dedupes by `projection_key` across all matching task/check rows, not only the latest row. This prevents stale or replayed milestone states from writing duplicate evidence after later milestone rows have appeared, while preserving the existing fail-closed task/repo boundary check. The dogfood contract is `scripts/dogfood-evidence-projection-hardening-contract.mjs` with expected metric `unresolved_evidence_projection_hardening_blockers=0`.
 
+### Bet 5 — Post-fan-in finalizer governance — contract drafted
+
+The next glue-reduction target is the manual tail after managed fan-in review: scoped commit, evidence/task close, peer tab close, and candidate worktree cleanup. The level-1.5 finalizer contract in [2026-05-14-post-fan-in-finalizer-governance-contract.md](./2026-05-14-post-fan-in-finalizer-governance-contract.md) permits only deterministic post-review cleanup after explicit fan-in review, validation receipts, and final operator authorization.
+
+The finalizer is intentionally not a hidden executor: no peer launch, benchmark/run execution, winner selection, merge/push/PR, release, toolbox activation, or Prompt Vault/ROCS/Oracle/KES mutation. Its required result taxonomy is `committed_cleaned`, `review_blocked`, or `failed_closed`, and its target glue metric is `manual_post_fanin_residue` lower-is-better with successful gated runs targeting `0`.
+
 ## Ownership map
 
 | Concern | Owner |
@@ -181,5 +187,6 @@ The first hardening slice records the exact AK task anchor in projected autorese
 - Autoresearch product posture: [`../../../pi-autoresearch/docs/project/product-posture.md`](../../../pi-autoresearch/docs/project/product-posture.md)
 - Integrated supervised autoresearch posture: [`../../../../docs/project/pi-autoresearch-integrated-product-posture.md`](../../../../docs/project/pi-autoresearch-integrated-product-posture.md)
 - Matrix campaign RFC: [2026-05-10-rfc-matrix-campaign-implementation-wave-substrate.md](./2026-05-10-rfc-matrix-campaign-implementation-wave-substrate.md)
+- Post-fan-in finalizer governance: [2026-05-14-post-fan-in-finalizer-governance-contract.md](./2026-05-14-post-fan-in-finalizer-governance-contract.md)
 - Manifest campaign supervision contract: [pi-autoresearch-manifest-campaign-supervision-contract.md](./pi-autoresearch-manifest-campaign-supervision-contract.md)
 - Self-hosting supervision contract: [pi-autoresearch-self-hosting-supervision-contract.md](./pi-autoresearch-self-hosting-supervision-contract.md)

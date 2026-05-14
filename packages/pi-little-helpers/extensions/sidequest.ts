@@ -5,6 +5,10 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import {
+  createCandidatePeerRegistryRecord,
+  writeCandidatePeerRegistryRecord,
+} from "../src/candidatePeerRegistry.ts";
+import {
   LITTLE_HELPERS_CAPABILITY_MANIFEST,
   LITTLE_HELPERS_COMMAND_NAMES,
   LITTLE_HELPERS_PEER_TOOL_NAMES,
@@ -1263,6 +1267,7 @@ function buildCandidatePeerSpawnPrompt({
     worktree.parentDirtyWarning ? `- Dirty-parent warning: ${worktree.parentDirtyWarning}` : "",
     "",
     "All mutations must stay inside your worktree. Do not modify the parent checkout.",
+    "The controller records peer registry metadata and an archive-before-cleanup command packet for this candidate lane; treat that as cleanup guidance, not promotion authority.",
     "",
     "## Mutation Policy",
     "You may inspect, edit, and validate only inside your isolated worktree. Do not merge, push, open PRs, mutate AK, mutate controller runtime state, or claim promotion. If a required action is outside the worktree boundary, report the exact proposed controller action instead of applying it.",
@@ -1681,17 +1686,99 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       });
 
       if (!launch.ok) {
+        const registryRecord = createCandidatePeerRegistryRecord(
+          {
+            peerRunId: questId,
+            tool: commandName,
+            canonicalTool: "candidate_peer_spawn",
+            parentCwd: worktree.parentCwd,
+            repoRoot: worktree.repoRoot,
+            worktreePath: worktree.worktreePath,
+            branchName: worktree.branchName,
+            baseRef: worktree.baseRef,
+            parentDirty: worktree.parentDirty,
+            parentDirtyWarning: worktree.parentDirtyWarning,
+            reusedExisting: worktree.reusedExisting,
+            reportBack: "manual",
+            launch: {
+              status: "launch_failed",
+              launchMode: launch.launchMode,
+              sessionMode: launch.sessionMode,
+              cwd: launch.cwd,
+              sourceSessionFile: launch.sourceSessionFile,
+              titleBase: launch.titleBase,
+              promptSummary: launch.promptSummary,
+              launchNote: launch.launchNote,
+              failure: launch.failure,
+            },
+            controllerSession: {
+              id: ctx.sessionManager.getSessionId?.(),
+              name: ctx.sessionManager.getSessionName?.(),
+              cwd: ctx.sessionManager.getCwd?.(),
+              sessionFile: ctx.sessionManager.getSessionFile?.(),
+            },
+            processHints: { controllerPid: options.processId ?? process.pid },
+          },
+          env,
+        );
+        try {
+          writeCandidatePeerRegistryRecord(registryRecord);
+        } catch {
+          // Best-effort diagnostic persistence only; the UI reports the launch failure below.
+        }
         if (ctx.hasUI)
           ctx.ui.notify(`${commandName} failed to launch Ghostty: ${launch.failure}`, "error");
         return;
+      }
+
+      const registryRecord = createCandidatePeerRegistryRecord(
+        {
+          peerRunId: questId,
+          tool: commandName,
+          canonicalTool: "candidate_peer_spawn",
+          parentCwd: worktree.parentCwd,
+          repoRoot: worktree.repoRoot,
+          worktreePath: worktree.worktreePath,
+          branchName: worktree.branchName,
+          baseRef: worktree.baseRef,
+          parentDirty: worktree.parentDirty,
+          parentDirtyWarning: worktree.parentDirtyWarning,
+          reusedExisting: worktree.reusedExisting,
+          reportBack: "manual",
+          launch: {
+            status: "launched",
+            launchMode: launch.launchMode,
+            sessionMode: launch.sessionMode,
+            cwd: launch.cwd,
+            sourceSessionFile: launch.sourceSessionFile,
+            titleBase: launch.titleBase,
+            promptSummary: launch.promptSummary,
+            launchNote: launch.launchNote,
+          },
+          controllerSession: {
+            id: ctx.sessionManager.getSessionId?.(),
+            name: ctx.sessionManager.getSessionName?.(),
+            cwd: ctx.sessionManager.getCwd?.(),
+            sessionFile: ctx.sessionManager.getSessionFile?.(),
+          },
+          processHints: { controllerPid: options.processId ?? process.pid },
+        },
+        env,
+      );
+      let registryPath: string | undefined;
+      try {
+        registryPath = writeCandidatePeerRegistryRecord(registryRecord);
+      } catch {
+        // Best-effort diagnostic persistence only; the visible candidate is already launched.
       }
 
       if (ctx.hasUI) {
         const modeLabel =
           launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
         const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+        const registryNote = registryPath ? `; registry ${registryPath}` : "";
         ctx.ui.notify(
-          `Opened ${commandName} in ${modeLabel}: ${summarizePrompt(objective)}${suffix}`,
+          `Opened ${commandName} in ${modeLabel}: ${summarizePrompt(objective)}${registryNote}${suffix}`,
           "info",
         );
       }
@@ -1951,17 +2038,66 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       });
 
       if (!launch.ok) {
+        const registryRecord = createCandidatePeerRegistryRecord(
+          {
+            peerRunId: questId,
+            tool: toolName,
+            canonicalTool: "candidate_peer_spawn",
+            parentCwd: worktree.parentCwd,
+            repoRoot: worktree.repoRoot,
+            worktreePath: worktree.worktreePath,
+            branchName: worktree.branchName,
+            baseRef: worktree.baseRef,
+            parentDirty: worktree.parentDirty,
+            parentDirtyWarning: worktree.parentDirtyWarning,
+            reusedExisting: worktree.reusedExisting,
+            reportBack,
+            parentPeerTarget: request.parentPeerTarget?.trim(),
+            filesInScope: normalizeStringArray(request.filesInScope),
+            offLimits: normalizeStringArray(request.offLimits),
+            constraints: normalizeStringArray(request.constraints),
+            dod: normalizeStringArray(request.dod),
+            launch: {
+              status: "launch_failed",
+              launchMode: launch.launchMode,
+              sessionMode: launch.sessionMode,
+              cwd: launch.cwd,
+              sourceSessionFile: launch.sourceSessionFile,
+              titleBase: launch.titleBase,
+              promptSummary: launch.promptSummary,
+              launchNote: launch.launchNote,
+              failure: launch.failure,
+            },
+            controllerSession: {
+              id: ctx.sessionManager.getSessionId?.(),
+              name: ctx.sessionManager.getSessionName?.(),
+              cwd: ctx.sessionManager.getCwd?.(),
+              sessionFile: ctx.sessionManager.getSessionFile?.(),
+            },
+            processHints: { controllerPid: options.processId ?? process.pid },
+          },
+          env,
+        );
+        let registryWriteError: string | undefined;
+        try {
+          writeCandidatePeerRegistryRecord(registryRecord);
+        } catch (error) {
+          registryWriteError = error instanceof Error ? error.message : String(error);
+        }
+
         return errorToolResult(`${toolName} failed to launch Ghostty: ${launch.failure}`, {
           ok: false,
           tool: toolName,
           canonicalTool: "candidate_peer_spawn",
           launchMode: launch.launchMode,
           parentCwd: worktree.parentCwd,
+          repoRoot: worktree.repoRoot,
           worktreePath: worktree.worktreePath,
           branchName: worktree.branchName,
           baseRef: worktree.baseRef,
           parentDirty: worktree.parentDirty,
           parentDirtyWarning: worktree.parentDirtyWarning,
+          reusedExisting: worktree.reusedExisting,
           sessionMode: launch.sessionMode,
           sourceSessionFile: launch.sourceSessionFile,
           titleBase: launch.titleBase,
@@ -1970,9 +2106,59 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           peerRunId: questId,
           questId,
           expectedMessages: expectedPeerMessages(reportBack),
+          registryPath: registryRecord.registryPath,
+          archiveDir: registryRecord.archiveDir,
+          cleanupPacket: registryRecord.cleanupPacket,
+          registryWriteError,
           launchNote: launch.launchNote,
           error: "launch_failed",
         });
+      }
+
+      const registryRecord = createCandidatePeerRegistryRecord(
+        {
+          peerRunId: questId,
+          tool: toolName,
+          canonicalTool: "candidate_peer_spawn",
+          parentCwd: worktree.parentCwd,
+          repoRoot: worktree.repoRoot,
+          worktreePath: worktree.worktreePath,
+          branchName: worktree.branchName,
+          baseRef: worktree.baseRef,
+          parentDirty: worktree.parentDirty,
+          parentDirtyWarning: worktree.parentDirtyWarning,
+          reusedExisting: worktree.reusedExisting,
+          reportBack,
+          parentPeerTarget: request.parentPeerTarget?.trim(),
+          filesInScope: normalizeStringArray(request.filesInScope),
+          offLimits: normalizeStringArray(request.offLimits),
+          constraints: normalizeStringArray(request.constraints),
+          dod: normalizeStringArray(request.dod),
+          launch: {
+            status: "launched",
+            launchMode: launch.launchMode,
+            sessionMode: launch.sessionMode,
+            cwd: launch.cwd,
+            sourceSessionFile: launch.sourceSessionFile,
+            titleBase: launch.titleBase,
+            promptSummary: launch.promptSummary,
+            launchNote: launch.launchNote,
+          },
+          controllerSession: {
+            id: ctx.sessionManager.getSessionId?.(),
+            name: ctx.sessionManager.getSessionName?.(),
+            cwd: ctx.sessionManager.getCwd?.(),
+            sessionFile: ctx.sessionManager.getSessionFile?.(),
+          },
+          processHints: { controllerPid: options.processId ?? process.pid },
+        },
+        env,
+      );
+      let registryWriteError: string | undefined;
+      try {
+        writeCandidatePeerRegistryRecord(registryRecord);
+      } catch (error) {
+        registryWriteError = error instanceof Error ? error.message : String(error);
       }
 
       const details = {
@@ -1981,6 +2167,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         canonicalTool: "candidate_peer_spawn",
         launchMode: launch.launchMode,
         parentCwd: worktree.parentCwd,
+        repoRoot: worktree.repoRoot,
         worktreePath: worktree.worktreePath,
         branchName: worktree.branchName,
         baseRef: worktree.baseRef,
@@ -1995,12 +2182,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         peerRunId: questId,
         questId,
         expectedMessages: expectedPeerMessages(reportBack),
+        registryPath: registryRecord.registryPath,
+        archiveDir: registryRecord.archiveDir,
+        cleanupPacket: registryRecord.cleanupPacket,
+        ...(registryWriteError ? { registryWriteError } : {}),
         nextStep: reportBackNextStep({
           reportBack,
           peerRunId: questId,
           peerLabel: "candidate peer",
           manualAction:
-            "Inspect the reported branch/worktree and visible candidate peer session manually",
+            "Inspect the reported branch/worktree, registry metadata, cleanup packet, and visible candidate peer session manually",
         }),
         ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
       };
@@ -2014,7 +2205,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           reportBack,
           peerLabel: "candidate peer",
           manualAction:
-            "Inspect the reported branch/worktree and visible candidate peer session manually",
+            "Inspect the reported branch/worktree, registry metadata, cleanup packet, and visible candidate peer session manually",
         }),
         details,
       );

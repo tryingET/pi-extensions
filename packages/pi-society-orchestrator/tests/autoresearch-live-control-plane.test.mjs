@@ -220,6 +220,50 @@ function writeExecutable(cwd, name, content) {
   chmodSync(target, 0o755);
 }
 
+function writeCandidateResultPacket(cwd, packetPath, overrides = {}) {
+  const laneId = overrides.laneId ?? "candidate-01";
+  mkdirSync(path.dirname(packetPath), { recursive: true });
+  writeFileSync(
+    packetPath,
+    JSON.stringify({
+      packetKind: "autoresearch.candidate_result.v1",
+      adapterContractVersion: 1,
+      cwd,
+      campaign: "post-fanin-finalizer-test",
+      candidate: {
+        source: "candidate_peer_spawn",
+        worktreePath: path.join(cwd, ".worktrees", laneId),
+        branch: `candidate/${laneId}`,
+        baseRef: "HEAD",
+        diffSummary: `${laneId} finalizer candidate`,
+        filesChanged: overrides.filesChanged ?? [
+          "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+        ],
+        peerRunId: `candidatepeer-${laneId}`,
+        ...overrides.candidate,
+      },
+      candidateRun: {
+        iteration: 1,
+        status: "candidate",
+        runKind: "ordinary",
+        empiricalDecisionClass: "candidate_improvement",
+        metric: overrides.metric ?? 1,
+        description: `Measure ${laneId}`,
+        timestamp: 1,
+        checks: overrides.checks ?? "pass",
+        experiment: {
+          hypothesisId: laneId,
+          hypothesis: `${laneId} hypothesis`,
+        },
+      },
+      empiricalDecisionClass: overrides.empiricalDecisionClass ?? "candidate_improvement",
+      resultSummary: `${laneId} improved`,
+      closeout: { status: { confidence: 2.1 } },
+      adapterBoundary: "packet boundary",
+    }),
+  );
+}
+
 test("autoresearch_live_supervision lists active sessions and enforces exact identity pairing", async () => {
   const tool = registerAutoresearchLiveTool(new AutoresearchLiveSupervisionRunner());
 
@@ -1342,6 +1386,137 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
   });
 });
 
+test("post-fan-in finalizer emits explicit apply packet only after clean preflight and authorization", async () => {
+  await withTempDir(async (cwd) => {
+    const packetA = path.join(cwd, "candidate-01.candidate-result.json");
+    const packetB = path.join(cwd, "candidate-02.candidate-result.json");
+    writeCandidateResultPacket(cwd, packetA, { laneId: "candidate-01", metric: 4 });
+    writeCandidateResultPacket(cwd, packetB, { laneId: "candidate-02", metric: 2 });
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const preflight = runner.finalizePostFanin({
+      action: "post_fanin_finalizer",
+      taskId: 2959,
+      cwd,
+      objective: "finalize post-fan-in campaign",
+      sourceReview: "review_candidate_wave",
+      direction: "lower",
+      candidateResultPacketPaths: [packetA, packetB],
+      selectedLaneId: "candidate-02",
+      validation: {
+        command:
+          "pnpm --filter @tryinget/pi-society-orchestrator test -- autoresearch-live-control-plane",
+        status: "passed",
+        summary: "focused finalizer checks passed",
+      },
+      offLimits: ["packages/pi-toolbox-discovery/**"],
+      dirtyFiles: ["packages/pi-society-orchestrator/README.md"],
+      reviewedAtEpochMs: Date.now() + 60_000,
+    });
+
+    assert.equal(preflight.kind, "autoresearch.post_fanin_finalizer_result.v1");
+    assert.equal(preflight.outcome, "review_blocked");
+    assert.equal(preflight.preflight.status, "passed");
+    assert.equal(preflight.manualPostFaninResidue.value, 1);
+    assert.equal(
+      preflight.exactApplyCommandPacket.kind,
+      "autoresearch.post_fanin_finalizer_apply_command_packet.v1",
+    );
+    assert.equal(preflight.exactApplyCommandPacket.applyExecution, "not_executed_by_orchestrator");
+    assert.match(
+      preflight.exactApplyCommandPacket.exactCommands.join("\n"),
+      /git -C .* checkout .*candidate\/candidate-02/,
+    );
+    assert.match(preflight.exactApplyCommandPacket.exactCommands.join("\n"), /git -C .* commit -m/);
+
+    const authorized = runner.finalizePostFanin({
+      action: "post_fanin_finalizer",
+      taskId: 2959,
+      cwd,
+      objective: "finalize post-fan-in campaign",
+      sourceReview: "review_candidate_wave",
+      direction: "lower",
+      candidateResultPacketPaths: [packetA, packetB],
+      selectedLaneId: "candidate-02",
+      validation: {
+        command:
+          "pnpm --filter @tryinget/pi-society-orchestrator test -- autoresearch-live-control-plane",
+        status: "passed",
+      },
+      offLimits: ["packages/pi-toolbox-discovery/**"],
+      dirtyFiles: ["packages/pi-society-orchestrator/README.md"],
+      reviewedAtEpochMs: Date.now() + 60_000,
+      applyAuthorizationToken: preflight.contract.exactAuthorizationToken,
+    });
+
+    assert.equal(authorized.outcome, "committed_cleaned");
+    assert.equal(authorized.manualPostFaninResidue.name, "manual_post_fanin_residue");
+    assert.equal(authorized.manualPostFaninResidue.value, 0);
+    assert.equal(authorized.manualPostFaninResidue.status, "target_met");
+    assert.ok(
+      authorized.boundaries.some((boundary) => /No checkout, merge, commit/.test(boundary)),
+    );
+  });
+});
+
+test("post-fan-in finalizer fails closed on missing finals, off-limits drift, dirty overlap, stale review, and wrong authorization", async () => {
+  await withTempDir(async (cwd) => {
+    const packet = path.join(cwd, "candidate-01.candidate-result.json");
+    writeCandidateResultPacket(cwd, packet, {
+      laneId: "candidate-01",
+      filesChanged: [
+        "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+        "packages/pi-toolbox-discovery/src/index.ts",
+      ],
+    });
+    const runner = new AutoresearchLiveSupervisionRunner();
+
+    const blocked = runner.finalizePostFanin({
+      action: "post_fanin_finalizer",
+      taskId: 2959,
+      cwd,
+      objective: "finalize blocked post-fan-in campaign",
+      sourceReview: "review_candidate_wave",
+      candidateResultPacketPaths: [packet, path.join(cwd, "candidate-02.candidate-result.json")],
+      selectedLaneId: "candidate-01",
+      validation: { command: "pnpm test", status: "failed", summary: "validation failed" },
+      offLimits: ["packages/pi-toolbox-discovery/**"],
+      dirtyFiles: [
+        "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+      ],
+      reviewedAtEpochMs: 1,
+      applyAuthorizationToken: "authorize-post-fanin-finalizer:wrong",
+    });
+
+    assert.equal(blocked.outcome, "failed_closed");
+    assert.equal(blocked.exactApplyCommandPacket, null);
+    assert.equal(blocked.preflight.status, "blocked");
+    assert.ok(blocked.preflight.blockerCount >= 5);
+    assert.equal(
+      blocked.preflight.checks.find((check) => check.name === "finals_present").status,
+      "blocked",
+    );
+    assert.equal(
+      blocked.preflight.checks.find((check) => check.name === "validation_passed").status,
+      "blocked",
+    );
+    assert.equal(
+      blocked.preflight.checks.find((check) => check.name === "off_limits_clean").status,
+      "blocked",
+    );
+    assert.equal(
+      blocked.preflight.checks.find((check) => check.name === "dirty_overlap_clean").status,
+      "blocked",
+    );
+    assert.equal(
+      blocked.preflight.checks.find((check) => check.name === "review_artifacts_current").status,
+      "blocked",
+    );
+    assert.match(blocked.nextStep, /Fail closed/);
+    assert.ok(blocked.boundaries.some((boundary) => /Missing finals.*fail closed/.test(boundary)));
+  });
+});
+
 test("autoresearch_live_supervision review_candidate_wave compares measured lanes for owner selection", async () => {
   const cwd = "/tmp/candidate-wave-review";
   const runner = new AutoresearchLiveSupervisionRunner();
@@ -1792,6 +1967,121 @@ test("autoresearch_live_supervision review_candidate_wave rejects controller-inl
     assert.match(result.content[0].text, /process_violation/);
     assert.match(result.content[0].text, /candidate-peer/);
     assert.match(result.content[0].text, /peerRunId=candidatepeer-positive-lineage/);
+  });
+});
+
+test("autoresearch_live_supervision review_candidate_wave fails closed on off-limits path drift", async () => {
+  await withTempDir(async (cwd) => {
+    const driftPacket = path.join(cwd, "candidate-drift.json");
+    const cleanPacket = path.join(cwd, "candidate-clean.json");
+    writeFileSync(
+      driftPacket,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "candidate_peer_spawn",
+          peerRunId: "candidatepeer-off-limits-drift",
+          worktreePath: path.join(cwd, ".worktrees", "candidate-drift"),
+          branch: "candidate/off-limits-drift",
+          baseRef: "HEAD",
+          diffSummary: "best metric but touched off-limits toolbox package",
+          filesChanged: ["packages/pi-toolbox-discovery/src/index.ts"],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 0,
+          description: "Measure drift candidate",
+          timestamp: 1,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-drift",
+            hypothesis: "Off-limits drift must fail closed despite best metric",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "best metric but illegal changed file",
+        closeout: { status: { confidence: 3.0 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+    writeFileSync(
+      cleanPacket,
+      JSON.stringify({
+        packetKind: "autoresearch.candidate_result.v1",
+        adapterContractVersion: 1,
+        cwd,
+        campaign: "candidate-wave",
+        candidate: {
+          source: "candidate_peer_spawn",
+          peerRunId: "candidatepeer-clean",
+          worktreePath: path.join(cwd, ".worktrees", "candidate-clean"),
+          branch: "candidate/clean",
+          baseRef: "HEAD",
+          diffSummary: "clean scoped candidate",
+          filesChanged: [
+            "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+          ],
+        },
+        candidateRun: {
+          iteration: 1,
+          status: "candidate",
+          runKind: "ordinary",
+          empiricalDecisionClass: "candidate_improvement",
+          metric: 5,
+          description: "Measure clean candidate",
+          timestamp: 2,
+          checks: "pass",
+          experiment: {
+            hypothesisId: "candidate-clean",
+            hypothesis: "Clean candidate remains selectable",
+          },
+        },
+        empiricalDecisionClass: "candidate_improvement",
+        resultSummary: "clean candidate is selectable",
+        closeout: { status: { confidence: 2.0 } },
+        adapterBoundary: "packet boundary",
+      }),
+    );
+
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const result = await tool.execute(
+      "tc-review-candidate-wave-off-limits-drift",
+      {
+        action: "review_candidate_wave",
+        taskId: 2959,
+        cwd,
+        objective: "fail closed when a candidate result drifts into off-limits paths",
+        direction: "lower",
+        offLimits: ["packages/pi-toolbox-discovery/**"],
+        candidateResultPacketPaths: [driftPacket, cleanPacket],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.candidateWaveReview.recommendation.laneId, "candidate-clean");
+    const driftLane = result.details.candidateWaveReview.lanes.find(
+      (lane) => lane.laneId === "candidate-drift",
+    );
+    assert.equal(driftLane.selectable, false);
+    assert.match(driftLane.selectionReason, /process_violation/);
+    assert.match(driftLane.selectionReason, /off-limits path drift/);
+    assert.match(driftLane.selectionReason, /packages\/pi-toolbox-discovery\/src\/index\.ts/);
+    assert.match(
+      result.details.candidateWaveReview.recommendation.exactNextCalls.join("\n"),
+      /candidate-clean/,
+    );
+    assert.match(result.content[0].text, /candidate-drift/);
+    assert.match(result.content[0].text, /off-limits path drift/);
   });
 });
 

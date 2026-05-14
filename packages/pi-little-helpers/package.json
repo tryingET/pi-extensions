@@ -48,6 +48,7 @@
     "extensions/sidequest.ts",
     "extensions/stash.ts",
     "lib/package-utils.ts",
+    "src/candidatePeerRegistry.ts",
     "src/capabilityManifest.ts",
     "src/toolboxBundle.ts",
     "src/visibleLoop.ts",
@@ -57,6 +58,7 @@
     "policy/stack-lane.json"
   ],
   "exports": {
+    "./candidate-peer-registry": "./src/candidatePeerRegistry.ts",
     "./capability-manifest": "./src/capabilityManifest.ts",
     "./toolbox-bundle": "./src/toolboxBundle.ts",
     "./visible-loop": "./src/visibleLoop.ts",

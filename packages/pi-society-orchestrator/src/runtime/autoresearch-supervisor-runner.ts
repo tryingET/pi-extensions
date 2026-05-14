@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -174,6 +175,108 @@ export interface AutoresearchLiveStartCampaignRequest extends AutoresearchLiveSu
 export interface AutoresearchLiveStartCampaignResult {
   campaign: ExecuteAutoresearchCampaignStartResult;
   supervision: AutoresearchLiveStartResult;
+}
+
+export interface AutoresearchPostFaninValidationEvidence {
+  command: string;
+  status: "passed" | "failed" | "missing";
+  summary?: string;
+  artifactPath?: string;
+}
+
+export interface AutoresearchPostFaninFinalizerRequest extends AutoresearchLiveSupervisionRequest {
+  objective: string;
+  sourceReview: "review_candidate_wave" | "review_matrix_campaign";
+  direction?: "lower" | "higher";
+  metricName?: string;
+  metricThreshold?: number;
+  candidateResultPacketPaths?: readonly string[];
+  scenarios?: readonly string[];
+  hypotheses?: readonly string[];
+  candidateCountPerCell?: number;
+  selectedLaneId?: string;
+  selectedCellId?: string;
+  validation?: AutoresearchPostFaninValidationEvidence;
+  offLimits?: readonly string[];
+  dirtyFiles?: readonly string[];
+  reviewedAtEpochMs?: number;
+  applyAuthorizationToken?: string;
+}
+
+export interface AutoresearchPostFaninFinalizerContract {
+  kind: "autoresearch.post_fanin_finalizer_contract.v1";
+  sourceReview: "review_candidate_wave" | "review_matrix_campaign";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  applyPosture: "explicit_authorization_required";
+  exactAuthorizationToken: string;
+  requiredPreflightChecks: readonly [
+    "finals_present",
+    "validation_passed",
+    "off_limits_clean",
+    "dirty_overlap_clean",
+    "selected_lane_consistent",
+    "review_artifacts_current",
+  ];
+  outcomes: readonly ["committed_cleaned", "review_blocked", "failed_closed"];
+  boundary: string;
+}
+
+export interface AutoresearchPostFaninFinalizerPreflightCheck {
+  name:
+    | "finals_present"
+    | "validation_passed"
+    | "off_limits_clean"
+    | "dirty_overlap_clean"
+    | "selected_lane_consistent"
+    | "review_artifacts_current";
+  status: "passed" | "blocked";
+  summary: string;
+  evidence: readonly string[];
+}
+
+export interface AutoresearchPostFaninFinalizerApplyCommandPacket {
+  kind: "autoresearch.post_fanin_finalizer_apply_command_packet.v1";
+  exactTaskId: number;
+  exactCwd: string;
+  sourceReview: "review_candidate_wave" | "review_matrix_campaign";
+  authorizationToken: string;
+  authorizationRequired: true;
+  applyExecution: "not_executed_by_orchestrator";
+  selectedLanes: readonly {
+    cellId: string | null;
+    laneId: string;
+    candidateBranch: string;
+    candidateWorktree: string;
+    candidateBaseRef: string;
+    sourcePacketPath: string;
+    filesChanged: readonly string[];
+  }[];
+  exactCommands: readonly string[];
+  rollbackNotes: readonly string[];
+  boundary: string;
+}
+
+export interface AutoresearchPostFaninFinalizerResult {
+  kind: "autoresearch.post_fanin_finalizer_result.v1";
+  outcome: "committed_cleaned" | "review_blocked" | "failed_closed";
+  contract: AutoresearchPostFaninFinalizerContract;
+  preflight: {
+    status: "passed" | "blocked";
+    checks: readonly AutoresearchPostFaninFinalizerPreflightCheck[];
+    blockerCount: number;
+  };
+  manualPostFaninResidue: {
+    name: "manual_post_fanin_residue";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  exactApplyCommandPacket: AutoresearchPostFaninFinalizerApplyCommandPacket | null;
+  nextStep: string;
+  boundaries: readonly string[];
 }
 
 export interface AutoresearchCandidateWaveRequest extends AutoresearchLiveSupervisionRequest {
@@ -739,6 +842,7 @@ export interface AutoresearchCandidateWaveReviewRequest extends AutoresearchLive
   direction?: "lower" | "higher";
   candidateResults?: readonly AutoresearchCandidateWaveResultInput[];
   candidateResultPacketPaths?: readonly string[];
+  offLimits?: readonly string[];
 }
 
 export interface AutoresearchCandidateWaveReviewLane {
@@ -1181,9 +1285,65 @@ function candidateWaveRunnerLineage(
   };
 }
 
+function normalizeCandidateReviewPath(value: string, cwd: string): string {
+  const raw = value.trim().replace(/\\/gu, "/");
+  if (raw.length === 0) return "";
+  const repoRelative = path.isAbsolute(raw) ? path.relative(cwd, raw).replace(/\\/gu, "/") : raw;
+  const normalized = path.posix.normalize(repoRelative).replace(/^\.\//u, "");
+  return normalized === "." ? "" : normalized.replace(/\/$/u, "");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function candidatePathMatchesOffLimitSpec(changedPath: string, offLimitSpec: string): boolean {
+  if (changedPath.length === 0 || offLimitSpec.length === 0) return false;
+  if (!offLimitSpec.includes("*")) {
+    return changedPath === offLimitSpec || changedPath.startsWith(`${offLimitSpec}/`);
+  }
+
+  if (offLimitSpec.endsWith("/**")) {
+    const prefix = offLimitSpec.slice(0, -"/**".length);
+    if (changedPath === prefix || changedPath.startsWith(`${prefix}/`)) return true;
+  }
+
+  let pattern = "";
+  for (let index = 0; index < offLimitSpec.length; index += 1) {
+    const char = offLimitSpec[index];
+    if (char === "*" && offLimitSpec[index + 1] === "*") {
+      pattern += ".*";
+      index += 1;
+    } else if (char === "*") {
+      pattern += "[^/]*";
+    } else {
+      pattern += escapeRegExp(char);
+    }
+  }
+  return new RegExp(`^${pattern}$`, "u").test(changedPath);
+}
+
+function candidateFilesChangedOffLimitViolations(input: {
+  cwd: string;
+  candidateFilesChanged: readonly string[] | undefined;
+  offLimits: readonly string[];
+}): string[] {
+  const offLimitSpecs = input.offLimits
+    .map((spec) => normalizeCandidateReviewPath(spec, input.cwd))
+    .filter((spec) => spec.length > 0);
+  if (offLimitSpecs.length === 0) return [];
+
+  return [...(input.candidateFilesChanged ?? [])]
+    .map((filePath) => normalizeCandidateReviewPath(filePath, input.cwd))
+    .filter((filePath) =>
+      offLimitSpecs.some((spec) => candidatePathMatchesOffLimitSpec(filePath, spec)),
+    );
+}
+
 function candidateWaveLaneSelectable(
   input: AutoresearchCandidateWaveResultInput,
   cwd: string,
+  offLimits: readonly string[] = [],
 ): {
   selectable: boolean;
   reason: string;
@@ -1203,6 +1363,18 @@ function candidateWaveLaneSelectable(
   ) {
     return { selectable: false, reason: `status is ${input.status ?? "unknown"}` };
   }
+  const offLimitViolations = candidateFilesChangedOffLimitViolations({
+    cwd,
+    candidateFilesChanged: input.candidateFilesChanged,
+    offLimits,
+  });
+  if (offLimitViolations.length > 0) {
+    return {
+      selectable: false,
+      reason: `process_violation: off-limits path drift in changed files: ${offLimitViolations.join(", ")}`,
+    };
+  }
+
   const lineage = candidateWaveRunnerLineage(input, cwd);
   if (!lineage.ok) {
     return { selectable: false, reason: lineage.reason };
@@ -1852,9 +2024,10 @@ export function reviewAutoresearchCandidateWave(
     );
   }
   const direction = input.direction ?? "lower";
+  const offLimits = nonEmptyStrings(input.offLimits);
   const lanes = sortCandidateWaveReviewLanes(
     candidateResults.map((candidate) => {
-      const selectable = candidateWaveLaneSelectable(candidate, identity.cwd);
+      const selectable = candidateWaveLaneSelectable(candidate, identity.cwd, offLimits);
       return {
         laneId: candidate.laneId || "candidate-unknown",
         objective: candidate.objective?.trim() || null,
@@ -1923,6 +2096,7 @@ export function reviewAutoresearchCandidateWave(
   if (packetDiscovery.candidateResultPacketPaths.length > 0) {
     aggregateReviewPayload.candidateResultPacketPaths = packetDiscovery.candidateResultPacketPaths;
   }
+  if (offLimits.length > 0) aggregateReviewPayload.offLimits = offLimits;
   const aggregateReviewCall = formatToolCall(
     "autoresearch_live_supervision",
     aggregateReviewPayload,
@@ -1987,6 +2161,409 @@ export function reviewAutoresearchCandidateWave(
       "Explicit planned packet paths gate final owner selection until every planned lane has a controller-measured pi-autoresearch candidate-result packet or the owner deliberately replans the lane set.",
       "pi-autoresearch receipts and candidate-result packets remain the measurement source for each candidate.",
       "The recommendation is not promotion authority; owner approval and external promotion gates remain required.",
+    ],
+  };
+}
+
+type AutoresearchPostFaninSelectedLane = {
+  cellId: string | null;
+  laneId: string;
+  candidateBranch: string | null;
+  candidateWorktree: string | null;
+  candidateBaseRef: string | null;
+  sourcePacketPath: string | null;
+  filesChanged: readonly string[];
+};
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/gu, `'"'"'`)}'`;
+}
+
+function stableFinalizerHash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 16);
+}
+
+function normalizeRepoPath(value: string): string {
+  return value.trim().replace(/\\/gu, "/").replace(/^\.\//u, "");
+}
+
+function offLimitPatternMatches(pattern: string, filePath: string): boolean {
+  const normalizedPattern = normalizeRepoPath(pattern);
+  const normalizedFile = normalizeRepoPath(filePath);
+  if (normalizedPattern.length === 0) return false;
+  if (normalizedPattern.endsWith("/**")) {
+    const prefix = normalizedPattern.slice(0, -3);
+    return normalizedFile === prefix || normalizedFile.startsWith(`${prefix}/`);
+  }
+  if (normalizedPattern.endsWith("/")) {
+    return normalizedFile.startsWith(normalizedPattern);
+  }
+  return normalizedFile === normalizedPattern || normalizedFile.startsWith(`${normalizedPattern}/`);
+}
+
+function filesMatchingOffLimits(files: readonly string[], offLimits: readonly string[]): string[] {
+  return files
+    .map(normalizeRepoPath)
+    .filter((filePath) => offLimits.some((pattern) => offLimitPatternMatches(pattern, filePath)));
+}
+
+function intersectNormalizedFiles(left: readonly string[], right: readonly string[]): string[] {
+  const rightSet = new Set(right.map(normalizeRepoPath));
+  return left.map(normalizeRepoPath).filter((filePath) => rightSet.has(filePath));
+}
+
+function selectedLaneFromCandidateReview(
+  review: AutoresearchCandidateWaveReview,
+  requestedLaneId?: string,
+): AutoresearchPostFaninSelectedLane | null {
+  const laneId = review.recommendation.laneId ?? requestedLaneId;
+  if (!laneId) return null;
+  const lane = review.lanes.find((candidate) => candidate.laneId === laneId);
+  if (!lane) return null;
+  return {
+    cellId: null,
+    laneId: lane.laneId,
+    candidateBranch: lane.candidateBranch,
+    candidateWorktree: lane.candidateWorktree,
+    candidateBaseRef: lane.candidateBaseRef,
+    sourcePacketPath: lane.sourcePacketPath,
+    filesChanged: lane.candidateFilesChanged,
+  };
+}
+
+function selectedLanesFromMatrixReview(
+  review: AutoresearchMatrixCampaignReview,
+): AutoresearchPostFaninSelectedLane[] {
+  return review.cells.flatMap((cell) => {
+    const laneId = cell.selectedLaneId;
+    if (!laneId) return [];
+    const lane = cell.candidateWaveReview.lanes.find((candidate) => candidate.laneId === laneId);
+    if (!lane) return [];
+    return [
+      {
+        cellId: cell.cellId,
+        laneId: lane.laneId,
+        candidateBranch: lane.candidateBranch,
+        candidateWorktree: lane.candidateWorktree,
+        candidateBaseRef: lane.candidateBaseRef,
+        sourcePacketPath: lane.sourcePacketPath,
+        filesChanged: lane.candidateFilesChanged,
+      },
+    ];
+  });
+}
+
+function buildPostFaninFinalizerApplyCommandPacket(input: {
+  identity: SessionIdentity;
+  sourceReview: AutoresearchPostFaninFinalizerRequest["sourceReview"];
+  objective: string;
+  authorizationToken: string;
+  selectedLanes: readonly AutoresearchPostFaninSelectedLane[];
+  validation: AutoresearchPostFaninValidationEvidence;
+}): AutoresearchPostFaninFinalizerApplyCommandPacket {
+  const selectedFiles = [
+    ...new Set(input.selectedLanes.flatMap((lane) => lane.filesChanged.map(normalizeRepoPath))),
+  ].sort();
+  const fileArgs = selectedFiles.map(shellQuote).join(" ");
+  const commands = [
+    `git -C ${shellQuote(input.identity.cwd)} status --short`,
+    ...input.selectedLanes.map(
+      (lane) =>
+        `git -C ${shellQuote(lane.candidateWorktree ?? "<missing-candidate-worktree>")} diff --name-only ${shellQuote(lane.candidateBaseRef ?? "<missing-base-ref>")}...HEAD -- ${lane.filesChanged.map((file) => shellQuote(normalizeRepoPath(file))).join(" ")}`,
+    ),
+    ...input.selectedLanes.map(
+      (lane) =>
+        `git -C ${shellQuote(input.identity.cwd)} checkout ${shellQuote(lane.candidateBranch ?? "<missing-candidate-branch>")} -- ${lane.filesChanged.map((file) => shellQuote(normalizeRepoPath(file))).join(" ")}`,
+    ),
+    input.validation.command,
+    `git -C ${shellQuote(input.identity.cwd)} status --short -- ${fileArgs}`,
+    `git -C ${shellQuote(input.identity.cwd)} add -- ${fileArgs}`,
+    `git -C ${shellQuote(input.identity.cwd)} commit -m ${shellQuote(`autoresearch finalizer: ${input.objective}`)}`,
+    `git -C ${shellQuote(input.identity.cwd)} status --short`,
+  ];
+
+  return {
+    kind: "autoresearch.post_fanin_finalizer_apply_command_packet.v1",
+    exactTaskId: input.identity.taskId,
+    exactCwd: input.identity.cwd,
+    sourceReview: input.sourceReview,
+    authorizationToken: input.authorizationToken,
+    authorizationRequired: true,
+    applyExecution: "not_executed_by_orchestrator",
+    selectedLanes: input.selectedLanes.map((lane) => ({
+      cellId: lane.cellId,
+      laneId: lane.laneId,
+      candidateBranch: lane.candidateBranch ?? "<missing-candidate-branch>",
+      candidateWorktree: lane.candidateWorktree ?? "<missing-candidate-worktree>",
+      candidateBaseRef: lane.candidateBaseRef ?? "<missing-base-ref>",
+      sourcePacketPath: lane.sourcePacketPath ?? "<missing-source-packet>",
+      filesChanged: lane.filesChanged.map(normalizeRepoPath),
+    })),
+    exactCommands: commands,
+    rollbackNotes: [
+      "The orchestrator did not run these commands; rollback belongs to the explicit controller/apply lane that executes them.",
+      "If validation or post-apply status fails, stop before commit or revert the explicit commit in the controller lane.",
+      "Do not delete candidate worktrees or non-selected lanes from this finalizer packet; lifecycle cleanup needs a separate owner-approved action.",
+    ],
+    boundary:
+      "This packet is an exact explicit apply recipe only; pi-society-orchestrator does not checkout, merge, commit, clean, delete, promote, or write evidence from finalizer construction.",
+  };
+}
+
+export function finalizeAutoresearchPostFanin(
+  input: AutoresearchPostFaninFinalizerRequest,
+): AutoresearchPostFaninFinalizerResult {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const objective = input.objective.trim();
+  if (objective.length === 0) {
+    throw new Error("post-fan-in finalizer requires a non-empty objective.");
+  }
+  const direction = input.direction ?? "lower";
+  const offLimits = nonEmptyStrings(input.offLimits);
+  const dirtyFiles = nonEmptyStrings(input.dirtyFiles);
+  const validation = input.validation ?? { command: "", status: "missing" as const };
+
+  const candidateReview =
+    input.sourceReview === "review_candidate_wave"
+      ? reviewAutoresearchCandidateWave({
+          ...identity,
+          objective,
+          direction,
+          candidateResultPacketPaths: input.candidateResultPacketPaths,
+        })
+      : null;
+  const matrixReview =
+    input.sourceReview === "review_matrix_campaign"
+      ? reviewAutoresearchMatrixCampaign({
+          ...identity,
+          objective,
+          direction,
+          metricName: input.metricName,
+          metricThreshold: input.metricThreshold,
+          scenarios: input.scenarios,
+          hypotheses: input.hypotheses,
+          candidateCountPerCell: input.candidateCountPerCell,
+          offLimits,
+        })
+      : null;
+  const selectedLanes = candidateReview
+    ? [selectedLaneFromCandidateReview(candidateReview, input.selectedLaneId)].filter(
+        (lane): lane is AutoresearchPostFaninSelectedLane => lane !== null,
+      )
+    : selectedLanesFromMatrixReview(matrixReview as AutoresearchMatrixCampaignReview);
+  const selectedFiles = [
+    ...new Set(selectedLanes.flatMap((lane) => lane.filesChanged.map(normalizeRepoPath))),
+  ].sort();
+  const selectedLaneMatches =
+    (!input.selectedLaneId || selectedLanes.some((lane) => lane.laneId === input.selectedLaneId)) &&
+    (!input.selectedCellId || selectedLanes.some((lane) => lane.cellId === input.selectedCellId));
+  const reviewReady = candidateReview
+    ? candidateReview.recommendation.posture === "owner_selection_required"
+    : matrixReview?.posture === "ready_for_matrix_owner_review";
+  const packetPaths = selectedLanes
+    .map((lane) => lane.sourcePacketPath)
+    .filter((packetPath): packetPath is string => Boolean(packetPath));
+  const missingPacketPaths = selectedLanes.filter(
+    (lane) => !lane.sourcePacketPath || !fs.existsSync(lane.sourcePacketPath),
+  );
+  const reviewedAtEpochMs =
+    typeof input.reviewedAtEpochMs === "number" && Number.isFinite(input.reviewedAtEpochMs)
+      ? input.reviewedAtEpochMs
+      : null;
+  const stalePacketPaths =
+    reviewedAtEpochMs === null
+      ? []
+      : packetPaths.filter(
+          (packetPath) =>
+            fs.existsSync(packetPath) && fs.statSync(packetPath).mtimeMs > reviewedAtEpochMs,
+        );
+  const offLimitMatches = filesMatchingOffLimits(selectedFiles, offLimits);
+  const dirtyOverlap = intersectNormalizedFiles(selectedFiles, dirtyFiles);
+  const missingLaneProof = selectedLanes.filter(
+    (lane) =>
+      !lane.candidateBranch ||
+      !lane.candidateWorktree ||
+      !lane.candidateBaseRef ||
+      lane.filesChanged.length === 0,
+  );
+  const fingerprint = stableFinalizerHash({
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    sourceReview: input.sourceReview,
+    objective,
+    selectedLanes: selectedLanes.map((lane) => ({
+      cellId: lane.cellId,
+      laneId: lane.laneId,
+      packet: lane.sourcePacketPath,
+      files: lane.filesChanged.map(normalizeRepoPath).sort(),
+    })),
+    validationCommand: validation.command,
+    offLimits,
+  });
+  const authorizationToken = `authorize-post-fanin-finalizer:${fingerprint}`;
+
+  const checks: AutoresearchPostFaninFinalizerPreflightCheck[] = [
+    {
+      name: "finals_present",
+      status:
+        reviewReady && selectedLanes.length > 0 && missingPacketPaths.length === 0
+          ? "passed"
+          : "blocked",
+      summary:
+        reviewReady && selectedLanes.length > 0 && missingPacketPaths.length === 0
+          ? `${selectedLanes.length} selected lane final packet(s) are present.`
+          : "Fan-in review is not ready or selected final packet evidence is missing.",
+      evidence: [
+        `reviewReady=${reviewReady ? "yes" : "no"}`,
+        `selectedLanes=${selectedLanes.map((lane) => `${lane.cellId ?? "wave"}/${lane.laneId}`).join(", ") || "none"}`,
+        ...missingPacketPaths.map(
+          (lane) =>
+            `missing packet for ${lane.cellId ?? "wave"}/${lane.laneId}: ${lane.sourcePacketPath ?? "none"}`,
+        ),
+      ],
+    },
+    {
+      name: "validation_passed",
+      status:
+        validation.status === "passed" && validation.command.trim().length > 0
+          ? "passed"
+          : "blocked",
+      summary:
+        validation.status === "passed" && validation.command.trim().length > 0
+          ? `Validation passed via ${validation.command}.`
+          : "Validation evidence is missing or failed.",
+      evidence: [
+        `status=${validation.status}`,
+        `command=${validation.command || "missing"}`,
+        ...(validation.artifactPath ? [`artifact=${validation.artifactPath}`] : []),
+        ...(validation.summary ? [`summary=${validation.summary}`] : []),
+      ],
+    },
+    {
+      name: "off_limits_clean",
+      status: offLimitMatches.length === 0 ? "passed" : "blocked",
+      summary:
+        offLimitMatches.length === 0
+          ? "Selected lane changed files do not intersect off-limits specs."
+          : `Selected lane changed files intersect off-limits specs: ${offLimitMatches.join(", ")}`,
+      evidence: [
+        `offLimits=${offLimits.join(", ") || "none"}`,
+        `selectedFiles=${selectedFiles.join(", ") || "none"}`,
+      ],
+    },
+    {
+      name: "dirty_overlap_clean",
+      status: dirtyOverlap.length === 0 ? "passed" : "blocked",
+      summary:
+        dirtyOverlap.length === 0
+          ? "No supplied dirty parent/controller files overlap selected lane changes."
+          : `Dirty overlap blocks apply: ${dirtyOverlap.join(", ")}`,
+      evidence: [
+        `dirtyFiles=${dirtyFiles.join(", ") || "none"}`,
+        `selectedFiles=${selectedFiles.join(", ") || "none"}`,
+      ],
+    },
+    {
+      name: "selected_lane_consistent",
+      status: selectedLaneMatches && missingLaneProof.length === 0 ? "passed" : "blocked",
+      summary:
+        selectedLaneMatches && missingLaneProof.length === 0
+          ? "Selected lane identity, branch/worktree/base, and changed-file proof are consistent."
+          : "Selected lane identity or lineage proof is inconsistent.",
+      evidence: [
+        `requestedCell=${input.selectedCellId ?? "not specified"}`,
+        `requestedLane=${input.selectedLaneId ?? "not specified"}`,
+        `selected=${selectedLanes.map((lane) => `${lane.cellId ?? "wave"}/${lane.laneId}`).join(", ") || "none"}`,
+        ...missingLaneProof.map(
+          (lane) => `missing lineage proof for ${lane.cellId ?? "wave"}/${lane.laneId}`,
+        ),
+      ],
+    },
+    {
+      name: "review_artifacts_current",
+      status: stalePacketPaths.length === 0 ? "passed" : "blocked",
+      summary:
+        stalePacketPaths.length === 0
+          ? "Selected packet artifacts are not newer than the supplied review timestamp."
+          : `Review is stale; packet artifact(s) changed after review: ${stalePacketPaths.join(", ")}`,
+      evidence: [
+        `reviewedAtEpochMs=${input.reviewedAtEpochMs ?? "not supplied"}`,
+        ...stalePacketPaths.map((packetPath) => `stale=${packetPath}`),
+      ],
+    },
+  ];
+  const blockerCount = checks.filter((check) => check.status === "blocked").length;
+  const preflightPassed = blockerCount === 0;
+  const wrongAuthorization =
+    Boolean(input.applyAuthorizationToken) && input.applyAuthorizationToken !== authorizationToken;
+  const contract: AutoresearchPostFaninFinalizerContract = {
+    kind: "autoresearch.post_fanin_finalizer_contract.v1",
+    sourceReview: input.sourceReview,
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    applyPosture: "explicit_authorization_required",
+    exactAuthorizationToken: authorizationToken,
+    requiredPreflightChecks: [
+      "finals_present",
+      "validation_passed",
+      "off_limits_clean",
+      "dirty_overlap_clean",
+      "selected_lane_consistent",
+      "review_artifacts_current",
+    ],
+    outcomes: ["committed_cleaned", "review_blocked", "failed_closed"],
+    boundary:
+      "Post-fan-in finalization is a governed preflight plus exact command packet surface; apply/commit/cleanup requires the exact authorization token and still runs outside this orchestrator helper.",
+  };
+  const exactApplyCommandPacket = preflightPassed
+    ? buildPostFaninFinalizerApplyCommandPacket({
+        identity,
+        sourceReview: input.sourceReview,
+        objective,
+        authorizationToken,
+        selectedLanes,
+        validation,
+      })
+    : null;
+  const outcome: AutoresearchPostFaninFinalizerResult["outcome"] =
+    !preflightPassed || wrongAuthorization
+      ? "failed_closed"
+      : input.applyAuthorizationToken === authorizationToken
+        ? "committed_cleaned"
+        : "review_blocked";
+  const manualResidueValue =
+    outcome === "committed_cleaned" ? 0 : Math.max(1, blockerCount + (wrongAuthorization ? 1 : 0));
+
+  return {
+    kind: "autoresearch.post_fanin_finalizer_result.v1",
+    outcome,
+    contract,
+    preflight: {
+      status: preflightPassed ? "passed" : "blocked",
+      checks,
+      blockerCount: blockerCount + (wrongAuthorization ? 1 : 0),
+    },
+    manualPostFaninResidue: {
+      name: "manual_post_fanin_residue",
+      direction: "lower",
+      target: 0,
+      value: manualResidueValue,
+      status: manualResidueValue === 0 ? "target_met" : "blocked",
+    },
+    exactApplyCommandPacket,
+    nextStep:
+      outcome === "committed_cleaned"
+        ? "Exact authorization token accepted; run the emitted apply command packet deliberately in the controller/apply lane if promotion is approved. The orchestrator has not executed it."
+        : outcome === "review_blocked"
+          ? "Preflight passed, but apply is blocked until the exact authorization token is supplied deliberately."
+          : wrongAuthorization
+            ? "Fail closed: supplied applyAuthorizationToken did not match the contract token. Re-run preflight and authorize explicitly if still intended."
+            : "Fail closed: resolve preflight blockers, rerun fan-in review/finalizer, and do not apply hidden promotion or cleanup.",
+    boundaries: [
+      "No checkout, merge, commit, cleanup, worktree deletion, evidence write, AK/KES/Prompt Vault/ROCS mutation, or promotion was executed by this finalizer.",
+      "Missing finals, failed validation, off-limits drift, dirty overlap, selected-lane mismatch, stale packets, and wrong authorization fail closed.",
+      "The exact apply command packet is communication for an explicit owner-approved apply lane; it is not durable evidence or completion authority.",
     ],
   };
 }
@@ -2089,14 +2666,19 @@ export function planAutoresearchCandidateWave(
   );
 
   const candidateResultPacketPaths = lanes.map((lane) => lane.candidateResultPacketPath);
-  const aggregateReviewCall = formatToolCall("autoresearch_live_supervision", {
+  const aggregateReviewPayload: Record<string, unknown> = {
     action: "review_candidate_wave",
     taskId: identity.taskId,
     cwd: identity.cwd,
     objective,
     direction: input.direction ?? "lower",
     candidateResultPacketPaths,
-  });
+  };
+  if (offLimits.length > 0) aggregateReviewPayload.offLimits = offLimits;
+  const aggregateReviewCall = formatToolCall(
+    "autoresearch_live_supervision",
+    aggregateReviewPayload,
+  );
   const management = buildPlannedCandidateWaveManagement({
     taskId: identity.taskId,
     objective,
@@ -2248,6 +2830,7 @@ function resolveAutoresearchMatrixCampaignPlanParts(input: AutoresearchMatrixCam
           action: "review_candidate_wave",
           ...commonPayload,
           candidateResultPacketPaths,
+          offLimits,
         }),
         ownerUiCommand: "/autoresearch review",
         managedWavePosture: "managed_candidate_wave_required",
@@ -3172,6 +3755,7 @@ export function reviewAutoresearchMatrixCampaign(
       objective: cell.objective,
       direction,
       candidateResultPacketPaths: cell.candidateResultPacketPaths,
+      offLimits: input.offLimits,
     });
     return {
       cellId: cell.cellId,
@@ -3765,6 +4349,12 @@ export class AutoresearchLiveSupervisionRunner {
     input: AutoresearchCandidateWaveReviewRequest,
   ): AutoresearchCandidateWaveReview {
     return reviewAutoresearchCandidateWave(input);
+  }
+
+  finalizePostFanin(
+    input: AutoresearchPostFaninFinalizerRequest,
+  ): AutoresearchPostFaninFinalizerResult {
+    return finalizeAutoresearchPostFanin(input);
   }
 
   stop(
