@@ -103,6 +103,7 @@ just doctor
 ./scripts/quality-gate.sh ci
 ./scripts/ci/smoke.sh                  # root infrastructure smoke checks
 ./scripts/ci/full.sh                   # root infrastructure + canonical package checks
+./scripts/ci/packages.sh ci --package pi-autoresearch --package pi-society-orchestrator  # scoped package fan-out
 ./scripts/package-quality-gate.sh ci packages/pi-vault-client
 npm run quality:pre-commit
 npm run quality:pre-push
