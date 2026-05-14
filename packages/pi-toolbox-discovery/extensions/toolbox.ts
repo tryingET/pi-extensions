@@ -57,6 +57,7 @@ interface ToolboxParams {
   tools?: string[];
   ttlTurns?: number;
   pin?: boolean;
+  autoContinue?: boolean;
   riskAcknowledged?: boolean;
   riskJustification?: string;
 }
@@ -97,6 +98,23 @@ const ALWAYS_ACTIVE_TOOLS = [
 
 const DEFAULT_TTL_TURNS = 4;
 const MAX_TTL_TURNS = 12;
+const ACTIVATION_VISIBILITY_CONTRACT = [
+  "Activation visibility: active set updated now; registered tools are exposed to Pi on the next provider/model request after this toolbox result.",
+  "Already-issued provider requests and external API/client schema snapshots cannot be changed retroactively; if a client still cannot call a successfully activated tool, refresh that client or /reload/start a fresh Pi session after confirming it is connected to this runtime.",
+].join(" ");
+const ACTIVATION_CONTINUATION_MESSAGE = [
+  "Toolbox activated additional registered tools and updated Pi's active tool set.",
+  "Continue the previous objective using the newly active tools if they are needed.",
+  "Do not call toolbox again unless another required tool bundle is still missing.",
+].join(" ");
+const CACHE_IMPACT_CONTRACT = [
+  "Cache impact: changing active tools changes the provider tool-schema prefix, so the first follow-up provider request for a new active-tool combination may miss or write a new cache entry.",
+  "Caching resumes for later requests with the same active-tool combination; avoid repeated activate/deactivate oscillation if prompt-cache stability matters.",
+].join(" ");
+const MISSING_REGISTRATION_CONTRACT = [
+  "Toolbox cannot register missing owner tools or make them callable by importing owner packages.",
+  "Enable/install the owning extension package and /reload or start a fresh session so Pi can register the tool schema before activation.",
+].join(" ");
 export const CATALOG: ToolboxBundle[] = [
   {
     id: "vault",
@@ -105,7 +123,7 @@ export const CATALOG: ToolboxBundle[] = [
       "Prompt Vault query, retrieve, vocabulary, dispatch-check, mutation, execution, and feedback workflows.",
     ownerPackage: "packages/pi-vault-client",
     ownerSemantics:
-      "pi-vault-client owns Prompt Vault behavior; toolbox discovers and activates already-registered owner tools without reimplementing Prompt Vault behavior; the owner extension must be loaded at startup for API-callable schemas.",
+      "pi-vault-client owns Prompt Vault behavior; toolbox discovers and activates already-registered owner tools without reimplementing Prompt Vault behavior; the owner extension must register tool schemas before toolbox can activate them.",
     keywords: ["prompt vault", "vault", "template", "prompt", "governed prompt"],
     profiles: [
       {
@@ -146,7 +164,7 @@ export const CATALOG: ToolboxBundle[] = [
     description: "ROCS-backed ontology inspect, proposal, and governed change workflows.",
     ownerPackage: "packages/pi-ontology-workflows",
     ownerSemantics:
-      "pi-ontology-workflows owns ontology workflow behavior; toolbox discovers and activates already-registered owner tools without reimplementing ontology behavior; the owner extension must be loaded at startup for API-callable schemas.",
+      "pi-ontology-workflows owns ontology workflow behavior; toolbox discovers and activates already-registered owner tools without reimplementing ontology behavior; the owner extension must register tool schemas before toolbox can activate them.",
     keywords: ["ontology", "rocs", "concept", "relation", "semantic"],
     profiles: [
       {
@@ -174,7 +192,7 @@ export const CATALOG: ToolboxBundle[] = [
       "DESIGN.md lint, export, Oat snapshot, OpenPencil, Penpot, palette, and session handoff workflows.",
     ownerPackage: "packages/pi-designmd-foundry",
     ownerSemantics:
-      "pi-designmd-foundry owns DesignMD tool behavior; toolbox discovers and activates already-registered owner tools without reimplementing design behavior; the owner extension must be loaded at startup for API-callable schemas.",
+      "pi-designmd-foundry owns DesignMD tool behavior; toolbox discovers and activates already-registered owner tools without reimplementing design behavior; the owner extension must register tool schemas before toolbox can activate them.",
     keywords: ["design", "designmd", "css", "tokens", "penpot", "openpencil", "oat", "palette"],
     profiles: [
       {
@@ -225,7 +243,7 @@ export const CATALOG: ToolboxBundle[] = [
       "Society diagnostics, evidence, cognitive dispatch, workflow, and loop execution surfaces.",
     ownerPackage: "packages/pi-society-orchestrator",
     ownerSemantics:
-      "pi-society-orchestrator owns orchestration behavior; toolbox discovers and activates already-registered owner tools without reimplementing orchestration behavior; the owner extension must be loaded at startup for API-callable schemas.",
+      "pi-society-orchestrator owns orchestration behavior; toolbox discovers and activates already-registered owner tools without reimplementing orchestration behavior; the owner extension must register tool schemas before toolbox can activate them.",
     keywords: ["society", "orchestrator", "workflow", "loop", "evidence", "cognitive dispatch"],
     profiles: [
       {
@@ -265,7 +283,7 @@ export const CATALOG: ToolboxBundle[] = [
       "Bounded pi-autoresearch setup, run, loop, supervision, candidate, and campaign-control surfaces.",
     ownerPackage: "packages/pi-autoresearch",
     ownerSemantics:
-      "pi-autoresearch owns bounded experiment runtime behavior; toolbox discovers and activates already-registered owner tools without reimplementing experiment behavior; the owner extension must be loaded at startup for API-callable schemas.",
+      "pi-autoresearch owns bounded experiment runtime behavior; toolbox discovers and activates already-registered owner tools without reimplementing experiment behavior; the owner extension must register tool schemas before toolbox can activate them.",
     keywords: ["autoresearch", "experiment", "benchmark", "campaign", "self-hosting", "llamacpp"],
     profiles: [
       {
@@ -396,6 +414,11 @@ const TOOLBOX_PARAMETERS = {
       type: "boolean",
       description:
         "Whether activation should stay active until explicit deactivation instead of expiring by TTL.",
+    },
+    autoContinue: {
+      type: "boolean",
+      description:
+        "Whether toolbox should queue a same-task continuation after activation changes the active tool set. Defaults true; set false for activation-only calls.",
     },
     riskAcknowledged: {
       type: "boolean",
@@ -618,7 +641,7 @@ function recordLeases(
 function expireLeases(pi: ExtensionAPI, state: ToolboxState): string[] {
   state.turn += 1;
   const expired = [...state.leases.values()].filter(
-    (lease) => !lease.pinned && (lease.expiresAtTurn ?? Number.POSITIVE_INFINITY) <= state.turn,
+    (lease) => !lease.pinned && (lease.expiresAtTurn ?? Number.POSITIVE_INFINITY) < state.turn,
   );
   if (expired.length === 0) return [];
 
@@ -636,13 +659,65 @@ function expireLeases(pi: ExtensionAPI, state: ToolboxState): string[] {
 
 function describeLeases(state: ToolboxState): string[] {
   return [...state.leases.values()].map((lease) => {
+    const remainingTurns = Math.max(0, (lease.expiresAtTurn ?? state.turn) - state.turn);
     const lifetime = lease.pinned
       ? "pinned"
-      : `expires in ${Math.max(0, (lease.expiresAtTurn ?? state.turn) - state.turn)} turn(s)`;
+      : remainingTurns === 0
+        ? "expires after current turn"
+        : `expires in ${remainingTurns} turn(s)`;
     const source = [lease.bundle, lease.profile].filter(Boolean).join("/") || "explicit-tools";
     const riskNote = lease.riskJustification ? `; risk=${lease.riskJustification}` : "";
     return `${lease.tool} (${source}; ${lifetime}${riskNote})`;
   });
+}
+
+async function queueActivationContinuation(
+  pi: ExtensionAPI,
+  params: ToolboxParams,
+  activatedNewTools: string[],
+  plan: ActivationPlan,
+): Promise<{ queued: boolean; reason?: string }> {
+  if (activatedNewTools.length === 0) {
+    return { queued: false, reason: "active-set-unchanged" };
+  }
+  if (params.autoContinue === false) {
+    return { queued: false, reason: "disabled-by-request" };
+  }
+
+  const sender = pi as ExtensionAPI & {
+    sendMessage?: (
+      message: Record<string, unknown>,
+      options?: Record<string, unknown>,
+    ) => Promise<void> | void;
+  };
+  if (typeof sender.sendMessage !== "function") {
+    return { queued: false, reason: "pi-send-message-unavailable" };
+  }
+
+  try {
+    await sender.sendMessage(
+      {
+        customType: "toolbox-activation-continuation",
+        content: ACTIVATION_CONTINUATION_MESSAGE,
+        display: true,
+        details: {
+          activatedTools: activatedNewTools,
+          bundle: plan.bundle?.id,
+          profile: plan.profile?.id,
+          source: plan.source,
+          cacheImpact: CACHE_IMPACT_CONTRACT,
+        },
+      },
+      { triggerTurn: true, deliverAs: "steer" },
+    );
+    return { queued: true };
+  } catch (error) {
+    return {
+      queued: false,
+      reason:
+        error instanceof Error ? `send-message-failed: ${error.message}` : "send-message-failed",
+    };
+  }
 }
 
 function buildCatalogToolBundleIndex(): Map<string, Set<string>> {
@@ -715,7 +790,7 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
       const bundleId = group.split(":", 1)[0] ?? "unknown";
       const bundle = CATALOG.find((candidate) => candidate.id === bundleId);
       const owner = bundle?.ownerPackage ?? "unknown owner package";
-      return `${group} — enable/install ${owner} and /reload so Pi registers the tool schema at startup`;
+      return `${group} — enable/install ${owner} and /reload or start a fresh session so Pi registers the tool schema before activation`;
     },
   );
   const unleasedActiveCatalogTools = findUnleasedActiveCatalogTools(pi, state);
@@ -738,11 +813,9 @@ function buildDoctorReport(pi: ExtensionAPI, state: ToolboxState) {
   }
   if (missingCatalogRegistrations.length > 0) {
     problems.push(
-      `catalog tools not registered at startup: ${missingCatalogRegistrations.join(", ")}`,
+      `catalog tools not registered in this Pi runtime: ${missingCatalogRegistrations.join(", ")}`,
     );
-    recommendations.push(
-      "Toolbox cannot make missing tools API-callable mid-session; enable/install the owner extension and /reload so Pi loads the full tool schema once at startup.",
-    );
+    recommendations.push(MISSING_REGISTRATION_CONTRACT);
   }
   if (unleasedActiveCatalogTools.length > 0) {
     problems.push(`catalog tools active without a lease: ${unleasedActiveCatalogTools.join(", ")}`);
@@ -784,8 +857,9 @@ function formatActivationPlan(plan: ActivationPlan, pi: ExtensionAPI): string {
     `- missing now (${missingTools.length}): ${missingTools.join(", ") || "none"}`,
     `- risks: ${plan.risks.join(", ") || "none"}`,
     `- acknowledgement required: ${plan.requiresAcknowledgement ? "yes" : "no"}`,
-    "- owner module imports: none; Pi must load/register tool schemas at startup",
-    "- activation effect: active-tool set only",
+    "- owner module imports: none; toolbox will not import/register owner tools",
+    "- activation effect: active-tool set only; registered tools become prompt/provider visible on the next provider request after activation",
+    "- limitation: already-issued provider requests and external client schema snapshots cannot be changed retroactively",
   ].join("\n");
 }
 
@@ -954,8 +1028,8 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
           return textResult(
             [
               `Cannot activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"}: tools are not registered in this Pi session: ${missingTools.join(", ")}`,
-              "Pi loads/registers the tool schema once at startup; toolbox can only manage the active set of already-registered tools.",
-              "Enable/install the owning extension package and /reload or start a fresh session before activating these tools.",
+              "Toolbox can only manage the active set of tools already registered in this Pi runtime.",
+              MISSING_REGISTRATION_CONTRACT,
             ].join("\n"),
             {
               ok: false,
@@ -968,15 +1042,23 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
         }
 
         const nextActive = [...new Set([...currentActiveTools, ...availableTools])];
+        const activeBeforeSet = new Set(currentActiveTools);
+        const activatedNewTools = availableTools.filter((tool) => !activeBeforeSet.has(tool));
         pi.setActiveTools(nextActive);
         const leases = recordLeases(state, availableTools, params, plan);
         const ttl = boundedTtlTurns(params.ttlTurns, plan.profile);
+        const continuation = await queueActivationContinuation(pi, params, activatedNewTools, plan);
 
         const text = [
           `Activated tools: ${availableTools.join(", ") || "none"}`,
           plan.profile
             ? `Profile: ${plan.bundle?.id}/${plan.profile.id}; risk=${plan.profile.risk}; ttlTurns=${ttl}; pin=${params.pin === true}`
             : `Source: explicit-tools; risks=${plan.risks.join(", ") || "none"}; ttlTurns=${ttl}; pin=${params.pin === true}`,
+          ACTIVATION_VISIBILITY_CONTRACT,
+          continuation.queued
+            ? "Continuation: queued a same-task provider turn so the model can see the refreshed active-tool schema."
+            : `Continuation: not queued (${continuation.reason ?? "unknown"}).`,
+          CACHE_IMPACT_CONTRACT,
         ]
           .filter(Boolean)
           .join("\n");
@@ -984,13 +1066,26 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
         return textResult(text, {
           ok: true,
           activated: availableTools,
+          activatedNewTools,
           missing: missingTools,
           activeTools: nextActive,
+          continuation,
           bundle: plan.bundle?.id,
           profile: plan.profile?.id,
           source: plan.source,
           risks: plan.risks,
           leases,
+          schemaVisibility: {
+            activeSetUpdated: true,
+            nextProviderRequest: true,
+            retroactiveCurrentProviderRequest: false,
+            externalClientSchemaSnapshotRefresh: "reload-or-new-session-if-client-does-not-refresh",
+          },
+          cacheImpact: {
+            firstRequestForNewToolCombinationMayMissCache: true,
+            stableToolCombinationCanReuseCacheAfterward: true,
+            avoidFrequentToolSetOscillation: true,
+          },
         });
       }
 

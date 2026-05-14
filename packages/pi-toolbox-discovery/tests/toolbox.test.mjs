@@ -30,6 +30,7 @@ function createHarness(options = {}) {
   const commands = new Map();
   const tools = new Map();
   const handlers = new Map();
+  const sentMessages = [];
   const omittedTools = new Set(options.omitRegisteredTools ?? []);
   const allToolNames = new Set(
     [
@@ -65,11 +66,15 @@ function createHarness(options = {}) {
     setActiveTools(names) {
       activeTools = [...names];
     },
+    async sendMessage(message, options) {
+      sentMessages.push({ message, options });
+    },
   };
   toolboxDiscoveryExtension(pi);
   return {
     commands,
     tools,
+    sentMessages,
     async runEvent(event) {
       for (const handler of handlers.get(event) ?? []) await handler({}, { ui: { notify() {} } });
     },
@@ -78,6 +83,9 @@ function createHarness(options = {}) {
     },
     get activeTools() {
       return activeTools;
+    },
+    clearSentMessages() {
+      sentMessages.length = 0;
     },
   };
 }
@@ -120,6 +128,8 @@ test("doctor reports startup registration gaps", async () => {
     /missing catalog registrations \(2\): autoresearch_runtime_run, autoresearch_runtime_status/,
   );
   assert.match(result.content[0].text, /missing registration groups \(1\): autoresearch:/);
+  assert.match(result.content[0].text, /cannot register missing owner tools/);
+  assert.match(result.content[0].text, /\/reload or start a fresh session/);
   assert.deepEqual(result.details.missingCatalogRegistrations, [
     "autoresearch_runtime_run",
     "autoresearch_runtime_status",
@@ -136,7 +146,7 @@ test("doctor passes for complete startup registration", async () => {
   ]);
 });
 
-test("plan is active-set only and imports no owner modules", async () => {
+test("plan is active-set only and states next-request schema visibility", async () => {
   const harness = createHarness();
   const result = await executeToolbox(harness.tools.get("toolbox"), {
     action: "plan",
@@ -145,6 +155,8 @@ test("plan is active-set only and imports no owner modules", async () => {
   });
   assert.match(result.content[0].text, /owner module imports: none/);
   assert.match(result.content[0].text, /activation effect: active-tool set only/);
+  assert.match(result.content[0].text, /next provider request after activation/);
+  assert.match(result.content[0].text, /cannot be changed retroactively/);
   assert.match(result.content[0].text, /autoresearch_self_hosting_supervision/);
   assert.match(result.content[0].text, /autoresearch_learning_kes_adapter/);
   assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
@@ -186,8 +198,24 @@ test("fails closed for missing explicit tools", async () => {
     riskJustification: "test",
   });
   assert.match(result.content[0].text, /not registered in this Pi session: does_not_exist/);
-  assert.match(result.content[0].text, /tool schema once at startup/);
+  assert.match(result.content[0].text, /cannot register missing owner tools/);
+  assert.match(result.content[0].text, /\/reload or start a fresh session/);
   assert.deepEqual(result.details.missing, ["does_not_exist"]);
+});
+
+test("fails closed without partial activation when mixed explicit tools include missing tools", async () => {
+  const harness = createHarness();
+  const before = [...harness.activeTools];
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert", "does_not_exist"],
+    riskAcknowledged: true,
+    riskJustification: "test",
+  });
+  assert.equal(result.details.ok, false);
+  assert.deepEqual(result.details.missing, ["does_not_exist"]);
+  assert.equal(harness.activeTools.includes("vault_insert"), false);
+  assert.deepEqual(harness.activeTools, before);
 });
 
 test("activates only requested profile tools", async () => {
@@ -240,7 +268,7 @@ test("catalog includes autoresearch foreground resume executor", () => {
   assert.equal(mutating.tools.includes("autoresearch_runtime_resume_apply"), true);
 });
 
-test("session_start clears stale leases and TTL expires activations", async () => {
+test("session_start clears stale leases and TTL keeps activation for one future turn", async () => {
   const harness = createHarness();
   const toolbox = harness.tools.get("toolbox");
   await executeToolbox(toolbox, {
@@ -252,6 +280,29 @@ test("session_start clears stale leases and TTL expires activations", async () =
   assert.equal(harness.activeTools.includes("vault_insert"), true);
   await harness.runEvent("session_start");
   assert.equal(harness.activeTools.includes("vault_insert"), false);
+  const activation = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    ttlTurns: 1,
+    riskAcknowledged: true,
+    riskJustification: "test",
+  });
+  assert.match(activation.content[0].text, /next provider\/model request/);
+  assert.match(activation.content[0].text, /Continuation: queued a same-task provider turn/);
+  assert.match(activation.content[0].text, /Cache impact:/);
+  assert.equal(activation.details.schemaVisibility.nextProviderRequest, true);
+  assert.equal(activation.details.schemaVisibility.retroactiveCurrentProviderRequest, false);
+  assert.equal(activation.details.continuation.queued, true);
+  await harness.runEvent("turn_start");
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+  await harness.runEvent("turn_start");
+  assert.equal(harness.activeTools.includes("vault_insert"), false);
+});
+
+test("activation during a turn survives the next provider turn before TTL expiry", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+  await harness.runEvent("turn_start");
   await executeToolbox(toolbox, {
     action: "activate",
     tools: ["vault_insert"],
@@ -260,5 +311,59 @@ test("session_start clears stale leases and TTL expires activations", async () =
     riskJustification: "test",
   });
   await harness.runEvent("turn_start");
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+  await harness.runEvent("turn_start");
   assert.equal(harness.activeTools.includes("vault_insert"), false);
+});
+
+test("activation queues same-task continuation when active tool set changes", async () => {
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test",
+  });
+  assert.equal(result.details.continuation.queued, true);
+  assert.deepEqual(result.details.activatedNewTools, ["vault_insert"]);
+  assert.equal(harness.sentMessages.length, 1);
+  assert.equal(harness.sentMessages[0].message.customType, "toolbox-activation-continuation");
+  assert.match(harness.sentMessages[0].message.content, /Continue the previous objective/);
+  assert.deepEqual(harness.sentMessages[0].message.details.activatedTools, ["vault_insert"]);
+  assert.deepEqual(harness.sentMessages[0].options, { triggerTurn: true, deliverAs: "steer" });
+});
+
+test("activation does not queue continuation when active set is unchanged", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test",
+  });
+  harness.clearSentMessages();
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test",
+  });
+  assert.equal(result.details.continuation.queued, false);
+  assert.equal(result.details.continuation.reason, "active-set-unchanged");
+  assert.equal(harness.sentMessages.length, 0);
+});
+
+test("activation continuation can be disabled", async () => {
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert"],
+    autoContinue: false,
+    riskAcknowledged: true,
+    riskJustification: "test",
+  });
+  assert.equal(result.details.continuation.queued, false);
+  assert.equal(result.details.continuation.reason, "disabled-by-request");
+  assert.equal(harness.sentMessages.length, 0);
 });

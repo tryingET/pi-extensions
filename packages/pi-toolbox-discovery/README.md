@@ -18,7 +18,7 @@ The package registers:
 - `/toolbox` — human-visible status command
 - `toolbox` — model-callable discovery/planning/activation/doctor tool
 
-Pi loads/registers the available model-callable tool schema once at startup. `toolbox` does not make missing tools callable mid-session; it discovers the catalog, verifies which tools were registered by their owner extensions, and manages the active set with risk gates.
+`toolbox` does not import owner packages or create missing owner-tool registrations. It discovers the catalog, verifies which tools are registered in the current Pi runtime, and manages the active set with risk gates. For already-registered tools, activation updates Pi's active tool set immediately, queues a same-task continuation when the active set changes, and is intended to be visible on the next provider/model request after the toolbox result. It cannot retroactively change an already-issued provider request or an external API/client schema snapshot.
 
 The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
@@ -26,13 +26,14 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - searches/explains catalog metadata and plans activation without importing owner packages
 - plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
 - activates already-registered bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement plus `riskJustification`
-- fails closed when requested tools are not registered in the current Pi session, with instructions to enable/install the owner extension and `/reload`
+- queues an extension-origin same-task continuation after activation changes the active tool set, unless `autoContinue: false` is passed
+- fails closed when requested tools are not registered in the current Pi session, with instructions to enable/install the owner extension and `/reload` or start a fresh session
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - reports catalog registration gaps separately from active-set/lease problems
 - clears lease bookkeeping on `session_start` before re-applying the standard active-tool baseline
 - provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, catalog registration completeness, active leases, and unleased active catalog tools
 
-The package-owned production bundles are `vault`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, and `peer-spawn`. Their tools must be registered by the owning package's normal Pi extension entry at startup; toolbox activation only changes the active set.
+The package-owned production bundles are `vault`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, and `peer-spawn`. Their tools must be registered by the owning package's Pi extension entry before toolbox activation; toolbox activation only changes the active set.
 
 ## Standard startup contract
 
@@ -58,13 +59,19 @@ missing catalog registrations (0): none
 unleased active catalog tools (0): none
 ```
 
-If doctor reports missing catalog registrations, enable/install the owning package extension and `/reload` or start a fresh session. If doctor reports unleased active catalog tools, deactivate them or reactivate them through toolbox so TTL/pin state is explicit.
+If doctor reports missing catalog registrations, enable/install the owning package extension and `/reload` or start a fresh session. If doctor reports unleased active catalog tools, deactivate them or reactivate them through toolbox so TTL/pin state is explicit. If activation succeeds but an outer API client still cannot call the tool after the queued continuation, treat that as a client schema snapshot limitation and reload/start a fresh session after confirming the owner extension is installed.
+
+## Activation continuation and cache behavior
+
+`toolbox({ action: "activate" })` changes the active tool set through Pi and then, when the active set actually changed, queues an extension-origin continuation message with `deliverAs: "steer"` and `triggerTurn: true`. The continuation is not a fake user command; it is a same-task nudge that lets Pi issue another provider/model request after the refreshed active-tool schema is available. Use `autoContinue: false` for activation-only calls.
+
+Changing active tools changes the provider tool-schema prefix. The first request for a newly active tool combination may therefore miss or write a new provider prompt-cache entry. Later requests with the same active-tool combination can reuse cache again. Avoid repeated activate/deactivate oscillation if cache stability matters.
 
 ## Tool registration invariant
 
-Pi loads/registers all available tools once. `toolbox({ action: "activate" })` can only choose from `pi.getAllTools()` and update the active set. A missing tool is not a recoverable activation problem; it is an installation/settings/startup problem.
+`toolbox({ action: "activate" })` can only choose from `pi.getAllTools()` and update the active set. A missing tool is not a recoverable activation problem; it is an owner-extension installation/settings/reload problem.
 
-For model-callable tools that should be cheap at startup, owner packages should register a lightweight tool schema and lazy-load heavy implementation inside `execute`, not register the tool itself late.
+Pi core supports runtime tool registration by owner extensions, but toolbox intentionally does not dynamically import owner packages to register their tools. For model-callable tools that should be cheap to expose, owner packages should register a lightweight tool schema and lazy-load heavy implementation inside `execute`, not rely on toolbox to register the tool itself.
 
 - Workspace path: `packages/pi-toolbox-discovery`
 - Release component key: `pi-toolbox-discovery`
