@@ -1,0 +1,22 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: Level-2 review-packet generation (Slice 3), packet-chain traceability, visible candidate-peer lane binding, and authorized finalizer/cleanup/promotion token separation (Slice 6) for pi-society-orchestrator.
+files:
+  - packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts
+  - packages/pi-society-orchestrator/extensions/society-orchestrator.ts
+  - packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs
+  - packages/pi-society-orchestrator/README.md
+validation:
+  fast_gate:
+    command: git diff --check
+    status: pass
+  full_gate:
+    command: npm --prefix packages/pi-society-orchestrator run check
+    status: pending
+group:
+  index: 1
+  total: 1
+  rationale: Single coherent Slice 3+6 change set for pi-society-orchestrator level-2 campaign automation.
+links:
+  task_ids: [2981, 2987]
+  evidence_ids: [2021, 2032, 2033]
