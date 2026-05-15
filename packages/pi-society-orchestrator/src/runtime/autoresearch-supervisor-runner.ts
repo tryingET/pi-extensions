@@ -8130,6 +8130,14 @@ function findForbiddenPromotionCommandMatches(commands: readonly string[]): stri
   return commands.filter((command) => forbiddenPatterns.some((pattern) => pattern.test(command)));
 }
 
+function buildNiriVisiblePeerWindowCloseCommand(peerTabOrSession: string): string {
+  return `niri msg -j windows | jq -r --arg needle ${shellQuote(peerTabOrSession)} '.[] | select((.title // "") | contains($needle)) | .id' | xargs -r -n1 niri msg action close-window --id`;
+}
+
+function buildGhosttySidequestProcessGroupCloseCommand(worktree: string): string {
+  return `pgid=$(ps -eo pgid=,args= | awk -v wt=${shellQuote(worktree)} 'index($0, wt) && index($0, "sidequest-pi pi") { print $1; exit }'); if [ -n "$pgid" ]; then kill -TERM -- "-$pgid"; sleep 2; if ps -o pid= -g "$pgid" >/dev/null 2>&1; then kill -KILL -- "-$pgid"; fi; fi`;
+}
+
 function buildLevel3CleanupCommandPacket(input: {
   identity: SessionIdentity;
   manifestHash: string;
@@ -8142,8 +8150,11 @@ function buildLevel3CleanupCommandPacket(input: {
   >;
 }): AutoresearchLevel3CleanupCommandPacket {
   const commands = [
-    ...input.resources.peerTabsOrSessions.map(
-      (session) => `pi-peer-close --session ${shellQuote(session)}`,
+    ...input.resources.peerTabsOrSessions.map((session) =>
+      buildNiriVisiblePeerWindowCloseCommand(session),
+    ),
+    ...input.resources.worktrees.map((worktree) =>
+      buildGhosttySidequestProcessGroupCloseCommand(worktree),
     ),
     ...input.resources.worktrees.map(
       (worktree) =>

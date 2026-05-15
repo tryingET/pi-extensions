@@ -1637,6 +1637,9 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
     assert.equal(plan.cleanupCommandPacket.cleanupTrigger, "candidate_cleanup_token");
     assert.deepEqual(plan.cleanupCommandPacket.forbiddenPromotionCommandMatches, []);
     const cleanupText = plan.cleanupCommandPacket.exactCommands.join("\n");
+    assert.match(cleanupText, /niri msg -j windows/);
+    assert.match(cleanupText, /sidequest-pi pi/);
+    assert.match(cleanupText, /kill -TERM/);
     assert.match(cleanupText, /worktree remove/);
     assert.match(cleanupText, /branch -D/);
     assert.doesNotMatch(cleanupText, /merge|push|release|pull.request|promotion/i);
@@ -1855,6 +1858,14 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan aut
     assert.equal(
       plan.cleanupCommandPacket.cleanupExecution,
       "ready_for_automatic_controller_cleanup_after_successful_integration_closeout",
+    );
+    assert.ok(
+      plan.cleanupCommandPacket.exactCommands.some((command) =>
+        /niri msg -j windows/.test(command),
+      ),
+    );
+    assert.ok(
+      plan.cleanupCommandPacket.exactCommands.some((command) => /sidequest-pi pi/.test(command)),
     );
     assert.match(result.content[0].text, /trigger=successful_integration_closeout/);
   });
