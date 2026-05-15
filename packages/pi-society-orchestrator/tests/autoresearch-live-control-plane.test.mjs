@@ -1526,6 +1526,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
     assert.ok(tool.parameters.properties.finalizerAuthorizationToken);
     assert.ok(tool.parameters.properties.cleanupAuthorizationToken);
     assert.ok(tool.parameters.properties.cleanupPeerTabsOrSessions);
+    assert.ok(tool.parameters.properties.integrationCloseout);
     const packetPath = path.join(
       cwd,
       ".autoresearch",
@@ -1633,6 +1634,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
     assert.ok(plan.finalizerApplyCommandPacket);
     assert.ok(plan.cleanupCommandPacket);
     assert.equal(plan.cleanupCommandPacket.cleanupExecution, "not_executed_by_orchestrator");
+    assert.equal(plan.cleanupCommandPacket.cleanupTrigger, "candidate_cleanup_token");
     assert.deepEqual(plan.cleanupCommandPacket.forbiddenPromotionCommandMatches, []);
     const cleanupText = plan.cleanupCommandPacket.exactCommands.join("\n");
     assert.match(cleanupText, /worktree remove/);
@@ -1779,6 +1781,82 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
     assert.equal(plan.cleanupAuthorization.manifestPolicyAccepted, true);
     assert.equal(plan.cleanupAuthorization.posture, "accepted_exact_manifest_policy");
     assert.ok(plan.cleanupCommandPacket);
+    assert.equal(plan.cleanupCommandPacket.cleanupTrigger, "exact_manifest_policy");
+  });
+});
+
+test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan auto-enables cleanup after successful integration closeout", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const worktree = path.join(cwd, ".worktrees", "lane-a");
+    const packetPath = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "lane-a.candidate-result.json",
+    );
+    writeCandidateResultPacket(cwd, packetPath, {
+      laneId: "lane-a",
+      candidate: { worktreePath: worktree, branch: "candidate/lane-a", baseRef: "HEAD" },
+    });
+    const manifest = createLevel3Manifest(cwd, {
+      primaryMetric: {
+        name: "authorized_finalizer_cleanup_blockers",
+        direction: "lower",
+        target: 0,
+      },
+    });
+    const baseParams = {
+      action: "level3_authorized_finalizer_cleanup_plan",
+      taskId: 2996,
+      cwd,
+      objective: "successful integration closeout cleanup test",
+      level3Manifest: manifest,
+      candidateResultPacketPaths: [packetPath],
+      selectedLaneId: "lane-a",
+      validation: { command: "npm test", status: "passed" },
+      reviewedAtEpochMs: Date.now() + 60_000,
+      cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
+      cleanupWorktrees: [worktree],
+      cleanupBranches: ["candidate/lane-a"],
+    };
+    const probe = await tool.execute(
+      "tc-level3-integration-cleanup-probe",
+      baseParams,
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const token =
+      probe.details.level3AuthorizedFinalizerCleanupPlan.finalizerAuthorization.requiredToken;
+    const result = await tool.execute(
+      "tc-level3-integration-cleanup-authorized",
+      {
+        ...baseParams,
+        finalizerAuthorizationToken: token,
+        integrationCloseout: {
+          status: "successful",
+          commit: "abc1234",
+          summary: "Selected lane integrated and validation passed.",
+        },
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const plan = result.details.level3AuthorizedFinalizerCleanupPlan;
+    assert.equal(result.details.ok, true);
+    assert.equal(plan.cleanupAuthorization.posture, "accepted_successful_integration_closeout");
+    assert.equal(plan.integrationCloseout.status, "successful");
+    assert.equal(plan.integrationCloseout.commit, "abc1234");
+    assert.ok(plan.cleanupCommandPacket);
+    assert.equal(plan.cleanupCommandPacket.cleanupTrigger, "successful_integration_closeout");
+    assert.equal(
+      plan.cleanupCommandPacket.cleanupExecution,
+      "ready_for_automatic_controller_cleanup_after_successful_integration_closeout",
+    );
+    assert.match(result.content[0].text, /trigger=successful_integration_closeout/);
   });
 });
 

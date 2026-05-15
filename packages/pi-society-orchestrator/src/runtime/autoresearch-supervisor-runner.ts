@@ -668,6 +668,12 @@ export interface AutoresearchLevel3CleanupResourcesInput {
   branches?: readonly string[];
 }
 
+export interface AutoresearchLevel3IntegrationCloseoutEvidence {
+  status: "successful" | "failed" | "missing";
+  commit?: string;
+  summary?: string;
+}
+
 export interface AutoresearchLevel3AuthorizedFinalizerCleanupRequest
   extends AutoresearchLevel3ManifestPreflightRequest {
   objective: string;
@@ -688,6 +694,7 @@ export interface AutoresearchLevel3AuthorizedFinalizerCleanupRequest
   finalizerAuthorizationToken?: string;
   cleanupAuthorizationToken?: string;
   cleanupResources?: AutoresearchLevel3CleanupResourcesInput;
+  integrationCloseout?: AutoresearchLevel3IntegrationCloseoutEvidence;
 }
 
 export interface AutoresearchLevel3CleanupCommandPacket {
@@ -697,7 +704,13 @@ export interface AutoresearchLevel3CleanupCommandPacket {
   manifestHash: string;
   authorizationToken: string;
   authorizationRequired: true;
-  cleanupExecution: "not_executed_by_orchestrator";
+  cleanupExecution:
+    | "not_executed_by_orchestrator"
+    | "ready_for_automatic_controller_cleanup_after_successful_integration_closeout";
+  cleanupTrigger:
+    | "candidate_cleanup_token"
+    | "exact_manifest_policy"
+    | "successful_integration_closeout";
   exactPeerTabsOrSessions: readonly string[];
   exactWorktrees: readonly string[];
   exactBranches: readonly string[];
@@ -728,6 +741,7 @@ export interface AutoresearchLevel3AuthorizedFinalizerCleanupPlan {
     posture:
       | "accepted_exact_token"
       | "accepted_exact_manifest_policy"
+      | "accepted_successful_integration_closeout"
       | "blocked_missing_token_or_exact_policy"
       | "blocked_wrong_token"
       | "blocked_missing_exact_resources";
@@ -764,6 +778,7 @@ export interface AutoresearchLevel3AuthorizedFinalizerCleanupPlan {
   };
   finalizerApplyCommandPacket: AutoresearchPostFaninFinalizerApplyCommandPacket | null;
   cleanupCommandPacket: AutoresearchLevel3CleanupCommandPacket | null;
+  integrationCloseout: AutoresearchLevel3IntegrationCloseoutEvidence;
   rollbackReceipt: AutoresearchLevel3CampaignTransitionReceipt;
   blockers: readonly string[];
   nextLegalActions: readonly string[];
@@ -1637,7 +1652,7 @@ export interface AutoresearchLevel3ReviewSelectionSubstrate {
   };
   dangerousActionGates: {
     finalizePostFanin: "exact_finalize_post_fanin_token_required";
-    candidateCleanup: "separate_candidate_cleanup_token_required";
+    candidateCleanup: "automatic_after_successful_integration_closeout_or_exact_token";
     promotion: "separate_promotion_token_required";
     akOwnerWrite: "separate_ak_owner_write_required";
   };
@@ -5896,7 +5911,7 @@ function buildAutoresearchLevel3ReviewSelectionSubstrate(input: {
     },
     dangerousActionGates: {
       finalizePostFanin: "exact_finalize_post_fanin_token_required",
-      candidateCleanup: "separate_candidate_cleanup_token_required",
+      candidateCleanup: "automatic_after_successful_integration_closeout_or_exact_token",
       promotion: "separate_promotion_token_required",
       akOwnerWrite: "separate_ak_owner_write_required",
     },
@@ -5905,7 +5920,7 @@ function buildAutoresearchLevel3ReviewSelectionSubstrate(input: {
       "Level-3 review/selection aggregates only controller-verified candidate-result packets from visible level-3 candidate lanes; raw peer text remains communication.",
       "Per-cell winners are recommendation state for owner review, not promotion or merge authority.",
       "The finalizer handoff is exact-gated: apply commands remain hidden until a separate finalize_post_fanin token is supplied to the finalizer preflight.",
-      "Candidate cleanup, AK owner writes, and promotion each require separate owner tokens and are not implied by this substrate.",
+      "Candidate cleanup is part of successful Level-3 integration closeout when exact resources are known; pre-closeout cleanup still requires candidate_cleanup, and AK owner writes/promotion remain separate owner gates.",
     ],
   };
 }
@@ -6015,14 +6030,14 @@ export function checkpointAutoresearchMatrixCampaignRunner(
   };
 }
 
-const LEVEL4_MATRIX_CELL_EXECUTOR_ALLOWED_PREFIXES = [
+const LEVEL3_MATRIX_CELL_EXECUTOR_ALLOWED_PREFIXES = [
   "autoresearch_candidate_bind(",
   "autoresearch_runtime_run(",
   "autoresearch_runtime_status(",
   "autoresearch_live_supervision(",
 ] as const;
 
-const LEVEL4_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS = [
+const LEVEL3_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS = [
   /candidate_peer_spawn\(/u,
   /scout_peer_spawn\(/u,
   /fork_peer_spawn\(/u,
@@ -6035,7 +6050,7 @@ const LEVEL4_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS = [
   /candidate_cleanup|promotion/u,
 ] as const;
 
-function resolveLevel4CompletedActionCount(value: number | undefined): number {
+function resolveLevel3CompletedActionCount(value: number | undefined): number {
   const resolved = value ?? 0;
   if (!Number.isInteger(resolved) || resolved < 0) {
     throw new Error(
@@ -6045,13 +6060,13 @@ function resolveLevel4CompletedActionCount(value: number | undefined): number {
   return resolved;
 }
 
-function classifyLevel4MatrixCellAction(
+function classifyLevel3MatrixCellAction(
   call: string,
 ): Pick<
   AutoresearchLevel3MatrixCellExecutorSelectedAction,
   "allowedByStateMachine" | "forbiddenReason"
 > {
-  const forbiddenPattern = LEVEL4_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS.find((pattern) =>
+  const forbiddenPattern = LEVEL3_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS.find((pattern) =>
     pattern.test(call),
   );
   if (forbiddenPattern) {
@@ -6061,7 +6076,7 @@ function classifyLevel4MatrixCellAction(
     };
   }
 
-  const allowedPrefix = LEVEL4_MATRIX_CELL_EXECUTOR_ALLOWED_PREFIXES.some((prefix) =>
+  const allowedPrefix = LEVEL3_MATRIX_CELL_EXECUTOR_ALLOWED_PREFIXES.some((prefix) =>
     call.startsWith(prefix),
   );
   if (!allowedPrefix) {
@@ -6075,7 +6090,7 @@ function classifyLevel4MatrixCellAction(
   return { allowedByStateMachine: true, forbiddenReason: null };
 }
 
-function buildLevel4MatrixCellExecutorBlockers(input: {
+function buildLevel3MatrixCellExecutorBlockers(input: {
   level3Accepted: boolean;
   selectedAction: AutoresearchLevel3MatrixCellExecutorSelectedAction | null;
 }): AutoresearchLevel3MatrixCellExecutor["stateMachineBlockers"] {
@@ -6110,7 +6125,7 @@ function buildLevel4MatrixCellExecutorBlockers(input: {
         proof:
           "forbidden peer launch, finalizer, AK/evidence, cleanup, merge, and promotion patterns are blocked",
         status: "present",
-        source: "LEVEL4_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS",
+        source: "LEVEL3_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS",
       },
     ],
   };
@@ -6120,7 +6135,7 @@ export function advanceAutoresearchLevel3MatrixCellExecutor(
   input: AutoresearchLevel3MatrixCellExecutorRequest,
 ): AutoresearchLevel3MatrixCellExecutor {
   const level3Runner = checkpointAutoresearchMatrixCampaignRunner(input);
-  const completedActionCount = resolveLevel4CompletedActionCount(input.completedActionCount);
+  const completedActionCount = resolveLevel3CompletedActionCount(input.completedActionCount);
   const runnerNextLegalActions = level3Runner.checkpointAccepted
     ? level3Runner.cockpit.nextLegalCampaignActions
     : level3Runner.operatorFollowup.nextLegalActions;
@@ -6135,10 +6150,10 @@ export function advanceAutoresearchLevel3MatrixCellExecutor(
         source: "level3_matrix_cell_runner.nextLegalActions" as const,
         execution: "not_executed_by_orchestrator" as const,
         controllerMustRunExplicitly: true as const,
-        ...classifyLevel4MatrixCellAction(candidateCall),
+        ...classifyLevel3MatrixCellAction(candidateCall),
       }
     : null;
-  const stateMachineBlockers = buildLevel4MatrixCellExecutorBlockers({
+  const stateMachineBlockers = buildLevel3MatrixCellExecutorBlockers({
     level3Accepted: level3Runner.checkpointAccepted,
     selectedAction,
   });
@@ -8119,6 +8134,8 @@ function buildLevel3CleanupCommandPacket(input: {
   identity: SessionIdentity;
   manifestHash: string;
   authorizationToken: string;
+  cleanupExecution: AutoresearchLevel3CleanupCommandPacket["cleanupExecution"];
+  cleanupTrigger: AutoresearchLevel3CleanupCommandPacket["cleanupTrigger"];
   resources: Pick<
     ReturnType<typeof resolveLevel3CleanupResources>,
     "peerTabsOrSessions" | "worktrees" | "branches"
@@ -8143,7 +8160,8 @@ function buildLevel3CleanupCommandPacket(input: {
     manifestHash: input.manifestHash,
     authorizationToken: input.authorizationToken,
     authorizationRequired: true,
-    cleanupExecution: "not_executed_by_orchestrator",
+    cleanupExecution: input.cleanupExecution,
+    cleanupTrigger: input.cleanupTrigger,
     exactPeerTabsOrSessions: input.resources.peerTabsOrSessions,
     exactWorktrees: input.resources.worktrees,
     exactBranches: input.resources.branches,
@@ -8239,6 +8257,14 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
     cleanupGate?.value === "token_required_or_manifest_allowed" &&
     resources.manifestExact &&
     resources.missing.length === 0;
+  const integrationCloseout: AutoresearchLevel3IntegrationCloseoutEvidence = {
+    status: input.integrationCloseout?.status ?? "missing",
+    ...(input.integrationCloseout?.commit ? { commit: input.integrationCloseout.commit } : {}),
+    ...(input.integrationCloseout?.summary ? { summary: input.integrationCloseout.summary } : {}),
+  };
+  const integrationCloseoutSuccessful = integrationCloseout.status === "successful";
+  const cleanupCloseoutAccepted =
+    finalizerTokenAccepted && integrationCloseoutSuccessful && resources.missing.length === 0;
   const cleanupTokenWrong =
     Boolean(input.cleanupAuthorizationToken) &&
     input.cleanupAuthorizationToken !== requiredCleanupToken;
@@ -8246,13 +8272,27 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
   const cleanupAuthorized =
     finalizerTokenAccepted &&
     resources.missing.length === 0 &&
-    (cleanupTokenAccepted || cleanupManifestPolicyAccepted) &&
+    (cleanupTokenAccepted || cleanupManifestPolicyAccepted || cleanupCloseoutAccepted) &&
     !cleanupTokenWrong;
+  const cleanupTrigger: AutoresearchLevel3CleanupCommandPacket["cleanupTrigger"] =
+    cleanupTokenAccepted
+      ? "candidate_cleanup_token"
+      : cleanupCloseoutAccepted
+        ? "successful_integration_closeout"
+        : "exact_manifest_policy";
   const cleanupCommandPacket = cleanupAuthorized
     ? buildLevel3CleanupCommandPacket({
         identity,
         manifestHash: preflight.manifestHash ?? "missing",
-        authorizationToken: cleanupTokenAccepted ? requiredCleanupToken : "manifest_cleanup_policy",
+        authorizationToken: cleanupTokenAccepted
+          ? requiredCleanupToken
+          : cleanupCloseoutAccepted
+            ? "successful_integration_closeout"
+            : "manifest_cleanup_policy",
+        cleanupExecution: cleanupCloseoutAccepted
+          ? "ready_for_automatic_controller_cleanup_after_successful_integration_closeout"
+          : "not_executed_by_orchestrator",
+        cleanupTrigger,
         resources,
       })
     : null;
@@ -8278,9 +8318,9 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
       : []),
     ...resources.missing.map((item) => `cleanup resource set missing exact ${item}`),
     ...(cleanupTokenWrong ? ["wrong candidate_cleanup token for exact cleanup resources"] : []),
-    ...(!cleanupTokenAccepted && !cleanupManifestPolicyAccepted
+    ...(!cleanupTokenAccepted && !cleanupManifestPolicyAccepted && !cleanupCloseoutAccepted
       ? [
-          "cleanup requires exact candidate_cleanup token or accepted manifest cleanup policy naming exact peer tabs/sessions, worktrees, and branches",
+          "cleanup requires exact candidate_cleanup token, successful integration closeout with exact cleanup resources, or accepted manifest cleanup policy naming exact peer tabs/sessions, worktrees, and branches",
         ]
       : []),
     ...(finalizerTokenAccepted
@@ -8352,7 +8392,9 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
       posture: cleanupAuthorized
         ? cleanupTokenAccepted
           ? "accepted_exact_token"
-          : "accepted_exact_manifest_policy"
+          : cleanupCloseoutAccepted
+            ? "accepted_successful_integration_closeout"
+            : "accepted_exact_manifest_policy"
         : resources.missing.length > 0
           ? "blocked_missing_exact_resources"
           : cleanupTokenWrong
@@ -8391,12 +8433,15 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
     },
     finalizerApplyCommandPacket: finalizer.exactApplyCommandPacket,
     cleanupCommandPacket,
+    integrationCloseout,
     rollbackReceipt,
     blockers: [...new Set(blockers)],
     nextLegalActions:
       totalBlockers === 0
         ? [
-            "Review exact finalizer apply and cleanup command packets; execute them only in explicit owner-approved lanes if still intended.",
+            integrationCloseoutSuccessful
+              ? "Run the exact cleanup packet automatically as the final Level-3 integration-closeout step; close only the named peer tabs/sessions and remove only the named worktrees/branches."
+              : "Review exact finalizer apply and cleanup command packets; execute cleanup automatically after successful integration closeout, or explicitly with candidate_cleanup if cleanup is needed earlier.",
             "Keep merge, release, PR, push, promotion, and AK evidence/task writes behind separate promotion and ak_owner_write tokens.",
           ]
         : [
@@ -8405,11 +8450,11 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
           ],
     nonActions: [
       "No candidate_peer_spawn, autoresearch_runtime_run, candidate_result_export, review, finalizer apply, cleanup, AK/KES/Oracle/DSPx/Prompt Vault/ROCS write, merge, release, PR, push, or promotion was executed by this planner.",
-      "Finalizer apply packets and cleanup command packets are command packets only; they are not durable AK evidence and are not secret execution.",
+      "Finalizer apply packets and cleanup command packets are command packets only; when integrationCloseout.status=successful, the controller/workbench should consume the exact cleanup packet automatically as part of closeout rather than leaving candidate resources behind.",
     ],
     boundaries: [
       "finalize_post_fanin authorizes only finalizer scope for the exact task/cwd/manifest/review packet chain; it does not authorize cleanup, promotion, or AK writes.",
-      "candidate_cleanup names exact peer tabs/sessions, worktrees, and branches; it does not imply merge, release, PR, push, promotion, or AK evidence/task completion.",
+      "candidate_cleanup names exact peer tabs/sessions, worktrees, and branches for pre-closeout cleanup; after successful integration closeout, exact cleanup resources are automatically eligible for cleanup without a second operator prompt.",
       "Dirty overlap, off-limits drift, stale review artifacts, wrong tokens, missing exact cleanup resources, and promotion command leakage fail closed.",
       "Rollback receipt is visible and non-authoritative; receipts/packets become durable evidence only through separate ak_owner_write.",
     ],
@@ -8621,7 +8666,7 @@ export class AutoresearchLiveSupervisionRunner {
     return checkpointAutoresearchMatrixCampaignRunner(input);
   }
 
-  advanceLevel4MatrixCellExecutor(
+  advanceLevel3MatrixCellExecutor(
     input: AutoresearchLevel3MatrixCellExecutorRequest,
   ): AutoresearchLevel3MatrixCellExecutor {
     return advanceAutoresearchLevel3MatrixCellExecutor(input);

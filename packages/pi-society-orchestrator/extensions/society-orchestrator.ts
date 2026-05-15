@@ -797,6 +797,7 @@ function formatAutoresearchLevel3AuthorizedFinalizerCleanupPlanReport(
     `Cleanup posture: ${plan.cleanupAuthorization.posture}`,
     `Required cleanup token: ${plan.cleanupAuthorization.requiredToken}`,
     `Manifest cleanup policy accepted: ${plan.cleanupAuthorization.manifestPolicyAccepted ? "yes" : "no"}`,
+    `Integration closeout: ${plan.integrationCloseout.status}${plan.integrationCloseout.commit ? ` (${plan.integrationCloseout.commit})` : ""}`,
     "",
     "Finalizer packet:",
     plan.finalizerApplyCommandPacket
@@ -808,7 +809,7 @@ function formatAutoresearchLevel3AuthorizedFinalizerCleanupPlanReport(
     "",
     "Cleanup packet:",
     plan.cleanupCommandPacket
-      ? `- ${plan.cleanupCommandPacket.kind}; commands=${plan.cleanupCommandPacket.exactCommands.length}; execution=${plan.cleanupCommandPacket.cleanupExecution}`
+      ? `- ${plan.cleanupCommandPacket.kind}; commands=${plan.cleanupCommandPacket.exactCommands.length}; execution=${plan.cleanupCommandPacket.cleanupExecution}; trigger=${plan.cleanupCommandPacket.cleanupTrigger}`
       : "- blocked/withheld",
     ...(plan.cleanupCommandPacket
       ? [
@@ -2414,7 +2415,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       "Use action=level3_visible_candidate_lifecycle_plan to expose authorized visible candidate launch calls, bind candidate worktree lineage, and prepare cleanup posture without executing launch or cleanup.",
       "Use action=level3_measure_export_review_plan to emit manifest-approved pi-autoresearch measurement/export/review call packets without executing them or treating packets as durable evidence.",
       "Use action=level3_matrix_cell_runner to compute the unified Level-3 cell state machine over manifest preflight, sequencing, visible launch, candidate bindings, measure/export packets, per-cell review, and finalizer-plan readiness without executing hidden actions.",
-      "Use action=level3_authorized_finalizer_cleanup_plan to consume exact finalize_post_fanin and candidate_cleanup gates for post-fan-in command packets without executing finalizer, cleanup, promotion, or AK writes.",
+      "Use action=level3_authorized_finalizer_cleanup_plan to consume exact finalize_post_fanin and candidate cleanup gates for post-fan-in command packets; cleanup becomes an automatic controller closeout step when integrationCloseout.status=successful and exact resources are supplied, while promotion and AK writes remain separate.",
       "Use action=level3_matrix_cell_executor above checkpoint_matrix_campaign_runner output when the controller wants deterministic one-step advancement through runner nextLegalActions without hidden execution; pass completedActionCount after each explicitly verified action.",
       "Use action=plan_matrix_campaign when the operator wants implementation-wave work dogfooded as a scenario × hypothesis matrix; this returns cell-scoped plan_candidate_wave/review_candidate_wave calls and keeps AK as the task spine.",
       "Use action=prepare_matrix_campaign_runner for the safer manifest/checkpoint runner contract: it exposes visible candidate_peer_spawn launch calls only, withholds benchmark/export/review calls, and emits an exact controller checkpoint token.",
@@ -2603,7 +2604,18 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       cleanupAuthorizationToken: Type.Optional(
         Type.String({
           description:
-            "Exact level-3 candidate_cleanup token for action=level3_authorized_finalizer_cleanup_plan when manifest cleanup policy is not exact/accepted.",
+            "Exact level-3 candidate_cleanup token for action=level3_authorized_finalizer_cleanup_plan when cleanup is requested before successful integration closeout or without exact closeout resources.",
+        }),
+      ),
+      integrationCloseout: Type.Optional(
+        Type.Object({
+          status: Type.Union([
+            Type.Literal("successful"),
+            Type.Literal("failed"),
+            Type.Literal("missing"),
+          ]),
+          commit: Type.Optional(Type.String()),
+          summary: Type.Optional(Type.String()),
         }),
       ),
       cleanupPeerTabsOrSessions: Type.Optional(
@@ -2787,6 +2799,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         cleanupPeerTabsOrSessions,
         cleanupWorktrees,
         cleanupBranches,
+        integrationCloseout,
         validation,
         runnerManifestPath,
         checkpointConfirmation,
@@ -2864,6 +2877,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         cleanupPeerTabsOrSessions?: string[];
         cleanupWorktrees?: string[];
         cleanupBranches?: string[];
+        integrationCloseout?: {
+          status: "successful" | "failed" | "missing";
+          commit?: string;
+          summary?: string;
+        };
         validation?: {
           command: string;
           status: "passed" | "failed" | "missing";
@@ -3174,6 +3192,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
               worktrees: cleanupWorktrees,
               branches: cleanupBranches,
             },
+            integrationCloseout,
             intervalSeconds,
             signal,
           });
@@ -3303,7 +3322,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           if (matrixObjective.length === 0) {
             throw new Error("level3_matrix_cell_executor requires a non-empty objective.");
           }
-          const result = autoresearchLiveRunner.advanceLevel4MatrixCellExecutor({
+          const result = autoresearchLiveRunner.advanceLevel3MatrixCellExecutor({
             ...identity,
             objective: matrixObjective,
             direction,
