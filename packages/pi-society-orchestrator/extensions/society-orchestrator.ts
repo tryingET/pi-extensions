@@ -75,6 +75,13 @@ import {
 import {
   type AutoresearchCandidateWavePlan,
   type AutoresearchCandidateWaveReview,
+  type AutoresearchLevel3AuthorizedFinalizerCleanupPlan,
+  type AutoresearchLevel3CampaignManifestPreflight,
+  type AutoresearchLevel3MatrixCellExecutor,
+  type AutoresearchLevel3MatrixCellRunner,
+  type AutoresearchLevel3MeasureExportReviewPlan,
+  type AutoresearchLevel3SliceSequenceDryRun,
+  type AutoresearchLevel3VisibleCandidateLifecyclePlan,
   type AutoresearchLivePollResult,
   type AutoresearchLiveStartCampaignResult,
   type AutoresearchLiveStartResult,
@@ -176,6 +183,13 @@ type AutoresearchLiveSupervisionAction =
   | "start"
   | "start_campaign"
   | "plan_candidate_wave"
+  | "level3_manifest_preflight"
+  | "level3_slice_sequence_dry_run"
+  | "level3_visible_candidate_lifecycle_plan"
+  | "level3_measure_export_review_plan"
+  | "level3_matrix_cell_runner"
+  | "level3_authorized_finalizer_cleanup_plan"
+  | "level3_matrix_cell_executor"
   | "plan_matrix_campaign"
   | "prepare_matrix_campaign_runner"
   | "checkpoint_matrix_campaign_runner"
@@ -200,6 +214,13 @@ type AutoresearchLiveSupervisionToolDetails = {
   poll?: AutoresearchLiveStartResult["poll"];
   campaign?: AutoresearchLiveStartCampaignResult["campaign"];
   candidateWave?: AutoresearchCandidateWavePlan;
+  level3ManifestPreflight?: AutoresearchLevel3CampaignManifestPreflight;
+  level3SliceSequenceDryRun?: AutoresearchLevel3SliceSequenceDryRun;
+  level3VisibleCandidateLifecyclePlan?: AutoresearchLevel3VisibleCandidateLifecyclePlan;
+  level3MeasureExportReviewPlan?: AutoresearchLevel3MeasureExportReviewPlan;
+  level3MatrixCellRunner?: AutoresearchLevel3MatrixCellRunner;
+  level3AuthorizedFinalizerCleanupPlan?: AutoresearchLevel3AuthorizedFinalizerCleanupPlan;
+  level3MatrixCellExecutor?: AutoresearchLevel3MatrixCellExecutor;
   matrixCampaign?: AutoresearchMatrixCampaignPlan;
   matrixCampaignRunner?: AutoresearchMatrixCampaignRunnerContract;
   matrixCampaignRunnerCheckpoint?: AutoresearchMatrixCampaignRunnerCheckpoint;
@@ -478,6 +499,343 @@ function formatAutoresearchCandidateWavePlanReport(plan: AutoresearchCandidateWa
     `Next step: ${plan.nextStep}`,
   ];
   return lines.join("\n");
+}
+
+function formatAutoresearchLevel3ManifestPreflightReport(
+  preflight: AutoresearchLevel3CampaignManifestPreflight,
+): string {
+  return [
+    "Autoresearch live supervision — level3_manifest_preflight",
+    `Task: #${preflight.taskId}`,
+    `CWD: ${preflight.cwd}`,
+    `Manifest kind: ${preflight.manifestKind}`,
+    `Manifest path: ${preflight.manifestPath ?? "inline_or_missing"}`,
+    `Manifest hash: ${preflight.manifestHash ?? "missing"}`,
+    `Read only: ${preflight.readOnly ? "yes" : "no"}`,
+    `Execution: ${preflight.execution}`,
+    `level3_manifest_preflight_blockers: ${preflight.metric.value} (target=${preflight.metric.target}, ${preflight.metric.status})`,
+    `manifest_schema_blockers: ${preflight.cellMetrics.manifestSchemaBlockers.value} (${preflight.cellMetrics.manifestSchemaBlockers.status})`,
+    `manifest_policy_gate_blockers: ${preflight.cellMetrics.manifestPolicyGateBlockers.value} (${preflight.cellMetrics.manifestPolicyGateBlockers.status})`,
+    `manifest_preflight_ux_blockers: ${preflight.cellMetrics.manifestPreflightUxBlockers.value} (${preflight.cellMetrics.manifestPreflightUxBlockers.status})`,
+    `Campaign: ${preflight.schema.campaignId ?? "missing"}`,
+    `Autonomy level: ${preflight.schema.autonomyLevel ?? "missing"}`,
+    `Primary metric: ${preflight.schema.primaryMetricName ?? "missing"}`,
+    `Slices: ${preflight.schema.sliceCount}; files in scope: ${preflight.schema.fileScopeCount}; off-limits: ${preflight.schema.offLimitsCount}`,
+    "",
+    "Policy gates:",
+    ...preflight.policyGates.map(
+      (gate) =>
+        `- ${gate.gate}: ${gate.posture}; value=${String(gate.value)}; expected=${gate.requiredPolicy.join("|")}; boundary=${gate.boundary}`,
+    ),
+    "",
+    "Blockers:",
+    ...(preflight.blockers.length > 0
+      ? preflight.blockers.map((blocker) => `- ${blocker}`)
+      : ["- none"]),
+    "",
+    "Next legal actions:",
+    ...preflight.nextLegalActions.map((action) => `- ${action}`),
+    "",
+    "Non-actions:",
+    ...preflight.nonActions.map((action) => `- ${action}`),
+    "",
+    `Level-2 fallback: ${preflight.level2FallbackRoute}`,
+    "",
+    "Boundaries:",
+    ...preflight.boundaries.map((boundary) => `- ${boundary}`),
+  ].join("\n");
+}
+
+function formatAutoresearchLevel3SliceSequenceDryRunReport(
+  dryRun: AutoresearchLevel3SliceSequenceDryRun,
+): string {
+  return [
+    "Autoresearch live supervision — level3_slice_sequence_dry_run",
+    `Task: #${dryRun.taskId}`,
+    `CWD: ${dryRun.cwd}`,
+    `Manifest kind: ${dryRun.manifestKind}`,
+    `Manifest path: ${dryRun.manifestPath ?? "inline_or_missing"}`,
+    `Manifest hash: ${dryRun.manifestHash ?? "missing"}`,
+    `Read only: ${dryRun.readOnly ? "yes" : "no"}`,
+    `Execution: ${dryRun.execution}`,
+    `autonomous_slice_sequence_blockers: ${dryRun.metric.value} (target=${dryRun.metric.target}, ${dryRun.metric.status})`,
+    `slice_ordering_blockers: ${dryRun.cellMetrics.sliceOrderingBlockers.value} (${dryRun.cellMetrics.sliceOrderingBlockers.status})`,
+    `dry_run_receipt_blockers: ${dryRun.cellMetrics.dryRunReceiptBlockers.value} (${dryRun.cellMetrics.dryRunReceiptBlockers.status})`,
+    `slice_sequence_recovery_blockers: ${dryRun.cellMetrics.sliceSequenceRecoveryBlockers.value} (${dryRun.cellMetrics.sliceSequenceRecoveryBlockers.status})`,
+    "",
+    "Ordered dry-run states:",
+    ...(dryRun.orderedStates.length > 0
+      ? dryRun.orderedStates.map(
+          (state) =>
+            `- ${state.order}. ${state.sliceId}/${state.cellId}: ${state.state}; deps=${state.dependencies.join(", ") || "none"}; policy=${state.policyPosture}; metric=${state.metricName ?? "none"}; next=${state.nextLegalAction}`,
+        )
+      : ["- none"]),
+    "",
+    "Dry-run transition receipts:",
+    ...(dryRun.receipts.length > 0
+      ? dryRun.receipts.map(
+          (receipt) =>
+            `- ${receipt.outputRefs.receiptIndex}: ${receipt.kind}; non-authoritative=${receipt.nonAuthoritative ? "yes" : "no"}; durable evidence=${receipt.durableEvidence ? "yes" : "no"}; next=${receipt.nextState}`,
+        )
+      : ["- none"]),
+    "",
+    "Blockers:",
+    ...(dryRun.blockers.length > 0 ? dryRun.blockers.map((blocker) => `- ${blocker}`) : ["- none"]),
+    "",
+    "Next legal actions:",
+    ...dryRun.nextLegalActions.map((action) => `- ${action}`),
+    `Safe rerun: ${dryRun.safeRerunCommand}`,
+    `Level-2 fallback: ${dryRun.level2FallbackRoute}`,
+    "",
+    "Non-actions:",
+    ...dryRun.nonActions.map((action) => `- ${action}`),
+    "",
+    "Boundaries:",
+    ...dryRun.boundaries.map((boundary) => `- ${boundary}`),
+  ].join("\n");
+}
+
+function formatAutoresearchLevel3VisibleCandidateLifecyclePlanReport(
+  plan: AutoresearchLevel3VisibleCandidateLifecyclePlan,
+): string {
+  return [
+    "Autoresearch live supervision — level3_visible_candidate_lifecycle_plan",
+    `Task: #${plan.taskId}`,
+    `CWD: ${plan.cwd}`,
+    `Manifest kind: ${plan.manifestKind}`,
+    `Manifest path: ${plan.manifestPath ?? "inline_or_missing"}`,
+    `Manifest hash: ${plan.manifestHash ?? "missing"}`,
+    `Execution: ${plan.execution}`,
+    `candidate_lifecycle_automation_blockers: ${plan.metric.value} (target=${plan.metric.target}, ${plan.metric.status})`,
+    `visible_launch_policy_blockers: ${plan.cellMetrics.visibleLaunchPolicyBlockers.value} (${plan.cellMetrics.visibleLaunchPolicyBlockers.status})`,
+    `candidate_binding_lifecycle_blockers: ${plan.cellMetrics.candidateBindingLifecycleBlockers.value} (${plan.cellMetrics.candidateBindingLifecycleBlockers.status})`,
+    `candidate_cleanup_policy_blockers: ${plan.cellMetrics.candidateCleanupPolicyBlockers.value} (${plan.cellMetrics.candidateCleanupPolicyBlockers.status})`,
+    `Launch authorization: ${plan.launchAuthorization.posture}`,
+    `Required launch token: ${plan.launchAuthorization.requiredToken}`,
+    "",
+    "Candidate lanes:",
+    ...plan.lanes.flatMap((lane) => [
+      `- ${lane.laneId}: cell=${lane.cellId ?? "none"}; launch=${lane.launchPosture}; binding=${lane.bindingPosture}; cleanup=${lane.cleanupPosture}`,
+      `  objective: ${lane.objective}`,
+      `  metric: ${lane.metricName ?? "none"} (${lane.metricDirection} is better; target=${lane.metricTarget ?? "none"})`,
+      `  files: ${lane.filesInScope.join(", ") || "none"}`,
+      `  off-limits: ${lane.offLimits.join(", ") || "none"}`,
+      `  candidate_peer_spawn: ${lane.candidatePeerCall ?? "withheld"}`,
+      ...lane.cleanupPlan.map((item) => `  cleanup plan: ${item}`),
+      ...(lane.blockers.length > 0 ? lane.blockers.map((blocker) => `  blocker: ${blocker}`) : []),
+    ]),
+    "",
+    "Blockers:",
+    ...(plan.blockers.length > 0 ? plan.blockers.map((blocker) => `- ${blocker}`) : ["- none"]),
+    "",
+    "Next legal actions:",
+    ...plan.nextLegalActions.map((action) => `- ${action}`),
+    "",
+    "Non-actions:",
+    ...plan.nonActions.map((action) => `- ${action}`),
+    "",
+    "Boundaries:",
+    ...plan.boundaries.map((boundary) => `- ${boundary}`),
+  ].join("\n");
+}
+
+function formatAutoresearchLevel3MeasureExportReviewPlanReport(
+  plan: AutoresearchLevel3MeasureExportReviewPlan,
+): string {
+  return [
+    "Autoresearch live supervision — level3_measure_export_review_plan",
+    `Task: #${plan.taskId}`,
+    `CWD: ${plan.cwd}`,
+    `Manifest hash: ${plan.manifestHash ?? "missing"}`,
+    `Execution: ${plan.execution}`,
+    `candidate_measure_export_review_blockers: ${plan.metric.value} (target=${plan.metric.target}, ${plan.metric.status})`,
+    `measurement_policy_blockers: ${plan.cellMetrics.measurementPolicyBlockers.value} (${plan.cellMetrics.measurementPolicyBlockers.status})`,
+    `candidate_export_binding_blockers: ${plan.cellMetrics.candidateExportBindingBlockers.value} (${plan.cellMetrics.candidateExportBindingBlockers.status})`,
+    `review_packet_authority_blockers: ${plan.cellMetrics.reviewPacketAuthorityBlockers.value} (${plan.cellMetrics.reviewPacketAuthorityBlockers.status})`,
+    "",
+    "Measure/export/review lanes:",
+    ...plan.lanes.flatMap((lane) => [
+      `- ${lane.laneId}: cell=${lane.cellId ?? "none"}; measure=${lane.measurementPosture}; export=${lane.exportPosture}; review=${lane.reviewPosture}`,
+      `  metric: ${lane.metricName ?? "none"} (${lane.metricDirection} is better; target=${lane.metricTarget ?? "none"})`,
+      `  worktree: ${lane.candidateWorktree ?? "missing"}`,
+      `  runtime_run: ${lane.runtimeRunCall ?? "withheld"}`,
+      `  candidate_result_export: ${lane.candidateResultExportCall ?? "withheld"}`,
+      `  review packet path: ${lane.reviewInputPacketPath}`,
+      ...lane.blockers.map((blocker) => `  blocker: ${blocker}`),
+    ]),
+    `Aggregate review: ${plan.aggregateReviewCall ?? "withheld"}`,
+    "",
+    "Blockers:",
+    ...(plan.blockers.length > 0 ? plan.blockers.map((blocker) => `- ${blocker}`) : ["- none"]),
+    "",
+    "Next legal actions:",
+    ...plan.nextLegalActions.map((action) => `- ${action}`),
+    "",
+    "Non-actions:",
+    ...plan.nonActions.map((action) => `- ${action}`),
+    "",
+    "Boundaries:",
+    ...plan.boundaries.map((boundary) => `- ${boundary}`),
+  ].join("\n");
+}
+
+function formatAutoresearchLevel3MatrixCellRunnerReport(
+  runner: AutoresearchLevel3MatrixCellRunner,
+): string {
+  return [
+    "Autoresearch live supervision — level3_matrix_cell_runner",
+    `Task: #${runner.taskId}`,
+    `CWD: ${runner.cwd}`,
+    `Manifest kind: ${runner.manifestKind}`,
+    `Manifest path: ${runner.manifestPath ?? "inline_or_missing"}`,
+    `Manifest hash: ${runner.manifestHash ?? "missing"}`,
+    `Execution: ${runner.execution}`,
+    `level3_matrix_cell_runner_blockers: ${runner.metric.value} (target=${runner.metric.target}, ${runner.metric.status})`,
+    `ready-to-launch cells: ${runner.cellMetrics.readyToLaunchCells}`,
+    `bound cells: ${runner.cellMetrics.boundCells}`,
+    `measure/export-ready cells: ${runner.cellMetrics.measureExportReadyCells}`,
+    `packet-ready cells: ${runner.cellMetrics.packetReadyCells}`,
+    `selected cells: ${runner.cellMetrics.selectedCells}`,
+    `blocked cells: ${runner.cellMetrics.blockedCells}`,
+    "",
+    "Matrix/cell runner states:",
+    ...runner.cells.flatMap((cell) => [
+      `- ${cell.cellId}: state=${cell.state}; lanes=${cell.laneCount}; bound=${cell.boundLaneCount}; packets=${cell.packetReadyLaneCount}; selected=${cell.selectedLaneId ?? "none"}`,
+      `  objective: ${cell.objective}`,
+      `  metric: ${cell.metricName ?? "none"} (${cell.metricDirection} is better; target=${cell.metricTarget ?? "none"})`,
+      `  launch calls: ${cell.launchCalls.length}`,
+      `  measure/export calls: ${cell.measureExportCalls.length}`,
+      `  review_candidate_wave: ${cell.reviewCandidateWaveCall ?? "withheld"}`,
+      ...cell.lanes.map(
+        (lane) =>
+          `  lane ${lane.laneId}: launch=${lane.launchPosture}; binding=${lane.bindingPosture}; measure=${lane.measurementPosture}; packet=${lane.packetExists ? "present" : "missing"}; selected=${lane.selected ? "yes" : "no"}; next=${lane.nextLegalCall ?? "none"}`,
+      ),
+      ...(cell.blockers.length > 0
+        ? cell.blockers.map((blocker) => `  blocker: ${blocker}`)
+        : ["  blockers: none"]),
+    ]),
+    `Aggregate review: ${runner.aggregateReviewCall ?? "withheld"}`,
+    `Finalizer plan call: ${runner.finalizerPlanCall ?? "withheld"}`,
+    "",
+    "Next legal actions:",
+    ...(runner.nextLegalActions.length > 0
+      ? runner.nextLegalActions.map((action) => `- ${action}`)
+      : ["- none; resolve blockers or wait for visible peer/binding/packet inputs"]),
+    "",
+    "Blockers:",
+    ...(runner.blockers.length > 0 ? runner.blockers.map((blocker) => `- ${blocker}`) : ["- none"]),
+    "",
+    "Non-actions:",
+    ...runner.nonActions.map((action) => `- ${action}`),
+    "",
+    "Boundaries:",
+    ...runner.boundaries.map((boundary) => `- ${boundary}`),
+  ].join("\n");
+}
+
+function formatAutoresearchLevel3MatrixCellExecutorReport(
+  executor: AutoresearchLevel3MatrixCellExecutor,
+): string {
+  return [
+    "Autoresearch live supervision — level3_matrix_cell_executor",
+    `Task: #${executor.taskId}`,
+    `CWD: ${executor.cwd}`,
+    `Objective: ${executor.objective}`,
+    `Source runner: ${executor.sourceLevel3RunnerAlias} (${executor.sourceLevel3RunnerKind})`,
+    `Posture: ${executor.posture}`,
+    `Completed action count: ${executor.completedActionCount}`,
+    `Runner nextLegalActions: ${executor.runnerNextLegalActions.length}`,
+    `Remaining action count after this step: ${executor.remainingActionCount}`,
+    `level3_state_machine_blockers: ${executor.stateMachineBlockers.value} (target=${executor.stateMachineBlockers.target}, ${executor.stateMachineBlockers.status})`,
+    `Hidden execution prevented: ${executor.stateMachineBlockers.hiddenExecutionPrevented ? "yes" : "no"}`,
+    `Forbidden action matched: ${executor.stateMachineBlockers.forbiddenActionMatched ? "yes" : "no"}`,
+    "",
+    "Selected one-step action:",
+    executor.selectedAction
+      ? `- #${executor.selectedAction.index}: ${executor.selectedAction.call}`
+      : "- none",
+    executor.selectedAction
+      ? `- execution: ${executor.selectedAction.execution}`
+      : "- execution: not_executed_by_orchestrator",
+    executor.selectedAction
+      ? `- allowed by state machine: ${executor.selectedAction.allowedByStateMachine ? "yes" : "no"}`
+      : "- allowed by state machine: n/a",
+    ...(executor.selectedAction?.forbiddenReason
+      ? [`- forbidden reason: ${executor.selectedAction.forbiddenReason}`]
+      : []),
+    "",
+    "Emitted next legal actions:",
+    ...(executor.emittedNextLegalActions.length > 0
+      ? executor.emittedNextLegalActions.map((action) => `- ${action}`)
+      : ["- none"]),
+    "",
+    "Runner nextLegalActions snapshot:",
+    ...executor.runnerNextLegalActions.map((action, index) => `- [${index}] ${action}`),
+    "",
+    "Boundaries:",
+    ...executor.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${executor.nextStep}`,
+  ].join("\n");
+}
+
+function formatAutoresearchLevel3AuthorizedFinalizerCleanupPlanReport(
+  plan: AutoresearchLevel3AuthorizedFinalizerCleanupPlan,
+): string {
+  return [
+    "Autoresearch live supervision — level3_authorized_finalizer_cleanup_plan",
+    `Task: #${plan.taskId}`,
+    `CWD: ${plan.cwd}`,
+    `Manifest hash: ${plan.manifestHash ?? "missing"}`,
+    `Execution: ${plan.execution}`,
+    `authorized_finalizer_cleanup_blockers: ${plan.metric.value} (target=${plan.metric.target}, ${plan.metric.status})`,
+    `finalizer_token_application_blockers: ${plan.cellMetrics.finalizerTokenApplicationBlockers.value} (${plan.cellMetrics.finalizerTokenApplicationBlockers.status})`,
+    `cleanup_execution_gate_blockers: ${plan.cellMetrics.cleanupExecutionGateBlockers.value} (${plan.cellMetrics.cleanupExecutionGateBlockers.status})`,
+    `post_fanin_rollback_blockers: ${plan.cellMetrics.postFaninRollbackBlockers.value} (${plan.cellMetrics.postFaninRollbackBlockers.status})`,
+    `Finalizer token posture: ${plan.finalizerAuthorization.posture}`,
+    `Required finalizer token: ${plan.finalizerAuthorization.requiredToken}`,
+    `Cleanup posture: ${plan.cleanupAuthorization.posture}`,
+    `Required cleanup token: ${plan.cleanupAuthorization.requiredToken}`,
+    `Manifest cleanup policy accepted: ${plan.cleanupAuthorization.manifestPolicyAccepted ? "yes" : "no"}`,
+    "",
+    "Finalizer packet:",
+    plan.finalizerApplyCommandPacket
+      ? `- ${plan.finalizerApplyCommandPacket.kind}; commands=${plan.finalizerApplyCommandPacket.exactCommands.length}; execution=${plan.finalizerApplyCommandPacket.applyExecution}`
+      : "- blocked/withheld",
+    ...(plan.finalizerApplyCommandPacket
+      ? plan.finalizerApplyCommandPacket.exactCommands.map((command) => `  - ${command}`)
+      : []),
+    "",
+    "Cleanup packet:",
+    plan.cleanupCommandPacket
+      ? `- ${plan.cleanupCommandPacket.kind}; commands=${plan.cleanupCommandPacket.exactCommands.length}; execution=${plan.cleanupCommandPacket.cleanupExecution}`
+      : "- blocked/withheld",
+    ...(plan.cleanupCommandPacket
+      ? [
+          `  peer tabs/sessions: ${plan.cleanupCommandPacket.exactPeerTabsOrSessions.join(", ") || "none"}`,
+          `  worktrees: ${plan.cleanupCommandPacket.exactWorktrees.join(", ") || "none"}`,
+          `  branches: ${plan.cleanupCommandPacket.exactBranches.join(", ") || "none"}`,
+          ...plan.cleanupCommandPacket.exactCommands.map((command) => `  - ${command}`),
+          `  forbidden promotion command matches: ${plan.cleanupCommandPacket.forbiddenPromotionCommandMatches.join(", ") || "none"}`,
+        ]
+      : []),
+    "",
+    "Rollback receipt:",
+    `- ${plan.rollbackReceipt.kind}; non-authoritative=${plan.rollbackReceipt.nonAuthoritative ? "yes" : "no"}; durable evidence=${plan.rollbackReceipt.durableEvidence ? "yes" : "no"}; next=${plan.rollbackReceipt.nextState}`,
+    `- rollback hint: ${plan.rollbackReceipt.rollbackHint}`,
+    "",
+    "Blockers:",
+    ...(plan.blockers.length > 0 ? plan.blockers.map((blocker) => `- ${blocker}`) : ["- none"]),
+    "",
+    "Next legal actions:",
+    ...plan.nextLegalActions.map((action) => `- ${action}`),
+    "",
+    "Non-actions:",
+    ...plan.nonActions.map((action) => `- ${action}`),
+    "",
+    "Boundaries:",
+    ...plan.boundaries.map((boundary) => `- ${boundary}`),
+  ].join("\n");
 }
 
 function formatAutoresearchMatrixCampaignOperatorFollowupReport(
@@ -835,6 +1193,34 @@ function formatAutoresearchMatrixCampaignReviewReport(
     ),
     `- boundary: ${review.reviewPacket.authorityBoundary.boundary}`,
     "",
+    "Level-3 review/selection substrate:",
+    `- kind: ${review.level3ReviewSelection.kind}`,
+    `- source: ${review.level3ReviewSelection.source}`,
+    `- aggregation input: ${review.level3ReviewSelection.aggregationInput}`,
+    `- level3_review_selection_blockers: ${review.level3ReviewSelection.blockerMetric.value} (target=${review.level3ReviewSelection.blockerMetric.target}, ${review.level3ReviewSelection.blockerMetric.status})`,
+    `- finalizer readiness: ${review.level3ReviewSelection.finalizerReadiness.posture}; selected=${review.level3ReviewSelection.finalizerReadiness.selectedLaneCount}/${review.level3ReviewSelection.finalizerReadiness.expectedCellCount}; validation required=${review.level3ReviewSelection.finalizerReadiness.validationStillRequired ? "yes" : "no"}`,
+    `- apply commands exposed: ${review.level3ReviewSelection.finalizerReadiness.applyCommandsExposed ? "yes" : "no"}; promotion authority: ${review.level3ReviewSelection.finalizerReadiness.promotionAuthority ? "yes" : "no"}; cleanup authority: ${review.level3ReviewSelection.finalizerReadiness.cleanupAuthority ? "yes" : "no"}`,
+    `- required owner tokens: ${review.level3ReviewSelection.finalizerReadiness.requiredOwnerTokens.join(", ")}`,
+    ...(review.level3ReviewSelection.finalizerReadiness.exactFinalizePostFaninHandoffCall
+      ? [
+          `- finalize_post_fanin handoff call: ${review.level3ReviewSelection.finalizerReadiness.exactFinalizePostFaninHandoffCall}`,
+        ]
+      : ["- finalize_post_fanin handoff call: blocked"]),
+    "- per-cell winner state:",
+    ...review.level3ReviewSelection.cellSelections.map(
+      (cell) =>
+        `  - ${cell.cellId}: ${cell.winnerState}; selected=${cell.recommendedLaneId ?? "none"}; metric=${cell.recommendedMetric ?? "missing"}; visible=${cell.visibleCandidateLaneCount}/${cell.expectedLaneCount}; blockers=${cell.blockerCount}`,
+    ),
+    ...(review.level3ReviewSelection.blockerMetric.blockers.length > 0
+      ? review.level3ReviewSelection.blockerMetric.blockers.map(
+          (blocker) => `- level-4 blocker: ${blocker}`,
+        )
+      : ["- level-4 blockers: none"]),
+    ...review.level3ReviewSelection.nextLegalActions.map(
+      (action) => `- level-4 next legal action: ${action}`,
+    ),
+    ...review.level3ReviewSelection.boundaries.map((boundary) => `- boundary: ${boundary}`),
+    "",
     "Managed cell reviews:",
     ...review.cells.flatMap((cell) => [
       `- ${cell.cellId}: scenario=${cell.scenario}; hypothesis=${cell.hypothesis}`,
@@ -934,6 +1320,8 @@ function formatAutoresearchPostFaninFinalizerReport(
     `manual_post_fanin_residue: ${result.manualPostFaninResidue.value} (target=${result.manualPostFaninResidue.target}, ${result.manualPostFaninResidue.direction} is better; ${result.manualPostFaninResidue.status})`,
     `authorized_finalizer_cleanup_blockers: ${result.authorizedFinalizerCleanupGate.value} (target=${result.authorizedFinalizerCleanupGate.target}, ${result.authorizedFinalizerCleanupGate.direction} is better; ${result.authorizedFinalizerCleanupGate.status})`,
     `Cleanup authorized: ${result.authorizedFinalizerCleanupGate.cleanupAuthorized ? "yes" : "no"}; promotion authorized: ${result.authorizedFinalizerCleanupGate.promotionAuthorized ? "yes" : "no"}`,
+    `Candidate peer tab/session closure is part of cleanup: ${result.authorizedFinalizerCleanupGate.candidatePeerTabClosureIncludedInCleanup ? "yes" : "no"}`,
+    `Separate cleanup evidence required: ${result.authorizedFinalizerCleanupGate.cleanupEvidenceRequired ? "yes" : "no"}`,
     `Separate tokens still required: ${result.authorizedFinalizerCleanupGate.requiredSeparateTokens.join(", ")}`,
     `Authorization token: ${result.contract.exactAuthorizationToken}`,
     "",
@@ -2021,6 +2409,13 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       "Use autoresearch_live_supervision for exact taskId + cwd supervision above the pi-autoresearch runtime.",
       "Use action=start_campaign only with an exact taskId, cwd, and objective; campaign execution is delegated to pi-autoresearch runtime semantics before live supervision starts.",
       "Use action=plan_candidate_wave when the operator wants multiple visible candidate experiments in parallel; this returns explicit candidate_peer_spawn and pi-autoresearch measurement/review calls, but does not launch or promote anything by itself.",
+      "Use action=level3_manifest_preflight to validate a level-3 manifest read-only before any action-consuming surface.",
+      "Use action=level3_slice_sequence_dry_run to walk manifest slices/cells and emit non-authoritative dry-run receipts without exposing or executing lower-plane action calls.",
+      "Use action=level3_visible_candidate_lifecycle_plan to expose authorized visible candidate launch calls, bind candidate worktree lineage, and prepare cleanup posture without executing launch or cleanup.",
+      "Use action=level3_measure_export_review_plan to emit manifest-approved pi-autoresearch measurement/export/review call packets without executing them or treating packets as durable evidence.",
+      "Use action=level3_matrix_cell_runner to compute the unified Level-3 cell state machine over manifest preflight, sequencing, visible launch, candidate bindings, measure/export packets, per-cell review, and finalizer-plan readiness without executing hidden actions.",
+      "Use action=level3_authorized_finalizer_cleanup_plan to consume exact finalize_post_fanin and candidate_cleanup gates for post-fan-in command packets without executing finalizer, cleanup, promotion, or AK writes.",
+      "Use action=level3_matrix_cell_executor above checkpoint_matrix_campaign_runner output when the controller wants deterministic one-step advancement through runner nextLegalActions without hidden execution; pass completedActionCount after each explicitly verified action.",
       "Use action=plan_matrix_campaign when the operator wants implementation-wave work dogfooded as a scenario × hypothesis matrix; this returns cell-scoped plan_candidate_wave/review_candidate_wave calls and keeps AK as the task spine.",
       "Use action=prepare_matrix_campaign_runner for the safer manifest/checkpoint runner contract: it exposes visible candidate_peer_spawn launch calls only, withholds benchmark/export/review calls, and emits an exact controller checkpoint token.",
       "Use action=checkpoint_matrix_campaign_runner only after visible candidate peers have reported back and the controller has verified lineage; without the exact checkpointConfirmation token, benchmark/export/review calls remain withheld, and with it the tool returns an explicit controller-command packet: bind -> metric runtime_run -> candidate_result_export -> review_candidate_wave -> review_matrix_campaign.",
@@ -2041,6 +2436,13 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("start"),
           Type.Literal("start_campaign"),
           Type.Literal("plan_candidate_wave"),
+          Type.Literal("level3_manifest_preflight"),
+          Type.Literal("level3_slice_sequence_dry_run"),
+          Type.Literal("level3_visible_candidate_lifecycle_plan"),
+          Type.Literal("level3_measure_export_review_plan"),
+          Type.Literal("level3_matrix_cell_runner"),
+          Type.Literal("level3_authorized_finalizer_cleanup_plan"),
+          Type.Literal("level3_matrix_cell_executor"),
           Type.Literal("plan_matrix_campaign"),
           Type.Literal("prepare_matrix_campaign_runner"),
           Type.Literal("checkpoint_matrix_campaign_runner"),
@@ -2055,7 +2457,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       objective: Type.Optional(
         Type.String({
           description:
-            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, matrix campaign actions, action=review_candidate_wave, or action=finalize_post_fanin.",
+            "Bounded optimization objective for action=start_campaign, action=plan_candidate_wave, matrix campaign actions, action=review_candidate_wave, action=finalize_post_fanin, or action=level3_authorized_finalizer_cleanup_plan.",
         }),
       ),
       candidateCount: Type.Optional(
@@ -2098,7 +2500,34 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       parentPeerTarget: Type.Optional(
         Type.String({
           description:
-            "Optional exact controller peer target to include in candidate_peer_spawn calls for action=plan_candidate_wave.",
+            "Optional exact controller peer target to include in candidate_peer_spawn calls for action=plan_candidate_wave or action=level3_visible_candidate_lifecycle_plan.",
+        }),
+      ),
+      launchAuthorizationToken: Type.Optional(
+        Type.String({
+          description:
+            "Exact launch_visible_candidate_lanes token for action=level3_visible_candidate_lifecycle_plan when manifest policy does not directly allow launch.",
+        }),
+      ),
+      level3CandidateBindings: Type.Optional(
+        Type.Array(
+          Type.Object({
+            laneId: Type.String(),
+            candidatePeerRunId: Type.Optional(Type.String()),
+            candidateWorktree: Type.Optional(Type.String()),
+            candidateBranch: Type.Optional(Type.String()),
+            candidateBaseRef: Type.Optional(Type.String()),
+          }),
+          {
+            description:
+              "Controller-verified candidate lane bindings for action=level3_visible_candidate_lifecycle_plan.",
+          },
+        ),
+      ),
+      level3CandidateResultPacketDirectory: Type.Optional(
+        Type.String({
+          description:
+            "Repo-relative packet directory for action=level3_measure_export_review_plan candidate-result packet outputs.",
         }),
       ),
       candidateResults: Type.Optional(
@@ -2165,6 +2594,33 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             "Exact finalizer authorization token required for terminal authorized posture.",
         }),
       ),
+      finalizerAuthorizationToken: Type.Optional(
+        Type.String({
+          description:
+            "Exact level-3 finalize_post_fanin token for action=level3_authorized_finalizer_cleanup_plan.",
+        }),
+      ),
+      cleanupAuthorizationToken: Type.Optional(
+        Type.String({
+          description:
+            "Exact level-3 candidate_cleanup token for action=level3_authorized_finalizer_cleanup_plan when manifest cleanup policy is not exact/accepted.",
+        }),
+      ),
+      cleanupPeerTabsOrSessions: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Exact peer tab/session ids for level-3 candidate cleanup planning.",
+        }),
+      ),
+      cleanupWorktrees: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Exact candidate worktree paths for level-3 candidate cleanup planning.",
+        }),
+      ),
+      cleanupBranches: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Exact candidate branches for level-3 candidate cleanup planning.",
+        }),
+      ),
       validation: Type.Optional(
         Type.Object({
           command: Type.String({
@@ -2189,6 +2645,25 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         Type.String({
           description:
             "Exact controller checkpoint token required by action=checkpoint_matrix_campaign_runner before benchmark/export/review calls are exposed.",
+        }),
+      ),
+      completedActionCount: Type.Optional(
+        Type.Number({
+          description:
+            "For action=level3_matrix_cell_executor, the count of previously controller-run and verified Level-3 runner nextLegalActions; the executor emits only the next safe action.",
+          minimum: 0,
+        }),
+      ),
+      level3ManifestPath: Type.Optional(
+        Type.String({
+          description:
+            "Path to an autoresearch.level3_campaign_manifest.v1 JSON manifest for action=level3_manifest_preflight or action=level3_slice_sequence_dry_run.",
+        }),
+      ),
+      level3Manifest: Type.Optional(
+        Type.Record(Type.String(), Type.Unknown(), {
+          description:
+            "Inline autoresearch.level3_campaign_manifest.v1 object for action=level3_manifest_preflight or action=level3_slice_sequence_dry_run.",
         }),
       ),
       maxIterations: Type.Optional(
@@ -2297,6 +2772,9 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         candidateCountPerCell,
         parentPeerTarget,
         candidateResults,
+        level3CandidateBindings,
+        launchAuthorizationToken,
+        level3CandidateResultPacketDirectory,
         candidateResultPacketPaths,
         sourceReview,
         selectedLaneId,
@@ -2304,9 +2782,17 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         dirtyFiles,
         reviewedAtEpochMs,
         applyAuthorizationToken,
+        finalizerAuthorizationToken,
+        cleanupAuthorizationToken,
+        cleanupPeerTabsOrSessions,
+        cleanupWorktrees,
+        cleanupBranches,
         validation,
         runnerManifestPath,
         checkpointConfirmation,
+        completedActionCount,
+        level3ManifestPath,
+        level3Manifest,
         maxIterations,
         maxWallClockMinutes,
         benchmarkCommand,
@@ -2339,6 +2825,15 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         hypotheses?: string[];
         candidateCountPerCell?: number;
         parentPeerTarget?: string;
+        level3CandidateBindings?: Array<{
+          laneId: string;
+          candidatePeerRunId?: string;
+          candidateWorktree?: string;
+          candidateBranch?: string;
+          candidateBaseRef?: string;
+        }>;
+        launchAuthorizationToken?: string;
+        level3CandidateResultPacketDirectory?: string;
         candidateResults?: Array<{
           laneId: string;
           objective?: string;
@@ -2364,6 +2859,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         dirtyFiles?: string[];
         reviewedAtEpochMs?: number;
         applyAuthorizationToken?: string;
+        finalizerAuthorizationToken?: string;
+        cleanupAuthorizationToken?: string;
+        cleanupPeerTabsOrSessions?: string[];
+        cleanupWorktrees?: string[];
+        cleanupBranches?: string[];
         validation?: {
           command: string;
           status: "passed" | "failed" | "missing";
@@ -2372,6 +2872,9 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         };
         runnerManifestPath?: string;
         checkpointConfirmation?: string;
+        completedActionCount?: number;
+        level3ManifestPath?: string;
+        level3Manifest?: Record<string, unknown>;
         maxIterations?: number;
         maxWallClockMinutes?: number;
         benchmarkCommand?: string;
@@ -2527,6 +3030,165 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           );
         }
 
+        if (action === "level3_manifest_preflight") {
+          const result = autoresearchLiveRunner.preflightLevel3CampaignManifest({
+            ...identity,
+            manifest: level3Manifest,
+            manifestPath: level3ManifestPath,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel3ManifestPreflightReport(result),
+            {
+              ok: result.metric.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextLegalActions[0],
+              level3ManifestPreflight: result,
+            },
+          );
+        }
+
+        if (action === "level3_slice_sequence_dry_run") {
+          const result = autoresearchLiveRunner.dryRunLevel3SliceSequence({
+            ...identity,
+            manifest: level3Manifest,
+            manifestPath: level3ManifestPath,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel3SliceSequenceDryRunReport(result),
+            {
+              ok: result.metric.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextLegalActions[0],
+              level3SliceSequenceDryRun: result,
+            },
+          );
+        }
+
+        if (action === "level3_visible_candidate_lifecycle_plan") {
+          const result = autoresearchLiveRunner.planLevel3VisibleCandidateLifecycle({
+            ...identity,
+            manifest: level3Manifest,
+            manifestPath: level3ManifestPath,
+            parentPeerTarget,
+            launchAuthorizationToken,
+            candidateBindings: level3CandidateBindings,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel3VisibleCandidateLifecyclePlanReport(result),
+            {
+              ok: result.metric.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextLegalActions[0],
+              level3VisibleCandidateLifecyclePlan: result,
+            },
+          );
+        }
+
+        if (action === "level3_measure_export_review_plan") {
+          const result = autoresearchLiveRunner.planLevel3MeasureExportReview({
+            ...identity,
+            manifest: level3Manifest,
+            manifestPath: level3ManifestPath,
+            parentPeerTarget,
+            launchAuthorizationToken,
+            candidateBindings: level3CandidateBindings,
+            candidateResultPacketDirectory: level3CandidateResultPacketDirectory,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel3MeasureExportReviewPlanReport(result),
+            {
+              ok: result.metric.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextLegalActions[0],
+              level3MeasureExportReviewPlan: result,
+            },
+          );
+        }
+
+        if (action === "level3_matrix_cell_runner") {
+          const result = autoresearchLiveRunner.runLevel3MatrixCellRunner({
+            ...identity,
+            manifest: level3Manifest,
+            manifestPath: level3ManifestPath,
+            parentPeerTarget,
+            launchAuthorizationToken,
+            candidateBindings: level3CandidateBindings,
+            candidateResultPacketDirectory: level3CandidateResultPacketDirectory,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel3MatrixCellRunnerReport(result),
+            {
+              ok: result.metric.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextLegalActions[0],
+              level3MatrixCellRunner: result,
+            },
+          );
+        }
+
+        if (action === "level3_authorized_finalizer_cleanup_plan") {
+          const finalizerObjective = objective?.trim() ?? "";
+          if (finalizerObjective.length === 0) {
+            throw new Error(
+              "level3_authorized_finalizer_cleanup_plan requires a non-empty objective.",
+            );
+          }
+          const result = autoresearchLiveRunner.planLevel3AuthorizedFinalizerCleanup({
+            ...identity,
+            manifest: level3Manifest,
+            manifestPath: level3ManifestPath,
+            objective: finalizerObjective,
+            sourceReview,
+            direction,
+            metricName,
+            metricThreshold,
+            candidateResultPacketPaths,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            selectedLaneId,
+            selectedCellId,
+            validation,
+            offLimits,
+            dirtyFiles,
+            reviewedAtEpochMs,
+            finalizerAuthorizationToken,
+            cleanupAuthorizationToken,
+            cleanupResources: {
+              peerTabsOrSessions: cleanupPeerTabsOrSessions,
+              worktrees: cleanupWorktrees,
+              branches: cleanupBranches,
+            },
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel3AuthorizedFinalizerCleanupPlanReport(result),
+            {
+              ok: result.metric.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextLegalActions[0],
+              level3AuthorizedFinalizerCleanupPlan: result,
+            },
+          );
+        }
+
         if (action === "plan_matrix_campaign") {
           const matrixObjective = objective?.trim() ?? "";
           if (matrixObjective.length === 0) {
@@ -2632,6 +3294,44 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
               sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
               nextStep: result.nextStep,
               matrixCampaignRunnerCheckpoint: result,
+            },
+          );
+        }
+
+        if (action === "level3_matrix_cell_executor") {
+          const matrixObjective = objective?.trim() ?? "";
+          if (matrixObjective.length === 0) {
+            throw new Error("level3_matrix_cell_executor requires a non-empty objective.");
+          }
+          const result = autoresearchLiveRunner.advanceLevel4MatrixCellExecutor({
+            ...identity,
+            objective: matrixObjective,
+            direction,
+            metricName,
+            metricThreshold,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            filesInScope,
+            offLimits,
+            constraints,
+            parentPeerTarget,
+            maxIterationsPerCandidate: maxIterations,
+            maxWallClockMinutesPerCandidate: maxWallClockMinutes,
+            runnerManifestPath,
+            checkpointConfirmation,
+            completedActionCount,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel3MatrixCellExecutorReport(result),
+            {
+              ok: result.stateMachineBlockers.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              level3MatrixCellExecutor: result,
             },
           );
         }

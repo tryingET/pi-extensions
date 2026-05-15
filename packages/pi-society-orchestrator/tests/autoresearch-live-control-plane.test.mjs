@@ -220,6 +220,41 @@ function writeExecutable(cwd, name, content) {
   chmodSync(target, 0o755);
 }
 
+function createLevel3Manifest(cwd, overrides = {}) {
+  return {
+    kind: "autoresearch.level3_campaign_manifest.v1",
+    campaignId: "level3-slice1-test",
+    autonomyLevel: 3,
+    taskId: 2996,
+    cwd,
+    objective: "validate level-3 manifest preflight",
+    primaryMetric: {
+      name: "level3_manifest_preflight_blockers",
+      direction: "lower",
+      target: 0,
+    },
+    filesInScope: [
+      "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+    ],
+    offLimits: ["packages/pi-toolbox-discovery/**"],
+    rollback: ["disable level-3 runner and fall back to level-2 packet surfaces"],
+    slices: [{ id: "slice-1", metric: "level3_manifest_preflight_blockers" }],
+    policy: {
+      launchVisibleCandidatePeers: "token_required",
+      runMeasurements: "manifest_allowed",
+      exportCandidateResults: "manifest_allowed",
+      generateReviewPackets: true,
+      prepareFinalizerTokenRequest: true,
+      applyFinalizer: "token_required",
+      cleanupCandidates: "token_required_or_manifest_allowed",
+      recordAkEvidence: "ak_owner_write_required",
+      completeAkTask: "ak_owner_write_required",
+      mergeReleasePromotion: "promotion_token_required",
+    },
+    ...overrides,
+  };
+}
+
 function writeCandidateResultPacket(cwd, packetPath, overrides = {}) {
   const laneId = overrides.laneId ?? "candidate-01";
   mkdirSync(path.dirname(packetPath), { recursive: true });
@@ -640,6 +675,1208 @@ test("autoresearch_live_supervision plan_candidate_wave rejects packet directori
 
   assert.equal(result.details.ok, false);
   assert.match(result.details.error, /candidatePacketDirectory must stay under \.autoresearch/);
+});
+
+test("autoresearch_live_supervision level3_manifest_preflight validates manifest without execution", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    assert.ok(tool.parameters.properties.level3Manifest, "schema exposes level3Manifest");
+    assert.ok(tool.parameters.properties.level3ManifestPath, "schema exposes level3ManifestPath");
+
+    const manifest = createLevel3Manifest(cwd);
+    const result = await tool.execute(
+      "tc-level3-manifest-preflight",
+      {
+        action: "level3_manifest_preflight",
+        taskId: 2996,
+        cwd,
+        level3Manifest: manifest,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.action, "level3_manifest_preflight");
+    const preflight = result.details.level3ManifestPreflight;
+    assert.equal(preflight.kind, "autoresearch.level3_campaign_manifest_preflight.v1");
+    assert.equal(preflight.manifestKind, "autoresearch.level3_campaign_manifest.v1");
+    assert.match(preflight.manifestHash, /^sha256:[0-9a-f]{64}$/);
+    assert.equal(preflight.readOnly, true);
+    assert.equal(preflight.execution, "not_executed_by_orchestrator");
+    assert.equal(preflight.metric.name, "level3_manifest_preflight_blockers");
+    assert.equal(preflight.metric.value, 0);
+    assert.equal(preflight.cellMetrics.manifestSchemaBlockers.value, 0);
+    assert.equal(preflight.cellMetrics.manifestPolicyGateBlockers.value, 0);
+    assert.equal(preflight.cellMetrics.manifestPreflightUxBlockers.value, 0);
+    assert.equal(preflight.schema.campaignId, "level3-slice1-test");
+    assert.equal(preflight.policyGates.length, 10);
+    assert.ok(preflight.nonActions.some((item) => /No candidate_peer_spawn/.test(item)));
+    assert.ok(preflight.nonActions.some((item) => /No cleanup/.test(item)));
+    assert.match(result.content[0].text, /level3_manifest_preflight_blockers: 0/);
+    assert.match(result.content[0].text, /Policy gates/);
+    assert.match(result.content[0].text, /Level-2 fallback/);
+  });
+});
+
+test("autoresearch_live_supervision level3_manifest_preflight blocks invalid policy and scope drift", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+
+    const blocked = await tool.execute(
+      "tc-level3-manifest-preflight-blocked",
+      {
+        action: "level3_manifest_preflight",
+        taskId: 2996,
+        cwd,
+        level3Manifest: createLevel3Manifest(cwd, {
+          taskId: 1,
+          filesInScope: ["packages/pi-toolbox-discovery/src/index.ts"],
+          policy: {
+            launchVisibleCandidatePeers: true,
+            runMeasurements: true,
+            exportCandidateResults: true,
+            generateReviewPackets: true,
+            prepareFinalizerTokenRequest: true,
+            applyFinalizer: true,
+            cleanupCandidates: true,
+            recordAkEvidence: true,
+            completeAkTask: true,
+            mergeReleasePromotion: true,
+          },
+        }),
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(blocked.details.ok, false);
+    const preflight = blocked.details.level3ManifestPreflight;
+    assert.equal(preflight.metric.status, "blocked");
+    assert.ok(preflight.cellMetrics.manifestSchemaBlockers.value >= 2);
+    assert.ok(preflight.cellMetrics.manifestPolicyGateBlockers.value >= 8);
+    assert.ok(preflight.blockers.some((item) => /manifest.taskId/.test(item)));
+    assert.ok(preflight.blockers.some((item) => /overlaps offLimits/.test(item)));
+    assert.ok(
+      preflight.blockers.some((item) => /launchVisibleCandidatePeers policy.*invalid/.test(item)),
+    );
+    assert.ok(preflight.nonActions.some((item) => /No autoresearch measurement/.test(item)));
+    assert.match(blocked.content[0].text, /Do not launch peers/);
+  });
+});
+
+test("autoresearch_live_supervision level3_slice_sequence_dry_run orders slices and emits non-authoritative receipts", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    assert.ok(tool.parameters.properties.level3Manifest, "schema exposes level3Manifest");
+
+    const manifest = createLevel3Manifest(cwd, {
+      campaignId: "level3-slice2-test",
+      primaryMetric: {
+        name: "autonomous_slice_sequence_blockers",
+        direction: "lower",
+        target: 0,
+      },
+      slices: [
+        {
+          id: "slice-1",
+          metric: "slice_ordering_blockers",
+          requiredPolicyGates: ["generateReviewPackets"],
+          cells: [
+            { id: "cell-01", metric: "slice_ordering_blockers" },
+            { id: "cell-02", dependsOn: ["cell-01"], metric: "dry_run_receipt_blockers" },
+          ],
+        },
+        {
+          id: "slice-2",
+          dependsOn: ["cell-02"],
+          metric: "slice_sequence_recovery_blockers",
+        },
+      ],
+    });
+
+    const result = await tool.execute(
+      "tc-level3-slice-sequence-dry-run",
+      {
+        action: "level3_slice_sequence_dry_run",
+        taskId: 2996,
+        cwd,
+        level3Manifest: manifest,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.action, "level3_slice_sequence_dry_run");
+    const dryRun = result.details.level3SliceSequenceDryRun;
+    assert.equal(dryRun.kind, "autoresearch.level3_slice_sequence_dry_run.v1");
+    assert.equal(dryRun.execution, "not_executed_by_orchestrator");
+    assert.equal(dryRun.metric.name, "autonomous_slice_sequence_blockers");
+    assert.equal(dryRun.metric.value, 0);
+    assert.equal(dryRun.cellMetrics.sliceOrderingBlockers.value, 0);
+    assert.equal(dryRun.cellMetrics.dryRunReceiptBlockers.value, 0);
+    assert.equal(dryRun.cellMetrics.sliceSequenceRecoveryBlockers.value, 0);
+    assert.deepEqual(
+      dryRun.orderedStates.map((state) => `${state.order}:${state.cellId}:${state.state}`),
+      ["1:cell-01:ready", "2:cell-02:ready", "3:slice-2:ready"],
+    );
+    assert.equal(dryRun.receipts.length, 3);
+    assert.ok(dryRun.receipts.every((receipt) => receipt.nonAuthoritative === true));
+    assert.ok(dryRun.receipts.every((receipt) => receipt.durableEvidence === false));
+    assert.ok(
+      dryRun.receipts.every(
+        (receipt) => receipt.kind === "autoresearch.level3_campaign_transition_receipt.v1",
+      ),
+    );
+    assert.match(dryRun.receipts[0].manifestHash, /^sha256:[0-9a-f]{64}$/);
+    assert.match(result.content[0].text, /autonomous_slice_sequence_blockers: 0/);
+    assert.match(result.content[0].text, /Dry-run transition receipts/);
+    assert.match(result.content[0].text, /non-authoritative=yes/);
+    assert.match(result.content[0].text, /Level-2 fallback/);
+  });
+});
+
+test("autoresearch_live_supervision level3_slice_sequence_dry_run fails closed for blocked preflight and missing dependencies", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+
+    const blocked = await tool.execute(
+      "tc-level3-slice-sequence-dry-run-blocked",
+      {
+        action: "level3_slice_sequence_dry_run",
+        taskId: 2996,
+        cwd,
+        level3Manifest: createLevel3Manifest(cwd, {
+          taskId: 1,
+          slices: [
+            { id: "cell-01", metric: "slice_ordering_blockers" },
+            { id: "cell-02", dependsOn: ["missing-cell"], metric: "dry_run_receipt_blockers" },
+          ],
+        }),
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(blocked.details.ok, false);
+    const dryRun = blocked.details.level3SliceSequenceDryRun;
+    assert.equal(dryRun.metric.status, "blocked");
+    assert.ok(dryRun.preflight.metric.value > 0);
+    assert.ok(dryRun.cellMetrics.sliceOrderingBlockers.value >= 1);
+    assert.ok(
+      dryRun.orderedStates.some((state) => state.missingDependencies.includes("missing-cell")),
+    );
+    assert.ok(dryRun.blockers.some((blocker) => /manifest preflight is blocked/.test(blocker)));
+    assert.ok(dryRun.blockers.some((blocker) => /missing dependency missing-cell/.test(blocker)));
+    assert.match(blocked.content[0].text, /Resolve blocked slice\/cell dependencies/);
+    assert.match(blocked.content[0].text, /Safe rerun/);
+    assert.match(blocked.content[0].text, /Level-2 fallback/);
+    assert.ok(dryRun.nonActions.some((item) => /Dry-run only/.test(item)));
+  });
+});
+
+test("autoresearch_live_supervision level3_slice_sequence_dry_run withholds lower-plane action calls", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+
+    const result = await tool.execute(
+      "tc-level3-slice-sequence-dry-run-no-actions",
+      {
+        action: "level3_slice_sequence_dry_run",
+        taskId: 2996,
+        cwd,
+        level3Manifest: createLevel3Manifest(cwd, {
+          slices: [{ id: "slice-1", metric: "autonomous_slice_sequence_blockers" }],
+        }),
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    const dryRun = result.details.level3SliceSequenceDryRun;
+    const exposedActionText = [
+      ...dryRun.nextLegalActions.filter((action) => action !== dryRun.level2FallbackRoute),
+      dryRun.safeRerunCommand,
+      ...dryRun.orderedStates.map((state) => state.nextLegalAction),
+    ].join("\n");
+    assert.doesNotMatch(exposedActionText, /candidate_peer_spawn/);
+    assert.doesNotMatch(exposedActionText, /autoresearch_runtime_run/);
+    assert.doesNotMatch(exposedActionText, /candidate_result_export/);
+    assert.doesNotMatch(exposedActionText, /review_candidate_wave|review_matrix_campaign/);
+    assert.doesNotMatch(exposedActionText, /finalize_post_fanin/);
+    assert.doesNotMatch(exposedActionText, /cleanup/);
+    assert.doesNotMatch(exposedActionText, /ak_owner_write|evidence_record/);
+    assert.doesNotMatch(exposedActionText, /merge|release|promotion/);
+    assert.equal(dryRun.receipts[0].durableEvidence, false);
+  });
+});
+
+test("autoresearch_live_supervision level3_visible_candidate_lifecycle_plan exposes authorized visible launch and bindings", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    assert.ok(tool.parameters.properties.launchAuthorizationToken, "schema exposes launch token");
+    assert.ok(tool.parameters.properties.level3CandidateBindings, "schema exposes bindings");
+
+    const manifest = createLevel3Manifest(cwd, {
+      campaignId: "level3-slice3-test",
+      primaryMetric: {
+        name: "candidate_lifecycle_automation_blockers",
+        direction: "lower",
+        target: 0,
+      },
+      candidateLanes: [
+        {
+          id: "lane-a",
+          objective: "Implement visible lifecycle candidate A",
+          filesInScope: [
+            "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+          ],
+          offLimits: ["packages/pi-toolbox-discovery/**"],
+        },
+        { id: "lane-b", objective: "Implement visible lifecycle candidate B" },
+      ],
+      policy: {
+        launchVisibleCandidatePeers: "manifest_allowed",
+        runMeasurements: "manifest_allowed",
+        exportCandidateResults: "manifest_allowed",
+        generateReviewPackets: true,
+        prepareFinalizerTokenRequest: true,
+        applyFinalizer: "token_required",
+        cleanupCandidates: "token_required_or_manifest_allowed",
+        recordAkEvidence: "ak_owner_write_required",
+        completeAkTask: "ak_owner_write_required",
+        mergeReleasePromotion: "promotion_token_required",
+      },
+    });
+
+    const result = await tool.execute(
+      "tc-level3-visible-candidate-lifecycle-plan",
+      {
+        action: "level3_visible_candidate_lifecycle_plan",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+        level3CandidateBindings: [
+          {
+            laneId: "lane-a",
+            candidatePeerRunId: "peer-a",
+            candidateWorktree: path.join(cwd, ".worktrees", "lane-a"),
+            candidateBranch: "candidate/lane-a",
+            candidateBaseRef: "HEAD",
+          },
+          {
+            laneId: "lane-b",
+            candidatePeerRunId: "peer-b",
+            candidateWorktree: path.join(cwd, ".worktrees", "lane-b"),
+            candidateBranch: "candidate/lane-b",
+            candidateBaseRef: "HEAD",
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.action, "level3_visible_candidate_lifecycle_plan");
+    const plan = result.details.level3VisibleCandidateLifecyclePlan;
+    assert.equal(plan.kind, "autoresearch.level3_visible_candidate_lifecycle_plan.v1");
+    assert.equal(plan.execution, "not_executed_by_orchestrator");
+    assert.equal(plan.metric.name, "candidate_lifecycle_automation_blockers");
+    assert.equal(plan.metric.value, 0);
+    assert.equal(plan.cellMetrics.visibleLaunchPolicyBlockers.value, 0);
+    assert.equal(plan.cellMetrics.candidateBindingLifecycleBlockers.value, 0);
+    assert.equal(plan.cellMetrics.candidateCleanupPolicyBlockers.value, 0);
+    assert.equal(plan.launchAuthorization.posture, "allowed_by_manifest_policy");
+    assert.equal(plan.lanes.length, 2);
+    assert.ok(
+      plan.lanes.every((lane) => lane.launchPosture === "ready_visible_candidate_peer_spawn_call"),
+    );
+    assert.ok(plan.lanes.every((lane) => /candidate_peer_spawn/.test(lane.candidatePeerCall)));
+    assert.ok(
+      plan.lanes.every((lane) => lane.bindingPosture === "bound_visible_candidate_worktree"),
+    );
+    assert.ok(
+      plan.lanes.every((lane) => lane.cleanupPosture === "plan_only_cleanup_token_required"),
+    );
+    assert.match(result.content[0].text, /candidate_lifecycle_automation_blockers: 0/);
+    assert.match(result.content[0].text, /candidate_peer_spawn/);
+    assert.match(result.content[0].text, /cleanup plan/);
+  });
+});
+
+test("autoresearch_live_supervision level3_visible_candidate_lifecycle_plan blocks missing launch policy and missing bindings", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+
+    const blocked = await tool.execute(
+      "tc-level3-visible-candidate-lifecycle-plan-blocked",
+      {
+        action: "level3_visible_candidate_lifecycle_plan",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: createLevel3Manifest(cwd, {
+          candidateLanes: [{ id: "lane-a", objective: "blocked lane" }],
+        }),
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(blocked.details.ok, false);
+    const plan = blocked.details.level3VisibleCandidateLifecyclePlan;
+    assert.equal(plan.launchAuthorization.posture, "blocked_missing_policy_or_token");
+    assert.equal(plan.cellMetrics.visibleLaunchPolicyBlockers.status, "blocked");
+    assert.equal(plan.cellMetrics.candidateBindingLifecycleBlockers.status, "blocked");
+    assert.equal(plan.lanes[0].candidatePeerCall, null);
+    assert.equal(plan.lanes[0].launchPosture, "blocked_missing_launch_policy_or_token");
+    assert.equal(plan.lanes[0].bindingPosture, "blocked_missing_binding");
+    assert.ok(
+      plan.blockers.some((blocker) => /missing accepted launchVisibleCandidatePeers/.test(blocker)),
+    );
+    assert.ok(plan.blockers.some((blocker) => /missing candidate worktree binding/.test(blocker)));
+    assert.match(blocked.content[0].text, /withheld/);
+  });
+});
+
+test("autoresearch_live_supervision level3_visible_candidate_lifecycle_plan fails closed on duplicate bindings and keeps cleanup plan-only", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const manifest = createLevel3Manifest(cwd, {
+      candidateLanes: [{ id: "lane-a", objective: "duplicate binding lane" }],
+      policy: {
+        launchVisibleCandidatePeers: "manifest_allowed",
+        runMeasurements: "manifest_allowed",
+        exportCandidateResults: "manifest_allowed",
+        generateReviewPackets: true,
+        prepareFinalizerTokenRequest: true,
+        applyFinalizer: "token_required",
+        cleanupCandidates: "token_required_or_manifest_allowed",
+        recordAkEvidence: "ak_owner_write_required",
+        completeAkTask: "ak_owner_write_required",
+        mergeReleasePromotion: "promotion_token_required",
+      },
+    });
+
+    const result = await tool.execute(
+      "tc-level3-visible-candidate-lifecycle-plan-duplicate-binding",
+      {
+        action: "level3_visible_candidate_lifecycle_plan",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+        level3CandidateBindings: [
+          {
+            laneId: "lane-a",
+            candidateWorktree: path.join(cwd, ".worktrees", "lane-a-1"),
+            candidateBranch: "candidate/lane-a-1",
+            candidateBaseRef: "HEAD",
+          },
+          {
+            laneId: "lane-a",
+            candidateWorktree: path.join(cwd, ".worktrees", "lane-a-2"),
+            candidateBranch: "candidate/lane-a-2",
+            candidateBaseRef: "HEAD",
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    const plan = result.details.level3VisibleCandidateLifecyclePlan;
+    assert.equal(result.details.ok, false);
+    assert.equal(plan.cellMetrics.candidateBindingLifecycleBlockers.status, "blocked");
+    assert.equal(plan.lanes[0].bindingPosture, "blocked_duplicate_binding");
+    assert.ok(plan.blockers.some((blocker) => /duplicate candidate binding/.test(blocker)));
+    assert.ok(plan.nonActions.some((item) => /No candidate_peer_spawn/.test(item)));
+    assert.ok(plan.nonActions.some((item) => /No autoresearch_runtime_run/.test(item)));
+    assert.ok(plan.boundaries.some((item) => /Cleanup is a plan-only posture/.test(item)));
+    assert.ok(
+      plan.lanes[0].cleanupPlan.every((item) => !/worktree remove|branch -D|rm -rf/.test(item)),
+    );
+  });
+});
+
+test("autoresearch_live_supervision level3 candidate lifecycle keeps matrix cells first-class", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const manifest = createLevel3Manifest(cwd, {
+      campaignId: "level3-matrix-cell-lanes-test",
+      primaryMetric: {
+        name: "matrix_cell_autonomy_blockers",
+        direction: "lower",
+        target: 0,
+      },
+      matrix: { candidateCountPerCell: 2 },
+      slices: [
+        {
+          id: "slice-matrix",
+          cells: [
+            {
+              id: "cell-a",
+              objective: "cell A objective",
+              metric: { name: "cell_a_latency_blockers", direction: "lower", target: 0 },
+            },
+            {
+              id: "cell-b",
+              objective: "cell B objective",
+              metric: { name: "cell_b_quality_score", direction: "higher", target: 10 },
+            },
+          ],
+        },
+      ],
+      policy: {
+        launchVisibleCandidatePeers: "manifest_allowed",
+        runMeasurements: "manifest_allowed",
+        exportCandidateResults: "manifest_allowed",
+        generateReviewPackets: true,
+        prepareFinalizerTokenRequest: true,
+        applyFinalizer: "token_required",
+        cleanupCandidates: "token_required_or_manifest_allowed",
+        recordAkEvidence: "ak_owner_write_required",
+        completeAkTask: "ak_owner_write_required",
+        mergeReleasePromotion: "promotion_token_required",
+      },
+    });
+    const level3CandidateBindings = [
+      {
+        laneId: "cell-a-candidate-01",
+        candidateWorktree: path.join(cwd, ".worktrees", "cell-a-candidate-01"),
+        candidateBranch: "candidate/cell-a-candidate-01",
+        candidateBaseRef: "HEAD",
+      },
+      {
+        laneId: "cell-a-candidate-02",
+        candidateWorktree: path.join(cwd, ".worktrees", "cell-a-candidate-02"),
+        candidateBranch: "candidate/cell-a-candidate-02",
+        candidateBaseRef: "HEAD",
+      },
+      {
+        laneId: "cell-b-candidate-01",
+        candidateWorktree: path.join(cwd, ".worktrees", "cell-b-candidate-01"),
+        candidateBranch: "candidate/cell-b-candidate-01",
+        candidateBaseRef: "HEAD",
+      },
+      {
+        laneId: "cell-b-candidate-02",
+        candidateWorktree: path.join(cwd, ".worktrees", "cell-b-candidate-02"),
+        candidateBranch: "candidate/cell-b-candidate-02",
+        candidateBaseRef: "HEAD",
+      },
+    ];
+    const result = await tool.execute(
+      "tc-level3-matrix-cell-lanes",
+      {
+        action: "level3_visible_candidate_lifecycle_plan",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+        level3CandidateBindings,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(result.details.ok, true);
+    const plan = result.details.level3VisibleCandidateLifecyclePlan;
+    assert.deepEqual(
+      plan.lanes.map((lane) => `${lane.cellId}:${lane.laneId}:${lane.metricName}`),
+      [
+        "cell-a:cell-a-candidate-01:cell_a_latency_blockers",
+        "cell-a:cell-a-candidate-02:cell_a_latency_blockers",
+        "cell-b:cell-b-candidate-01:cell_b_quality_score",
+        "cell-b:cell-b-candidate-02:cell_b_quality_score",
+      ],
+    );
+    assert.deepEqual(
+      plan.lanes.map((lane) => `${lane.metricDirection}:${lane.metricTarget}`),
+      ["lower:0", "lower:0", "higher:10", "higher:10"],
+    );
+    assert.equal(new Set(plan.lanes.map((lane) => lane.laneId)).size, 4);
+    assert.ok(
+      plan.lanes.every((lane) => lane.bindingPosture === "bound_visible_candidate_worktree"),
+    );
+    assert.match(result.content[0].text, /metric: cell_a_latency_blockers/);
+
+    const measure = await tool.execute(
+      "tc-level3-matrix-cell-measure-packets",
+      {
+        action: "level3_measure_export_review_plan",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+        level3CandidateBindings,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(measure.details.ok, true);
+    const measurePlan = measure.details.level3MeasureExportReviewPlan;
+    assert.deepEqual(
+      measurePlan.lanes.map(
+        (lane) => `${lane.cellId}:${lane.metricName}:${lane.reviewInputPacketPath}`,
+      ),
+      [
+        "cell-a:cell_a_latency_blockers:.autoresearch/level3-measure-export-review/cell-a/cell-a-candidate-01.candidate-result.json",
+        "cell-a:cell_a_latency_blockers:.autoresearch/level3-measure-export-review/cell-a/cell-a-candidate-02.candidate-result.json",
+        "cell-b:cell_b_quality_score:.autoresearch/level3-measure-export-review/cell-b/cell-b-candidate-01.candidate-result.json",
+        "cell-b:cell_b_quality_score:.autoresearch/level3-measure-export-review/cell-b/cell-b-candidate-02.candidate-result.json",
+      ],
+    );
+    assert.match(measurePlan.lanes[2].runtimeRunCall, /cell_b_quality_score/);
+    assert.match(measurePlan.lanes[2].runtimeRunCall, /"direction": "higher"/);
+    assert.match(measure.content[0].text, /metric: cell_b_quality_score/);
+  });
+});
+
+test("autoresearch_live_supervision level3_matrix_cell_runner advances cells through launch measure review and finalizer-plan readiness", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const manifest = createLevel3Manifest(cwd, {
+      campaignId: "level3-unified-runner-test",
+      objective: "Final Level-3 autonomy slice: implement unified matrix/cell campaign runner",
+      primaryMetric: {
+        name: "level3_matrix_cell_runner_blockers",
+        direction: "lower",
+        target: 0,
+      },
+      matrix: { candidateCountPerCell: 2 },
+      slices: [
+        {
+          id: "slice-final-level3",
+          cells: [
+            {
+              id: "cell-runner-loop",
+              objective: "Implement deterministic runner state transitions",
+              metric: { name: "runner_glue_blockers", direction: "lower", target: 0 },
+            },
+            {
+              id: "cell-review-selection",
+              objective: "Implement per-cell review selection state",
+              metric: { name: "selection_state_blockers", direction: "lower", target: 0 },
+            },
+          ],
+        },
+      ],
+      policy: {
+        launchVisibleCandidatePeers: "manifest_allowed",
+        runMeasurements: "manifest_allowed",
+        exportCandidateResults: "manifest_allowed",
+        generateReviewPackets: true,
+        prepareFinalizerTokenRequest: true,
+        applyFinalizer: "token_required",
+        cleanupCandidates: "token_required_or_manifest_allowed",
+        recordAkEvidence: "ak_owner_write_required",
+        completeAkTask: "ak_owner_write_required",
+        mergeReleasePromotion: "promotion_token_required",
+      },
+    });
+
+    const launchReady = await tool.execute(
+      "tc-level3-matrix-cell-runner-launch-ready",
+      {
+        action: "level3_matrix_cell_runner",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(launchReady.details.action, "level3_matrix_cell_runner");
+    assert.equal(launchReady.details.ok, false);
+    const launchRunner = launchReady.details.level3MatrixCellRunner;
+    assert.equal(launchRunner.kind, "autoresearch.level3_matrix_cell_runner.v1");
+    assert.equal(launchRunner.cellMetrics.readyToLaunchCells, 2);
+    assert.equal(launchRunner.cells.length, 2);
+    assert.ok(
+      launchRunner.cells.every((cell) => cell.state === "ready_to_launch_visible_candidates"),
+    );
+    assert.equal(launchRunner.nextLegalActions.length, 4);
+    assert.ok(launchRunner.nextLegalActions.every((call) => /candidate_peer_spawn/.test(call)));
+    assert.ok(launchRunner.nonActions.some((item) => /did not spawn peers/.test(item)));
+    assert.match(launchReady.content[0].text, /level3_matrix_cell_runner_blockers/);
+
+    const bindings = [
+      "cell-runner-loop-candidate-01",
+      "cell-runner-loop-candidate-02",
+      "cell-review-selection-candidate-01",
+      "cell-review-selection-candidate-02",
+    ].map((laneId) => ({
+      laneId,
+      candidatePeerRunId: `candidatepeer-${laneId}`,
+      candidateWorktree: path.join(cwd, ".worktrees", laneId),
+      candidateBranch: `candidate/${laneId}`,
+      candidateBaseRef: "HEAD",
+    }));
+
+    const measureReady = await tool.execute(
+      "tc-level3-matrix-cell-runner-measure-ready",
+      {
+        action: "level3_matrix_cell_runner",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+        level3CandidateBindings: bindings,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const measureRunner = measureReady.details.level3MatrixCellRunner;
+    assert.equal(measureRunner.cellMetrics.measureExportReadyCells, 2);
+    assert.ok(measureRunner.cells.every((cell) => cell.state === "ready_for_measure_export"));
+    assert.ok(measureRunner.nextLegalActions.some((call) => /autoresearch_runtime_run/.test(call)));
+    assert.ok(measureRunner.nextLegalActions.some((call) => /candidate_result_export/.test(call)));
+
+    for (const binding of bindings) {
+      const cellId = binding.laneId.startsWith("cell-runner-loop")
+        ? "cell-runner-loop"
+        : "cell-review-selection";
+      const packetPath = path.join(
+        cwd,
+        ".autoresearch",
+        "level3-measure-export-review",
+        cellId,
+        `${binding.laneId}.candidate-result.json`,
+      );
+      writeCandidateResultPacket(cwd, packetPath, {
+        laneId: binding.laneId,
+        metric: binding.laneId.endsWith("01") ? 1 : 2,
+        candidate: {
+          worktreePath: binding.candidateWorktree,
+          branch: binding.candidateBranch,
+          baseRef: binding.candidateBaseRef,
+          peerRunId: binding.candidatePeerRunId,
+        },
+      });
+    }
+
+    const selected = await tool.execute(
+      "tc-level3-matrix-cell-runner-selected",
+      {
+        action: "level3_matrix_cell_runner",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+        level3CandidateBindings: bindings,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const selectedRunner = selected.details.level3MatrixCellRunner;
+    assert.equal(selectedRunner.cellMetrics.packetReadyCells, 2);
+    assert.equal(selectedRunner.cellMetrics.selectedCells, 2);
+    assert.ok(selectedRunner.cells.every((cell) => cell.state === "selected_for_matrix_review"));
+    assert.deepEqual(
+      selectedRunner.cells.map((cell) => cell.selectedLaneId),
+      ["cell-runner-loop-candidate-01", "cell-review-selection-candidate-01"],
+    );
+    assert.match(selectedRunner.finalizerPlanCall, /level3_authorized_finalizer_cleanup_plan/);
+    assert.match(selectedRunner.finalizerPlanCall, /review_matrix_campaign/);
+    assert.ok(
+      selectedRunner.boundaries.some((boundary) =>
+        /launch -> bind -> measure\/export -> review/.test(boundary),
+      ),
+    );
+  });
+});
+
+test("autoresearch_live_supervision level3_measure_export_review_plan emits manifest-approved call packets", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    assert.ok(tool.parameters.properties.level3CandidateResultPacketDirectory);
+    const manifest = createLevel3Manifest(cwd, {
+      primaryMetric: {
+        name: "candidate_measure_export_review_blockers",
+        direction: "lower",
+        target: 0,
+      },
+      candidateLanes: [{ id: "lane-a", objective: "measure/export/review lane" }],
+      policy: {
+        launchVisibleCandidatePeers: "manifest_allowed",
+        runMeasurements: "manifest_allowed",
+        exportCandidateResults: "manifest_allowed",
+        generateReviewPackets: true,
+        prepareFinalizerTokenRequest: true,
+        applyFinalizer: "token_required",
+        cleanupCandidates: "token_required_or_manifest_allowed",
+        recordAkEvidence: "ak_owner_write_required",
+        completeAkTask: "ak_owner_write_required",
+        mergeReleasePromotion: "promotion_token_required",
+      },
+    });
+    const result = await tool.execute(
+      "tc-level3-measure-export-review-plan",
+      {
+        action: "level3_measure_export_review_plan",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: manifest,
+        level3CandidateBindings: [
+          {
+            laneId: "lane-a",
+            candidateWorktree: path.join(cwd, ".worktrees", "lane-a"),
+            candidateBranch: "candidate/lane-a",
+            candidateBaseRef: "HEAD",
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(result.details.ok, true);
+    const plan = result.details.level3MeasureExportReviewPlan;
+    assert.equal(plan.kind, "autoresearch.level3_measure_export_review_plan.v1");
+    assert.equal(plan.execution, "not_executed_by_orchestrator");
+    assert.equal(plan.metric.value, 0);
+    assert.equal(plan.cellMetrics.measurementPolicyBlockers.value, 0);
+    assert.equal(plan.cellMetrics.candidateExportBindingBlockers.value, 0);
+    assert.equal(plan.cellMetrics.reviewPacketAuthorityBlockers.value, 0);
+    assert.match(plan.lanes[0].runtimeRunCall, /autoresearch_runtime_run/);
+    assert.match(plan.lanes[0].candidateResultExportCall, /candidate_result_export/);
+    assert.match(plan.aggregateReviewCall, /review_candidate_wave/);
+    assert.ok(plan.nonActions.some((item) => /No measurement/.test(item)));
+    assert.ok(plan.boundaries.some((item) => /non-authoritative review inputs/.test(item)));
+  });
+});
+
+test("autoresearch_live_supervision level3_measure_export_review_plan fails closed without manifest policy or bindings", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const result = await tool.execute(
+      "tc-level3-measure-export-review-plan-blocked",
+      {
+        action: "level3_measure_export_review_plan",
+        taskId: 2996,
+        cwd,
+        parentPeerTarget: "controller-peer-1",
+        level3Manifest: createLevel3Manifest(cwd, {
+          candidateLanes: [{ id: "lane-a", objective: "blocked measurement lane" }],
+          policy: {
+            launchVisibleCandidatePeers: "manifest_allowed",
+            runMeasurements: "token_required",
+            exportCandidateResults: "token_required",
+            generateReviewPackets: false,
+            prepareFinalizerTokenRequest: true,
+            applyFinalizer: "token_required",
+            cleanupCandidates: "token_required_or_manifest_allowed",
+            recordAkEvidence: "ak_owner_write_required",
+            completeAkTask: "ak_owner_write_required",
+            mergeReleasePromotion: "promotion_token_required",
+          },
+        }),
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(result.details.ok, false);
+    const plan = result.details.level3MeasureExportReviewPlan;
+    assert.equal(plan.metric.status, "blocked");
+    assert.equal(plan.lanes[0].runtimeRunCall, null);
+    assert.equal(plan.lanes[0].candidateResultExportCall, null);
+    assert.equal(plan.aggregateReviewCall, null);
+    assert.ok(plan.blockers.some((blocker) => /runMeasurements/.test(blocker)));
+    assert.ok(plan.blockers.some((blocker) => /missing candidate worktree/.test(blocker)));
+    assert.match(result.content[0].text, /withheld/);
+  });
+});
+
+test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan accepts exact finalizer and cleanup tokens", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    assert.ok(tool.parameters.properties.finalizerAuthorizationToken);
+    assert.ok(tool.parameters.properties.cleanupAuthorizationToken);
+    assert.ok(tool.parameters.properties.cleanupPeerTabsOrSessions);
+    const packetPath = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "lane-a.candidate-result.json",
+    );
+    writeCandidateResultPacket(cwd, packetPath, {
+      laneId: "lane-a",
+      metric: 1,
+      candidate: {
+        worktreePath: path.join(cwd, ".worktrees", "lane-a"),
+        branch: "candidate/lane-a",
+        baseRef: "HEAD",
+        peerRunId: "peer-tab-lane-a",
+      },
+    });
+    const reviewedAtEpochMs = Date.now() + 60_000;
+    const manifest = createLevel3Manifest(cwd, {
+      campaignId: "level3-slice5-token-test",
+      taskId: 2996,
+      primaryMetric: {
+        name: "authorized_finalizer_cleanup_blockers",
+        direction: "lower",
+        target: 0,
+      },
+      slices: [
+        {
+          id: "slice-5",
+          metric: "authorized_finalizer_cleanup_blockers",
+          cells: [
+            { id: "cell-01", metric: "finalizer_token_application_blockers" },
+            { id: "cell-02", dependsOn: ["cell-01"], metric: "cleanup_execution_gate_blockers" },
+            { id: "cell-03", dependsOn: ["cell-02"], metric: "post_fanin_rollback_blockers" },
+          ],
+        },
+      ],
+    });
+
+    const probe = await tool.execute(
+      "tc-level3-finalizer-cleanup-probe",
+      {
+        action: "level3_authorized_finalizer_cleanup_plan",
+        taskId: 2996,
+        cwd,
+        objective: "finalize slice 5 test lane",
+        level3Manifest: manifest,
+        candidateResultPacketPaths: [packetPath],
+        selectedLaneId: "lane-a",
+        validation: { command: "npm test", status: "passed", summary: "ok" },
+        reviewedAtEpochMs,
+        cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
+        cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
+        cleanupBranches: ["candidate/lane-a"],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(probe.details.ok, false);
+    const requiredFinalizer =
+      probe.details.level3AuthorizedFinalizerCleanupPlan.finalizerAuthorization.requiredToken;
+    const requiredCleanup =
+      probe.details.level3AuthorizedFinalizerCleanupPlan.cleanupAuthorization.requiredToken;
+    assert.match(requiredFinalizer, /level3:finalize_post_fanin:task:2996/);
+    assert.match(requiredCleanup, /level3:candidate_cleanup:task:2996/);
+    assert.equal(
+      probe.details.level3AuthorizedFinalizerCleanupPlan.finalizerApplyCommandPacket,
+      null,
+    );
+    assert.equal(probe.details.level3AuthorizedFinalizerCleanupPlan.cleanupCommandPacket, null);
+
+    const result = await tool.execute(
+      "tc-level3-finalizer-cleanup-authorized",
+      {
+        action: "level3_authorized_finalizer_cleanup_plan",
+        taskId: 2996,
+        cwd,
+        objective: "finalize slice 5 test lane",
+        level3Manifest: manifest,
+        candidateResultPacketPaths: [packetPath],
+        selectedLaneId: "lane-a",
+        validation: { command: "npm test", status: "passed", summary: "ok" },
+        reviewedAtEpochMs,
+        finalizerAuthorizationToken: requiredFinalizer,
+        cleanupAuthorizationToken: requiredCleanup,
+        cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
+        cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
+        cleanupBranches: ["candidate/lane-a"],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(result.details.ok, true);
+    const plan = result.details.level3AuthorizedFinalizerCleanupPlan;
+    assert.equal(plan.kind, "autoresearch.level3_authorized_finalizer_cleanup_plan.v1");
+    assert.equal(plan.execution, "not_executed_by_orchestrator");
+    assert.equal(plan.metric.value, 0);
+    assert.equal(plan.cellMetrics.finalizerTokenApplicationBlockers.value, 0);
+    assert.equal(plan.cellMetrics.cleanupExecutionGateBlockers.value, 0);
+    assert.equal(plan.cellMetrics.postFaninRollbackBlockers.value, 0);
+    assert.equal(plan.finalizerAuthorization.suppliedTokenAccepted, true);
+    assert.equal(plan.cleanupAuthorization.suppliedTokenAccepted, true);
+    assert.ok(plan.finalizerApplyCommandPacket);
+    assert.ok(plan.cleanupCommandPacket);
+    assert.equal(plan.cleanupCommandPacket.cleanupExecution, "not_executed_by_orchestrator");
+    assert.deepEqual(plan.cleanupCommandPacket.forbiddenPromotionCommandMatches, []);
+    const cleanupText = plan.cleanupCommandPacket.exactCommands.join("\n");
+    assert.match(cleanupText, /worktree remove/);
+    assert.match(cleanupText, /branch -D/);
+    assert.doesNotMatch(cleanupText, /merge|push|release|pull.request|promotion/i);
+    assert.equal(plan.rollbackReceipt.nonAuthoritative, true);
+    assert.equal(plan.rollbackReceipt.durableEvidence, false);
+    assert.match(result.content[0].text, /level3_authorized_finalizer_cleanup_plan/);
+    assert.match(result.content[0].text, /Rollback receipt/);
+  });
+});
+
+test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan blocks wrong or missing finalizer token", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const packetPath = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "lane-a.candidate-result.json",
+    );
+    writeCandidateResultPacket(cwd, packetPath, { laneId: "lane-a" });
+    const manifest = createLevel3Manifest(cwd, {
+      primaryMetric: {
+        name: "authorized_finalizer_cleanup_blockers",
+        direction: "lower",
+        target: 0,
+      },
+    });
+    const baseParams = {
+      action: "level3_authorized_finalizer_cleanup_plan",
+      taskId: 2996,
+      cwd,
+      objective: "finalizer token mismatch test",
+      level3Manifest: manifest,
+      candidateResultPacketPaths: [packetPath],
+      selectedLaneId: "lane-a",
+      validation: { command: "npm test", status: "passed" },
+      reviewedAtEpochMs: Date.now() + 60_000,
+      cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
+      cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
+      cleanupBranches: ["candidate/lane-a"],
+    };
+
+    const missing = await tool.execute(
+      "tc-level3-finalizer-missing-token",
+      baseParams,
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(missing.details.ok, false);
+    let plan = missing.details.level3AuthorizedFinalizerCleanupPlan;
+    assert.equal(plan.finalizerAuthorization.posture, "blocked_missing_token");
+    assert.equal(plan.finalizerApplyCommandPacket, null);
+    assert.equal(plan.cleanupCommandPacket, null);
+    assert.ok(plan.blockers.some((blocker) => /missing exact finalize_post_fanin/.test(blocker)));
+
+    const wrong = await tool.execute(
+      "tc-level3-finalizer-wrong-token",
+      { ...baseParams, finalizerAuthorizationToken: "wrong-token" },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(wrong.details.ok, false);
+    plan = wrong.details.level3AuthorizedFinalizerCleanupPlan;
+    assert.equal(plan.finalizerAuthorization.posture, "blocked_wrong_token");
+    assert.equal(plan.finalizerApplyCommandPacket, null);
+    assert.equal(plan.cleanupCommandPacket, null);
+    assert.equal(plan.cleanupAuthorization.posture, "blocked_missing_token_or_exact_policy");
+    assert.equal(plan.finalizer.authorizedFinalizerCleanupGate.cleanupAuthorized, false);
+    assert.equal(plan.finalizer.authorizedFinalizerCleanupGate.promotionAuthorized, false);
+  });
+});
+
+test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan accepts exact manifest cleanup policy", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const worktree = path.join(cwd, ".worktrees", "lane-a");
+    const packetPath = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "lane-a.candidate-result.json",
+    );
+    writeCandidateResultPacket(cwd, packetPath, {
+      laneId: "lane-a",
+      candidate: { worktreePath: worktree, branch: "candidate/lane-a", baseRef: "HEAD" },
+    });
+    const manifest = createLevel3Manifest(cwd, {
+      primaryMetric: {
+        name: "authorized_finalizer_cleanup_blockers",
+        direction: "lower",
+        target: 0,
+      },
+      cleanupPolicy: {
+        exactPeerTabsOrSessions: ["peer-tab-lane-a"],
+        exactWorktrees: [worktree],
+        exactBranches: ["candidate/lane-a"],
+      },
+    });
+    const probe = await tool.execute(
+      "tc-level3-manifest-cleanup-probe",
+      {
+        action: "level3_authorized_finalizer_cleanup_plan",
+        taskId: 2996,
+        cwd,
+        objective: "manifest cleanup policy test",
+        level3Manifest: manifest,
+        candidateResultPacketPaths: [packetPath],
+        selectedLaneId: "lane-a",
+        validation: { command: "npm test", status: "passed" },
+        reviewedAtEpochMs: Date.now() + 60_000,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const token =
+      probe.details.level3AuthorizedFinalizerCleanupPlan.finalizerAuthorization.requiredToken;
+    const result = await tool.execute(
+      "tc-level3-manifest-cleanup-authorized",
+      {
+        action: "level3_authorized_finalizer_cleanup_plan",
+        taskId: 2996,
+        cwd,
+        objective: "manifest cleanup policy test",
+        level3Manifest: manifest,
+        candidateResultPacketPaths: [packetPath],
+        selectedLaneId: "lane-a",
+        validation: { command: "npm test", status: "passed" },
+        reviewedAtEpochMs: Date.now() + 60_000,
+        finalizerAuthorizationToken: token,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const plan = result.details.level3AuthorizedFinalizerCleanupPlan;
+    assert.equal(result.details.ok, true);
+    assert.equal(plan.cleanupAuthorization.manifestPolicyAccepted, true);
+    assert.equal(plan.cleanupAuthorization.posture, "accepted_exact_manifest_policy");
+    assert.ok(plan.cleanupCommandPacket);
+  });
+});
+
+test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan blocks dirty off-limits and stale review", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const packetPath = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "lane-a.candidate-result.json",
+    );
+    writeCandidateResultPacket(cwd, packetPath, { laneId: "lane-a" });
+    const manifest = createLevel3Manifest(cwd, {
+      primaryMetric: {
+        name: "authorized_finalizer_cleanup_blockers",
+        direction: "lower",
+        target: 0,
+      },
+    });
+    const probe = await tool.execute(
+      "tc-level3-dirty-stale-probe",
+      {
+        action: "level3_authorized_finalizer_cleanup_plan",
+        taskId: 2996,
+        cwd,
+        objective: "dirty stale off-limits test",
+        level3Manifest: manifest,
+        candidateResultPacketPaths: [packetPath],
+        selectedLaneId: "lane-a",
+        validation: { command: "npm test", status: "passed" },
+        dirtyFiles: [
+          "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+        ],
+        offLimits: ["packages/pi-society-orchestrator/src/runtime/**"],
+        reviewedAtEpochMs: 1,
+        cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
+        cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
+        cleanupBranches: ["candidate/lane-a"],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const token =
+      probe.details.level3AuthorizedFinalizerCleanupPlan.finalizerAuthorization.requiredToken;
+    const cleanup =
+      probe.details.level3AuthorizedFinalizerCleanupPlan.cleanupAuthorization.requiredToken;
+    const result = await tool.execute(
+      "tc-level3-dirty-stale-blocked",
+      {
+        action: "level3_authorized_finalizer_cleanup_plan",
+        taskId: 2996,
+        cwd,
+        objective: "dirty stale off-limits test",
+        level3Manifest: manifest,
+        candidateResultPacketPaths: [packetPath],
+        selectedLaneId: "lane-a",
+        validation: { command: "npm test", status: "passed" },
+        dirtyFiles: [
+          "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts",
+        ],
+        offLimits: ["packages/pi-society-orchestrator/src/runtime/**"],
+        reviewedAtEpochMs: 1,
+        finalizerAuthorizationToken: token,
+        cleanupAuthorizationToken: cleanup,
+        cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
+        cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
+        cleanupBranches: ["candidate/lane-a"],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const plan = result.details.level3AuthorizedFinalizerCleanupPlan;
+    assert.equal(result.details.ok, false);
+    assert.equal(plan.finalizerApplyCommandPacket, null);
+    assert.equal(plan.cleanupCommandPacket, null);
+    assert.equal(plan.metric.status, "blocked");
+    assert.ok(
+      plan.finalizer.preflight.checks.some(
+        (check) => check.name === "dirty_overlap_clean" && check.status === "blocked",
+      ),
+    );
+    assert.ok(
+      plan.finalizer.preflight.checks.some(
+        (check) => check.name === "off_limits_clean" && check.status === "blocked",
+      ),
+    );
+    assert.ok(
+      plan.finalizer.preflight.checks.some(
+        (check) => check.name === "review_artifacts_current" && check.status === "blocked",
+      ),
+    );
+    assert.equal(plan.rollbackReceipt.nonAuthoritative, true);
+    assert.match(result.content[0].text, /rollback hint/i);
+  });
 });
 
 test("autoresearch_live_supervision plan_matrix_campaign makes matrix cells the implementation-wave substrate", async () => {
@@ -1319,6 +2556,97 @@ test("autoresearch_live_supervision checkpoint_matrix_campaign_runner gates benc
   assert.match(unlocked.content[0].text, /not cryptographic proof/);
 });
 
+test("autoresearch_live_supervision level3_matrix_cell_executor advances one safe Level-3 runner action", async () => {
+  const cwd = "/tmp/matrix-cell-level3-executor";
+  const runner = new AutoresearchLiveSupervisionRunner();
+  const tool = registerAutoresearchLiveTool(runner);
+  assert.ok(tool.parameters.properties.completedActionCount, "schema exposes completedActionCount");
+
+  const baseRequest = {
+    action: "level3_matrix_cell_executor",
+    taskId: 2803,
+    cwd,
+    objective: "reduce manual controller glue for a checkpointed matrix cell",
+    direction: "lower",
+    metricName: "manual_controller_glue_blockers",
+    metricThreshold: 0,
+    scenarios: ["safety"],
+    hypotheses: ["one-step deterministic runner"],
+    candidateCountPerCell: 1,
+    parentPeerTarget: "controller-peer-1",
+    runnerManifestPath: ".autoresearch/matrix-campaign/checkpoint-runner.json",
+  };
+
+  const blocked = await tool.execute(
+    "tc-level3-matrix-cell-executor-blocked",
+    baseRequest,
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(blocked.details.ok, false);
+  assert.equal(blocked.details.action, "level3_matrix_cell_executor");
+  assert.equal(
+    blocked.details.level3MatrixCellExecutor.kind,
+    "autoresearch.level3_matrix_cell_executor.v1",
+  );
+  assert.equal(
+    blocked.details.level3MatrixCellExecutor.sourceLevel3RunnerAlias,
+    "level3_matrix_cell_runner",
+  );
+  assert.equal(blocked.details.level3MatrixCellExecutor.posture, "blocked_by_level3_runner");
+  assert.equal(blocked.details.level3MatrixCellExecutor.selectedAction, null);
+  assert.equal(blocked.details.level3MatrixCellExecutor.emittedNextLegalActions.length, 0);
+  assert.equal(blocked.details.level3MatrixCellExecutor.stateMachineBlockers.value, 1);
+  assert.match(blocked.content[0].text, /level3_matrix_cell_runner/);
+  assert.match(blocked.content[0].text, /Hidden execution prevented: yes/);
+
+  const requiredToken =
+    blocked.details.level3MatrixCellExecutor.level3Runner.checkpointGate?.requiredToken ??
+    blocked.details.level3MatrixCellExecutor.level3Runner.requiredToken;
+  const first = await tool.execute(
+    "tc-level3-matrix-cell-executor-first",
+    { ...baseRequest, checkpointConfirmation: requiredToken, completedActionCount: 0 },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  assert.equal(first.details.ok, true);
+  const firstExecutor = first.details.level3MatrixCellExecutor;
+  assert.equal(firstExecutor.posture, "ready_to_present_next_action");
+  assert.equal(firstExecutor.completedActionCount, 0);
+  assert.equal(firstExecutor.selectedAction.index, 0);
+  assert.match(firstExecutor.selectedAction.call, /^autoresearch_candidate_bind\(/);
+  assert.equal(firstExecutor.selectedAction.execution, "not_executed_by_orchestrator");
+  assert.equal(firstExecutor.selectedAction.controllerMustRunExplicitly, true);
+  assert.equal(firstExecutor.selectedAction.allowedByStateMachine, true);
+  assert.deepEqual(firstExecutor.emittedNextLegalActions, [firstExecutor.selectedAction.call]);
+  assert.equal(firstExecutor.stateMachineBlockers.value, 0);
+  assert.equal(firstExecutor.stateMachineBlockers.hiddenExecutionPrevented, true);
+  assert.doesNotMatch(
+    firstExecutor.selectedAction.call,
+    /candidate_peer_spawn\(|finalize_post_fanin|evidence_record\(/,
+  );
+  assert.match(first.content[0].text, /Selected one-step action/);
+
+  const second = await tool.execute(
+    "tc-level3-matrix-cell-executor-second",
+    { ...baseRequest, checkpointConfirmation: requiredToken, completedActionCount: 1 },
+    undefined,
+    undefined,
+    createToolContext(cwd),
+  );
+
+  const secondExecutor = second.details.level3MatrixCellExecutor;
+  assert.equal(second.details.ok, true);
+  assert.equal(secondExecutor.posture, "ready_to_present_next_action");
+  assert.equal(secondExecutor.selectedAction.index, 1);
+  assert.match(secondExecutor.selectedAction.call, /^autoresearch_runtime_run\(/);
+  assert.equal(secondExecutor.emittedNextLegalActions.length, 1);
+});
+
 test("autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves", async () => {
   await withTempDir(async (cwd) => {
     const packetDir = path.join(cwd, ".autoresearch", "matrix-campaign");
@@ -1453,6 +2781,39 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     const cockpit = result.details.matrixCampaignReview.cockpit;
     assert.equal(cockpit.kind, "autoresearch.matrix_campaign_cockpit.v1");
     assert.equal(cockpit.source, "review_matrix_campaign");
+    const level3 = result.details.matrixCampaignReview.level3ReviewSelection;
+    assert.equal(level3.kind, "autoresearch.level3_review_selection_substrate.v1");
+    assert.equal(level3.source, "level3_matrix_cell_runner_visible_candidate_lanes");
+    assert.equal(level3.aggregationInput, "controller_verified_candidate_result_packets");
+    assert.equal(level3.blockerMetric.name, "level3_review_selection_blockers");
+    assert.equal(level3.blockerMetric.value, 0);
+    assert.equal(level3.blockerMetric.status, "target_met");
+    assert.deepEqual(
+      level3.cellSelections.map((cell) => cell.winnerState),
+      ["selected_for_owner_review", "selected_for_owner_review"],
+    );
+    assert.deepEqual(
+      level3.cellSelections.map((cell) => cell.recommendedLaneId),
+      ["candidate-01", "candidate-01"],
+    );
+    assert.equal(level3.cellSelections[0].nonSelectedSelectableLaneIds[0], "candidate-02");
+    assert.equal(
+      level3.finalizerReadiness.posture,
+      "ready_for_validation_and_finalize_token_request",
+    );
+    assert.equal(level3.finalizerReadiness.selectedLaneCount, 2);
+    assert.equal(level3.finalizerReadiness.applyCommandsExposed, false);
+    assert.equal(level3.finalizerReadiness.promotionAuthority, false);
+    assert.equal(level3.finalizerReadiness.cleanupAuthority, false);
+    assert.match(
+      level3.finalizerReadiness.exactFinalizePostFaninHandoffCall,
+      /finalize_post_fanin/,
+    );
+    assert.match(
+      level3.finalizerReadiness.exactFinalizePostFaninHandoffCall,
+      /"sourceReview": "review_matrix_campaign"/,
+    );
+    assert.equal(level3.dangerousActionGates.promotion, "separate_promotion_token_required");
     const reviewPacket = result.details.matrixCampaignReview.reviewPacket;
     assert.equal(reviewPacket.kind, "autoresearch.review_matrix_campaign_packet.v1");
     assert.equal(reviewPacket.authorityBoundary.durableEvidence, false);
@@ -1618,6 +2979,8 @@ test("autoresearch_live_supervision review_matrix_campaign aggregates managed ce
     assert.match(result.content[0].text, /review packets: owner_review_inputs_not_promotion/);
     assert.match(result.content[0].text, /Level-1 fallback/);
     assert.match(result.content[0].text, /Review matrix-campaign packet/);
+    assert.match(result.content[0].text, /Level-3 review\/selection substrate/);
+    assert.match(result.content[0].text, /level3_review_selection_blockers: 0/);
     assert.match(result.content[0].text, /level2_review_packet_generation_blockers=0/);
     assert.match(result.content[0].text, /promotion authority: no/);
     assert.match(result.content[0].text, /compact cell table/);
@@ -1829,6 +3192,11 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
     assert.equal(preflight.authorizedFinalizerCleanupGate.status, "target_met");
     assert.equal(preflight.authorizedFinalizerCleanupGate.finalizedWithToken, false);
     assert.equal(preflight.authorizedFinalizerCleanupGate.cleanupAuthorized, false);
+    assert.equal(
+      preflight.authorizedFinalizerCleanupGate.candidatePeerTabClosureIncludedInCleanup,
+      true,
+    );
+    assert.equal(preflight.authorizedFinalizerCleanupGate.cleanupEvidenceRequired, false);
     assert.equal(preflight.authorizedFinalizerCleanupGate.promotionAuthorized, false);
     assert.deepEqual(preflight.authorizedFinalizerCleanupGate.requiredSeparateTokens, [
       "candidate_cleanup",
@@ -1889,6 +3257,11 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
     assert.equal(authorized.authorizedFinalizerCleanupGate.status, "target_met");
     assert.equal(authorized.authorizedFinalizerCleanupGate.finalizedWithToken, true);
     assert.equal(authorized.authorizedFinalizerCleanupGate.cleanupAuthorized, false);
+    assert.equal(
+      authorized.authorizedFinalizerCleanupGate.candidatePeerTabClosureIncludedInCleanup,
+      true,
+    );
+    assert.equal(authorized.authorizedFinalizerCleanupGate.cleanupEvidenceRequired, false);
     assert.equal(authorized.authorizedFinalizerCleanupGate.promotionAuthorized, false);
     assert.deepEqual(authorized.authorizedFinalizerCleanupGate.forbiddenCommandMatches, []);
     assert.match(authorized.nextStep, /Cleanup requires candidate_cleanup/);
@@ -1903,6 +3276,16 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
     );
     assert.ok(
       authorized.boundaries.some((boundary) => /No checkout, merge, commit/.test(boundary)),
+    );
+    assert.ok(
+      authorized.authorizedFinalizerCleanupGate.proofs.some((proof) =>
+        /peer tab\/session closure/.test(proof),
+      ),
+    );
+    assert.ok(
+      authorized.authorizedFinalizerCleanupGate.proofs.some((proof) =>
+        /does not require separate AK evidence/.test(proof),
+      ),
     );
     assert.ok(
       authorized.boundaries.some((boundary) =>

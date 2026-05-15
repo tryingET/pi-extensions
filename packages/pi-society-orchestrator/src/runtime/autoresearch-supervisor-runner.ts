@@ -177,6 +177,600 @@ export interface AutoresearchLiveStartCampaignResult {
   supervision: AutoresearchLiveStartResult;
 }
 
+export type AutoresearchLevel3PolicyPosture =
+  | "allowed_by_manifest_policy"
+  | "blocked_missing_policy"
+  | "blocked_invalid_policy"
+  | "not_requested";
+
+export interface AutoresearchLevel3ManifestPreflightRequest
+  extends AutoresearchLiveSupervisionRequest {
+  manifest?: unknown;
+  manifestPath?: string;
+}
+
+export interface AutoresearchLevel3PolicyGatePreflight {
+  gate:
+    | "launchVisibleCandidatePeers"
+    | "runMeasurements"
+    | "exportCandidateResults"
+    | "generateReviewPackets"
+    | "prepareFinalizerTokenRequest"
+    | "applyFinalizer"
+    | "cleanupCandidates"
+    | "recordAkEvidence"
+    | "completeAkTask"
+    | "mergeReleasePromotion";
+  posture: AutoresearchLevel3PolicyPosture;
+  value: unknown;
+  requiredPolicy: readonly string[];
+  boundary: string;
+}
+
+export interface AutoresearchLevel3CampaignManifestPreflight {
+  kind: "autoresearch.level3_campaign_manifest_preflight.v1";
+  manifestKind: "autoresearch.level3_campaign_manifest.v1" | "invalid_or_missing";
+  taskId: number;
+  cwd: string;
+  manifestPath: string | null;
+  manifestHash: string | null;
+  readOnly: true;
+  execution: "not_executed_by_orchestrator";
+  metric: {
+    name: "level3_manifest_preflight_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  cellMetrics: {
+    manifestSchemaBlockers: {
+      name: "manifest_schema_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    manifestPolicyGateBlockers: {
+      name: "manifest_policy_gate_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    manifestPreflightUxBlockers: {
+      name: "manifest_preflight_ux_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+  };
+  schema: {
+    campaignId: string | null;
+    autonomyLevel: number | null;
+    primaryMetricName: string | null;
+    sliceCount: number;
+    fileScopeCount: number;
+    offLimitsCount: number;
+  };
+  policyGates: readonly AutoresearchLevel3PolicyGatePreflight[];
+  blockers: readonly string[];
+  nextLegalActions: readonly string[];
+  nonActions: readonly string[];
+  level2FallbackRoute: string;
+  boundaries: readonly string[];
+}
+
+export interface AutoresearchLevel3SliceSequenceDryRunRequest
+  extends AutoresearchLevel3ManifestPreflightRequest {}
+
+export type AutoresearchLevel3SliceSequenceState = "ready" | "blocked";
+
+export interface AutoresearchLevel3SliceSequenceCellState {
+  sliceId: string;
+  cellId: string;
+  order: number;
+  state: AutoresearchLevel3SliceSequenceState;
+  dependencies: readonly string[];
+  missingDependencies: readonly string[];
+  blockedDependencies: readonly string[];
+  policyPosture: AutoresearchLevel3PolicyPosture;
+  metricName: string | null;
+  nextLegalAction: string;
+  blockers: readonly string[];
+}
+
+export interface AutoresearchLevel3CampaignTransitionReceipt {
+  kind: "autoresearch.level3_campaign_transition_receipt.v1";
+  nonAuthoritative: true;
+  durableEvidence: false;
+  manifestHash: string;
+  taskId: number;
+  cwd: string;
+  transitionName: "level3_slice_sequence_dry_run" | "level3_authorized_finalizer_cleanup_plan";
+  policyPosture:
+    | "dry_run_no_lower_plane_actions"
+    | "blocked_preflight"
+    | "blocked_dependencies_or_policy";
+  inputRefs: {
+    manifestPath: string | null;
+    sliceId: string;
+    cellId: string;
+    dependencies: readonly string[];
+  };
+  outputRefs: {
+    packetKind:
+      | "autoresearch.level3_slice_sequence_dry_run.v1"
+      | "autoresearch.level3_authorized_finalizer_cleanup_plan.v1";
+    state: AutoresearchLevel3SliceSequenceState;
+    receiptIndex: number;
+  };
+  metricPosture: {
+    name:
+      | "dry_run_receipt_blockers"
+      | "autonomous_slice_sequence_blockers"
+      | "authorized_finalizer_cleanup_blockers";
+    direction: "lower";
+    target: 0;
+    status: "target_met" | "blocked";
+  };
+  nextState: AutoresearchLevel3SliceSequenceState;
+  rollbackHint: string;
+}
+
+export interface AutoresearchLevel3SliceSequenceDryRun {
+  kind: "autoresearch.level3_slice_sequence_dry_run.v1";
+  taskId: number;
+  cwd: string;
+  manifestKind: "autoresearch.level3_campaign_manifest.v1" | "invalid_or_missing";
+  manifestPath: string | null;
+  manifestHash: string | null;
+  readOnly: true;
+  execution: "not_executed_by_orchestrator";
+  preflight: AutoresearchLevel3CampaignManifestPreflight;
+  metric: {
+    name: "autonomous_slice_sequence_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  cellMetrics: {
+    sliceOrderingBlockers: {
+      name: "slice_ordering_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    dryRunReceiptBlockers: {
+      name: "dry_run_receipt_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    sliceSequenceRecoveryBlockers: {
+      name: "slice_sequence_recovery_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+  };
+  orderedStates: readonly AutoresearchLevel3SliceSequenceCellState[];
+  receipts: readonly AutoresearchLevel3CampaignTransitionReceipt[];
+  blockers: readonly string[];
+  nextLegalActions: readonly string[];
+  safeRerunCommand: string;
+  level2FallbackRoute: string;
+  nonActions: readonly string[];
+  boundaries: readonly string[];
+}
+
+export interface AutoresearchLevel3CandidateLifecycleBindingInput {
+  laneId: string;
+  candidatePeerRunId?: string;
+  candidateWorktree?: string;
+  candidateBranch?: string;
+  candidateBaseRef?: string;
+}
+
+export interface AutoresearchLevel3VisibleCandidateLifecycleRequest
+  extends AutoresearchLevel3ManifestPreflightRequest {
+  parentPeerTarget?: string;
+  launchAuthorizationToken?: string;
+  candidateBindings?: readonly AutoresearchLevel3CandidateLifecycleBindingInput[];
+}
+
+export interface AutoresearchLevel3CandidateLifecycleLane {
+  sliceId: string | null;
+  cellId: string | null;
+  laneId: string;
+  objective: string;
+  metricName: string | null;
+  metricDirection: "lower" | "higher";
+  metricTarget: number | null;
+  filesInScope: readonly string[];
+  offLimits: readonly string[];
+  launchPosture:
+    | "ready_visible_candidate_peer_spawn_call"
+    | "blocked_missing_launch_policy_or_token"
+    | "blocked_missing_parent_peer_target";
+  candidatePeerCall: string | null;
+  bindingPosture:
+    | "bound_visible_candidate_worktree"
+    | "blocked_missing_binding"
+    | "blocked_duplicate_binding";
+  binding: AutoresearchLevel3CandidateLifecycleBindingInput | null;
+  cleanupPosture: "plan_only_cleanup_token_required";
+  cleanupPlan: readonly string[];
+  blockers: readonly string[];
+}
+
+export interface AutoresearchLevel3VisibleCandidateLifecyclePlan {
+  kind: "autoresearch.level3_visible_candidate_lifecycle_plan.v1";
+  taskId: number;
+  cwd: string;
+  manifestKind: "autoresearch.level3_campaign_manifest.v1" | "invalid_or_missing";
+  manifestPath: string | null;
+  manifestHash: string | null;
+  readOnly: true;
+  execution: "not_executed_by_orchestrator";
+  preflight: AutoresearchLevel3CampaignManifestPreflight;
+  launchAuthorization: {
+    posture:
+      | "allowed_by_manifest_policy"
+      | "allowed_by_exact_token"
+      | "blocked_missing_policy_or_token";
+    requiredToken: string;
+    suppliedTokenAccepted: boolean;
+  };
+  metric: {
+    name: "candidate_lifecycle_automation_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  cellMetrics: {
+    visibleLaunchPolicyBlockers: {
+      name: "visible_launch_policy_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    candidateBindingLifecycleBlockers: {
+      name: "candidate_binding_lifecycle_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    candidateCleanupPolicyBlockers: {
+      name: "candidate_cleanup_policy_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+  };
+  lanes: readonly AutoresearchLevel3CandidateLifecycleLane[];
+  blockers: readonly string[];
+  nextLegalActions: readonly string[];
+  nonActions: readonly string[];
+  boundaries: readonly string[];
+}
+
+export interface AutoresearchLevel3MeasureExportReviewRequest
+  extends AutoresearchLevel3VisibleCandidateLifecycleRequest {
+  candidateResultPacketDirectory?: string;
+}
+
+export interface AutoresearchLevel3MeasureExportReviewLane {
+  sliceId: string | null;
+  cellId: string | null;
+  laneId: string;
+  metricName: string | null;
+  metricDirection: "lower" | "higher";
+  metricTarget: number | null;
+  measurementPosture: "ready_manifest_approved" | "blocked";
+  exportPosture: "ready_manifest_approved" | "blocked";
+  reviewPosture: "ready_manifest_approved" | "blocked";
+  candidateWorktree: string | null;
+  candidateBranch: string | null;
+  runtimeRunCall: string | null;
+  candidateResultExportCall: string | null;
+  reviewInputPacketPath: string;
+  blockers: readonly string[];
+}
+
+export interface AutoresearchLevel3MeasureExportReviewPlan {
+  kind: "autoresearch.level3_measure_export_review_plan.v1";
+  taskId: number;
+  cwd: string;
+  manifestHash: string | null;
+  execution: "not_executed_by_orchestrator";
+  preflight: AutoresearchLevel3CampaignManifestPreflight;
+  lifecycle: AutoresearchLevel3VisibleCandidateLifecyclePlan;
+  metric: {
+    name: "candidate_measure_export_review_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  cellMetrics: {
+    measurementPolicyBlockers: {
+      name: "measurement_policy_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    candidateExportBindingBlockers: {
+      name: "candidate_export_binding_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    reviewPacketAuthorityBlockers: {
+      name: "review_packet_authority_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+  };
+  lanes: readonly AutoresearchLevel3MeasureExportReviewLane[];
+  aggregateReviewCall: string | null;
+  blockers: readonly string[];
+  nextLegalActions: readonly string[];
+  nonActions: readonly string[];
+  boundaries: readonly string[];
+}
+
+export type AutoresearchLevel3MatrixCellRunnerCellState =
+  | "blocked_preflight_or_sequence"
+  | "ready_to_launch_visible_candidates"
+  | "waiting_for_candidate_bindings"
+  | "ready_for_measure_export"
+  | "waiting_for_candidate_result_packets"
+  | "selected_for_matrix_review"
+  | "cell_rerun_required";
+
+export interface AutoresearchLevel3MatrixCellRunnerCell {
+  sliceId: string | null;
+  cellId: string;
+  objective: string;
+  state: AutoresearchLevel3MatrixCellRunnerCellState;
+  metricName: string | null;
+  metricDirection: "lower" | "higher";
+  metricTarget: number | null;
+  laneCount: number;
+  launchReadyLaneCount: number;
+  boundLaneCount: number;
+  measureReadyLaneCount: number;
+  packetReadyLaneCount: number;
+  selectedLaneId: string | null;
+  launchCalls: readonly string[];
+  measureExportCalls: readonly string[];
+  reviewCandidateWaveCall: string | null;
+  blockers: readonly string[];
+  lanes: readonly {
+    laneId: string;
+    launchPosture: AutoresearchLevel3CandidateLifecycleLane["launchPosture"];
+    bindingPosture: AutoresearchLevel3CandidateLifecycleLane["bindingPosture"];
+    measurementPosture: AutoresearchLevel3MeasureExportReviewLane["measurementPosture"];
+    packetPath: string;
+    packetExists: boolean;
+    selected: boolean;
+    nextLegalCall: string | null;
+  }[];
+}
+
+export interface AutoresearchLevel3MatrixCellRunner {
+  kind: "autoresearch.level3_matrix_cell_runner.v1";
+  taskId: number;
+  cwd: string;
+  manifestKind: "autoresearch.level3_campaign_manifest.v1" | "invalid_or_missing";
+  manifestPath: string | null;
+  manifestHash: string | null;
+  execution: "not_executed_by_orchestrator";
+  preflight: AutoresearchLevel3CampaignManifestPreflight;
+  dryRun: AutoresearchLevel3SliceSequenceDryRun;
+  lifecycle: AutoresearchLevel3VisibleCandidateLifecyclePlan;
+  measureExportReview: AutoresearchLevel3MeasureExportReviewPlan;
+  metric: {
+    name: "level3_matrix_cell_runner_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  cellMetrics: {
+    readyToLaunchCells: number;
+    boundCells: number;
+    measureExportReadyCells: number;
+    packetReadyCells: number;
+    selectedCells: number;
+    blockedCells: number;
+  };
+  cells: readonly AutoresearchLevel3MatrixCellRunnerCell[];
+  aggregateReviewCall: string | null;
+  finalizerPlanCall: string | null;
+  nextLegalActions: readonly string[];
+  blockers: readonly string[];
+  nonActions: readonly string[];
+  boundaries: readonly string[];
+}
+
+export interface AutoresearchLevel3MatrixCellExecutorRequest
+  extends AutoresearchMatrixCampaignRunnerRequest {
+  completedActionCount?: number;
+}
+
+export type AutoresearchLevel3MatrixCellExecutorPosture =
+  | "blocked_by_level3_runner"
+  | "ready_to_present_next_action"
+  | "blocked_forbidden_action"
+  | "completed_review_ready";
+
+export interface AutoresearchLevel3MatrixCellExecutorSelectedAction {
+  index: number;
+  call: string;
+  source: "level3_matrix_cell_runner.nextLegalActions";
+  execution: "not_executed_by_orchestrator";
+  controllerMustRunExplicitly: true;
+  allowedByStateMachine: boolean;
+  forbiddenReason: string | null;
+}
+
+export interface AutoresearchLevel3MatrixCellExecutor {
+  kind: "autoresearch.level3_matrix_cell_executor.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  sourceLevel3RunnerKind: "autoresearch.matrix_campaign_runner_checkpoint.v1";
+  sourceLevel3RunnerAlias: "level3_matrix_cell_runner";
+  level3Runner: AutoresearchMatrixCampaignRunnerCheckpoint;
+  completedActionCount: number;
+  totalActionCount: number;
+  remainingActionCount: number;
+  posture: AutoresearchLevel3MatrixCellExecutorPosture;
+  selectedAction: AutoresearchLevel3MatrixCellExecutorSelectedAction | null;
+  runnerNextLegalActions: readonly string[];
+  emittedNextLegalActions: readonly string[];
+  stateMachineBlockers: {
+    name: "level3_state_machine_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    hiddenExecutionPrevented: true;
+    forbiddenActionMatched: boolean;
+    proofs: readonly {
+      proof: string;
+      status: "present";
+      source: string;
+    }[];
+  };
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
+export interface AutoresearchLevel3CleanupResourcesInput {
+  peerTabsOrSessions?: readonly string[];
+  worktrees?: readonly string[];
+  branches?: readonly string[];
+}
+
+export interface AutoresearchLevel3AuthorizedFinalizerCleanupRequest
+  extends AutoresearchLevel3ManifestPreflightRequest {
+  objective: string;
+  sourceReview?: "review_candidate_wave" | "review_matrix_campaign";
+  direction?: "lower" | "higher";
+  metricName?: string;
+  metricThreshold?: number;
+  candidateResultPacketPaths?: readonly string[];
+  scenarios?: readonly string[];
+  hypotheses?: readonly string[];
+  candidateCountPerCell?: number;
+  selectedLaneId?: string;
+  selectedCellId?: string;
+  validation?: AutoresearchPostFaninValidationEvidence;
+  offLimits?: readonly string[];
+  dirtyFiles?: readonly string[];
+  reviewedAtEpochMs?: number;
+  finalizerAuthorizationToken?: string;
+  cleanupAuthorizationToken?: string;
+  cleanupResources?: AutoresearchLevel3CleanupResourcesInput;
+}
+
+export interface AutoresearchLevel3CleanupCommandPacket {
+  kind: "autoresearch.level3_candidate_cleanup_command_packet.v1";
+  exactTaskId: number;
+  exactCwd: string;
+  manifestHash: string;
+  authorizationToken: string;
+  authorizationRequired: true;
+  cleanupExecution: "not_executed_by_orchestrator";
+  exactPeerTabsOrSessions: readonly string[];
+  exactWorktrees: readonly string[];
+  exactBranches: readonly string[];
+  exactCommands: readonly string[];
+  forbiddenPromotionCommandMatches: readonly string[];
+  boundary: string;
+}
+
+export interface AutoresearchLevel3AuthorizedFinalizerCleanupPlan {
+  kind: "autoresearch.level3_authorized_finalizer_cleanup_plan.v1";
+  taskId: number;
+  cwd: string;
+  manifestHash: string | null;
+  execution: "not_executed_by_orchestrator";
+  preflight: AutoresearchLevel3CampaignManifestPreflight;
+  finalizer: AutoresearchPostFaninFinalizerResult;
+  finalizerAuthorization: {
+    requiredTokenName: "finalize_post_fanin";
+    requiredToken: string;
+    suppliedTokenAccepted: boolean;
+    posture: "accepted_exact_token" | "blocked_missing_token" | "blocked_wrong_token";
+  };
+  cleanupAuthorization: {
+    requiredTokenName: "candidate_cleanup";
+    requiredToken: string;
+    suppliedTokenAccepted: boolean;
+    manifestPolicyAccepted: boolean;
+    posture:
+      | "accepted_exact_token"
+      | "accepted_exact_manifest_policy"
+      | "blocked_missing_token_or_exact_policy"
+      | "blocked_wrong_token"
+      | "blocked_missing_exact_resources";
+  };
+  metric: {
+    name: "authorized_finalizer_cleanup_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  cellMetrics: {
+    finalizerTokenApplicationBlockers: {
+      name: "finalizer_token_application_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    cleanupExecutionGateBlockers: {
+      name: "cleanup_execution_gate_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+    postFaninRollbackBlockers: {
+      name: "post_fanin_rollback_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+    };
+  };
+  finalizerApplyCommandPacket: AutoresearchPostFaninFinalizerApplyCommandPacket | null;
+  cleanupCommandPacket: AutoresearchLevel3CleanupCommandPacket | null;
+  rollbackReceipt: AutoresearchLevel3CampaignTransitionReceipt;
+  blockers: readonly string[];
+  nextLegalActions: readonly string[];
+  nonActions: readonly string[];
+  boundaries: readonly string[];
+}
+
 export interface AutoresearchPostFaninValidationEvidence {
   command: string;
   status: "passed" | "failed" | "missing";
@@ -333,6 +927,8 @@ export interface AutoresearchAuthorizedFinalizerCleanupGate {
   status: "target_met" | "blocked";
   finalizedWithToken: boolean;
   cleanupAuthorized: false;
+  candidatePeerTabClosureIncludedInCleanup: true;
+  cleanupEvidenceRequired: false;
   promotionAuthorized: false;
   requiredSeparateTokens: readonly ["candidate_cleanup", "promotion"];
   forbiddenCommandMatches: readonly string[];
@@ -973,6 +1569,82 @@ export interface AutoresearchMatrixCampaignCloseout {
   notDone: readonly string[];
 }
 
+export type AutoresearchLevel3ReviewSelectionWinnerState =
+  | "selected_for_owner_review"
+  | "blocked_missing_packets"
+  | "blocked_no_selectable_lane";
+
+export interface AutoresearchLevel3ReviewSelectionCell {
+  cellId: string;
+  scenario: string;
+  hypothesis: string;
+  expectedLaneCount: number;
+  completedLaneCount: number;
+  selectableLaneCount: number;
+  visibleCandidateLaneCount: number;
+  winnerState: AutoresearchLevel3ReviewSelectionWinnerState;
+  recommendedLaneId: string | null;
+  recommendedMetric: number | null;
+  recommendedSourcePacketPath: string | null;
+  recommendedCandidateWorktree: string | null;
+  recommendedCandidateBranch: string | null;
+  recommendedCandidateBaseRef: string | null;
+  recommendedPeerRunId: string | null;
+  nonSelectedSelectableLaneIds: readonly string[];
+  blockerCount: number;
+  blockers: readonly string[];
+  ownerReviewCall: string;
+  nextLegalAction: string;
+}
+
+export interface AutoresearchLevel3ReviewSelectionSubstrate {
+  kind: "autoresearch.level3_review_selection_substrate.v1";
+  source: "level3_matrix_cell_runner_visible_candidate_lanes";
+  aggregationInput: "controller_verified_candidate_result_packets";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  finalOnlyScoring: true;
+  ownerReviewRequired: true;
+  selectionAuthority: "recommendation_only";
+  cellSelections: readonly AutoresearchLevel3ReviewSelectionCell[];
+  blockerMetric: {
+    name: "level3_review_selection_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    blockers: readonly string[];
+  };
+  finalizerReadiness: {
+    posture:
+      | "ready_for_validation_and_finalize_token_request"
+      | "blocked_until_cell_selection_ready";
+    sourceReview: "review_matrix_campaign";
+    selectedLaneCount: number;
+    expectedCellCount: number;
+    validationStillRequired: true;
+    exactFinalizePostFaninHandoffCall: string | null;
+    applyCommandsExposed: false;
+    promotionAuthority: false;
+    cleanupAuthority: false;
+    requiredOwnerTokens: readonly [
+      "finalize_post_fanin",
+      "candidate_cleanup",
+      "promotion",
+      "ak_owner_write",
+    ];
+  };
+  dangerousActionGates: {
+    finalizePostFanin: "exact_finalize_post_fanin_token_required";
+    candidateCleanup: "separate_candidate_cleanup_token_required";
+    promotion: "separate_promotion_token_required";
+    akOwnerWrite: "separate_ak_owner_write_required";
+  };
+  nextLegalActions: readonly string[];
+  boundaries: readonly string[];
+}
+
 export interface AutoresearchLevel2OperatorUxMetric {
   name:
     | "level2_operator_ux_blockers"
@@ -1150,6 +1822,7 @@ export interface AutoresearchMatrixCampaignReview {
   closeout: AutoresearchMatrixCampaignCloseout;
   cockpit: AutoresearchMatrixCampaignCockpit;
   reviewPacket: AutoresearchMatrixCampaignReviewPacket;
+  level3ReviewSelection: AutoresearchLevel3ReviewSelectionSubstrate;
   exactNextCalls: readonly string[];
   boundaries: readonly string[];
   nextStep: string;
@@ -1528,6 +2201,19 @@ function resolveStartCampaignPositiveNumberBudget(
   return resolved;
 }
 
+function metricStatus(value: number): "target_met" | "blocked" {
+  return value === 0 ? "target_met" : "blocked";
+}
+
+function readJsonFile(pathToRead: string): unknown {
+  try {
+    return JSON.parse(fs.readFileSync(pathToRead, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read JSON file ${pathToRead}: ${message}`);
+  }
+}
+
 function resolveCandidateWaveCount(
   input: Pick<AutoresearchCandidateWaveRequest, "candidateObjectives" | "candidateCount">,
 ): number {
@@ -1580,6 +2266,21 @@ function defaultCandidateObjective(index: number, objective: string): string {
 
 function formatToolCall(name: string, payload: Record<string, unknown>): string {
   return `${name}(${JSON.stringify(payload, null, 2)})`;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item)).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function sha256StableJson(value: unknown): string {
+  return `sha256:${createHash("sha256").update(stableJson(value)).digest("hex")}`;
 }
 
 function normalizeReviewToken(value: unknown): string {
@@ -2952,7 +3653,7 @@ function buildPostFaninFinalizerTokenRequestPacket(input: {
     separateOwnerTokensRequired: ["candidate_cleanup", "promotion", "ak_owner_write"],
     boundaries: [
       "This is a finalize_post_fanin token request only; it emits no apply command packet until the exact token is supplied.",
-      "candidate_cleanup is separate and required before worktree removal or branch deletion.",
+      "candidate_cleanup is separate and required before peer tab/session closure, worktree removal, or branch deletion.",
       "promotion is separate and required before cherry-pick, merge, push, PR, release, or promotion.",
       "ak_owner_write is separate and required before durable AK evidence/task/decision/direction writes.",
       "Peer/intercom text and candidate-result packets remain review inputs, not durable evidence.",
@@ -2965,7 +3666,7 @@ function buildPostFaninFinalizerTokenRequestPacket(input: {
         ? [
             "Owner may copy the exact finalize_post_fanin token into a deliberate finalize_post_fanin call to expose finalizer apply commands only.",
             "Run validation again in the apply lane before any commit decision; merge/release/promotion remains forbidden without a separate promotion token.",
-            "Keep candidate cleanup requests separate; candidate worktree removal or branch deletion requires candidate_cleanup.",
+            "Keep candidate cleanup requests separate; routine candidate peer tab/session closure plus worktree removal or branch deletion requires candidate_cleanup, but does not need separate AK evidence unless it is campaign closeout evidence or a boundary exception.",
           ]
         : [
             "Resolve preflight/review blockers and rerun finalize_post_fanin token-request preparation.",
@@ -3060,12 +3761,15 @@ function buildAuthorizedFinalizerCleanupGate(input: {
     status: forbiddenCommandMatches.length === 0 ? "target_met" : "blocked",
     finalizedWithToken: input.finalizedWithToken,
     cleanupAuthorized: false,
+    candidatePeerTabClosureIncludedInCleanup: true,
+    cleanupEvidenceRequired: false,
     promotionAuthorized: false,
     requiredSeparateTokens: ["candidate_cleanup", "promotion"],
     forbiddenCommandMatches,
     proofs: [
       "finalize_post_fanin authorization only exposes finalizer apply commands; it does not authorize candidate cleanup",
-      "candidate_cleanup remains required before worktree removal, branch deletion, reset, or non-selected lane cleanup",
+      "candidate_cleanup includes routine candidate peer tab/session closure, worktree removal, branch deletion, reset, and non-selected lane cleanup",
+      "routine candidate cleanup does not require separate AK evidence unless it is the campaign/task closeout evidence or a boundary exception",
       "promotion remains required before merge, push, PR, release, publish, tag, or promotion authority handoff",
       input.exactApplyCommandPacket
         ? "authorized finalizer apply packet was scanned for cleanup/promotion command leakage"
@@ -5039,6 +5743,173 @@ function buildAutoresearchMatrixReviewCockpit(input: {
   };
 }
 
+function buildAutoresearchLevel3ReviewSelectionSubstrate(input: {
+  taskId: number;
+  cwd: string;
+  objective: string;
+  direction: "lower" | "higher";
+  posture: AutoresearchMatrixCampaignReview["posture"];
+  cellReviews: readonly AutoresearchMatrixCampaignCellReview[];
+  exactNextCalls: readonly string[];
+  scenarios?: readonly string[];
+  hypotheses?: readonly string[];
+  candidateCountPerCell?: number;
+}): AutoresearchLevel3ReviewSelectionSubstrate {
+  const cellSelections = input.cellReviews.map((cell): AutoresearchLevel3ReviewSelectionCell => {
+    const selectedLane = cell.selectedLaneId
+      ? (cell.candidateWaveReview.lanes.find((lane) => lane.laneId === cell.selectedLaneId) ?? null)
+      : null;
+    const selectableLaneIds = cell.candidateWaveReview.lanes
+      .filter((lane) => lane.selectable)
+      .map((lane) => lane.laneId);
+    const missingLaneIds = cell.candidateWaveReview.management.laneStates
+      .filter((lane) => lane.state === "packet_missing")
+      .map((lane) => lane.laneId);
+    const blockers = [
+      ...missingLaneIds.map((laneId) => `missing_packet:${cell.cellId}/${laneId}`),
+      ...(cell.recommendationPosture === "no_selectable_candidate"
+        ? [`no_selectable_lane:${cell.cellId}`]
+        : []),
+      ...(selectedLane && !selectedLane.sourcePacketPath
+        ? [`selected_lane_missing_packet_ref:${cell.cellId}/${selectedLane.laneId}`]
+        : []),
+      ...(selectedLane && selectedLane.candidateSource !== "candidate_peer_spawn"
+        ? [`selected_lane_not_visible_candidate_peer_spawn:${cell.cellId}/${selectedLane.laneId}`]
+        : []),
+      ...(selectedLane && !selectedLane.candidateWorktree
+        ? [`selected_lane_missing_worktree:${cell.cellId}/${selectedLane.laneId}`]
+        : []),
+    ];
+    const winnerState: AutoresearchLevel3ReviewSelectionWinnerState =
+      missingLaneIds.length > 0
+        ? "blocked_missing_packets"
+        : selectedLane
+          ? "selected_for_owner_review"
+          : "blocked_no_selectable_lane";
+
+    return {
+      cellId: cell.cellId,
+      scenario: cell.scenario,
+      hypothesis: cell.hypothesis,
+      expectedLaneCount: cell.expectedLaneCount,
+      completedLaneCount: cell.completedLaneCount,
+      selectableLaneCount: selectableLaneIds.length,
+      visibleCandidateLaneCount: cell.candidateWaveReview.lanes.filter(
+        (lane) =>
+          lane.candidateSource === "candidate_peer_spawn" && Boolean(lane.candidateWorktree),
+      ).length,
+      winnerState,
+      recommendedLaneId: selectedLane?.laneId ?? null,
+      recommendedMetric: selectedLane?.metric ?? null,
+      recommendedSourcePacketPath: selectedLane?.sourcePacketPath ?? null,
+      recommendedCandidateWorktree: selectedLane?.candidateWorktree ?? null,
+      recommendedCandidateBranch: selectedLane?.candidateBranch ?? null,
+      recommendedCandidateBaseRef: selectedLane?.candidateBaseRef ?? null,
+      recommendedPeerRunId: selectedLane?.candidatePeerRunId ?? null,
+      nonSelectedSelectableLaneIds: selectableLaneIds.filter(
+        (laneId) => laneId !== selectedLane?.laneId,
+      ),
+      blockerCount: blockers.length,
+      blockers,
+      ownerReviewCall: cell.reviewCandidateWaveCall,
+      nextLegalAction:
+        winnerState === "selected_for_owner_review"
+          ? `Owner review via /autoresearch export then /autoresearch review for ${cell.cellId}/${selectedLane?.laneId}.`
+          : cell.reviewCandidateWaveCall,
+    };
+  });
+  const cellBlockers = cellSelections.flatMap((cell) => cell.blockers);
+  const postureBlockers =
+    input.posture === "ready_for_matrix_owner_review" ? [] : [`matrix_posture:${input.posture}`];
+  const blockers = [...cellBlockers, ...postureBlockers];
+  const blockerValue = blockers.length;
+  const ready = blockerValue === 0;
+  const exactFinalizePostFaninHandoffCall = ready
+    ? formatToolCall("autoresearch_live_supervision", {
+        action: "finalize_post_fanin",
+        taskId: input.taskId,
+        cwd: input.cwd,
+        objective: input.objective,
+        sourceReview: "review_matrix_campaign",
+        direction: input.direction,
+        scenarios: input.scenarios,
+        hypotheses: input.hypotheses,
+        candidateCountPerCell: input.candidateCountPerCell,
+        validation: {
+          command: "<run focused validation before requesting finalize_post_fanin token>",
+          status: "missing",
+          summary:
+            "Level-3 review/selection is ready, but finalizer token readiness still requires passed validation evidence.",
+        },
+      })
+    : null;
+  const nextLegalActions = ready
+    ? [
+        "Open /autoresearch export for dashboard-first owner review of the selected per-cell lanes.",
+        "Use /autoresearch review for the owner decision on each selected lane; this substrate is recommendation-only.",
+        "Run focused validation, then rerun the finalize_post_fanin handoff with validation.status=passed to request the exact finalizer token.",
+      ]
+    : [
+        "Resolve level-4 review/selection blockers before requesting a finalizer token.",
+        ...(input.exactNextCalls.length > 0 ? input.exactNextCalls : []),
+      ];
+
+  return {
+    kind: "autoresearch.level3_review_selection_substrate.v1",
+    source: "level3_matrix_cell_runner_visible_candidate_lanes",
+    aggregationInput: "controller_verified_candidate_result_packets",
+    taskId: input.taskId,
+    cwd: input.cwd,
+    objective: input.objective,
+    finalOnlyScoring: true,
+    ownerReviewRequired: true,
+    selectionAuthority: "recommendation_only",
+    cellSelections,
+    blockerMetric: {
+      name: "level3_review_selection_blockers",
+      direction: "lower",
+      target: 0,
+      value: blockerValue,
+      status: blockerValue === 0 ? "target_met" : "blocked",
+      blockers,
+    },
+    finalizerReadiness: {
+      posture: ready
+        ? "ready_for_validation_and_finalize_token_request"
+        : "blocked_until_cell_selection_ready",
+      sourceReview: "review_matrix_campaign",
+      selectedLaneCount: cellSelections.filter(
+        (cell) => cell.winnerState === "selected_for_owner_review",
+      ).length,
+      expectedCellCount: cellSelections.length,
+      validationStillRequired: true,
+      exactFinalizePostFaninHandoffCall,
+      applyCommandsExposed: false,
+      promotionAuthority: false,
+      cleanupAuthority: false,
+      requiredOwnerTokens: [
+        "finalize_post_fanin",
+        "candidate_cleanup",
+        "promotion",
+        "ak_owner_write",
+      ],
+    },
+    dangerousActionGates: {
+      finalizePostFanin: "exact_finalize_post_fanin_token_required",
+      candidateCleanup: "separate_candidate_cleanup_token_required",
+      promotion: "separate_promotion_token_required",
+      akOwnerWrite: "separate_ak_owner_write_required",
+    },
+    nextLegalActions,
+    boundaries: [
+      "Level-3 review/selection aggregates only controller-verified candidate-result packets from visible level-3 candidate lanes; raw peer text remains communication.",
+      "Per-cell winners are recommendation state for owner review, not promotion or merge authority.",
+      "The finalizer handoff is exact-gated: apply commands remain hidden until a separate finalize_post_fanin token is supplied to the finalizer preflight.",
+      "Candidate cleanup, AK owner writes, and promotion each require separate owner tokens and are not implied by this substrate.",
+    ],
+  };
+}
+
 export function checkpointAutoresearchMatrixCampaignRunner(
   input: AutoresearchMatrixCampaignRunnerRequest,
 ): AutoresearchMatrixCampaignRunnerCheckpoint {
@@ -5144,6 +6015,181 @@ export function checkpointAutoresearchMatrixCampaignRunner(
   };
 }
 
+const LEVEL4_MATRIX_CELL_EXECUTOR_ALLOWED_PREFIXES = [
+  "autoresearch_candidate_bind(",
+  "autoresearch_runtime_run(",
+  "autoresearch_runtime_status(",
+  "autoresearch_live_supervision(",
+] as const;
+
+const LEVEL4_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS = [
+  /candidate_peer_spawn\(/u,
+  /scout_peer_spawn\(/u,
+  /fork_peer_spawn\(/u,
+  /finalize_post_fanin/u,
+  /evidence_record\(/u,
+  /autoresearch_learning_kes_adapter[\s\S]*"materialize"/u,
+  /\bak\s+/u,
+  /git\s+(merge|push|reset|worktree\s+remove|branch\s+-D)\b/u,
+  /\brm\s+-rf\b/u,
+  /candidate_cleanup|promotion/u,
+] as const;
+
+function resolveLevel4CompletedActionCount(value: number | undefined): number {
+  const resolved = value ?? 0;
+  if (!Number.isInteger(resolved) || resolved < 0) {
+    throw new Error(
+      `completedActionCount must be a non-negative integer, received: ${String(value)}`,
+    );
+  }
+  return resolved;
+}
+
+function classifyLevel4MatrixCellAction(
+  call: string,
+): Pick<
+  AutoresearchLevel3MatrixCellExecutorSelectedAction,
+  "allowedByStateMachine" | "forbiddenReason"
+> {
+  const forbiddenPattern = LEVEL4_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS.find((pattern) =>
+    pattern.test(call),
+  );
+  if (forbiddenPattern) {
+    return {
+      allowedByStateMachine: false,
+      forbiddenReason: `Forbidden by Level-3 no-hidden-execution boundary: ${String(forbiddenPattern)}`,
+    };
+  }
+
+  const allowedPrefix = LEVEL4_MATRIX_CELL_EXECUTOR_ALLOWED_PREFIXES.some((prefix) =>
+    call.startsWith(prefix),
+  );
+  if (!allowedPrefix) {
+    return {
+      allowedByStateMachine: false,
+      forbiddenReason:
+        "Not one of the Level-3 safe post-checkpoint call families: bind, runtime_run, candidate_result_export/status, or review calls.",
+    };
+  }
+
+  return { allowedByStateMachine: true, forbiddenReason: null };
+}
+
+function buildLevel4MatrixCellExecutorBlockers(input: {
+  level3Accepted: boolean;
+  selectedAction: AutoresearchLevel3MatrixCellExecutorSelectedAction | null;
+}): AutoresearchLevel3MatrixCellExecutor["stateMachineBlockers"] {
+  const forbiddenActionMatched = input.selectedAction?.allowedByStateMachine === false;
+  const value = (input.level3Accepted ? 0 : 1) + (forbiddenActionMatched ? 1 : 0);
+  return {
+    name: "level3_state_machine_blockers",
+    direction: "lower",
+    target: 0,
+    value,
+    status: value === 0 ? "target_met" : "blocked",
+    hiddenExecutionPrevented: true,
+    forbiddenActionMatched,
+    proofs: [
+      {
+        proof:
+          "Level-3 consumes the Level-3 runner nextLegalActions rather than inventing hidden work",
+        status: "present",
+        source: "level3.runnerNextLegalActions",
+      },
+      {
+        proof: "at most one selected action is emitted per state-machine step",
+        status: "present",
+        source: "level3.selectedAction",
+      },
+      {
+        proof: "selected action is reported only; execution remains not_executed_by_orchestrator",
+        status: "present",
+        source: "level3.selectedAction.execution",
+      },
+      {
+        proof:
+          "forbidden peer launch, finalizer, AK/evidence, cleanup, merge, and promotion patterns are blocked",
+        status: "present",
+        source: "LEVEL4_MATRIX_CELL_EXECUTOR_FORBIDDEN_PATTERNS",
+      },
+    ],
+  };
+}
+
+export function advanceAutoresearchLevel3MatrixCellExecutor(
+  input: AutoresearchLevel3MatrixCellExecutorRequest,
+): AutoresearchLevel3MatrixCellExecutor {
+  const level3Runner = checkpointAutoresearchMatrixCampaignRunner(input);
+  const completedActionCount = resolveLevel4CompletedActionCount(input.completedActionCount);
+  const runnerNextLegalActions = level3Runner.checkpointAccepted
+    ? level3Runner.cockpit.nextLegalCampaignActions
+    : level3Runner.operatorFollowup.nextLegalActions;
+  const totalActionCount = runnerNextLegalActions.length;
+  const candidateCall = level3Runner.checkpointAccepted
+    ? runnerNextLegalActions[completedActionCount]
+    : undefined;
+  const selectedAction = candidateCall
+    ? {
+        index: completedActionCount,
+        call: candidateCall,
+        source: "level3_matrix_cell_runner.nextLegalActions" as const,
+        execution: "not_executed_by_orchestrator" as const,
+        controllerMustRunExplicitly: true as const,
+        ...classifyLevel4MatrixCellAction(candidateCall),
+      }
+    : null;
+  const stateMachineBlockers = buildLevel4MatrixCellExecutorBlockers({
+    level3Accepted: level3Runner.checkpointAccepted,
+    selectedAction,
+  });
+  const posture: AutoresearchLevel3MatrixCellExecutorPosture = !level3Runner.checkpointAccepted
+    ? "blocked_by_level3_runner"
+    : selectedAction?.allowedByStateMachine === false
+      ? "blocked_forbidden_action"
+      : selectedAction
+        ? "ready_to_present_next_action"
+        : "completed_review_ready";
+  const emittedNextLegalActions = selectedAction?.allowedByStateMachine
+    ? [selectedAction.call]
+    : [];
+
+  return {
+    kind: "autoresearch.level3_matrix_cell_executor.v1",
+    taskId: level3Runner.taskId,
+    cwd: level3Runner.cwd,
+    objective: level3Runner.objective,
+    sourceLevel3RunnerKind: level3Runner.kind,
+    sourceLevel3RunnerAlias: "level3_matrix_cell_runner",
+    level3Runner,
+    completedActionCount,
+    totalActionCount,
+    remainingActionCount: Math.max(
+      0,
+      totalActionCount - completedActionCount - (selectedAction ? 1 : 0),
+    ),
+    posture,
+    selectedAction,
+    runnerNextLegalActions,
+    emittedNextLegalActions,
+    stateMachineBlockers,
+    boundaries: [
+      "Level-3 is a deterministic state-machine executor above level3_matrix_cell_runner output; it emits at most one next action and executes none of it.",
+      "No hidden candidate_peer_spawn, scout_peer_spawn, or fork_peer_spawn is allowed from this executor.",
+      "No post-fan-in finalizer apply, AK/KES/evidence write, merge, promotion, reset, or candidate cleanup is allowed from this executor.",
+      "Controller/workbench must run the emitted action explicitly, then call this executor again with completedActionCount incremented after verification.",
+      "PEER_FINAL, review packets, and command packets remain communication/review inputs until owner-controlled surfaces verify and apply them.",
+    ],
+    nextStep:
+      posture === "blocked_by_level3_runner"
+        ? "Satisfy level3_matrix_cell_runner checkpoint/lineage requirements first; Level-3 will not advance while Level-3 is blocked."
+        : posture === "blocked_forbidden_action"
+          ? `Stop: selected runner action is forbidden by Level-3 boundary (${selectedAction?.forbiddenReason ?? "unknown"}).`
+          : posture === "completed_review_ready"
+            ? "All Level-3 runner nextLegalActions have been stepped through; proceed only to owner review surfaces, not finalizer apply, cleanup, AK write, merge, or promotion."
+            : "Run exactly the emittedNextLegalActions[0] outside the orchestrator, verify its result, then call Level-3 again with completedActionCount incremented by one.",
+  };
+}
+
 export function reviewAutoresearchMatrixCampaign(
   input: AutoresearchMatrixCampaignRequest,
 ): AutoresearchMatrixCampaignReview {
@@ -5242,6 +6288,18 @@ export function reviewAutoresearchMatrixCampaign(
     exactNextCalls,
     boundaries,
   });
+  const level3ReviewSelection = buildAutoresearchLevel3ReviewSelectionSubstrate({
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    objective,
+    direction,
+    posture,
+    cellReviews,
+    exactNextCalls,
+    scenarios: input.scenarios,
+    hypotheses: input.hypotheses,
+    candidateCountPerCell: input.candidateCountPerCell,
+  });
 
   return {
     kind: "autoresearch.matrix_campaign_review.v1",
@@ -5288,6 +6346,7 @@ export function reviewAutoresearchMatrixCampaign(
     closeout,
     cockpit,
     reviewPacket,
+    level3ReviewSelection,
     exactNextCalls,
     boundaries,
     nextStep:
@@ -5597,6 +6656,1766 @@ function buildAutoresearchMatrixCampaignCloseoutProjectionKey(input: {
   return `matrix-closeout|task:${input.taskId}|selected:${encodeURIComponent(selectedLaneKey)}|packets:${encodeURIComponent(packetKey)}`;
 }
 
+const LEVEL3_POLICY_GATE_SPECS: readonly {
+  gate: AutoresearchLevel3PolicyGatePreflight["gate"];
+  requiredPolicy: readonly string[];
+  boundary: string;
+}[] = [
+  {
+    gate: "launchVisibleCandidatePeers",
+    requiredPolicy: ["token_required", "policy_or_token_required", "manifest_allowed"],
+    boundary:
+      "Visible candidate launch is allowed only by accepted manifest policy or launch token.",
+  },
+  {
+    gate: "runMeasurements",
+    requiredPolicy: ["manifest_allowed", "policy_or_token_required"],
+    boundary: "Measurement execution must route through pi-autoresearch seams.",
+  },
+  {
+    gate: "exportCandidateResults",
+    requiredPolicy: ["manifest_allowed", "policy_or_token_required"],
+    boundary: "Candidate-result exports are review inputs, not durable evidence.",
+  },
+  {
+    gate: "generateReviewPackets",
+    requiredPolicy: ["true", "manifest_allowed"],
+    boundary: "Review packet generation is non-authoritative and does not choose promotion.",
+  },
+  {
+    gate: "prepareFinalizerTokenRequest",
+    requiredPolicy: ["true", "manifest_allowed"],
+    boundary: "Finalizer-token request preparation does not execute finalizer actions.",
+  },
+  {
+    gate: "applyFinalizer",
+    requiredPolicy: ["token_required"],
+    boundary: "Finalizer application requires the exact finalize_post_fanin token.",
+  },
+  {
+    gate: "cleanupCandidates",
+    requiredPolicy: ["token_required", "token_required_or_manifest_allowed"],
+    boundary: "Cleanup requires exact cleanup policy/token naming worktrees and branches.",
+  },
+  {
+    gate: "recordAkEvidence",
+    requiredPolicy: ["ak_owner_write_required"],
+    boundary: "AK evidence writes require exact AK owner-write policy and projection key.",
+  },
+  {
+    gate: "completeAkTask",
+    requiredPolicy: ["ak_owner_write_required"],
+    boundary: "AK task completion requires task/cwd/manifest hash matching.",
+  },
+  {
+    gate: "mergeReleasePromotion",
+    requiredPolicy: ["promotion_token_required"],
+    boundary: "Merge, release, and promotion require a separate promotion token.",
+  },
+];
+
+function resolveLevel3Manifest(input: AutoresearchLevel3ManifestPreflightRequest): {
+  manifest: unknown;
+  manifestPath: string | null;
+} {
+  if (input.manifest !== undefined) return { manifest: input.manifest, manifestPath: null };
+  if (input.manifestPath && input.manifestPath.trim().length > 0) {
+    const resolved = path.isAbsolute(input.manifestPath)
+      ? input.manifestPath
+      : path.resolve(input.cwd, input.manifestPath);
+    return { manifest: readJsonFile(resolved), manifestPath: resolved };
+  }
+  return { manifest: null, manifestPath: null };
+}
+
+function buildLevel3PolicyGatePreflight(policy: Record<string, unknown> | null): {
+  gates: AutoresearchLevel3PolicyGatePreflight[];
+  blockers: string[];
+} {
+  const blockers: string[] = [];
+  const gates = LEVEL3_POLICY_GATE_SPECS.map((spec) => {
+    const value = policy?.[spec.gate];
+    const accepted = spec.requiredPolicy.some((allowed) => {
+      if (allowed === "true") return value === true;
+      return value === allowed;
+    });
+    const missing = value === undefined;
+    const posture: AutoresearchLevel3PolicyPosture = missing
+      ? "blocked_missing_policy"
+      : accepted
+        ? "allowed_by_manifest_policy"
+        : "blocked_invalid_policy";
+    if (posture !== "allowed_by_manifest_policy") {
+      blockers.push(
+        `${spec.gate} policy is ${missing ? "missing" : `invalid (${String(value)})`}; expected one of ${spec.requiredPolicy.join(", ")}.`,
+      );
+    }
+    return {
+      gate: spec.gate,
+      posture,
+      value,
+      requiredPolicy: spec.requiredPolicy,
+      boundary: spec.boundary,
+    };
+  });
+  return { gates, blockers };
+}
+
+function buildAutoresearchLevel3ManifestPreflight(
+  input: AutoresearchLevel3ManifestPreflightRequest,
+): AutoresearchLevel3CampaignManifestPreflight {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const { manifest, manifestPath } = resolveLevel3Manifest({ ...input, cwd: identity.cwd });
+  const blockers: string[] = [];
+  const manifestRecord = isRecord(manifest) ? manifest : null;
+  if (!manifestRecord) blockers.push("manifest is required and must be a JSON object.");
+
+  const kind = manifestRecord?.kind;
+  if (manifestRecord && kind !== "autoresearch.level3_campaign_manifest.v1") {
+    blockers.push("manifest.kind must be autoresearch.level3_campaign_manifest.v1.");
+  }
+  const manifestTaskId = manifestRecord?.taskId;
+  if (manifestRecord && manifestTaskId !== identity.taskId) {
+    blockers.push(`manifest.taskId must exactly match ${identity.taskId}.`);
+  }
+  const manifestCwd = optionalString(manifestRecord?.cwd);
+  if (manifestRecord && (!manifestCwd || path.resolve(manifestCwd) !== identity.cwd)) {
+    blockers.push(`manifest.cwd must exactly resolve to ${identity.cwd}.`);
+  }
+  const campaignId = optionalString(manifestRecord?.campaignId) ?? null;
+  if (manifestRecord && !campaignId) blockers.push("manifest.campaignId is required.");
+  const autonomyLevel = optionalNumber(manifestRecord?.autonomyLevel) ?? null;
+  if (manifestRecord && autonomyLevel !== 3) blockers.push("manifest.autonomyLevel must be 3.");
+
+  const primaryMetric = isRecord(manifestRecord?.primaryMetric)
+    ? manifestRecord.primaryMetric
+    : null;
+  const primaryMetricName = optionalString(primaryMetric?.name) ?? null;
+  if (manifestRecord && !primaryMetricName)
+    blockers.push("manifest.primaryMetric.name is required.");
+
+  const filesInScope = stringArrayFrom(manifestRecord?.filesInScope);
+  const offLimits = stringArrayFrom(manifestRecord?.offLimits);
+  const rawFilesInScope = manifestRecord?.filesInScope;
+  const rawOffLimits = manifestRecord?.offLimits;
+  const slices = Array.isArray(manifestRecord?.slices) ? manifestRecord.slices : [];
+  if (manifestRecord && !Array.isArray(rawFilesInScope)) {
+    blockers.push("manifest.filesInScope must be an array of strings.");
+  }
+  if (manifestRecord && !Array.isArray(rawOffLimits)) {
+    blockers.push("manifest.offLimits must be an array of strings.");
+  }
+  if (manifestRecord && !Array.isArray(manifestRecord.slices)) {
+    blockers.push("manifest.slices must be an array.");
+  }
+  const normalizedOffLimits = offLimits.map((spec) =>
+    normalizeCandidateReviewPath(spec, identity.cwd),
+  );
+  const offLimitDrift = filesInScope
+    .map((filePath) => normalizeCandidateReviewPath(filePath, identity.cwd))
+    .filter((filePath) =>
+      normalizedOffLimits.some((spec) => candidatePathMatchesOffLimitSpec(filePath, spec)),
+    );
+  if (offLimitDrift.length > 0) {
+    blockers.push(`manifest.filesInScope overlaps offLimits: ${offLimitDrift.join(", ")}.`);
+  }
+
+  const policy = isRecord(manifestRecord?.policy) ? manifestRecord.policy : null;
+  if (manifestRecord && !policy) blockers.push("manifest.policy is required.");
+  const policyPreflight = buildLevel3PolicyGatePreflight(policy);
+  const manifestHash = manifestRecord ? sha256StableJson(manifestRecord) : null;
+  const schemaBlockers = blockers.length;
+  const policyBlockers = policyPreflight.blockers.length;
+  const uxBlockers = manifestHash && policyPreflight.gates.length > 0 ? 0 : 1;
+  const allBlockers = [...blockers, ...policyPreflight.blockers];
+  if (uxBlockers > 0)
+    allBlockers.push("preflight UX requires manifest hash and policy gate rendering.");
+  const totalBlockers = allBlockers.length;
+
+  return {
+    kind: "autoresearch.level3_campaign_manifest_preflight.v1",
+    manifestKind:
+      kind === "autoresearch.level3_campaign_manifest.v1"
+        ? "autoresearch.level3_campaign_manifest.v1"
+        : "invalid_or_missing",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestPath,
+    manifestHash,
+    readOnly: true,
+    execution: "not_executed_by_orchestrator",
+    metric: {
+      name: "level3_manifest_preflight_blockers",
+      direction: "lower",
+      target: 0,
+      value: totalBlockers,
+      status: metricStatus(totalBlockers),
+    },
+    cellMetrics: {
+      manifestSchemaBlockers: {
+        name: "manifest_schema_blockers",
+        direction: "lower",
+        target: 0,
+        value: schemaBlockers,
+        status: metricStatus(schemaBlockers),
+      },
+      manifestPolicyGateBlockers: {
+        name: "manifest_policy_gate_blockers",
+        direction: "lower",
+        target: 0,
+        value: policyBlockers,
+        status: metricStatus(policyBlockers),
+      },
+      manifestPreflightUxBlockers: {
+        name: "manifest_preflight_ux_blockers",
+        direction: "lower",
+        target: 0,
+        value: uxBlockers,
+        status: metricStatus(uxBlockers),
+      },
+    },
+    schema: {
+      campaignId,
+      autonomyLevel,
+      primaryMetricName,
+      sliceCount: slices.length,
+      fileScopeCount: filesInScope.length,
+      offLimitsCount: offLimits.length,
+    },
+    policyGates: policyPreflight.gates,
+    blockers: allBlockers,
+    nextLegalActions:
+      totalBlockers === 0
+        ? [
+            "Review and accept the durable manifest before any level-3 action-consuming runner step.",
+            "Proceed to Slice 2 dry-run sequencing only; do not launch peers from Slice 1 preflight.",
+            LEVEL2_PACKET_LEVEL1_FALLBACK,
+          ]
+        : [
+            "Fix manifest schema/policy blockers and rerun level3_manifest_preflight.",
+            "Do not launch peers, run measurements, cleanup, write AK evidence, or promote while preflight is blocked.",
+            LEVEL2_PACKET_LEVEL1_FALLBACK,
+          ],
+    nonActions: [
+      "No candidate_peer_spawn call was executed.",
+      "No autoresearch measurement, candidate-result export, review, or finalizer action was executed.",
+      "No cleanup, branch deletion, AK/KES/Oracle/DSPx/Prompt Vault/ROCS write, merge, release, or promotion was executed.",
+    ],
+    level2FallbackRoute: LEVEL2_PACKET_LEVEL1_FALLBACK,
+    boundaries: [
+      "Level-3 manifest preflight is read-only; manifest acceptance is separate from chat text and peer reports.",
+      "Policy gates render authorization posture only; dangerous actions still require later stage-specific execution surfaces.",
+      "The manifest hash is an audit anchor, not durable evidence until projected through AK owner-write policy.",
+    ],
+  };
+}
+
+function level3NodeId(value: unknown, fallback: string): string {
+  return optionalString(isRecord(value) ? value.id : undefined) ?? fallback;
+}
+
+function level3NodeDependencies(value: unknown): string[] {
+  if (!isRecord(value)) return [];
+  return [...stringArrayFrom(value.dependsOn), ...stringArrayFrom(value.dependencies)].filter(
+    (item, index, items) => item.trim().length > 0 && items.indexOf(item) === index,
+  );
+}
+
+function level3NodeMetricName(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  const direct = optionalString(value.metric);
+  if (direct) return direct;
+  return isRecord(value.metric) ? (optionalString(value.metric.name) ?? null) : null;
+}
+
+function level3NodeMetricDirection(value: unknown): "lower" | "higher" | null {
+  if (!isRecord(value)) return null;
+  const metric = isRecord(value.metric) ? value.metric : null;
+  const direction = optionalString(metric?.direction) ?? optionalString(value.direction);
+  return direction === "higher" ? "higher" : direction === "lower" ? "lower" : null;
+}
+
+function level3NodeMetricTarget(value: unknown): number | null {
+  if (!isRecord(value)) return null;
+  const metric = isRecord(value.metric) ? value.metric : null;
+  return optionalNumber(metric?.target) ?? optionalNumber(value.metricThreshold) ?? null;
+}
+
+function level3CandidateCount(value: unknown, fallback: number): number {
+  const raw = isRecord(value)
+    ? (optionalNumber(value.candidateCountPerCell) ?? optionalNumber(value.candidateCount))
+    : undefined;
+  const resolved = raw ?? fallback;
+  return Number.isInteger(resolved) && resolved >= 1 && resolved <= 6 ? resolved : fallback;
+}
+
+function level3NodeRequiredPolicyGates(value: unknown): string[] {
+  if (!isRecord(value)) return [];
+  return [
+    ...stringArrayFrom(value.requiredPolicyGates),
+    ...stringArrayFrom(value.requiresPolicyGates),
+    ...stringArrayFrom(value.policyGates),
+  ].filter((item, index, items) => item.trim().length > 0 && items.indexOf(item) === index);
+}
+
+function buildLevel3SliceSequenceNodes(manifest: unknown): {
+  nodes: {
+    sliceId: string;
+    cellId: string;
+    nodeId: string;
+    raw: unknown;
+    dependencies: readonly string[];
+    metricName: string | null;
+    requiredPolicyGates: readonly string[];
+  }[];
+  schemaBlockers: string[];
+} {
+  if (!isRecord(manifest) || !Array.isArray(manifest.slices)) {
+    return { nodes: [], schemaBlockers: ["manifest.slices must be available for sequencing."] };
+  }
+  const schemaBlockers: string[] = [];
+  const nodes: ReturnType<typeof buildLevel3SliceSequenceNodes>["nodes"] = [];
+  manifest.slices.forEach((slice, sliceIndex) => {
+    const sliceId = level3NodeId(slice, `slice-${String(sliceIndex + 1).padStart(2, "0")}`);
+    const sliceDependencies = level3NodeDependencies(slice);
+    const slicePolicyGates = level3NodeRequiredPolicyGates(slice);
+    const sliceMetricName = level3NodeMetricName(slice);
+    const hasExplicitCells =
+      isRecord(slice) && Array.isArray(slice.cells) && slice.cells.length > 0;
+    const cells =
+      hasExplicitCells && isRecord(slice) && Array.isArray(slice.cells) ? slice.cells : [slice];
+    cells.forEach((cell, cellIndex) => {
+      const cellId = hasExplicitCells
+        ? level3NodeId(cell, `${sliceId}:cell-${String(cellIndex + 1).padStart(2, "0")}`)
+        : sliceId;
+      nodes.push({
+        sliceId,
+        cellId,
+        nodeId: cellId,
+        raw: cell,
+        dependencies: [...sliceDependencies, ...level3NodeDependencies(cell)].filter(
+          (item, index, items) => item.trim().length > 0 && items.indexOf(item) === index,
+        ),
+        metricName: level3NodeMetricName(cell) ?? sliceMetricName,
+        requiredPolicyGates: [...slicePolicyGates, ...level3NodeRequiredPolicyGates(cell)].filter(
+          (item, index, items) => item.trim().length > 0 && items.indexOf(item) === index,
+        ),
+      });
+    });
+  });
+  if (nodes.length === 0)
+    schemaBlockers.push("manifest.slices must contain at least one slice/cell.");
+  const duplicates = nodes
+    .map((node) => node.nodeId)
+    .filter((nodeId, index, items) => items.indexOf(nodeId) !== index);
+  if (duplicates.length > 0) {
+    schemaBlockers.push(
+      `manifest slice/cell ids must be unique; duplicates: ${[...new Set(duplicates)].join(", ")}.`,
+    );
+  }
+  return { nodes, schemaBlockers };
+}
+
+function policyPostureForRequiredGates(
+  requiredPolicyGates: readonly string[],
+  preflight: AutoresearchLevel3CampaignManifestPreflight,
+): { posture: AutoresearchLevel3PolicyPosture; blockers: string[] } {
+  if (requiredPolicyGates.length === 0) return { posture: "not_requested", blockers: [] };
+  const blockers: string[] = [];
+  for (const gate of requiredPolicyGates) {
+    const preflightGate = preflight.policyGates.find((item) => item.gate === gate);
+    if (!preflightGate) {
+      blockers.push(`required policy gate ${gate} is not recognized by level-3 preflight.`);
+    } else if (preflightGate.posture !== "allowed_by_manifest_policy") {
+      blockers.push(`required policy gate ${gate} is ${preflightGate.posture}.`);
+    }
+  }
+  return {
+    posture: blockers.length === 0 ? "allowed_by_manifest_policy" : "blocked_missing_policy",
+    blockers,
+  };
+}
+
+function buildAutoresearchLevel3SliceSequenceDryRun(
+  input: AutoresearchLevel3SliceSequenceDryRunRequest,
+): AutoresearchLevel3SliceSequenceDryRun {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const resolved = resolveLevel3Manifest({ ...input, cwd: identity.cwd });
+  const preflight = buildAutoresearchLevel3ManifestPreflight({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+  });
+  const nodesResult = buildLevel3SliceSequenceNodes(resolved.manifest);
+  const orderedStates: AutoresearchLevel3SliceSequenceCellState[] = [];
+  const blockers: string[] = [];
+  const readyIds = new Set<string>();
+  const nodeIds = new Set(nodesResult.nodes.map((node) => node.nodeId));
+
+  if (preflight.metric.status !== "target_met") {
+    blockers.push("manifest preflight is blocked; sequencing dry-run fails closed.");
+  }
+  blockers.push(...nodesResult.schemaBlockers);
+
+  nodesResult.nodes.forEach((node, index) => {
+    const missingDependencies = node.dependencies.filter((dependency) => !nodeIds.has(dependency));
+    const blockedDependencies = node.dependencies.filter(
+      (dependency) => nodeIds.has(dependency) && !readyIds.has(dependency),
+    );
+    const policy = policyPostureForRequiredGates(node.requiredPolicyGates, preflight);
+    const nodeBlockers = [
+      ...missingDependencies.map((dependency) => `missing dependency ${dependency}`),
+      ...blockedDependencies.map((dependency) => `blocked dependency ${dependency}`),
+      ...policy.blockers,
+    ];
+    const preflightBlocked = preflight.metric.status !== "target_met";
+    if (preflightBlocked) nodeBlockers.push("manifest preflight blocked");
+    const state: AutoresearchLevel3SliceSequenceState =
+      nodeBlockers.length === 0 ? "ready" : "blocked";
+    if (state === "ready") readyIds.add(node.nodeId);
+    orderedStates.push({
+      sliceId: node.sliceId,
+      cellId: node.cellId,
+      order: index + 1,
+      state,
+      dependencies: node.dependencies,
+      missingDependencies,
+      blockedDependencies,
+      policyPosture: policy.posture,
+      metricName: node.metricName,
+      nextLegalAction:
+        state === "ready"
+          ? "Owner may proceed to the next level-3 dry-run stage; lower-plane actions remain withheld."
+          : "Resolve dependency or preflight/policy blockers, then rerun the slice sequence dry-run.",
+      blockers: nodeBlockers,
+    });
+  });
+
+  const orderingBlockers = orderedStates.reduce(
+    (count, state) => count + state.missingDependencies.length + state.blockedDependencies.length,
+    nodesResult.schemaBlockers.length,
+  );
+  const recoveryBlockers =
+    orderedStates.length > 0 && preflight.level2FallbackRoute.length > 0 ? 0 : 1;
+  const receiptBlockers = preflight.manifestHash && orderedStates.length > 0 ? 0 : 1;
+  const stateBlockers = orderedStates.reduce((count, state) => count + state.blockers.length, 0);
+  const totalBlockers = preflight.metric.value + stateBlockers + receiptBlockers + recoveryBlockers;
+  if (stateBlockers > 0) {
+    blockers.push(
+      ...orderedStates.flatMap((state) =>
+        state.blockers.map((blocker) => `${state.cellId}: ${blocker}`),
+      ),
+    );
+  }
+  if (receiptBlockers > 0)
+    blockers.push("dry-run receipts require a manifest hash and at least one ordered slice/cell.");
+  if (recoveryBlockers > 0)
+    blockers.push(
+      "dry-run recovery UX requires blocked-state guidance and a level-2 fallback route.",
+    );
+
+  const receiptPolicyPosture: AutoresearchLevel3CampaignTransitionReceipt["policyPosture"] =
+    preflight.metric.status !== "target_met"
+      ? "blocked_preflight"
+      : orderedStates.some((state) => state.state === "blocked")
+        ? "blocked_dependencies_or_policy"
+        : "dry_run_no_lower_plane_actions";
+  const receipts = preflight.manifestHash
+    ? orderedStates.map(
+        (state, index): AutoresearchLevel3CampaignTransitionReceipt => ({
+          kind: "autoresearch.level3_campaign_transition_receipt.v1",
+          nonAuthoritative: true,
+          durableEvidence: false,
+          manifestHash: preflight.manifestHash as string,
+          taskId: identity.taskId,
+          cwd: identity.cwd,
+          transitionName: "level3_slice_sequence_dry_run",
+          policyPosture: receiptPolicyPosture,
+          inputRefs: {
+            manifestPath: resolved.manifestPath,
+            sliceId: state.sliceId,
+            cellId: state.cellId,
+            dependencies: state.dependencies,
+          },
+          outputRefs: {
+            packetKind: "autoresearch.level3_slice_sequence_dry_run.v1",
+            state: state.state,
+            receiptIndex: index + 1,
+          },
+          metricPosture: {
+            name:
+              state.state === "ready"
+                ? "dry_run_receipt_blockers"
+                : "autonomous_slice_sequence_blockers",
+            direction: "lower",
+            target: 0,
+            status: state.state === "ready" ? "target_met" : "blocked",
+          },
+          nextState: state.state,
+          rollbackHint: preflight.level2FallbackRoute,
+        }),
+      )
+    : [];
+
+  return {
+    kind: "autoresearch.level3_slice_sequence_dry_run.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestKind: preflight.manifestKind,
+    manifestPath: resolved.manifestPath,
+    manifestHash: preflight.manifestHash,
+    readOnly: true,
+    execution: "not_executed_by_orchestrator",
+    preflight,
+    metric: {
+      name: "autonomous_slice_sequence_blockers",
+      direction: "lower",
+      target: 0,
+      value: totalBlockers,
+      status: metricStatus(totalBlockers),
+    },
+    cellMetrics: {
+      sliceOrderingBlockers: {
+        name: "slice_ordering_blockers",
+        direction: "lower",
+        target: 0,
+        value: orderingBlockers,
+        status: metricStatus(orderingBlockers),
+      },
+      dryRunReceiptBlockers: {
+        name: "dry_run_receipt_blockers",
+        direction: "lower",
+        target: 0,
+        value: receiptBlockers,
+        status: metricStatus(receiptBlockers),
+      },
+      sliceSequenceRecoveryBlockers: {
+        name: "slice_sequence_recovery_blockers",
+        direction: "lower",
+        target: 0,
+        value: recoveryBlockers,
+        status: metricStatus(recoveryBlockers),
+      },
+    },
+    orderedStates,
+    receipts,
+    blockers: [...new Set(blockers)],
+    nextLegalActions:
+      totalBlockers === 0
+        ? [
+            "Review the dry-run state and receipts; continue only to owner-approved visible level-3 surfaces.",
+            "Rerun this dry-run after manifest edits before any lower-plane action is considered.",
+            preflight.level2FallbackRoute,
+          ]
+        : [
+            "Resolve blocked slice/cell dependencies, policy, or manifest preflight blockers and rerun the dry-run.",
+            "Use the safe rerun command shown in this result after manifest repair.",
+            preflight.level2FallbackRoute,
+          ],
+    safeRerunCommand: formatToolCall("autoresearch_live_supervision", {
+      action: "level3_slice_sequence_dry_run",
+      taskId: identity.taskId,
+      cwd: identity.cwd,
+      ...(resolved.manifestPath
+        ? { level3ManifestPath: resolved.manifestPath }
+        : { level3Manifest: "<inline manifest>" }),
+    }),
+    level2FallbackRoute: preflight.level2FallbackRoute,
+    nonActions: [
+      "Dry-run only: no peer launch, lower-plane runtime call, candidate-result export, review/finalizer call, cleanup, AK/KES/Oracle/DSPx/Prompt Vault/ROCS write, merge, release, or promotion was exposed or executed.",
+      "Transition receipts are local audit/review inputs only and are not AK evidence.",
+    ],
+    boundaries: [
+      "Slice sequencing dry-run computes ready/blocked state from the accepted manifest shape and preflight output only.",
+      "Transition receipts are non-authoritative and become durable evidence only through a future exact AK owner-write gate.",
+      "Blocked states show rerun and level-2 fallback routes instead of exposing action-consuming calls.",
+    ],
+  };
+}
+
+function buildLevel3LaunchAuthorization(input: {
+  taskId: number;
+  cwd: string;
+  manifestHash: string | null;
+  preflight: AutoresearchLevel3CampaignManifestPreflight;
+  suppliedToken?: string;
+}): AutoresearchLevel3VisibleCandidateLifecyclePlan["launchAuthorization"] {
+  const requiredToken = `launch_visible_candidate_lanes task:${input.taskId} cwd:${input.cwd} manifest:${input.manifestHash ?? "missing"}`;
+  const launchGate = input.preflight.policyGates.find(
+    (gate) => gate.gate === "launchVisibleCandidatePeers",
+  );
+  const manifestAllowed = launchGate?.value === "manifest_allowed";
+  const suppliedTokenAccepted = input.suppliedToken === requiredToken;
+  return {
+    posture: manifestAllowed
+      ? "allowed_by_manifest_policy"
+      : suppliedTokenAccepted
+        ? "allowed_by_exact_token"
+        : "blocked_missing_policy_or_token",
+    requiredToken,
+    suppliedTokenAccepted,
+  };
+}
+
+function buildLevel3CandidateLifecycleLaneSpecs(manifest: unknown): {
+  sliceId: string | null;
+  cellId: string | null;
+  laneId: string;
+  objective: string;
+  metricName: string | null;
+  metricDirection: "lower" | "higher";
+  metricTarget: number | null;
+  filesInScope: readonly string[];
+  offLimits: readonly string[];
+}[] {
+  const manifestRecord = isRecord(manifest) ? manifest : {};
+  const manifestFiles = stringArrayFrom(manifestRecord.filesInScope);
+  const manifestOffLimits = stringArrayFrom(manifestRecord.offLimits);
+  const manifestPrimaryMetric = isRecord(manifestRecord.primaryMetric)
+    ? manifestRecord.primaryMetric
+    : null;
+  const manifestMetricName = optionalString(manifestPrimaryMetric?.name) ?? null;
+  const manifestMetricDirection =
+    optionalString(manifestPrimaryMetric?.direction) === "higher" ? "higher" : "lower";
+  const manifestMetricTarget = optionalNumber(manifestPrimaryMetric?.target) ?? null;
+  const matrixRecord = isRecord(manifestRecord.matrix) ? manifestRecord.matrix : null;
+  const manifestCandidateCountPerCell = level3CandidateCount(matrixRecord ?? manifestRecord, 1);
+  const nodes = buildLevel3SliceSequenceNodes(manifest).nodes;
+  const cellScopedLanes = nodes.flatMap((node) => {
+    const raw = isRecord(node.raw) ? node.raw : {};
+    const explicitCellLanes = Array.isArray(raw.candidateLanes) ? raw.candidateLanes : [];
+    return explicitCellLanes.map((lane, index) => {
+      const rawLane = isRecord(lane) ? lane : {};
+      const localLaneId = level3NodeId(lane, `candidate-${String(index + 1).padStart(2, "0")}`);
+      const laneFiles = stringArrayFrom(rawLane.filesInScope);
+      const cellFiles = stringArrayFrom(raw.filesInScope);
+      const laneOffLimits = stringArrayFrom(rawLane.offLimits);
+      const cellOffLimits = stringArrayFrom(raw.offLimits);
+      return {
+        sliceId: node.sliceId,
+        cellId: node.cellId,
+        laneId: `${node.cellId}-${localLaneId}`,
+        metricName: level3NodeMetricName(rawLane) ?? node.metricName ?? manifestMetricName,
+        metricDirection:
+          level3NodeMetricDirection(rawLane) ??
+          level3NodeMetricDirection(raw) ??
+          manifestMetricDirection,
+        metricTarget:
+          level3NodeMetricTarget(rawLane) ?? level3NodeMetricTarget(raw) ?? manifestMetricTarget,
+        objective:
+          optionalString(rawLane.objective) ??
+          optionalString(raw.objective) ??
+          optionalString(manifestRecord.objective) ??
+          `Run visible candidate lifecycle for ${node.cellId}/${localLaneId}.`,
+        filesInScope:
+          laneFiles.length > 0 ? laneFiles : cellFiles.length > 0 ? cellFiles : manifestFiles,
+        offLimits:
+          laneOffLimits.length > 0
+            ? laneOffLimits
+            : cellOffLimits.length > 0
+              ? cellOffLimits
+              : manifestOffLimits,
+      };
+    });
+  });
+  if (cellScopedLanes.length > 0) return cellScopedLanes;
+
+  const explicitLanes = Array.isArray(manifestRecord.candidateLanes)
+    ? manifestRecord.candidateLanes
+    : [];
+  if (explicitLanes.length > 0) {
+    return explicitLanes
+      .map((lane, index) => ({
+        sliceId: null,
+        cellId: null,
+        laneId: level3NodeId(lane, `candidate-${String(index + 1).padStart(2, "0")}`),
+        metricName:
+          level3NodeMetricName(lane) ??
+          optionalString(isRecord(lane) ? lane.metricName : undefined) ??
+          manifestMetricName,
+        metricDirection: level3NodeMetricDirection(lane) ?? manifestMetricDirection,
+        metricTarget: level3NodeMetricTarget(lane) ?? manifestMetricTarget,
+        objective:
+          optionalString(isRecord(lane) ? lane.objective : undefined) ??
+          optionalString(manifestRecord.objective) ??
+          "Run the declared level-3 candidate lane.",
+        filesInScope: stringArrayFrom(isRecord(lane) ? lane.filesInScope : undefined),
+        offLimits: stringArrayFrom(isRecord(lane) ? lane.offLimits : undefined),
+      }))
+      .map((lane) => ({
+        ...lane,
+        filesInScope: lane.filesInScope.length > 0 ? lane.filesInScope : manifestFiles,
+        offLimits: lane.offLimits.length > 0 ? lane.offLimits : manifestOffLimits,
+      }));
+  }
+
+  return nodes.flatMap((node) => {
+    const count = level3CandidateCount(node.raw, manifestCandidateCountPerCell);
+    return Array.from({ length: count }, (_, index) => ({
+      sliceId: node.sliceId,
+      cellId: node.cellId,
+      laneId: `${node.cellId}-candidate-${String(index + 1).padStart(2, "0")}`,
+      metricName: node.metricName ?? manifestMetricName,
+      metricDirection: level3NodeMetricDirection(node.raw) ?? manifestMetricDirection,
+      metricTarget: level3NodeMetricTarget(node.raw) ?? manifestMetricTarget,
+      objective:
+        optionalString(isRecord(node.raw) ? node.raw.objective : undefined) ??
+        optionalString(manifestRecord.objective) ??
+        `Run visible candidate lifecycle for ${node.cellId}.`,
+      filesInScope: manifestFiles,
+      offLimits: manifestOffLimits,
+    }));
+  });
+}
+
+function buildAutoresearchLevel3VisibleCandidateLifecyclePlan(
+  input: AutoresearchLevel3VisibleCandidateLifecycleRequest,
+): AutoresearchLevel3VisibleCandidateLifecyclePlan {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const resolved = resolveLevel3Manifest({ ...input, cwd: identity.cwd });
+  const preflight = buildAutoresearchLevel3ManifestPreflight({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+  });
+  const authorization = buildLevel3LaunchAuthorization({
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestHash: preflight.manifestHash,
+    preflight,
+    suppliedToken: input.launchAuthorizationToken,
+  });
+  const laneSpecs = buildLevel3CandidateLifecycleLaneSpecs(resolved.manifest);
+  const duplicateLaneIds = laneSpecs
+    .map((lane) => lane.laneId)
+    .filter((laneId, index, items) => items.indexOf(laneId) !== index);
+  const bindings = [...(input.candidateBindings ?? [])];
+  const duplicateBindingIds = bindings
+    .map((binding) => binding.laneId)
+    .filter((laneId, index, items) => items.indexOf(laneId) !== index);
+  const bindingsByLane = new Map(bindings.map((binding) => [binding.laneId, binding]));
+  const launchAllowed = authorization.posture !== "blocked_missing_policy_or_token";
+  const launchPolicyBlockers =
+    preflight.metric.status === "target_met" && launchAllowed && input.parentPeerTarget
+      ? duplicateLaneIds.length
+      : 1 + duplicateLaneIds.length;
+
+  const lanes = laneSpecs.map((lane) => {
+    const binding = bindingsByLane.get(lane.laneId) ?? null;
+    const blockers: string[] = [];
+    if (preflight.metric.status !== "target_met") blockers.push("manifest preflight blocked");
+    if (!launchAllowed)
+      blockers.push(
+        "missing accepted launchVisibleCandidatePeers manifest policy or exact launch token",
+      );
+    if (!input.parentPeerTarget)
+      blockers.push(
+        "parentPeerTarget is required before visible candidate launch calls are exposed",
+      );
+    if (duplicateLaneIds.includes(lane.laneId))
+      blockers.push("duplicate manifest candidate lane id");
+    if (!binding) blockers.push("missing candidate worktree binding for lane");
+    if (duplicateBindingIds.includes(lane.laneId))
+      blockers.push("duplicate candidate binding for lane");
+    if (binding) {
+      if (!binding.candidateWorktree) blockers.push("candidate binding missing worktree");
+      if (!binding.candidateBranch) blockers.push("candidate binding missing branch");
+      if (!binding.candidateBaseRef) blockers.push("candidate binding missing base ref");
+    }
+    const launchPosture: AutoresearchLevel3CandidateLifecycleLane["launchPosture"] = !launchAllowed
+      ? "blocked_missing_launch_policy_or_token"
+      : !input.parentPeerTarget
+        ? "blocked_missing_parent_peer_target"
+        : "ready_visible_candidate_peer_spawn_call";
+    const peerPayload = {
+      objective: lane.objective,
+      cwd: identity.cwd,
+      parentPeerTarget: input.parentPeerTarget,
+      filesInScope: lane.filesInScope,
+      offLimits: lane.offLimits,
+      constraints: [
+        "visible candidate lane only",
+        `AK task ${identity.taskId}`,
+        `manifest ${preflight.manifestHash ?? "missing"}`,
+      ],
+    };
+    return {
+      sliceId: lane.sliceId,
+      cellId: lane.cellId,
+      laneId: lane.laneId,
+      objective: lane.objective,
+      metricName: lane.metricName,
+      metricDirection: lane.metricDirection,
+      metricTarget: lane.metricTarget,
+      filesInScope: lane.filesInScope,
+      offLimits: lane.offLimits,
+      launchPosture,
+      candidatePeerCall:
+        launchPosture === "ready_visible_candidate_peer_spawn_call" &&
+        preflight.metric.status === "target_met" &&
+        launchAllowed &&
+        Boolean(input.parentPeerTarget) &&
+        !duplicateLaneIds.includes(lane.laneId)
+          ? formatToolCall("candidate_peer_spawn", peerPayload)
+          : null,
+      bindingPosture: duplicateBindingIds.includes(lane.laneId)
+        ? "blocked_duplicate_binding"
+        : binding
+          ? "bound_visible_candidate_worktree"
+          : "blocked_missing_binding",
+      binding,
+      cleanupPosture: "plan_only_cleanup_token_required",
+      cleanupPlan: [
+        "Do not close peer tabs/sessions, remove worktrees, delete branches, reset, or clean candidates from this lifecycle plan.",
+        "Prepare exact candidate_cleanup token naming peer sessions/tabs, worktrees, and branches before cleanup.",
+      ],
+      blockers,
+    } satisfies AutoresearchLevel3CandidateLifecycleLane;
+  });
+
+  const bindingBlockers = lanes.reduce(
+    (count, lane) =>
+      count +
+      (lane.bindingPosture === "bound_visible_candidate_worktree" && lane.blockers.length === 0
+        ? 0
+        : lane.blockers.filter((blocker) =>
+            /binding|duplicate|worktree|branch|base ref/u.test(blocker),
+          ).length),
+    0,
+  );
+  const cleanupBlockers = lanes.every(
+    (lane) => lane.cleanupPosture === "plan_only_cleanup_token_required",
+  )
+    ? 0
+    : 1;
+  const totalBlockers =
+    preflight.metric.value + launchPolicyBlockers + bindingBlockers + cleanupBlockers;
+  const blockers = [
+    ...(preflight.metric.status === "target_met"
+      ? []
+      : ["manifest preflight is blocked; visible candidate lifecycle fails closed."]),
+    ...duplicateLaneIds.map((laneId) => `duplicate manifest candidate lane id ${laneId}`),
+    ...duplicateBindingIds.map((laneId) => `duplicate candidate binding for lane ${laneId}`),
+    ...lanes.flatMap((lane) => lane.blockers.map((blocker) => `${lane.laneId}: ${blocker}`)),
+  ];
+
+  return {
+    kind: "autoresearch.level3_visible_candidate_lifecycle_plan.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestKind: preflight.manifestKind,
+    manifestPath: resolved.manifestPath,
+    manifestHash: preflight.manifestHash,
+    readOnly: true,
+    execution: "not_executed_by_orchestrator",
+    preflight,
+    launchAuthorization: authorization,
+    metric: {
+      name: "candidate_lifecycle_automation_blockers",
+      direction: "lower",
+      target: 0,
+      value: totalBlockers,
+      status: metricStatus(totalBlockers),
+    },
+    cellMetrics: {
+      visibleLaunchPolicyBlockers: {
+        name: "visible_launch_policy_blockers",
+        direction: "lower",
+        target: 0,
+        value: launchPolicyBlockers,
+        status: metricStatus(launchPolicyBlockers),
+      },
+      candidateBindingLifecycleBlockers: {
+        name: "candidate_binding_lifecycle_blockers",
+        direction: "lower",
+        target: 0,
+        value: bindingBlockers,
+        status: metricStatus(bindingBlockers),
+      },
+      candidateCleanupPolicyBlockers: {
+        name: "candidate_cleanup_policy_blockers",
+        direction: "lower",
+        target: 0,
+        value: cleanupBlockers,
+        status: metricStatus(cleanupBlockers),
+      },
+    },
+    lanes,
+    blockers: [...new Set(blockers)],
+    nextLegalActions:
+      totalBlockers === 0
+        ? [
+            "Review visible candidate_peer_spawn calls and bound worktree lineage; execute launch only through the visible tool surface if still intended.",
+            "After candidate work completes, route measurement/export/review through the next authorized level-3 slice; this plan does not run them.",
+            "Cleanup remains plan-only until exact candidate_cleanup policy/token names peer tabs/sessions, worktrees, and branches.",
+          ]
+        : [
+            "Resolve launch policy/token, parentPeerTarget, duplicate/missing lane bindings, or manifest preflight blockers and rerun this plan.",
+            "Do not launch peers, measure/export/review, cleanup, write AK evidence, or promote while lifecycle planning is blocked.",
+          ],
+    nonActions: [
+      "No candidate_peer_spawn call was executed by the orchestrator; visible calls are returned as owner-reviewable text only when authorized.",
+      "No autoresearch_runtime_run, candidate_result_export, review, finalizer, cleanup, AK/KES/Oracle/DSPx/Prompt Vault/ROCS write, merge, release, or promotion was executed.",
+    ],
+    boundaries: [
+      "Visible candidate launch requires accepted manifest launch policy or exact launch_visible_candidate_lanes token; chat text and peer reports do not authorize launch.",
+      "Candidate bindings are controller-verified lineage inputs, not durable evidence or winner selection.",
+      "Cleanup is a plan-only posture here; peer tab/session closure, worktree removal, and branch deletion require separate candidate_cleanup authority.",
+    ],
+  };
+}
+
+function buildAutoresearchLevel3MeasureExportReviewPlan(
+  input: AutoresearchLevel3MeasureExportReviewRequest,
+): AutoresearchLevel3MeasureExportReviewPlan {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const resolved = resolveLevel3Manifest({ ...input, cwd: identity.cwd });
+  const preflight = buildAutoresearchLevel3ManifestPreflight({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+  });
+  const lifecycle = buildAutoresearchLevel3VisibleCandidateLifecyclePlan(input);
+  const runGate = preflight.policyGates.find((gate) => gate.gate === "runMeasurements");
+  const exportGate = preflight.policyGates.find((gate) => gate.gate === "exportCandidateResults");
+  const reviewGate = preflight.policyGates.find((gate) => gate.gate === "generateReviewPackets");
+  const measurementAllowed = runGate?.posture === "allowed_by_manifest_policy";
+  const exportAllowed = exportGate?.posture === "allowed_by_manifest_policy";
+  const reviewAllowed = reviewGate?.posture === "allowed_by_manifest_policy";
+  const packetDir = normalizeCandidateReviewPath(
+    input.candidateResultPacketDirectory ?? ".autoresearch/level3-measure-export-review",
+    identity.cwd,
+  );
+  const lanes = lifecycle.lanes.map((lane): AutoresearchLevel3MeasureExportReviewLane => {
+    const blockers: string[] = [];
+    if (lifecycle.metric.status !== "target_met") blockers.push("candidate lifecycle plan blocked");
+    if (!measurementAllowed) blockers.push("runMeasurements manifest policy is not allowed");
+    if (!exportAllowed) blockers.push("exportCandidateResults manifest policy is not allowed");
+    if (!reviewAllowed) blockers.push("generateReviewPackets manifest policy is not allowed");
+    if (!lane.binding?.candidateWorktree) blockers.push("missing candidate worktree binding");
+    const packetPath = lane.cellId
+      ? `${packetDir}/${lane.cellId}/${lane.laneId}.candidate-result.json`
+      : `${packetDir}/${lane.laneId}.candidate-result.json`;
+    const ready = blockers.length === 0;
+    return {
+      sliceId: lane.sliceId,
+      cellId: lane.cellId,
+      laneId: lane.laneId,
+      metricName: lane.metricName,
+      metricDirection: lane.metricDirection,
+      metricTarget: lane.metricTarget,
+      measurementPosture: ready ? "ready_manifest_approved" : "blocked",
+      exportPosture: ready ? "ready_manifest_approved" : "blocked",
+      reviewPosture: ready ? "ready_manifest_approved" : "blocked",
+      candidateWorktree: lane.binding?.candidateWorktree ?? null,
+      candidateBranch: lane.binding?.candidateBranch ?? null,
+      runtimeRunCall: ready
+        ? formatToolCall("autoresearch_runtime_run", {
+            cwd: lane.binding?.candidateWorktree,
+            metricName: lane.metricName ?? "candidate_measure_export_review_blockers",
+            direction: lane.metricDirection,
+            metricThreshold: lane.metricTarget ?? undefined,
+            sourceManifestHash: preflight.manifestHash,
+          })
+        : null,
+      candidateResultExportCall: ready
+        ? formatToolCall("autoresearch_runtime_status", {
+            cwd: lane.binding?.candidateWorktree,
+            action: "candidate_result_export",
+            outPath: packetPath,
+          })
+        : null,
+      reviewInputPacketPath: packetPath,
+      blockers,
+    };
+  });
+  const measurementPolicyBlockers = measurementAllowed ? 0 : 1;
+  const candidateExportBindingBlockers =
+    (exportAllowed ? 0 : 1) +
+    lanes.reduce((count, lane) => count + (lane.candidateWorktree ? 0 : 1), 0);
+  const reviewPacketAuthorityBlockers = reviewAllowed ? 0 : 1;
+  const laneBlockers = lanes.reduce((count, lane) => count + lane.blockers.length, 0);
+  const totalBlockers =
+    preflight.metric.value +
+    lifecycle.metric.value +
+    measurementPolicyBlockers +
+    candidateExportBindingBlockers +
+    reviewPacketAuthorityBlockers +
+    laneBlockers;
+  const aggregateReviewCall =
+    totalBlockers === 0
+      ? formatToolCall("autoresearch_live_supervision", {
+          action: "review_candidate_wave",
+          taskId: identity.taskId,
+          cwd: identity.cwd,
+          objective:
+            optionalString(isRecord(resolved.manifest) ? resolved.manifest.objective : undefined) ??
+            "Review level-3 measured candidates.",
+          candidateResultPacketPaths: lanes.map((lane) => lane.reviewInputPacketPath),
+        })
+      : null;
+  return {
+    kind: "autoresearch.level3_measure_export_review_plan.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestHash: preflight.manifestHash,
+    execution: "not_executed_by_orchestrator",
+    preflight,
+    lifecycle,
+    metric: {
+      name: "candidate_measure_export_review_blockers",
+      direction: "lower",
+      target: 0,
+      value: totalBlockers,
+      status: metricStatus(totalBlockers),
+    },
+    cellMetrics: {
+      measurementPolicyBlockers: {
+        name: "measurement_policy_blockers",
+        direction: "lower",
+        target: 0,
+        value: measurementPolicyBlockers,
+        status: metricStatus(measurementPolicyBlockers),
+      },
+      candidateExportBindingBlockers: {
+        name: "candidate_export_binding_blockers",
+        direction: "lower",
+        target: 0,
+        value: candidateExportBindingBlockers,
+        status: metricStatus(candidateExportBindingBlockers),
+      },
+      reviewPacketAuthorityBlockers: {
+        name: "review_packet_authority_blockers",
+        direction: "lower",
+        target: 0,
+        value: reviewPacketAuthorityBlockers,
+        status: metricStatus(reviewPacketAuthorityBlockers),
+      },
+    },
+    lanes,
+    aggregateReviewCall,
+    blockers: [
+      ...new Set([
+        ...(preflight.metric.status === "target_met" ? [] : ["manifest preflight blocked"]),
+        ...(lifecycle.metric.status === "target_met"
+          ? []
+          : ["visible candidate lifecycle plan blocked"]),
+        ...lanes.flatMap((lane) => lane.blockers.map((blocker) => `${lane.laneId}: ${blocker}`)),
+      ]),
+    ],
+    nextLegalActions:
+      totalBlockers === 0
+        ? [
+            "Execute the manifest-approved measurement/export calls only through pi-autoresearch owner seams when ready.",
+            "Run the aggregate review call only after candidate-result packets exist; review packets remain non-authoritative.",
+          ]
+        : [
+            "Resolve manifest policy, candidate lifecycle, binding, or packet blockers and rerun the level-3 measure/export/review plan.",
+          ],
+    nonActions: [
+      "No measurement, candidate-result export, or review was executed by this planner; it only emits manifest-approved call packets.",
+      "No AK evidence/task write, cleanup, finalizer, merge, release, or promotion was executed.",
+    ],
+    boundaries: [
+      "Measurement/export/review calls are routed only through pi-autoresearch seams and only when manifest policy permits them.",
+      "Candidate-result packets and review packets are non-authoritative review inputs, not durable evidence or promotion authority.",
+      "Stale/missing/duplicate packet cases must fail closed before owner selection or closeout.",
+    ],
+  };
+}
+
+function buildAutoresearchLevel3MatrixCellRunner(
+  input: AutoresearchLevel3MeasureExportReviewRequest,
+): AutoresearchLevel3MatrixCellRunner {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const resolved = resolveLevel3Manifest({ ...input, cwd: identity.cwd });
+  const manifestRecord = isRecord(resolved.manifest) ? resolved.manifest : {};
+  const objective =
+    optionalString(manifestRecord.objective) ?? "Run the level-3 matrix/cell campaign.";
+  const preflight = buildAutoresearchLevel3ManifestPreflight({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+  });
+  const dryRun = buildAutoresearchLevel3SliceSequenceDryRun({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+    manifestPath: resolved.manifestPath ?? undefined,
+  });
+  const lifecycle = buildAutoresearchLevel3VisibleCandidateLifecyclePlan({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+    manifestPath: resolved.manifestPath ?? undefined,
+  });
+  const measureExportReview = buildAutoresearchLevel3MeasureExportReviewPlan({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+    manifestPath: resolved.manifestPath ?? undefined,
+  });
+  const lifecycleByLane = new Map(lifecycle.lanes.map((lane) => [lane.laneId, lane]));
+  const orderedCellIds = [
+    ...new Set(
+      lifecycle.lanes.map((lane) => lane.cellId ?? lane.sliceId ?? "campaign").filter(Boolean),
+    ),
+  ];
+  const sequenceByCell = new Map(dryRun.orderedStates.map((state) => [state.cellId, state]));
+  const cells = orderedCellIds.map((cellId): AutoresearchLevel3MatrixCellRunnerCell => {
+    const lifecycleLanes = lifecycle.lanes.filter(
+      (lane) => (lane.cellId ?? lane.sliceId ?? "campaign") === cellId,
+    );
+    const measureLanes = measureExportReview.lanes.filter(
+      (lane) => (lane.cellId ?? lane.sliceId ?? "campaign") === cellId,
+    );
+    const firstLifecycleLane = lifecycleLanes[0];
+    const firstMeasureLane = measureLanes[0];
+    const reviewCandidateWaveCall =
+      measureLanes.length > 0
+        ? formatToolCall("autoresearch_live_supervision", {
+            action: "review_candidate_wave",
+            taskId: identity.taskId,
+            cwd: identity.cwd,
+            objective: firstLifecycleLane?.objective ?? objective,
+            direction: firstMeasureLane?.metricDirection ?? "lower",
+            candidateResultPacketPaths: measureLanes.map((lane) => lane.reviewInputPacketPath),
+            offLimits: firstLifecycleLane?.offLimits ?? [],
+          })
+        : null;
+    const candidateWaveReview = reviewCandidateWaveCall
+      ? reviewAutoresearchCandidateWave({
+          taskId: identity.taskId,
+          cwd: identity.cwd,
+          objective: firstLifecycleLane?.objective ?? objective,
+          direction: firstMeasureLane?.metricDirection ?? "lower",
+          candidateResultPacketPaths: measureLanes.map((lane) => lane.reviewInputPacketPath),
+          offLimits: firstLifecycleLane?.offLimits ?? [],
+        })
+      : null;
+    const launchCalls = lifecycleLanes
+      .filter((lane) => lane.bindingPosture !== "bound_visible_candidate_worktree")
+      .map((lane) => lane.candidatePeerCall)
+      .filter((call): call is string => Boolean(call));
+    const measureExportCalls = measureLanes.flatMap((lane) =>
+      lane.measurementPosture === "ready_manifest_approved"
+        ? [lane.runtimeRunCall, lane.candidateResultExportCall].filter((call): call is string =>
+            Boolean(call),
+          )
+        : [],
+    );
+    const laneRows = measureLanes.map((measureLane) => {
+      const lifecycleLane = lifecycleByLane.get(measureLane.laneId);
+      const packetPath = measureLane.reviewInputPacketPath;
+      const packetExists = fs.existsSync(path.resolve(identity.cwd, packetPath));
+      const selected = candidateWaveReview?.recommendation.laneId === measureLane.laneId;
+      return {
+        laneId: measureLane.laneId,
+        launchPosture:
+          lifecycleLane?.launchPosture ?? ("blocked_missing_launch_policy_or_token" as const),
+        bindingPosture: lifecycleLane?.bindingPosture ?? ("blocked_missing_binding" as const),
+        measurementPosture: measureLane.measurementPosture,
+        packetPath,
+        packetExists,
+        selected,
+        nextLegalCall: !lifecycleLane?.binding
+          ? (lifecycleLane?.candidatePeerCall ?? null)
+          : !packetExists && measureLane.runtimeRunCall
+            ? measureLane.runtimeRunCall
+            : packetExists
+              ? reviewCandidateWaveCall
+              : measureLane.candidateResultExportCall,
+      };
+    });
+    const launchReadyLaneCount = lifecycleLanes.filter(
+      (lane) =>
+        lane.candidatePeerCall && lane.launchPosture === "ready_visible_candidate_peer_spawn_call",
+    ).length;
+    const boundLaneCount = lifecycleLanes.filter(
+      (lane) => lane.bindingPosture === "bound_visible_candidate_worktree",
+    ).length;
+    const measureReadyLaneCount = measureLanes.filter(
+      (lane) => lane.measurementPosture === "ready_manifest_approved",
+    ).length;
+    const packetReadyLaneCount = laneRows.filter((lane) => lane.packetExists).length;
+    const sequenceState = sequenceByCell.get(cellId);
+    const baseBlockers = [
+      ...(preflight.metric.status === "target_met" ? [] : ["manifest preflight blocked"]),
+      ...(sequenceState?.state === "blocked"
+        ? sequenceState.blockers.map((blocker) => `sequence blocked: ${blocker}`)
+        : []),
+      ...lifecycleLanes.flatMap((lane) =>
+        lane.blockers.map((blocker) => `${lane.laneId}: ${blocker}`),
+      ),
+      ...measureLanes.flatMap((lane) =>
+        lane.blockers.map((blocker) => `${lane.laneId}: ${blocker}`),
+      ),
+    ];
+    const state: AutoresearchLevel3MatrixCellRunnerCellState =
+      preflight.metric.status !== "target_met" || sequenceState?.state === "blocked"
+        ? "blocked_preflight_or_sequence"
+        : boundLaneCount === 0 && launchReadyLaneCount > 0
+          ? "ready_to_launch_visible_candidates"
+          : boundLaneCount < lifecycleLanes.length
+            ? "waiting_for_candidate_bindings"
+            : measureReadyLaneCount > 0 && packetReadyLaneCount < measureLanes.length
+              ? "ready_for_measure_export"
+              : packetReadyLaneCount < measureLanes.length
+                ? "waiting_for_candidate_result_packets"
+                : candidateWaveReview?.recommendation.posture === "owner_selection_required"
+                  ? "selected_for_matrix_review"
+                  : "cell_rerun_required";
+    const stateBlockers =
+      state === "ready_to_launch_visible_candidates" ||
+      state === "ready_for_measure_export" ||
+      state === "selected_for_matrix_review"
+        ? []
+        : state === "waiting_for_candidate_bindings"
+          ? [`${lifecycleLanes.length - boundLaneCount} lane(s) missing candidate bindings`]
+          : state === "waiting_for_candidate_result_packets"
+            ? [`${measureLanes.length - packetReadyLaneCount} lane packet(s) missing`]
+            : state === "cell_rerun_required"
+              ? [candidateWaveReview?.recommendation.reason ?? "no selectable candidate"]
+              : [];
+    return {
+      sliceId: firstLifecycleLane?.sliceId ?? null,
+      cellId,
+      objective: firstLifecycleLane?.objective ?? objective,
+      state,
+      metricName: firstMeasureLane?.metricName ?? firstLifecycleLane?.metricName ?? null,
+      metricDirection:
+        firstMeasureLane?.metricDirection ?? firstLifecycleLane?.metricDirection ?? "lower",
+      metricTarget: firstMeasureLane?.metricTarget ?? firstLifecycleLane?.metricTarget ?? null,
+      laneCount: lifecycleLanes.length,
+      launchReadyLaneCount,
+      boundLaneCount,
+      measureReadyLaneCount,
+      packetReadyLaneCount,
+      selectedLaneId: candidateWaveReview?.recommendation.laneId ?? null,
+      launchCalls,
+      measureExportCalls,
+      reviewCandidateWaveCall,
+      blockers: [...new Set([...baseBlockers, ...stateBlockers])],
+      lanes: laneRows,
+    };
+  });
+  const selectedCells = cells.filter((cell) => cell.state === "selected_for_matrix_review").length;
+  const blockedCells = cells.filter(
+    (cell) =>
+      cell.state === "blocked_preflight_or_sequence" || cell.state === "cell_rerun_required",
+  ).length;
+  const cellBlockerCount = cells.reduce((count, cell) => count + cell.blockers.length, 0);
+  const totalBlockers =
+    preflight.metric.value +
+    dryRun.metric.value +
+    lifecycle.metric.value +
+    measureExportReview.metric.value +
+    cellBlockerCount;
+  const selectedPacketPaths = cells.flatMap((cell) =>
+    cell.lanes.filter((lane) => lane.selected).map((lane) => lane.packetPath),
+  );
+  const aggregateReviewCall =
+    selectedCells === cells.length && cells.length > 0
+      ? formatToolCall("autoresearch_live_supervision", {
+          action: "review_candidate_wave",
+          taskId: identity.taskId,
+          cwd: identity.cwd,
+          objective,
+          candidateResultPacketPaths: selectedPacketPaths,
+        })
+      : null;
+  const finalizerPlanCall =
+    selectedCells === cells.length && cells.length > 0
+      ? formatToolCall("autoresearch_live_supervision", {
+          action: "level3_authorized_finalizer_cleanup_plan",
+          taskId: identity.taskId,
+          cwd: identity.cwd,
+          objective,
+          sourceReview: "review_matrix_campaign",
+          ...(resolved.manifestPath
+            ? { level3ManifestPath: resolved.manifestPath }
+            : { level3Manifest: "<same accepted inline manifest>" }),
+          candidateResultPacketPaths: selectedPacketPaths,
+          finalizerAuthorizationToken: "<exact finalize_post_fanin token required>",
+          cleanupAuthorizationToken: "<exact candidate_cleanup token required>",
+        })
+      : null;
+  const nextLegalActions = [
+    ...cells.flatMap((cell) => {
+      if (cell.state === "ready_to_launch_visible_candidates") return cell.launchCalls;
+      if (cell.state === "ready_for_measure_export") return cell.measureExportCalls;
+      if (cell.state === "selected_for_matrix_review" && cell.reviewCandidateWaveCall)
+        return [cell.reviewCandidateWaveCall];
+      return [];
+    }),
+    ...(aggregateReviewCall ? [aggregateReviewCall] : []),
+    ...(finalizerPlanCall ? [finalizerPlanCall] : []),
+  ];
+  return {
+    kind: "autoresearch.level3_matrix_cell_runner.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestKind: preflight.manifestKind,
+    manifestPath: resolved.manifestPath,
+    manifestHash: preflight.manifestHash,
+    execution: "not_executed_by_orchestrator",
+    preflight,
+    dryRun,
+    lifecycle,
+    measureExportReview,
+    metric: {
+      name: "level3_matrix_cell_runner_blockers",
+      direction: "lower",
+      target: 0,
+      value: totalBlockers,
+      status: metricStatus(totalBlockers),
+    },
+    cellMetrics: {
+      readyToLaunchCells: cells.filter(
+        (cell) => cell.state === "ready_to_launch_visible_candidates",
+      ).length,
+      boundCells: cells.filter((cell) => cell.boundLaneCount === cell.laneCount).length,
+      measureExportReadyCells: cells.filter((cell) => cell.state === "ready_for_measure_export")
+        .length,
+      packetReadyCells: cells.filter((cell) => cell.packetReadyLaneCount === cell.laneCount).length,
+      selectedCells,
+      blockedCells,
+    },
+    cells,
+    aggregateReviewCall,
+    finalizerPlanCall,
+    nextLegalActions,
+    blockers: [
+      ...new Set([
+        ...preflight.blockers,
+        ...dryRun.blockers,
+        ...lifecycle.blockers,
+        ...measureExportReview.blockers,
+        ...cells.flatMap((cell) => cell.blockers.map((blocker) => `${cell.cellId}: ${blocker}`)),
+      ]),
+    ],
+    nonActions: [
+      "The unified matrix/cell runner did not spawn peers; it exposes visible candidate_peer_spawn calls only as next legal actions.",
+      "The runner did not execute autoresearch_candidate_bind, autoresearch_runtime_run, candidate_result_export, review, finalizer, cleanup, AK evidence, merge, release, or promotion actions.",
+      "Peer reports and candidate-result packets remain review inputs, not durable authority or promotion approval.",
+    ],
+    boundaries: [
+      "This is the Level-3 matrix/cell state machine above existing gated seams: launch -> bind -> measure/export -> review -> select/finalize-plan.",
+      "Visible candidate launch still requires manifest policy or exact token plus the visible candidate_peer_spawn surface.",
+      "Measurement/export/review calls are surfaced only after controller-verified candidate bindings and manifest policy allow them.",
+      "Finalizer, cleanup, AK evidence, and promotion remain exact-gated owner surfaces and are never applied by this runner.",
+    ],
+  };
+}
+
+function exactStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function resolveLevel3CleanupResources(input: {
+  cwd: string;
+  manifest: unknown;
+  cleanupResources?: AutoresearchLevel3CleanupResourcesInput;
+}): {
+  peerTabsOrSessions: string[];
+  worktrees: string[];
+  branches: string[];
+  manifestExact: boolean;
+  missing: string[];
+} {
+  const manifestRecord = isRecord(input.manifest) ? input.manifest : null;
+  const policy = isRecord(manifestRecord?.cleanupPolicy) ? manifestRecord.cleanupPolicy : null;
+  const manifestPeers = [
+    ...exactStringList(policy?.exactPeerTabsOrSessions),
+    ...exactStringList(policy?.exactPeerSessions),
+    ...exactStringList(policy?.exactPeerTabs),
+  ];
+  const manifestWorktrees = exactStringList(policy?.exactWorktrees);
+  const manifestBranches = exactStringList(policy?.exactBranches);
+  const suppliedPeers = nonEmptyStrings(input.cleanupResources?.peerTabsOrSessions);
+  const suppliedWorktrees = nonEmptyStrings(input.cleanupResources?.worktrees);
+  const suppliedBranches = nonEmptyStrings(input.cleanupResources?.branches);
+  const peerTabsOrSessions = suppliedPeers.length > 0 ? suppliedPeers : manifestPeers;
+  const worktrees = suppliedWorktrees.length > 0 ? suppliedWorktrees : manifestWorktrees;
+  const branches = suppliedBranches.length > 0 ? suppliedBranches : manifestBranches;
+  const sorted = (items: readonly string[]) =>
+    [...new Set(items.map((item) => item.trim()))].sort();
+  const same = (left: readonly string[], right: readonly string[]) =>
+    stableJson(sorted(left)) === stableJson(sorted(right));
+  const manifestExact =
+    manifestPeers.length > 0 &&
+    manifestWorktrees.length > 0 &&
+    manifestBranches.length > 0 &&
+    same(peerTabsOrSessions, manifestPeers) &&
+    same(worktrees, manifestWorktrees) &&
+    same(branches, manifestBranches);
+  const missing = [
+    ...(peerTabsOrSessions.length === 0 ? ["peer tabs/sessions"] : []),
+    ...(worktrees.length === 0 ? ["worktrees"] : []),
+    ...(branches.length === 0 ? ["branches"] : []),
+  ];
+  return {
+    peerTabsOrSessions: sorted(peerTabsOrSessions),
+    worktrees: sorted(
+      worktrees.map((item) => (path.isAbsolute(item) ? item : path.resolve(input.cwd, item))),
+    ),
+    branches: sorted(branches),
+    manifestExact,
+    missing,
+  };
+}
+
+function buildLevel3FinalizerToken(input: {
+  taskId: number;
+  cwd: string;
+  manifestHash: string | null;
+  postFaninToken: string;
+}): string {
+  const digest = createHash("sha256")
+    .update(
+      `${input.taskId}\0${path.resolve(input.cwd)}\0${input.manifestHash ?? "missing"}\0${input.postFaninToken}`,
+    )
+    .digest("hex")
+    .slice(0, 24);
+  return `level3:finalize_post_fanin:task:${input.taskId}:manifest:${input.manifestHash ?? "missing"}:sha256:${digest}`;
+}
+
+function buildLevel3CleanupToken(input: {
+  taskId: number;
+  cwd: string;
+  manifestHash: string | null;
+  resources: Pick<
+    ReturnType<typeof resolveLevel3CleanupResources>,
+    "peerTabsOrSessions" | "worktrees" | "branches"
+  >;
+}): string {
+  const digest = createHash("sha256")
+    .update(
+      stableJson({
+        taskId: input.taskId,
+        cwd: path.resolve(input.cwd),
+        manifestHash: input.manifestHash ?? "missing",
+        peerTabsOrSessions: input.resources.peerTabsOrSessions,
+        worktrees: input.resources.worktrees,
+        branches: input.resources.branches,
+      }),
+    )
+    .digest("hex")
+    .slice(0, 24);
+  return `level3:candidate_cleanup:task:${input.taskId}:manifest:${input.manifestHash ?? "missing"}:sha256:${digest}`;
+}
+
+function findForbiddenPromotionCommandMatches(commands: readonly string[]): string[] {
+  const forbiddenPatterns = [
+    /\b(?:merge|push|rebase|tag|release|publish|pull[-_\s]?request|\bpr\b)\b/iu,
+    /promotion/iu,
+  ];
+  return commands.filter((command) => forbiddenPatterns.some((pattern) => pattern.test(command)));
+}
+
+function buildLevel3CleanupCommandPacket(input: {
+  identity: SessionIdentity;
+  manifestHash: string;
+  authorizationToken: string;
+  resources: Pick<
+    ReturnType<typeof resolveLevel3CleanupResources>,
+    "peerTabsOrSessions" | "worktrees" | "branches"
+  >;
+}): AutoresearchLevel3CleanupCommandPacket {
+  const commands = [
+    ...input.resources.peerTabsOrSessions.map(
+      (session) => `pi-peer-close --session ${shellQuote(session)}`,
+    ),
+    ...input.resources.worktrees.map(
+      (worktree) =>
+        `git -C ${shellQuote(input.identity.cwd)} worktree remove ${shellQuote(worktree)}`,
+    ),
+    ...input.resources.branches.map(
+      (branch) => `git -C ${shellQuote(input.identity.cwd)} branch -D ${shellQuote(branch)}`,
+    ),
+  ];
+  return {
+    kind: "autoresearch.level3_candidate_cleanup_command_packet.v1",
+    exactTaskId: input.identity.taskId,
+    exactCwd: input.identity.cwd,
+    manifestHash: input.manifestHash,
+    authorizationToken: input.authorizationToken,
+    authorizationRequired: true,
+    cleanupExecution: "not_executed_by_orchestrator",
+    exactPeerTabsOrSessions: input.resources.peerTabsOrSessions,
+    exactWorktrees: input.resources.worktrees,
+    exactBranches: input.resources.branches,
+    exactCommands: commands,
+    forbiddenPromotionCommandMatches: findForbiddenPromotionCommandMatches(commands),
+    boundary:
+      "This cleanup packet names exact peer tabs/sessions, worktrees, and branches only; it is not executed by the orchestrator and carries no merge, push, PR, release, promotion, or AK-write authority.",
+  };
+}
+
+function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
+  input: AutoresearchLevel3AuthorizedFinalizerCleanupRequest,
+): AutoresearchLevel3AuthorizedFinalizerCleanupPlan {
+  const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+  const resolved = resolveLevel3Manifest({ ...input, cwd: identity.cwd });
+  const preflight = buildAutoresearchLevel3ManifestPreflight({
+    ...input,
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+  });
+  const objective = input.objective.trim();
+  if (objective.length === 0) {
+    throw new Error("level3_authorized_finalizer_cleanup_plan requires a non-empty objective.");
+  }
+  const sourceReview = input.sourceReview ?? "review_candidate_wave";
+  const finalizerProbe = finalizeAutoresearchPostFanin({
+    ...identity,
+    objective,
+    sourceReview,
+    direction: input.direction,
+    metricName: input.metricName,
+    metricThreshold: input.metricThreshold,
+    candidateResultPacketPaths: input.candidateResultPacketPaths,
+    scenarios: input.scenarios,
+    hypotheses: input.hypotheses,
+    candidateCountPerCell: input.candidateCountPerCell,
+    selectedLaneId: input.selectedLaneId,
+    selectedCellId: input.selectedCellId,
+    validation: input.validation,
+    offLimits: input.offLimits,
+    dirtyFiles: input.dirtyFiles,
+    reviewedAtEpochMs: input.reviewedAtEpochMs,
+  });
+  const requiredFinalizerToken = buildLevel3FinalizerToken({
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestHash: preflight.manifestHash,
+    postFaninToken: finalizerProbe.contract.exactAuthorizationToken,
+  });
+  const finalizerTokenMissing = !input.finalizerAuthorizationToken;
+  const finalizerTokenWrong =
+    Boolean(input.finalizerAuthorizationToken) &&
+    input.finalizerAuthorizationToken !== requiredFinalizerToken;
+  const finalizerTokenAccepted =
+    preflight.metric.status === "target_met" &&
+    finalizerProbe.preflight.status === "passed" &&
+    input.finalizerAuthorizationToken === requiredFinalizerToken;
+  const finalizer = finalizerTokenAccepted
+    ? finalizeAutoresearchPostFanin({
+        ...identity,
+        objective,
+        sourceReview,
+        direction: input.direction,
+        metricName: input.metricName,
+        metricThreshold: input.metricThreshold,
+        candidateResultPacketPaths: input.candidateResultPacketPaths,
+        scenarios: input.scenarios,
+        hypotheses: input.hypotheses,
+        candidateCountPerCell: input.candidateCountPerCell,
+        selectedLaneId: input.selectedLaneId,
+        selectedCellId: input.selectedCellId,
+        validation: input.validation,
+        offLimits: input.offLimits,
+        dirtyFiles: input.dirtyFiles,
+        reviewedAtEpochMs: input.reviewedAtEpochMs,
+        applyAuthorizationToken: finalizerProbe.contract.exactAuthorizationToken,
+      })
+    : finalizerProbe;
+  const resources = resolveLevel3CleanupResources({
+    cwd: identity.cwd,
+    manifest: resolved.manifest,
+    cleanupResources: input.cleanupResources,
+  });
+  const requiredCleanupToken = buildLevel3CleanupToken({
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestHash: preflight.manifestHash,
+    resources,
+  });
+  const cleanupGate = preflight.policyGates.find((gate) => gate.gate === "cleanupCandidates");
+  const cleanupManifestPolicyAccepted =
+    preflight.metric.status === "target_met" &&
+    cleanupGate?.value === "token_required_or_manifest_allowed" &&
+    resources.manifestExact &&
+    resources.missing.length === 0;
+  const cleanupTokenWrong =
+    Boolean(input.cleanupAuthorizationToken) &&
+    input.cleanupAuthorizationToken !== requiredCleanupToken;
+  const cleanupTokenAccepted = input.cleanupAuthorizationToken === requiredCleanupToken;
+  const cleanupAuthorized =
+    finalizerTokenAccepted &&
+    resources.missing.length === 0 &&
+    (cleanupTokenAccepted || cleanupManifestPolicyAccepted) &&
+    !cleanupTokenWrong;
+  const cleanupCommandPacket = cleanupAuthorized
+    ? buildLevel3CleanupCommandPacket({
+        identity,
+        manifestHash: preflight.manifestHash ?? "missing",
+        authorizationToken: cleanupTokenAccepted ? requiredCleanupToken : "manifest_cleanup_policy",
+        resources,
+      })
+    : null;
+  const finalizerTokenBlockers =
+    preflight.metric.value +
+    finalizer.preflight.blockerCount +
+    (finalizerTokenAccepted ? 0 : 1) +
+    (finalizer.authorizedFinalizerCleanupGate.status === "blocked" ? 1 : 0);
+  const cleanupGateBlockers =
+    resources.missing.length +
+    (cleanupAuthorized ? 0 : 1) +
+    (cleanupCommandPacket?.forbiddenPromotionCommandMatches.length ?? 0);
+  const rollbackBlockers = preflight.manifestHash && finalizer.finalizerTokenRequest ? 0 : 1;
+  const totalBlockers = finalizerTokenBlockers + cleanupGateBlockers + rollbackBlockers;
+  const blockers = [
+    ...(preflight.metric.status === "target_met" ? [] : ["manifest preflight is blocked"]),
+    ...(finalizer.preflight.status === "passed"
+      ? []
+      : ["post-fan-in finalizer preflight is blocked"]),
+    ...(finalizerTokenMissing ? ["missing exact finalize_post_fanin level-3 token"] : []),
+    ...(finalizerTokenWrong
+      ? ["wrong finalize_post_fanin token for task/cwd/manifest/review scope"]
+      : []),
+    ...resources.missing.map((item) => `cleanup resource set missing exact ${item}`),
+    ...(cleanupTokenWrong ? ["wrong candidate_cleanup token for exact cleanup resources"] : []),
+    ...(!cleanupTokenAccepted && !cleanupManifestPolicyAccepted
+      ? [
+          "cleanup requires exact candidate_cleanup token or accepted manifest cleanup policy naming exact peer tabs/sessions, worktrees, and branches",
+        ]
+      : []),
+    ...(finalizerTokenAccepted
+      ? []
+      : ["cleanup is blocked until the exact finalizer token is accepted"]),
+    ...(cleanupCommandPacket?.forbiddenPromotionCommandMatches ?? []).map(
+      (command) => `cleanup packet contains forbidden promotion command: ${command}`,
+    ),
+  ];
+  const rollbackReceipt: AutoresearchLevel3CampaignTransitionReceipt = {
+    kind: "autoresearch.level3_campaign_transition_receipt.v1",
+    nonAuthoritative: true,
+    durableEvidence: false,
+    manifestHash: preflight.manifestHash ?? "missing",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    transitionName: "level3_authorized_finalizer_cleanup_plan",
+    policyPosture:
+      totalBlockers === 0
+        ? "dry_run_no_lower_plane_actions"
+        : preflight.metric.status === "target_met"
+          ? "blocked_dependencies_or_policy"
+          : "blocked_preflight",
+    inputRefs: {
+      manifestPath: resolved.manifestPath,
+      sliceId: "slice-5",
+      cellId: "authorized-finalizer-cleanup",
+      dependencies: ["review_candidate_wave_or_review_matrix_campaign", "finalize_post_fanin"],
+    },
+    outputRefs: {
+      packetKind: "autoresearch.level3_authorized_finalizer_cleanup_plan.v1",
+      state: totalBlockers === 0 ? "ready" : "blocked",
+      receiptIndex: 1,
+    },
+    metricPosture: {
+      name: "authorized_finalizer_cleanup_blockers",
+      direction: "lower",
+      target: 0,
+      status: metricStatus(totalBlockers),
+    },
+    nextState: totalBlockers === 0 ? "ready" : "blocked",
+    rollbackHint:
+      stringArrayFrom(isRecord(resolved.manifest) ? resolved.manifest.rollback : undefined)[0] ??
+      preflight.level2FallbackRoute,
+  };
+  return {
+    kind: "autoresearch.level3_authorized_finalizer_cleanup_plan.v1",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    manifestHash: preflight.manifestHash,
+    execution: "not_executed_by_orchestrator",
+    preflight,
+    finalizer,
+    finalizerAuthorization: {
+      requiredTokenName: "finalize_post_fanin",
+      requiredToken: requiredFinalizerToken,
+      suppliedTokenAccepted: finalizerTokenAccepted,
+      posture: finalizerTokenAccepted
+        ? "accepted_exact_token"
+        : finalizerTokenWrong
+          ? "blocked_wrong_token"
+          : "blocked_missing_token",
+    },
+    cleanupAuthorization: {
+      requiredTokenName: "candidate_cleanup",
+      requiredToken: requiredCleanupToken,
+      suppliedTokenAccepted: cleanupTokenAccepted,
+      manifestPolicyAccepted: cleanupManifestPolicyAccepted,
+      posture: cleanupAuthorized
+        ? cleanupTokenAccepted
+          ? "accepted_exact_token"
+          : "accepted_exact_manifest_policy"
+        : resources.missing.length > 0
+          ? "blocked_missing_exact_resources"
+          : cleanupTokenWrong
+            ? "blocked_wrong_token"
+            : "blocked_missing_token_or_exact_policy",
+    },
+    metric: {
+      name: "authorized_finalizer_cleanup_blockers",
+      direction: "lower",
+      target: 0,
+      value: totalBlockers,
+      status: metricStatus(totalBlockers),
+    },
+    cellMetrics: {
+      finalizerTokenApplicationBlockers: {
+        name: "finalizer_token_application_blockers",
+        direction: "lower",
+        target: 0,
+        value: finalizerTokenBlockers,
+        status: metricStatus(finalizerTokenBlockers),
+      },
+      cleanupExecutionGateBlockers: {
+        name: "cleanup_execution_gate_blockers",
+        direction: "lower",
+        target: 0,
+        value: cleanupGateBlockers,
+        status: metricStatus(cleanupGateBlockers),
+      },
+      postFaninRollbackBlockers: {
+        name: "post_fanin_rollback_blockers",
+        direction: "lower",
+        target: 0,
+        value: rollbackBlockers,
+        status: metricStatus(rollbackBlockers),
+      },
+    },
+    finalizerApplyCommandPacket: finalizer.exactApplyCommandPacket,
+    cleanupCommandPacket,
+    rollbackReceipt,
+    blockers: [...new Set(blockers)],
+    nextLegalActions:
+      totalBlockers === 0
+        ? [
+            "Review exact finalizer apply and cleanup command packets; execute them only in explicit owner-approved lanes if still intended.",
+            "Keep merge, release, PR, push, promotion, and AK evidence/task writes behind separate promotion and ak_owner_write tokens.",
+          ]
+        : [
+            "Resolve manifest, review freshness, dirty/off-limits, exact finalizer token, and exact cleanup policy/token blockers before any post-fan-in action.",
+            "Use the rollback receipt hint and fall back to level-2 review/finalizer packet surfaces while blocked.",
+          ],
+    nonActions: [
+      "No candidate_peer_spawn, autoresearch_runtime_run, candidate_result_export, review, finalizer apply, cleanup, AK/KES/Oracle/DSPx/Prompt Vault/ROCS write, merge, release, PR, push, or promotion was executed by this planner.",
+      "Finalizer apply packets and cleanup command packets are command packets only; they are not durable AK evidence and are not secret execution.",
+    ],
+    boundaries: [
+      "finalize_post_fanin authorizes only finalizer scope for the exact task/cwd/manifest/review packet chain; it does not authorize cleanup, promotion, or AK writes.",
+      "candidate_cleanup names exact peer tabs/sessions, worktrees, and branches; it does not imply merge, release, PR, push, promotion, or AK evidence/task completion.",
+      "Dirty overlap, off-limits drift, stale review artifacts, wrong tokens, missing exact cleanup resources, and promotion command leakage fail closed.",
+      "Rollback receipt is visible and non-authoritative; receipts/packets become durable evidence only through separate ak_owner_write.",
+    ],
+  };
+}
+
 export async function readAutoresearchLiveObservation(
   input: { cwd: string },
   config: Pick<
@@ -5750,6 +8569,42 @@ export class AutoresearchLiveSupervisionRunner {
     return planAutoresearchCandidateWave(input);
   }
 
+  preflightLevel3CampaignManifest(
+    input: AutoresearchLevel3ManifestPreflightRequest,
+  ): AutoresearchLevel3CampaignManifestPreflight {
+    return buildAutoresearchLevel3ManifestPreflight(input);
+  }
+
+  dryRunLevel3SliceSequence(
+    input: AutoresearchLevel3SliceSequenceDryRunRequest,
+  ): AutoresearchLevel3SliceSequenceDryRun {
+    return buildAutoresearchLevel3SliceSequenceDryRun(input);
+  }
+
+  planLevel3VisibleCandidateLifecycle(
+    input: AutoresearchLevel3VisibleCandidateLifecycleRequest,
+  ): AutoresearchLevel3VisibleCandidateLifecyclePlan {
+    return buildAutoresearchLevel3VisibleCandidateLifecyclePlan(input);
+  }
+
+  planLevel3MeasureExportReview(
+    input: AutoresearchLevel3MeasureExportReviewRequest,
+  ): AutoresearchLevel3MeasureExportReviewPlan {
+    return buildAutoresearchLevel3MeasureExportReviewPlan(input);
+  }
+
+  runLevel3MatrixCellRunner(
+    input: AutoresearchLevel3MeasureExportReviewRequest,
+  ): AutoresearchLevel3MatrixCellRunner {
+    return buildAutoresearchLevel3MatrixCellRunner(input);
+  }
+
+  planLevel3AuthorizedFinalizerCleanup(
+    input: AutoresearchLevel3AuthorizedFinalizerCleanupRequest,
+  ): AutoresearchLevel3AuthorizedFinalizerCleanupPlan {
+    return buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(input);
+  }
+
   planMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignPlan {
     return planAutoresearchMatrixCampaign(input);
   }
@@ -5764,6 +8619,12 @@ export class AutoresearchLiveSupervisionRunner {
     input: AutoresearchMatrixCampaignRunnerRequest,
   ): AutoresearchMatrixCampaignRunnerCheckpoint {
     return checkpointAutoresearchMatrixCampaignRunner(input);
+  }
+
+  advanceLevel4MatrixCellExecutor(
+    input: AutoresearchLevel3MatrixCellExecutorRequest,
+  ): AutoresearchLevel3MatrixCellExecutor {
+    return advanceAutoresearchLevel3MatrixCellExecutor(input);
   }
 
   reviewMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignReview {
