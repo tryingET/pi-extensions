@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "cb3bc36735439af50723bc7ae406918ca09ead95"
+created_at: "2026-05-16T17:46:41Z"
+intent: "Switch pi-autoresearch prompt-plane module specifier from bare pi-vault-client to scoped @tryinget/pi-vault-client."
+files:
+  - "packages/pi-autoresearch/package.json"
+  - "packages/pi-autoresearch/package-lock.json"
+  - "packages/pi-autoresearch/src/core/decisions.ts"
+  - "packages/pi-autoresearch/tests/decisions.test.ts"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-autoresearch/tests/decisions.test.ts"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autoresearch run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Scoped import migration with dependency and test alignment."
