@@ -7,6 +7,7 @@ import {
   queryCommandsRun,
   queryErrors,
   queryFilesTouched,
+  queryHandoffSummary,
   queryLoopStatus,
   queryProgress,
 } from "../perception.ts";
@@ -30,12 +31,28 @@ export const PERCEPTION_KEYWORDS = [
   "progress",
   "how am i doing",
   "status",
+  "handoff",
+  "closeout",
+  "close out",
+  "close-out",
+  "controller summary",
+  "session close",
   "am i stalled",
   "success rate",
   "how many turns",
 ];
 
 export function mapPerceptionIntent(lower: string): string {
+  if (
+    lower.includes("handoff") ||
+    lower.includes("closeout") ||
+    lower.includes("close out") ||
+    lower.includes("close-out") ||
+    lower.includes("controller summary") ||
+    lower.includes("session close")
+  ) {
+    return "handoff_summary";
+  }
   if (lower.includes("file")) return "files_touched";
   if (lower.includes("command")) return "commands_run";
   if (lower.includes("error") || lower.includes("fail")) return "errors_encountered";
@@ -113,6 +130,39 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
         understood: true,
         intent: "perception",
         answer: result.summary,
+        data: result,
+      };
+    }
+
+    case "handoff_summary": {
+      const result = queryHandoffSummary(state.operations, state.patterns);
+      const fileText =
+        result.files.length > 0
+          ? result.files
+              .slice(0, 5)
+              .map(
+                (f) =>
+                  `${f.path} (${f.lastOp}, ${f.ops} op${f.ops === 1 ? "" : "s"}, Δ${f.netLinesDelta})`,
+              )
+              .join("; ")
+          : "none tracked";
+      const commandText =
+        result.commands.length > 0
+          ? result.commands
+              .map((cmd) => `${cmd.success ? "ok" : "failed"}: ${cmd.rawCommand}`)
+              .join("; ")
+          : "none tracked";
+      const errorText =
+        result.errors.length > 0
+          ? result.errors
+              .map((error) => `${error.tool}:${error.signature} (${error.count}x)`)
+              .join("; ")
+          : "none tracked";
+
+      return {
+        understood: true,
+        intent: "perception",
+        answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}`,
         data: result,
       };
     }

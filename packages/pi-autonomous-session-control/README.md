@@ -134,6 +134,8 @@ The `self-prompt-vault-compat` command reports the ASC package version, vault-cl
 
 ### Capability discovery surfaces
 
+The `self` tool accepts operational handoff queries such as `controller handoff summary` and `closeout summary`. These summaries are mirror-only: they aggregate tracked file touches, recent commands, errors, progress/stall state, loop state, and handoff cues for the caller to decide what to report. They are not durable evidence, AK/KES authority, or a controller.
+
 The `self` tool accepts capability meta-queries such as `What can you do?`, `capability discovery`, and `capability routing`. Its response intentionally distinguishes three surfaces:
 
 1. `self` query domains: perception, direction, crystallization, protection, and action queries understood by the ASC self mirror.

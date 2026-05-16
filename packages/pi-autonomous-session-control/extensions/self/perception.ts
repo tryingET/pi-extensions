@@ -227,20 +227,21 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
 // ============================================================================
 
 export interface FilesTouchedResult {
-  files: Array<{ path: string; ops: number; lastOp: string }>;
+  files: Array<{ path: string; ops: number; lastOp: string; netLinesDelta: number }>;
   total: number;
 }
 
 export function queryFilesTouched(log: OperationLog): FilesTouchedResult {
-  const fileMap = new Map<string, { ops: number; lastOp: string }>();
+  const fileMap = new Map<string, { ops: number; lastOp: string; netLinesDelta: number }>();
 
   for (const op of log.fileOps) {
     const existing = fileMap.get(op.path);
     if (existing) {
       existing.ops++;
       existing.lastOp = op.type;
+      existing.netLinesDelta += op.linesDelta;
     } else {
-      fileMap.set(op.path, { ops: 1, lastOp: op.type });
+      fileMap.set(op.path, { ops: 1, lastOp: op.type, netLinesDelta: op.linesDelta });
     }
   }
 
@@ -249,6 +250,7 @@ export function queryFilesTouched(log: OperationLog): FilesTouchedResult {
       path,
       ops: data.ops,
       lastOp: data.lastOp,
+      netLinesDelta: data.netLinesDelta,
     })),
     total: fileMap.size,
   };
@@ -361,5 +363,65 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
     turnsSinceChange: log.turnsSinceMeaningfulChange,
     isStalled,
     summary,
+  };
+}
+
+export interface HandoffSummaryResult {
+  files: FilesTouchedResult["files"];
+  commands: Array<{ command: string; rawCommand: string; success: boolean }>;
+  errors: ErrorsResult["errors"];
+  progress: ProgressResult;
+  loops: LoopStatusResult;
+  cues: string[];
+  authority: "mirror_only";
+}
+
+export function queryHandoffSummary(
+  log: OperationLog,
+  detector: PatternDetector,
+): HandoffSummaryResult {
+  const files = queryFilesTouched(log).files;
+  const commands = log.commands.slice(-5).map((cmd) => ({
+    command: cmd.command,
+    rawCommand: cmd.rawCommand,
+    success: cmd.success,
+  }));
+  const errors = queryErrors(log).errors.slice(0, 5);
+  const progress = queryProgress(log, detector);
+  const loops = queryLoopStatus(detector);
+
+  const cues: string[] = [];
+  if (files.length > 0) {
+    cues.push(`handoff should mention ${files.length} touched file(s)`);
+  }
+  if (commands.length > 0) {
+    const failedCommands = commands.filter((cmd) => !cmd.success).length;
+    cues.push(
+      failedCommands > 0
+        ? `include ${failedCommands} recent failed command(s) and validation caveats`
+        : "include recent validation/check commands",
+    );
+  }
+  if (errors.length > 0) {
+    cues.push(`include ${errors.length} error pattern(s) still visible to self`);
+  }
+  if (loops.isLooping) {
+    cues.push("call out loop risk before continuing");
+  }
+  if (progress.isStalled) {
+    cues.push("call out stall risk and last meaningful change gap");
+  }
+  if (cues.length === 0) {
+    cues.push("no tracked file, command, error, loop, or progress evidence yet");
+  }
+
+  return {
+    files,
+    commands,
+    errors,
+    progress,
+    loops,
+    cues,
+    authority: "mirror_only",
   };
 }

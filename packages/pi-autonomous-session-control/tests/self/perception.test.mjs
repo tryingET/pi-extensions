@@ -147,6 +147,48 @@ test("self query: capability routing variant", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: controller handoff summary includes actionable mirror cues", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  toolCallHandler({ toolName: "edit", input: { path: "a.ts", oldText: "a", newText: "ab\nc" } });
+  toolCallHandler({ toolName: "bash", toolCallId: "cmd-1", input: { command: "npm test" } });
+  toolResultHandler({ toolName: "bash", toolCallId: "cmd-1", isError: false, content: [] });
+  toolCallHandler({ toolName: "bash", toolCallId: "cmd-2", input: { command: "npm run check" } });
+  toolResultHandler({
+    toolName: "bash",
+    toolCallId: "cmd-2",
+    isError: true,
+    content: [{ type: "text", text: "lint failed on a.ts" }],
+  });
+
+  const result = await tool.execute(
+    "tc-handoff",
+    { query: "controller handoff summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Mirror-only handoff summary"));
+  assert.ok(result.content[0].text.includes("a.ts"));
+  assert.ok(result.content[0].text.includes("failed: npm run check"));
+  assert.equal(result.details.data.authority, "mirror_only");
+  assert.equal(result.details.data.files[0].netLinesDelta, 1);
+  assert.equal(result.details.data.commands.length, 2);
+  assert.equal(result.details.data.errors[0].tool, "bash");
+  assert.ok(result.details.data.cues.some((cue) => cue.includes("failed command")));
+
+  await cleanup(tempDir);
+});
+
 test("self query: time since change uses turns since meaningful change", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
