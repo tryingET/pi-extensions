@@ -3958,7 +3958,7 @@ function buildAutoresearchCandidateDecisionEditorCall(
   return [
     "# PI-AUTORESEARCH CANDIDATE DECISION CONFIRMATION",
     "",
-    "Review this checklist before applying any external worktree, merge, evidence, promotion, or rollback action. The tool call remains plan-only.",
+    "Review this checklist only after measured packet inventory is complete in /autoresearch export (export_visibility_blockers=0). The tool call remains plan-only and precedes any external worktree, merge, evidence, promotion, or rollback action.",
     "",
     review,
     "",
@@ -4049,7 +4049,10 @@ function formatAutoresearchCandidateDecisionReviewOverlayLines(input: {
   const body = [
     borderLine("┌", "─", "┐", innerWidth),
     borderedLine("🔬 Review autoresearch candidate decision", innerWidth),
-    borderedLine("read-only selector • Enter choose • 1-4 quick choose • q/Esc cancel", innerWidth),
+    borderedLine(
+      "final owner decision after complete packet inventory • Enter choose • q/Esc cancel",
+      innerWidth,
+    ),
     borderLine("├", "─", "┤", innerWidth),
     borderedLine(`cwd: ${input.cwd}`, innerWidth),
     borderedLine(
@@ -4318,7 +4321,10 @@ async function exportAutoresearchDashboardToBrowser(
   startAutoresearchDashboardBrowserRefresh(ctx.cwd, dashboardExportIntervals);
   try {
     await openAutoresearchFileUrl(result.fileUrl);
-    ctx.ui.notify?.(`Opened pi-autoresearch browser dashboard: ${result.path}`, "info");
+    ctx.ui.notify?.(
+      `Opened pi-autoresearch measured packet inventory dashboard: ${result.path}`,
+      "info",
+    );
   } catch (error) {
     ctx.ui.notify?.(
       `Browser dashboard exported to ${result.path}, but auto-open failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -4822,7 +4828,8 @@ function formatAutoresearchCommandNotification(
     "learning: /autoresearch learning -> export autoresearch.learning.v1 for owner-routed adapter handoff",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',
     "overlay: /autoresearch overlay",
-    "browser: /autoresearch export|export off",
+    "export: /autoresearch export -> measured packet inventory inspection before /autoresearch review",
+    "review: /autoresearch review -> final owner decision only after packet inventory is complete",
     "widget: /autoresearch widget on|off",
     "tools: autoresearch_campaign_start | autoresearch_candidate_bind | autoresearch_candidate_decision | autoresearch_runtime_status | autoresearch_runtime_loop | autoresearch_runtime_finalize",
   ].join("; ");

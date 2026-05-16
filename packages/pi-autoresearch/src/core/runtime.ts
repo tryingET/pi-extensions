@@ -5485,9 +5485,10 @@ function formatAutoresearchGuidedCandidateJourneyLines(cwd: string): string[] {
   return [
     `- bind candidate (read-only plan): ${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, candidateWorktree: "<candidate-worktree>", action: "plan_run" })`,
     `- measure after bind review: ${AUTORESEARCH_RUN_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, description: "Measure bound candidate", candidateSource: "candidate_peer_spawn", candidateWorktree: "<candidate-worktree>", candidateBranch: "<candidate-branch>", candidateBaseRef: "<base-ref>", candidateDiffSummary: "<controller-verified diff>", candidateFilesChanged: ["<path>"] })`,
-    `- export candidate result packet: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "candidate_result_export", outPath: "${AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE}" })`,
-    `- witness/aggregate review handoff: autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`,
-    "- boundary: these are exact next legal calls only; the dashboard does not spawn a candidate, run benchmarks, mutate worktrees, write AK/KES evidence, or promote.",
+    `- export measured packet inventory: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "candidate_result_export", outPath: "${AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE}" })`,
+    "- inspect packet inventory in /autoresearch export until exported packet counts and export_visibility_blockers are visible and complete.",
+    `- final owner review handoff after complete packet inventory: autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`,
+    "- boundary: these are exact next legal calls only; export is measured inventory inspection and review is final owner decision; the dashboard does not spawn a candidate, run benchmarks, mutate worktrees, write AK/KES evidence, or promote.",
   ];
 }
 
@@ -5656,6 +5657,10 @@ export function formatAutoresearchDashboard(
     "",
     "## Guided candidate journey: bind -> measure -> candidate_result_export",
     ...guidedCandidateJourneyLines,
+    "",
+    "## Packet inventory before owner review",
+    "- /autoresearch export is for measured packet inventory inspection: candidate-result packets, selected lanes, exported counts, and export_visibility_blockers.",
+    "- /autoresearch review is the final owner decision surface; use it only after packet inventory is complete and export_visibility_blockers=0.",
     "",
     "## Matrix campaign artifacts",
     ...matrixSummaryLines,
@@ -5956,12 +5961,12 @@ code { color: #a5d6ff; }
 
   <section class="card" style="margin-top:14px">
     <div class="card-label">Bind → measure → candidate_result_export journey</div>
-    <div class="card-value" style="font-size:18px">next legal candidate calls</div>
+    <div class="card-value" style="font-size:18px">export inspects measured packet inventory before owner review</div>
     ${guidedCandidateJourneyLines.map((line) => `<div class="card-copy"><code>${escapeHtml(line.replace(/^- /u, ""))}</code></div>`).join("\n")}
   </section>
 
   <section class="card" style="margin-top:14px">
-    <div class="card-label">Matrix campaign artifact summary</div>
+    <div class="card-label">Measured packet inventory before owner review</div>
     <div class="card-value ${matrixSummary.exportVisibilityBlockers.status === "target_met" ? "good" : "warn"}" style="font-size:18px">export_visibility_blockers=${matrixSummary.exportVisibilityBlockers.value}</div>
     <div class="card-copy">campaigns=${matrixSummary.campaignCount} · cells=${matrixSummary.completedCellCount}/${matrixSummary.cellCount} · selected=${matrixSummary.selectedCellCount} · lanes=${matrixSummary.candidateLaneCount} · exported packets=${matrixSummary.exportedPacketCount}</div>
     <div class="card-copy">metric=${escapeHtml(matrixSummary.metricName ?? "(unknown)")} (${escapeHtml(matrixSummary.metricDirection ?? "unknown")} is better; target=${escapeHtml(String(matrixSummary.metricTarget ?? "none"))}) · latest=${escapeHtml(matrixSummary.latestArtifactPath ?? "none")}</div>
@@ -6001,9 +6006,9 @@ code { color: #a5d6ff; }
   </section>
 
   <section class="card footer">
-    <strong>Boundary:</strong> Browser export is read-only. It does not run benchmarks, spawn peers, mutate worktrees, write AK/KES evidence, or promote candidates.<br />
+    <strong>Boundary:</strong> Browser export is read-only measured packet inventory inspection. It does not run benchmarks, spawn peers, mutate worktrees, write AK/KES evidence, or promote candidates.<br />
     <strong>Candidate policy:</strong> mode=worktree; keep=preserve_branch; discard=suggest_cleanup; rewind=reset_worktree_to_base. Replay Fabric observes history; ASC rewind is live session recovery.<br />
-    <strong>Orchestrator witness handoff:</strong> use <code>autoresearch_live_supervision({ action: "review_candidate_wave", taskId: &lt;ak-task-id&gt;, cwd: ${escapeHtml(JSON.stringify(closeout.cwd))}, objective: "&lt;candidate-wave-objective&gt;", direction: "lower" })</code> after candidate-result packet review; this dashboard does not mutate AK or claim evidence authority.
+    <strong>Owner review gate:</strong> use <code>autoresearch_live_supervision({ action: "review_candidate_wave", taskId: &lt;ak-task-id&gt;, cwd: ${escapeHtml(JSON.stringify(closeout.cwd))}, objective: "&lt;candidate-wave-objective&gt;", direction: "lower" })</code> only after candidate-result packet inventory is complete (export_visibility_blockers=0); this dashboard does not mutate AK or claim evidence authority.
   </section>
 </div>
 <script>

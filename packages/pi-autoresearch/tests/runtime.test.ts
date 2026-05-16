@@ -2474,6 +2474,9 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(editorText, /Learning handoff/);
   assert.match(editorText, /learning_export/);
   assert.match(editorText, /autoresearch_learning_kes_adapter/);
+  assert.match(editorText, /Packet inventory before owner review/);
+  assert.match(editorText, /measured packet inventory inspection/);
+  assert.match(editorText, /final owner decision surface/);
   assert.match(editorText, /Next legal surfaces/);
   assert.equal(notifications.length, 1);
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
@@ -2514,12 +2517,13 @@ test("/autoresearch review opens a candidate decision overlay before editor conf
   });
 
   assert.match(overlayText, /Review autoresearch candidate decision/);
-  assert.match(overlayText, /read-only selector/);
+  assert.match(overlayText, /final owner decision after complete packet inventory/);
   assert.match(overlayText, /Plan keep/);
   assert.match(overlayText, /direct/);
   assert.match(editorTitle, /candidate decision/i);
   assert.match(editorText, /PI-AUTORESEARCH CANDIDATE DECISION CONFIRMATION/);
   assert.match(editorText, /action: "plan_keep"/);
+  assert.match(editorText, /measured packet inventory is complete/);
   assert.match(editorText, /plan-only/);
   assert.equal(notifications.length, 1);
   assert.match(
@@ -2655,15 +2659,17 @@ test("exportAutoresearchDashboardHtml writes a browser dashboard artifact", () =
     assert.match(html, /autoresearch_campaign_start/);
     assert.match(html, /autoresearch_runtime_setup/);
     assert.match(html, /Bind → measure → candidate_result_export journey/);
+    assert.match(html, /export inspects measured packet inventory before owner review/);
+    assert.match(html, /Measured packet inventory before owner review/);
     assert.match(html, /autoresearch_candidate_bind/);
     assert.match(html, /autoresearch_runtime_run/);
     assert.match(html, /candidate_result_export/);
     assert.match(html, /autoresearch_live_supervision/);
     assert.match(html, /taskId/);
-    assert.match(html, /Matrix campaign artifact summary/);
+    assert.match(html, /Measured packet inventory before owner review/);
     assert.match(html, /export_visibility_blockers=0/);
     assert.match(html, /No matrix campaign artifacts discovered/);
-    assert.match(html, /Browser export is read-only/);
+    assert.match(html, /Browser export is read-only measured packet inventory inspection/);
   }));
 
 test("browser dashboard export surfaces metric-readiness trust posture", () =>
@@ -2853,7 +2859,7 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
     assert.ok(
       html.indexOf("Matrix campaign progress") < html.indexOf("Local runtime segment snapshot"),
     );
-    assert.match(html, /Matrix campaign artifact summary/);
+    assert.match(html, /Measured packet inventory before owner review/);
     assert.match(html, /export_visibility_blockers=0/);
     assert.match(html, /cell-01-01/);
     assert.match(html, /ready_for_matrix_owner_review/);
