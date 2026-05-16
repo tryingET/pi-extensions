@@ -688,12 +688,66 @@ export interface AutoresearchLevel4CampaignRunnerReceipt {
   summary: string;
 }
 
+export interface AutoresearchLevel4PromptRunnerLane {
+  cellId: string;
+  laneId: string;
+  objective: string;
+  promptTitle: string;
+  candidatePeerSpawnCall: string;
+  peerAckWatchCall: string;
+  peerFinalWatchCall: string;
+  lineageVerificationChecklist: readonly string[];
+  postFinalControllerCalls: readonly string[];
+}
+
+export interface AutoresearchLevel4PromptRunnerBundle {
+  kind: "autoresearch.level4_prompt_runner_bundle.v1";
+  pattern: readonly [
+    "generate_prompt_bundle",
+    "candidate_peer_spawn",
+    "peer_watch_ack_final",
+    "controller_verify_lineage",
+    "bind_measure_export_review",
+    "review_matrix_campaign",
+    "stop_at_owner_gates",
+  ];
+  state:
+    | "blocked_missing_parent_peer_target"
+    | "ready_to_launch_visible_candidate_peers"
+    | "waiting_for_peer_final_and_lineage_verification"
+    | "checkpoint_accepted_controller_sequence_ready";
+  promptBundle: readonly AutoresearchLevel4PromptRunnerLane[];
+  visibleCandidatePeerSpawnCalls: readonly string[];
+  peerWatchCalls: readonly string[];
+  controllerLineageVerification: {
+    peerFinalIsCommunicationOnly: true;
+    requiredFacts: readonly ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"];
+    checklist: readonly string[];
+  };
+  postFinalControllerSequence: readonly string[];
+  metric: {
+    name: "whole_matrix_execution_glue_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    proofs: readonly {
+      proof: string;
+      status: "present" | "blocked";
+      source: string;
+    }[];
+  };
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
 export interface AutoresearchLevel4CampaignRunner {
   kind: "autoresearch.level4_autoresearch_campaign_runner.v1";
   taskId: number;
   cwd: string;
   objective: string;
   sourceLevel3Executor: AutoresearchLevel3MatrixCellExecutor;
+  promptRunnerBundle: AutoresearchLevel4PromptRunnerBundle;
   receiptPath: string;
   loadedReceiptCount: number;
   newReceipts: readonly AutoresearchLevel4CampaignRunnerReceipt[];
@@ -6285,6 +6339,151 @@ export function advanceAutoresearchLevel3MatrixCellExecutor(
   };
 }
 
+function buildLevel4PromptRunnerBundle(
+  input: AutoresearchLevel4CampaignRunnerRequest,
+  executor: AutoresearchLevel3MatrixCellExecutor,
+): AutoresearchLevel4PromptRunnerBundle {
+  const contract = buildAutoresearchMatrixCampaignRunnerContract(input);
+  const checkpointAccepted = executor.level3Runner.checkpointAccepted;
+  const missingParentPeerTarget =
+    contract.launchPhase.visibleCandidateLaneBinding.missingParentPeerTarget;
+  const state: AutoresearchLevel4PromptRunnerBundle["state"] = missingParentPeerTarget
+    ? "blocked_missing_parent_peer_target"
+    : checkpointAccepted
+      ? "checkpoint_accepted_controller_sequence_ready"
+      : executor.level3Runner.posture === "blocked_until_exact_controller_checkpoint"
+        ? "ready_to_launch_visible_candidate_peers"
+        : "waiting_for_peer_final_and_lineage_verification";
+
+  const promptBundle = contract.lanes.map((lane): AutoresearchLevel4PromptRunnerLane => {
+    const peerRunIdPlaceholder = `<peerRunId from candidate_peer_spawn for ${lane.cellId}/${lane.laneId}>`;
+    const worktreePlaceholder = `<${lane.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`;
+    const baseRefPlaceholder = `<${lane.cellId}-${lane.laneId}-base-ref-from-candidate_peer_spawn>`;
+    const branchPlaceholder = `<${lane.cellId}-${lane.laneId}-branch-from-candidate_peer_spawn>`;
+    const diffPlaceholder = `<${lane.cellId}-${lane.laneId}-controller-verified-diff-summary>`;
+    const filesPlaceholder = `<${lane.cellId}-${lane.laneId}-changed-files>`;
+    const lineageVerificationChecklist = [
+      `Capture peerRunId from candidate_peer_spawn for ${lane.cellId}/${lane.laneId}.`,
+      `Wait for ACK and FINAL with ${formatToolCall("intercom", { action: "peer_watch", peerRunId: peerRunIdPlaceholder, waitFor: "both" })}.`,
+      `Verify candidate worktree exists and is isolated: git -C ${worktreePlaceholder} status --short.`,
+      `Verify base ref before bind: git -C ${worktreePlaceholder} merge-base --is-ancestor ${baseRefPlaceholder} HEAD.`,
+      `Verify branch/ref: git -C ${worktreePlaceholder} rev-parse --abbrev-ref HEAD must match ${branchPlaceholder}.`,
+      `Capture diff summary and changed files: git -C ${worktreePlaceholder} diff --stat ${baseRefPlaceholder}...HEAD and git -C ${worktreePlaceholder} diff --name-only ${baseRefPlaceholder}...HEAD.`,
+      `Substitute ${diffPlaceholder} and ${filesPlaceholder} only from controller-verified git output, never from peer text alone.`,
+    ];
+    return {
+      cellId: lane.cellId,
+      laneId: lane.laneId,
+      objective: lane.objective,
+      promptTitle: `Level-4 matrix prompt runner lane ${lane.cellId}/${lane.laneId}`,
+      candidatePeerSpawnCall: lane.candidatePeerCall,
+      peerAckWatchCall: formatToolCall("intercom", {
+        action: "peer_watch",
+        peerRunId: peerRunIdPlaceholder,
+        waitFor: "ack",
+      }),
+      peerFinalWatchCall: formatToolCall("intercom", {
+        action: "peer_watch",
+        peerRunId: peerRunIdPlaceholder,
+        waitFor: "final",
+      }),
+      lineageVerificationChecklist,
+      postFinalControllerCalls: lane.measurementPlan,
+    };
+  });
+
+  const postFinalControllerSequence = checkpointAccepted
+    ? executor.level3Runner.benchmarkExportReviewCalls
+    : contract.lanes.flatMap((lane) => [...lane.measurementPlan, lane.reviewCandidateWaveCall]);
+  const blockerValue =
+    (missingParentPeerTarget ? 1 : 0) +
+    (promptBundle.length === 0 ? 1 : 0) +
+    (contract.launchPhase.visibleCandidateLaneBinding.hiddenLaunchCallCount > 0 ? 1 : 0);
+
+  return {
+    kind: "autoresearch.level4_prompt_runner_bundle.v1",
+    pattern: [
+      "generate_prompt_bundle",
+      "candidate_peer_spawn",
+      "peer_watch_ack_final",
+      "controller_verify_lineage",
+      "bind_measure_export_review",
+      "review_matrix_campaign",
+      "stop_at_owner_gates",
+    ],
+    state,
+    promptBundle,
+    visibleCandidatePeerSpawnCalls: contract.launchPhase.launchCalls,
+    peerWatchCalls: promptBundle.flatMap((lane) => [
+      lane.peerAckWatchCall,
+      lane.peerFinalWatchCall,
+    ]),
+    controllerLineageVerification: {
+      peerFinalIsCommunicationOnly: true,
+      requiredFacts: ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"],
+      checklist: [
+        "Do not checkpoint on PEER_FINAL text alone; verify worktree, branch, base ref, diff summary, and changed files in the controller.",
+        "Bind only controller-verified candidate worktrees through autoresearch_candidate_bind.",
+        "Measure only from candidate worktrees; controller-inline implementation patches are a process violation.",
+      ],
+    },
+    postFinalControllerSequence,
+    metric: {
+      name: "whole_matrix_execution_glue_blockers",
+      direction: "lower",
+      target: 0,
+      value: blockerValue,
+      status: blockerValue === 0 ? "target_met" : "blocked",
+      proofs: [
+        {
+          proof: "prompt bundle generated for each matrix lane",
+          status: promptBundle.length > 0 ? "present" : "blocked",
+          source: "promptRunnerBundle.promptBundle",
+        },
+        {
+          proof: "visible candidate_peer_spawn calls are the only launch surface",
+          status:
+            contract.launchPhase.visibleCandidateLaneBinding.hiddenLaunchCallCount === 0
+              ? "present"
+              : "blocked",
+          source: "contract.launchPhase.launchCalls",
+        },
+        {
+          proof: "ACK/FINAL watch calls are explicit controller steps",
+          status: promptBundle.length > 0 ? "present" : "blocked",
+          source: "promptRunnerBundle.peerWatchCalls",
+        },
+        {
+          proof: "controller lineage verification separates peer communication from measured facts",
+          status: "present",
+          source: "promptRunnerBundle.controllerLineageVerification",
+        },
+        {
+          proof:
+            "bind/measure/export/review sequence is derived from existing Level-2/Level-3 packet surfaces",
+          status: postFinalControllerSequence.length > 0 ? "present" : "blocked",
+          source: checkpointAccepted
+            ? "level3Runner.benchmarkExportReviewCalls"
+            : "contract.lanes[].measurementPlan",
+        },
+      ],
+    },
+    boundaries: [
+      "Level-4 prompt runner automates the proven Target-3 prompt matrix pattern; it does not create a new authority ledger.",
+      "candidate_peer_spawn launches remain visible peer/worktree launches; hidden scout/fork/controller-inline implementation is not allowed.",
+      "intercom ACK/FINAL is communication only; controller git/worktree verification supplies lineage facts for binding.",
+      "pi-autoresearch remains owner of measurement, candidate-result export, and empirical review packets.",
+      "review/finalizer/cleanup/AK/promotion gates stay separate exact owner gates.",
+    ],
+    nextStep:
+      state === "blocked_missing_parent_peer_target"
+        ? "Provide parentPeerTarget so the visible prompt-runner matrix can launch candidate_peer_spawn lanes."
+        : state === "checkpoint_accepted_controller_sequence_ready"
+          ? "Run the controller-verified bind/measure/export/review sequence from the prompt runner bundle; stop at owner gates."
+          : "Launch visible candidate_peer_spawn lanes from the prompt bundle, watch ACK/FINAL, verify lineage, then supply the exact checkpoint token.",
+  };
+}
+
 function resolveLevel4ReceiptPath(input: AutoresearchLevel4CampaignRunnerRequest): string {
   if (input.level4ReceiptPath) {
     const resolved = path.resolve(input.cwd, input.level4ReceiptPath);
@@ -6421,12 +6620,19 @@ export function runAutoresearchLevel4CampaignRunner(
     newReceipts.filter((receipt) => receipt.disposition === "executed_by_level4").length;
   const blockerValue =
     posture === "blocked_by_level3" || posture === "blocked_dangerous_gate" ? 1 : 0;
+  const promptRunnerBundle = buildLevel4PromptRunnerBundle(input, executor);
+  const nextLegalActions =
+    posture === "blocked_by_level3" &&
+    promptRunnerBundle.state === "ready_to_launch_visible_candidate_peers"
+      ? promptRunnerBundle.visibleCandidatePeerSpawnCalls
+      : executor.emittedNextLegalActions;
   return {
     kind: "autoresearch.level4_autoresearch_campaign_runner.v1",
     taskId: input.taskId,
     cwd: input.cwd,
     objective: input.objective,
     sourceLevel3Executor: executor,
+    promptRunnerBundle,
     receiptPath,
     loadedReceiptCount: loadedReceipts.length,
     newReceipts,
@@ -6445,9 +6651,10 @@ export function runAutoresearchLevel4CampaignRunner(
       "promotion",
       "ak_owner_write",
     ],
-    nextLegalActions: executor.emittedNextLegalActions,
+    nextLegalActions,
     boundaries: [
       "Level-4 is above Level-3: it consumes Level-3 state-machine output and records resumable receipts.",
+      "Level-4 now carries the prompt-runner matrix bundle from the proven Target-3 pattern: prompt bundle -> visible candidate_peer_spawn -> ACK/FINAL watch -> controller lineage verification -> bind/measure/export/review.",
       "Level-4 may automate only explicitly allowed safe measure/export/review/cleanup-after-closeout steps; dangerous gates remain exact-token gated.",
       "Finalizer apply, pre-closeout cleanup, AK evidence/task writes, merge, release, and promotion are never inferred from Level-4 automation.",
       "Visible peer text remains communication only; Level-4 receipts are resumability receipts, not durable AK evidence.",

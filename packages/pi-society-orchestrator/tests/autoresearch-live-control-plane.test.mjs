@@ -2777,6 +2777,29 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       "autoresearch.level4_autoresearch_campaign_runner.v1",
     );
     assert.equal(blocked.details.level4CampaignRunner.posture, "blocked_by_level3");
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.kind,
+      "autoresearch.level4_prompt_runner_bundle.v1",
+    );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.state,
+      "ready_to_launch_visible_candidate_peers",
+    );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.metric.name,
+      "whole_matrix_execution_glue_blockers",
+    );
+    assert.equal(blocked.details.level4CampaignRunner.promptRunnerBundle.metric.value, 0);
+    assert.match(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleCandidatePeerSpawnCalls[0],
+      /^candidate_peer_spawn\(/,
+    );
+    assert.match(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.peerWatchCalls[0],
+      /^intercom\(/,
+    );
+    assert.match(blocked.content[0].text, /whole_matrix_execution_glue_blockers: 0/);
+    assert.match(blocked.content[0].text, /candidate_peer_spawn/);
     assert.deepEqual(blocked.details.level4CampaignRunner.exactGatesPreserved, [
       "finalize_post_fanin",
       "candidate_cleanup",
@@ -2800,6 +2823,11 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     const level4 = awaiting.details.level4CampaignRunner;
     assert.equal(level4.posture, "awaiting_external_controller");
     assert.equal(level4.metric.value, 0);
+    assert.equal(level4.promptRunnerBundle.state, "checkpoint_accepted_controller_sequence_ready");
+    assert.match(
+      level4.promptRunnerBundle.postFinalControllerSequence[0],
+      /^autoresearch_candidate_bind\(/,
+    );
     assert.equal(level4.newReceipts.length, 1);
     assert.equal(level4.newReceipts[0].disposition, "awaiting_external_controller");
     assert.match(level4.newReceipts[0].call, /^autoresearch_candidate_bind\(/);

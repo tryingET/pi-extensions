@@ -797,6 +797,24 @@ function formatAutoresearchLevel4CampaignRunnerReport(
     `New receipts: ${runner.newReceipts.length}`,
     `Completed action count: ${runner.completedActionCount}`,
     `level4_autoresearch_automation_blockers: ${runner.metric.value} (target=${runner.metric.target}, ${runner.metric.status})`,
+    `whole_matrix_execution_glue_blockers: ${runner.promptRunnerBundle.metric.value} (target=${runner.promptRunnerBundle.metric.target}, ${runner.promptRunnerBundle.metric.status})`,
+    `Prompt runner state: ${runner.promptRunnerBundle.state}`,
+    "",
+    "Prompt-runner matrix pattern:",
+    ...runner.promptRunnerBundle.pattern.map((step, index) => `- ${index + 1}. ${step}`),
+    "",
+    "Visible candidate peer spawn calls:",
+    ...(runner.promptRunnerBundle.visibleCandidatePeerSpawnCalls.length > 0
+      ? runner.promptRunnerBundle.visibleCandidatePeerSpawnCalls.map((call) => `- ${call}`)
+      : ["- none"]),
+    "",
+    "Peer watch calls:",
+    ...(runner.promptRunnerBundle.peerWatchCalls.length > 0
+      ? runner.promptRunnerBundle.peerWatchCalls.map((call) => `- ${call}`)
+      : ["- none"]),
+    "",
+    "Controller lineage verification:",
+    ...runner.promptRunnerBundle.controllerLineageVerification.checklist.map((item) => `- ${item}`),
     "",
     "New Level-4 receipts:",
     ...(runner.newReceipts.length > 0
