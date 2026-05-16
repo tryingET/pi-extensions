@@ -1,4 +1,8 @@
 ---
+summary: "Prompt template for reviewing a change for security risks and mitigations."
+read_when:
+  - "You are editing or validating pi-better-openai prompt templates."
+  - "You need a reusable security-review prompt contract."
 description: Review a change for security risks and mitigations
 system4d:
   container: "Prompt template for security-focused review."

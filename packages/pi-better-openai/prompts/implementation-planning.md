@@ -1,4 +1,8 @@
 ---
+summary: "Prompt template for drafting an implementation plan for a requested change."
+read_when:
+  - "You are editing or validating pi-better-openai prompt templates."
+  - "You need a reusable implementation-planning prompt contract."
 description: Draft an implementation plan for a requested change
 system4d:
   container: "Prompt template for implementation planning."
