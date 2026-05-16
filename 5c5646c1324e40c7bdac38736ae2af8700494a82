@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5c5646c1324e40c7bdac38736ae2af8700494a82"
+created_at: "2026-05-16T18:54:13Z"
+intent: "Allow sidequest to fall back to the local Ghostty wrapper for tab launch when stock Ghostty lacks +new-tab support"
+files:
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+  - "packages/pi-little-helpers/docs/project/2026-04-16-sidequest-ghostty-launch-contract.md"
+validation:
+  fast_gate:
+    command: "node --test scripts/root-doc-alignment.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 3
+  rationale: "behavioral sidequest fix + test + contract doc; separate from version bump and root housekeeping"
