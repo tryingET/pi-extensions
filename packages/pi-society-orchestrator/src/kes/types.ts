@@ -2,6 +2,7 @@ import path from "node:path";
 
 export const KES_CONTRACT_VERSION = 1 as const;
 export const KES_PACKAGE_NAME = "pi-society-orchestrator";
+export const KES_PACKAGE_MANIFEST_NAME = "@tryinget/pi-society-orchestrator";
 export const KES_DIARY_DIR = "diary";
 export const KES_LEARNINGS_DIR = path.join("docs", "learnings");
 export const KES_ALLOWED_ROOTS = [KES_DIARY_DIR, KES_LEARNINGS_DIR] as const;

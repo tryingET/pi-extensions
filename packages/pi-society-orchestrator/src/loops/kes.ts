@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createKesArtifactPlan,
-  KES_PACKAGE_NAME,
+  KES_PACKAGE_MANIFEST_NAME,
   KesMaterializationError,
   materializeKesArtifactPlan,
 } from "../kes/index.ts";
@@ -255,8 +255,8 @@ function assertLoopKesPackageRoot(packageRoot: string): void {
   try {
     const manifestPath = path.join(packageRoot, "package.json");
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { name?: unknown };
-    if (manifest.name !== KES_PACKAGE_NAME) {
-      throw new Error(`package.json#name must be ${KES_PACKAGE_NAME}`);
+    if (manifest.name !== KES_PACKAGE_MANIFEST_NAME) {
+      throw new Error(`package.json#name must be ${KES_PACKAGE_MANIFEST_NAME}`);
     }
   } catch (cause) {
     throw new KesMaterializationError({

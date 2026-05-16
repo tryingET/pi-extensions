@@ -12,6 +12,7 @@ export {
   KES_CONTRACT_VERSION,
   KES_DIARY_DIR,
   KES_LEARNINGS_DIR,
+  KES_PACKAGE_MANIFEST_NAME,
   KES_PACKAGE_NAME,
   type KesArtifactDraft,
   type KesArtifactKind,

@@ -151,6 +151,31 @@ test("LoopExecutor fails closed with a typed error when the configured KES root 
   }
 });
 
+test("LoopKesWriter accepts the scoped package manifest identity", () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-scoped-root-"));
+
+  try {
+    fs.writeFileSync(
+      path.join(packageRoot, "package.json"),
+      JSON.stringify({ name: "@tryinget/pi-society-orchestrator" }),
+      "utf8",
+    );
+    const writer = new LoopKesWriter(packageRoot);
+    const artifacts = writer.writeStart({
+      plugin: "kaizen",
+      sessionId: "loop-scoped",
+      objective: "Accept scoped package manifest identity",
+      phases: ["plan"],
+      timestamp: new Date("2026-04-10T13:25:00Z"),
+    });
+    assert.equal(artifacts.length, 1);
+    assert.equal(fs.existsSync(path.join(packageRoot, "diary")), true);
+    assert.equal(fs.existsSync(path.join(packageRoot, "docs", "learnings")), true);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
 test("LoopKesWriter rejects unverified package roots by default", () => {
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-unverified-root-"));
 
