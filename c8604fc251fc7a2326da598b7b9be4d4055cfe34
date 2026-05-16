@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "c8604fc251fc7a2326da598b7b9be4d4055cfe34"
+created_at: "2026-05-16T19:30:11Z"
+intent: "Refresh pi-autoresearch and pi-society-orchestrator product posture docs for measured export/review dogfood and exact post-integration cleanup handoff."
+files:
+  - "packages/pi-autoresearch/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict --require-system4d-path docs/adr/ --require-system4d-path docs/decisions/"
+    status: "pass"
+  full_gate:
+    command: "pre-commit package quality gates via git commit hook"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Docs-only posture refresh after Level-4 measured loop and cleanup handoff work."
