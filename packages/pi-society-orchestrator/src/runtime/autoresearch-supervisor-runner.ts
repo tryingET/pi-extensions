@@ -4294,9 +4294,16 @@ export function planAutoresearchCandidateWave(
         "Report changed files, branch/ref, benchmark/check commands run, and caveats in PEER_FINAL.",
         "Do not merge, promote, write AK/KES/evidence, or delete/reset worktrees.",
       ];
+      const safeNames = createSafeCandidatePeerNames({
+        taskId: identity.taskId,
+        laneId,
+        objective: laneObjective,
+      });
       const peerPayload: Record<string, unknown> = {
         objective: laneObjective,
         cwd: identity.cwd,
+        workspaceName: safeNames.workspaceName,
+        branchName: safeNames.branchName,
         filesInScope,
         offLimits,
         constraints: baseConstraints,
@@ -5206,6 +5213,24 @@ export function planAutoresearchMatrixCampaign(
       antiNarrowing.blockerMetric.status === "blocked"
         ? "Resolve level-2 packet-only planning blockers before claiming target closure; do not launch peers or run external actions from this plan."
         : "Run the first cell's planCandidateWaveCall, launch only approved visible candidate lanes, reject controller-inline implementation as a process violation, export candidate-result packets, open /autoresearch export for dashboard review, then run the cell reviewCandidateWaveCall and decide through /autoresearch review.",
+  };
+}
+
+function createSafeCandidatePeerNames(input: {
+  taskId: number;
+  laneId: string;
+  objective: string;
+}): { workspaceName: string; branchName: string } {
+  const laneSlug = input.laneId
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-|-$/gu, "")
+    .slice(0, 24);
+  const objectiveHash = createHash("sha256").update(input.objective).digest("hex").slice(0, 8);
+  const workspaceName = `ar-${input.taskId}-${laneSlug || "lane"}-${objectiveHash}`;
+  return {
+    workspaceName,
+    branchName: `candidatepeer/${workspaceName}`,
   };
 }
 

@@ -569,6 +569,19 @@ test("autoresearch_live_supervision plan_candidate_wave prepares visible paralle
   assert.match(result.details.candidateWave.lanes[0].candidatePeerCall, /candidate_peer_spawn/);
   assert.match(result.details.candidateWave.lanes[0].candidatePeerCall, /controller-peer-1/);
   assert.match(
+    result.details.candidateWave.lanes[0].candidatePeerCall,
+    /"workspaceName": "ar-2674-candidate-01-[a-f0-9]{8}"/,
+  );
+  assert.match(
+    result.details.candidateWave.lanes[0].candidatePeerCall,
+    /"branchName": "candidatepeer\/ar-2674-candidate-01-[a-f0-9]{8}"/,
+  );
+  assert.doesNotMatch(
+    result.details.candidateWave.lanes[0].candidatePeerCall,
+    /make autoresearch campaign behavior feel like candidate racing/,
+    "safe workspace/branch names must not reuse the long campaign objective",
+  );
+  assert.match(
     result.details.candidateWave.lanes[0].measurementPlan.join("\n"),
     /autoresearch_candidate_bind/,
   );
@@ -2793,6 +2806,18 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.match(
       blocked.details.level4CampaignRunner.promptRunnerBundle.visibleCandidatePeerSpawnCalls[0],
       /^candidate_peer_spawn\(/,
+    );
+    assert.match(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleCandidatePeerSpawnCalls[0],
+      /"workspaceName": "ar-2804-candidate-01-[a-f0-9]{8}"/,
+    );
+    assert.match(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleCandidatePeerSpawnCalls[0],
+      /"branchName": "candidatepeer\/ar-2804-candidate-01-[a-f0-9]{8}"/,
+    );
+    assert.doesNotMatch(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleCandidatePeerSpawnCalls[0],
+      /workspaceName": "automate safe Level-4 controller glue/,
     );
     assert.match(
       blocked.details.level4CampaignRunner.promptRunnerBundle.peerWatchCalls[0],
