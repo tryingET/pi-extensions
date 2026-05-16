@@ -803,6 +803,13 @@ function formatAutoresearchLevel4CampaignRunnerReport(
     "Prompt-runner matrix pattern:",
     ...runner.promptRunnerBundle.pattern.map((step, index) => `- ${index + 1}. ${step}`),
     "",
+    "Prompt bundle lanes:",
+    ...(runner.promptRunnerBundle.promptBundle.length > 0
+      ? runner.promptRunnerBundle.promptBundle.map(
+          (lane) => `- ${lane.cellId}/${lane.laneId}: ${lane.promptTitle}`,
+        )
+      : ["- none"]),
+    "",
     "Visible candidate peer spawn calls:",
     ...(runner.promptRunnerBundle.visibleCandidatePeerSpawnCalls.length > 0
       ? runner.promptRunnerBundle.visibleCandidatePeerSpawnCalls.map((call) => `- ${call}`)

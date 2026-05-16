@@ -2798,6 +2798,14 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       blocked.details.level4CampaignRunner.promptRunnerBundle.peerWatchCalls[0],
       /^intercom\(/,
     );
+    assert.match(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.promptBundle[0].promptMarkdown,
+      /Required execution pattern/,
+    );
+    assert.match(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.promptBundle[0].promptMarkdown,
+      /Controller post-final calls after lineage verification/,
+    );
     assert.match(blocked.content[0].text, /whole_matrix_execution_glue_blockers: 0/);
     assert.match(blocked.content[0].text, /candidate_peer_spawn/);
     assert.deepEqual(blocked.details.level4CampaignRunner.exactGatesPreserved, [

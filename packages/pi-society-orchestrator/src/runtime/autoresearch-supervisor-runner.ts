@@ -693,6 +693,7 @@ export interface AutoresearchLevel4PromptRunnerLane {
   laneId: string;
   objective: string;
   promptTitle: string;
+  promptMarkdown: string;
   candidatePeerSpawnCall: string;
   peerAckWatchCall: string;
   peerFinalWatchCall: string;
@@ -6371,11 +6372,42 @@ function buildLevel4PromptRunnerBundle(
       `Capture diff summary and changed files: git -C ${worktreePlaceholder} diff --stat ${baseRefPlaceholder}...HEAD and git -C ${worktreePlaceholder} diff --name-only ${baseRefPlaceholder}...HEAD.`,
       `Substitute ${diffPlaceholder} and ${filesPlaceholder} only from controller-verified git output, never from peer text alone.`,
     ];
+    const promptTitle = `Level-4 matrix prompt runner lane ${lane.cellId}/${lane.laneId}`;
+    const promptMarkdown = [
+      `# ${promptTitle}`,
+      "",
+      "## Objective",
+      lane.objective,
+      "",
+      "## Required execution pattern",
+      "1. Work only in the visible `candidate_peer_spawn` candidate worktree.",
+      "2. Produce one bounded candidate patch for this cell/lane.",
+      "3. Run the smallest truthful validation available inside the candidate worktree.",
+      "4. Report PEER_ACK promptly and PEER_FINAL with worktree path, branch, base ref, changed files, validation, and caveats.",
+      "",
+      "## Controller launch call",
+      "```text",
+      lane.candidatePeerCall,
+      "```",
+      "",
+      "## Controller after-final checklist",
+      ...lineageVerificationChecklist.map((item) => `- ${item}`),
+      "",
+      "## Controller post-final calls after lineage verification",
+      "```text",
+      ...lane.measurementPlan,
+      "```",
+      "",
+      "## Boundaries",
+      "- Do not merge, promote, write AK/KES/evidence, delete/reset worktrees, or claim durable authority.",
+      "- Peer text is communication only; controller-verified git/worktree facts plus pi-autoresearch packets are review inputs.",
+    ].join("\n");
     return {
       cellId: lane.cellId,
       laneId: lane.laneId,
       objective: lane.objective,
-      promptTitle: `Level-4 matrix prompt runner lane ${lane.cellId}/${lane.laneId}`,
+      promptTitle,
+      promptMarkdown,
       candidatePeerSpawnCall: lane.candidatePeerCall,
       peerAckWatchCall: formatToolCall("intercom", {
         action: "peer_watch",
