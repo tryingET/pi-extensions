@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "367b4c14e7000132c70f1568fcb2d42497053f28"
-created_at: "2026-05-16T14:25:19Z"
+created_at: "2026-05-16T14:26:09Z"
 intent: "Gate visible-loop iteration advancement behind explicit completion and include accepted mixed sidequest test updates"
 files:
   - "packages/pi-little-helpers/src/visibleLoop.ts"
@@ -14,7 +14,7 @@ validation:
     status: "pass"
   full_gate:
     command: "bash -lc 'npm --prefix packages/pi-better-openai run check && npm --prefix packages/pi-little-helpers run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict --require-system4d-path docs/adr/ --require-system4d-path docs/decisions/'"
-    status: "pending"
+    status: "pass"
 group:
   index: 2
   total: 3
