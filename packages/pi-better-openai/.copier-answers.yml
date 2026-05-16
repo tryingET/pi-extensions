@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: 1646a49
+_src_path: ../pi-extensions-template
+command_name: fast
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-better-openai
+release_config_mode: component
+repo_name: pi-better-openai
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-better-openai
