@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "e406b527d2c9552864ed89e1580b80b45ad57f7b"
+created_at: "2026-05-16T15:16:24Z"
+intent: "Expose Level-4 candidate closeout packet inventory for measured candidate-review fan-in dogfood"
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Selected Level-4 measured packet inventory candidate from matrix dogfood"
+links:
+  task_ids:
+    - 3060
