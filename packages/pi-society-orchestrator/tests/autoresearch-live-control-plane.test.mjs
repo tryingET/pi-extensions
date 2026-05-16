@@ -2859,6 +2859,37 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
         .exactGatesPreserved,
       ["finalize_post_fanin", "candidate_cleanup", "ak_owner_write", "promotion"],
     );
+    const closeoutPacket =
+      blocked.details.level4CampaignRunner.promptRunnerBundle.candidateCloseoutPacket;
+    assert.equal(closeoutPacket.kind, "autoresearch.level4_visible_candidate_closeout_packet.v1");
+    assert.equal(closeoutPacket.execution, "plan_only_controller_verified_closeout");
+    assert.equal(closeoutPacket.durableEvidence, false);
+    assert.equal(closeoutPacket.metric.name, "level4_candidate_closeout_packet_blockers");
+    assert.equal(closeoutPacket.metric.value, 0);
+    assert.equal(closeoutPacket.laneCount, 1);
+    assert.match(closeoutPacket.lanes[0].launch.call, /^candidate_peer_spawn\(/);
+    assert.match(
+      closeoutPacket.lanes[0].launch.workspaceName,
+      /^ar-2804-candidate-01-[a-f0-9]{8}$/,
+    );
+    assert.match(
+      closeoutPacket.lanes[0].launch.branchName,
+      /^candidatepeer\/ar-2804-candidate-01-[a-f0-9]{8}$/,
+    );
+    assert.equal(closeoutPacket.lanes[0].lineage.peerFinalIsCommunicationOnly, true);
+    assert.deepEqual(closeoutPacket.lanes[0].lineage.requiredFacts, [
+      "worktree",
+      "branch",
+      "baseRef",
+      "diffSummary",
+      "filesChanged",
+    ]);
+    assert.match(closeoutPacket.lanes[0].lineage.verificationCommands.join("\n"), /git -C/);
+    assert.equal(closeoutPacket.lanes[0].scopeReview.status, "pending_controller_verification");
+    assert.equal(closeoutPacket.lanes[0].validation.peerClaimStatus, "communication_only");
+    assert.equal(closeoutPacket.lanes[0].recommendation.disposition, "pending_controller_review");
+    assert.equal(closeoutPacket.comparison.reviewRequiresControllerVerifiedPackets, true);
+    assert.match(closeoutPacket.notAuthority.join("\n"), /not AK\/KES\/evidence authority/);
     assert.match(
       blocked.details.level4CampaignRunner.promptRunnerBundle.promptBundle[0].promptMarkdown,
       /Required execution pattern/,

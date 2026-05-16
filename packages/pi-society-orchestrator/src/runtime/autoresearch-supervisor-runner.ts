@@ -742,6 +742,67 @@ export interface AutoresearchLevel4PromptRunnerLane {
   postFinalControllerCalls: readonly string[];
 }
 
+export interface AutoresearchLevel4CandidateCloseoutLane {
+  cellId: string;
+  laneId: string;
+  objective: string;
+  launch: {
+    surface: "candidate_peer_spawn";
+    call: string;
+    workspaceName: string | null;
+    branchName: string | null;
+  };
+  watch: {
+    ackCall: string;
+    finalCall: string;
+    status: "pending_controller_execution" | "pending_controller_verification";
+  };
+  lineage: {
+    peerFinalIsCommunicationOnly: true;
+    requiredFacts: readonly ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"];
+    verificationCommands: readonly string[];
+  };
+  scopeReview: {
+    filesInScope: readonly string[];
+    offLimits: readonly string[];
+    status: "pending_controller_verification";
+  };
+  validation: {
+    peerClaimStatus: "communication_only";
+    controllerValidationStatus: "pending_controller_verification";
+    candidateResultPacketPath: string;
+  };
+  recommendation: {
+    disposition: "pending_controller_review";
+    options: readonly ["integrate_after_review", "reject", "retry", "inspect_further"];
+    requiredBeforeIntegrate: readonly string[];
+  };
+  rollbackNotes: readonly string[];
+}
+
+export interface AutoresearchLevel4CandidateCloseoutPacket {
+  kind: "autoresearch.level4_visible_candidate_closeout_packet.v1";
+  execution: "plan_only_controller_verified_closeout";
+  durableEvidence: false;
+  laneCount: number;
+  lanes: readonly AutoresearchLevel4CandidateCloseoutLane[];
+  comparison: {
+    status: "pending_candidate_result_packets" | "ready_for_review_packet";
+    aggregateReviewCall: string | null;
+    reviewRequiresControllerVerifiedPackets: true;
+  };
+  metric: {
+    name: "level4_candidate_closeout_packet_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    blockers: readonly string[];
+  };
+  notAuthority: readonly string[];
+  nextStep: string;
+}
+
 export interface AutoresearchLevel4PromptRunnerBundle {
   kind: "autoresearch.level4_prompt_runner_bundle.v1";
   pattern: readonly [
@@ -762,6 +823,7 @@ export interface AutoresearchLevel4PromptRunnerBundle {
   visibleCandidatePeerSpawnCalls: readonly string[];
   peerWatchCalls: readonly string[];
   visibleLaunchWatchPlan: AutoresearchLevel4VisibleLaunchWatchPlan;
+  candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket;
   controllerLineageVerification: {
     peerFinalIsCommunicationOnly: true;
     requiredFacts: readonly ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"];
@@ -5234,6 +5296,19 @@ function createSafeCandidatePeerNames(input: {
   };
 }
 
+function extractJsonStringFromToolCall(call: string, key: string): string | null {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const match = new RegExp(`"${escapedKey}"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`, "u").exec(
+    call,
+  );
+  if (!match) return null;
+  try {
+    return JSON.parse(`"${match[1]}"`) as string;
+  } catch {
+    return match[1];
+  }
+}
+
 function buildAutoresearchMatrixCampaignRunnerLanes(input: {
   identity: SessionIdentity;
   direction: "lower" | "higher";
@@ -6568,7 +6643,109 @@ function buildLevel4PromptRunnerBundle(
   const postFinalControllerSequence = checkpointAccepted
     ? executor.level3Runner.benchmarkExportReviewCalls
     : contract.lanes.flatMap((lane) => [...lane.measurementPlan, lane.reviewCandidateWaveCall]);
-  const blockerValue = visibleLaunchWatchPlan.metric.value;
+  const closeoutBlockers = [
+    ...(promptBundle.length === 0 ? ["no prompt-runner lanes were generated for closeout"] : []),
+    ...(postFinalControllerSequence.length === 0
+      ? ["no bind/measure/export/review sequence is available for closeout comparison"]
+      : []),
+  ];
+  const candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket = {
+    kind: "autoresearch.level4_visible_candidate_closeout_packet.v1",
+    execution: "plan_only_controller_verified_closeout",
+    durableEvidence: false,
+    laneCount: promptBundle.length,
+    lanes: promptBundle.map((lane): AutoresearchLevel4CandidateCloseoutLane => {
+      const contractLane = contract.lanes.find(
+        (candidate) => candidate.cellId === lane.cellId && candidate.laneId === lane.laneId,
+      );
+      const worktreePlaceholder = `<${lane.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`;
+      const baseRefPlaceholder = `<${lane.cellId}-${lane.laneId}-base-ref-from-candidate_peer_spawn>`;
+      return {
+        cellId: lane.cellId,
+        laneId: lane.laneId,
+        objective: lane.objective,
+        launch: {
+          surface: "candidate_peer_spawn",
+          call: lane.candidatePeerSpawnCall,
+          workspaceName: extractJsonStringFromToolCall(
+            lane.candidatePeerSpawnCall,
+            "workspaceName",
+          ),
+          branchName: extractJsonStringFromToolCall(lane.candidatePeerSpawnCall, "branchName"),
+        },
+        watch: {
+          ackCall: lane.peerAckWatchCall,
+          finalCall: lane.peerFinalWatchCall,
+          status: checkpointAccepted
+            ? "pending_controller_verification"
+            : "pending_controller_execution",
+        },
+        lineage: {
+          peerFinalIsCommunicationOnly: true,
+          requiredFacts: ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"],
+          verificationCommands: [
+            `git -C ${worktreePlaceholder} rev-parse --abbrev-ref HEAD`,
+            `git -C ${worktreePlaceholder} merge-base --is-ancestor ${baseRefPlaceholder} HEAD`,
+            `git -C ${worktreePlaceholder} status --short`,
+            `git -C ${worktreePlaceholder} diff --stat ${baseRefPlaceholder}...HEAD`,
+            `git -C ${worktreePlaceholder} diff --name-only ${baseRefPlaceholder}...HEAD`,
+          ],
+        },
+        scopeReview: {
+          filesInScope: nonEmptyStrings(input.filesInScope),
+          offLimits: nonEmptyStrings(input.offLimits),
+          status: "pending_controller_verification",
+        },
+        validation: {
+          peerClaimStatus: "communication_only",
+          controllerValidationStatus: "pending_controller_verification",
+          candidateResultPacketPath:
+            contractLane?.candidateResultPacketPath ?? "<candidate-result-packet-path>",
+        },
+        recommendation: {
+          disposition: "pending_controller_review",
+          options: ["integrate_after_review", "reject", "retry", "inspect_further"],
+          requiredBeforeIntegrate: [
+            "ACK and FINAL observed through intercom peer_watch",
+            "worktree, branch, baseRef, diff summary, and changed files verified by controller git commands",
+            "off-limits drift checked against filesInScope/offLimits",
+            "smallest truthful validation rerun or explicitly marked unavailable by controller",
+            "candidate-result packet exported and reviewed before integration selection",
+          ],
+        },
+        rollbackNotes: [
+          "Do not delete candidate resources before controller closeout is accepted.",
+          "Rollback integration by reverting only the selected candidate patch; retain rejected lane packet paths as review inputs until cleanup is authorized.",
+        ],
+      };
+    }),
+    comparison: {
+      status: checkpointAccepted ? "ready_for_review_packet" : "pending_candidate_result_packets",
+      aggregateReviewCall: contract.lanes[0]?.reviewCandidateWaveCall ?? null,
+      reviewRequiresControllerVerifiedPackets: true,
+    },
+    metric: {
+      name: "level4_candidate_closeout_packet_blockers",
+      direction: "lower",
+      target: 0,
+      value: closeoutBlockers.length,
+      status: closeoutBlockers.length === 0 ? "target_met" : "blocked",
+      blockers: closeoutBlockers,
+    },
+    notAuthority: [
+      "This packet is not AK/KES/evidence authority and does not complete the task.",
+      "This packet does not select, merge, promote, release, or clean up candidates.",
+      "Peer ACK/FINAL text remains communication only until controller git/worktree verification is recorded in the controller flow.",
+    ],
+    nextStep:
+      closeoutBlockers.length > 0
+        ? "Resolve closeout packet blockers before using Level-4 output for candidate comparison."
+        : "Use this closeout packet as the controller checklist after PEER_FINAL: verify lineage, export candidate-result packets, run review_candidate_wave, then decide integrate/reject/retry at the owner gate.",
+  };
+  const blockerValue = Math.max(
+    visibleLaunchWatchPlan.metric.value,
+    candidateCloseoutPacket.metric.value,
+  );
 
   return {
     kind: "autoresearch.level4_prompt_runner_bundle.v1",
@@ -6589,6 +6766,7 @@ function buildLevel4PromptRunnerBundle(
       lane.peerFinalWatchCall,
     ]),
     visibleLaunchWatchPlan,
+    candidateCloseoutPacket,
     controllerLineageVerification: {
       peerFinalIsCommunicationOnly: true,
       requiredFacts: ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"],
@@ -6637,12 +6815,18 @@ function buildLevel4PromptRunnerBundle(
             ? "level3Runner.benchmarkExportReviewCalls"
             : "contract.lanes[].measurementPlan",
         },
+        {
+          proof: "structured candidate closeout packet is available for controller comparison",
+          status: candidateCloseoutPacket.metric.status === "target_met" ? "present" : "blocked",
+          source: "promptRunnerBundle.candidateCloseoutPacket",
+        },
       ],
     },
     boundaries: [
       "Level-4 prompt runner automates the proven Target-3 prompt matrix pattern; it does not create a new authority ledger.",
       "candidate_peer_spawn launches remain visible peer/worktree launches; hidden scout/fork/controller-inline implementation is not allowed.",
       "intercom ACK/FINAL is communication only; controller git/worktree verification supplies lineage facts for binding.",
+      "The candidate closeout packet is a controller checklist and comparison substrate, not AK/KES/evidence authority.",
       "pi-autoresearch remains owner of measurement, candidate-result export, and empirical review packets.",
       "review/finalizer/cleanup/AK/promotion gates stay separate exact owner gates.",
     ],
