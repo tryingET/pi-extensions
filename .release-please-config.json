@@ -17,6 +17,10 @@
       "release-type": "node",
       "component": "pi-autoresearch"
     },
+    "packages/pi-better-openai": {
+      "release-type": "node",
+      "component": "pi-better-openai"
+    },
     "packages/pi-context-overlay": {
       "release-type": "node",
       "component": "pi-context-overlay"
