@@ -2867,6 +2867,17 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(closeoutPacket.metric.name, "level4_candidate_closeout_packet_blockers");
     assert.equal(closeoutPacket.metric.value, 0);
     assert.equal(closeoutPacket.laneCount, 1);
+    assert.equal(closeoutPacket.packetInventory.totalLaneCount, 1);
+    assert.equal(closeoutPacket.packetInventory.pendingVisibleLaunchCount, 1);
+    assert.equal(closeoutPacket.packetInventory.pendingControllerLineageVerificationCount, 0);
+    assert.equal(closeoutPacket.packetInventory.pendingMeasurementOrExportCount, 0);
+    assert.equal(closeoutPacket.packetInventory.pendingCandidateResultPacketCount, 0);
+    assert.equal(closeoutPacket.packetInventory.controllerVerifiedMeasuredPacketCount, 0);
+    assert.equal(closeoutPacket.packetInventory.rows[0].status, "pending_visible_launch");
+    assert.match(
+      closeoutPacket.packetInventory.summary,
+      /0\/1 controller-verified measured packet/,
+    );
     assert.match(closeoutPacket.lanes[0].launch.call, /^candidate_peer_spawn\(/);
     assert.match(
       closeoutPacket.lanes[0].launch.workspaceName,
@@ -2930,6 +2941,15 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       level4.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans[0].state,
       "checkpoint_accepted_lineage_verified",
     );
+    assert.equal(
+      level4.promptRunnerBundle.candidateCloseoutPacket.packetInventory
+        .pendingMeasurementOrExportCount,
+      1,
+    );
+    assert.equal(
+      level4.promptRunnerBundle.candidateCloseoutPacket.packetInventory.rows[0].status,
+      "pending_measurement_or_export",
+    );
     assert.match(
       level4.promptRunnerBundle.postFinalControllerSequence[0],
       /^autoresearch_candidate_bind\(/,
@@ -2940,6 +2960,32 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(level4.loadedReceiptCount, 0);
     assert.match(awaiting.content[0].text, /level4_autoresearch_automation_blockers: 0/);
     assert.match(awaiting.content[0].text, /Exact gates preserved/);
+
+    const measuredPacketRelativePath = closeoutPacket.packetInventory.rows[0].packetPath;
+    writeCandidateResultPacket(cwd, path.join(cwd, measuredPacketRelativePath), {
+      laneId: "cell-01-01-candidate-01",
+    });
+    const measuredPackets = await tool.execute(
+      "tc-level4-measured-packet-inventory",
+      {
+        ...baseRequest,
+        checkpointConfirmation: requiredToken,
+        level4ReceiptPath: ".autoresearch/level4-measured-packet-inventory.jsonl",
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const measuredInventory =
+      measuredPackets.details.level4CampaignRunner.promptRunnerBundle.candidateCloseoutPacket
+        .packetInventory;
+    assert.equal(measuredInventory.controllerVerifiedMeasuredPacketCount, 1);
+    assert.equal(measuredInventory.pendingMeasurementOrExportCount, 0);
+    assert.equal(measuredInventory.pendingPacketPaths.length, 0);
+    assert.deepEqual(measuredInventory.controllerVerifiedMeasuredPacketPaths, [
+      measuredPacketRelativePath,
+    ]);
+    assert.equal(measuredInventory.rows[0].status, "controller_verified_measured_packet");
 
     const receiptText = readFileSync(
       path.join(cwd, ".autoresearch", "level4-test-receipts.jsonl"),

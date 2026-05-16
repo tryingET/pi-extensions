@@ -780,12 +780,40 @@ export interface AutoresearchLevel4CandidateCloseoutLane {
   rollbackNotes: readonly string[];
 }
 
+export type AutoresearchLevel4CandidatePacketInventoryStatus =
+  | "pending_visible_launch"
+  | "pending_controller_lineage_verification"
+  | "pending_measurement_or_export"
+  | "pending_candidate_result_packet"
+  | "controller_verified_measured_packet";
+
 export interface AutoresearchLevel4CandidateCloseoutPacket {
   kind: "autoresearch.level4_visible_candidate_closeout_packet.v1";
   execution: "plan_only_controller_verified_closeout";
   durableEvidence: false;
   laneCount: number;
   lanes: readonly AutoresearchLevel4CandidateCloseoutLane[];
+  packetInventory: {
+    totalLaneCount: number;
+    pendingVisibleLaunchCount: number;
+    pendingControllerLineageVerificationCount: number;
+    pendingMeasurementOrExportCount: number;
+    pendingCandidateResultPacketCount: number;
+    controllerVerifiedMeasuredPacketCount: number;
+    pendingPacketPaths: readonly string[];
+    controllerVerifiedMeasuredPacketPaths: readonly string[];
+    rows: readonly {
+      cellId: string;
+      laneId: string;
+      packetPath: string;
+      sourceState: AutoresearchMatrixCampaignOperatorLaneState | "not_in_cockpit";
+      status: AutoresearchLevel4CandidatePacketInventoryStatus;
+      controllerVerified: boolean;
+      measuredPacket: boolean;
+      selected: boolean;
+    }[];
+    summary: string;
+  };
   comparison: {
     status: "pending_candidate_result_packets" | "ready_for_review_packet";
     aggregateReviewCall: string | null;
@@ -6649,6 +6677,76 @@ function buildLevel4PromptRunnerBundle(
       ? ["no bind/measure/export/review sequence is available for closeout comparison"]
       : []),
   ];
+  const cockpitInventoryByLane = new Map(
+    executor.level3Runner.cockpit.packetInventory.map((row) => [
+      `${row.cellId}\0${row.laneId}`,
+      row,
+    ]),
+  );
+  const packetInventoryRows: AutoresearchLevel4CandidateCloseoutPacket["packetInventory"]["rows"] =
+    promptBundle.map((lane) => {
+      const contractLane = contract.lanes.find(
+        (candidate) => candidate.cellId === lane.cellId && candidate.laneId === lane.laneId,
+      );
+      const cockpitRow = cockpitInventoryByLane.get(`${lane.cellId}\0${lane.laneId}`);
+      const sourceState = cockpitRow?.state ?? "not_in_cockpit";
+      const packetPath =
+        cockpitRow?.packetPath ??
+        contractLane?.candidateResultPacketPath ??
+        "<candidate-result-packet-path>";
+      const packetExists =
+        !packetPath.startsWith("<") && fs.existsSync(path.resolve(input.cwd, packetPath));
+      const status: AutoresearchLevel4CandidatePacketInventoryStatus =
+        sourceState === "measured_exported_selectable" ||
+        sourceState === "measured_exported_not_selectable" ||
+        packetExists
+          ? "controller_verified_measured_packet"
+          : sourceState === "missing_packet" || sourceState === "packet_missing"
+            ? "pending_candidate_result_packet"
+            : checkpointAccepted || sourceState === "measurement_export_unlocked"
+              ? "pending_measurement_or_export"
+              : state === "ready_to_launch_visible_candidate_peers"
+                ? "pending_visible_launch"
+                : "pending_controller_lineage_verification";
+      return {
+        cellId: lane.cellId,
+        laneId: lane.laneId,
+        packetPath,
+        sourceState,
+        status,
+        controllerVerified: status === "controller_verified_measured_packet",
+        measuredPacket: status === "controller_verified_measured_packet",
+        selected: cockpitRow?.selected ?? false,
+      };
+    });
+  const pendingPacketRows = packetInventoryRows.filter(
+    (row) => row.status !== "controller_verified_measured_packet",
+  );
+  const controllerVerifiedMeasuredPacketRows = packetInventoryRows.filter(
+    (row) => row.status === "controller_verified_measured_packet",
+  );
+  const packetInventory = {
+    totalLaneCount: packetInventoryRows.length,
+    pendingVisibleLaunchCount: packetInventoryRows.filter(
+      (row) => row.status === "pending_visible_launch",
+    ).length,
+    pendingControllerLineageVerificationCount: packetInventoryRows.filter(
+      (row) => row.status === "pending_controller_lineage_verification",
+    ).length,
+    pendingMeasurementOrExportCount: packetInventoryRows.filter(
+      (row) => row.status === "pending_measurement_or_export",
+    ).length,
+    pendingCandidateResultPacketCount: packetInventoryRows.filter(
+      (row) => row.status === "pending_candidate_result_packet",
+    ).length,
+    controllerVerifiedMeasuredPacketCount: controllerVerifiedMeasuredPacketRows.length,
+    pendingPacketPaths: pendingPacketRows.map((row) => row.packetPath),
+    controllerVerifiedMeasuredPacketPaths: controllerVerifiedMeasuredPacketRows.map(
+      (row) => row.packetPath,
+    ),
+    rows: packetInventoryRows,
+    summary: `${controllerVerifiedMeasuredPacketRows.length}/${packetInventoryRows.length} controller-verified measured packet(s); ${pendingPacketRows.length} pending`,
+  };
   const candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket = {
     kind: "autoresearch.level4_visible_candidate_closeout_packet.v1",
     execution: "plan_only_controller_verified_closeout",
@@ -6719,6 +6817,7 @@ function buildLevel4PromptRunnerBundle(
         ],
       };
     }),
+    packetInventory,
     comparison: {
       status: checkpointAccepted ? "ready_for_review_packet" : "pending_candidate_result_packets",
       aggregateReviewCall: contract.lanes[0]?.reviewCandidateWaveCall ?? null,
