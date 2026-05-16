@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "7d4413ce8d17150dc874170d872cf9f503f4c60d"
+created_at: "2026-05-16T18:31:44Z"
+intent: "Route Level-4 post-integration cleanup packets to exact candidate_peer_cleanup dry-run and execute calls while preserving fallback commands."
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs --test-name-pattern 'level4_autoresearch_campaign_runner'"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Completes fan-in to integration cleanup handoff by naming the cleanup tool calls in Level-4 closeout."
