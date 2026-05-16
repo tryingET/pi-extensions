@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-little-helpers",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "pi extension package for little-helpers workflows in pi",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

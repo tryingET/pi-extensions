@@ -15,9 +15,30 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.2.0...pi-little-helpers-v0.3.0) (2026-05-16)
+
 ### Added
 
-- Add `sidequest` extension command to fork the current Pi session into the current Ghostty window as a new tab when the active Ghostty session supports tab attach, with explicit fallback to a new Ghostty window.
+- Add `html-output-browser` artifact helpers, including auto-open HTML output, clickable file links, `/artifacts`, `/show-artifacts`, and recent-artifact picking.
+- Add `session-presence` support for exact Pi session identity, terminal titles, and hot-restore sidecars.
+- Add `/sidequest` visible peer launching with Ghostty same-window tab attach and fallback window behavior.
+- Add clean visible peer surfaces: `/scoutpeer`, `/parallelquest`, `fork_peer_spawn`, `scout_peer_spawn`, and `candidate_peer_spawn`.
+- Add visible peer capability manifest and toolbox bundle projection for peer-spawn tool registration checks.
+- Add `/visible-loop` for checkpointed visible iteration loops, with fresh Pi sessions per iteration and canonical intercom progress/final messages.
+- Add candidate peer registry sidecars and exact cleanup command packets for worktree review/cleanup.
+
+### Changed
+
+- Prefer exact controller session targets and bounded `PEER_ACK` / `PEER_FINAL` report-back protocol for visible peers.
+- Keep peer launch tools as standard Pi tools while retaining toolbox catalog/test alignment.
+- Harden package behavior against Pi 0.65 host/typebox API changes.
+
+### Fixed
+
+- Harden Ghostty tab/window launching, title refresh, sidequest launch stability, and stash picker behavior.
+- Reject ambiguous intercom parent targets and make disabled peer intercom behavior explicit.
+- Gate visible-loop completion so iterations advance only after the intended final prompt finishes.
+- Avoid stale peer slash-command guidance and static schema drift in peer-spawn tool surfaces.
 
 ## [0.2.0](https://github.com/tryingET/pi-little-helpers/compare/v0.1.3...v0.2.0) (2026-02-27)
 
