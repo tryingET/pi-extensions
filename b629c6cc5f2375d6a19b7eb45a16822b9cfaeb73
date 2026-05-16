@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "b629c6cc5f2375d6a19b7eb45a16822b9cfaeb73"
+created_at: "2026-05-16T17:26:39Z"
+intent: "Surface a Level-4 post-integration cleanup-ready packet with exact peer/worktree/branch/archive cleanup resources after successful integration closeout."
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs --test-name-pattern 'level4_autoresearch_campaign_runner'"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Level-4 cleanup UX gap fix with tests and package README contract update."
