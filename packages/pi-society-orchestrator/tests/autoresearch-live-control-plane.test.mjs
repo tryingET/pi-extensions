@@ -3127,6 +3127,7 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.match(cleanupPacket.candidatePeerCleanupDryRunCall, /candidatepeer-test-cleanup/);
     assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /^candidate_peer_cleanup\(/);
     assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /"execute": true/);
+    assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /"closeVisibleResources": true/);
     assert.match(
       cleanupPacket.candidatePeerCleanupExecuteCall,
       /"integrationCloseoutStatus": "successful"/,

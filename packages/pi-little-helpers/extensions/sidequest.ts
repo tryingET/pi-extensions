@@ -145,6 +145,7 @@ type CandidatePeerSpawnRequest = {
 type CandidatePeerCleanupRequest = {
   peerRunIds?: string[];
   execute?: boolean;
+  closeVisibleResources?: boolean;
   integrationCloseoutStatus?: "successful" | "failed" | "missing";
 };
 
@@ -282,6 +283,12 @@ const candidatePeerCleanupParameters = asPiToolParameters(
       Type.Boolean({
         description:
           "When false or omitted, return a dry-run cleanup plan. When true, archive then remove only exact registered worktrees/branches.",
+      }),
+    ),
+    closeVisibleResources: Type.Optional(
+      Type.Boolean({
+        description:
+          "When execute=true, first terminate only sidequest/Pi processes whose command line contains the exact registered candidate worktree path. Dry-run output always shows the exact process-close command.",
       }),
     ),
     integrationCloseoutStatus: Type.Optional(
@@ -2109,6 +2116,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const request = params as CandidatePeerCleanupRequest;
       const peerRunIds = (request.peerRunIds ?? []).map((id) => id.trim()).filter(Boolean);
       const execute = request.execute === true;
+      const closeVisibleResources = request.closeVisibleResources === true;
       const env = options.env ?? process.env;
       const execRunner: ExecRunner =
         options.exec ??
@@ -2143,6 +2151,31 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           cleanupPacket: record.cleanupPacket,
           tabOrSessionHint: record.launch.titleBase ?? peerRunId,
           processHint: `sidequest-pi process containing exact worktree path ${record.worktreePath}`,
+          visibleResourceCommands: [
+            {
+              id: "terminate-exact-sidequest-process",
+              description:
+                "Terminate only sidequest/Pi processes whose command line contains the exact registered worktree path; closing that process closes the visible peer tab/session when the tab is owned by the launched process.",
+              command: "sh",
+              args: [
+                "-c",
+                [
+                  "set -eu",
+                  "worktree_path=$1",
+                  "pids=$(ps -eo pid=,args= | grep -F \"$worktree_path\" | grep -E 'sidequest-pi pi| pi ' | grep -v grep | awk '{print $1}' || true)",
+                  'test -n "$pids" || exit 0',
+                  "kill $pids 2>/dev/null || true",
+                  "sleep 1",
+                  "pids=$(ps -eo pid=,args= | grep -F \"$worktree_path\" | grep -E 'sidequest-pi pi| pi ' | grep -v grep | awk '{print $1}' || true)",
+                  'test -z "$pids" || kill -9 $pids 2>/dev/null || true',
+                ].join("; "),
+                "candidate-peer-close-visible-resource",
+                record.worktreePath,
+              ],
+              cwd: record.repoRoot,
+              destructive: true,
+            },
+          ],
         };
       });
 
@@ -2158,7 +2191,11 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
       if (execute) {
         for (const lane of lanes) {
-          for (const command of lane.cleanupPacket.commands) {
+          const commands = [
+            ...(closeVisibleResources ? lane.visibleResourceCommands : []),
+            ...lane.cleanupPacket.commands,
+          ];
+          for (const command of commands) {
             const result = await execRunner(command.command, command.args, {
               cwd: command.cwd ?? lane.repoRoot,
               timeout: 60_000,
@@ -2192,11 +2229,12 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         {
           ok: true,
           execution: execute ? "executed_exact_registry_cleanup_commands" : "dry_run_plan_only",
+          closeVisibleResources,
           laneCount: lanes.length,
           lanes,
           commandResults,
           boundary:
-            "Candidate cleanup consumes exact registry sidecars only. It archives first and removes only named worktrees/branches; visible tab/session and process closure remains an exact hint unless represented by registry commands. No merge, promotion, AK/KES/evidence write, release, push, or PR authority is implied.",
+            "Candidate cleanup consumes exact registry sidecars only. It can terminate only sidequest/Pi processes matched by the exact registered worktree path, archives first, and removes only named worktrees/branches. It does not fuzzy-close arbitrary tabs or imply merge, promotion, AK/KES/evidence write, release, push, or PR authority.",
         },
       );
     }

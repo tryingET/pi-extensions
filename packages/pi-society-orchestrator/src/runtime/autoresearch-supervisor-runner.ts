@@ -6844,6 +6844,7 @@ function buildLevel4PromptRunnerBundle(
         ? formatToolCall("candidate_peer_cleanup", {
             peerRunIds: cleanupRows.map((row) => row.peerRunId),
             execute: true,
+            closeVisibleResources: true,
             integrationCloseoutStatus: "successful",
           })
         : null,

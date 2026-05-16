@@ -2304,6 +2304,14 @@ test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after 
     assert.equal(dryRun.details.ok, true);
     assert.equal(dryRun.details.execution, "dry_run_plan_only");
     assert.equal(dryRun.details.lanes[0].peerRunId, peerRunId);
+    assert.equal(
+      dryRun.details.lanes[0].visibleResourceCommands[0].id,
+      "terminate-exact-sidequest-process",
+    );
+    assert.match(
+      dryRun.details.lanes[0].visibleResourceCommands[0].args.join("\n"),
+      /worktree_path/,
+    );
     assert.equal(dryRun.details.commandResults.length, 0);
 
     const blocked = await tools
@@ -2318,24 +2326,39 @@ test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after 
     assert.equal(blocked.details.ok, false);
     assert.equal(blocked.details.execution, "blocked_missing_successful_integration_closeout");
 
-    const executed = await tools
-      .get("candidate_peer_cleanup")
-      .execute(
-        "tool-call-cleanup-execute",
-        { peerRunIds: [peerRunId], execute: true, integrationCloseoutStatus: "successful" },
-        undefined,
-        undefined,
-        context,
-      );
+    const executed = await tools.get("candidate_peer_cleanup").execute(
+      "tool-call-cleanup-execute",
+      {
+        peerRunIds: [peerRunId],
+        execute: true,
+        closeVisibleResources: true,
+        integrationCloseoutStatus: "successful",
+      },
+      undefined,
+      undefined,
+      context,
+    );
 
     assert.equal(executed.details.ok, true);
     assert.equal(executed.details.execution, "executed_exact_registry_cleanup_commands");
+    assert.equal(executed.details.closeVisibleResources, true);
     assert.deepEqual(
       executed.details.commandResults.map((result) => result.commandId),
-      ["archive-metadata-and-diff", "remove-worktree", "delete-candidate-branch"],
+      [
+        "terminate-exact-sidequest-process",
+        "archive-metadata-and-diff",
+        "remove-worktree",
+        "delete-candidate-branch",
+      ],
     );
     assert.ok(calls.some((call) => call.command === "git" && call.args.includes("--force")));
-    assert.match(executed.details.boundary, /No merge, promotion/);
+    assert.ok(
+      calls.some(
+        (call) =>
+          call.command === "sh" && call.args.join("\n").includes(spawn.details.worktreePath),
+      ),
+    );
+    assert.match(executed.details.boundary, /does not fuzzy-close arbitrary tabs/);
   });
 });
 
