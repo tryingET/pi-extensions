@@ -24,6 +24,16 @@ export type CandidatePeerCommandPacket = {
   commands: CandidatePeerCommandPacketCommand[];
 };
 
+export type CandidatePeerSafeNaming = {
+  requestedBranchName?: string;
+  branchName: string;
+  branchNameClamped: boolean;
+  requestedWorkspaceName?: string;
+  workspaceName: string;
+  workspaceNameClamped: boolean;
+  workspaceRoot: string;
+};
+
 export type CandidatePeerRegistryInput = {
   peerRunId: string;
   tool: string;
@@ -36,6 +46,7 @@ export type CandidatePeerRegistryInput = {
   parentDirty: boolean;
   parentDirtyWarning?: string;
   reusedExisting: boolean;
+  naming?: CandidatePeerSafeNaming;
   reportBack: CandidatePeerReportBack;
   parentPeerTarget?: string;
   filesInScope?: string[];
@@ -147,6 +158,9 @@ export function buildCandidatePeerCleanupPacket({
             "branch_name=$5",
             'mkdir -p "$archive_dir"',
             'cp "$registry_path" "$archive_dir/metadata.json"',
+            'test "$(git -C "$worktree_path" rev-parse --show-toplevel)" = "$worktree_path"',
+            'test "$(git -C "$worktree_path" rev-parse --abbrev-ref HEAD)" = "$branch_name"',
+            'git -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch_name"',
             'git -C "$worktree_path" status --porcelain=v1 --branch > "$archive_dir/status.txt"',
             'git -C "$worktree_path" diff --binary > "$archive_dir/diff.patch"',
             'git -C "$worktree_path" diff --cached --binary > "$archive_dir/staged.diff.patch"',

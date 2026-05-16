@@ -5,6 +5,7 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import {
+  type CandidatePeerSafeNaming,
   createCandidatePeerRegistryRecord,
   writeCandidatePeerRegistryRecord,
 } from "../src/candidatePeerRegistry.ts";
@@ -145,6 +146,7 @@ type WorktreePrepareSuccess = {
   parentDirty: boolean;
   parentDirtyWarning?: string;
   reusedExisting: boolean;
+  naming: CandidatePeerSafeNaming;
 };
 
 type WorktreePrepareFailure = {
@@ -157,6 +159,7 @@ type WorktreePrepareFailure = {
   baseRef?: string;
   parentDirty?: boolean;
   parentDirtyWarning?: string;
+  naming?: CandidatePeerSafeNaming;
 };
 
 type WorktreePrepareResult = WorktreePrepareSuccess | WorktreePrepareFailure;
@@ -955,6 +958,10 @@ function buildSidequestSpawnPrompt({
   ].join("\n");
 }
 
+const MAX_CANDIDATE_BRANCH_NAME_LENGTH = 96;
+const MAX_CANDIDATE_WORKSPACE_NAME_LENGTH = 80;
+const SAFE_NAME_HASH_LENGTH = 10;
+
 function slugify(value: string, fallback: string): string {
   const slug = value
     .toLowerCase()
@@ -964,18 +971,42 @@ function slugify(value: string, fallback: string): string {
   return slug || fallback;
 }
 
-function sanitizeBranchName(value: string | undefined, objective: string): string {
+function clampSafeName(value: string, maxLength: number, fallback: string): string {
+  if (value.length <= maxLength) return value;
+  const hash = createHash("sha1").update(value).digest("hex").slice(0, SAFE_NAME_HASH_LENGTH);
+  const suffix = `-${hash}`;
+  const prefixLength = Math.max(1, maxLength - suffix.length);
+  const prefix = value.slice(0, prefixLength).replace(/[\\/._-]+$/g, "") || fallback;
+  return `${prefix.slice(0, prefixLength)}${suffix}`;
+}
+
+function candidateBranchNameBeforeClamp(value: string | undefined, objective: string): string {
   const raw = value?.trim() || `candidatepeer/${slugify(objective, "candidate")}`;
   const segments = raw
     .split(/[\\/]+/)
     .map((segment) => slugify(segment, ""))
     .filter((segment) => segment && segment !== "." && segment !== "..");
-  const candidate = segments.join("/");
-  return candidate || `candidatepeer/${slugify(objective, "candidate")}`;
+  return segments.join("/") || `candidatepeer/${slugify(objective, "candidate")}`;
+}
+
+function sanitizeBranchName(value: string | undefined, objective: string): string {
+  return clampSafeName(
+    candidateBranchNameBeforeClamp(value, objective),
+    MAX_CANDIDATE_BRANCH_NAME_LENGTH,
+    "candidatepeer",
+  );
+}
+
+function candidateWorkspaceNameBeforeClamp(value: string | undefined, branchName: string): string {
+  return slugify(value?.trim() || branchName.replace(/[\\/]+/g, "-"), "candidate");
 }
 
 function sanitizeWorkspaceName(value: string | undefined, branchName: string): string {
-  return slugify(value?.trim() || branchName.replace(/[\\/]+/g, "-"), "candidate");
+  return clampSafeName(
+    candidateWorkspaceNameBeforeClamp(value, branchName),
+    MAX_CANDIDATE_WORKSPACE_NAME_LENGTH,
+    "candidate",
+  );
 }
 
 function isPathInside(parent: string, child: string): boolean {
@@ -1023,7 +1054,14 @@ async function prepareCandidatePeerWorktree({
   }
 
   const repoRoot = resolve(repoResult.stdout.split(/\r?\n/)[0]?.trim() || parentCwd);
+  const requestedBranchName = request.branchName?.trim();
+  const branchNameBeforeClamp = candidateBranchNameBeforeClamp(request.branchName, objective);
   const branchName = sanitizeBranchName(request.branchName, objective);
+  const requestedWorkspaceName = request.workspaceName?.trim();
+  const workspaceNameBeforeClamp = candidateWorkspaceNameBeforeClamp(
+    request.workspaceName,
+    branchName,
+  );
   const workspaceName = sanitizeWorkspaceName(request.workspaceName, branchName);
   const workspaceRoot = resolve(
     request.workspaceRoot?.trim()
@@ -1033,6 +1071,15 @@ async function prepareCandidatePeerWorktree({
       : defaultWorkspaceRoot(repoRoot, env),
   );
   const worktreePath = resolve(workspaceRoot, workspaceName);
+  const naming: CandidatePeerSafeNaming = {
+    ...(requestedBranchName ? { requestedBranchName } : {}),
+    branchName,
+    branchNameClamped: branchNameBeforeClamp.length > MAX_CANDIDATE_BRANCH_NAME_LENGTH,
+    ...(requestedWorkspaceName ? { requestedWorkspaceName } : {}),
+    workspaceName,
+    workspaceNameClamped: workspaceNameBeforeClamp.length > MAX_CANDIDATE_WORKSPACE_NAME_LENGTH,
+    workspaceRoot,
+  };
 
   if (isPathInside(repoRoot, worktreePath) || worktreePath === repoRoot) {
     return {
@@ -1043,6 +1090,7 @@ async function prepareCandidatePeerWorktree({
       worktreePath,
       branchName,
       baseRef,
+      naming,
     };
   }
 
@@ -1056,6 +1104,7 @@ async function prepareCandidatePeerWorktree({
       worktreePath,
       branchName,
       baseRef,
+      naming,
     };
   }
 
@@ -1068,6 +1117,7 @@ async function prepareCandidatePeerWorktree({
       worktreePath,
       branchName,
       baseRef,
+      naming,
     };
   }
 
@@ -1081,6 +1131,7 @@ async function prepareCandidatePeerWorktree({
       worktreePath,
       branchName,
       baseRef,
+      naming,
     };
   }
 
@@ -1099,6 +1150,7 @@ async function prepareCandidatePeerWorktree({
       baseRef,
       parentDirty,
       parentDirtyWarning,
+      naming,
     };
   }
 
@@ -1115,6 +1167,7 @@ async function prepareCandidatePeerWorktree({
         baseRef,
         parentDirty,
         parentDirtyWarning,
+        naming,
       };
     }
 
@@ -1146,6 +1199,7 @@ async function prepareCandidatePeerWorktree({
         baseRef,
         parentDirty,
         parentDirtyWarning,
+        naming,
       };
     }
 
@@ -1159,6 +1213,7 @@ async function prepareCandidatePeerWorktree({
       parentDirty,
       parentDirtyWarning,
       reusedExisting: true,
+      naming,
     };
   }
 
@@ -1175,6 +1230,7 @@ async function prepareCandidatePeerWorktree({
       baseRef,
       parentDirty,
       parentDirtyWarning,
+      naming,
     };
   }
 
@@ -1197,6 +1253,7 @@ async function prepareCandidatePeerWorktree({
       baseRef,
       parentDirty,
       parentDirtyWarning,
+      naming,
     };
   }
 
@@ -1210,6 +1267,7 @@ async function prepareCandidatePeerWorktree({
     parentDirty,
     parentDirtyWarning,
     reusedExisting: false,
+    naming,
   };
 }
 
@@ -1727,6 +1785,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             parentDirty: worktree.parentDirty,
             parentDirtyWarning: worktree.parentDirtyWarning,
             reusedExisting: worktree.reusedExisting,
+            naming: worktree.naming,
             reportBack: "manual",
             launch: {
               status: "launch_failed",
@@ -1772,6 +1831,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           parentDirty: worktree.parentDirty,
           parentDirtyWarning: worktree.parentDirtyWarning,
           reusedExisting: worktree.reusedExisting,
+          naming: worktree.naming,
           reportBack: "manual",
           launch: {
             status: "launched",
@@ -2042,6 +2102,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           baseRef: worktree.baseRef,
           parentDirty: worktree.parentDirty,
           parentDirtyWarning: worktree.parentDirtyWarning,
+          naming: worktree.naming,
           error: "worktree_prepare_failed",
           reason: worktree.error,
         });
@@ -2079,6 +2140,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             parentDirty: worktree.parentDirty,
             parentDirtyWarning: worktree.parentDirtyWarning,
             reusedExisting: worktree.reusedExisting,
+            naming: worktree.naming,
             reportBack,
             parentPeerTarget: request.parentPeerTarget?.trim(),
             filesInScope: normalizeStringArray(request.filesInScope),
@@ -2126,6 +2188,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           parentDirty: worktree.parentDirty,
           parentDirtyWarning: worktree.parentDirtyWarning,
           reusedExisting: worktree.reusedExisting,
+          naming: worktree.naming,
           sessionMode: launch.sessionMode,
           sourceSessionFile: launch.sourceSessionFile,
           titleBase: launch.titleBase,
@@ -2156,6 +2219,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           parentDirty: worktree.parentDirty,
           parentDirtyWarning: worktree.parentDirtyWarning,
           reusedExisting: worktree.reusedExisting,
+          naming: worktree.naming,
           reportBack,
           parentPeerTarget: request.parentPeerTarget?.trim(),
           filesInScope: normalizeStringArray(request.filesInScope),
@@ -2202,6 +2266,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         parentDirty: worktree.parentDirty,
         ...(worktree.parentDirtyWarning ? { parentDirtyWarning: worktree.parentDirtyWarning } : {}),
         reusedExisting: worktree.reusedExisting,
+        naming: worktree.naming,
         sessionMode: launch.sessionMode,
         sourceSessionFile: launch.sourceSessionFile,
         titleBase: launch.titleBase,
