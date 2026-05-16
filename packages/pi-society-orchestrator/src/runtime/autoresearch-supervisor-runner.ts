@@ -787,6 +787,26 @@ export type AutoresearchLevel4CandidatePacketInventoryStatus =
   | "pending_candidate_result_packet"
   | "controller_verified_measured_packet";
 
+export interface AutoresearchLevel4PostIntegrationCleanupReadyPacket {
+  kind: "autoresearch.level4_post_integration_cleanup_ready.v1";
+  execution: "not_executed_by_orchestrator";
+  readiness:
+    | "ready_after_successful_integration_closeout"
+    | "blocked_until_successful_integration_closeout";
+  integrationCloseout: AutoresearchLevel3IntegrationCloseoutEvidence;
+  exactPeerRunIds: readonly string[];
+  exactPeerTabsOrSessions: readonly string[];
+  exactWorktrees: readonly string[];
+  exactBranches: readonly string[];
+  archiveDirectories: readonly string[];
+  tabClosureHints: readonly string[];
+  processTerminationHints: readonly string[];
+  exactControllerCommands: readonly string[];
+  blockers: readonly string[];
+  boundary: string;
+  nextStep: string;
+}
+
 export interface AutoresearchLevel4CandidateCloseoutPacket {
   kind: "autoresearch.level4_visible_candidate_closeout_packet.v1";
   execution: "plan_only_controller_verified_closeout";
@@ -814,6 +834,7 @@ export interface AutoresearchLevel4CandidateCloseoutPacket {
     }[];
     summary: string;
   };
+  postIntegrationCleanupReady: AutoresearchLevel4PostIntegrationCleanupReadyPacket;
   comparison: {
     status: "pending_candidate_result_packets" | "ready_for_review_packet";
     aggregateReviewCall: string | null;
@@ -6747,6 +6768,86 @@ function buildLevel4PromptRunnerBundle(
     rows: packetInventoryRows,
     summary: `${controllerVerifiedMeasuredPacketRows.length}/${packetInventoryRows.length} controller-verified measured packet(s); ${pendingPacketRows.length} pending`,
   };
+  const bindingByLaneId = new Map(
+    (input.candidateBindings ?? []).map((binding) => [binding.laneId, binding]),
+  );
+  const cleanupRows = promptBundle.map((lane) => {
+    const binding =
+      bindingByLaneId.get(lane.laneId) ?? bindingByLaneId.get(`${lane.cellId}-${lane.laneId}`);
+    const peerRunId =
+      binding?.candidatePeerRunId ?? `<peerRunId for ${lane.cellId}/${lane.laneId}>`;
+    const worktree =
+      binding?.candidateWorktree ??
+      `<${lane.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`;
+    const branch =
+      binding?.candidateBranch ??
+      extractJsonStringFromToolCall(lane.candidatePeerSpawnCall, "branchName") ??
+      `<${lane.cellId}-${lane.laneId}-branch-from-candidate_peer_spawn>`;
+    const archiveDirectory = path.join(
+      os.homedir(),
+      ".local",
+      "state",
+      "pi-quests",
+      "archives",
+      `cleanup-level4-task-${input.taskId}-${lane.cellId}-${lane.laneId}`,
+    );
+    return { lane, peerRunId, worktree, branch, archiveDirectory };
+  });
+  const cleanupBlockers = [
+    ...(input.integrationCloseout?.status === "successful"
+      ? []
+      : ["integrationCloseout.status must be successful before post-integration cleanup is ready"]),
+    ...cleanupRows.flatMap((row) => [
+      ...(row.peerRunId.startsWith("<")
+        ? [`missing exact peerRunId for ${row.lane.cellId}/${row.lane.laneId}`]
+        : []),
+      ...(row.worktree.startsWith("<")
+        ? [`missing exact worktree for ${row.lane.cellId}/${row.lane.laneId}`]
+        : []),
+      ...(row.branch.startsWith("<")
+        ? [`missing exact branch for ${row.lane.cellId}/${row.lane.laneId}`]
+        : []),
+    ]),
+  ];
+  const postIntegrationCleanupReady: AutoresearchLevel4PostIntegrationCleanupReadyPacket = {
+    kind: "autoresearch.level4_post_integration_cleanup_ready.v1",
+    execution: "not_executed_by_orchestrator",
+    readiness:
+      cleanupBlockers.length === 0
+        ? "ready_after_successful_integration_closeout"
+        : "blocked_until_successful_integration_closeout",
+    integrationCloseout: {
+      status: input.integrationCloseout?.status ?? "missing",
+      ...(input.integrationCloseout?.commit ? { commit: input.integrationCloseout.commit } : {}),
+      ...(input.integrationCloseout?.summary ? { summary: input.integrationCloseout.summary } : {}),
+    },
+    exactPeerRunIds: cleanupRows.map((row) => row.peerRunId),
+    exactPeerTabsOrSessions: cleanupRows.map((row) => row.peerRunId),
+    exactWorktrees: cleanupRows.map((row) => row.worktree),
+    exactBranches: cleanupRows.map((row) => row.branch),
+    archiveDirectories: cleanupRows.map((row) => row.archiveDirectory),
+    tabClosureHints: cleanupRows.map(
+      (row) =>
+        `Close visible peer tab/session for exact peerRunId ${row.peerRunId}; do not fuzzy-match unrelated Pi tabs.`,
+    ),
+    processTerminationHints: cleanupRows.map(
+      (row) =>
+        `Terminate only sidequest/peer processes whose command line contains exact candidate worktree ${row.worktree}.`,
+    ),
+    exactControllerCommands: cleanupRows.flatMap((row) => [
+      `mkdir -p ${shellQuote(row.archiveDirectory)}`,
+      `git -C ${shellQuote(row.worktree)} status --short > ${shellQuote(path.join(row.archiveDirectory, "status.txt"))}`,
+      `git -C ${shellQuote(input.cwd)} worktree remove --force ${shellQuote(row.worktree)}`,
+      `git -C ${shellQuote(input.cwd)} branch -D ${shellQuote(row.branch)}`,
+    ]),
+    blockers: cleanupBlockers,
+    boundary:
+      "Post-integration cleanup is a controller/workbench closeout packet only: archive first, close/kill only exact peer resources, remove only named worktrees/branches, and do not infer merge, promotion, AK/KES/evidence writes, release, push, or PR authority.",
+    nextStep:
+      cleanupBlockers.length === 0
+        ? "After successful integration is already committed/accepted, run these exact cleanup commands or hand them to the cleanup executor; do not clean any resource not named here."
+        : "After integration succeeds, rerun Level-4 with integrationCloseout.status=successful and controller-verified candidate bindings so cleanup resources become exact.",
+  };
   const candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket = {
     kind: "autoresearch.level4_visible_candidate_closeout_packet.v1",
     execution: "plan_only_controller_verified_closeout",
@@ -6818,6 +6919,7 @@ function buildLevel4PromptRunnerBundle(
       };
     }),
     packetInventory,
+    postIntegrationCleanupReady,
     comparison: {
       status: checkpointAccepted ? "ready_for_review_packet" : "pending_candidate_result_packets",
       aggregateReviewCall: contract.lanes[0]?.reviewCandidateWaveCall ?? null,

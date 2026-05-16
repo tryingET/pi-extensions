@@ -2878,6 +2878,18 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       closeoutPacket.packetInventory.summary,
       /0\/1 controller-verified measured packet/,
     );
+    assert.equal(
+      closeoutPacket.postIntegrationCleanupReady.kind,
+      "autoresearch.level4_post_integration_cleanup_ready.v1",
+    );
+    assert.equal(
+      closeoutPacket.postIntegrationCleanupReady.readiness,
+      "blocked_until_successful_integration_closeout",
+    );
+    assert.match(
+      closeoutPacket.postIntegrationCleanupReady.blockers.join("\n"),
+      /integrationCloseout\.status must be successful/,
+    );
     assert.match(closeoutPacket.lanes[0].launch.call, /^candidate_peer_spawn\(/);
     assert.match(
       closeoutPacket.lanes[0].launch.workspaceName,
@@ -3061,6 +3073,58 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.match(runCall, new RegExp(concreteWorktree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(runCall, /candidate\/cell-01-01-candidate-01/);
     assert.doesNotMatch(runCall, /branch-from-candidate_peer_spawn/);
+
+    const cleanupReady = await tool.execute(
+      "tc-level4-post-integration-cleanup-ready",
+      {
+        ...baseRequest,
+        checkpointConfirmation: requiredToken,
+        level4ReceiptPath: ".autoresearch/level4-cleanup-ready-receipts.jsonl",
+        integrationCloseout: {
+          status: "successful",
+          commit: "abc1234",
+          summary: "integrated test lane",
+        },
+        level3CandidateBindings: [
+          {
+            laneId: "cell-01-01-candidate-01",
+            candidatePeerRunId: "candidatepeer-test-cleanup",
+            candidateWorktree: concreteWorktree,
+            candidateBranch: "candidate/cell-01-01-candidate-01",
+            candidateBaseRef: "HEAD",
+            candidateDiffSummary: "controller verified test diff",
+            candidateFilesChanged: ["src/runtime/autoresearch-supervisor-runner.ts"],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const cleanupPacket =
+      cleanupReady.details.level4CampaignRunner.promptRunnerBundle.candidateCloseoutPacket
+        .postIntegrationCleanupReady;
+    assert.equal(cleanupPacket.kind, "autoresearch.level4_post_integration_cleanup_ready.v1");
+    assert.equal(cleanupPacket.readiness, "ready_after_successful_integration_closeout");
+    assert.deepEqual(cleanupPacket.exactPeerRunIds, ["candidatepeer-test-cleanup"]);
+    assert.deepEqual(cleanupPacket.exactWorktrees, [concreteWorktree]);
+    assert.deepEqual(cleanupPacket.exactBranches, ["candidate/cell-01-01-candidate-01"]);
+    assert.match(
+      cleanupPacket.archiveDirectories[0],
+      /cleanup-level4-task-2804-cell-01-01-candidate-01/,
+    );
+    assert.match(cleanupPacket.tabClosureHints[0], /candidatepeer-test-cleanup/);
+    assert.match(
+      cleanupPacket.processTerminationHints[0],
+      new RegExp(concreteWorktree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+    assert.ok(
+      cleanupPacket.exactControllerCommands.some((command) =>
+        /worktree remove --force/.test(command),
+      ),
+    );
+    assert.ok(cleanupPacket.exactControllerCommands.some((command) => /branch -D/.test(command)));
+    assert.equal(cleanupPacket.blockers.length, 0);
   });
 });
 
