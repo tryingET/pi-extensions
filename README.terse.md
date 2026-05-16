@@ -49,7 +49,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-activity-strip` | yes | show live session/activity strip UI | local desktop/window-manager assumptions may apply |
 | `pi-little-helpers` | yes | add small operator helpers | general-purpose utility package |
 | `pi-provenance` | yes | extract minimal Pi session/assistant-message provenance | source-owned provider/model/API refs for downstream evidence writers |
-| `pi-autonomous-session-control` | yes | provide autonomy/subagent control surfaces | strongest in subagent-heavy workflows |
+| `pi-autonomous-session-control` | yes | provide the `self` operational mirror plus autonomy/subagent control surfaces | strongest in subagent-heavy workflows; `self` summaries are mirror-only, not AK/KES/evidence authority |
 | `pi-autoresearch` | with extra setup | own the bounded experiment-loop runtime and manifest-campaign control seam | strongest when local campaign receipts and AK/Prompt Vault adjacencies are in play |
 | `pi-prompt-template-accelerator` | yes | speed up prompt-template command workflows | picker/prefill UX only |
 | `pi-prompt-template-execution` | yes | own prompt-template execution semantics | live successor for external `pi-prompt-template-model`; owns `/commit` extension execution semantics through a minimal guarded entrypoint, with no prompt bundle and no loop/chain/subagent runtime |

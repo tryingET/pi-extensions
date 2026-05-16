@@ -54,7 +54,7 @@ Start at the monorepo root only when you need package selection, root validation
 When cues overlap, route by owner before diving deeper:
 
 - `packages/pi-society-orchestrator` — coordination/control-plane questions that compose lower-plane owners, such as loops, routing selection, runtime-status wording, evidence intent, or exact supervision flows
-- `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, prompt-envelope application, session artifacts, rewind aliasing, and runtime/operator visibility tied to execution ownership
+- `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, the `self` operational mirror (including mirror-only handoff/closeout summaries), prompt-envelope application, session artifacts, rewind aliasing, and runtime/operator visibility tied to execution ownership
 - `packages/pi-provenance` — source-owned Pi session/assistant-message provenance extraction for downstream evidence writers, including provider/model/API refs without raw prompt or provider-payload capture
 - `packages/pi-prompt-template-execution` — prompt-template execution semantics such as `model`, `thinking`, `restore`, `skill`, conditionals, args, Pi host adapter behavior, dry-run diagnostics, compatibility canaries, and `/commit` live execution ownership after replacing `npm:pi-prompt-template-model`
 - `packages/pi-session-compaction` — custom `session_before_compact` summary ownership, summarizer model resolution, user-prompt/command preservation, and files-touched manifests (live local owner; do not enable alongside another compaction override)
