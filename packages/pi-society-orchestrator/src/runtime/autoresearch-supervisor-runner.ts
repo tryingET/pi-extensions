@@ -688,6 +688,47 @@ export interface AutoresearchLevel4CampaignRunnerReceipt {
   summary: string;
 }
 
+export interface AutoresearchLevel4VisibleLaunchWatchLanePlan {
+  cellId: string;
+  laneId: string;
+  launchSurface: "candidate_peer_spawn";
+  launchCall: string;
+  peerRunIdSource: "candidate_peer_spawn_return_value";
+  ackWatchCall: string;
+  finalWatchCall: string;
+  controllerVerificationRequired: readonly ["ack", "final", "worktree_lineage"];
+  state:
+    | "blocked_missing_parent_peer_target"
+    | "ready_for_visible_launch"
+    | "waiting_for_ack_final_and_lineage"
+    | "checkpoint_accepted_lineage_verified";
+}
+
+export interface AutoresearchLevel4VisibleLaunchWatchPlan {
+  kind: "autoresearch.level4_visible_candidate_launch_watch_orchestration.v1";
+  execution: "plan_only_controller_must_execute_visible_tools";
+  parentPeerTarget: string | null;
+  lanePlans: readonly AutoresearchLevel4VisibleLaunchWatchLanePlan[];
+  sequence: readonly string[];
+  metric: {
+    name: "level4_visible_launch_watch_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    blockers: readonly string[];
+  };
+  exactGatesPreserved: readonly [
+    "finalize_post_fanin",
+    "candidate_cleanup",
+    "ak_owner_write",
+    "promotion",
+  ];
+  forbiddenActions: readonly string[];
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
 export interface AutoresearchLevel4PromptRunnerLane {
   cellId: string;
   laneId: string;
@@ -720,6 +761,7 @@ export interface AutoresearchLevel4PromptRunnerBundle {
   promptBundle: readonly AutoresearchLevel4PromptRunnerLane[];
   visibleCandidatePeerSpawnCalls: readonly string[];
   peerWatchCalls: readonly string[];
+  visibleLaunchWatchPlan: AutoresearchLevel4VisibleLaunchWatchPlan;
   controllerLineageVerification: {
     peerFinalIsCommunicationOnly: true;
     requiredFacts: readonly ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"];
@@ -6424,13 +6466,84 @@ function buildLevel4PromptRunnerBundle(
     };
   });
 
+  const launchWatchBlockers = [
+    ...(missingParentPeerTarget
+      ? ["missing parentPeerTarget for visible candidate peer report-back"]
+      : []),
+    ...(promptBundle.length === 0 ? ["no prompt-runner lanes were generated"] : []),
+    ...(contract.launchPhase.visibleCandidateLaneBinding.hiddenLaunchCallCount > 0
+      ? ["hidden launch calls detected; only visible candidate_peer_spawn is allowed"]
+      : []),
+  ];
+  const launchWatchLaneState: AutoresearchLevel4VisibleLaunchWatchLanePlan["state"] =
+    missingParentPeerTarget
+      ? "blocked_missing_parent_peer_target"
+      : state === "ready_to_launch_visible_candidate_peers"
+        ? "ready_for_visible_launch"
+        : state === "checkpoint_accepted_controller_sequence_ready"
+          ? "checkpoint_accepted_lineage_verified"
+          : "waiting_for_ack_final_and_lineage";
+  const visibleLaunchWatchPlan: AutoresearchLevel4VisibleLaunchWatchPlan = {
+    kind: "autoresearch.level4_visible_candidate_launch_watch_orchestration.v1",
+    execution: "plan_only_controller_must_execute_visible_tools",
+    parentPeerTarget: input.parentPeerTarget?.trim() || null,
+    lanePlans: promptBundle.map(
+      (lane): AutoresearchLevel4VisibleLaunchWatchLanePlan => ({
+        cellId: lane.cellId,
+        laneId: lane.laneId,
+        launchSurface: "candidate_peer_spawn",
+        launchCall: lane.candidatePeerSpawnCall,
+        peerRunIdSource: "candidate_peer_spawn_return_value",
+        ackWatchCall: lane.peerAckWatchCall,
+        finalWatchCall: lane.peerFinalWatchCall,
+        controllerVerificationRequired: ["ack", "final", "worktree_lineage"],
+        state: launchWatchLaneState,
+      }),
+    ),
+    sequence: promptBundle.flatMap((lane) => [
+      lane.candidatePeerSpawnCall,
+      lane.peerAckWatchCall,
+      lane.peerFinalWatchCall,
+      ...lane.lineageVerificationChecklist,
+    ]),
+    metric: {
+      name: "level4_visible_launch_watch_blockers",
+      direction: "lower",
+      target: 0,
+      value: launchWatchBlockers.length,
+      status: launchWatchBlockers.length === 0 ? "target_met" : "blocked",
+      blockers: launchWatchBlockers,
+    },
+    exactGatesPreserved: [
+      "finalize_post_fanin",
+      "candidate_cleanup",
+      "ak_owner_write",
+      "promotion",
+    ],
+    forbiddenActions: [
+      "hidden peer spawn",
+      "controller-inline implementation patch",
+      "finalize_post_fanin apply",
+      "candidate_cleanup",
+      "ak_owner_write/evidence write",
+      "merge/release/promotion",
+    ],
+    boundaries: [
+      "This is a launch/watch orchestration plan only; it returns visible candidate_peer_spawn and intercom watch calls without executing them.",
+      "ACK and PEER_FINAL are communication only; controller-verified git/worktree facts are required before bind/measure/export/review.",
+      "Finalizer, cleanup, AK owner writes, merge, release, and promotion remain separate exact owner gates.",
+    ],
+    nextStep:
+      launchWatchBlockers.length > 0
+        ? "Resolve launch/watch blockers before launching visible candidate peers."
+        : state === "checkpoint_accepted_controller_sequence_ready"
+          ? "Visible launch/watch lineage is checkpointed; proceed only with controller-verified bind/measure/export/review calls."
+          : "Controller may execute the visible candidate_peer_spawn calls, watch ACK/FINAL, verify lineage, then proceed to bind/measure/export/review.",
+  };
   const postFinalControllerSequence = checkpointAccepted
     ? executor.level3Runner.benchmarkExportReviewCalls
     : contract.lanes.flatMap((lane) => [...lane.measurementPlan, lane.reviewCandidateWaveCall]);
-  const blockerValue =
-    (missingParentPeerTarget ? 1 : 0) +
-    (promptBundle.length === 0 ? 1 : 0) +
-    (contract.launchPhase.visibleCandidateLaneBinding.hiddenLaunchCallCount > 0 ? 1 : 0);
+  const blockerValue = visibleLaunchWatchPlan.metric.value;
 
   return {
     kind: "autoresearch.level4_prompt_runner_bundle.v1",
@@ -6450,6 +6563,7 @@ function buildLevel4PromptRunnerBundle(
       lane.peerAckWatchCall,
       lane.peerFinalWatchCall,
     ]),
+    visibleLaunchWatchPlan,
     controllerLineageVerification: {
       peerFinalIsCommunicationOnly: true,
       requiredFacts: ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"],

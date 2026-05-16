@@ -2798,6 +2798,42 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       blocked.details.level4CampaignRunner.promptRunnerBundle.peerWatchCalls[0],
       /^intercom\(/,
     );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.kind,
+      "autoresearch.level4_visible_candidate_launch_watch_orchestration.v1",
+    );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.execution,
+      "plan_only_controller_must_execute_visible_tools",
+    );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.metric.name,
+      "level4_visible_launch_watch_blockers",
+    );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.metric.value,
+      0,
+    );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans[0]
+        .launchSurface,
+      "candidate_peer_spawn",
+    );
+    assert.equal(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans[0]
+        .state,
+      "ready_for_visible_launch",
+    );
+    assert.match(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans[0]
+        .ackWatchCall,
+      /^intercom\(/,
+    );
+    assert.deepEqual(
+      blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan
+        .exactGatesPreserved,
+      ["finalize_post_fanin", "candidate_cleanup", "ak_owner_write", "promotion"],
+    );
     assert.match(
       blocked.details.level4CampaignRunner.promptRunnerBundle.promptBundle[0].promptMarkdown,
       /Required execution pattern/,
@@ -2807,6 +2843,8 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       /Controller post-final calls after lineage verification/,
     );
     assert.match(blocked.content[0].text, /whole_matrix_execution_glue_blockers: 0/);
+    assert.match(blocked.content[0].text, /level4_visible_launch_watch_blockers: 0/);
+    assert.match(blocked.content[0].text, /Visible launch\/watch orchestration/);
     assert.match(blocked.content[0].text, /candidate_peer_spawn/);
     assert.deepEqual(blocked.details.level4CampaignRunner.exactGatesPreserved, [
       "finalize_post_fanin",
@@ -2832,6 +2870,10 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(level4.posture, "awaiting_external_controller");
     assert.equal(level4.metric.value, 0);
     assert.equal(level4.promptRunnerBundle.state, "checkpoint_accepted_controller_sequence_ready");
+    assert.equal(
+      level4.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans[0].state,
+      "checkpoint_accepted_lineage_verified",
+    );
     assert.match(
       level4.promptRunnerBundle.postFinalControllerSequence[0],
       /^autoresearch_candidate_bind\(/,

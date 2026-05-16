@@ -798,6 +798,7 @@ function formatAutoresearchLevel4CampaignRunnerReport(
     `Completed action count: ${runner.completedActionCount}`,
     `level4_autoresearch_automation_blockers: ${runner.metric.value} (target=${runner.metric.target}, ${runner.metric.status})`,
     `whole_matrix_execution_glue_blockers: ${runner.promptRunnerBundle.metric.value} (target=${runner.promptRunnerBundle.metric.target}, ${runner.promptRunnerBundle.metric.status})`,
+    `level4_visible_launch_watch_blockers: ${runner.promptRunnerBundle.visibleLaunchWatchPlan.metric.value} (target=${runner.promptRunnerBundle.visibleLaunchWatchPlan.metric.target}, ${runner.promptRunnerBundle.visibleLaunchWatchPlan.metric.status})`,
     `Prompt runner state: ${runner.promptRunnerBundle.state}`,
     "",
     "Prompt-runner matrix pattern:",
@@ -819,6 +820,21 @@ function formatAutoresearchLevel4CampaignRunnerReport(
     ...(runner.promptRunnerBundle.peerWatchCalls.length > 0
       ? runner.promptRunnerBundle.peerWatchCalls.map((call) => `- ${call}`)
       : ["- none"]),
+    "",
+    "Visible launch/watch orchestration:",
+    `- kind: ${runner.promptRunnerBundle.visibleLaunchWatchPlan.kind}`,
+    `- execution: ${runner.promptRunnerBundle.visibleLaunchWatchPlan.execution}`,
+    `- parentPeerTarget: ${runner.promptRunnerBundle.visibleLaunchWatchPlan.parentPeerTarget ?? "missing"}`,
+    ...(runner.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans.length > 0
+      ? runner.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans.map(
+          (lane) => `- ${lane.cellId}/${lane.laneId}: ${lane.state}; surface=${lane.launchSurface}`,
+        )
+      : ["- lanes: none"]),
+    ...(runner.promptRunnerBundle.visibleLaunchWatchPlan.metric.blockers.length > 0
+      ? runner.promptRunnerBundle.visibleLaunchWatchPlan.metric.blockers.map(
+          (blocker) => `- blocker: ${blocker}`,
+        )
+      : ["- blockers: none"]),
     "",
     "Controller lineage verification:",
     ...runner.promptRunnerBundle.controllerLineageVerification.checklist.map((item) => `- ${item}`),
