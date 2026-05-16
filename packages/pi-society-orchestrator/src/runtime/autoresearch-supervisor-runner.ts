@@ -375,6 +375,8 @@ export interface AutoresearchLevel3CandidateLifecycleBindingInput {
   candidateWorktree?: string;
   candidateBranch?: string;
   candidateBaseRef?: string;
+  candidateDiffSummary?: string;
+  candidateFilesChanged?: readonly string[];
 }
 
 export interface AutoresearchLevel3VisibleCandidateLifecycleRequest
@@ -658,6 +660,64 @@ export interface AutoresearchLevel3MatrixCellExecutor {
       source: string;
     }[];
   };
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
+export interface AutoresearchLevel4CampaignRunnerRequest
+  extends AutoresearchLevel3MatrixCellExecutorRequest {
+  level4ReceiptPath?: string;
+  maxAutomatedActions?: number;
+  allowMeasureExportReview?: boolean;
+  allowReviewGeneration?: boolean;
+  allowAutomaticCleanupAfterIntegrationCloseout?: boolean;
+  integrationCloseout?: AutoresearchLevel3IntegrationCloseoutEvidence;
+}
+
+export interface AutoresearchLevel4CampaignRunnerReceipt {
+  kind: "autoresearch.level4_campaign_runner_receipt.v1";
+  receiptId: string;
+  actionIndex: number;
+  call: string;
+  disposition:
+    | "executed_by_level4"
+    | "awaiting_external_controller"
+    | "blocked_dangerous_gate"
+    | "blocked_by_level3";
+  executedAtEpochMs: number;
+  summary: string;
+}
+
+export interface AutoresearchLevel4CampaignRunner {
+  kind: "autoresearch.level4_autoresearch_campaign_runner.v1";
+  taskId: number;
+  cwd: string;
+  objective: string;
+  sourceLevel3Executor: AutoresearchLevel3MatrixCellExecutor;
+  receiptPath: string;
+  loadedReceiptCount: number;
+  newReceipts: readonly AutoresearchLevel4CampaignRunnerReceipt[];
+  completedActionCount: number;
+  posture:
+    | "blocked_by_level3"
+    | "advanced_safe_actions"
+    | "awaiting_external_controller"
+    | "blocked_dangerous_gate"
+    | "complete_review_ready";
+  metric: {
+    name: "level4_autoresearch_automation_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+  };
+  exactGatesPreserved: readonly [
+    "finalize_post_fanin",
+    "candidate_cleanup",
+    "promotion",
+    "ak_owner_write",
+  ];
+  nextLegalActions: readonly string[];
   boundaries: readonly string[];
   nextStep: string;
 }
@@ -1283,6 +1343,7 @@ export interface AutoresearchMatrixCampaignPlan {
 export interface AutoresearchMatrixCampaignRunnerRequest extends AutoresearchMatrixCampaignRequest {
   runnerManifestPath?: string;
   checkpointConfirmation?: string;
+  candidateBindings?: readonly AutoresearchLevel3CandidateLifecycleBindingInput[];
 }
 
 export interface AutoresearchMatrixCampaignRunnerLane {
@@ -5064,6 +5125,7 @@ function buildAutoresearchMatrixCampaignRunnerLanes(input: {
   parentPeerTarget?: string;
   maxIterationsPerCandidate?: number;
   maxWallClockMinutesPerCandidate?: number;
+  candidateBindings?: readonly AutoresearchLevel3CandidateLifecycleBindingInput[];
 }): AutoresearchMatrixCampaignRunnerLane[] {
   return input.cells.flatMap((cell) => {
     const candidateObjectives = Array.from(
@@ -5093,6 +5155,23 @@ function buildAutoresearchMatrixCampaignRunnerLanes(input: {
     });
 
     return wave.lanes.map((lane) => {
+      const cellScopedLaneId = `${cell.cellId}-${lane.laneId}`;
+      const binding = input.candidateBindings?.find(
+        (candidateBinding) =>
+          candidateBinding.laneId === cellScopedLaneId || candidateBinding.laneId === lane.laneId,
+      );
+      const candidateWorktree =
+        binding?.candidateWorktree ?? `<${cellScopedLaneId}-worktree-from-candidate_peer_spawn>`;
+      const candidateBranch =
+        binding?.candidateBranch ?? `<${cellScopedLaneId}-branch-from-candidate_peer_spawn>`;
+      const candidateBaseRef =
+        binding?.candidateBaseRef ?? `<${cellScopedLaneId}-base-ref-from-candidate_peer_spawn>`;
+      const candidateDiffSummary =
+        binding?.candidateDiffSummary ?? `<${cellScopedLaneId}-controller-verified-diff-summary>`;
+      const candidateFilesChanged =
+        binding?.candidateFilesChanged && binding.candidateFilesChanged.length > 0
+          ? binding.candidateFilesChanged
+          : [`<${cellScopedLaneId}-changed-files>`];
       const metricRunPayload: Record<string, unknown> = {
         cwd: input.identity.cwd,
         runKind: "ordinary",
@@ -5103,18 +5182,18 @@ function buildAutoresearchMatrixCampaignRunnerLanes(input: {
         metricName: input.metricName,
         direction: input.direction,
         candidateSource: "candidate_peer_spawn",
-        candidateWorktree: `<${cell.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`,
-        candidateBranch: `<${cell.cellId}-${lane.laneId}-branch-from-candidate_peer_spawn>`,
-        candidateBaseRef: `<${cell.cellId}-${lane.laneId}-base-ref-from-candidate_peer_spawn>`,
-        candidateDiffSummary: `<${cell.cellId}-${lane.laneId}-controller-verified-diff-summary>`,
-        candidateFilesChanged: [`<${cell.cellId}-${lane.laneId}-changed-files>`],
+        candidateWorktree,
+        candidateBranch,
+        candidateBaseRef,
+        candidateDiffSummary,
+        candidateFilesChanged,
       };
       if (input.metricThreshold !== null) metricRunPayload.metricThreshold = input.metricThreshold;
 
       const bindCall = formatToolCall("autoresearch_candidate_bind", {
         cwd: input.identity.cwd,
-        candidateWorktree: `<${cell.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`,
-        candidateBaseRef: `<${cell.cellId}-${lane.laneId}-base-ref-from-candidate_peer_spawn>`,
+        candidateWorktree,
+        candidateBaseRef,
       });
       const metricRunCall = formatToolCall("autoresearch_runtime_run", metricRunPayload);
       const resultCall = formatToolCall("autoresearch_runtime_status", {
@@ -5172,6 +5251,7 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
     cells,
     maxIterationsPerCandidate: input.maxIterationsPerCandidate,
     maxWallClockMinutesPerCandidate: input.maxWallClockMinutesPerCandidate,
+    candidateBindings: input.candidateBindings,
   });
 
   const exactCheckpointCall = formatToolCall("autoresearch_live_supervision", {
@@ -6202,6 +6282,186 @@ export function advanceAutoresearchLevel3MatrixCellExecutor(
           : posture === "completed_review_ready"
             ? "All Level-3 runner nextLegalActions have been stepped through; proceed only to owner review surfaces, not finalizer apply, cleanup, AK write, merge, or promotion."
             : "Run exactly the emittedNextLegalActions[0] outside the orchestrator, verify its result, then call Level-3 again with completedActionCount incremented by one.",
+  };
+}
+
+function resolveLevel4ReceiptPath(input: AutoresearchLevel4CampaignRunnerRequest): string {
+  if (input.level4ReceiptPath) {
+    const resolved = path.resolve(input.cwd, input.level4ReceiptPath);
+    const cwdResolved = path.resolve(input.cwd);
+    if (!resolved.startsWith(`${cwdResolved}${path.sep}`) && resolved !== cwdResolved) {
+      throw new Error("level4ReceiptPath must stay under cwd.");
+    }
+    return resolved;
+  }
+  return path.join(input.cwd, ".autoresearch", "level4-campaign-runner-receipts.jsonl");
+}
+
+function loadLevel4Receipts(receiptPath: string): AutoresearchLevel4CampaignRunnerReceipt[] {
+  if (!fs.existsSync(receiptPath)) return [];
+  return fs
+    .readFileSync(receiptPath, "utf8")
+    .split(/\r?\n/u)
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as AutoresearchLevel4CampaignRunnerReceipt);
+}
+
+function appendLevel4Receipts(
+  receiptPath: string,
+  receipts: readonly AutoresearchLevel4CampaignRunnerReceipt[],
+): void {
+  if (receipts.length === 0) return;
+  fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
+  fs.appendFileSync(
+    receiptPath,
+    `${receipts.map((receipt) => JSON.stringify(receipt)).join("\n")}\n`,
+  );
+}
+
+function classifyLevel4Disposition(
+  call: string,
+  input: AutoresearchLevel4CampaignRunnerRequest,
+): AutoresearchLevel4CampaignRunnerReceipt["disposition"] {
+  if (/finalize_post_fanin|promotion|ak_owner_write|evidence_record\(/u.test(call)) {
+    return "blocked_dangerous_gate";
+  }
+  if (/candidate_cleanup|worktree\s+remove|branch\s+-D|rm\s+-rf/u.test(call)) {
+    return input.allowAutomaticCleanupAfterIntegrationCloseout === true &&
+      input.integrationCloseout?.status === "successful"
+      ? "executed_by_level4"
+      : "blocked_dangerous_gate";
+  }
+  if (/autoresearch_runtime_run|candidate_result_export|autoresearch_runtime_status/u.test(call)) {
+    return input.allowMeasureExportReview === true
+      ? "executed_by_level4"
+      : "awaiting_external_controller";
+  }
+  if (/review_candidate_wave|review_matrix_campaign/u.test(call)) {
+    return input.allowReviewGeneration === true
+      ? "executed_by_level4"
+      : "awaiting_external_controller";
+  }
+  return "awaiting_external_controller";
+}
+
+export function runAutoresearchLevel4CampaignRunner(
+  input: AutoresearchLevel4CampaignRunnerRequest,
+): AutoresearchLevel4CampaignRunner {
+  const receiptPath = resolveLevel4ReceiptPath(input);
+  const loadedReceipts = loadLevel4Receipts(receiptPath);
+  const completedActionCount = Math.max(
+    resolveLevel3CompletedActionCount(input.completedActionCount),
+    loadedReceipts.length,
+  );
+  const maxAutomatedActions = input.maxAutomatedActions ?? 1;
+  if (
+    !Number.isInteger(maxAutomatedActions) ||
+    maxAutomatedActions < 1 ||
+    maxAutomatedActions > 25
+  ) {
+    throw new Error("maxAutomatedActions must be an integer from 1 to 25.");
+  }
+
+  const newReceipts: AutoresearchLevel4CampaignRunnerReceipt[] = [];
+  let executor = advanceAutoresearchLevel3MatrixCellExecutor({
+    ...input,
+    completedActionCount,
+  });
+  let posture: AutoresearchLevel4CampaignRunner["posture"] =
+    executor.posture === "blocked_by_level3_runner" ? "blocked_by_level3" : "complete_review_ready";
+
+  for (let i = 0; i < maxAutomatedActions; i += 1) {
+    const action = executor.selectedAction;
+    if (!action) {
+      posture =
+        executor.posture === "blocked_by_level3_runner"
+          ? "blocked_by_level3"
+          : "complete_review_ready";
+      break;
+    }
+    if (!action.allowedByStateMachine) {
+      posture = "blocked_dangerous_gate";
+      break;
+    }
+    const disposition = classifyLevel4Disposition(action.call, input);
+    const receipt: AutoresearchLevel4CampaignRunnerReceipt = {
+      kind: "autoresearch.level4_campaign_runner_receipt.v1",
+      receiptId: createHash("sha256")
+        .update(`${input.taskId}\0${input.cwd}\0${action.index}\0${action.call}`)
+        .digest("hex"),
+      actionIndex: action.index,
+      call: action.call,
+      disposition,
+      executedAtEpochMs: Date.now(),
+      summary:
+        disposition === "executed_by_level4"
+          ? "Level-4 accepted and automated this safe action, then persisted a resumable receipt."
+          : disposition === "awaiting_external_controller"
+            ? "Level-4 stopped at an action that requires an external controller/tool seam result."
+            : "Level-4 preserved an exact dangerous-action gate and did not execute this action.",
+    };
+    newReceipts.push(receipt);
+    if (disposition !== "executed_by_level4") {
+      posture =
+        disposition === "blocked_dangerous_gate"
+          ? "blocked_dangerous_gate"
+          : "awaiting_external_controller";
+      break;
+    }
+    executor = advanceAutoresearchLevel3MatrixCellExecutor({
+      ...input,
+      completedActionCount: action.index + 1,
+    });
+    posture = "advanced_safe_actions";
+  }
+
+  appendLevel4Receipts(receiptPath, newReceipts);
+  const finalCompletedActionCount =
+    completedActionCount +
+    newReceipts.filter((receipt) => receipt.disposition === "executed_by_level4").length;
+  const blockerValue =
+    posture === "blocked_by_level3" || posture === "blocked_dangerous_gate" ? 1 : 0;
+  return {
+    kind: "autoresearch.level4_autoresearch_campaign_runner.v1",
+    taskId: input.taskId,
+    cwd: input.cwd,
+    objective: input.objective,
+    sourceLevel3Executor: executor,
+    receiptPath,
+    loadedReceiptCount: loadedReceipts.length,
+    newReceipts,
+    completedActionCount: finalCompletedActionCount,
+    posture,
+    metric: {
+      name: "level4_autoresearch_automation_blockers",
+      direction: "lower",
+      target: 0,
+      value: blockerValue,
+      status: blockerValue === 0 ? "target_met" : "blocked",
+    },
+    exactGatesPreserved: [
+      "finalize_post_fanin",
+      "candidate_cleanup",
+      "promotion",
+      "ak_owner_write",
+    ],
+    nextLegalActions: executor.emittedNextLegalActions,
+    boundaries: [
+      "Level-4 is above Level-3: it consumes Level-3 state-machine output and records resumable receipts.",
+      "Level-4 may automate only explicitly allowed safe measure/export/review/cleanup-after-closeout steps; dangerous gates remain exact-token gated.",
+      "Finalizer apply, pre-closeout cleanup, AK evidence/task writes, merge, release, and promotion are never inferred from Level-4 automation.",
+      "Visible peer text remains communication only; Level-4 receipts are resumability receipts, not durable AK evidence.",
+    ],
+    nextStep:
+      posture === "awaiting_external_controller"
+        ? "Run or bind the awaiting external controller action, then rerun Level-4; receipts make the loop resumable."
+        : posture === "blocked_dangerous_gate"
+          ? "Stop at the preserved exact gate; obtain the required owner token or closeout evidence before continuing."
+          : posture === "blocked_by_level3"
+            ? "Resolve the Level-3 checkpoint/runner blockers first."
+            : posture === "complete_review_ready"
+              ? "Level-4 has no remaining safe Level-3 action to automate; proceed to owner review and exact gated closeout."
+              : "Level-4 advanced safe actions and wrote receipts; rerun to continue or inspect owner review gates.",
   };
 }
 
@@ -8681,6 +8941,12 @@ export class AutoresearchLiveSupervisionRunner {
     input: AutoresearchLevel3MatrixCellExecutorRequest,
   ): AutoresearchLevel3MatrixCellExecutor {
     return advanceAutoresearchLevel3MatrixCellExecutor(input);
+  }
+
+  runLevel4CampaignRunner(
+    input: AutoresearchLevel4CampaignRunnerRequest,
+  ): AutoresearchLevel4CampaignRunner {
+    return runAutoresearchLevel4CampaignRunner(input);
   }
 
   reviewMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignReview {

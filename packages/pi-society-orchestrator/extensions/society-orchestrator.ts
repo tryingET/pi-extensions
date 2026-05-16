@@ -82,6 +82,7 @@ import {
   type AutoresearchLevel3MeasureExportReviewPlan,
   type AutoresearchLevel3SliceSequenceDryRun,
   type AutoresearchLevel3VisibleCandidateLifecyclePlan,
+  type AutoresearchLevel4CampaignRunner,
   type AutoresearchLivePollResult,
   type AutoresearchLiveStartCampaignResult,
   type AutoresearchLiveStartResult,
@@ -97,6 +98,7 @@ import {
   type AutoresearchMatrixCampaignRunnerContract,
   type AutoresearchPostFaninFinalizerResult,
   describeAutoresearchLiveNextStep,
+  runAutoresearchLevel4CampaignRunner,
 } from "../src/runtime/autoresearch-supervisor-runner.ts";
 import {
   getBoundaryTelemetryStats,
@@ -190,6 +192,7 @@ type AutoresearchLiveSupervisionAction =
   | "level3_matrix_cell_runner"
   | "level3_authorized_finalizer_cleanup_plan"
   | "level3_matrix_cell_executor"
+  | "level4_autoresearch_campaign_runner"
   | "plan_matrix_campaign"
   | "prepare_matrix_campaign_runner"
   | "checkpoint_matrix_campaign_runner"
@@ -221,6 +224,7 @@ type AutoresearchLiveSupervisionToolDetails = {
   level3MatrixCellRunner?: AutoresearchLevel3MatrixCellRunner;
   level3AuthorizedFinalizerCleanupPlan?: AutoresearchLevel3AuthorizedFinalizerCleanupPlan;
   level3MatrixCellExecutor?: AutoresearchLevel3MatrixCellExecutor;
+  level4CampaignRunner?: AutoresearchLevel4CampaignRunner;
   matrixCampaign?: AutoresearchMatrixCampaignPlan;
   matrixCampaignRunner?: AutoresearchMatrixCampaignRunnerContract;
   matrixCampaignRunnerCheckpoint?: AutoresearchMatrixCampaignRunnerCheckpoint;
@@ -776,6 +780,44 @@ function formatAutoresearchLevel3MatrixCellExecutorReport(
     ...executor.boundaries.map((boundary) => `- ${boundary}`),
     "",
     `Next step: ${executor.nextStep}`,
+  ].join("\n");
+}
+
+function formatAutoresearchLevel4CampaignRunnerReport(
+  runner: AutoresearchLevel4CampaignRunner,
+): string {
+  return [
+    "Autoresearch live supervision — level4_autoresearch_campaign_runner",
+    `Task: #${runner.taskId}`,
+    `CWD: ${runner.cwd}`,
+    `Objective: ${runner.objective}`,
+    `Posture: ${runner.posture}`,
+    `Receipt path: ${runner.receiptPath}`,
+    `Loaded receipts: ${runner.loadedReceiptCount}`,
+    `New receipts: ${runner.newReceipts.length}`,
+    `Completed action count: ${runner.completedActionCount}`,
+    `level4_autoresearch_automation_blockers: ${runner.metric.value} (target=${runner.metric.target}, ${runner.metric.status})`,
+    "",
+    "New Level-4 receipts:",
+    ...(runner.newReceipts.length > 0
+      ? runner.newReceipts.map(
+          (receipt) =>
+            `- #${receipt.actionIndex}: ${receipt.disposition}; id=${receipt.receiptId}; call=${receipt.call}`,
+        )
+      : ["- none"]),
+    "",
+    "Exact gates preserved:",
+    ...runner.exactGatesPreserved.map((gate) => `- ${gate}`),
+    "",
+    "Next legal actions:",
+    ...(runner.nextLegalActions.length > 0
+      ? runner.nextLegalActions.map((action) => `- ${action}`)
+      : ["- none"]),
+    "",
+    "Boundaries:",
+    ...runner.boundaries.map((boundary) => `- ${boundary}`),
+    "",
+    `Next step: ${runner.nextStep}`,
   ].join("\n");
 }
 
@@ -2444,6 +2486,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           Type.Literal("level3_matrix_cell_runner"),
           Type.Literal("level3_authorized_finalizer_cleanup_plan"),
           Type.Literal("level3_matrix_cell_executor"),
+          Type.Literal("level4_autoresearch_campaign_runner"),
           Type.Literal("plan_matrix_campaign"),
           Type.Literal("prepare_matrix_campaign_runner"),
           Type.Literal("checkpoint_matrix_campaign_runner"),
@@ -2518,6 +2561,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             candidateWorktree: Type.Optional(Type.String()),
             candidateBranch: Type.Optional(Type.String()),
             candidateBaseRef: Type.Optional(Type.String()),
+            candidateDiffSummary: Type.Optional(Type.String()),
+            candidateFilesChanged: Type.Optional(Type.Array(Type.String())),
           }),
           {
             description:
@@ -2662,7 +2707,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       completedActionCount: Type.Optional(
         Type.Number({
           description:
-            "For action=level3_matrix_cell_executor, the count of previously controller-run and verified Level-3 runner nextLegalActions; the executor emits only the next safe action.",
+            "For action=level3_matrix_cell_executor or level4_autoresearch_campaign_runner, the count of previously controller-run and verified Level-3 runner nextLegalActions; Level-4 also resumes from its receipt file.",
           minimum: 0,
         }),
       ),
@@ -2675,7 +2720,39 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       level3Manifest: Type.Optional(
         Type.Record(Type.String(), Type.Unknown(), {
           description:
-            "Inline autoresearch.level3_campaign_manifest.v1 object for action=level3_manifest_preflight or action=level3_slice_sequence_dry_run.",
+            "Inline autoresearch.level3_campaign_manifest.v1 object for Level-3 or Level-4 action surfaces.",
+        }),
+      ),
+      level4ReceiptPath: Type.Optional(
+        Type.String({
+          description:
+            "Optional cwd-relative receipt JSONL path for action=level4_autoresearch_campaign_runner.",
+        }),
+      ),
+      maxAutomatedActions: Type.Optional(
+        Type.Number({
+          description:
+            "Maximum safe actions Level-4 may automate in one invocation (1-25, default 1).",
+          minimum: 1,
+          maximum: 25,
+        }),
+      ),
+      allowMeasureExportReview: Type.Optional(
+        Type.Boolean({
+          description:
+            "When true, Level-4 may execute safe measure/export/status actions instead of stopping for the controller seam.",
+        }),
+      ),
+      allowReviewGeneration: Type.Optional(
+        Type.Boolean({
+          description:
+            "When true, Level-4 may execute safe review packet generation actions; owner gates still remain exact.",
+        }),
+      ),
+      allowAutomaticCleanupAfterIntegrationCloseout: Type.Optional(
+        Type.Boolean({
+          description:
+            "When true, Level-4 may consume cleanup only after successful integrationCloseout with exact resources; pre-closeout cleanup remains gated.",
         }),
       ),
       maxIterations: Type.Optional(
@@ -2806,6 +2883,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         completedActionCount,
         level3ManifestPath,
         level3Manifest,
+        level4ReceiptPath,
+        maxAutomatedActions,
+        allowMeasureExportReview,
+        allowReviewGeneration,
+        allowAutomaticCleanupAfterIntegrationCloseout,
         maxIterations,
         maxWallClockMinutes,
         benchmarkCommand,
@@ -2844,6 +2926,8 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           candidateWorktree?: string;
           candidateBranch?: string;
           candidateBaseRef?: string;
+          candidateDiffSummary?: string;
+          candidateFilesChanged?: string[];
         }>;
         launchAuthorizationToken?: string;
         level3CandidateResultPacketDirectory?: string;
@@ -2893,6 +2977,11 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         completedActionCount?: number;
         level3ManifestPath?: string;
         level3Manifest?: Record<string, unknown>;
+        level4ReceiptPath?: string;
+        maxAutomatedActions?: number;
+        allowMeasureExportReview?: boolean;
+        allowReviewGeneration?: boolean;
+        allowAutomaticCleanupAfterIntegrationCloseout?: boolean;
         maxIterations?: number;
         maxWallClockMinutes?: number;
         benchmarkCommand?: string;
@@ -3351,6 +3440,51 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
               sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
               nextStep: result.nextStep,
               level3MatrixCellExecutor: result,
+            },
+          );
+        }
+
+        if (action === "level4_autoresearch_campaign_runner") {
+          const matrixObjective = objective?.trim() ?? "";
+          if (matrixObjective.length === 0) {
+            throw new Error("level4_autoresearch_campaign_runner requires a non-empty objective.");
+          }
+          const result = runAutoresearchLevel4CampaignRunner({
+            ...identity,
+            objective: matrixObjective,
+            direction,
+            metricName,
+            metricThreshold,
+            scenarios,
+            hypotheses,
+            candidateCountPerCell,
+            filesInScope,
+            offLimits,
+            constraints,
+            parentPeerTarget,
+            maxIterationsPerCandidate: maxIterations,
+            maxWallClockMinutesPerCandidate: maxWallClockMinutes,
+            runnerManifestPath,
+            checkpointConfirmation,
+            completedActionCount,
+            candidateBindings: level3CandidateBindings,
+            level4ReceiptPath,
+            maxAutomatedActions,
+            allowMeasureExportReview,
+            allowReviewGeneration,
+            allowAutomaticCleanupAfterIntegrationCloseout,
+            integrationCloseout,
+            intervalSeconds,
+            signal,
+          });
+          return createAutoresearchLiveToolResult(
+            formatAutoresearchLevel4CampaignRunnerReport(result),
+            {
+              ok: result.metric.status === "target_met",
+              action,
+              sessionKey: `${identity.taskId}|${path.resolve(identity.cwd)}`,
+              nextStep: result.nextStep,
+              level4CampaignRunner: result,
             },
           );
         }

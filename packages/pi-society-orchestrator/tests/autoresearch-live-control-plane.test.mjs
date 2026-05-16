@@ -2736,6 +2736,154 @@ test("autoresearch_live_supervision level3_matrix_cell_executor advances one saf
   assert.equal(secondExecutor.emittedNextLegalActions.length, 1);
 });
 
+test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists resumable receipts and preserves gates", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    assert.ok(tool.parameters.properties.level4ReceiptPath, "schema exposes level4ReceiptPath");
+    assert.ok(tool.parameters.properties.maxAutomatedActions, "schema exposes maxAutomatedActions");
+    assert.ok(
+      tool.parameters.properties.allowMeasureExportReview,
+      "schema exposes Level-4 safe automation switch",
+    );
+
+    const baseRequest = {
+      action: "level4_autoresearch_campaign_runner",
+      taskId: 2804,
+      cwd,
+      objective: "automate safe Level-4 controller glue above Level-3",
+      direction: "lower",
+      metricName: "level4_autoresearch_automation_blockers",
+      metricThreshold: 0,
+      scenarios: ["safety"],
+      hypotheses: ["resumable safe automation"],
+      candidateCountPerCell: 1,
+      parentPeerTarget: "controller-peer-1",
+      runnerManifestPath: ".autoresearch/matrix-campaign/level4-runner.json",
+      level4ReceiptPath: ".autoresearch/level4-test-receipts.jsonl",
+    };
+
+    const blocked = await tool.execute(
+      "tc-level4-blocked",
+      baseRequest,
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(blocked.details.ok, false);
+    assert.equal(blocked.details.action, "level4_autoresearch_campaign_runner");
+    assert.equal(
+      blocked.details.level4CampaignRunner.kind,
+      "autoresearch.level4_autoresearch_campaign_runner.v1",
+    );
+    assert.equal(blocked.details.level4CampaignRunner.posture, "blocked_by_level3");
+    assert.deepEqual(blocked.details.level4CampaignRunner.exactGatesPreserved, [
+      "finalize_post_fanin",
+      "candidate_cleanup",
+      "promotion",
+      "ak_owner_write",
+    ]);
+
+    const requiredToken =
+      blocked.details.level4CampaignRunner.sourceLevel3Executor.level3Runner.checkpointGate
+        ?.requiredToken ??
+      blocked.details.level4CampaignRunner.sourceLevel3Executor.level3Runner.requiredToken;
+    const awaiting = await tool.execute(
+      "tc-level4-awaiting-external",
+      { ...baseRequest, checkpointConfirmation: requiredToken, maxAutomatedActions: 2 },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+
+    assert.equal(awaiting.details.ok, true);
+    const level4 = awaiting.details.level4CampaignRunner;
+    assert.equal(level4.posture, "awaiting_external_controller");
+    assert.equal(level4.metric.value, 0);
+    assert.equal(level4.newReceipts.length, 1);
+    assert.equal(level4.newReceipts[0].disposition, "awaiting_external_controller");
+    assert.match(level4.newReceipts[0].call, /^autoresearch_candidate_bind\(/);
+    assert.equal(level4.loadedReceiptCount, 0);
+    assert.match(awaiting.content[0].text, /level4_autoresearch_automation_blockers: 0/);
+    assert.match(awaiting.content[0].text, /Exact gates preserved/);
+
+    const receiptText = readFileSync(
+      path.join(cwd, ".autoresearch", "level4-test-receipts.jsonl"),
+      "utf8",
+    );
+    assert.match(receiptText, /autoresearch\.level4_campaign_runner_receipt\.v1/);
+    assert.match(receiptText, /awaiting_external_controller/);
+
+    const resumed = await tool.execute(
+      "tc-level4-resume",
+      { ...baseRequest, checkpointConfirmation: requiredToken },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    assert.equal(resumed.details.level4CampaignRunner.loadedReceiptCount, 1);
+    assert.match(
+      resumed.details.level4CampaignRunner.sourceLevel3Executor.selectedAction.call,
+      /^autoresearch_runtime_run\(/,
+    );
+
+    const concreteWorktree = path.join(cwd, ".worktrees", "cell-01-01-candidate-01");
+    const concrete = await tool.execute(
+      "tc-level4-concrete-binding",
+      {
+        ...baseRequest,
+        checkpointConfirmation: requiredToken,
+        level4ReceiptPath: ".autoresearch/level4-concrete-binding-receipts.jsonl",
+        level3CandidateBindings: [
+          {
+            laneId: "cell-01-01-candidate-01",
+            candidateWorktree: concreteWorktree,
+            candidateBranch: "candidate/cell-01-01-candidate-01",
+            candidateBaseRef: "HEAD",
+            candidateDiffSummary: "controller verified test diff",
+            candidateFilesChanged: ["src/runtime/autoresearch-supervisor-runner.ts"],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const concreteCall = concrete.details.level4CampaignRunner.newReceipts[0].call;
+    assert.match(concreteCall, /autoresearch_candidate_bind/);
+    assert.match(concreteCall, new RegExp(concreteWorktree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.doesNotMatch(concreteCall, /worktree-from-candidate_peer_spawn/);
+
+    const concreteResumed = await tool.execute(
+      "tc-level4-concrete-binding-resume",
+      {
+        ...baseRequest,
+        checkpointConfirmation: requiredToken,
+        level4ReceiptPath: ".autoresearch/level4-concrete-binding-receipts.jsonl",
+        level3CandidateBindings: [
+          {
+            laneId: "cell-01-01-candidate-01",
+            candidateWorktree: concreteWorktree,
+            candidateBranch: "candidate/cell-01-01-candidate-01",
+            candidateBaseRef: "HEAD",
+            candidateDiffSummary: "controller verified test diff",
+            candidateFilesChanged: ["src/runtime/autoresearch-supervisor-runner.ts"],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const runCall =
+      concreteResumed.details.level4CampaignRunner.sourceLevel3Executor.selectedAction.call;
+    assert.match(runCall, /^autoresearch_runtime_run\(/);
+    assert.match(runCall, new RegExp(concreteWorktree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(runCall, /candidate\/cell-01-01-candidate-01/);
+    assert.doesNotMatch(runCall, /branch-from-candidate_peer_spawn/);
+  });
+});
+
 test("autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves", async () => {
   await withTempDir(async (cwd) => {
     const packetDir = path.join(cwd, ".autoresearch", "matrix-campaign");
