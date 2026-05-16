@@ -801,6 +801,8 @@ export interface AutoresearchLevel4PostIntegrationCleanupReadyPacket {
   archiveDirectories: readonly string[];
   tabClosureHints: readonly string[];
   processTerminationHints: readonly string[];
+  candidatePeerCleanupDryRunCall: string;
+  candidatePeerCleanupExecuteCall: string | null;
   exactControllerCommands: readonly string[];
   blockers: readonly string[];
   boundary: string;
@@ -6834,6 +6836,17 @@ function buildLevel4PromptRunnerBundle(
       (row) =>
         `Terminate only sidequest/peer processes whose command line contains exact candidate worktree ${row.worktree}.`,
     ),
+    candidatePeerCleanupDryRunCall: formatToolCall("candidate_peer_cleanup", {
+      peerRunIds: cleanupRows.map((row) => row.peerRunId),
+    }),
+    candidatePeerCleanupExecuteCall:
+      cleanupBlockers.length === 0
+        ? formatToolCall("candidate_peer_cleanup", {
+            peerRunIds: cleanupRows.map((row) => row.peerRunId),
+            execute: true,
+            integrationCloseoutStatus: "successful",
+          })
+        : null,
     exactControllerCommands: cleanupRows.flatMap((row) => [
       `mkdir -p ${shellQuote(row.archiveDirectory)}`,
       `git -C ${shellQuote(row.worktree)} status --short > ${shellQuote(path.join(row.archiveDirectory, "status.txt"))}`,
@@ -6845,8 +6858,8 @@ function buildLevel4PromptRunnerBundle(
       "Post-integration cleanup is a controller/workbench closeout packet only: archive first, close/kill only exact peer resources, remove only named worktrees/branches, and do not infer merge, promotion, AK/KES/evidence writes, release, push, or PR authority.",
     nextStep:
       cleanupBlockers.length === 0
-        ? "After successful integration is already committed/accepted, run these exact cleanup commands or hand them to the cleanup executor; do not clean any resource not named here."
-        : "After integration succeeds, rerun Level-4 with integrationCloseout.status=successful and controller-verified candidate bindings so cleanup resources become exact.",
+        ? "After successful integration is already committed/accepted, run candidatePeerCleanupExecuteCall or the exact fallback cleanup commands; do not clean any resource not named here."
+        : "Run candidatePeerCleanupDryRunCall for resource inventory, then after integration succeeds rerun Level-4 with integrationCloseout.status=successful and controller-verified candidate bindings so cleanup execution becomes exact.",
   };
   const candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket = {
     kind: "autoresearch.level4_visible_candidate_closeout_packet.v1",

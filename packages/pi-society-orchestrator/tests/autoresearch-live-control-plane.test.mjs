@@ -2890,6 +2890,11 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       closeoutPacket.postIntegrationCleanupReady.blockers.join("\n"),
       /integrationCloseout\.status must be successful/,
     );
+    assert.match(
+      closeoutPacket.postIntegrationCleanupReady.candidatePeerCleanupDryRunCall,
+      /^candidate_peer_cleanup\(/,
+    );
+    assert.equal(closeoutPacket.postIntegrationCleanupReady.candidatePeerCleanupExecuteCall, null);
     assert.match(closeoutPacket.lanes[0].launch.call, /^candidate_peer_spawn\(/);
     assert.match(
       closeoutPacket.lanes[0].launch.workspaceName,
@@ -3117,6 +3122,14 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.match(
       cleanupPacket.processTerminationHints[0],
       new RegExp(concreteWorktree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+    assert.match(cleanupPacket.candidatePeerCleanupDryRunCall, /^candidate_peer_cleanup\(/);
+    assert.match(cleanupPacket.candidatePeerCleanupDryRunCall, /candidatepeer-test-cleanup/);
+    assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /^candidate_peer_cleanup\(/);
+    assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /"execute": true/);
+    assert.match(
+      cleanupPacket.candidatePeerCleanupExecuteCall,
+      /"integrationCloseoutStatus": "successful"/,
     );
     assert.ok(
       cleanupPacket.exactControllerCommands.some((command) =>
