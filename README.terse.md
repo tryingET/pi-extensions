@@ -49,6 +49,9 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-activity-strip` | yes | show live session/activity strip UI | local desktop/window-manager assumptions may apply |
 | `pi-little-helpers` | yes | add small operator helpers | general-purpose utility package |
 | `pi-provenance` | yes | extract minimal Pi session/assistant-message provenance | source-owned provider/model/API refs for downstream evidence writers |
+| `pi-peer-messaging` | yes | provide same-machine peer-session messaging and `intercom` adapter | communication-only; not task/evidence/authority state |
+| `pi-better-openai` | yes | add OpenAI fast mode and image generation/editing affordances | `/fast`, `/openai-image`, `openai_image` |
+| `pi-model-selection` | yes (library) | provide shared model-selection and auth-resolution primitives | support library only; no `pi.extensions` entrypoint |
 | `pi-autonomous-session-control` | yes | provide the `self` operational mirror plus autonomy/subagent control surfaces | strongest in subagent-heavy workflows; `self` summaries are mirror-only, not AK/KES/evidence authority |
 | `pi-autoresearch` | with extra setup | own the bounded experiment-loop runtime and manifest-campaign control seam | strongest when local campaign receipts and AK/Prompt Vault adjacencies are in play |
 | `pi-prompt-template-accelerator` | yes | speed up prompt-template command workflows | picker/prefill UX only |
@@ -63,5 +66,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-vault-client` | with extra stack | provide governed prompt/vault workflows | strongest with Prompt Vault + company context |
 | `pi-ontology-workflows` | with extra setup | provide ontology inspection/change workflows | wants ontology/ROCS setup |
 | `pi-society-orchestrator` | with extra stack | run bounded society/loop workflows | wants society/runtime surfaces |
+| `pi-society-startup-context` | with AI Society workspace | inject read-only startup orientation packets | no repair/write authority; `/society-context refresh` is read-only |
+| `pi-workstation-inference-provider` | with workstation lane-op contract | expose workstation inference as a read-only Pi provider | no model/server/runtime control ownership |
 
 For live release-component inventory, run `node ./scripts/release-components.mjs list --json`.

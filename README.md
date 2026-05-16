@@ -31,6 +31,9 @@ scripts/         # CI/utility scripts
   - `packages/pi-activity-strip`
   - `packages/pi-little-helpers`
   - `packages/pi-provenance`
+  - `packages/pi-peer-messaging` (stable same-machine peer-session messaging core and `intercom` adapter)
+  - `packages/pi-better-openai` (`/fast`, `/openai-image`, and OpenAI image tool support)
+  - `packages/pi-model-selection` (shared support library; no live extension entrypoint)
   - `packages/pi-prompt-template-accelerator`
   - `packages/pi-prompt-template-execution` (live successor for prompt-template model/thinking/args semantics; minimal extension entrypoint, no prompt bundle)
   - `packages/pi-session-compaction` (live local compaction owner after guarded cutover; tested handler, registration guard, and non-live branch augmentation helpers)
@@ -43,6 +46,8 @@ scripts/         # CI/utility scripts
   - `packages/pi-vault-client`
   - `packages/pi-ontology-workflows`
   - `packages/pi-society-orchestrator`
+  - `packages/pi-society-startup-context` (read-only AI Society session-start orientation packet)
+  - `packages/pi-workstation-inference-provider` (read-only Pi provider over workstation-owned inference contracts)
 - For the shortest package map and outsider framing, see [README.terse.md](README.terse.md).
 - For live release-component inventory, run `node ./scripts/release-components.mjs list --json`.
   The inventory is metadata-driven: publish-ready packages opt in with `x-pi-template.releaseConfigMode=component`; private group roots such as `packages/pi-interaction` stay out of the root-managed component list.
@@ -56,6 +61,9 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-society-orchestrator` — coordination/control-plane questions that compose lower-plane owners, such as loops, routing selection, runtime-status wording, evidence intent, or exact supervision flows
 - `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, the `self` operational mirror (including mirror-only handoff/closeout summaries), prompt-envelope application, session artifacts, rewind aliasing, and runtime/operator visibility tied to execution ownership
 - `packages/pi-provenance` — source-owned Pi session/assistant-message provenance extraction for downstream evidence writers, including provider/model/API refs without raw prompt or provider-payload capture
+- `packages/pi-peer-messaging` — stable same-machine peer-session messaging core and `intercom` adapter; communication-only, not authority
+- `packages/pi-better-openai` — OpenAI/OpenAI Codex provider affordances such as `/fast`, `/openai-image`, image editing/generation, and related diagnostics
+- `packages/pi-model-selection` — shared model-selection/auth-resolution library for prompt-template-compatible resolver semantics; intentionally no `pi.extensions` entrypoint
 - `packages/pi-prompt-template-execution` — prompt-template execution semantics such as `model`, `thinking`, `restore`, `skill`, conditionals, args, Pi host adapter behavior, dry-run diagnostics, compatibility canaries, and `/commit` live execution ownership after replacing `npm:pi-prompt-template-model`
 - `packages/pi-session-compaction` — custom `session_before_compact` summary ownership, summarizer model resolution, user-prompt/command preservation, and files-touched manifests (live local owner; do not enable alongside another compaction override)
 - `packages/pi-toolbox-discovery` — lazy custom-tool discovery/activation broker; route here when reducing default active tool count or activating capability bundles on demand
@@ -64,6 +72,8 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-ontology-workflows` — ontology inspection/change workflows and ROCS-facing operator surfaces
 - `packages/pi-designmd-foundry` — DESIGN.md-centered design contract handoff, lint/export/prompt/import tools, and verified DesignMD Foundry workflow skill
 - `packages/pi-evalset-lab` — fixed-task-set prompt/system evaluation, `/evalset run|compare`, sample datasets, and JSON-to-HTML eval report export
+- `packages/pi-society-startup-context` — read-only AI Society startup/session orientation packet and `/society-context refresh`; no AK/KES/evidence writes or repair authority
+- `packages/pi-workstation-inference-provider` — read-only Pi provider adapter over workstation lane-op inference contracts; no model download/build/server/runtime control ownership
 - monorepo root docs — only for package-family selection, release/governance control-plane surfaces, and repo-owned prompts/skills such as `.pi/prompts/commit.md` and `.pi/prompts/pi-extensions-deep-dive.md`
 
 Generic prompts that stop depending on pi-extensions-specific routing or workflow should move to a shared owner instead of accumulating in the root `.pi/prompts/` directory.
