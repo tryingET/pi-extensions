@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ab86a4800b03a46f6d053071589120638e05e272"
+created_at: "2026-05-16T17:59:07Z"
+intent: "Add candidate_peer_cleanup to consume exact registry sidecars after successful integration closeout and archive/remove only named candidate worktrees and branches."
+files:
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/src/candidatePeerRegistry.ts"
+  - "packages/pi-little-helpers/src/capabilityManifest.ts"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+  - "packages/pi-little-helpers/tests/toolbox-bundle.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Post-integration cleanup helper path with exact registry sidecar execution gate."
