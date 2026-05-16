@@ -50,9 +50,9 @@ When work spans packages, peers, runtime receipts, AK, KES, Prompt Vault, or can
 ## Current product maturity
 
 - maturity: `internal alpha / above-seam supervision proven`
-- target control plane: landed for exact live autoresearch supervision, manifest observation, self-hosting observation, KES learning adapter, workflow execution over ASC, and candidate-wave plan/review slices
-- current strategic line: managed candidate-wave fan-in and matrix-campaign dogfood before broader automation
-- release posture: package checks pass; product remains pre-public for supervised campaign UX until candidate-wave fan-in is no longer chat-managed
+- target control plane: landed for exact live autoresearch supervision, manifest observation, self-hosting observation, KES learning adapter, workflow execution over ASC, candidate-wave plan/review slices, Level-4 prompt-runner packet inventory, and post-integration cleanup handoff
+- current strategic line: managed candidate-wave fan-in, measured matrix-campaign dogfood, and exact post-fan-in cleanup handoff before broader automation
+- release posture: package checks pass; product remains pre-public for supervised campaign UX until candidate-wave fan-in plus closeout cleanup are consistently packet-driven rather than chat-managed
 
 ## Product success criteria
 
@@ -69,9 +69,11 @@ The package is product-healthy when:
 
 The package currently owns:
 
-- `autoresearch_live_supervision` for exact runtime observe/start/status/stop, campaign start delegation, candidate-wave planning, candidate-wave review, and matrix-campaign planning;
+- `autoresearch_live_supervision` for exact runtime observe/start/status/stop, campaign start delegation, candidate-wave planning, candidate-wave review, matrix-campaign planning, and Level-4 prompt-runner/closeout packet surfacing;
 - candidate-wave review from inline summaries or `autoresearch.candidate_result.v1` packet paths, including explicit missing-packet lane visibility and owner decision options;
 - candidate-wave fan-in gating: explicit planned missing packet paths block final owner selection until measured/exported or owner-replanned;
+- Level-4 candidate closeout packets with packet inventory states for pending launch, lineage verification, measurement/export, candidate-result packet, and controller-verified measured packet;
+- Level-4 post-integration cleanup-ready packets that name exact `candidate_peer_cleanup` dry-run and successful-closeout execute calls, including `closeVisibleResources: true` only after successful integration closeout;
 - candidate-wave reliability/recovery output: `review_candidate_wave` emits typed plan-only guidance for missing lane, stalled lane, late packet, and non-selected lane stop/cancel handling without launching peers, promoting, merging, or cleaning worktrees;
 - `autoresearch_manifest_campaign_supervision` for exact manifest observation and evidence-only AK projection;
 - `autoresearch_self_hosting_supervision` for exact self-hosting artifact observation and evidence-only projection;
@@ -104,7 +106,8 @@ Above-seam recommendations are trustworthy only when:
 3. **Measurement** — candidate claims are controller-measured through `pi-autoresearch`, not copied from peer text.
 4. **Fan-in** — all explicit planned lanes are measured/exported, or the owner has deliberately replanned the lane set.
 5. **Projection** — evidence/KES writes are deduped, scoped, and routed through the owning surface.
-6. **Boundary report** — output says what was not done: no promotion, merge, worktree cleanup, AK direction mutation, or hidden peer launch.
+6. **Boundary report** — output says what was not done: no promotion, merge, pre-closeout worktree cleanup, AK direction mutation, or hidden peer launch.
+7. **Cleanup readiness** — post-integration cleanup is only executable when exact peer run ids/worktrees/branches come from registry sidecars and integration closeout is successful.
 
 ## Current strategic line
 
@@ -113,10 +116,10 @@ Prioritize product coherence over adding more generic orchestration power.
 The highest-leverage line is:
 
 ```text
-managed candidate-wave fan-in -> matrix cell as managed wave -> implementation-wave dogfood substrate
+managed candidate-wave fan-in -> measured matrix cell as managed wave -> implementation-wave dogfood substrate -> exact post-integration cleanup handoff
 ```
 
-This order matters. Matrix campaigns multiply unmanaged parallelism unless one candidate wave already has explicit plan, launch, final-only measurement, missing-lane gates, aggregate review, and non-selected-lane stop/cancel guidance.
+This order matters. Matrix campaigns multiply unmanaged parallelism unless one candidate wave already has explicit plan, launch, final-only measurement, missing-lane gates, aggregate review, and non-selected-lane stop/cancel guidance. Cleanup must remain after successful integration closeout and must consume exact registry sidecars rather than peer text or fuzzy tab names.
 
 ## Next product bets
 
@@ -134,7 +137,7 @@ planned lane set
 -> explicit stop/cancel guidance for non-selected lanes
 ```
 
-Orchestrator owns the above-seam state model and report. `pi-autoresearch` owns measurement and candidate-result packets. Peer tooling owns visible candidate launch. Operators and owner surfaces own promotion/cleanup.
+Orchestrator owns the above-seam state model and report. `pi-autoresearch` owns measurement and candidate-result packets. Peer tooling owns visible candidate launch plus exact registry-sidecar cleanup. Operators and owner surfaces own promotion and any cleanup execution decision.
 
 ### Bet 2 — Matrix campaign cells as managed waves — first slices landed
 
@@ -152,9 +155,9 @@ A cockpit/dashboard slice now adds `autoresearch.matrix_campaign_cockpit.v1` to 
 
 An integrated closeout slice now makes the full supervised matrix campaign handoff reviewable as `autoresearch.matrix_campaign_closeout.v1`: selected cell lanes, closeout packet inventory, dashboard-first owner route (`/autoresearch export -> /autoresearch review -> evidence_record`), AK projection readiness after owner review, an exact `evidence_record` handoff call with deterministic projection key, and explicit not-done boundaries. The cell-03-01 handoff metric is `evidence_handoff_blockers` (lower is better, target `0`), with proof coverage for packet inventory, owner decision route before evidence, AK-ready projection guidance, authority-drift boundaries, and docs/tests alignment. The closeout now also carries an explicit owner-routed learning activation packet: `autoresearch_runtime_status({ action: "learning_export" }) -> autoresearch_learning_kes_adapter({ action: "plan" }) -> owner review -> autoresearch_learning_kes_adapter({ action: "materialize" })`. Its learning handoff check is `learning_activation_blockers` (lower is better, target `0`), and it remains advisory/packetized unless the owner adapter explicitly materializes package-owned KES artifacts.
 
-### Bet 3 — Owner-facing review UX polish — first slice landed
+### Bet 3 — Owner-facing review UX polish — measured slice landed
 
-The existing `/autoresearch export` and `/autoresearch review` surfaces are good lower-plane affordances. Candidate-wave and matrix review reports now make the handoff explicit: dashboard first for situational awareness (`/autoresearch export`, with `/autoresearch overlay` fallback), candidate decision workbench only for final plan-only lifecycle decisions (`/autoresearch review`).
+The existing `/autoresearch export` and `/autoresearch review` surfaces are good lower-plane affordances. Candidate-wave and matrix review reports now make the handoff explicit: dashboard first for measured packet inventory and situational awareness (`/autoresearch export`, with `/autoresearch overlay` fallback), candidate decision workbench only for final plan-only lifecycle decisions after packet inventory is complete (`/autoresearch review`). This distinction was dogfooded through the true measured loop: visible candidates were bound, measured, exported as candidate-result packets, and reviewed through `review_candidate_wave` rather than selected from diff text alone.
 
 ### Bet 4 — Evidence projection hardening — first slice landed
 
@@ -162,11 +165,13 @@ Keep evidence projection boring: exact anchors, dedupe, fail-closed verification
 
 The first hardening slice records the exact AK task anchor in projected autoresearch milestone evidence and dedupes by `projection_key` across all matching task/check rows, not only the latest row. This prevents stale or replayed milestone states from writing duplicate evidence after later milestone rows have appeared, while preserving the existing fail-closed task/repo boundary check. The dogfood contract is `scripts/dogfood-evidence-projection-hardening-contract.mjs` with expected metric `unresolved_evidence_projection_hardening_blockers=0`.
 
-### Bet 5 — Post-fan-in finalizer governance — contract drafted
+### Bet 5 — Post-fan-in finalizer and cleanup governance — first cleanup handoff landed
 
-The next glue-reduction target is the manual tail after managed fan-in review: scoped commit, evidence/task close, peer tab close, and candidate worktree cleanup. The level-1.5 finalizer contract in [2026-05-14-post-fan-in-finalizer-governance-contract.md](./2026-05-14-post-fan-in-finalizer-governance-contract.md) permits only deterministic post-review cleanup after explicit fan-in review, validation receipts, and final operator authorization.
+The manual tail after managed fan-in review is now split into explicit owner-gated surfaces: scoped integration/finalizer apply remains owner-approved, while candidate cleanup is surfaced as exact post-integration handoff. The level-1.5 finalizer contract in [2026-05-14-post-fan-in-finalizer-governance-contract.md](./2026-05-14-post-fan-in-finalizer-governance-contract.md) still permits only deterministic post-review cleanup after explicit fan-in review, validation receipts, and final operator authorization.
 
-The finalizer is intentionally not a hidden executor: no peer launch, benchmark/run execution, winner selection, merge/push/PR, release, toolbox activation, or Prompt Vault/ROCS/Oracle/KES mutation. Its required result taxonomy is `committed_cleaned`, `review_blocked`, or `failed_closed`, and its target glue metric is `manual_post_fanin_residue` lower-is-better with successful gated runs targeting `0`.
+The Level-4 closeout packet now includes `autoresearch.level4_post_integration_cleanup_ready.v1`. Before successful closeout it offers only a `candidate_peer_cleanup({ peerRunIds })` dry-run inventory route. After successful integration closeout and controller-verified candidate bindings, it names the exact `candidate_peer_cleanup({ peerRunIds, execute: true, closeVisibleResources: true, integrationCloseoutStatus: "successful" })` call plus fallback commands. `candidate_peer_cleanup` is owned by `pi-little-helpers`; it consumes exact registry sidecars, archives first, can terminate only sidequest/Pi processes matched by the exact registered worktree path, and removes only named worktrees/branches.
+
+The finalizer/cleanup path is intentionally not a hidden executor: no peer launch, benchmark/run execution, winner selection, merge/push/PR, release, toolbox activation, or Prompt Vault/ROCS/Oracle/KES mutation. Its required result taxonomy is `committed_cleaned`, `review_blocked`, or `failed_closed`, and its target glue metric is `manual_post_fanin_residue` lower-is-better with successful gated runs targeting `0`.
 
 ## Ownership map
 
