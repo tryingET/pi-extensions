@@ -498,6 +498,7 @@ test("sidequest defaults to slash commands, visible-loop, and standard peer-spaw
   assert.ok(tools.has("fork_peer_spawn"));
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
+  assert.ok(tools.has("candidate_peer_cleanup"));
 });
 
 test("sidequest can suppress commands while registering toolbox peer tools", () => {
@@ -509,6 +510,7 @@ test("sidequest can suppress commands while registering toolbox peer tools", () 
   assert.equal(tools.has("sidequest_spawn"), false);
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
+  assert.ok(tools.has("candidate_peer_cleanup"));
   assert.equal(tools.has("parallelquest_spawn"), false);
 });
 
@@ -2174,6 +2176,99 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.match(result.content[0]?.text ?? "", /Peer run id: candidatepeer-/);
     assert.match(result.content[0]?.text ?? "", /Expected intercom messages: PEER_ACK, PEER_FINAL/);
     assert.match(result.content[0]?.text ?? "", /peer_watch/);
+  });
+});
+
+test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after closeout", async () => {
+  await withTempDir(async (stateHome) => {
+    const calls = [];
+    const baseExecStub = createCandidatePeerExecStub({ dirty: "" });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      async exec(command, args, options) {
+        calls.push({ command, args, options });
+        if (command === "sh") return { code: 0, stdout: "archived" };
+        if (command === "git" && args.includes("remove") && args.includes("--force")) {
+          return { code: 0, stdout: "removed worktree" };
+        }
+        if (command === "git" && args.includes("branch") && args.includes("-D")) {
+          return { code: 0, stdout: "deleted branch" };
+        }
+        return baseExecStub.exec(command, args, options);
+      },
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension);
+    const context = createContext({ cwd: "/repo" }).ctx;
+    const spawn = await tools.get("candidate_peer_spawn").execute(
+      "tool-call-cleanup-spawn",
+      {
+        objective: "try cleanup helper",
+        cwd: "/repo",
+        parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+        branchName: "candidatepeer/cleanup-helper",
+        workspaceName: "cleanup-helper",
+      },
+      undefined,
+      undefined,
+      context,
+    );
+
+    const peerRunId = spawn.details.peerRunId;
+    const dryRun = await tools
+      .get("candidate_peer_cleanup")
+      .execute(
+        "tool-call-cleanup-dry-run",
+        { peerRunIds: [peerRunId] },
+        undefined,
+        undefined,
+        context,
+      );
+
+    assert.equal(dryRun.details.ok, true);
+    assert.equal(dryRun.details.execution, "dry_run_plan_only");
+    assert.equal(dryRun.details.lanes[0].peerRunId, peerRunId);
+    assert.equal(dryRun.details.commandResults.length, 0);
+
+    const blocked = await tools
+      .get("candidate_peer_cleanup")
+      .execute(
+        "tool-call-cleanup-blocked",
+        { peerRunIds: [peerRunId], execute: true, integrationCloseoutStatus: "missing" },
+        undefined,
+        undefined,
+        context,
+      );
+    assert.equal(blocked.details.ok, false);
+    assert.equal(blocked.details.execution, "blocked_missing_successful_integration_closeout");
+
+    const executed = await tools
+      .get("candidate_peer_cleanup")
+      .execute(
+        "tool-call-cleanup-execute",
+        { peerRunIds: [peerRunId], execute: true, integrationCloseoutStatus: "successful" },
+        undefined,
+        undefined,
+        context,
+      );
+
+    assert.equal(executed.details.ok, true);
+    assert.equal(executed.details.execution, "executed_exact_registry_cleanup_commands");
+    assert.deepEqual(
+      executed.details.commandResults.map((result) => result.commandId),
+      ["archive-metadata-and-diff", "remove-worktree", "delete-candidate-branch"],
+    );
+    assert.ok(calls.some((call) => call.command === "git" && call.args.includes("--force")));
+    assert.match(executed.details.boundary, /No merge, promotion/);
   });
 });
 

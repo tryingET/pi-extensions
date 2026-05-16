@@ -10,6 +10,7 @@ export const LITTLE_HELPERS_PEER_TOOL_NAMES = [
   "fork_peer_spawn",
   "scout_peer_spawn",
   "candidate_peer_spawn",
+  "candidate_peer_cleanup",
 ] as const;
 
 export const LITTLE_HELPERS_TOOLBOX_EXPORTS = [

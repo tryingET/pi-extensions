@@ -182,7 +182,7 @@ export function buildCandidatePeerCleanupPacket({
         description:
           "Remove only the exact git worktree recorded for this peer after archive evidence exists.",
         command: "git",
-        args: ["-C", repoRoot, "worktree", "remove", worktreePath],
+        args: ["-C", repoRoot, "worktree", "remove", "--force", worktreePath],
         cwd: repoRoot,
         destructive: true,
       },

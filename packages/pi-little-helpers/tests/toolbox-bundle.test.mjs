@@ -29,7 +29,7 @@ test("toolbox bundle registers the sidequest peer-spawn capability", () => {
   assert.equal(PEER_SPAWN_CAPABILITY_MANIFEST, LITTLE_HELPERS_CAPABILITY_MANIFEST);
   assert.deepEqual(
     PEER_SPAWN_TOOL_NAMES.map((name) => tools.has(name)),
-    [true, true, true],
+    [true, true, true, true],
   );
   assert.deepEqual([...commands.keys()], []);
   assert.deepEqual([...tools.keys()], [...PEER_SPAWN_TOOL_NAMES]);

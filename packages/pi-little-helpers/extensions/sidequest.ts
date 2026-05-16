@@ -5,8 +5,10 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import {
+  type CandidatePeerRegistryRecord,
   type CandidatePeerSafeNaming,
   createCandidatePeerRegistryRecord,
+  getCandidatePeerRegistryPath,
   writeCandidatePeerRegistryRecord,
 } from "../src/candidatePeerRegistry.ts";
 import {
@@ -33,8 +35,12 @@ import {
 export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
 
 const [SIDEQUEST_COMMAND, SCOUTPEER_COMMAND, PARALLELQUEST_COMMAND] = LITTLE_HELPERS_COMMAND_NAMES;
-const [FORK_PEER_SPAWN_TOOL, SCOUT_PEER_SPAWN_TOOL, CANDIDATE_PEER_SPAWN_TOOL] =
-  LITTLE_HELPERS_PEER_TOOL_NAMES;
+const [
+  FORK_PEER_SPAWN_TOOL,
+  SCOUT_PEER_SPAWN_TOOL,
+  CANDIDATE_PEER_SPAWN_TOOL,
+  CANDIDATE_PEER_CLEANUP_TOOL,
+] = LITTLE_HELPERS_PEER_TOOL_NAMES;
 
 const DEFAULT_PI_BIN = process.env.PI_SIDEQUEST_PI_BIN || "pi";
 const GHOSTTY_PROBE_TIMEOUT_MS = 4000;
@@ -134,6 +140,12 @@ type CandidatePeerSpawnRequest = {
   parentPeerTarget?: string;
   requireCleanParent?: boolean;
   reuseExisting?: boolean;
+};
+
+type CandidatePeerCleanupRequest = {
+  peerRunIds?: string[];
+  execute?: boolean;
+  integrationCloseoutStatus?: "successful" | "failed" | "missing";
 };
 
 type WorktreePrepareSuccess = {
@@ -257,6 +269,27 @@ const visibleLoopChildCompleteToolParameters = asPiToolParameters(
     iteration: Type.Number({
       description: "The visible-loop iteration that just completed.",
     }),
+  }),
+);
+
+const candidatePeerCleanupParameters = asPiToolParameters(
+  Type.Object({
+    peerRunIds: Type.Array(Type.String(), {
+      description:
+        "Exact candidate peer run ids to clean up from registry sidecars. The tool never fuzzy-matches resources.",
+    }),
+    execute: Type.Optional(
+      Type.Boolean({
+        description:
+          "When false or omitted, return a dry-run cleanup plan. When true, archive then remove only exact registered worktrees/branches.",
+      }),
+    ),
+    integrationCloseoutStatus: Type.Optional(
+      Type.Union([Type.Literal("successful"), Type.Literal("failed"), Type.Literal("missing")], {
+        description:
+          "Must be successful when execute=true; this mirrors Level-4 post-integration cleanup readiness.",
+      }),
+    ),
   }),
 );
 
@@ -2050,6 +2083,106 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       );
     }
 
+    async function executeCandidatePeerCleanup(
+      _toolName: string,
+      params: unknown,
+      _ctx: PiToolContext,
+    ) {
+      const request = params as CandidatePeerCleanupRequest;
+      const peerRunIds = (request.peerRunIds ?? []).map((id) => id.trim()).filter(Boolean);
+      const execute = request.execute === true;
+      const env = options.env ?? process.env;
+      const execRunner: ExecRunner =
+        options.exec ??
+        ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
+
+      if (peerRunIds.length === 0) {
+        throw new Error("candidate_peer_cleanup requires at least one exact peerRunId.");
+      }
+      if (execute && request.integrationCloseoutStatus !== "successful") {
+        return successToolResult("candidate peer cleanup blocked", {
+          ok: false,
+          execution: "blocked_missing_successful_integration_closeout",
+          peerRunIds,
+          blockers: [
+            "execute=true requires integrationCloseoutStatus=successful so cleanup cannot run before post-integration closeout",
+          ],
+        });
+      }
+
+      const lanes = peerRunIds.map((peerRunId) => {
+        const registryPath = getCandidatePeerRegistryPath(peerRunId, env);
+        const record = JSON.parse(
+          readFileSync(registryPath, "utf8"),
+        ) as CandidatePeerRegistryRecord;
+        return {
+          peerRunId,
+          registryPath,
+          repoRoot: record.repoRoot,
+          worktreePath: record.worktreePath,
+          branchName: record.branchName,
+          archiveDir: record.archiveDir,
+          cleanupPacket: record.cleanupPacket,
+          tabOrSessionHint: record.launch.titleBase ?? peerRunId,
+          processHint: `sidequest-pi process containing exact worktree path ${record.worktreePath}`,
+        };
+      });
+
+      const commandResults: {
+        peerRunId: string;
+        commandId: string;
+        command: string;
+        args: string[];
+        code: number;
+        stdout?: string;
+        stderr?: string;
+      }[] = [];
+
+      if (execute) {
+        for (const lane of lanes) {
+          for (const command of lane.cleanupPacket.commands) {
+            const result = await execRunner(command.command, command.args, {
+              cwd: command.cwd ?? lane.repoRoot,
+              timeout: 60_000,
+            });
+            commandResults.push({
+              peerRunId: lane.peerRunId,
+              commandId: command.id,
+              command: command.command,
+              args: command.args,
+              code: result.code,
+              stdout: result.stdout,
+              stderr: result.stderr,
+            });
+            if (result.code !== 0) {
+              return successToolResult("candidate peer cleanup failed closed", {
+                ok: false,
+                execution: "failed_closed_after_exact_command_failure",
+                failedCommand: command.id,
+                lanes,
+                commandResults,
+                boundary:
+                  "Only exact registry cleanup commands were attempted; no fuzzy tab/process cleanup, merge, promotion, AK/KES/evidence write, push, or PR was executed.",
+              });
+            }
+          }
+        }
+      }
+
+      return successToolResult(
+        execute ? "candidate peer cleanup executed" : "candidate peer cleanup dry run",
+        {
+          ok: true,
+          execution: execute ? "executed_exact_registry_cleanup_commands" : "dry_run_plan_only",
+          laneCount: lanes.length,
+          lanes,
+          commandResults,
+          boundary:
+            "Candidate cleanup consumes exact registry sidecars only. It archives first and removes only named worktrees/branches; visible tab/session and process closure remains an exact hint unless represented by registry commands. No merge, promotion, AK/KES/evidence write, release, push, or PR authority is implied.",
+        },
+      );
+    }
+
     async function executeCandidatePeerSpawn(
       toolName: string,
       params: unknown,
@@ -2419,6 +2552,18 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       parameters: candidatePeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeCandidatePeerSpawn(CANDIDATE_PEER_SPAWN_TOOL, params, ctx),
+    });
+
+    pi.registerTool({
+      name: CANDIDATE_PEER_CLEANUP_TOOL,
+      label: "Candidate Peer Cleanup",
+      description:
+        "Plan or execute exact candidate peer cleanup from registry sidecars after successful integration closeout.",
+      promptSnippet:
+        "Use after successful candidate integration closeout to consume exact candidate peer registry sidecars and archive/remove only named worktrees/branches. Dry-run by default; execute requires integrationCloseoutStatus=successful.",
+      parameters: candidatePeerCleanupParameters,
+      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+        executeCandidatePeerCleanup(CANDIDATE_PEER_CLEANUP_TOOL, params, ctx),
     });
   };
 }
