@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "24a330bc918f7ebcf0ebcf2fdc27a327c2aeea21"
+created_at: "2026-05-16T18:55:18Z"
+intent: "Sync release-please config/manifest with live packages, add autoresearch prepack/postpack scripts, refresh tech-stack audit snapshot for pi-better-openai and pi-evalset-lab"
+files:
+  - ".release-please-config.json"
+  - ".release-please-manifest.json"
+  - "docs/project/tech-stack-review-surfaces.md"
+  - "packages/pi-autoresearch/package.json"
+validation:
+  fast_gate:
+    command: "node --test scripts/root-doc-alignment.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 3
+  total: 3
+  rationale: "root release/audit housekeeping; separate from package version bump and behavioral changes"
