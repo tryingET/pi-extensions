@@ -59,7 +59,10 @@ test("decision packet builders render bounded markdown context", () => {
     ideasToLeaveOut: ["Deferred router work"],
   });
 
-  assert.equal(AUTORESEARCH_PROMPT_PLANE_MODULE_SPECIFIER, "pi-vault-client/prompt-plane");
+  assert.equal(
+    AUTORESEARCH_PROMPT_PLANE_MODULE_SPECIFIER,
+    "@tryinget/pi-vault-client/prompt-plane",
+  );
   assert.match(setupContext, /# PI-AUTORESEARCH SETUP PACKET/);
   assert.match(setupContext, /AK task scope reference/);
   assert.match(nextContext, /# PI-AUTORESEARCH NEXT HYPOTHESIS PACKET/);

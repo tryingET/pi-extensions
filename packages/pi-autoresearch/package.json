@@ -69,6 +69,7 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
+    "@tryinget/pi-vault-client": "file:../pi-vault-client",
     "xstate": "^5.30.0"
   },
   "devDependencies": {

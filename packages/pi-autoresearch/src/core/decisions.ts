@@ -1,7 +1,7 @@
 import type { CampaignDecision } from "../machine/events.ts";
 import type { MetricDirection } from "./runtime.ts";
 
-export const AUTORESEARCH_PROMPT_PLANE_MODULE_SPECIFIER = "pi-vault-client/prompt-plane";
+export const AUTORESEARCH_PROMPT_PLANE_MODULE_SPECIFIER = "@tryinget/pi-vault-client/prompt-plane";
 
 export const AUTORESEARCH_SETUP_TEMPLATE_NAME = "pi-autoresearch-setup";
 export const AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME = "pi-autoresearch-next-hypothesis";
