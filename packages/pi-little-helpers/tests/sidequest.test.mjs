@@ -198,7 +198,74 @@ test("resolveGhosttyBin falls back to the local wrapper before the raw local Gho
   assert.ok(isLocalGhosttyWrapper(resolved));
 });
 
-test("sidequest opens a new Ghostty window when the current Ghostty session lacks +new-tab", async () => {
+test("sidequest uses the local wrapper for tab launch when the current Ghostty lacks +new-tab", async () => {
+  const execStub = createExecStub(({ command, args }) => {
+    if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n" };
+    }
+    if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-tab\n  +new-window\n" };
+    }
+    if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
+      return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
+    }
+    if (isLocalGhosttyWrapper(command) && args[0] === "+new-tab") {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected Ghostty args: ${command} ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      GHOSTTY_SURFACE_ID: "0x1234",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty" || isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const sidequest = commands.get("sidequest");
+  const harness = createContext();
+
+  await sidequest.handler("trace this failure", harness.ctx);
+
+  assert.deepEqual(
+    execStub.calls.map(({ command, args }) => [command, args[0]]),
+    [
+      ["/usr/bin/ghostty", "+help"],
+      ["/home/tryinget/.local/bin/ghostty-sidequest", "+help"],
+      ["/home/tryinget/.local/bin/ghostty-sidequest", "+version"],
+      ["/home/tryinget/.local/bin/ghostty-sidequest", "+new-tab"],
+    ],
+  );
+
+  const launchArgs = execStub.calls[3].args;
+  assert.equal(launchArgs[0], "+new-tab");
+  assert.ok(launchArgs.includes("--surface-id=0x1234"));
+  assert.match(extractShellCommand(launchArgs), /cd '\/repo'/);
+  assert.deepEqual(extractPiArgs(launchArgs), [
+    "pi",
+    "--fork",
+    "/sessions/main.jsonl",
+    "--model",
+    "openai/gpt-4o",
+    "--thinking",
+    "medium",
+    "trace this failure",
+  ]);
+  assert.equal(harness.notifications.length, 1);
+  assert.equal(harness.notifications[0].type, "info");
+  assert.match(harness.notifications[0].message, /current Ghostty tab/);
+  assert.match(harness.notifications[0].message, /used sidequest wrapper/);
+});
+
+test("sidequest opens a new Ghostty window when the current Ghostty session and wrapper lack +new-tab", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n" };
@@ -219,7 +286,7 @@ test("sidequest opens a new Ghostty window when the current Ghostty session lack
     currentSessionGhosttyBin: "/usr/bin/ghostty",
     exec: execStub.exec,
     pathExists(path) {
-      return path === "/usr/bin/ghostty" || isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
+      return path === "/usr/bin/ghostty";
     },
   });
   const { commands } = registerExtension(extension);

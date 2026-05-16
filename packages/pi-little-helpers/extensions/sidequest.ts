@@ -685,13 +685,29 @@ async function launchPiQuestSession({
     options.exec ?? ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
   const currentSessionGhosttyBin =
     options.currentSessionGhosttyBin ?? findGhosttyAncestorBin(options.processId ?? process.pid);
-  const ghosttyBin = resolveGhosttyBin({ env, pathExists, currentSessionGhosttyBin });
+  let ghosttyBin = resolveGhosttyBin({ env, pathExists, currentSessionGhosttyBin });
   const piBin = env.PI_SIDEQUEST_PI_BIN?.trim() || DEFAULT_PI_BIN;
   const thinkingLevel = pi.getThinkingLevel();
   const modelArgs = buildModelArgs(ctx.model as ModelLike | undefined, thinkingLevel);
   const title = buildTitle(titlePrompt, titlePrefix);
-  const supportsNewTab =
+  let supportsNewTab =
     process.platform === "linux" ? await supportsGhosttyNewTab(execRunner, ghosttyBin) : false;
+  let wrapperTabAttachNote: string | undefined;
+  if (
+    process.platform === "linux" &&
+    isGhosttySession(env) &&
+    !supportsNewTab &&
+    pathExists(LOCAL_GHOSTTY_WRAPPER) &&
+    ghosttyBin !== LOCAL_GHOSTTY_WRAPPER
+  ) {
+    const wrapperSupportsNewTab = await supportsGhosttyNewTab(execRunner, LOCAL_GHOSTTY_WRAPPER);
+    if (wrapperSupportsNewTab) {
+      ghosttyBin = LOCAL_GHOSTTY_WRAPPER;
+      supportsNewTab = true;
+      wrapperTabAttachNote =
+        "current Ghostty binary does not support +new-tab; used sidequest wrapper for tab launch";
+    }
+  }
   const requestedSurfaceId = getGhosttySurfaceId(env);
   const surfaceId =
     supportsNewTab && requestedSurfaceId && (await supportsGhosttySurfaceId(execRunner, ghosttyBin))
@@ -720,7 +736,7 @@ async function launchPiQuestSession({
     }),
     cwd,
   );
-  let launchNote = windowFallbackReason;
+  let launchNote = windowFallbackReason ?? wrapperTabAttachNote;
 
   if (!launchResult.ok && launchMode === "tab") {
     const tabFailure = summarizeLaunchFailure(launchResult);
@@ -738,7 +754,9 @@ async function launchPiQuestSession({
     if (fallbackResult.ok) {
       launchMode = "window";
       launchResult = fallbackResult;
-      launchNote = `same-window tab launch failed (${tabFailure}); opened a new window instead`;
+      launchNote = wrapperTabAttachNote
+        ? `${wrapperTabAttachNote}; same-window tab launch failed (${tabFailure}); opened a new window instead`
+        : `same-window tab launch failed (${tabFailure}); opened a new window instead`;
     }
   }
 
