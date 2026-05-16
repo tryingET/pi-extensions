@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9f6a5b11546e918ef80a076b5337212c2cdb5bcf"
+created_at: "2026-05-16T18:58:52Z"
+intent: "Extend exact candidate cleanup so successful closeout can terminate only sidequest/Pi processes matched by registered candidate worktree paths before archive/remove cleanup."
+files:
+  - "packages/pi-little-helpers/README.md"
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-supervisor-runner.ts"
+  - "packages/pi-society-orchestrator/tests/autoresearch-live-control-plane.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run check && npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-little-helpers run check && npm --prefix packages/pi-society-orchestrator run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Completes candidate cleanup tab/process closure by exact registered worktree process matching and Level-4 closeout opt-in."
