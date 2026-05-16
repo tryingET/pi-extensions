@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,8 +23,8 @@ const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "- `vault_query(..., include_content:false)`",
   "2) Retrieve that template's full content.",
   "- `vault_retrieve(..., include_content:true)`",
-  "3) Execute it as written.",
-  "4) If the template has an OUTPUT FORMAT, follow it exactly.",
+  "3) Execute it as written. Execution means: inspect the current repo/state, apply the needed bounded fixes, run verification, and only then report. Do not stop after retrieving the template, quoting it, or filling its output format with a plan.",
+  "4) If the template has an OUTPUT FORMAT, follow it exactly for the final answer, but make the fields reflect actual work performed, explicit deferrals, or hard blockers.",
   "5) Do not reference unretrieved frameworks.",
   "6) If vault is unavailable, continue best-effort and say so.",
   "Use as many frameworks as necessary, and as few as possible.",
@@ -119,6 +127,11 @@ export interface VisibleLoopRunConfig {
 type SendUserMessageOptions = { deliverAs?: "followUp" | "steer" };
 type SendUserMessage = (message: string, options?: SendUserMessageOptions) => void;
 
+interface VisibleLoopPromptTemplate {
+  name: string;
+  content: string;
+}
+
 export type ContinueVisibleLoopInNewSession = (input: {
   config: VisibleLoopRunConfig;
   configPath: string;
@@ -128,6 +141,8 @@ export type ContinueVisibleLoopInNewSession = (input: {
 
 export interface VisibleLoopChildRunnerOptions {
   continueInNewSession?: ContinueVisibleLoopInNewSession;
+  createPeerRuntime?: CreateVisibleLoopPeerRuntime;
+  intercomSendTimeoutMs?: number;
 }
 
 type VisibleLoopContext = {
@@ -143,6 +158,7 @@ type VisibleLoopContext = {
     getSessionName?(): string | undefined;
     getCwd?(): string;
   };
+  hasPendingMessages?(): boolean;
 };
 
 type PeerMessagingRuntime = {
@@ -162,6 +178,14 @@ type PeerMessagingModule = {
     packageRoot?: string;
   }): Promise<PeerMessagingRuntime>;
 };
+
+type CreateVisibleLoopPeerRuntime = (
+  config: VisibleLoopRunConfig,
+  ctx: VisibleLoopContext,
+) => Promise<PeerMessagingRuntime> | PeerMessagingRuntime;
+
+const DEFAULT_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 10_000;
+const MAX_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 120_000;
 
 export type VisibleLoopCommandParseResult =
   | { ok: true; loopCount: number; reportBack: VisibleLoopReportBack; parentPeerTarget?: string }
@@ -334,10 +358,13 @@ export async function startVisibleLoopChildRunner(
   const state: ActiveVisibleLoopState = {
     config,
     configPath,
-    completedPromptCount: restoredIterations * config.prompts.length,
+    completedPromptCount: restoredIterations * getVisibleLoopCompletionTurnCount(config),
     completedIterations: restoredIterations,
     sendUserMessage,
     peerRuntime: null,
+    createPeerRuntime: runnerOptions.createPeerRuntime,
+    intercomSendTail: Promise.resolve(),
+    intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
     stopped: false,
     followupsQueuedForIteration: null,
     continueInNewSession: runnerOptions.continueInNewSession,
@@ -384,7 +411,7 @@ export function handleVisibleLoopAgentStart(
 
   state.followupsQueuedForIteration = state.completedIterations;
   persistActiveVisibleLoopState(state, ctx, env);
-  queueVisibleLoopFollowups(state, ctx, env);
+  queueVisibleLoopFollowups(state, env);
 }
 
 export function handleVisibleLoopAgentEnd(
@@ -397,31 +424,19 @@ export function handleVisibleLoopAgentEnd(
   if (!state || state.stopped) return;
 
   state.completedPromptCount += 1;
-  const promptCount = state.config.prompts.length;
-  if (promptCount <= 0) return;
-
-  const completedInIteration = state.completedPromptCount % promptCount;
-  if (completedInIteration !== 0) {
-    ctx.ui?.setStatus?.(
-      "visible-loop",
-      `loop ${state.completedIterations}/${state.config.loopCount} step ${completedInIteration}/${promptCount}`,
-    );
-    appendVisibleLoopStatus(
-      state.config,
-      {
-        event: "prompt_completed",
-        source: "agent_end",
-        completedPromptCount: state.completedPromptCount,
-        completedIterations: state.completedIterations,
-        completedInIteration,
-      },
-      env,
-    );
-    persistActiveVisibleLoopState(state, ctx, env);
-    return;
-  }
-
-  completeVisibleLoopIteration(state, ctx, env, "agent_end");
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "agent_end_observed",
+      source: "agent_end",
+      pendingMessages: Boolean(ctx.hasPendingMessages?.()),
+      completedPromptCount: state.completedPromptCount,
+      completedIterations: state.completedIterations,
+      completionMode: "explicit_completion_prompt",
+    },
+    env,
+  );
+  persistActiveVisibleLoopState(state, ctx, env);
 }
 
 interface ActiveVisibleLoopState {
@@ -431,6 +446,9 @@ interface ActiveVisibleLoopState {
   completedIterations: number;
   sendUserMessage: SendUserMessage;
   peerRuntime: PeerMessagingRuntime | null;
+  createPeerRuntime?: CreateVisibleLoopPeerRuntime;
+  intercomSendTail: Promise<void>;
+  intercomSendTimeoutMs: number;
   stopped: boolean;
   followupsQueuedForIteration: number | null;
   continueInNewSession?: ContinueVisibleLoopInNewSession;
@@ -517,6 +535,9 @@ function restoreActiveVisibleLoopState(
         : 0,
       sendUserMessage,
       peerRuntime: null,
+      createPeerRuntime: runnerOptions.createPeerRuntime,
+      intercomSendTail: Promise.resolve(),
+      intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
       stopped: Boolean(persisted.stopped),
       followupsQueuedForIteration:
         typeof persisted.followupsQueuedForIteration === "number"
@@ -558,7 +579,7 @@ function queueVisibleLoopIteration(
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
-  const prompts = state.config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
+  const prompts = getVisibleLoopPrompts(state.config);
   if (prompts.length === 0) {
     state.stopped = true;
     ctx.ui?.notify?.("visible-loop stopped: no prompts configured", "error");
@@ -575,13 +596,26 @@ function queueVisibleLoopIteration(
     {
       event: "iteration_queued",
       iteration,
-      promptCount: prompts.length,
-      completionCommand: false,
+      promptCount: getVisibleLoopCompletionTurnCount(state.config),
+      sourcePromptCount: prompts.length,
+      queuedFollowupCount: prompts.length,
+      completionCommand: true,
+      completionMode: "explicit_completion_prompt",
     },
     env,
   );
   state.followupsQueuedForIteration = null;
   persistActiveVisibleLoopState(state, ctx, env);
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "initial_prompt_queued",
+      iteration,
+      promptIndex: 1,
+      promptCount: prompts.length,
+    },
+    env,
+  );
   state.sendUserMessage(prompts[0]);
   const queuedCompletedIterations = state.completedIterations;
   setTimeout(() => {
@@ -593,35 +627,158 @@ function queueVisibleLoopIteration(
     ) {
       state.followupsQueuedForIteration = queuedCompletedIterations;
       persistActiveVisibleLoopState(state, ctx, env);
-      queueVisibleLoopFollowups(state, ctx, env);
+      queueVisibleLoopFollowups(state, env);
     }
   }, 1000);
 }
 
 function queueVisibleLoopFollowups(
   state: ActiveVisibleLoopState,
-  _ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
-  const prompts = state.config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
+  const prompts = getVisibleLoopPrompts(state.config);
   const iteration = state.completedIterations + 1;
-  const followups = prompts.slice(1);
+  const realFollowups = prompts.slice(1);
+  const completionPrompt = renderVisibleLoopCompletionPrompt({
+    configPath: state.configPath,
+    iteration,
+    promptCount: prompts.length,
+  });
+  const followups = [...realFollowups, completionPrompt];
   appendVisibleLoopStatus(
     state.config,
     {
       event: "followups_queued",
       iteration,
-      promptFollowupCount: Math.max(0, prompts.length - 1),
-      completionCommand: false,
+      promptFollowupCount: realFollowups.length,
+      completionPromptQueued: true,
+      completionCommand: true,
     },
     env,
   );
+
   followups.forEach((prompt, index) => {
     setTimeout(() => {
       if (activeVisibleLoop !== state || state.stopped) return;
-      state.sendUserMessage(prompt, { deliverAs: "followUp" });
+      const isCompletionPrompt = index >= realFollowups.length;
+      appendVisibleLoopStatus(
+        state.config,
+        {
+          event: isCompletionPrompt ? "completion_prompt_queued" : "followup_prompt_queued",
+          iteration,
+          promptIndex: isCompletionPrompt ? prompts.length + 1 : index + 2,
+          promptCount: prompts.length,
+        },
+        env,
+      );
+      state.sendUserMessage(
+        isCompletionPrompt ? prompt : expandVisibleLoopPromptTemplate(prompt, state.config.cwd),
+        { deliverAs: "followUp" },
+      );
     }, 150 * index);
   });
+}
+
+function renderVisibleLoopCompletionPrompt(input: {
+  configPath: string;
+  iteration: number;
+  promptCount: number;
+}): string {
+  return [
+    "Visible-loop internal completion checkpoint.",
+    "All real prompts for this iteration have now been delivered as prior follow-up turns.",
+    "Do not do new implementation, review, or planning work in this checkpoint turn.",
+    "If and only if the immediately previous real prompt turn is complete, call the `visible_loop_child_complete` tool with exactly:",
+    `- configPath: ${JSON.stringify(input.configPath)}`,
+    `- iteration: ${input.iteration}`,
+    "Do not call the tool before the previous prompt turn is complete.",
+    `Context: this checkpoint follows ${input.promptCount} real prompt(s) in the current visible-loop iteration.`,
+  ].join("\n");
+}
+
+function expandVisibleLoopPromptTemplate(prompt: string, cwd: string): string {
+  if (!prompt.startsWith("/")) return prompt;
+  const templates = loadVisibleLoopPromptTemplates(cwd);
+  if (templates.length === 0) return prompt;
+
+  const spaceIndex = prompt.indexOf(" ");
+  const templateName = spaceIndex === -1 ? prompt.slice(1) : prompt.slice(1, spaceIndex);
+  const argsString = spaceIndex === -1 ? "" : prompt.slice(spaceIndex + 1);
+  const template = templates.find((candidate) => candidate.name === templateName);
+  if (!template) return prompt;
+
+  return substituteVisibleLoopPromptArgs(template.content, parseVisibleLoopPromptArgs(argsString));
+}
+
+function loadVisibleLoopPromptTemplates(cwd: string): VisibleLoopPromptTemplate[] {
+  const dirs = [join(homedir(), ".pi", "agent", "prompts"), join(cwd, ".pi", "prompts")];
+  const templates: VisibleLoopPromptTemplate[] = [];
+  for (const dir of dirs) {
+    try {
+      for (const entry of readdirSync(dir)) {
+        if (!entry.endsWith(".md")) continue;
+        const path = join(dir, entry);
+        const stats = statSync(path);
+        if (!stats.isFile()) continue;
+        templates.push({
+          name: entry.replace(/\.md$/, ""),
+          content: stripVisibleLoopFrontmatter(readFileSync(path, "utf8")).trim(),
+        });
+      }
+    } catch {
+      // Prompt expansion is best-effort; unexpanded prompt text is still safe to send.
+    }
+  }
+  return templates;
+}
+
+function stripVisibleLoopFrontmatter(content: string): string {
+  if (!content.startsWith("---\n")) return content;
+  const end = content.indexOf("\n---\n", 4);
+  return end === -1 ? content : content.slice(end + "\n---\n".length);
+}
+
+function parseVisibleLoopPromptArgs(argsString: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+
+  for (const char of argsString) {
+    if (quote) {
+      if (char === quote) quote = null;
+      else current += char;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        args.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+
+  if (current) args.push(current);
+  return args;
+}
+
+function substituteVisibleLoopPromptArgs(content: string, args: string[]): string {
+  let result = content;
+  result = result.replace(/\$(\d+)/g, (_, num) => args[Number.parseInt(num, 10) - 1] ?? "");
+  result = result.replace(/\$\{@:(\d+)(?::(\d+))?\}/g, (_, startStr, lengthStr) => {
+    const start = Math.max(0, Number.parseInt(startStr, 10) - 1);
+    if (lengthStr) return args.slice(start, start + Number.parseInt(lengthStr, 10)).join(" ");
+    return args.slice(start).join(" ");
+  });
+  const allArgs = args.join(" ");
+  result = result.replace(/\$ARGUMENTS/g, allArgs);
+  result = result.replace(/\$@/g, allArgs);
+  return result;
 }
 
 function completeVisibleLoopIteration(
@@ -646,7 +803,7 @@ function completeVisibleLoopIteration(
     return;
   }
 
-  const promptCount = state.config.prompts.length;
+  const promptCount = getVisibleLoopCompletionTurnCount(state.config);
   const nextIteration = state.completedIterations + 1;
   if (expectedIteration !== undefined && expectedIteration !== nextIteration) {
     appendVisibleLoopStatus(
@@ -681,7 +838,7 @@ function completeVisibleLoopIteration(
     `loop ${state.completedIterations}/${state.config.loopCount}`,
   );
 
-  void sendVisibleLoopIntercom(
+  const progressReport = enqueueVisibleLoopIntercom(
     state,
     ctx,
     `VISIBLE_LOOP_ITERATION peer_run_id=${state.config.runId}: completed iteration ${state.completedIterations}/${state.config.loopCount}`,
@@ -701,17 +858,21 @@ function completeVisibleLoopIteration(
       env,
     );
     persistActiveVisibleLoopState(state, ctx, env);
-    void sendVisibleLoopIntercom(
-      state,
-      ctx,
-      `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${state.completedIterations}/${state.config.loopCount} iteration(s)`,
-      env,
-    ).finally(async () => {
-      await state.peerRuntime?.disconnect?.();
-      removeActiveVisibleLoopState(ctx, env);
-      if (activeVisibleLoop === state) activeVisibleLoop = null;
-      ctx.ui?.setStatus?.("visible-loop", undefined);
-    });
+    void progressReport
+      .then(() =>
+        enqueueVisibleLoopIntercom(
+          state,
+          ctx,
+          `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${state.completedIterations}/${state.config.loopCount} iteration(s)`,
+          env,
+        ),
+      )
+      .finally(async () => {
+        await disconnectVisibleLoopPeerRuntime(state.peerRuntime);
+        removeActiveVisibleLoopState(ctx, env);
+        if (activeVisibleLoop === state) activeVisibleLoop = null;
+        ctx.ui?.setStatus?.("visible-loop", undefined);
+      });
     return;
   }
 
@@ -721,14 +882,17 @@ function completeVisibleLoopIteration(
     const nextIteration = state.completedIterations + 1;
     state.stopped = true;
     persistActiveVisibleLoopState(state, ctx, env);
-    void Promise.resolve(
-      state.continueInNewSession({
-        config: state.config,
-        configPath: state.configPath,
-        completedIterations: state.completedIterations,
-        nextIteration,
-      }),
-    )
+    void progressReport
+      .then(() =>
+        Promise.resolve(
+          state.continueInNewSession?.({
+            config: state.config,
+            configPath: state.configPath,
+            completedIterations: state.completedIterations,
+            nextIteration,
+          }),
+        ),
+      )
       .then(() => {
         removeActiveVisibleLoopState(ctx, env);
         if (activeVisibleLoop === state) activeVisibleLoop = null;
@@ -756,11 +920,21 @@ function completeVisibleLoopIteration(
     return;
   }
 
-  setTimeout(() => {
-    if (activeVisibleLoop === state && !state.stopped) {
-      queueVisibleLoopIteration(state, ctx, env);
-    }
-  }, 250);
+  void progressReport.finally(() => {
+    setTimeout(() => {
+      if (activeVisibleLoop === state && !state.stopped) {
+        queueVisibleLoopIteration(state, ctx, env);
+      }
+    }, 250);
+  });
+}
+
+function getVisibleLoopCompletionTurnCount(_config: VisibleLoopRunConfig): number {
+  return 1;
+}
+
+function getVisibleLoopPrompts(config: VisibleLoopRunConfig): string[] {
+  return config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
 }
 
 function recreateActiveVisibleLoopState(
@@ -779,6 +953,8 @@ function recreateActiveVisibleLoopState(
     completedIterations: 0,
     sendUserMessage,
     peerRuntime: null,
+    intercomSendTail: Promise.resolve(),
+    intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env),
     stopped: false,
     followupsQueuedForIteration: null,
   };
@@ -795,6 +971,82 @@ function recreateActiveVisibleLoopState(
   return state;
 }
 
+function enqueueVisibleLoopIntercom(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  text: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const nextSend = state.intercomSendTail
+    .catch(() => undefined)
+    .then(() => sendVisibleLoopIntercom(state, ctx, text, env));
+  state.intercomSendTail = nextSend;
+  return nextSend;
+}
+
+async function disconnectVisibleLoopPeerRuntime(
+  runtime: PeerMessagingRuntime | null | undefined,
+): Promise<void> {
+  try {
+    await runtime?.disconnect?.();
+  } catch {
+    // Report-back cleanup is best-effort; never block loop cleanup or continuation on it.
+  }
+}
+
+function isRecoverableVisibleLoopIntercomFailure(reason: string): boolean {
+  const normalized = reason.toLowerCase();
+  return (
+    normalized.includes("disconnected") ||
+    normalized.includes("not connected") ||
+    normalized.includes("socket is not writable") ||
+    normalized.includes("timed out")
+  );
+}
+
+function resolveVisibleLoopIntercomSendTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+  options: Pick<VisibleLoopChildRunnerOptions, "intercomSendTimeoutMs"> = {},
+): number {
+  const configured =
+    typeof options.intercomSendTimeoutMs === "number"
+      ? options.intercomSendTimeoutMs
+      : Number.parseInt(env.PI_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS ?? "", 10);
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return DEFAULT_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS;
+  }
+  return Math.min(Math.floor(configured), MAX_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS);
+}
+
+class VisibleLoopIntercomSendTimeoutError extends Error {
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`intercom send timed out after ${timeoutMs}ms`);
+    this.timeoutMs = timeoutMs;
+    this.name = "VisibleLoopIntercomSendTimeoutError";
+  }
+}
+
+function withVisibleLoopTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const timer = setTimeout(() => {
+      rejectPromise(new VisibleLoopIntercomSendTimeoutError(timeoutMs));
+    }, timeoutMs);
+    timer.unref?.();
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolvePromise(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        rejectPromise(error);
+      },
+    );
+  });
+}
+
 async function sendVisibleLoopIntercom(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
@@ -805,39 +1057,78 @@ async function sendVisibleLoopIntercom(
     return;
   }
 
-  try {
-    const runtime = state.peerRuntime ?? (await createVisibleLoopPeerRuntime(state.config, ctx));
-    state.peerRuntime = runtime;
-    const result = await runtime.send({
-      to: state.config.parentPeerTarget,
-      message: {
-        id: `${state.config.runId}-${randomUUID()}`,
-        timestamp: Date.now(),
-        content: { text },
-      },
-    });
-    if (!result.delivered) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const runtime =
+        state.peerRuntime ??
+        (await createVisibleLoopPeerRuntime(state.config, ctx, state.createPeerRuntime));
+      state.peerRuntime = runtime;
+      const result = await withVisibleLoopTimeout(
+        runtime.send({
+          to: state.config.parentPeerTarget,
+          message: {
+            id: `${state.config.runId}-${randomUUID()}`,
+            timestamp: Date.now(),
+            content: { text },
+          },
+        }),
+        state.intercomSendTimeoutMs,
+      );
+      if (result.delivered) {
+        appendVisibleLoopStatus(state.config, { event: "intercom_delivered", text }, env);
+        return;
+      }
+
       const reason = result.reason ?? "not delivered";
+      if (attempt === 1 && isRecoverableVisibleLoopIntercomFailure(reason)) {
+        appendVisibleLoopStatus(
+          state.config,
+          { event: "intercom_send_retrying", text, reason },
+          env,
+        );
+        await disconnectVisibleLoopPeerRuntime(runtime);
+        if (state.peerRuntime === runtime) state.peerRuntime = null;
+        continue;
+      }
+
       appendVisibleLoopStatus(state.config, { event: "intercom_send_failed", text, reason }, env);
       ctx.ui?.notify?.(`visible-loop intercom send failed: ${reason}`, "warning");
       return;
+    } catch (error) {
+      const runtime = state.peerRuntime;
+      if (error instanceof VisibleLoopIntercomSendTimeoutError) {
+        appendVisibleLoopStatus(
+          state.config,
+          { event: "intercom_send_timed_out", text, timeoutMs: error.timeoutMs },
+          env,
+        );
+        ctx.ui?.notify?.(
+          `visible-loop intercom send timed out after ${error.timeoutMs}ms`,
+          "warning",
+        );
+        await disconnectVisibleLoopPeerRuntime(runtime);
+        if (state.peerRuntime === runtime) state.peerRuntime = null;
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      appendVisibleLoopStatus(
+        state.config,
+        { event: "intercom_unavailable", text, error: message },
+        env,
+      );
+      ctx.ui?.notify?.(`visible-loop intercom unavailable: ${message}`, "warning");
+      return;
     }
-    appendVisibleLoopStatus(state.config, { event: "intercom_delivered", text }, env);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    appendVisibleLoopStatus(
-      state.config,
-      { event: "intercom_unavailable", text, error: message },
-      env,
-    );
-    ctx.ui?.notify?.(`visible-loop intercom unavailable: ${message}`, "warning");
   }
 }
 
 async function createVisibleLoopPeerRuntime(
   config: VisibleLoopRunConfig,
   ctx: VisibleLoopContext,
+  factory?: CreateVisibleLoopPeerRuntime,
 ): Promise<PeerMessagingRuntime> {
+  if (factory) return factory(config, ctx);
   const module = await loadPeerMessagingModule();
   return module.createPeerMessagingRuntime({
     id: config.runId,

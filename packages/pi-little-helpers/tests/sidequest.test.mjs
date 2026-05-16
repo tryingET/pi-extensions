@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -9,6 +10,13 @@ import {
   ghosttyVersionSupportsSurfaceId,
   resolveGhosttyBin,
 } from "../extensions/sidequest.ts";
+import {
+  createVisibleLoopRunConfig,
+  handleVisibleLoopAgentEnd,
+  startVisibleLoopChildCompleteRunner,
+  startVisibleLoopChildRunner,
+  writeVisibleLoopRunConfig,
+} from "../src/visibleLoop.ts";
 
 const LOCAL_GHOSTTY_WRAPPER_SUFFIX = "/.local/bin/ghostty-sidequest";
 const LOCAL_GHOSTTY_BIN_SUFFIX = "/.local/opt/ghostty-sidequest/bin/ghostty";
@@ -563,13 +571,18 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.prompts[4], "/deep-review");
     assert.match(config.prompts[6], /fix any bugs/);
     assert.match(config.prompts[6], /Prompt Vault/);
+    assert.match(
+      config.prompts[6],
+      /Execution means: inspect the current repo\/state, apply the needed bounded fixes, run verification/,
+    );
+    assert.match(config.prompts[6], /Do not stop after retrieving the template/);
     assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
   }
 });
 
-test("visible-loop child queues follow-ups and launches next iteration in a fresh session after final prompt agent_end", async () => {
+test("visible-loop child queues an explicit completion checkpoint before launching next iteration", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-child-state-`);
   try {
     const execStub = createExecStub(({ command, args }) => {
@@ -595,7 +608,14 @@ test("visible-loop child queues follow-ups and launches next iteration in a fres
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
     const { commands, events, userMessages } = registerExtension(extension);
-    const harness = createContext({ cwd: "/repo" });
+    const repoRoot = `${stateHome}/repo`;
+    const harness = createContext({ cwd: repoRoot });
+    mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
+    writeFileSync(
+      `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
+      "EXPANDED DEEP REVIEW $ARGUMENTS\n",
+      "utf8",
+    );
 
     await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
     const ghosttyCall = execStub.calls.find(
@@ -613,37 +633,290 @@ test("visible-loop child queues follow-ups and launches next iteration in a fres
 
     const agentStart = events.get("agent_start")[0];
     await agentStart({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    await new Promise((resolve) => setTimeout(resolve, 1100));
 
-    assert.equal(userMessages.length, 7);
+    assert.equal(userMessages.length, 8);
     assert.equal(userMessages[1].message, "proceed");
-    assert.equal(userMessages[4].message, "/deep-review");
+    assert.notEqual(userMessages[4].message, "/deep-review");
+    assert.match(userMessages[4].message, /DEEP REVIEW/);
     assert.match(userMessages[6].message, /Prompt Vault/);
-    assert.doesNotMatch(userMessages[6].message, /\/visible-loop-child-complete/);
+    assert.match(userMessages[6].message, /Do not stop after retrieving the template/);
+    assert.match(userMessages[7].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[7].message, /visible_loop_child_complete/);
+    assert.match(
+      userMessages[7].message,
+      new RegExp(configPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
     assert.deepEqual(
       userMessages.slice(1).map((entry) => entry.options),
-      Array(6).fill({ deliverAs: "followUp" }),
+      Array(7).fill({ deliverAs: "followUp" }),
     );
-
-    const agentEnd = events.get("agent_end")[0];
-    for (let index = 0; index < 6; index += 1) {
-      await agentEnd({}, harness.ctx);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await new Promise((resolve) => setTimeout(resolve, 360));
     assert.equal(
       userMessages.length,
-      7,
-      "next iteration should not queue before final prompt ends",
+      8,
+      "next iteration should not queue before explicit completion checkpoint runs",
     );
+    let visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(visibleLoopLaunches.length, 1);
 
+    const agentEnd = events.get("agent_end")[0];
     await agentEnd({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
-    assert.equal(userMessages.length, 7);
-    const visibleLoopLaunches = execStub.calls.filter(
+    visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(
+      visibleLoopLaunches.length,
+      1,
+      "agent_end must not launch the next iteration before the completion tool runs",
+    );
+
+    await commands
+      .get("visible-loop-child-complete")
+      .handler(`${configPath} --iteration 1`, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 360));
+    assert.equal(userMessages.length, 8);
+    visibleLoopLaunches = execStub.calls.filter(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
     assert.equal(visibleLoopLaunches.length, 2);
     assert.match(extractPiArgs(visibleLoopLaunches[1].args).at(-1), /^\/visible-loop-child /);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop waits for explicit checkpoint after nonsense prompts before launching next iteration", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-nonsense-state-`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: false,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands, events, userMessages } = registerExtension(extension);
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const config = createVisibleLoopRunConfig({
+      loopCount: 2,
+      cwd: harness.ctx.cwd,
+      reportBack: "manual",
+      runId: "visible-loop-nonsense-test",
+      prompts: [
+        "nonsense prompt alpha: count the purple spoons",
+        "nonsense prompt beta: report the imaginary aardvark",
+        "nonsense prompt gamma: close the banana loop",
+      ],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, {
+      ...process.env,
+      XDG_STATE_HOME: stateHome,
+    });
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    assert.deepEqual(
+      userMessages.map((entry) => entry.message),
+      ["nonsense prompt alpha: count the purple spoons"],
+    );
+
+    await events.get("agent_start")[0]({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    assert.deepEqual(
+      userMessages.map((entry) => entry.message),
+      [
+        "nonsense prompt alpha: count the purple spoons",
+        "nonsense prompt beta: report the imaginary aardvark",
+        "nonsense prompt gamma: close the banana loop",
+        userMessages[3].message,
+      ],
+    );
+    assert.match(userMessages[3].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[3].message, /visible_loop_child_complete/);
+    assert.deepEqual(
+      userMessages.slice(1).map((entry) => entry.options),
+      [{ deliverAs: "followUp" }, { deliverAs: "followUp" }, { deliverAs: "followUp" }],
+    );
+
+    let visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(
+      visibleLoopLaunches.length,
+      0,
+      "nonsense loop must not launch iteration 2 before explicit completion",
+    );
+
+    const agentEnd = events.get("agent_end")[0];
+    await agentEnd({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 360));
+
+    visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(
+      visibleLoopLaunches.length,
+      0,
+      "agent_end must not launch iteration 2 before the checkpoint command/tool completes",
+    );
+
+    await commands
+      .get("visible-loop-child-complete")
+      .handler(`${configPath} --iteration 1`, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 360));
+
+    visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(visibleLoopLaunches.length, 1);
+    assert.match(extractPiArgs(visibleLoopLaunches[0].args).at(-1), /^\/visible-loop-child /);
+
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    const statusEntries = readFileSync(statusPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(
+      statusEntries.some(
+        (entry) =>
+          entry.event === "iteration_queued" &&
+          entry.iteration === 1 &&
+          entry.promptCount === 1 &&
+          entry.sourcePromptCount === 3 &&
+          entry.queuedFollowupCount === 3 &&
+          entry.completionMode === "explicit_completion_prompt",
+      ),
+    );
+    assert.ok(statusEntries.some((entry) => entry.event === "completion_prompt_queued"));
+    assert.ok(statusEntries.some((entry) => entry.event === "agent_end_observed"));
+    assert.ok(
+      statusEntries.some(
+        (entry) =>
+          entry.event === "iteration_completed" &&
+          entry.source === "completion_command" &&
+          entry.completedPromptCount === 1 &&
+          entry.completedIterations === 1,
+      ),
+    );
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop intercom timeout does not block prompt queue or next iteration", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-intercom-timeout-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const userMessages = [];
+    const notifications = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const ctx = {
+      ...harness.ctx,
+      ui: {
+        notify(message, type = "info") {
+          notifications.push({ message, type });
+        },
+        setStatus() {},
+      },
+    };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 2,
+      cwd: harness.ctx.cwd,
+      reportBack: "intercom",
+      parentPeerTarget: "session-parent-timeout-test",
+      runId: "visible-loop-intercom-timeout-test",
+      prompts: ["finish this turn"],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    let continuationCount = 0;
+    let disconnectCount = 0;
+
+    await startVisibleLoopChildRunner(configPath, pi, ctx, env, {
+      createPeerRuntime: () => ({
+        send: () => new Promise(() => {}),
+        disconnect: async () => {
+          disconnectCount += 1;
+          throw new Error("disconnect cleanup failed");
+        },
+      }),
+      continueInNewSession: () => {
+        continuationCount += 1;
+      },
+      intercomSendTimeoutMs: 15,
+    });
+
+    assert.deepEqual(
+      userMessages.map((entry) => entry.message),
+      ["finish this turn"],
+      "ACK report-back timeout must not prevent the child from receiving its first prompt",
+    );
+
+    handleVisibleLoopAgentEnd(pi, ctx, env);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    assert.equal(
+      continuationCount,
+      0,
+      "agent_end must not launch the next visible-loop iteration before explicit completion",
+    );
+
+    await startVisibleLoopChildCompleteRunner(`${configPath} --iteration 1`, pi, ctx, env);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    assert.equal(
+      continuationCount,
+      1,
+      "progress report timeout must not prevent launching the next visible-loop iteration after explicit completion",
+    );
+    assert.ok(disconnectCount >= 2);
+    assert.ok(
+      notifications.some((entry) => entry.message.includes("intercom send timed out")),
+      "operator should see bounded intercom timeout diagnostics",
+    );
+
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    const statusEntries = readFileSync(statusPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      statusEntries.filter((entry) => entry.event === "intercom_send_timed_out").length,
+      2,
+    );
+    assert.ok(
+      statusEntries.some(
+        (entry) =>
+          entry.event === "iteration_completed" &&
+          entry.source === "completion_command" &&
+          entry.completedIterations === 1,
+      ),
+    );
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
   }
@@ -674,7 +947,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, events, userMessages } = registerExtension(extension);
+    const { commands, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
     await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
@@ -687,15 +960,14 @@ test("visible-loop manual completion command advances non-final iterations", asy
     const config = JSON.parse(readFileSync(configPath, "utf8"));
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
-    await events.get("agent_start")[0]({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    await new Promise((resolve) => setTimeout(resolve, 60));
 
-    assert.equal(userMessages.length, 7);
-    assert.match(userMessages.at(-1).message, /Prompt Vault/);
+    assert.equal(userMessages.length, 1);
+    assert.match(config.prompts.at(-1), /Prompt Vault/);
     await commands.get("visible-loop-child-complete").handler("", harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
 
-    assert.equal(userMessages.length, 7);
+    assert.equal(userMessages.length, 1);
     const visibleLoopLaunches = execStub.calls.filter(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -749,7 +1021,7 @@ test("visible-loop manual completion command finalizes", async () => {
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, events, tools, userMessages } = registerExtension(extension);
+    const { commands, tools, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
     await commands.get("visible-loop").handler("--count 1 --manual", harness.ctx);
@@ -762,12 +1034,11 @@ test("visible-loop manual completion command finalizes", async () => {
     const config = JSON.parse(readFileSync(configPath, "utf8"));
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
-    const agentStart = events.get("agent_start")[0];
-    await agentStart({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    await new Promise((resolve) => setTimeout(resolve, 60));
 
-    assert.match(userMessages.at(-1).message, /Prompt Vault/);
-    assert.doesNotMatch(userMessages.at(-1).message, /visible_loop_child_complete/);
+    assert.equal(userMessages.length, 1);
+    assert.match(config.prompts.at(-1), /Prompt Vault/);
+    assert.doesNotMatch(config.prompts.at(-1), /visible_loop_child_complete/);
     assert.equal(commands.has("visible-loop-child-complete"), true);
     assert.equal(tools.has("visible_loop_child_complete"), false);
     await commands.get("visible-loop-child-complete").handler("", harness.ctx);
@@ -1863,6 +2134,18 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     );
     assert.equal(result.details.cleanupPacket.commands[0].id, "archive-metadata-and-diff");
     assert.equal(result.details.cleanupPacket.commands[0].destructive, false);
+    assert.match(
+      result.details.cleanupPacket.commands[0].args[1],
+      /rev-parse --show-toplevel\)" = "\$worktree_path"/,
+    );
+    assert.match(
+      result.details.cleanupPacket.commands[0].args[1],
+      /rev-parse --abbrev-ref HEAD\)" = "\$branch_name"/,
+    );
+    assert.match(
+      result.details.cleanupPacket.commands[0].args[1],
+      /show-ref --verify --quiet "refs\/heads\/\$branch_name"/,
+    );
     assert.equal(result.details.cleanupPacket.commands[1].id, "remove-worktree");
     assert.equal(result.details.cleanupPacket.commands[1].destructive, true);
     assert.equal(result.details.cleanupPacket.commands[2].id, "delete-candidate-branch");
@@ -1874,6 +2157,11 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.equal(registry.repoRoot, "/repo");
     assert.equal(registry.worktreePath, result.details.worktreePath);
     assert.equal(registry.branchName, "candidatepeer/runner-guard");
+    assert.deepEqual(registry.naming, result.details.naming);
+    assert.equal(registry.naming.branchName, "candidatepeer/runner-guard");
+    assert.equal(registry.naming.workspaceName, "runner-guard-workspace");
+    assert.equal(registry.naming.branchNameClamped, false);
+    assert.equal(registry.naming.workspaceNameClamped, false);
     assert.equal(registry.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
     assert.deepEqual(registry.filesInScope, ["src/runner.ts", "tests/runner.test.mjs"]);
     assert.equal(registry.launch.status, "launched");
@@ -1886,5 +2174,76 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.match(result.content[0]?.text ?? "", /Peer run id: candidatepeer-/);
     assert.match(result.content[0]?.text ?? "", /Expected intercom messages: PEER_ACK, PEER_FINAL/);
     assert.match(result.content[0]?.text ?? "", /peer_watch/);
+  });
+});
+
+test("candidate_peer_spawn clamps long safe names with hashes and records cleanup metadata", async () => {
+  await withTempDir(async (stateHome) => {
+    const execStub = createCandidatePeerExecStub({ dirty: "" });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        GHOSTTY_SURFACE_ID: "21",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension);
+    const longBranchTail = `lane-${"branch-segment-".repeat(12)}`;
+    const longWorkspace = `workspace-${"segment-".repeat(14)}`;
+
+    const result = await tools.get("candidate_peer_spawn").execute(
+      "tool-call-1",
+      {
+        objective: "Try long safe names",
+        cwd: "/repo",
+        parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+        branchName: `candidatepeer/${longBranchTail}`,
+        workspaceName: longWorkspace,
+      },
+      undefined,
+      undefined,
+      createContext({ cwd: "/repo" }).ctx,
+    );
+
+    const branchHash = createHash("sha1")
+      .update(`candidatepeer/${longBranchTail.replace(/-$/, "")}`)
+      .digest("hex")
+      .slice(0, 10);
+    const workspaceHash = createHash("sha1")
+      .update(longWorkspace.replace(/-$/, ""))
+      .digest("hex")
+      .slice(0, 10);
+
+    assert.equal(result.details.ok, true);
+    assert.equal(result.details.branchName.length, 96);
+    assert.match(result.details.branchName, new RegExp(`-${branchHash}$`));
+    assert.equal(result.details.naming.branchNameClamped, true);
+    assert.equal(result.details.naming.workspaceName.length, 80);
+    assert.match(result.details.naming.workspaceName, new RegExp(`-${workspaceHash}$`));
+    assert.equal(result.details.naming.workspaceNameClamped, true);
+    assert.equal(result.details.naming.requestedBranchName, `candidatepeer/${longBranchTail}`);
+    assert.equal(result.details.naming.requestedWorkspaceName, longWorkspace);
+    assert.equal(
+      result.details.worktreePath.endsWith(`/${result.details.naming.workspaceName}`),
+      true,
+    );
+
+    const worktreeCall = execStub.calls.find(
+      (call) => call.command === "git" && call.args.includes("worktree"),
+    );
+    assert.deepEqual(worktreeCall.args.slice(5), ["-b", result.details.branchName, "HEAD"]);
+
+    const registry = JSON.parse(readFileSync(result.details.registryPath, "utf8"));
+    assert.deepEqual(registry.naming, result.details.naming);
+    assert.equal(registry.cleanupPacket.commands[1].args.at(-1), result.details.worktreePath);
+    assert.equal(registry.cleanupPacket.commands[2].args.at(-1), result.details.branchName);
   });
 });
