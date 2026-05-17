@@ -3193,6 +3193,13 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(cleanupPacket.registrySidecars[0].status, "verified_registry_sidecar");
     assert.equal(cleanupPacket.registrySidecars[0].registryPath.includes(cleanupStateHome), true);
     assert.equal(cleanupPacket.blockers.length, 0);
+    assert.match(cleanupReady.content[0].text, /Post-integration cleanup registry sidecars:/);
+    assert.match(cleanupReady.content[0].text, /dry-run call: prepared/);
+    assert.match(cleanupReady.content[0].text, /execute call: prepared/);
+    assert.match(
+      cleanupReady.content[0].text,
+      /candidatepeer-test-cleanup: verified_registry_sidecar/,
+    );
 
     const mismatch = await tool.execute(
       "tc-level4-post-integration-cleanup-registry-mismatch",
@@ -3230,6 +3237,13 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(mismatchPacket.candidatePeerCleanupDryRunCall, null);
     assert.equal(mismatchPacket.candidatePeerCleanupExecuteCall, null);
     assert.deepEqual(mismatchPacket.exactControllerCommands, []);
+    assert.match(mismatch.content[0].text, /dry-run call: withheld/);
+    assert.match(mismatch.content[0].text, /execute call: withheld/);
+    assert.match(
+      mismatch.content[0].text,
+      /candidatepeer-test-cleanup: mismatched_registry_sidecar/,
+    );
+    assert.match(mismatch.content[0].text, /blocker: controller candidateWorktree does not match/);
 
     if (previousStateHome === undefined) delete process.env.XDG_STATE_HOME;
     else process.env.XDG_STATE_HOME = previousStateHome;
