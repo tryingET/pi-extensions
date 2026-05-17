@@ -1,11 +1,8 @@
 {
-  "lane": "ts",
   "engineering_core": {
     "tool": "engineering-core",
-    "lane": "pi-ts",
     "repository": "https://github.com/lightningralf/engineering-core",
     "ref": "workspace-local-unpinned",
-    "command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo",
     "catalog_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty",
     "list_disciplines_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines",
     "list_templates_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates",
@@ -15,10 +12,12 @@
       "security-privacy",
       "documentation",
       "dependency-governance",
-      "design-system",
-      "accessibility",
+      "observability",
       "specification-and-dsls",
-      "engineering-reasoning"
-    ]
+      "engineering-reasoning",
+      "build-graph-acceleration"
+    ],
+    "lane": "pi-ts",
+    "command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show pi-ts"
   }
 }

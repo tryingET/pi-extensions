@@ -16,6 +16,11 @@ Primary model:
 
 - Root repo is a **monorepo control plane**, not a full npm workspace manifest.
 - Packages under `packages/` keep their own manifests and package-local checks.
+- Shared upstream guidance comes from `engineering-core`; root machine-readable recognition lives in `policy/engineering-lane.json`.
+- Inspect available upstream catalog/discipline/template surfaces with:
+  - `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty`
+  - `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines`
+  - `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates`
 
 Repo-local emphasis:
 
@@ -46,6 +51,7 @@ Repo-local emphasis:
   - `fast-check`
   - `@cucumber/cucumber`
   - `nunjucks`
+- `build-graph-acceleration` is conditional only for measured monorepo build/test/package fan-out acceleration work; native npm/package scripts remain canonical unless a repo-local decision accepts an accelerator.
 
 Practical rule:
 

@@ -16,6 +16,26 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation`
+- `testing`
+- `security-privacy`
+- `documentation`
+- `dependency-governance`
+- `design-system`
+- `accessibility`
+- `specification-and-dsls`
+- `engineering-reasoning`
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).
