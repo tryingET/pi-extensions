@@ -31,6 +31,7 @@ All notable changes to this project should be documented here.
 - Moved `/evidence` off raw sqlite reads onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper.
 - Gated Level-4 post-integration cleanup packets so cleanup dry-runs require exact peer run ids with valid candidate-peer registry sidecars, executable cleanup/fallback commands require exact peer ids, worktrees, branches, and successful integration closeout, and Level-4 reports surface compact registry-sidecar readiness.
 - Made Level-4 cleanup reports explicitly distinguish blocked, dry-run-ready, and execute-ready cleanup posture so destructive cleanup readiness is visible without reading raw tool details.
+- Added a Level-4 post-fan-in promotion handoff packet/report section that carries measured-packet fan-in, owner review, finalizer-token request, AK evidence, and post-closeout cleanup sequencing as one visible owner-gated tail.
 
 ## [0.1.0] - 2026-02-08
 

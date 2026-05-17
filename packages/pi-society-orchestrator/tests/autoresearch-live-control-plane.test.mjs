@@ -2919,6 +2919,15 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       "autoresearch.level4_post_integration_cleanup_ready.v1",
     );
     assert.equal(
+      closeoutPacket.postFaninPromotionHandoff.kind,
+      "autoresearch.level4_post_fanin_promotion_handoff.v1",
+    );
+    assert.equal(
+      closeoutPacket.postFaninPromotionHandoff.posture,
+      "blocked_until_candidate_fan_in_complete",
+    );
+    assert.equal(closeoutPacket.postFaninPromotionHandoff.finalizerTokenRequestCall, null);
+    assert.equal(
       closeoutPacket.postIntegrationCleanupReady.readiness,
       "blocked_until_successful_integration_closeout",
     );
@@ -3037,9 +3046,9 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       undefined,
       createToolContext(cwd),
     );
-    const measuredInventory =
-      measuredPackets.details.level4CampaignRunner.promptRunnerBundle.candidateCloseoutPacket
-        .packetInventory;
+    const measuredCloseout =
+      measuredPackets.details.level4CampaignRunner.promptRunnerBundle.candidateCloseoutPacket;
+    const measuredInventory = measuredCloseout.packetInventory;
     assert.equal(measuredInventory.controllerVerifiedMeasuredPacketCount, 1);
     assert.equal(measuredInventory.pendingMeasurementOrExportCount, 0);
     assert.equal(measuredInventory.pendingPacketPaths.length, 0);
@@ -3047,6 +3056,16 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       measuredPacketRelativePath,
     ]);
     assert.equal(measuredInventory.rows[0].status, "controller_verified_measured_packet");
+    assert.equal(measuredCloseout.postFaninPromotionHandoff.posture, "ready_for_owner_review");
+    assert.equal(
+      measuredCloseout.postFaninPromotionHandoff.ownerReviewCall?.startsWith(
+        "autoresearch_live_supervision(",
+      ),
+      true,
+    );
+    assert.equal(measuredCloseout.postFaninPromotionHandoff.finalizerTokenRequestCall, null);
+    assert.match(measuredPackets.content[0].text, /Post-fan-in promotion handoff:/);
+    assert.match(measuredPackets.content[0].text, /ready_for_owner_review/);
 
     const receiptText = readFileSync(
       path.join(cwd, ".autoresearch", "level4-test-receipts.jsonl"),

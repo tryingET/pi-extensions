@@ -787,6 +787,8 @@ function formatAutoresearchLevel4CampaignRunnerReport(
   runner: AutoresearchLevel4CampaignRunner,
 ): string {
   const cleanup = runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady;
+  const promotionHandoff =
+    runner.promptRunnerBundle.candidateCloseoutPacket.postFaninPromotionHandoff;
   const cleanupDryRunPrepared = Boolean(cleanup.candidatePeerCleanupDryRunCall);
   const cleanupExecutePrepared = Boolean(cleanup.candidatePeerCleanupExecuteCall);
   const cleanupBlocked =
@@ -852,6 +854,17 @@ function formatAutoresearchLevel4CampaignRunnerReport(
     "",
     "Controller lineage verification:",
     ...runner.promptRunnerBundle.controllerLineageVerification.checklist.map((item) => `- ${item}`),
+    "",
+    "Post-fan-in promotion handoff:",
+    `- posture: ${promotionHandoff.posture}`,
+    `- selected lanes: ${promotionHandoff.selectedLaneCount}/${promotionHandoff.totalLaneCount}`,
+    `- measured packets: ${promotionHandoff.controllerVerifiedMeasuredPacketCount}/${promotionHandoff.totalLaneCount}`,
+    `- owner review call: ${promotionHandoff.ownerReviewCall ? "prepared" : "withheld"}`,
+    `- finalizer token request call: ${promotionHandoff.finalizerTokenRequestCall ? "prepared" : "withheld"}`,
+    `- evidence handoff: ${promotionHandoff.evidenceRecordHandoff.posture}`,
+    ...(promotionHandoff.blockers.length > 0
+      ? promotionHandoff.blockers.map((blocker) => `- blocker: ${blocker}`)
+      : ["- blockers: none"]),
     "",
     "Post-integration cleanup operator posture:",
     `- posture: ${cleanupOperatorPosture}`,

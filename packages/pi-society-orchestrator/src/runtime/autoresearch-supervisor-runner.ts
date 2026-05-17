@@ -824,6 +824,38 @@ export interface AutoresearchLevel4PostIntegrationCleanupReadyPacket {
   nextStep: string;
 }
 
+export interface AutoresearchLevel4PostFaninPromotionHandoffPacket {
+  kind: "autoresearch.level4_post_fanin_promotion_handoff.v1";
+  execution: "plan_only_owner_gate_handoff";
+  posture:
+    | "blocked_until_candidate_fan_in_complete"
+    | "ready_for_owner_review"
+    | "ready_for_finalizer_token_request";
+  selectedLaneCount: number;
+  controllerVerifiedMeasuredPacketCount: number;
+  totalLaneCount: number;
+  ownerReviewCall: string | null;
+  finalizerTokenRequestCall: string | null;
+  evidenceRecordHandoff: {
+    posture: "blocked_until_owner_review" | "owner_surface_after_review";
+    ownerSurface: "AK";
+    exactRecordCall: string | null;
+    boundary: string;
+  };
+  sequence: readonly [
+    "compare_measured_candidate_packets",
+    "owner_selects_lane",
+    "run_validation",
+    "request_finalize_post_fanin_token",
+    "apply_finalizer_only_with_exact_token",
+    "record_evidence_only_through_owner_surface",
+    "cleanup_only_after_successful_integration_closeout",
+  ];
+  blockers: readonly string[];
+  boundary: string;
+  nextStep: string;
+}
+
 export interface AutoresearchLevel4CandidateCloseoutPacket {
   kind: "autoresearch.level4_visible_candidate_closeout_packet.v1";
   execution: "plan_only_controller_verified_closeout";
@@ -852,6 +884,7 @@ export interface AutoresearchLevel4CandidateCloseoutPacket {
     summary: string;
   };
   postIntegrationCleanupReady: AutoresearchLevel4PostIntegrationCleanupReadyPacket;
+  postFaninPromotionHandoff: AutoresearchLevel4PostFaninPromotionHandoffPacket;
   comparison: {
     status: "pending_candidate_result_packets" | "ready_for_review_packet";
     aggregateReviewCall: string | null;
@@ -6978,6 +7011,86 @@ function buildLevel4PromptRunnerBundle(
           `git -C ${shellQuote(input.cwd)} branch -D ${shellQuote(row.branch)}`,
         ])
       : [];
+  const selectedMeasuredRows = packetInventoryRows.filter(
+    (row) => row.status === "controller_verified_measured_packet" && row.selected,
+  );
+  const fanInComplete =
+    packetInventoryRows.length > 0 &&
+    packetInventoryRows.every((row) => row.status === "controller_verified_measured_packet");
+  const ownerReviewCall = fanInComplete
+    ? (contract.lanes[0]?.reviewCandidateWaveCall ?? null)
+    : null;
+  const finalizerTokenRequestCall =
+    fanInComplete && selectedMeasuredRows.length > 0
+      ? formatToolCall("autoresearch_live_supervision", {
+          action: "level3_authorized_finalizer_cleanup_plan",
+          taskId: input.taskId,
+          cwd: input.cwd,
+          objective: input.objective,
+          sourceReview: "review_matrix_campaign",
+          candidateResultPacketPaths: selectedMeasuredRows.map((row) => row.packetPath),
+          selectedLaneId:
+            selectedMeasuredRows.length === 1
+              ? selectedMeasuredRows[0]?.laneId
+              : "<owner-selected-lane-id>",
+          selectedCellId:
+            selectedMeasuredRows.length === 1
+              ? selectedMeasuredRows[0]?.cellId
+              : "<owner-selected-cell-id>",
+          validation: {
+            command: "<owner validation command>",
+            status: "passed",
+            summary: "<owner validation summary>",
+          },
+        })
+      : null;
+  const promotionHandoffBlockers = [
+    ...(fanInComplete
+      ? []
+      : ["all planned candidate lanes must have controller-verified measured packets"]),
+    ...(fanInComplete && selectedMeasuredRows.length === 0
+      ? ["owner review must select a measured lane before finalizer token request"]
+      : []),
+  ];
+  const postFaninPromotionHandoff: AutoresearchLevel4PostFaninPromotionHandoffPacket = {
+    kind: "autoresearch.level4_post_fanin_promotion_handoff.v1",
+    execution: "plan_only_owner_gate_handoff",
+    posture: !fanInComplete
+      ? "blocked_until_candidate_fan_in_complete"
+      : selectedMeasuredRows.length > 0
+        ? "ready_for_finalizer_token_request"
+        : "ready_for_owner_review",
+    selectedLaneCount: selectedMeasuredRows.length,
+    controllerVerifiedMeasuredPacketCount: controllerVerifiedMeasuredPacketRows.length,
+    totalLaneCount: packetInventoryRows.length,
+    ownerReviewCall,
+    finalizerTokenRequestCall,
+    evidenceRecordHandoff: {
+      posture: fanInComplete ? "owner_surface_after_review" : "blocked_until_owner_review",
+      ownerSurface: "AK",
+      exactRecordCall: null,
+      boundary:
+        "AK evidence remains an owner-surface write after owner review/finalizer closeout; Level-4 never fabricates durable evidence from peer text or local receipts.",
+    },
+    sequence: [
+      "compare_measured_candidate_packets",
+      "owner_selects_lane",
+      "run_validation",
+      "request_finalize_post_fanin_token",
+      "apply_finalizer_only_with_exact_token",
+      "record_evidence_only_through_owner_surface",
+      "cleanup_only_after_successful_integration_closeout",
+    ],
+    blockers: promotionHandoffBlockers,
+    boundary:
+      "This handoff collapses the post-fan-in tail into one visible owner-gated sequence; it does not select a winner, apply a finalizer, write AK evidence, merge, promote, or clean candidates by itself.",
+    nextStep: !fanInComplete
+      ? "Finish bind/measure/export for every planned lane or explicitly replan the lane set before owner review."
+      : selectedMeasuredRows.length === 0
+        ? "Run the owner review surface on measured candidate packets, select a lane, validate it, then rerun Level-4 or level3_authorized_finalizer_cleanup_plan for the exact finalizer token request."
+        : "Use finalizerTokenRequestCall to request the exact finalize_post_fanin token after validation; keep AK evidence, cleanup, and promotion as separate owner gates.",
+  };
+
   const postIntegrationCleanupReady: AutoresearchLevel4PostIntegrationCleanupReadyPacket = {
     kind: "autoresearch.level4_post_integration_cleanup_ready.v1",
     execution: "not_executed_by_orchestrator",
@@ -7103,6 +7216,7 @@ function buildLevel4PromptRunnerBundle(
     }),
     packetInventory,
     postIntegrationCleanupReady,
+    postFaninPromotionHandoff,
     comparison: {
       status: checkpointAccepted ? "ready_for_review_packet" : "pending_candidate_result_packets",
       aggregateReviewCall: contract.lanes[0]?.reviewCandidateWaveCall ?? null,
