@@ -94,6 +94,16 @@ interface PeerProtocolSnapshot {
   messages: PeerProtocolMessage[];
 }
 
+interface IntercomIdentityProof {
+  status: "verified" | "unavailable" | "mismatch";
+  selfId?: string;
+  exactPeerTarget?: string;
+  selfPresence?: PeerPresence;
+  activePeerCount: number;
+  communicationOnly: true;
+  canonicalAuthority: false;
+}
+
 function shortSessionId(sessionId: string): string {
   return sessionId.slice(0, 8);
 }
@@ -824,18 +834,58 @@ export class IntercomCompatibleAdapter {
   private async status(runtime: PeerMessagingRuntime): Promise<IntercomToolResponse> {
     try {
       const status = await runtime.status();
-      return textResult(this.formatStatus(status));
+      const peers = await runtime.listPeers();
+      const identityProof = this.buildIdentityProof(status, peers);
+      return textResult(this.formatStatus(status, identityProof), {
+        details: {
+          ...status,
+          identityProof,
+        },
+      });
     } catch (error) {
       return textResult(`Failed to get status: ${this.getErrorMessage(error)}`, { isError: true });
     }
   }
 
-  private formatStatus(status: PeerRuntimeStatus): string {
+  private buildIdentityProof(
+    status: PeerRuntimeStatus,
+    peers: PeerPresence[],
+  ): IntercomIdentityProof {
+    const selfPresence = status.selfId
+      ? peers.find((peer) => peer.id === status.selfId)
+      : undefined;
+    const proofStatus: IntercomIdentityProof["status"] = !status.selfId
+      ? "unavailable"
+      : selfPresence
+        ? "verified"
+        : "mismatch";
+
+    return {
+      status: proofStatus,
+      selfId: status.selfId,
+      exactPeerTarget: status.selfId,
+      selfPresence,
+      activePeerCount: status.activePeerCount,
+      communicationOnly: true,
+      canonicalAuthority: false,
+    } satisfies IntercomIdentityProof;
+  }
+
+  private formatStatus(status: PeerRuntimeStatus, identityProof: IntercomIdentityProof): string {
+    const selfPresence = identityProof.selfPresence;
+    const selfPresenceLine = selfPresence
+      ? `Self presence: ${formatPeerTarget(selfPresence, { includeShortId: false })} — ${selfPresence.cwd} (${selfPresence.model}) pid=${selfPresence.pid}`
+      : "Self presence: unavailable";
+
     return [
       "**Intercom Status:**",
       `Connected: ${status.connected ? "Yes" : "No"}`,
       `Session ID: ${status.selfId ?? "unavailable"}`,
       `Active sessions: ${status.activePeerCount}`,
+      `Identity proof: ${identityProof.status}`,
+      `Exact peer target: ${identityProof.exactPeerTarget ?? "unavailable"}`,
+      selfPresenceLine,
+      "Boundary: communication-only; not durable authority, evidence, or completion truth.",
     ].join("\n");
   }
 

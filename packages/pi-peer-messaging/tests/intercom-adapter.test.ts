@@ -217,6 +217,47 @@ test("adapter lists current and other sessions without redefining the core", asy
   assert.match(result.content[0]?.text ?? "", /id: worker-session-aaaaaaaa/);
 });
 
+test("adapter status returns verifiable active peer identity proof", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter();
+
+  const result = await adapter.execute(runtime, { action: "status" });
+
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0]?.text ?? "", /Identity proof: verified/);
+  assert.match(result.content[0]?.text ?? "", /Exact peer target: self-session-12345678/);
+  assert.match(result.content[0]?.text ?? "", /Boundary: communication-only/);
+  assert.equal(result.details?.connected, true);
+  assert.deepEqual(result.details?.identityProof, {
+    status: "verified",
+    selfId: SELF_PEER.id,
+    exactPeerTarget: SELF_PEER.id,
+    selfPresence: SELF_PEER,
+    activePeerCount: 2,
+    communicationOnly: true,
+    canonicalAuthority: false,
+  });
+});
+
+test("adapter status fails closed when runtime self id is absent from presence", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  runtime.statusValue = {
+    connected: true,
+    selfId: "missing-session-id",
+    activePeerCount: 2,
+  } satisfies PeerRuntimeStatus;
+  const adapter = createIntercomCompatibleAdapter();
+
+  const result = await adapter.execute(runtime, { action: "status" });
+
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0]?.text ?? "", /Identity proof: mismatch/);
+  assert.equal(
+    (result.details?.identityProof as { status?: string } | undefined)?.status,
+    "mismatch",
+  );
+});
+
 test("adapter classifies quest protocol messages by quest id", async () => {
   const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
   const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });

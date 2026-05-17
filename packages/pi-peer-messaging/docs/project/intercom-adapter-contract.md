@@ -45,7 +45,7 @@ What the adapter adds:
 - `intercom({ action: "ask" ... })`
 - `intercom({ action: "reply" ... })`
 - `intercom({ action: "pending" })`
-- `intercom({ action: "status" })`
+- `intercom({ action: "status" })`, including a runtime-only `details.identityProof` that verifies the active peer session id is present in the broker presence list
 - inbound message formatting plus exact reply hints
 
 What the adapter must **not** do:
@@ -54,6 +54,17 @@ What the adapter must **not** do:
 - turn message delivery into canonical completion
 - smuggle orchestrator or ASC policy into the transport package
 - widen the first slice into room, swarm, dashboard, or network semantics
+
+## Handoff envelope ergonomics
+
+The adapter-owned handoff preflight is deliberately small:
+
+1. run `intercom({ action: "status" })`
+2. require `details.identityProof.status === "verified"`
+3. use `details.identityProof.exactPeerTarget` as the exact peer id in receiver preflight or delivery packets
+4. send machine-readable envelopes as `context` or `file` attachments, preserving the bytes for owner commands that accept `--envelope-json` or stdin
+
+The adapter may prove addressability and delivery metadata. It must not interpret a received envelope as task truth, evidence, closeout, or permission to mutate another owner surface.
 
 ## Operator examples
 

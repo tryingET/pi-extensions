@@ -146,6 +146,37 @@ intercom({
 });
 ```
 
+## Handoff identity preflight and envelope transport
+
+For owner-surface handoffs, use `intercom({ action: "status" })` as the Pi-side identity preflight before sending a packet. The status response includes `details.identityProof` plus an `Exact peer target` line. Treat the proof as runtime communication state only: it verifies the active Pi peer address for delivery, but it is not AK evidence, task authority, or completion truth.
+
+Minimal handoff flow:
+
+1. sender runs `intercom({ action: "status" })` and requires `details.identityProof.status === "verified"`
+2. sender copies `details.identityProof.exactPeerTarget` into any receiver preflight or handoff packet that needs an exact peer id
+3. sender uses `intercom({ action: "send", to: "<exact-session-id>", ... })` for delivery
+4. attach machine-readable command packets as `context` or `file` attachments rather than embedding them in prose
+
+Example envelope attachment:
+
+```ts
+intercom({
+  action: "send",
+  to: "session-...",
+  message: "AK receiver command packet; communication-only delivery, not evidence.",
+  attachments: [
+    {
+      type: "context",
+      name: "ak-receiver-envelope.json",
+      content: JSON.stringify(envelope, null, 2),
+      language: "json",
+    },
+  ],
+});
+```
+
+Receiver-side tooling may feed that exact JSON to its owner command through `--envelope-json` or stdin when supported. The transport package does not interpret the envelope as authority; it only delivers the bytes and exact reply/target metadata.
+
 ## Peer report-back protocol
 
 Canonical visible-peer report-back messages use `peerRunId`:
