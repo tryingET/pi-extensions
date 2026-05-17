@@ -19,7 +19,7 @@
   "packages/pi-prompt-template-execution": "0.1.0",
   "packages/pi-provenance": "0.1.0",
   "packages/pi-session-compaction": "0.1.0",
-  "packages/pi-society-orchestrator": "0.1.0",
+  "packages/pi-society-orchestrator": "0.2.0",
   "packages/pi-society-startup-context": "0.1.0",
   "packages/pi-toolbox-discovery": "0.1.0",
   "packages/pi-vault-client": "0.1.0",

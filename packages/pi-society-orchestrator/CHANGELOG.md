@@ -15,6 +15,8 @@ All notable changes to this project should be documented here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-17
+
 ### Changed
 
 - Routed runtime `sqlite3`, `dolt`, and `rocs-cli` read paths through async, timeout-bound supervised helpers instead of synchronous runtime `execFileSync` calls.
