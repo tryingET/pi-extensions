@@ -299,6 +299,42 @@ function writeCandidateResultPacket(cwd, packetPath, overrides = {}) {
   );
 }
 
+function writeCandidatePeerRegistrySidecar({
+  stateHome,
+  cwd,
+  peerRunId,
+  worktreePath,
+  branchName,
+  overrides = {},
+}) {
+  const registryPath = path.join(stateHome, "pi-quests", "peer-registry", `${peerRunId}.json`);
+  const archiveDir = path.join(stateHome, "pi-quests", "archives", peerRunId);
+  mkdirSync(path.dirname(registryPath), { recursive: true });
+  writeFileSync(
+    registryPath,
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        peerRunId,
+        tool: "candidate_peer_spawn",
+        canonicalTool: "candidate_peer_spawn",
+        parentCwd: cwd,
+        repoRoot: cwd,
+        worktreePath,
+        branchName,
+        baseRef: "HEAD",
+        registryPath,
+        archiveDir,
+        cleanupPacket: { archiveDir },
+        ...overrides,
+      },
+      null,
+      2,
+    ),
+  );
+  return registryPath;
+}
+
 test("autoresearch_live_supervision lists active sessions and enforces exact identity pairing", async () => {
   const tool = registerAutoresearchLiveTool(new AutoresearchLiveSupervisionRunner());
 
@@ -3087,6 +3123,17 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.match(runCall, /candidate\/cell-01-01-candidate-01/);
     assert.doesNotMatch(runCall, /branch-from-candidate_peer_spawn/);
 
+    const previousStateHome = process.env.XDG_STATE_HOME;
+    const cleanupStateHome = path.join(cwd, ".state");
+    process.env.XDG_STATE_HOME = cleanupStateHome;
+    writeCandidatePeerRegistrySidecar({
+      stateHome: cleanupStateHome,
+      cwd,
+      peerRunId: "candidatepeer-test-cleanup",
+      worktreePath: concreteWorktree,
+      branchName: "candidate/cell-01-01-candidate-01",
+    });
+
     const cleanupReady = await tool.execute(
       "tc-level4-post-integration-cleanup-ready",
       {
@@ -3122,10 +3169,7 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.deepEqual(cleanupPacket.exactPeerRunIds, ["candidatepeer-test-cleanup"]);
     assert.deepEqual(cleanupPacket.exactWorktrees, [concreteWorktree]);
     assert.deepEqual(cleanupPacket.exactBranches, ["candidate/cell-01-01-candidate-01"]);
-    assert.match(
-      cleanupPacket.archiveDirectories[0],
-      /cleanup-level4-task-2804-cell-01-01-candidate-01/,
-    );
+    assert.match(cleanupPacket.archiveDirectories[0], /archives\/candidatepeer-test-cleanup/);
     assert.match(cleanupPacket.tabClosureHints[0], /candidatepeer-test-cleanup/);
     assert.match(
       cleanupPacket.processTerminationHints[0],
@@ -3146,7 +3190,49 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       ),
     );
     assert.ok(cleanupPacket.exactControllerCommands.some((command) => /branch -D/.test(command)));
+    assert.equal(cleanupPacket.registrySidecars[0].status, "verified_registry_sidecar");
+    assert.equal(cleanupPacket.registrySidecars[0].registryPath.includes(cleanupStateHome), true);
     assert.equal(cleanupPacket.blockers.length, 0);
+
+    const mismatch = await tool.execute(
+      "tc-level4-post-integration-cleanup-registry-mismatch",
+      {
+        ...baseRequest,
+        checkpointConfirmation: requiredToken,
+        level4ReceiptPath: ".autoresearch/level4-cleanup-mismatch-receipts.jsonl",
+        integrationCloseout: {
+          status: "successful",
+          commit: "abc1234",
+          summary: "integrated test lane",
+        },
+        level3CandidateBindings: [
+          {
+            laneId: "cell-01-01-candidate-01",
+            candidatePeerRunId: "candidatepeer-test-cleanup",
+            candidateWorktree: path.join(cwd, ".worktrees", "wrong-worktree"),
+            candidateBranch: "candidate/cell-01-01-candidate-01",
+            candidateBaseRef: "HEAD",
+            candidateDiffSummary: "controller verified test diff",
+            candidateFilesChanged: ["src/runtime/autoresearch-supervisor-runner.ts"],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const mismatchPacket =
+      mismatch.details.level4CampaignRunner.promptRunnerBundle.candidateCloseoutPacket
+        .postIntegrationCleanupReady;
+    assert.equal(mismatchPacket.readiness, "blocked_until_successful_integration_closeout");
+    assert.equal(mismatchPacket.registrySidecars[0].status, "mismatched_registry_sidecar");
+    assert.match(mismatchPacket.blockers.join("\n"), /candidateWorktree does not match/);
+    assert.equal(mismatchPacket.candidatePeerCleanupDryRunCall, null);
+    assert.equal(mismatchPacket.candidatePeerCleanupExecuteCall, null);
+    assert.deepEqual(mismatchPacket.exactControllerCommands, []);
+
+    if (previousStateHome === undefined) delete process.env.XDG_STATE_HOME;
+    else process.env.XDG_STATE_HOME = previousStateHome;
   });
 });
 

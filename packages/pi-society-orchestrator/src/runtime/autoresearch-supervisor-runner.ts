@@ -787,6 +787,20 @@ export type AutoresearchLevel4CandidatePacketInventoryStatus =
   | "pending_candidate_result_packet"
   | "controller_verified_measured_packet";
 
+export interface AutoresearchLevel4PostIntegrationCleanupRegistrySidecar {
+  peerRunId: string;
+  registryPath: string;
+  status:
+    | "verified_registry_sidecar"
+    | "missing_registry_sidecar"
+    | "invalid_registry_sidecar"
+    | "mismatched_registry_sidecar";
+  worktreePath: string | null;
+  branchName: string | null;
+  archiveDir: string | null;
+  blockers: readonly string[];
+}
+
 export interface AutoresearchLevel4PostIntegrationCleanupReadyPacket {
   kind: "autoresearch.level4_post_integration_cleanup_ready.v1";
   execution: "not_executed_by_orchestrator";
@@ -794,6 +808,7 @@ export interface AutoresearchLevel4PostIntegrationCleanupReadyPacket {
     | "ready_after_successful_integration_closeout"
     | "blocked_until_successful_integration_closeout";
   integrationCloseout: AutoresearchLevel3IntegrationCloseoutEvidence;
+  registrySidecars: readonly AutoresearchLevel4PostIntegrationCleanupRegistrySidecar[];
   exactPeerRunIds: readonly string[];
   exactPeerTabsOrSessions: readonly string[];
   exactWorktrees: readonly string[];
@@ -6533,6 +6548,110 @@ export function advanceAutoresearchLevel3MatrixCellExecutor(
   };
 }
 
+function getCandidatePeerRegistryPath(peerRunId: string): string | null {
+  if (!/^[a-z0-9._-]+$/iu.test(peerRunId)) return null;
+  const stateHome =
+    process.env.XDG_STATE_HOME?.trim() || path.join(os.homedir(), ".local", "state");
+  return path.join(stateHome, "pi-quests", "peer-registry", `${peerRunId}.json`);
+}
+
+function optionalJsonObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readCandidatePeerRegistrySidecar(input: {
+  peerRunId: string;
+  cwd: string;
+  candidateWorktree?: string;
+  candidateBranch?: string;
+}): AutoresearchLevel4PostIntegrationCleanupRegistrySidecar {
+  const registryPath = getCandidatePeerRegistryPath(input.peerRunId);
+  if (!registryPath) {
+    return {
+      peerRunId: input.peerRunId,
+      registryPath: "",
+      status: "invalid_registry_sidecar",
+      worktreePath: null,
+      branchName: null,
+      archiveDir: null,
+      blockers: ["peerRunId is not a path-safe candidate peer registry id"],
+    };
+  }
+
+  if (!fs.existsSync(registryPath)) {
+    return {
+      peerRunId: input.peerRunId,
+      registryPath,
+      status: "missing_registry_sidecar",
+      worktreePath: null,
+      branchName: null,
+      archiveDir: null,
+      blockers: [`missing candidate peer registry sidecar for ${input.peerRunId}`],
+    };
+  }
+
+  try {
+    const parsed = optionalJsonObject(JSON.parse(fs.readFileSync(registryPath, "utf8")));
+    const cleanupPacket = optionalJsonObject(parsed?.cleanupPacket);
+    const peerRunId = optionalString(parsed?.peerRunId);
+    const canonicalTool = optionalString(parsed?.canonicalTool);
+    const parentCwd = optionalString(parsed?.parentCwd);
+    const repoRoot = optionalString(parsed?.repoRoot);
+    const worktreePath = optionalString(parsed?.worktreePath);
+    const branchName = optionalString(parsed?.branchName);
+    const archiveDir =
+      optionalString(parsed?.archiveDir) ?? optionalString(cleanupPacket?.archiveDir);
+    const blockers = [
+      ...(parsed?.schemaVersion === 1 ? [] : ["registry schemaVersion is not 1"]),
+      ...(peerRunId === input.peerRunId
+        ? []
+        : ["registry peerRunId does not match requested peerRunId"]),
+      ...(canonicalTool === "candidate_peer_spawn"
+        ? []
+        : ["registry canonicalTool is not candidate_peer_spawn"]),
+      ...(parentCwd && path.resolve(parentCwd) === path.resolve(input.cwd)
+        ? []
+        : repoRoot && path.resolve(repoRoot) === path.resolve(input.cwd)
+          ? []
+          : ["registry parentCwd/repoRoot does not match campaign cwd"]),
+      ...(worktreePath ? [] : ["registry worktreePath is missing"]),
+      ...(branchName ? [] : ["registry branchName is missing"]),
+      ...(archiveDir ? [] : ["registry archiveDir is missing"]),
+      ...(input.candidateWorktree &&
+      worktreePath &&
+      path.resolve(input.candidateWorktree) !== path.resolve(worktreePath)
+        ? ["controller candidateWorktree does not match registry worktreePath"]
+        : []),
+      ...(input.candidateBranch && branchName && input.candidateBranch !== branchName
+        ? ["controller candidateBranch does not match registry branchName"]
+        : []),
+    ];
+    return {
+      peerRunId: input.peerRunId,
+      registryPath,
+      status: blockers.length === 0 ? "verified_registry_sidecar" : "mismatched_registry_sidecar",
+      worktreePath: worktreePath ?? null,
+      branchName: branchName ?? null,
+      archiveDir: archiveDir ?? null,
+      blockers,
+    };
+  } catch (error) {
+    return {
+      peerRunId: input.peerRunId,
+      registryPath,
+      status: "invalid_registry_sidecar",
+      worktreePath: null,
+      branchName: null,
+      archiveDir: null,
+      blockers: [
+        `invalid candidate peer registry sidecar: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    };
+  }
+}
+
 function buildLevel4PromptRunnerBundle(
   input: AutoresearchLevel4CampaignRunnerRequest,
   executor: AutoresearchLevel3MatrixCellExecutor,
@@ -6827,6 +6946,7 @@ function buildLevel4PromptRunnerBundle(
       ...(isPlaceholderCleanupValue(row.branch)
         ? [`missing exact branch for ${row.lane.cellId}/${row.lane.laneId}`]
         : []),
+      ...(row.registrySidecar?.blockers ?? []),
     ]),
   ];
   const exactPeerRunIds = cleanupRows
@@ -6844,6 +6964,11 @@ function buildLevel4PromptRunnerBundle(
       !isPlaceholderCleanupValue(row.worktree) &&
       !isPlaceholderCleanupValue(row.branch),
   );
+  const registrySidecarBlockerCount = registrySidecars.reduce(
+    (sum, sidecar) => sum + sidecar.blockers.length,
+    exactPeerRunIds.length === registrySidecars.length ? 0 : exactPeerRunIds.length,
+  );
+  const canDryRunCleanup = exactPeerRunIds.length > 0 && registrySidecarBlockerCount === 0;
   const fallbackCleanupCommands =
     cleanupBlockers.length === 0
       ? cleanupRows.flatMap((row) => [
@@ -6865,6 +6990,7 @@ function buildLevel4PromptRunnerBundle(
       ...(input.integrationCloseout?.commit ? { commit: input.integrationCloseout.commit } : {}),
       ...(input.integrationCloseout?.summary ? { summary: input.integrationCloseout.summary } : {}),
     },
+    registrySidecars,
     exactPeerRunIds,
     exactPeerTabsOrSessions: exactPeerRunIds,
     exactWorktrees,
@@ -6878,12 +7004,11 @@ function buildLevel4PromptRunnerBundle(
       (row) =>
         `Terminate only sidequest/peer processes whose command line contains exact candidate worktree ${row.worktree}.`,
     ),
-    candidatePeerCleanupDryRunCall:
-      exactPeerRunIds.length > 0
-        ? formatToolCall("candidate_peer_cleanup", {
-            peerRunIds: exactPeerRunIds,
-          })
-        : null,
+    candidatePeerCleanupDryRunCall: canDryRunCleanup
+      ? formatToolCall("candidate_peer_cleanup", {
+          peerRunIds: exactPeerRunIds,
+        })
+      : null,
     candidatePeerCleanupExecuteCall:
       cleanupBlockers.length === 0
         ? formatToolCall("candidate_peer_cleanup", {
@@ -6900,9 +7025,11 @@ function buildLevel4PromptRunnerBundle(
     nextStep:
       cleanupBlockers.length === 0
         ? "After successful integration is already committed/accepted, run candidatePeerCleanupExecuteCall or the exact fallback cleanup commands; do not clean any resource not named here."
-        : exactPeerRunIds.length > 0
-          ? "Run candidatePeerCleanupDryRunCall for exact peer-resource inventory only; after integration succeeds rerun Level-4 with integrationCloseout.status=successful and controller-verified candidate bindings so cleanup execution becomes exact."
-          : "Capture exact candidate_peer_spawn peerRunIds plus controller-verified worktrees/branches before any cleanup dry-run or fallback cleanup command is prepared.",
+        : canDryRunCleanup
+          ? "Run candidatePeerCleanupDryRunCall for exact registry-backed peer-resource inventory only; after integration succeeds rerun Level-4 with integrationCloseout.status=successful so cleanup execution becomes exact."
+          : exactPeerRunIds.length > 0
+            ? "Resolve candidate peer registry sidecar blockers before any cleanup dry-run or fallback cleanup command is prepared."
+            : "Capture exact candidate_peer_spawn peerRunIds plus controller-verified worktrees/branches before any cleanup dry-run or fallback cleanup command is prepared.",
   };
   const candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket = {
     kind: "autoresearch.level4_visible_candidate_closeout_packet.v1",
