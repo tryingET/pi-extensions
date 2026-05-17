@@ -89,6 +89,7 @@ The package currently owns:
   - `autoresearch.candidate_result.v1`
   - `autoresearch.adapter_contracts.v1`
   - `autoresearch.adapter_validation.v1`
+- candidate-result adapter validation now checks candidate binding internals and candidate-run metric/status shape before downstream review/evidence adapters consume packets;
 - visible peer-lane planning without automatic peer launch;
 - export/review operator boundary: `/autoresearch export` is the measured packet inventory/progress inspection surface, while `/autoresearch review` is the final owner decision surface after packet inventory is complete;
 - bounded self-hosting and manifest-driven llama.cpp campaign helper/control seams.
