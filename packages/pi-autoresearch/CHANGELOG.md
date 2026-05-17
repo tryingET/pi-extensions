@@ -23,3 +23,4 @@ All notable changes to this project should be documented here.
 - Add the bounded runtime kernel in `src/core/runtime.ts`.
 - Add `autoresearch_runtime_run` for one bounded local benchmark/check execution path with append-only receipts.
 - Add JSONL receipt loading/appending, baseline tracking, confidence scoring, and bounded runtime execution tests.
+- Harden candidate-result adapter packet validation so malformed candidate binding fields and non-finite candidate-run metrics fail closed before downstream review/evidence adapters consume them.

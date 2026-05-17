@@ -3629,12 +3629,16 @@ export function validateAutoresearchAdapterPacket(
       (!isRecord(packet.candidate) || Array.isArray(packet.candidate))
     ) {
       addIssue("candidate", "candidate must be an object or null");
+    } else if (isRecord(packet.candidate) && !Array.isArray(packet.candidate)) {
+      validateCandidateResultCandidateFields(packet.candidate, addIssue);
     }
     if (
       packet.candidateRun !== null &&
       (!isRecord(packet.candidateRun) || Array.isArray(packet.candidateRun))
     ) {
       addIssue("candidateRun", "candidateRun must be an object or null");
+    } else if (isRecord(packet.candidateRun) && !Array.isArray(packet.candidateRun)) {
+      validateCandidateResultRunFields(packet.candidateRun, addIssue);
     }
     if (isRecord(packet.closeout) && !Array.isArray(packet.closeout)) {
       validateCloseoutPacketFields(packet.closeout, "closeout.", addIssue);
@@ -3662,6 +3666,27 @@ export function validateAutoresearchAdapterPacket(
     issues,
     adapterBoundary,
   };
+}
+
+function validateCandidateResultCandidateFields(
+  candidate: Record<string, unknown>,
+  addIssue: (pathName: string, message: string) => void,
+): void {
+  validateNullableStringField(candidate, "source", addIssue, "candidate.");
+  validateNullableStringField(candidate, "worktreePath", addIssue, "candidate.");
+  validateNullableStringField(candidate, "branch", addIssue, "candidate.");
+  validateNullableStringField(candidate, "baseRef", addIssue, "candidate.");
+  validateNullableStringField(candidate, "diffSummary", addIssue, "candidate.");
+  validateStringArrayField(candidate, "filesChanged", addIssue, "candidate.");
+}
+
+function validateCandidateResultRunFields(
+  candidateRun: Record<string, unknown>,
+  addIssue: (pathName: string, message: string) => void,
+): void {
+  validateStringField(candidateRun, "status", addIssue, "candidateRun.");
+  validateStringField(candidateRun, "empiricalDecisionClass", addIssue, "candidateRun.");
+  validateNumberField(candidateRun, "metric", addIssue, "candidateRun.");
 }
 
 function validateCloseoutPacketFields(
@@ -3739,6 +3764,18 @@ function validateStringField(
 ): void {
   if (typeof packet[field] !== "string") {
     addIssue(`${prefix}${field}`, `${field} must be a string`);
+  }
+}
+
+function validateNullableStringField(
+  packet: Record<string, unknown>,
+  field: string,
+  addIssue: (pathName: string, message: string) => void,
+  prefix = "",
+): void {
+  const value = packet[field];
+  if (value !== null && typeof value !== "string") {
+    addIssue(`${prefix}${field}`, `${field} must be a string or null`);
   }
 }
 

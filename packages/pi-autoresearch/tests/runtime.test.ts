@@ -2163,6 +2163,21 @@ test("segment closeout summarizes empirical decisions and candidate bindings", (
     const validCandidateResult = validateAutoresearchAdapterPacket(candidateResult);
     assert.equal(validCandidateResult.valid, true);
 
+    const invalidCandidateResult = validateAutoresearchAdapterPacket({
+      ...candidateResult,
+      candidate: { ...candidateResult.candidate, filesChanged: "src/runtime.ts" },
+      candidateRun: { ...candidateResult.candidateRun, metric: "fast" },
+    });
+    assert.equal(invalidCandidateResult.valid, false);
+    assert.match(
+      formatAutoresearchAdapterPacketValidationResult(invalidCandidateResult),
+      /candidate\.filesChanged/,
+    );
+    assert.match(
+      formatAutoresearchAdapterPacketValidationResult(invalidCandidateResult),
+      /candidateRun\.metric/,
+    );
+
     const validOracleEvidence = validateAutoresearchAdapterPacket(oracleEvidence);
     assert.equal(validOracleEvidence.valid, true);
 
