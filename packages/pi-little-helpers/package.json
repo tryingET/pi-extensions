@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-little-helpers",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "pi extension package for little-helpers workflows in pi",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
@@ -55,7 +55,7 @@
     "prompts",
     "examples",
     "policy/security-policy.json",
-    "policy/stack-lane.json"
+    "policy/engineering-lane.json"
   ],
   "exports": {
     "./candidate-peer-registry": "./src/candidatePeerRegistry.ts",

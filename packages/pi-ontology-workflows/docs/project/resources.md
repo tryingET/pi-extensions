@@ -48,4 +48,4 @@ system4d:
 - `~/ai-society/core/tpl-template-repo/docs/learnings/2026-03-13-stable-core-thin-adapters-for-multi-surface-systems.md`
 - `~/ai-society/core/tpl-template-repo/docs/learnings/2026-03-13-recurring-operation-languages-should-become-explicit.md`
 - TypeScript lane reference:
-  - `uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo`
+  - `uv tool run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo`

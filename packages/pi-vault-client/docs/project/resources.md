@@ -26,4 +26,4 @@ system4d:
 - [Biome config](../../biome.jsonc)
 - [VS Code workspace settings](../../.vscode/settings.json)
 - Tech-stack lane reference (pi extension TypeScript):
-  - `uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo`
+  - `uv tool run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo`

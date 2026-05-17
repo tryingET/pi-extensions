@@ -53,7 +53,7 @@ The live hook should remain the only custom compaction override. If another comp
 
 ## Template baseline
 
-This package was reconciled through `../pi-extensions-template` in `simple-package` mode, then intentionally adapted for the current compaction foundation. It keeps template lineage and baseline files such as `.copier-answers.yml`, `biome.jsonc`, `policy/stack-lane.json`, and `docs/tech-stack.local.md`. It exposes `package.json#pi.extensions` for the live hook and `/compact-focus`, but still deliberately omits `package.json#pi.prompts`.
+This package was reconciled through `../pi-extensions-template` in `simple-package` mode, then intentionally adapted for the current compaction foundation. It keeps template lineage and baseline files such as `.copier-answers.yml`, `biome.jsonc`, `policy/engineering-lane.json`, and `docs/engineering.local.md`. It exposes `package.json#pi.extensions` for the live hook and `/compact-focus`, but still deliberately omits `package.json#pi.prompts`.
 
 ## Target summary shape
 

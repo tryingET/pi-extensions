@@ -107,11 +107,11 @@
         },
         {
           "id": "AK-TASK-0595",
-          "title": "Seed root direction decomposition docs for reduced-form tech-stack governance wave",
+          "title": "Seed root direction decomposition docs for reduced-form engineering governance wave",
           "state": "done",
           "tasks": [
             {
-              "text": "Seed root direction decomposition docs for reduced-form tech-stack governance wave (task #595)",
+              "text": "Seed root direction decomposition docs for reduced-form engineering governance wave (task #595)",
               "done": true
             }
           ],
@@ -120,11 +120,11 @@
         },
         {
           "id": "AK-TASK-0596",
-          "title": "Refresh root tech-stack review surface audit after recent package/template alignment",
+          "title": "Refresh root engineering review surface audit after recent package/template alignment",
           "state": "done",
           "tasks": [
             {
-              "text": "Refresh root tech-stack review surface audit after recent package/template alignment (task #596)",
+              "text": "Refresh root engineering review surface audit after recent package/template alignment (task #596)",
               "done": true
             }
           ],
@@ -146,11 +146,11 @@
         },
         {
           "id": "AK-TASK-0601",
-          "title": "Audit remaining legacy-full package tech-stack docs for real local overrides vs boilerplate",
+          "title": "Audit remaining legacy-full package engineering docs for real local overrides vs boilerplate",
           "state": "done",
           "tasks": [
             {
-              "text": "Audit remaining legacy-full package tech-stack docs for real local overrides vs boilerplate (task #601)",
+              "text": "Audit remaining legacy-full package engineering docs for real local overrides vs boilerplate (task #601)",
               "done": true
             }
           ],
@@ -159,11 +159,11 @@
         },
         {
           "id": "AK-TASK-0602",
-          "title": "Refresh root tech-stack audit with per-package target-state classification and routed next candidates",
+          "title": "Refresh root engineering audit with per-package target-state classification and routed next candidates",
           "state": "done",
           "tasks": [
             {
-              "text": "Refresh root tech-stack audit with per-package target-state classification and routed next candidates (task #602)",
+              "text": "Refresh root engineering audit with per-package target-state classification and routed next candidates (task #602)",
               "done": true
             }
           ],
@@ -341,11 +341,11 @@
         },
         {
           "id": "AK-TASK-0634",
-          "title": "Reduce packages/pi-activity-strip from legacy-full to no local tech-stack surface",
+          "title": "Reduce packages/pi-activity-strip from legacy-full to no local engineering surface",
           "state": "done",
           "tasks": [
             {
-              "text": "Reduce packages/pi-activity-strip from legacy-full to no local tech-stack surface (task #634)",
+              "text": "Reduce packages/pi-activity-strip from legacy-full to no local engineering surface (task #634)",
               "done": true
             }
           ],
@@ -354,11 +354,11 @@
         },
         {
           "id": "AK-TASK-0635",
-          "title": "Reduce packages/pi-autonomous-session-control from legacy-full to no local tech-stack surface",
+          "title": "Reduce packages/pi-autonomous-session-control from legacy-full to no local engineering surface",
           "state": "done",
           "tasks": [
             {
-              "text": "Reduce packages/pi-autonomous-session-control from legacy-full to no local tech-stack surface (task #635)",
+              "text": "Reduce packages/pi-autonomous-session-control from legacy-full to no local engineering surface (task #635)",
               "done": true
             }
           ],
@@ -367,11 +367,11 @@
         },
         {
           "id": "AK-TASK-0636",
-          "title": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local tech-stack surface",
+          "title": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local engineering surface",
           "state": "done",
           "tasks": [
             {
-              "text": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local tech-stack surface (task #636)",
+              "text": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local engineering surface (task #636)",
               "done": true
             }
           ],

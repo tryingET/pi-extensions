@@ -1,10 +1,10 @@
 ---
-summary: "Root migration contract for moving remaining legacy-full package tech-stack surfaces to truthful reduced-form targets."
+summary: "Root migration contract for moving remaining legacy-full package engineering surfaces to truthful reduced-form targets."
 read_when:
   - "Planning follow-up work for packages still audited as legacy-full in the monorepo root audit."
-  - "Deciding whether a package-local tech-stack surface should keep docs, policy metadata, both, or neither."
+  - "Deciding whether a package-local engineering surface should keep docs, policy metadata, both, or neither."
 system4d:
-  container: "Root-owned migration contract for package-local tech-stack review surfaces."
+  container: "Root-owned migration contract for package-local engineering review surfaces."
   compass: "Keep shared stack policy centralized at root and route local reductions to the smallest truthful owner."
   engine: "Read root stance -> classify package topology -> choose target local form -> route follow-up to the correct repo/package."
   fog: "The main risk is bulk-removing package-local files without preserving real local overrides or the validation boundaries that still belong to packages/templates."
@@ -15,28 +15,28 @@ system4d:
 ## Contract decision
 
 - Root keeps the shared stack-policy truth in:
-  - `docs/tech-stack.local.md`
-  - `scripts/validate-tech-stack-contract.mjs`
-- The only accepted **steady states** for package-local tech-stack review surfaces are:
-  1. **none** — no local tech-stack surface when the package has no real local override to document
-  2. **reduced-form** — `docs/tech-stack.local.md` only when the package truly needs a local override or routing note
-- `legacy-full` (`docs/tech-stack.local.md` + `policy/stack-lane.json`) is a transitional state, not the desired end state.
-- `policy-only` is **not** an accepted migration target; do not remove the doc while leaving `policy/stack-lane.json` behind as the new steady state.
+  - `docs/engineering.local.md`
+  - `scripts/validate-engineering-contract.mjs`
+- The only accepted **steady states** for package-local engineering review surfaces are:
+  1. **none** — no local engineering surface when the package has no real local override to document
+  2. **reduced-form** — `docs/engineering.local.md` only when the package truly needs a local override or routing note
+- `legacy-full` (`docs/engineering.local.md` + `policy/engineering-lane.json`) is a transitional state, not the desired end state.
+- `policy-only` is **not** an accepted migration target; do not remove the doc while leaving `policy/engineering-lane.json` behind as the new steady state.
 - New packages/templates should not introduce new legacy-full local surfaces by default.
 
 ## Why the root defines this here
 
-- The root audit already classifies live package state in [tech-stack-review-surfaces.md](tech-stack-review-surfaces.md).
+- The root audit already classifies live package state in [engineering-review-surfaces.md](engineering-review-surfaces.md).
 - Existing packages still differ by topology and local validation contracts, so the root has to define the boundary before local deletions happen.
 - Some follow-up work belongs outside the immediate package path, especially template defaults and adjacent verification lanes.
 
 ## Allowed migration sequence
 
-1. Confirm the package's current audit classification in [tech-stack-review-surfaces.md](tech-stack-review-surfaces.md).
-2. Decide whether the package has a **real local override** worth keeping in `docs/tech-stack.local.md`.
-3. Update package-local docs/scripts/tests first so no package still treats `policy/stack-lane.json` as a required steady-state truth source.
-4. Remove `policy/stack-lane.json` only in the same change that lands the truthful target state:
-   - keep `docs/tech-stack.local.md` only if a real local override remains
+1. Confirm the package's current audit classification in [engineering-review-surfaces.md](engineering-review-surfaces.md).
+2. Decide whether the package has a **real local override** worth keeping in `docs/engineering.local.md`.
+3. Update package-local docs/scripts/tests first so no package still treats `policy/engineering-lane.json` as a required steady-state truth source.
+4. Remove `policy/engineering-lane.json` only in the same change that lands the truthful target state:
+   - keep `docs/engineering.local.md` only if a real local override remains
    - otherwise remove both local surfaces
 5. Validate from the smallest truthful scope:
    - root: `npm run quality:pre-commit` / `npm run quality:pre-push`
@@ -48,12 +48,12 @@ system4d:
 ### Root owns
 
 - shared stance, contract, and audit docs:
-  - `docs/tech-stack.local.md`
-  - [tech-stack-review-surfaces.md](tech-stack-review-surfaces.md)
+  - `docs/engineering.local.md`
+  - [engineering-review-surfaces.md](engineering-review-surfaces.md)
   - this document
 - shared helpers that classify or validate the contract:
-  - `scripts/tech-stack-review-surfaces.mjs`
-  - `scripts/validate-tech-stack-contract.mjs`
+  - `scripts/engineering-review-surfaces.mjs`
+  - `scripts/validate-engineering-contract.mjs`
 - root bootstrap/handoff docs that tell operators where follow-up belongs:
   - `README.md`
   - `next_session_prompt.md`
@@ -66,8 +66,8 @@ system4d:
 
 ### Package-local follow-up owns
 
-- removing or keeping `policy/stack-lane.json` inside an existing package
-- editing package-local `docs/tech-stack.local.md`, `README.md`, `AGENTS.md`, scripts, or tests to match the truthful local target
+- removing or keeping `policy/engineering-lane.json` inside an existing package
+- editing package-local `docs/engineering.local.md`, `README.md`, `AGENTS.md`, scripts, or tests to match the truthful local target
 - proving the package still validates after the local surface change
 
 ### Routed adjacent verification owners
@@ -88,14 +88,14 @@ system4d:
 | `packages/pi-vault-client` | simple-package root with adjacent template-verification responsibility | `none` | boilerplate doc copy (`sha256:04a5fb…0241f`); adjacent verification routing does not by itself justify a local stack doc | package-local follow-up in `packages/pi-vault-client` plus template-verification lane when scaffold defaults change |
 
 `#634` landed the first simple-package `none` pilot in `packages/pi-activity-strip`, and `#635` landed the matching monorepo-package `none` pilot in `packages/pi-autonomous-session-control`, so neither package is still part of the current `legacy-full` set.
-`#636` has now also landed the child-package `reduced-form` case in `packages/pi-interaction/pi-interaction`, so that package likewise no longer belongs to the current `legacy-full` set and now keeps only `docs/tech-stack.local.md` as its local override surface.
+`#636` has now also landed the child-package `reduced-form` case in `packages/pi-interaction/pi-interaction`, so that package likewise no longer belongs to the current `legacy-full` set and now keeps only `docs/engineering.local.md` as its local override surface.
 
 ## Non-goals of this contract
 
-- It does **not** authorize a one-shot root-only mass deletion of every remaining `policy/stack-lane.json`.
+- It does **not** authorize a one-shot root-only mass deletion of every remaining `policy/engineering-lane.json`.
 - It does **not** replace package-local validation or documentation decisions.
 - It does **not** move prompt-template wording or Nunjucks verification into the root repo by accident.
-- It does **not** claim that every existing package should keep a local `docs/tech-stack.local.md`; many packages should ultimately land in the `none` state.
+- It does **not** claim that every existing package should keep a local `docs/engineering.local.md`; many packages should ultimately land in the `none` state.
 
 ## Practical rule
 

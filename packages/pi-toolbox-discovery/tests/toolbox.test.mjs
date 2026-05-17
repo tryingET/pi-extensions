@@ -19,6 +19,7 @@ const ALWAYS_ACTIVE_TOOLS = [
   "fork_peer_spawn",
   "scout_peer_spawn",
   "candidate_peer_spawn",
+  "visible_loop_child_complete",
   "toolbox",
 ];
 

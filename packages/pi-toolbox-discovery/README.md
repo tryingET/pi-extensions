@@ -20,7 +20,7 @@ The package registers:
 
 `toolbox` does not import owner packages or create missing owner-tool registrations. It discovers the catalog, verifies which tools are registered in the current Pi runtime, and manages the active set with risk gates. For already-registered tools, activation updates Pi's active tool set immediately, queues a same-task continuation when the active set changes, and is intended to be visible on the next provider/model request after the toolbox result. It cannot retroactively change an already-issued provider request or an external API/client schema snapshot.
 
-The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
+The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), the visible-loop checkpoint fallback (`visible_loop_child_complete`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
 - enforces the standard active tool set on `session_start`
 - searches/explains catalog metadata and plans activation without importing owner packages
@@ -40,7 +40,7 @@ The package-owned production bundles are `vault`, `ontology`, `designmd`, `autor
 After a clean `/reload`, the expected healthy baseline is:
 
 ```text
-active tools (16): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, fork_peer_spawn, scout_peer_spawn, candidate_peer_spawn, toolbox
+active tools (17): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, fork_peer_spawn, scout_peer_spawn, candidate_peer_spawn, visible_loop_child_complete, toolbox
 missing catalog registrations (0): none
 ```
 
@@ -166,7 +166,7 @@ Add companions only when they materially improve clarity or reuse:
 - `fast-check` for parser/rendering/selection invariants
 - `@cucumber/cucumber` for executable Gherkin/operator workflows
 - `nunjucks` for reusable text/config/prompt/file templates
-- `tech-stack-pi-ts.ts-quality.md` when the package explicitly adopts deterministic screening with `ts-quality`
+- `engineering-pi-ts.ts-quality.md` when the package explicitly adopts deterministic screening with `ts-quality`
 
 If this package adopts `ts-quality`, prefer repo-local rollout truth in `docs/project/ts-quality-current-vs-target.md` and keep the detailed adoption doctrine upstream in `~/ai-society/softwareco/owned/ts-quality/docs/adoption/`.
 

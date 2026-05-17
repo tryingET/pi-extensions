@@ -78,7 +78,7 @@ Do **not** treat this file as a live status database.
 ## DURABLE GUARDRAILS
 - Do **not** treat this file as a live status database; use AK for task state.
 - Do **not** confuse root policy with package-local overrides.
-- Do **not** copy tech-stack policy into every package by habit; root owns the stance.
+- Do **not** copy engineering policy into every package by habit; root owns the stance.
 - Do **not** replay the seam-first prompt-plane packet, the first KES packet, or the first TG3 hardening slice as if they were still missing.
 - Do **not** bypass quality gates before committing.
 

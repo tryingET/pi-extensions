@@ -93,8 +93,8 @@ Those belong to the owning extension package (currently `pi-prompt-template-acce
 
 ## Local stack surface
 
-- Package-local stack guidance stays in [docs/tech-stack.local.md](docs/tech-stack.local.md).
-- Lane metadata now stays root-owned at the monorepo level and is no longer shipped as `policy/stack-lane.json`.
+- Package-local stack guidance stays in [docs/engineering.local.md](docs/engineering.local.md).
+- Lane metadata now stays root-owned at the monorepo level and is no longer shipped as `policy/engineering-lane.json`.
 
 ## Environment flags
 

@@ -116,7 +116,7 @@ For npm publishing, `package.json` uses a `files` whitelist so required runtime 
 - `policy/security-policy.json`
 
 If your extension also needs extra runtime assets, add them to `files` intentionally.
-Shared tech-stack policy now stays root-owned rather than shipping a package-local stack metadata file.
+Shared engineering policy now stays root-owned rather than shipping a package-local stack metadata file.
 
 ### Prompt surfaces and provenance
 
@@ -225,7 +225,7 @@ ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.
   - `npm run lint` (check-only)
   - `npm run typecheck`
 - root-owned stack review surface:
-  - [../../docs/tech-stack.local.md](../../docs/tech-stack.local.md)
+  - [../../docs/engineering.local.md](../../docs/engineering.local.md)
   - [../../docs/project/reduced-form-migration-contract.md](../../docs/project/reduced-form-migration-contract.md)
 
 ## Release + security baseline
@@ -328,10 +328,10 @@ Resolution order:
 TypeScript lane reference for pi extensions:
 
 ```bash
-uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo
+uv tool run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo
 ```
 
-Shared lane stance for this monorepo now lives at root in [../../docs/tech-stack.local.md](../../docs/tech-stack.local.md).
+Shared lane stance for this monorepo now lives at root in [../../docs/engineering.local.md](../../docs/engineering.local.md).
 
 ## Copier lifecycle policy
 

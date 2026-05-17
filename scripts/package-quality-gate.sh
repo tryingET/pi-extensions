@@ -196,7 +196,7 @@ should_run_structure_validation_target() {
   [[ -f "$workdir/scripts/validate-structure.sh" ]] || return 1
   [[ -f "$workdir/.copier-answers.yml" ]] || return 1
   [[ -f "$workdir/docs/project/foundation.md" ]] || return 1
-  [[ -f "$workdir/policy/stack-lane.json" ]] || return 1
+  [[ -f "$workdir/policy/engineering-lane.json" ]] || return 1
 }
 
 run_structure_validation_target() {

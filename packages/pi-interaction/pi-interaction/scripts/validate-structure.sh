@@ -18,7 +18,7 @@ required_files=(
   "docs/project/vision.md"
   "docs/project/incentives.md"
   "docs/project/resources.md"
-  "docs/tech-stack.local.md"
+  "docs/engineering.local.md"
   "docs/dev/CONTRIBUTING.md"
   "docs/dev/EXTENSION_SOP.md"
   "docs/dev/trusted_publishing.md"

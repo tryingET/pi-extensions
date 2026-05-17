@@ -93,6 +93,7 @@ const ALWAYS_ACTIVE_TOOLS = [
   "fork_peer_spawn",
   "scout_peer_spawn",
   "candidate_peer_spawn",
+  "visible_loop_child_complete",
   "toolbox",
 ];
 
@@ -945,9 +946,9 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
     name: "toolbox",
     label: "Toolbox Discovery",
     description:
-      "Discover, explain, activate, deactivate, or inspect pi-extension tool bundles while keeping heavyweight package tools off by default except standard peer-spawn tools.",
+      "Discover, explain, activate, deactivate, or inspect pi-extension tool bundles while keeping heavyweight package tools off by default except standard peer-spawn and visible-loop checkpoint tools.",
     promptSnippet:
-      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, Prompt Vault read tools, and peer-spawn tools active by default.",
+      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, Prompt Vault read tools, peer-spawn tools, and visible-loop checkpoint fallback active by default.",
     promptGuidelines: [
       "Use toolbox to discover domain-specific Pi tools before assuming a heavyweight custom tool is active.",
       "Do not activate mutating, external-mutation, or orchestrator-gated profiles without explicit user intent.",

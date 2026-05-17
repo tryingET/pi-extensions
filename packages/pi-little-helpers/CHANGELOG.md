@@ -15,6 +15,12 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.3.0...pi-little-helpers-v0.3.1) (2026-05-16)
+
+### Fixed
+
+- Use the sidequest Ghostty wrapper for tab launches when the current stock Ghostty binary lacks `+new-tab`, keeping visible peer and visible-loop launches in tabs where the wrapper supports it.
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.2.0...pi-little-helpers-v0.3.0) (2026-05-16)
 
 ### Added

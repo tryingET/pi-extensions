@@ -32,7 +32,7 @@ system4d:
   - `scripts/package-quality-gate.sh`
   - `scripts/validate-package-release-contracts.mjs`
   - `scripts/pi-host-compatibility-canary.mjs`
-  - `scripts/tech-stack-review-surfaces.mjs`
+  - `scripts/engineering-review-surfaces.mjs`
 - Validation composition:
   - root pre-commit = `scripts/ci/smoke.sh --staged-only` + `scripts/ci/packages.sh pre-commit --staged-only`
   - root pre-push / CI = `scripts/ci/full.sh`
@@ -60,7 +60,7 @@ system4d:
     - exact Pi/host-runtime carrier boundary for FCOS-M48 steward-continuity wake-up participation; names `pi-context-overlay` as the presentation carrier and `pi-provenance` as the minimal runtime provenance helper without making Pi continuity-state authority
 - live inventory/audit helpers that those root docs should stay aligned with:
   - `scripts/release-components.mjs`
-  - `scripts/tech-stack-review-surfaces.mjs`
+  - `scripts/engineering-review-surfaces.mjs`
 - keep this surface repo-specific; these prompts encode monorepo workflow + routing, while installable package prompts belong in package-local `prompts/` directories exposed via `package.json#pi.prompts`
 
 ### Review / governance feedback
@@ -94,8 +94,8 @@ system4d:
 - `CODE_OF_CONDUCT.md`
 - `SECURITY.md`
 - `SUPPORT.md`
-- `docs/tech-stack.local.md`
-- `docs/project/tech-stack-review-surfaces.md`
+- `docs/engineering.local.md`
+- `docs/project/engineering-review-surfaces.md`
 - `docs/project/reduced-form-migration-contract.md`
 
 ### Repo-owned operator routing surfaces

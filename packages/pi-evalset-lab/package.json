@@ -56,7 +56,7 @@
     "scripts/export-evalset-report-html.mjs",
     "CHANGELOG.md",
     "policy/security-policy.json",
-    "policy/stack-lane.json"
+    "policy/engineering-lane.json"
   ],
   "pi": {
     "extensions": [

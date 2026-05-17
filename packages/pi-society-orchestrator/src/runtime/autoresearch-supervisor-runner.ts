@@ -6773,29 +6773,46 @@ function buildLevel4PromptRunnerBundle(
   const bindingByLaneId = new Map(
     (input.candidateBindings ?? []).map((binding) => [binding.laneId, binding]),
   );
+  const isPlaceholderCleanupValue = (value: string): boolean => value.startsWith("<");
   const cleanupRows = promptBundle.map((lane) => {
     const binding =
       bindingByLaneId.get(lane.laneId) ?? bindingByLaneId.get(`${lane.cellId}-${lane.laneId}`);
     const peerRunId =
       binding?.candidatePeerRunId ?? `<peerRunId for ${lane.cellId}/${lane.laneId}>`;
+    const registrySidecar = isPlaceholderCleanupValue(peerRunId)
+      ? null
+      : readCandidatePeerRegistrySidecar({
+          peerRunId,
+          cwd: input.cwd,
+          candidateWorktree: binding?.candidateWorktree,
+          candidateBranch: binding?.candidateBranch,
+        });
     const worktree =
       binding?.candidateWorktree ??
+      registrySidecar?.worktreePath ??
       `<${lane.cellId}-${lane.laneId}-worktree-from-candidate_peer_spawn>`;
     const branch =
       binding?.candidateBranch ??
+      registrySidecar?.branchName ??
       extractJsonStringFromToolCall(lane.candidatePeerSpawnCall, "branchName") ??
       `<${lane.cellId}-${lane.laneId}-branch-from-candidate_peer_spawn>`;
-    const archiveDirectory = path.join(
-      os.homedir(),
-      ".local",
-      "state",
-      "pi-quests",
-      "archives",
-      `cleanup-level4-task-${input.taskId}-${lane.cellId}-${lane.laneId}`,
-    );
-    return { lane, peerRunId, worktree, branch, archiveDirectory };
+    const archiveDirectory =
+      registrySidecar?.archiveDir ??
+      path.join(
+        os.homedir(),
+        ".local",
+        "state",
+        "pi-quests",
+        "archives",
+        `cleanup-level4-task-${input.taskId}-${lane.cellId}-${lane.laneId}`,
+      );
+    return { lane, peerRunId, worktree, branch, archiveDirectory, registrySidecar };
   });
-  const isPlaceholderCleanupValue = (value: string): boolean => value.startsWith("<");
+  const registrySidecars = cleanupRows
+    .map((row) => row.registrySidecar)
+    .filter((sidecar): sidecar is AutoresearchLevel4PostIntegrationCleanupRegistrySidecar =>
+      Boolean(sidecar),
+    );
   const cleanupBlockers = [
     ...(input.integrationCloseout?.status === "successful"
       ? []

@@ -1,6 +1,6 @@
 # pi-extensions Justfile — standardized command surface
 # Contract: /home/tryinget/ai-society/softwareco/owned/docs/project/standardized-justfile-contract.md
-# Lane addendum: /home/tryinget/ai-society/core/tech-stack-core/src/tech_stack_core/lanes/tech-stack-pi-ts.justfile.md
+# Lane addendum: /home/tryinget/ai-society/core/engineering-core/src/engineering_core/lanes/engineering-pi-ts.justfile.md
 
 # Show available targets
 help:

@@ -122,7 +122,7 @@ npm run quality:pre-push
 npm run quality:ci
 npm run check
 node ./scripts/release-components.mjs list --json   # live release-component inventory
-npm run tech-stack:review-surfaces                  # live package-local tech-stack audit
+npm run engineering:review-surfaces                  # live package-local engineering audit
 npm run release:contracts:validate  # validate publish/package release floors for non-private packages
 npm run compat:canary:list          # list host-compatibility scenarios + exact host contract
 npm run compat:canary               # local mirror of the dedicated compatibility-canary workflow (auto-aligns scenario packages to the pinned host contract)
@@ -201,18 +201,18 @@ Use `tpl-package` from your L1 templates to add packages:
   - `.github/workflows/vouch-manage.yml`
   - `.github/dependabot.yml`
 - Repo-local stack note:
-  - `docs/tech-stack.local.md`
+  - `docs/engineering.local.md`
 - Package stack contract surface:
-  - reduced-form target: package-local `docs/tech-stack.local.md` only when a package has a real local override
-  - current audit + routing note: `docs/project/tech-stack-review-surfaces.md`
+  - reduced-form target: package-local `docs/engineering.local.md` only when a package has a real local override
+  - current audit + routing note: `docs/project/engineering-review-surfaces.md`
   - migration contract + exact boundaries: `docs/project/reduced-form-migration-contract.md`
-  - live audit command: `npm run tech-stack:review-surfaces`
-  - package-local `policy/stack-lane.json` remains present in some existing packages and is tracked as legacy/full-surface state until routed follow-up removes it truthfully
+  - live audit command: `npm run engineering:review-surfaces`
+  - package-local `policy/engineering-lane.json` remains present in some existing packages and is tracked as legacy/full-surface state until routed follow-up removes it truthfully
   - `policy-only` is not an accepted target state
-  - root helper `scripts/validate-tech-stack-contract.mjs`
+  - root helper `scripts/validate-engineering-contract.mjs`
   - package-local `AGENTS.md` / `docs/project/resources.md`
 - Upstream lane CLI:
-  - `uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo`
+  - `uv tool run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo`
 - Repo-owned operator prompts (`.pi/prompts/`):
   - `.pi/prompts/commit.md` — repo-local commit workflow / validation gate prompt
   - `.pi/prompts/pi-extensions-deep-dive.md` — repo-local discoverability / routing prompt for package-selection and ownership questions inside this monorepo

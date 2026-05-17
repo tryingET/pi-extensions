@@ -141,8 +141,8 @@ function validatePackageJson() {
     if (!p.files.includes("policy/security-policy.json")) {
       fail("package.json files must include 'policy/security-policy.json'");
     }
-    if (!p.files.includes("policy/stack-lane.json")) {
-      fail("package.json files must include 'policy/stack-lane.json'");
+    if (!p.files.includes("policy/engineering-lane.json")) {
+      fail("package.json files must include 'policy/engineering-lane.json'");
     }
 
     for (const entry of ext) {
@@ -155,19 +155,19 @@ function validatePackageJson() {
 }
 
 function validateStackLane() {
-  const stackLane = readJsonSafe("policy/stack-lane.json");
+  const stackLane = readJsonSafe("policy/engineering-lane.json");
   if (!stackLane) {
-    fail("Failed to parse policy/stack-lane.json");
+    fail("Failed to parse policy/engineering-lane.json");
     return;
   }
 
   if (stackLane.lane !== "ts") {
-    fail("policy/stack-lane.json lane must be 'ts'");
+    fail("policy/engineering-lane.json lane must be 'ts'");
   }
 
-  const laneName = stackLane.tech_stack_core?.lane;
+  const laneName = stackLane.engineering_core?.lane;
   if (laneName !== "pi-ts") {
-    fail("policy/stack-lane.json tech_stack_core.lane must be 'pi-ts'");
+    fail("policy/engineering-lane.json engineering_core.lane must be 'pi-ts'");
   }
 }
 

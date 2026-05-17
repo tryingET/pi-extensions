@@ -1,0 +1,10 @@
+{
+  "lane": "ts",
+  "engineering_core": {
+    "tool": "engineering-core",
+    "lane": "pi-ts",
+    "repository": "https://github.com/lightningralf/engineering-core",
+    "ref": "316a29d957a09c45caee36e2e45de067b461067b",
+    "command": "uv tool run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo"
+  }
+}

@@ -10,7 +10,7 @@ const README = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
 const README_TERSE = fs.readFileSync(path.join(ROOT, "README.terse.md"), "utf8");
 const ROOT_CAPABILITIES = fs.readFileSync(path.join(ROOT, "docs", "project", "root-capabilities.md"), "utf8");
 const TECH_STACK_REVIEW = fs.readFileSync(
-  path.join(ROOT, "docs", "project", "tech-stack-review-surfaces.md"),
+  path.join(ROOT, "docs", "project", "engineering-review-surfaces.md"),
   "utf8",
 );
 
@@ -52,38 +52,38 @@ test("root capabilities points operators to the live inventory and audit helpers
   );
   assertContains(
     ROOT_CAPABILITIES,
-    "scripts/tech-stack-review-surfaces.mjs",
-    "root-capabilities.md should reference the live tech-stack audit helper",
+    "scripts/engineering-review-surfaces.mjs",
+    "root-capabilities.md should reference the live engineering audit helper",
   );
 });
 
-test("tech-stack review doc snapshot matches the live audit summary and package buckets", () => {
-  const audit = runJson("tech-stack-review-surfaces.mjs", ["--json"]);
+test("engineering review doc snapshot matches the live audit summary and package buckets", () => {
+  const audit = runJson("engineering-review-surfaces.mjs", ["--json"]);
 
   assertContains(
     TECH_STACK_REVIEW,
     `- package entries audited: \`${audit.summary.packageCount}\``,
-    "tech-stack review doc should match live packageCount",
+    "engineering review doc should match live packageCount",
   );
   assertContains(
     TECH_STACK_REVIEW,
     `- legacy-full: \`${audit.summary.legacyFullCount}\``,
-    "tech-stack review doc should match live legacyFullCount",
+    "engineering review doc should match live legacyFullCount",
   );
   assertContains(
     TECH_STACK_REVIEW,
     `- reduced-form: \`${audit.summary.reducedFormCount}\``,
-    "tech-stack review doc should match live reducedFormCount",
+    "engineering review doc should match live reducedFormCount",
   );
   assertContains(
     TECH_STACK_REVIEW,
     `- policy-only: \`${audit.summary.policyOnlyCount}\``,
-    "tech-stack review doc should match live policyOnlyCount",
+    "engineering review doc should match live policyOnlyCount",
   );
   assertContains(
     TECH_STACK_REVIEW,
     `- no local surface: \`${audit.summary.noLocalSurfaceCount}\``,
-    "tech-stack review doc should match live noLocalSurfaceCount",
+    "engineering review doc should match live noLocalSurfaceCount",
   );
 
   const legacyFull = audit.packages.filter((entry) => entry.reviewForm === "legacy-full").map((entry) => entry.path);
@@ -94,7 +94,7 @@ test("tech-stack review doc snapshot matches the live audit summary and package 
     assertContains(
       TECH_STACK_REVIEW,
       `- \`${packagePath}\``,
-      `tech-stack review doc should list legacy-full package ${packagePath}`,
+      `engineering review doc should list legacy-full package ${packagePath}`,
     );
   }
 
@@ -102,7 +102,7 @@ test("tech-stack review doc snapshot matches the live audit summary and package 
     assertContains(
       TECH_STACK_REVIEW,
       `- \`${packagePath}\``,
-      `tech-stack review doc should list reduced-form package ${packagePath}`,
+      `engineering review doc should list reduced-form package ${packagePath}`,
     );
   }
 
@@ -110,7 +110,7 @@ test("tech-stack review doc snapshot matches the live audit summary and package 
     assertContains(
       TECH_STACK_REVIEW,
       `- \`${packagePath}\``,
-      `tech-stack review doc should list no-local-surface package ${packagePath}`,
+      `engineering review doc should list no-local-surface package ${packagePath}`,
     );
   }
 });

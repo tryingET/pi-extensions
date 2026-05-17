@@ -43,10 +43,10 @@ Do not duplicate:
   - `docs/adr/` for adopted architectural decisions
   - avoid creating new `docs/dev/` trees
 - Keep the package stack contract explicit:
-  - `policy/stack-lane.json` pins the `tech-stack-core` lane
-  - `docs/tech-stack.local.md` records repo-local overrides
-  - root `scripts/validate-tech-stack-contract.mjs` centralizes stack-contract validation policy
-  - package `AGENTS.md` may point to the canonical `tech-stack-core` CLI command
+  - `policy/engineering-lane.json` pins the `engineering-core` lane
+  - `docs/engineering.local.md` records repo-local overrides
+  - root `scripts/validate-engineering-contract.mjs` centralizes stack-contract validation policy
+  - package `AGENTS.md` may point to the canonical `engineering-core` CLI command
 
 ## Live package activation
 - When a package change affects live Pi extension behavior, reinstall that package into Pi from its local package path.

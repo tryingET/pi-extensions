@@ -53,7 +53,7 @@
     "examples",
     "docs",
     "policy/security-policy.json",
-    "policy/stack-lane.json"
+    "policy/engineering-lane.json"
   ],
   "pi": {
     "extensions": [

@@ -46,7 +46,7 @@ The root should not become:
 
 Current repo truth says the next high-value root concern is to finish the **reduced-form root-policy direction**:
 
-- root keeps the shared `tech-stack-core` policy/validation stance
+- root keeps the shared `engineering-core` policy/validation stance
 - package/template outputs shrink toward smaller local override surfaces
 - root docs and AK need to represent that active wave explicitly
 

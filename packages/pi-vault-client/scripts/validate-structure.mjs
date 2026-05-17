@@ -2,7 +2,7 @@
 
 import fs from "node:fs";
 
-import { validateTechStackContract } from "../../../scripts/validate-tech-stack-contract.mjs";
+import { validateEngineeringContract } from "../../../scripts/validate-engineering-contract.mjs";
 import { validatePortableDocSurface } from "./validate-portable-doc-surface.mjs";
 
 let failed = false;
@@ -144,8 +144,8 @@ function validatePackageJson() {
     if (!p.files.includes("policy/security-policy.json")) {
       fail("package.json files must include 'policy/security-policy.json'");
     }
-    if (!p.files.includes("policy/stack-lane.json")) {
-      fail("package.json files must include 'policy/stack-lane.json'");
+    if (!p.files.includes("policy/engineering-lane.json")) {
+      fail("package.json files must include 'policy/engineering-lane.json'");
     }
 
     for (const entry of ext) {
@@ -158,12 +158,12 @@ function validatePackageJson() {
 }
 
 function validateStackLane() {
-  validateTechStackContract({
-    policyPath: "policy/stack-lane.json",
+  validateEngineeringContract({
+    policyPath: "policy/engineering-lane.json",
     expectedLane: "ts",
-    expectedTechStackLane: "pi-ts",
+    expectedEngineeringLane: "pi-ts",
     requirePinnedRef: "sha40",
-    smokeMode: process.env.PI_TECH_STACK_SMOKE === "0" ? "off" : "if-available",
+    smokeMode: process.env.PI_ENGINEERING_SMOKE === "0" ? "off" : "if-available",
     fail,
   });
 }
