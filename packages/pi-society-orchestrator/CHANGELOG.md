@@ -30,6 +30,7 @@ All notable changes to this project should be documented here.
 - Updated the package template in parallel so new monorepo package scaffolds inherit the same docs placement and AK-wrapper guidance.
 - Moved `/evidence` off raw sqlite reads onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper.
 - Gated Level-4 post-integration cleanup packets so cleanup dry-runs require exact peer run ids with valid candidate-peer registry sidecars, executable cleanup/fallback commands require exact peer ids, worktrees, branches, and successful integration closeout, and Level-4 reports surface compact registry-sidecar readiness.
+- Made Level-4 cleanup reports explicitly distinguish blocked, dry-run-ready, and execute-ready cleanup posture so destructive cleanup readiness is visible without reading raw tool details.
 
 ## [0.1.0] - 2026-02-08
 

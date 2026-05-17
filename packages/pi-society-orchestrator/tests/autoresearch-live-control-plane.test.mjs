@@ -3193,9 +3193,14 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(cleanupPacket.registrySidecars[0].status, "verified_registry_sidecar");
     assert.equal(cleanupPacket.registrySidecars[0].registryPath.includes(cleanupStateHome), true);
     assert.equal(cleanupPacket.blockers.length, 0);
-    assert.match(cleanupReady.content[0].text, /Post-integration cleanup registry sidecars:/);
+    assert.match(cleanupReady.content[0].text, /Post-integration cleanup operator posture:/);
+    assert.match(cleanupReady.content[0].text, /EXECUTE READY/);
     assert.match(cleanupReady.content[0].text, /dry-run call: prepared/);
-    assert.match(cleanupReady.content[0].text, /execute call: prepared/);
+    assert.match(
+      cleanupReady.content[0].text,
+      /execute call: prepared \(explicit destructive call required\)/,
+    );
+    assert.match(cleanupReady.content[0].text, /Post-integration cleanup registry sidecars:/);
     assert.match(
       cleanupReady.content[0].text,
       /candidatepeer-test-cleanup: verified_registry_sidecar/,
@@ -3237,6 +3242,8 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(mismatchPacket.candidatePeerCleanupDryRunCall, null);
     assert.equal(mismatchPacket.candidatePeerCleanupExecuteCall, null);
     assert.deepEqual(mismatchPacket.exactControllerCommands, []);
+    assert.match(mismatch.content[0].text, /Post-integration cleanup operator posture:/);
+    assert.match(mismatch.content[0].text, /BLOCKED/);
     assert.match(mismatch.content[0].text, /dry-run call: withheld/);
     assert.match(mismatch.content[0].text, /execute call: withheld/);
     assert.match(

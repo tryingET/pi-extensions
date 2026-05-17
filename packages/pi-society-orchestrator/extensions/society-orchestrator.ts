@@ -786,6 +786,20 @@ function formatAutoresearchLevel3MatrixCellExecutorReport(
 function formatAutoresearchLevel4CampaignRunnerReport(
   runner: AutoresearchLevel4CampaignRunner,
 ): string {
+  const cleanup = runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady;
+  const cleanupDryRunPrepared = Boolean(cleanup.candidatePeerCleanupDryRunCall);
+  const cleanupExecutePrepared = Boolean(cleanup.candidatePeerCleanupExecuteCall);
+  const cleanupBlocked =
+    cleanup.blockers.length > 0 ||
+    cleanup.registrySidecars.some((sidecar) => sidecar.status !== "verified_registry_sidecar");
+  const cleanupOperatorPosture = cleanupBlocked
+    ? "BLOCKED — resolve registry sidecar/closeout blockers before any cleanup call"
+    : cleanupExecutePrepared
+      ? "EXECUTE READY — destructive cleanup still requires an explicit candidate_peer_cleanup execute call"
+      : cleanupDryRunPrepared
+        ? "DRY-RUN READY — inspect the generated candidate_peer_cleanup dry-run call before closeout"
+        : "NOT READY — capture exact registry-backed peer ids and successful closeout first";
+
   return [
     "Autoresearch live supervision — level4_autoresearch_campaign_runner",
     `Task: #${runner.taskId}`,
@@ -839,22 +853,23 @@ function formatAutoresearchLevel4CampaignRunnerReport(
     "Controller lineage verification:",
     ...runner.promptRunnerBundle.controllerLineageVerification.checklist.map((item) => `- ${item}`),
     "",
+    "Post-integration cleanup operator posture:",
+    `- posture: ${cleanupOperatorPosture}`,
+    `- readiness: ${cleanup.readiness}`,
+    `- dry-run call: ${cleanupDryRunPrepared ? "prepared" : "withheld"}`,
+    `- execute call: ${cleanupExecutePrepared ? "prepared (explicit destructive call required)" : "withheld"}`,
+    `- exact peer ids: ${cleanup.exactPeerRunIds.length > 0 ? cleanup.exactPeerRunIds.join(", ") : "none"}`,
+    `- exact worktrees: ${cleanup.exactWorktrees.length > 0 ? cleanup.exactWorktrees.join(", ") : "none"}`,
+    `- exact branches: ${cleanup.exactBranches.length > 0 ? cleanup.exactBranches.join(", ") : "none"}`,
     "Post-integration cleanup registry sidecars:",
-    `- readiness: ${runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady.readiness}`,
-    `- dry-run call: ${runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady.candidatePeerCleanupDryRunCall ? "prepared" : "withheld"}`,
-    `- execute call: ${runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady.candidatePeerCleanupExecuteCall ? "prepared" : "withheld"}`,
-    ...(runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady
-      .registrySidecars.length > 0
-      ? runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady.registrySidecars.map(
+    ...(cleanup.registrySidecars.length > 0
+      ? cleanup.registrySidecars.map(
           (sidecar) =>
             `- ${sidecar.peerRunId}: ${sidecar.status}; registry=${sidecar.registryPath || "missing"}; worktree=${sidecar.worktreePath ?? "missing"}; branch=${sidecar.branchName ?? "missing"}`,
         )
       : ["- none verified yet; capture exact candidate_peer_spawn peerRunIds before cleanup"]),
-    ...(runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady.blockers
-      .length > 0
-      ? runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady.blockers.map(
-          (blocker) => `- blocker: ${blocker}`,
-        )
+    ...(cleanup.blockers.length > 0
+      ? cleanup.blockers.map((blocker) => `- blocker: ${blocker}`)
       : ["- blockers: none"]),
     "",
     "New Level-4 receipts:",
