@@ -3838,6 +3838,20 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
       ),
     );
     assert.equal(preflight.exactApplyCommandPacket, null);
+    assert.equal(
+      preflight.closeoutReceipt.kind,
+      "autoresearch.post_fanin_finalizer_closeout_receipt.v1",
+    );
+    assert.equal(preflight.closeoutReceipt.status, "review_blocked");
+    assert.equal(preflight.closeoutReceipt.execution, "receipt_only_no_mutation");
+    assert.equal(preflight.closeoutReceipt.validation.status, "passed");
+    assert.equal(preflight.closeoutReceipt.finalizerApply.posture, "withheld");
+    assert.equal(preflight.closeoutReceipt.evidenceHandoff.posture, "owner_surface_required");
+    assert.equal(
+      preflight.closeoutReceipt.cleanupHandoff.posture,
+      "separate_candidate_cleanup_gate_required",
+    );
+    assert.ok(preflight.closeoutReceipt.nonActions.some((action) => /No AK evidence/.test(action)));
 
     const authorized = runner.finalizePostFanin({
       action: "post_fanin_finalizer",
@@ -3879,6 +3893,17 @@ test("post-fan-in finalizer prepares token request while withholding apply packe
       authorized.exactApplyCommandPacket.exactCommands.join("\n"),
       forbiddenCleanupPromotionCommands,
     );
+    assert.equal(authorized.closeoutReceipt.status, "committed_cleaned");
+    assert.equal(
+      authorized.closeoutReceipt.finalizerApply.posture,
+      "commands_prepared_not_executed",
+    );
+    assert.equal(
+      authorized.closeoutReceipt.finalizerApply.commandCount,
+      authorized.exactApplyCommandPacket.exactCommands.length,
+    );
+    assert.equal(authorized.closeoutReceipt.finalizerApply.authorizationTokenAccepted, true);
+    assert.equal(authorized.closeoutReceipt.blockedReasons.length, 0);
     assert.equal(authorized.manualPostFaninResidue.name, "manual_post_fanin_residue");
     assert.equal(authorized.manualPostFaninResidue.value, 0);
     assert.equal(authorized.manualPostFaninResidue.status, "target_met");
@@ -3959,6 +3984,12 @@ test("post-fan-in finalizer fails closed on missing finals, off-limits drift, di
     assert.equal(blocked.authorizedFinalizerCleanupGate.cleanupAuthorized, false);
     assert.equal(blocked.authorizedFinalizerCleanupGate.promotionAuthorized, false);
     assert.equal(blocked.exactApplyCommandPacket, null);
+    assert.equal(blocked.closeoutReceipt.status, "failed_closed");
+    assert.equal(blocked.closeoutReceipt.finalizerApply.posture, "withheld");
+    assert.ok(blocked.closeoutReceipt.blockedReasons.length >= 5);
+    assert.ok(
+      blocked.closeoutReceipt.recoveryNotes.some((note) => /Do not run finalizer apply/.test(note)),
+    );
     assert.equal(blocked.preflight.status, "blocked");
     assert.ok(blocked.preflight.blockerCount >= 5);
     assert.equal(

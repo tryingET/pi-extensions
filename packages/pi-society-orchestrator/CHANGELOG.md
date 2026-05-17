@@ -32,6 +32,7 @@ All notable changes to this project should be documented here.
 - Gated Level-4 post-integration cleanup packets so cleanup dry-runs require exact peer run ids with valid candidate-peer registry sidecars, executable cleanup/fallback commands require exact peer ids, worktrees, branches, and successful integration closeout, and Level-4 reports surface compact registry-sidecar readiness.
 - Made Level-4 cleanup reports explicitly distinguish blocked, dry-run-ready, and execute-ready cleanup posture so destructive cleanup readiness is visible without reading raw tool details.
 - Added a Level-4 post-fan-in promotion handoff packet/report section that carries measured-packet fan-in, owner review, finalizer-token request, AK evidence, and post-closeout cleanup sequencing as one visible owner-gated tail.
+- Added a post-fan-in finalizer closeout receipt to make `review_blocked`, `committed_cleaned`, and `failed_closed` outcomes auditable across validation, finalizer apply, evidence handoff, and cleanup handoff without executing owner-gated mutations.
 
 ## [0.1.0] - 2026-02-08
 

@@ -1268,6 +1268,39 @@ export interface AutoresearchAuthorizedFinalizerCleanupGate {
   proofs: readonly string[];
 }
 
+export interface AutoresearchPostFaninFinalizerCloseoutReceipt {
+  kind: "autoresearch.post_fanin_finalizer_closeout_receipt.v1";
+  status: "committed_cleaned" | "review_blocked" | "failed_closed";
+  execution: "receipt_only_no_mutation";
+  taskId: number;
+  cwd: string;
+  sourceReview: "review_candidate_wave" | "review_matrix_campaign";
+  validation: {
+    command: string | null;
+    status: "passed" | "failed" | "missing";
+    summary: string | null;
+    artifactPath: string | null;
+  };
+  finalizerApply: {
+    posture: "commands_prepared_not_executed" | "withheld";
+    commandCount: number;
+    authorizationTokenAccepted: boolean;
+  };
+  evidenceHandoff: {
+    posture: "owner_surface_required";
+    exactRecordCall: string | null;
+    boundary: string;
+  };
+  cleanupHandoff: {
+    posture: "separate_candidate_cleanup_gate_required";
+    authorizedByFinalizer: false;
+    requiredTrigger: "candidate_cleanup_token_or_successful_integration_closeout";
+  };
+  blockedReasons: readonly string[];
+  recoveryNotes: readonly string[];
+  nonActions: readonly string[];
+}
+
 export interface AutoresearchPostFaninFinalizerResult {
   kind: "autoresearch.post_fanin_finalizer_result.v1";
   outcome: "committed_cleaned" | "review_blocked" | "failed_closed";
@@ -1287,6 +1320,7 @@ export interface AutoresearchPostFaninFinalizerResult {
   authorizedFinalizerCleanupGate: AutoresearchAuthorizedFinalizerCleanupGate;
   finalizerTokenRequest: AutoresearchPostFaninFinalizerTokenRequestPacket;
   exactApplyCommandPacket: AutoresearchPostFaninFinalizerApplyCommandPacket | null;
+  closeoutReceipt: AutoresearchPostFaninFinalizerCloseoutReceipt;
   nextStep: string;
   boundaries: readonly string[];
 }
@@ -4376,6 +4410,64 @@ export function finalizeAutoresearchPostFanin(
         : "review_blocked";
   const manualResidueValue =
     outcome === "committed_cleaned" ? 0 : Math.max(1, blockerCount + (wrongAuthorization ? 1 : 0));
+  const closeoutBlockedReasons = [
+    ...checks.filter((check) => check.status === "blocked").map((check) => check.summary),
+    ...(wrongAuthorization
+      ? ["Supplied applyAuthorizationToken did not match contract token."]
+      : []),
+    ...authorizedFinalizerCleanupGate.forbiddenCommandMatches.map(
+      (command) => `Forbidden cleanup/promotion command leaked into finalizer packet: ${command}`,
+    ),
+  ];
+  const closeoutReceipt: AutoresearchPostFaninFinalizerCloseoutReceipt = {
+    kind: "autoresearch.post_fanin_finalizer_closeout_receipt.v1",
+    status: outcome,
+    execution: "receipt_only_no_mutation",
+    taskId: identity.taskId,
+    cwd: identity.cwd,
+    sourceReview: input.sourceReview,
+    validation: {
+      command: validation.command.trim().length > 0 ? validation.command : null,
+      status: validation.status,
+      summary: validation.summary ?? null,
+      artifactPath: validation.artifactPath ?? null,
+    },
+    finalizerApply: {
+      posture: exactApplyCommandPacket ? "commands_prepared_not_executed" : "withheld",
+      commandCount: exactApplyCommandPacket?.exactCommands.length ?? 0,
+      authorizationTokenAccepted: finalizedWithToken,
+    },
+    evidenceHandoff: {
+      posture: "owner_surface_required",
+      exactRecordCall: null,
+      boundary:
+        "AK evidence is intentionally outside the finalizer apply packet; use an exact owner-approved evidence_record/ak command after finalizer closeout review.",
+    },
+    cleanupHandoff: {
+      posture: "separate_candidate_cleanup_gate_required",
+      authorizedByFinalizer: false,
+      requiredTrigger: "candidate_cleanup_token_or_successful_integration_closeout",
+    },
+    blockedReasons: closeoutBlockedReasons,
+    recoveryNotes:
+      outcome === "failed_closed"
+        ? [
+            "Do not run finalizer apply, evidence, cleanup, merge, or promotion commands from this failed receipt.",
+            "Resolve blocked preflight/authorization state, rerun fan-in review if artifacts changed, then request a fresh finalizer token.",
+          ]
+        : outcome === "review_blocked"
+          ? [
+              "Preflight passed; request explicit owner authorization with the exact finalize_post_fanin token before apply commands are used.",
+            ]
+          : [
+              "Apply commands were prepared but not executed by orchestrator; record evidence and cleanup only through their separate owner gates after external apply succeeds.",
+            ],
+    nonActions: [
+      "No finalizer command was executed by pi-society-orchestrator.",
+      "No AK evidence/task write was executed by pi-society-orchestrator.",
+      "No candidate cleanup, worktree deletion, merge, push, PR, release, or promotion was executed by pi-society-orchestrator.",
+    ],
+  };
 
   return {
     kind: "autoresearch.post_fanin_finalizer_result.v1",
@@ -4396,6 +4488,7 @@ export function finalizeAutoresearchPostFanin(
     authorizedFinalizerCleanupGate,
     finalizerTokenRequest,
     exactApplyCommandPacket,
+    closeoutReceipt,
     nextStep:
       outcome === "committed_cleaned"
         ? "Exact finalize_post_fanin token accepted; run the emitted finalizer apply command packet deliberately in the controller/apply lane only if still intended. Cleanup requires candidate_cleanup, and merge/release/promotion requires promotion. The orchestrator has not executed it."
