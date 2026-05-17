@@ -84,6 +84,7 @@ interface PeerProtocolMessage {
 interface PeerProtocolSnapshot {
   peerRunId: string;
   questId: string;
+  vocabulary: PeerProtocolVocabulary;
   state: PeerProtocolState;
   ackCount: number;
   finalCount: number;
@@ -324,8 +325,10 @@ class PeerProtocolLedger {
     this.messagesByRunId.set(parsed.runId, existing);
   }
 
-  snapshot(peerRunId: string): PeerProtocolSnapshot {
-    const messages = [...(this.messagesByRunId.get(peerRunId) ?? [])];
+  snapshot(peerRunId: string, vocabulary: "peer" | "quest"): PeerProtocolSnapshot {
+    const messages = [...(this.messagesByRunId.get(peerRunId) ?? [])].filter(
+      (message) => message.vocabulary === vocabulary,
+    );
     const ackCount = messages.filter((message) => message.phase === "ack").length;
     const finalCount = messages.filter((message) => message.phase === "final").length;
     const progressCount = messages.filter((message) => message.phase === "progress").length;
@@ -341,6 +344,7 @@ class PeerProtocolLedger {
     return {
       peerRunId,
       questId: peerRunId,
+      vocabulary,
       state,
       ackCount,
       finalCount,
@@ -563,7 +567,7 @@ export class IntercomCompatibleAdapter {
       return textResult(resolved.error ?? "Missing peer protocol run id", { isError: true });
     }
 
-    const snapshot = this.peerProtocolLedger.snapshot(resolved.runId);
+    const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary);
     return textResult(this.formatPeerProtocolSnapshot(snapshot, vocabulary), {
       details: { ...snapshot },
     });
@@ -593,7 +597,7 @@ export class IntercomCompatibleAdapter {
     const deadline = this.now() + timeoutMs;
 
     while (true) {
-      const snapshot = this.peerProtocolLedger.snapshot(resolved.runId);
+      const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary);
       if (this.peerProtocolWatchConditionMet(snapshot, waitFor)) {
         return textResult(this.formatPeerProtocolSnapshot(snapshot, vocabulary), {
           details: { ...snapshot, timedOut: false, waitFor },

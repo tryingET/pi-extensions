@@ -47,6 +47,7 @@ What the adapter adds:
 - `intercom({ action: "pending" })`
 - `intercom({ action: "status" })`, including a runtime-only `details.identityProof` that verifies the active peer session id is present in the broker presence list
 - inbound message formatting plus exact reply hints
+- vocabulary-isolated ACK/FINAL snapshots so canonical `PEER_* peer_run_id=...` state cannot be satisfied by legacy `QUEST_* quest_id=...` messages that happen to share the same id string
 
 What the adapter must **not** do:
 

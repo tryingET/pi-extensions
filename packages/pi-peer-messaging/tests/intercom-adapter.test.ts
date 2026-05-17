@@ -333,6 +333,43 @@ test("adapter keeps peer protocol state after the inbound reply is resolved", as
   assert.match(status.content[0]?.text ?? "", /PEER_ACK/);
 });
 
+test("adapter isolates canonical peer and legacy quest protocol ledgers when ids collide", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("PEER_ACK peer_run_id=shared-run: canonical started", { id: "peer-ack" }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("QUEST_FINAL quest_id=shared-run: legacy done", { id: "quest-final" }),
+  );
+
+  const peerStatus = await adapter.execute(runtime, {
+    action: "peer_status",
+    peerRunId: "shared-run",
+  });
+  const questStatus = await adapter.execute(runtime, {
+    action: "quest_status",
+    questId: "shared-run",
+  });
+
+  assert.equal(peerStatus.isError, undefined);
+  assert.equal(peerStatus.details?.vocabulary, "peer");
+  assert.equal(peerStatus.details?.state, "ack_received");
+  assert.equal(peerStatus.details?.ackCount, 1);
+  assert.equal(peerStatus.details?.finalCount, 0);
+  assert.doesNotMatch(peerStatus.content[0]?.text ?? "", /QUEST_FINAL/);
+
+  assert.equal(questStatus.isError, undefined);
+  assert.equal(questStatus.details?.vocabulary, "quest");
+  assert.equal(questStatus.details?.state, "final_received");
+  assert.equal(questStatus.details?.ackCount, 0);
+  assert.equal(questStatus.details?.finalCount, 1);
+  assert.doesNotMatch(questStatus.content[0]?.text ?? "", /PEER_ACK/);
+});
+
 test("adapter treats visible-loop iteration messages as allowed peer progress", async () => {
   const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
   const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });

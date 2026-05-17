@@ -193,7 +193,7 @@ QUEST_ACK quest_id=<id>: started
 QUEST_FINAL quest_id=<id>: final report
 ```
 
-`peer_status` / `peer_watch` and `quest_status` / `quest_watch` read a small in-memory protocol ledger maintained by the adapter when inbound messages arrive. Replying to or clearing pending messages does not erase the ACK/FINAL snapshot. The ledger is runtime memory only and remains communication state, not AK evidence or workflow authority.
+`peer_status` / `peer_watch` and `quest_status` / `quest_watch` read a small in-memory protocol ledger maintained by the adapter when inbound messages arrive. Canonical `PEER_* peer_run_id=...` and legacy `QUEST_* quest_id=...` snapshots are isolated by vocabulary even if a run id string collides, so a legacy quest final cannot satisfy a canonical peer watch. Replying to or clearing pending messages does not erase the ACK/FINAL snapshot. The ledger is runtime memory only and remains communication state, not AK evidence or workflow authority.
 
 ## Runtime dependencies
 
