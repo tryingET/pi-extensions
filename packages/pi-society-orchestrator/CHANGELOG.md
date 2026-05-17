@@ -29,6 +29,7 @@ All notable changes to this project should be documented here.
 - Clarified monorepo AK task/work-item guidance in AGENTS/README: use the repo-root `ak` wrapper (or `../.ak` from this package) instead of treating a package folder as an independent repo root.
 - Updated the package template in parallel so new monorepo package scaffolds inherit the same docs placement and AK-wrapper guidance.
 - Moved `/evidence` off raw sqlite reads onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper.
+- Gated Level-4 post-integration cleanup packets so cleanup dry-runs require exact peer run ids and executable cleanup/fallback commands require exact peer ids, worktrees, branches, and successful integration closeout.
 
 ## [0.1.0] - 2026-02-08
 

@@ -73,7 +73,7 @@ The package currently owns:
 - candidate-wave review from inline summaries or `autoresearch.candidate_result.v1` packet paths, including explicit missing-packet lane visibility and owner decision options;
 - candidate-wave fan-in gating: explicit planned missing packet paths block final owner selection until measured/exported or owner-replanned;
 - Level-4 candidate closeout packets with packet inventory states for pending launch, lineage verification, measurement/export, candidate-result packet, and controller-verified measured packet;
-- Level-4 post-integration cleanup-ready packets that name exact `candidate_peer_cleanup` dry-run and successful-closeout execute calls, including `closeVisibleResources: true` only after successful integration closeout;
+- Level-4 post-integration cleanup-ready packets that name exact `candidate_peer_cleanup` dry-run calls only after exact peer run ids are known, and successful-closeout execute calls including `closeVisibleResources: true` only after exact peer run ids/worktrees/branches plus successful integration closeout verify;
 - candidate-wave reliability/recovery output: `review_candidate_wave` emits typed plan-only guidance for missing lane, stalled lane, late packet, and non-selected lane stop/cancel handling without launching peers, promoting, merging, or cleaning worktrees;
 - `autoresearch_manifest_campaign_supervision` for exact manifest observation and evidence-only AK projection;
 - `autoresearch_self_hosting_supervision` for exact self-hosting artifact observation and evidence-only projection;
@@ -107,7 +107,7 @@ Above-seam recommendations are trustworthy only when:
 4. **Fan-in** — all explicit planned lanes are measured/exported, or the owner has deliberately replanned the lane set.
 5. **Projection** — evidence/KES writes are deduped, scoped, and routed through the owning surface.
 6. **Boundary report** — output says what was not done: no promotion, merge, pre-closeout worktree cleanup, AK direction mutation, or hidden peer launch.
-7. **Cleanup readiness** — post-integration cleanup is only executable when exact peer run ids/worktrees/branches come from registry sidecars and integration closeout is successful.
+7. **Cleanup readiness** — post-integration cleanup dry-runs require exact peer run ids, and executable cleanup/fallback commands require exact peer run ids/worktrees/branches from registry/controller-verified sidecars plus successful integration closeout.
 
 ## Current strategic line
 

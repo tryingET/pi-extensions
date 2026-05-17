@@ -801,7 +801,7 @@ export interface AutoresearchLevel4PostIntegrationCleanupReadyPacket {
   archiveDirectories: readonly string[];
   tabClosureHints: readonly string[];
   processTerminationHints: readonly string[];
-  candidatePeerCleanupDryRunCall: string;
+  candidatePeerCleanupDryRunCall: string | null;
   candidatePeerCleanupExecuteCall: string | null;
   exactControllerCommands: readonly string[];
   blockers: readonly string[];
@@ -6795,22 +6795,47 @@ function buildLevel4PromptRunnerBundle(
     );
     return { lane, peerRunId, worktree, branch, archiveDirectory };
   });
+  const isPlaceholderCleanupValue = (value: string): boolean => value.startsWith("<");
   const cleanupBlockers = [
     ...(input.integrationCloseout?.status === "successful"
       ? []
       : ["integrationCloseout.status must be successful before post-integration cleanup is ready"]),
     ...cleanupRows.flatMap((row) => [
-      ...(row.peerRunId.startsWith("<")
+      ...(isPlaceholderCleanupValue(row.peerRunId)
         ? [`missing exact peerRunId for ${row.lane.cellId}/${row.lane.laneId}`]
         : []),
-      ...(row.worktree.startsWith("<")
+      ...(isPlaceholderCleanupValue(row.worktree)
         ? [`missing exact worktree for ${row.lane.cellId}/${row.lane.laneId}`]
         : []),
-      ...(row.branch.startsWith("<")
+      ...(isPlaceholderCleanupValue(row.branch)
         ? [`missing exact branch for ${row.lane.cellId}/${row.lane.laneId}`]
         : []),
     ]),
   ];
+  const exactPeerRunIds = cleanupRows
+    .map((row) => row.peerRunId)
+    .filter((peerRunId) => !isPlaceholderCleanupValue(peerRunId));
+  const exactWorktrees = cleanupRows
+    .map((row) => row.worktree)
+    .filter((worktree) => !isPlaceholderCleanupValue(worktree));
+  const exactBranches = cleanupRows
+    .map((row) => row.branch)
+    .filter((branch) => !isPlaceholderCleanupValue(branch));
+  const exactCleanupRows = cleanupRows.filter(
+    (row) =>
+      !isPlaceholderCleanupValue(row.peerRunId) &&
+      !isPlaceholderCleanupValue(row.worktree) &&
+      !isPlaceholderCleanupValue(row.branch),
+  );
+  const fallbackCleanupCommands =
+    cleanupBlockers.length === 0
+      ? cleanupRows.flatMap((row) => [
+          `mkdir -p ${shellQuote(row.archiveDirectory)}`,
+          `git -C ${shellQuote(row.worktree)} status --short > ${shellQuote(path.join(row.archiveDirectory, "status.txt"))}`,
+          `git -C ${shellQuote(input.cwd)} worktree remove --force ${shellQuote(row.worktree)}`,
+          `git -C ${shellQuote(input.cwd)} branch -D ${shellQuote(row.branch)}`,
+        ])
+      : [];
   const postIntegrationCleanupReady: AutoresearchLevel4PostIntegrationCleanupReadyPacket = {
     kind: "autoresearch.level4_post_integration_cleanup_ready.v1",
     execution: "not_executed_by_orchestrator",
@@ -6823,44 +6848,44 @@ function buildLevel4PromptRunnerBundle(
       ...(input.integrationCloseout?.commit ? { commit: input.integrationCloseout.commit } : {}),
       ...(input.integrationCloseout?.summary ? { summary: input.integrationCloseout.summary } : {}),
     },
-    exactPeerRunIds: cleanupRows.map((row) => row.peerRunId),
-    exactPeerTabsOrSessions: cleanupRows.map((row) => row.peerRunId),
-    exactWorktrees: cleanupRows.map((row) => row.worktree),
-    exactBranches: cleanupRows.map((row) => row.branch),
-    archiveDirectories: cleanupRows.map((row) => row.archiveDirectory),
-    tabClosureHints: cleanupRows.map(
+    exactPeerRunIds,
+    exactPeerTabsOrSessions: exactPeerRunIds,
+    exactWorktrees,
+    exactBranches,
+    archiveDirectories: exactCleanupRows.map((row) => row.archiveDirectory),
+    tabClosureHints: exactCleanupRows.map(
       (row) =>
         `Close visible peer tab/session for exact peerRunId ${row.peerRunId}; do not fuzzy-match unrelated Pi tabs.`,
     ),
-    processTerminationHints: cleanupRows.map(
+    processTerminationHints: exactCleanupRows.map(
       (row) =>
         `Terminate only sidequest/peer processes whose command line contains exact candidate worktree ${row.worktree}.`,
     ),
-    candidatePeerCleanupDryRunCall: formatToolCall("candidate_peer_cleanup", {
-      peerRunIds: cleanupRows.map((row) => row.peerRunId),
-    }),
+    candidatePeerCleanupDryRunCall:
+      exactPeerRunIds.length > 0
+        ? formatToolCall("candidate_peer_cleanup", {
+            peerRunIds: exactPeerRunIds,
+          })
+        : null,
     candidatePeerCleanupExecuteCall:
       cleanupBlockers.length === 0
         ? formatToolCall("candidate_peer_cleanup", {
-            peerRunIds: cleanupRows.map((row) => row.peerRunId),
+            peerRunIds: exactPeerRunIds,
             execute: true,
             closeVisibleResources: true,
             integrationCloseoutStatus: "successful",
           })
         : null,
-    exactControllerCommands: cleanupRows.flatMap((row) => [
-      `mkdir -p ${shellQuote(row.archiveDirectory)}`,
-      `git -C ${shellQuote(row.worktree)} status --short > ${shellQuote(path.join(row.archiveDirectory, "status.txt"))}`,
-      `git -C ${shellQuote(input.cwd)} worktree remove --force ${shellQuote(row.worktree)}`,
-      `git -C ${shellQuote(input.cwd)} branch -D ${shellQuote(row.branch)}`,
-    ]),
+    exactControllerCommands: fallbackCleanupCommands,
     blockers: cleanupBlockers,
     boundary:
       "Post-integration cleanup is a controller/workbench closeout packet only: archive first, close/kill only exact peer resources, remove only named worktrees/branches, and do not infer merge, promotion, AK/KES/evidence writes, release, push, or PR authority.",
     nextStep:
       cleanupBlockers.length === 0
         ? "After successful integration is already committed/accepted, run candidatePeerCleanupExecuteCall or the exact fallback cleanup commands; do not clean any resource not named here."
-        : "Run candidatePeerCleanupDryRunCall for resource inventory, then after integration succeeds rerun Level-4 with integrationCloseout.status=successful and controller-verified candidate bindings so cleanup execution becomes exact.",
+        : exactPeerRunIds.length > 0
+          ? "Run candidatePeerCleanupDryRunCall for exact peer-resource inventory only; after integration succeeds rerun Level-4 with integrationCloseout.status=successful and controller-verified candidate bindings so cleanup execution becomes exact."
+          : "Capture exact candidate_peer_spawn peerRunIds plus controller-verified worktrees/branches before any cleanup dry-run or fallback cleanup command is prepared.",
   };
   const candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket = {
     kind: "autoresearch.level4_visible_candidate_closeout_packet.v1",

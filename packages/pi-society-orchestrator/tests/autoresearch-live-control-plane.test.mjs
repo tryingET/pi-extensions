@@ -2890,11 +2890,19 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       closeoutPacket.postIntegrationCleanupReady.blockers.join("\n"),
       /integrationCloseout\.status must be successful/,
     );
-    assert.match(
-      closeoutPacket.postIntegrationCleanupReady.candidatePeerCleanupDryRunCall,
-      /^candidate_peer_cleanup\(/,
-    );
+    assert.equal(closeoutPacket.postIntegrationCleanupReady.candidatePeerCleanupDryRunCall, null);
     assert.equal(closeoutPacket.postIntegrationCleanupReady.candidatePeerCleanupExecuteCall, null);
+    assert.deepEqual(closeoutPacket.postIntegrationCleanupReady.exactPeerRunIds, []);
+    assert.deepEqual(closeoutPacket.postIntegrationCleanupReady.exactWorktrees, []);
+    assert.match(
+      closeoutPacket.postIntegrationCleanupReady.exactBranches[0],
+      /^candidatepeer\/ar-2804-candidate-01-[a-f0-9]{8}$/,
+    );
+    assert.deepEqual(closeoutPacket.postIntegrationCleanupReady.exactControllerCommands, []);
+    assert.match(
+      closeoutPacket.postIntegrationCleanupReady.nextStep,
+      /Capture exact candidate_peer_spawn peerRunIds/,
+    );
     assert.match(closeoutPacket.lanes[0].launch.call, /^candidate_peer_spawn\(/);
     assert.match(
       closeoutPacket.lanes[0].launch.workspaceName,

@@ -15,7 +15,7 @@ $XDG_STATE_HOME/pi-quests/peer-registry/<peerRunId>.json
 
 The record is launch metadata, not authority. It captures the peer run id, parent cwd/repo, worktree path, branch/base ref, dirty-parent warning, report-back target, requested path-scope lists, launch/session hints, and an archive-before-cleanup command packet.
 
-Cleanup remains manual/review-gated. Use the packet only after inspecting the candidate diff and peer final report. Its order is intentional:
+Cleanup remains manual/review-gated. Above-seam closeout packets may prepare a `candidate_peer_cleanup` dry-run only when they have exact peer run ids; they may prepare execute/fallback cleanup commands only after exact peer run ids, worktrees, branches, and successful integration closeout verify. Use the packet only after inspecting the candidate diff and peer final report. Its order is intentional:
 
 1. archive registry metadata plus worktree status/diffs/bundle under `$XDG_STATE_HOME/pi-quests/archives/<peerRunId>/`
 2. remove only the recorded git worktree
