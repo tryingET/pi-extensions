@@ -6,6 +6,16 @@ import path from "node:path";
 import test from "node:test";
 import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
 import extension from "../extensions/society-orchestrator.ts";
+
+async function waitForFooterMatch(footer, width, pattern, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  let rendered = footer.render(width)[0];
+  while (!pattern.test(rendered) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    rendered = footer.render(width)[0];
+  }
+  return rendered;
+}
 import { BUILT_IN_PLUGINS, registerLoopTools } from "../src/loops/engine.ts";
 import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
 import {
@@ -1697,10 +1707,7 @@ test("session_start footer refreshes vault health after startup drift", async ()
       { cwd: tempVaultDir, stdio: "ignore" },
     );
 
-    footer.render(120);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    const refreshed = footer.render(120)[0];
+    const refreshed = await waitForFooterMatch(footer, 120, /Vault✓/);
     assert.match(refreshed, /Vault✓/);
     assert.ok(rerenders >= 1, "expected footer health refresh to request a rerender");
   } finally {
