@@ -23,6 +23,7 @@ const PROFILE_TOOLS: Record<string, ToolboxRegisteredToolSummary[]> = {
     { name: "autoresearch_runtime_peer_assist", profile: "read", risk: "diagnostic" },
     { name: "autoresearch_llamacpp_campaign_control", profile: "read", risk: "diagnostic" },
     { name: "autoresearch_llamacpp_campaign", profile: "read", risk: "diagnostic" },
+    { name: "autoresearch_vllm_campaign", profile: "read", risk: "diagnostic" },
   ],
   mutating: [
     { name: "autoresearch_runtime_run", profile: "mutating", risk: "mutating" },

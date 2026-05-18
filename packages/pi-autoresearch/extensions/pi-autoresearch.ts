@@ -116,6 +116,11 @@ import {
   recordAutoresearchSelfHostingRollback,
   resolveAutoresearchSelfHostingPromotionRecordPath,
 } from "../src/core/selfHosting.ts";
+import {
+  AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
+  buildVllmAutoresearchCampaignPlan,
+  formatVllmAutoresearchCampaignPlan,
+} from "../src/core/vllmCampaignCockpit.ts";
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 
@@ -1216,6 +1221,52 @@ const resumeApplySchema = Type.Object({
   ),
 });
 
+const vllmCampaignActionSchema = Type.Union(
+  [
+    Type.Literal("status"),
+    Type.Literal("plan"),
+    Type.Literal("run_segment_plan"),
+    Type.Literal("handoff_prompt"),
+  ],
+  {
+    description:
+      "Inspect or plan a bounded workstation vLLM autoresearch campaign cockpit for multi-matrix speed optimization.",
+  },
+);
+
+const vllmCampaignSchema = Type.Object({
+  action: Type.Optional(vllmCampaignActionSchema),
+  cwd: Type.Optional(
+    Type.String({
+      description:
+        "Workstation repo root. Defaults to /home/tryinget/ai-society/softwareco/infra/workstation.",
+    }),
+  ),
+  modelPath: Type.Optional(
+    Type.String({
+      description: "Local model path to optimize, usually under /data/vllm/hf-cache.",
+    }),
+  ),
+  hardware: Type.Optional(Type.String({ description: "Hardware label for the campaign." })),
+  knowledgeBase: Type.Optional(
+    Type.String({ description: "Path to Blackwell knowledge base, absolute or relative to cwd." }),
+  ),
+  objective: Type.Optional(Type.String({ description: "Bounded optimization objective." })),
+  maxWallClockMinutes: Type.Optional(Type.Number({ minimum: 0.01 })),
+  maxIterations: Type.Optional(Type.Number({ minimum: 1 })),
+  maxCellsPerSegment: Type.Optional(Type.Number({ minimum: 1 })),
+  targets: Type.Optional(stringArraySchema),
+  matrixAxes: Type.Optional(
+    Type.Record(Type.String(), Type.Array(Type.String()), {
+      description:
+        "Optional matrix axes for planning; each key is an axis and each value is the list of values.",
+    }),
+  ),
+  benchmarkProfile: Type.Optional(
+    Type.Union([Type.Literal("smoke"), Type.Literal("longcot"), Type.Literal("throughput")]),
+  ),
+});
+
 const selfHostingActionSchema = Type.Union(
   [
     Type.Literal("status"),
@@ -1531,6 +1582,47 @@ export function registerPiAutoresearchExtension(
       });
       return {
         content: [{ type: "text", text: formatAutoresearchCandidateDecisionWorkbench(result) }],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
+    label: "vLLM Autoresearch Campaign Cockpit",
+    description:
+      "Inspect and plan a bounded, multi-matrix workstation vLLM autoresearch campaign for local model speed optimization without hidden daemonization or direct service promotion.",
+    promptSnippet:
+      "Use the vLLM autoresearch campaign cockpit to inspect workstation GPU/lane/benchmark readiness, plan matrix axes, produce exact bounded autoresearch next calls, and generate a fresh-session handoff prompt. This surface is plan/read-only; execution still happens through bounded autoresearch/workstation owner seams.",
+    parameters: asPiToolParameters(vllmCampaignSchema),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const request = params as {
+        action?: "status" | "plan" | "run_segment_plan" | "handoff_prompt";
+        cwd?: string;
+        modelPath?: string;
+        hardware?: string;
+        knowledgeBase?: string;
+        objective?: string;
+        maxWallClockMinutes?: number;
+        maxIterations?: number;
+        maxCellsPerSegment?: number;
+        targets?: string[];
+        matrixAxes?: Record<string, string[]>;
+        benchmarkProfile?: "smoke" | "longcot" | "throughput";
+      };
+      const action = request.action ?? "status";
+      assertReadProfileAllowsAction(options, {
+        toolName: AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
+        action,
+        allowedActions: ["status", "plan", "run_segment_plan", "handoff_prompt"],
+      });
+      const result = buildVllmAutoresearchCampaignPlan({
+        ...request,
+        action,
+        cwd: request.cwd ?? ctx.cwd,
+      });
+      return {
+        content: [{ type: "text", text: formatVllmAutoresearchCampaignPlan(result) }],
         details: result,
       };
     },

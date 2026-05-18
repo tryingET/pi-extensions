@@ -163,6 +163,11 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - is the bounded public supervised self-hosting seam for `packages/pi-autoresearch` itself
   - can inspect controller/candidate/evaluator state, plan or apply the candidate worktree, run one bounded controller/candidate/evaluator wave, use `action=start_and_watch` for in-call progress updates while that bounded wave runs, and optionally plan/apply explicit promotion or rollback records
   - stays below hidden daemonized autonomy, direct AK mutation, package-local self-promotion, and automatic controller rotation
+- `autoresearch_vllm_campaign`
+  - is the read-only campaign cockpit for workstation vLLM speed-optimization autoresearch
+  - defaults to `/home/tryinget/ai-society/softwareco/infra/workstation`, the kasimat Qwen3.6 27B AEON FP8 MTP model path under `/data/vllm/hf-cache`, the RTX 6000 PRO WS hardware label, and `../../contrib/blackwell-gpu-wiki`
+  - inspects workstation GPU/status probes when the repo-owned scripts are present, reads the m14 LongCoT target catalog posture, plans bounded matrix axes, emits exact `autoresearch_campaign_start(...)` next calls, and can render a fresh-session handoff prompt
+  - remains plan/read-only: it does not start/stop services, mutate lane profiles, run benchmarks, spawn peers, write AK/KES/Oracle/evidence, promote candidates, or become a hidden daemon
 - `autoresearch_llamacpp_campaign_control`
   - is the dedicated public consumer/control seam for one manifest-driven llama.cpp campaign
   - returns current public control status for one exact checked manifest from one canonical derived snapshot
