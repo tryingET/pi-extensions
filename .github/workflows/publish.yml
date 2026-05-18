@@ -108,6 +108,8 @@ jobs:
             curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh -o /tmp/install-dolt.sh
             sudo bash /tmp/install-dolt.sh
           fi
+          dolt config --global --set user.name "github-actions[bot]"
+          dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
           dolt version
 
       - name: Run package quality gate
