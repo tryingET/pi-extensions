@@ -6,16 +6,6 @@ import path from "node:path";
 import test from "node:test";
 import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
 import extension from "../extensions/society-orchestrator.ts";
-
-async function waitForFooterMatch(footer, width, pattern, timeoutMs = 1000) {
-  const deadline = Date.now() + timeoutMs;
-  let rendered = footer.render(width)[0];
-  while (!pattern.test(rendered) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    rendered = footer.render(width)[0];
-  }
-  return rendered;
-}
 import { BUILT_IN_PLUGINS, registerLoopTools } from "../src/loops/engine.ts";
 import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
 import {
@@ -44,6 +34,16 @@ import {
   toExecutionLike,
 } from "../src/runtime/subagent.ts";
 import { createSessionTeamStore } from "../src/runtime/team-state.ts";
+
+async function waitForFooterMatch(footer, width, pattern, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  let rendered = footer.render(width)[0];
+  while (!pattern.test(rendered) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    rendered = footer.render(width)[0];
+  }
+  return rendered;
+}
 
 const timeoutEmptyOutputCase = loadExecutionSeamCase("timeout-empty-output");
 const timeoutWhitespaceOutputCase = loadExecutionSeamCase("timeout-whitespace-output");
