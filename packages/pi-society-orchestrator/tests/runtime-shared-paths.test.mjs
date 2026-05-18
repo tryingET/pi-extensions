@@ -1626,10 +1626,12 @@ test("session_start footer composes selected lightweight extension statuses when
 
 test("session_start footer refreshes vault health after startup drift", async () => {
   const previousVaultDir = process.env.VAULT_DIR;
+  const previousPiCompany = process.env.PI_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-health-"));
   execFileSync("dolt", ["init"], { cwd: tempVaultDir, stdio: "ignore" });
   process.env.VAULT_DIR = tempVaultDir;
+  process.env.PI_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "0";
 
   try {
@@ -1718,6 +1720,11 @@ test("session_start footer refreshes vault health after startup drift", async ()
     } else {
       process.env.VAULT_DIR = previousVaultDir;
     }
+    if (previousPiCompany === undefined) {
+      delete process.env.PI_COMPANY;
+    } else {
+      process.env.PI_COMPANY = previousPiCompany;
+    }
     if (previousRefreshMs === undefined) {
       delete process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
     } else {
@@ -1729,10 +1736,12 @@ test("session_start footer refreshes vault health after startup drift", async ()
 
 test("session_start footer health retries respect the refresh interval", async () => {
   const previousVaultDir = process.env.VAULT_DIR;
+  const previousPiCompany = process.env.PI_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-throttle-"));
   execFileSync("dolt", ["init"], { cwd: tempVaultDir, stdio: "ignore" });
   process.env.VAULT_DIR = tempVaultDir;
+  process.env.PI_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "1000";
 
   try {
@@ -1822,6 +1831,11 @@ test("session_start footer health retries respect the refresh interval", async (
       delete process.env.VAULT_DIR;
     } else {
       process.env.VAULT_DIR = previousVaultDir;
+    }
+    if (previousPiCompany === undefined) {
+      delete process.env.PI_COMPANY;
+    } else {
+      process.env.PI_COMPANY = previousPiCompany;
     }
     if (previousRefreshMs === undefined) {
       delete process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
