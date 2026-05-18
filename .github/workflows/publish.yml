@@ -67,6 +67,40 @@ jobs:
             npm ci
           fi
 
+      - name: Install local file dependency dependencies
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { execFileSync } = require('node:child_process');
+          const root = process.cwd();
+          const seen = new Set();
+          function installLocalDeps(packageDir) {
+            const manifestPath = path.join(packageDir, 'package.json');
+            if (!fs.existsSync(manifestPath)) return;
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+            const deps = { ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) };
+            for (const spec of Object.values(deps)) {
+              if (typeof spec !== 'string' || !spec.startsWith('file:')) continue;
+              const depDir = path.resolve(packageDir, spec.slice('file:'.length));
+              if (!depDir.startsWith(path.resolve(root, '..'))) continue;
+              if (seen.has(depDir)) continue;
+              seen.add(depDir);
+              installLocalDeps(depDir);
+              if (!fs.existsSync(path.join(depDir, 'package.json'))) continue;
+              console.log(`Installing local file dependency dependencies in ${depDir}`);
+              if (fs.existsSync(path.join(depDir, 'package-lock.json'))) {
+                execFileSync('npm', ['ci'], { cwd: depDir, stdio: 'inherit' });
+              } else {
+                execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts'], { cwd: depDir, stdio: 'inherit' });
+                execFileSync('npm', ['ci'], { cwd: depDir, stdio: 'inherit' });
+              }
+            }
+          }
+          installLocalDeps(root);
+          NODE
+
       - name: Run package quality gate
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm run check
