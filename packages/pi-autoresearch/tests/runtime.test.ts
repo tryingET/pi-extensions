@@ -3914,36 +3914,41 @@ test("autoresearch_campaign_start can run DSPx program-gen and use its setup pro
     writeFile(path.join(cwd, "src/index.ts"), "export const value = 1;\n");
 
     const previousDspxHome = process.env.DSPX_HOME;
+    const previousPath = process.env.PATH;
     const shellInjectionSentinel = path.join(process.cwd(), "dspx-shell-injected");
     rmSync(shellInjectionSentinel, { force: true });
     const fakeDspxHome = path.join(cwd, "fake-$(touch dspx-shell-injected)-dspx");
+    mkdirSync(fakeDspxHome, { recursive: true });
     const objective = "reduce runtime with dspx";
-    writeFile(
-      path.join(fakeDspxHome, "justfile"),
-      `dspx subcommand intentflag intent outdirflag outdir:\n    mkdir -p "{{outdir}}"\n    printf '%s\\n' '${JSON.stringify(
+    const fakeJustBin = path.join(cwd, "fake-bin");
+    mkdirSync(fakeJustBin, { recursive: true });
+    const behaviorPayload = {
+      summary: { status: "passed", total: 1, passed: 1, failed: 0, error: 0 },
+      examples: [
         {
-          summary: { status: "passed", total: 1, passed: 1, failed: 0, error: 0 },
-          examples: [
-            {
-              index: 0,
-              status: "passed",
-              inputs: { objective },
-              observed_outputs: {
-                campaign_name: "dspx-campaign",
-                metric_name: "latency_ms",
-                metric_unit: "ms",
-                direction: "lower",
-                benchmark_command: "npm run dspx-bench",
-                checks_command: "npm run dspx-check",
-                risks: "watch generated planner assumptions",
-                next_action: "baseline",
-              },
-            },
-          ],
+          index: 0,
+          status: "passed",
+          inputs: { objective },
+          observed_outputs: {
+            campaign_name: "dspx-campaign",
+            metric_name: "latency_ms",
+            metric_unit: "ms",
+            direction: "lower",
+            benchmark_command: "npm run dspx-bench",
+            checks_command: "npm run dspx-check",
+            risks: "watch generated planner assumptions",
+            next_action: "baseline",
+          },
         },
-      ).replaceAll("'", "'\\''")} ' > "{{outdir}}/behavior_results.json"\n`,
+      ],
+    };
+    writeFile(
+      path.join(fakeJustBin, "just"),
+      `#!/usr/bin/env node\nconst fs = require("node:fs");\nconst path = require("node:path");\nconst args = process.argv.slice(2);\nconst outdir = args[args.indexOf("--outdir") + 1];\nif (args[0] !== "dspx" || args[1] !== "program-gen" || !outdir) process.exit(64);\nfs.mkdirSync(outdir, { recursive: true });\nfs.writeFileSync(path.join(outdir, "behavior_results.json"), ${JSON.stringify(JSON.stringify(behaviorPayload))});\n`,
     );
+    chmodSync(path.join(fakeJustBin, "just"), 0o755);
     process.env.DSPX_HOME = fakeDspxHome;
+    process.env.PATH = `${fakeJustBin}${path.delimiter}${previousPath ?? ""}`;
     try {
       const result = await tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME)?.execute(
         "call-campaign-start-dspx-run",
@@ -3995,6 +4000,11 @@ test("autoresearch_campaign_start can run DSPx program-gen and use its setup pro
         delete process.env.DSPX_HOME;
       } else {
         process.env.DSPX_HOME = previousDspxHome;
+      }
+      if (previousPath === undefined) {
+        delete process.env.PATH;
+      } else {
+        process.env.PATH = previousPath;
       }
       rmSync(shellInjectionSentinel, { force: true });
     }
