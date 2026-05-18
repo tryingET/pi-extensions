@@ -45,6 +45,7 @@ When `DESIGNMD_SESSION_ENDPOINT` is set, tools also report start/pass/fail activ
 - `designmd_session_browser_agent_handoff` — build or materialize a local `designmd.browser-agent-handoff.v1` prompt for optional browser-side review such as Sitegeist without granting mutation or promotion authority.
 - `designmd_session_closeout` — build or materialize a local `designmd.session-closeout.v1` Watch Mode evidence packet without claiming canonical AK/society promotion.
 - `designmd_session_promotion_candidate` — build or materialize a local `designmd.promotion-candidate.v1` owner-review packet without promoting, publishing, merging, or mutating AK/society authority.
+- `designmd_visual_dossier_pi_critique` — emit a `designmd.pi-visual-dossier-critique-handoff.v1` packet or markdown handoff prompt over validated visual-source dossier state; critique/handoff only, with no dossier acceptance, `DESIGN.md` mutation, DSPx fitness claim, or AK/society authority.
 - `designmd_readiness` — run DesignMD Foundry's integration readiness probe.
 
 Prompt/export modes are deliberately constrained to the Foundry CLI contract: `iterate`, `remix`, `expand`, or `audit`.
@@ -122,7 +123,7 @@ export DESIGNMD_SESSION_ACTOR=pi-designmd
 export DESIGNMD_SESSION_TOKEN=$DESIGNMD_API_TOKEN
 ```
 
-Without `DESIGNMD_SESSION_ID`, the adapter reuses the current running session or starts a new one. Output-producing tools attach artifacts such as Oat snapshot HTML, agent prompts, CSS/JSON exports, SVG/path metadata for OpenPencil exports, Penpot MCP bridge plans, bridge-apply proof SVGs, read-only existing-board export SVGs, local session plan packets, local session variant lane packets, local session handoff prompts, local session closeout packets, and local promotion candidate packets.
+Without `DESIGNMD_SESSION_ID`, the adapter reuses the current running session or starts a new one. Output-producing tools attach artifacts such as Oat snapshot HTML, agent prompts, CSS/JSON exports, SVG/path metadata for OpenPencil exports, Penpot MCP bridge plans, bridge-apply proof SVGs, read-only existing-board export SVGs, local session plan packets, local session variant lane packets, local session handoff prompts, local session closeout packets, local promotion candidate packets, and visual-dossier Pi critique/handoff packets.
 
 ## DesignMD Foundry root
 

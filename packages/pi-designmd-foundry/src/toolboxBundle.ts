@@ -26,6 +26,7 @@ const PROFILE_TOOLS: Record<string, ToolboxRegisteredToolSummary[]> = {
     { name: "designmd_openpencil_lint", profile: "read", risk: "read" },
     { name: "designmd_palette_from_text", profile: "read", risk: "read" },
     { name: "designmd_penpot_mcp_inspect", profile: "read", risk: "read" },
+    { name: "designmd_visual_dossier_pi_critique", profile: "read", risk: "read" },
     { name: "designmd_readiness", profile: "read", risk: "read" },
   ],
   mutating: [

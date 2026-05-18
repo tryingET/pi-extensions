@@ -85,3 +85,20 @@ test("designmd Penpot MCP bridge tool rejects ambiguous update selectors", async
   assert.equal(result.details.ok, false);
   assert.match(result.content[0].text, /either updateLatest or updateBoardId/);
 });
+
+test("designmd visual-dossier Pi critique tool is read-profile handoff only", () => {
+  const harness = createHarness();
+  const summaries = registerToolboxBundle(harness.pi, { profile: "read" });
+
+  assert.equal(
+    summaries.some((summary) => summary.name === "designmd_visual_dossier_pi_critique"),
+    true,
+  );
+  const critiqueTool = harness.tools.get("designmd_visual_dossier_pi_critique");
+  assert.equal(typeof critiqueTool?.execute, "function");
+  assert.match(critiqueTool.description, /review evidence\/handoff only/);
+  assert.match(critiqueTool.description, /cannot accept dossier guidance/);
+  assert.equal(Boolean(critiqueTool.parameters?.properties?.sourceId), true);
+  assert.equal(Boolean(critiqueTool.parameters?.properties?.dossierId), true);
+  assert.equal(Boolean(critiqueTool.parameters?.properties?.markdown), true);
+});

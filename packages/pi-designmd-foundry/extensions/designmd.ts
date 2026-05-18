@@ -142,6 +142,13 @@ interface SessionPromotionCandidateParams extends BaseParams {
   materialize?: boolean;
 }
 
+interface VisualDossierPiCritiqueParams extends BaseParams {
+  projectId?: string;
+  sourceId: string;
+  dossierId: string;
+  markdown?: boolean;
+}
+
 interface ReadinessParams extends BaseParams {}
 
 interface SessionArtifactSpec {
@@ -1155,6 +1162,51 @@ export default function (pi: ExtensionAPI) {
               ? "DesignMD materialized promotion candidate result"
               : "DesignMD promotion candidate packet",
             mimeType: "application/json; charset=utf-8",
+            content: result.stdout,
+          }),
+        }),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "designmd_visual_dossier_pi_critique",
+    label: "DesignMD visual-dossier Pi critique",
+    description:
+      "Emit a DesignMD visual-dossier Pi critique/handoff packet over validated dossier state. This is local review evidence/handoff only; it cannot accept dossier guidance, approve docs/design, mutate DESIGN.md, apply proposals, claim DSPx fitness, or create AK/society authority.",
+    parameters: asPiToolParameters(
+      Type.Object({
+        ...baseFields,
+        projectId: Type.Optional(
+          Type.String({ description: "DesignMD project id. Defaults to default." }),
+        ),
+        sourceId: Type.String({ description: "Visual source id, for example vsrc_..." }),
+        dossierId: Type.String({ description: "Visual dossier id to critique or hand off." }),
+        markdown: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, return the Foundry markdown handoff prompt. Defaults to JSON packet output.",
+          }),
+        ),
+      }),
+    ),
+    async execute(_toolCallId, params) {
+      const request = params as VisualDossierPiCritiqueParams;
+      const args = ["visual-dossier", "pi-critique", request.sourceId, request.dossierId];
+      if (request.projectId) args.push("--project", request.projectId);
+      if (request.markdown) args.push("--markdown");
+      return toolResult(
+        await runDesignmdWithSession(request, args, {
+          toolName: "designmd_visual_dossier_pi_critique",
+          objective: "Build DesignMD visual-dossier Pi critique handoff",
+          artifact: (result) => ({
+            kind: request.markdown ? "markdown" : "json",
+            title: request.markdown
+              ? "DesignMD visual-dossier Pi critique prompt"
+              : "DesignMD visual-dossier Pi critique packet",
+            mimeType: request.markdown
+              ? "text/markdown; charset=utf-8"
+              : "application/json; charset=utf-8",
             content: result.stdout,
           }),
         }),
