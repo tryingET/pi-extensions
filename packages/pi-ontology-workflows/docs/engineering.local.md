@@ -16,6 +16,30 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — ontology workflow commands need deterministic validation evidence.
+- `testing` — workflow selection, rendering, and tool behavior should have regression coverage when changed.
+- `security-privacy` — ontology/workflow tools must avoid leaking local paths, prompts, or sensitive workspace context.
+- `documentation` — operator-facing workflow behavior and package boundaries must stay discoverable.
+- `dependency-governance` — extension package dependencies should remain minimal and release-compatible.
+- `specification-and-dsls` — ontology workflow vocabularies, manifests, command shapes, and generated artifacts are executable semantics.
+- `engineering-reasoning` — use for explicit source-owner, workflow-boundary, and semantic-adoption decisions.
+- `observability` — runtime/tool failures should produce diagnosable evidence without noisy stdout behavior.
+
+Not selected by default:
+
+- `local-first-data` — this package operates on ontology/workflow artifacts but does not currently own durable local state, migrations, sync, or corruption recovery.
+- `accessibility` / `design-system` — this package does not own rendered UI surfaces.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

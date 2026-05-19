@@ -16,6 +16,26 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation`
+- `testing`
+- `security-privacy` — package tools and runtime receipts must avoid leaking provider credentials, prompts, or operator-local data.
+- `documentation`
+- `dependency-governance`
+- `local-first-data` — local receipt files, snapshots, and projections are explicit local artifacts but not canonical campaign truth.
+- `observability` — autoresearch supervision/status/inspect surfaces need diagnosable runtime evidence without mutating state by default.
+- `specification-and-dsls` — prompts, policy files, runtime states, and tool schemas are executable control vocabulary.
+- `engineering-reasoning` — use when deciding bounded-runtime, AK, Prompt Vault, and ontology seams.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

@@ -16,6 +16,26 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation`
+- `testing`
+- `security-privacy` — orchestration touches tool dispatch, peer/session context, and integration boundaries that must avoid leaking sensitive runtime details.
+- `documentation`
+- `dependency-governance`
+- `local-first-data` — orchestration consumes local AK/society/Prompt Vault-style state and must preserve source-owner boundaries rather than inventing package-local authority.
+- `observability` — workflows, loops, peer supervision, and runtime launch/watch behavior need diagnosable evidence when orchestration fails.
+- `specification-and-dsls` — workflow/tool/prompt-runner contracts and command vocabularies are executable semantics.
+- `engineering-reasoning` — orchestration decisions explicitly route between reasoning modes, peers, prompts, and source-owner surfaces.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

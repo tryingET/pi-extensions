@@ -16,6 +16,30 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — package commands, tool behavior, and release checks need deterministic validation.
+- `testing` — provider/tool request shaping and command behavior should stay regression-testable.
+- `security-privacy` — OpenAI/Codex credentials, generated images, prompts, and saved files are sensitive operator data.
+- `documentation` — commands, tools, auth expectations, and activation steps must stay explicit.
+- `dependency-governance` — provider integration packages should keep runtime/peer dependencies minimal and intentional.
+- `observability` — `/openai-settings`, diagnostics, and provider failures need actionable runtime evidence without leaking secrets.
+- `specification-and-dsls` — slash-command names, tool schemas, model/provider selection, and save options are executable interface vocabulary.
+- `engineering-reasoning` — use for explicit tradeoffs around provider boundaries, auth behavior, and operator UX.
+
+Not selected by default:
+
+- `local-first-data` — this package may save generated image outputs when requested, but it does not own durable local state, migrations, sync, or corruption recovery.
+- `accessibility` / `design-system` — this package exposes Pi commands/tools, not a rendered UI component system.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

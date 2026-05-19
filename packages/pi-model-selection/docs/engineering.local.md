@@ -16,6 +16,30 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — model-selection and auth-resolution primitives need deterministic package checks and explicit handoff evidence.
+- `testing` — selection/auth behavior should be covered by focused unit and integration-style tests where behavior changes.
+- `security-privacy` — auth-resolution primitives must avoid leaking provider credentials, tokens, or local secret paths.
+- `documentation` — this package is a support-library exception to the live extension shape, so package scope and non-extension status must stay explicit.
+- `dependency-governance` — provider/auth helpers must keep runtime dependencies minimal and reviewable.
+- `specification-and-dsls` — model identifiers, provider selection rules, and auth-resolution contracts are executable vocabulary.
+- `engineering-reasoning` — use when deciding whether selection/auth behavior belongs in this shared support library or a live extension package.
+
+Not selected by default:
+
+- `observability` — this package does not own runtime telemetry or evidence capture; consumers should adopt observability when they emit runtime selection/auth events.
+- `local-first-data` — this package does not own durable local state, migrations, sync, or corruption recovery.
+- `accessibility` / `design-system` — this package has no rendered UI surface.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

@@ -16,6 +16,26 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — compaction handlers and cutover preflight need deterministic pass/fail evidence.
+- `testing` — session summary behavior, preservation rules, and registration guards require regression coverage.
+- `security-privacy` — compaction can summarize sensitive prompt/session content and must preserve privacy boundaries.
+- `documentation` — operator commands, live entrypoint behavior, and template exceptions must stay explicit.
+- `dependency-governance` — extension/package dependencies affect live Pi runtime behavior.
+- `local-first-data` — files-touched manifests, tracked user prompts, and session-derived summaries are local runtime artifacts with clear authority limits.
+- `observability` — live compaction registration and fail-closed behavior need diagnosable runtime evidence.
+- `specification-and-dsls` — summary shape, registration guard, command contract, and preservation rules are executable semantics.
+- `engineering-reasoning` — use for explicit ownership and safety tradeoffs around compaction-summary behavior.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

@@ -16,6 +16,26 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — startup packet behavior and degradation modes need deterministic checks.
+- `testing` — read-only probes, parser behavior, and packet rendering need regression coverage.
+- `security-privacy` — startup context handles repo/runtime metadata and must avoid leaking secrets or over-broad user data.
+- `documentation` — the authority boundary and live activation path are part of the package contract.
+- `dependency-governance` — Pi extension dependencies must remain lightweight and package-local.
+- `local-first-data` — the package reads local AK/git/workspace state and must preserve local authority boundaries without creating shadow state.
+- `observability` — degraded startup probes and warnings must remain diagnosable without mutating runtime state.
+- `specification-and-dsls` — packet fields, command surfaces, and warning/status vocabularies are executable operator semantics.
+- `engineering-reasoning` — use when deciding whether a startup packet fact belongs to AK, docs, Pi runtime, or another owner surface.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

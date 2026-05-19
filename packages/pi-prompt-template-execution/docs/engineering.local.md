@@ -16,6 +16,30 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — command rendering, dry-run diagnostics, fixture parity, and registration guards need deterministic evidence.
+- `testing` — loader/rendering/argument/model-conditional behavior is covered by focused package tests.
+- `security-privacy` — prompt execution must avoid unsafe command registration, owner collisions, and accidental provider/secret assumptions.
+- `documentation` — package boundaries and live Pi extension behavior need explicit local docs.
+- `dependency-governance` — this package replaces an external prompt-template execution package and must keep dependency/rollback choices intentional.
+- `specification-and-dsls` — prompt-template metadata, model/thinking/args conditionals, and command registration semantics are executable DSL surfaces.
+- `engineering-reasoning` — use for explicit boundary decisions between execution semantics, prompt picker UX, orchestrator workflows, and ASC delegation.
+- `observability` — dry-run diagnostic reports, compatibility canaries, and safety reports are runtime evidence surfaces for prompt execution behavior.
+
+Not selected by default:
+
+- `local-first-data` — this package owns prompt-template execution semantics, not durable local data, migrations, sync, or corruption recovery.
+- `accessibility` / `design-system` — this package exposes Pi extension behavior and diagnostics, not a rendered UI surface.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

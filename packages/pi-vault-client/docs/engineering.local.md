@@ -16,6 +16,26 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — package command/tool behavior needs deterministic checks and handoff evidence.
+- `testing` — picker, command, and rendering behavior should stay covered by focused package tests.
+- `security-privacy` — Prompt Vault integration must avoid leaking prompt content, operator context, or credentials beyond the governed boundary.
+- `documentation` — package docs must preserve the split between Prompt Vault authority and Pi-side client behavior.
+- `dependency-governance` — extension package dependencies should remain minimal and release-safe.
+- `local-first-data` — the client reads local/workspace Prompt Vault surfaces but does not become Prompt Vault authority; cache/state behavior must preserve source-owner boundaries.
+- `observability` — command failures and picker/tool paths need diagnosable local evidence without noisy provider calls.
+- `specification-and-dsls` — vault template ids, command names, and picker/tool contracts are executable vocabulary.
+- `engineering-reasoning` — use for explicit authority-boundary and package-vs-vault placement decisions.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

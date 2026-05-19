@@ -16,6 +16,30 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — toolbox discovery behavior should stay covered by deterministic package checks.
+- `testing` — command routing, manifest interpretation, and discovery edge cases need regression coverage when behavior changes.
+- `security-privacy` — toolbox discovery exposes available tools/prompts and must avoid leaking secrets or expanding capabilities accidentally.
+- `documentation` — operator-facing toolbox behavior depends on clear package docs, prompts, and examples.
+- `dependency-governance` — keep extension dependencies small, pinned, and package-local.
+- `specification-and-dsls` — toolbox manifests, command vocabulary, and prompt/tool registration metadata are executable contracts.
+- `engineering-reasoning` — use for explicit routing and capability-exposure tradeoffs.
+
+Not selected by default:
+
+- `observability` — this package is a Pi extension package without a separate runtime telemetry surface; add it if toolbox discovery gains runtime evidence/logging ownership.
+- `local-first-data` — this package does not own durable local state, migrations, sync, or corruption recovery.
+- `accessibility` / `design-system` — this package is not a rendered UI surface.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

@@ -16,6 +16,30 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — provider contract parsing, fail-closed health checks, and package validation must stay deterministic.
+- `testing` — transport/contract behavior needs focused tests or package checks around supported request paths.
+- `security-privacy` — endpoint contracts, local URLs, and model/provider metadata must not leak credentials or broaden runtime authority.
+- `documentation` — this package's runtime-authority boundary is documentation-critical.
+- `dependency-governance` — provider transport and schema dependencies should stay minimal and locally justified.
+- `observability` — status, health, and contract freshness are operator-facing runtime evidence.
+- `specification-and-dsls` — the workstation provider contract JSON is an executable schema/contract surface.
+- `engineering-reasoning` — use for explicit authority-boundary decisions between Pi provider behavior and workstation lane-op runtime ownership.
+
+Not selected by default:
+
+- `local-first-data` — this package reads workstation-exported contracts and health state but does not own durable local state, migrations, sync, or corruption recovery.
+- `accessibility` / `design-system` — this package exposes provider commands, not a rendered UI/component system.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

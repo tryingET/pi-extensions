@@ -16,6 +16,31 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — overlay behavior should stay covered by package checks and live-smoke evidence where applicable.
+- `testing` — snapshot grouping, token estimation, and command/prompt behavior need regression coverage when changed.
+- `security-privacy` — context overlays and reports may expose session content, paths, prompts, or operator state.
+- `documentation` — operator command behavior, activation, and host compatibility notes must stay current.
+- `dependency-governance` — Pi host APIs and package dependencies must remain explicit and reviewable.
+- `observability` — host lifecycle drift and overlay refresh failures need diagnosable evidence.
+- `accessibility` — the context inspector is an operator-facing TUI/overlay surface.
+- `design-system` — grouping, labels, and visual hierarchy should remain consistent with Pi operator UX.
+- `specification-and-dsls` — slash commands, prompt templates, and snapshot grouping vocabulary are executable interface semantics.
+- `engineering-reasoning` — use when deciding whether context presentation belongs here or in lower-level Pi/runtime packages.
+
+Not selected by default:
+
+- `local-first-data` — this package keeps current-session in-memory snapshots but does not own durable local state, migrations, sync, or corruption recovery.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

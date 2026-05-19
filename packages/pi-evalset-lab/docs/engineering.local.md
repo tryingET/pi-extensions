@@ -16,6 +16,26 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — evalset/lab behavior needs reproducible checks and evidence before handoff.
+- `testing` — evaluation datasets, scoring helpers, and harness behavior need regression coverage.
+- `security-privacy` — eval data and model/provider interactions must avoid leaking secrets or sensitive examples.
+- `documentation` — lab workflows and evidence expectations need clear operator-facing docs.
+- `dependency-governance` — package dependencies should stay explicit and lightweight.
+- `local-first-data` — evalset artifacts and local lab state should preserve authority, durability, and regeneration boundaries.
+- `observability` — evaluation runs need inspectable output and failure evidence.
+- `specification-and-dsls` — evalset schemas, prompt/eval definitions, and scoring vocabulary are executable semantics.
+- `engineering-reasoning` — use for explicit eval-design, evidence, and tradeoff decisions.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).

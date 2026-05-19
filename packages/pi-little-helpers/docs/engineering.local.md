@@ -16,6 +16,30 @@ Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
 
+Catalog/list commands:
+
+```bash
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
+uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+```
+
+Selected disciplines:
+
+- `validation` — package scripts and Pi extension smoke checks are the handoff evidence surface.
+- `testing` — `npm run quality:ci` is the current package proof path.
+- `security-privacy` — helper extensions may touch sessions, package update metadata, stash behavior, and operator-facing content; avoid leaking local/session data.
+- `documentation` — prompts, examples, policy files, and package exports must stay aligned with shipped behavior.
+- `dependency-governance` — Pi SDK and peer dependency surfaces should stay explicit and release-safe.
+- `observability` — session presence, sidequest, and visible-loop helpers expose runtime/operator state that must stay diagnosable.
+- `specification-and-dsls` — capability manifests, toolbox bundles, prompts, and Pi extension declarations are executable configuration/vocabulary.
+- `engineering-reasoning` — use for explicit helper-surface placement and operator UX tradeoff decisions.
+
+Not selected by default:
+
+- `local-first-data` — this package has helper/session utilities but does not own durable local data authority, migrations, sync, or corruption recovery.
+- `accessibility` / `design-system` — this package is not primarily a rendered UI/design-system surface; add these only for concrete UI work.
+
 Repo-local emphasis:
 
 - Runtime/package manager baseline: Node.js 22 + npm (not Bun-first defaults).
