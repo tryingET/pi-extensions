@@ -172,7 +172,6 @@ function buildBenchmarkCommand(input: {
     return [
       "uv run scripts/phasee/64-longcot-local-experiment.py matrix",
       ...targetArgs,
-      "--mode compare",
       "--max-questions 10",
       "--max-tokens 8192",
       "--rlm-max-iterations 8",
@@ -183,19 +182,18 @@ function buildBenchmarkCommand(input: {
     return [
       "uv run scripts/phasee/64-longcot-local-experiment.py matrix",
       ...targetArgs,
-      "--mode vanilla",
       "--max-questions 20",
       "--max-tokens 4096",
+      "--rlm-max-iterations 1",
       "--emit-metrics",
     ].join(" ");
   }
   return [
     "uv run scripts/phasee/64-longcot-local-experiment.py matrix",
     ...targetArgs,
-    "--mode compare",
-    "--max-questions 3",
-    "--max-tokens 1024",
-    "--rlm-max-iterations 4",
+    "--max-questions 1",
+    "--max-tokens 128",
+    "--rlm-max-iterations 1",
     "--emit-metrics",
   ].join(" ");
 }
@@ -266,7 +264,14 @@ export function buildVllmAutoresearchCampaignPlan(
   const targetIds = loadTargetIds(targetCatalogPath);
   const recommendedTargets = requestedTargets.length
     ? requestedTargets
-    : targetIds.filter((id) => /27b|configi|qwen36-vllm-main|dflash/i.test(id)).slice(0, 6);
+    : targetIds
+        .filter((id) => /27b|configi|qwen36-vllm-main|dflash|kasimat|aeon/i.test(id))
+        .sort((a, b) => {
+          const score = (id: string) =>
+            /kasimat|aeon/i.test(id) ? 0 : /27b|configi/i.test(id) ? 1 : 2;
+          return score(a) - score(b) || a.localeCompare(b);
+        })
+        .slice(0, 6);
   const axes = request.matrixAxes || buildDefaultAxes(recommendedTargets.slice(0, 2));
   const benchmarkCommand = buildBenchmarkCommand({
     profile: benchmarkProfile,
