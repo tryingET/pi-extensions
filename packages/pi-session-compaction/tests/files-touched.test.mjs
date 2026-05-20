@@ -104,6 +104,38 @@ describe("files touched collection", () => {
     ]);
   });
 
+  it("tracks relative dev/null fd redirection as a repo artifact", () => {
+    const files = collectFilesTouched(
+      [
+        toolCallEntry("bash-dev-null", "bash", {
+          command:
+            "node noisy.js 2>dev/null && node more.js 1>> logs/out.txt && node quiet.js 2>/dev/null",
+        }),
+        toolResultEntry("bash-dev-null", "ok", 10),
+      ],
+      "/repo",
+    );
+
+    assert.deepEqual(touchedSummary(files), [
+      { displayPath: "dev/null", operations: ["write"] },
+      { displayPath: "logs/out.txt", operations: ["write"] },
+    ]);
+  });
+
+  it("ignores absolute dev targets and fd duplication redirects", () => {
+    const files = collectFilesTouched(
+      [
+        toolCallEntry("bash-absolute-dev-null", "bash", {
+          command: "node quiet.js >/dev/null 2>&1",
+        }),
+        toolResultEntry("bash-absolute-dev-null", "ok", 10),
+      ],
+      "/repo",
+    );
+
+    assert.deepEqual(files, []);
+  });
+
   it("normalizes absolute paths under the current repo to display-relative paths", () => {
     const files = collectFilesTouched(
       [

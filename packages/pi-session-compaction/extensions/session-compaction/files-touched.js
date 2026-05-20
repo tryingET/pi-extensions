@@ -438,30 +438,33 @@ function extractShellOperands(tokens) {
   return operands;
 }
 function isIgnoredRedirectTarget(value) {
-  return value === "/dev/null" || value === "/dev/stderr" || value === "/dev/stdout";
+  return (
+    value === "/dev/null" ||
+    value === "/dev/stderr" ||
+    value === "/dev/stdout" ||
+    /^&\d+$/.test(value)
+  );
+}
+function isWriteRedirectOperator(token) {
+  return token === ">" || token === ">>" || token === ">|" || /^(?:\d+|&)(?:>|>>|>\|)$/.test(token);
+}
+function inlineWriteRedirectTarget(token) {
+  const match = token.match(/^(?:\d+|&)?(?:>>|>\||>)(.+)$/);
+  return match?.[1] ?? null;
 }
 function extractRedirectWriteTargets(tokens, actions) {
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    if (token === ">" || token === ">>") {
+    if (isWriteRedirectOperator(token)) {
       if (i + 1 < tokens.length && !isIgnoredRedirectTarget(tokens[i + 1])) {
         actions.push({ kind: "touch", path: tokens[i + 1], operation: "write" });
       }
       i += 1;
       continue;
     }
-    if (token.startsWith(">>") && token.length > 2) {
-      const target = token.slice(2);
-      if (!isIgnoredRedirectTarget(target)) {
-        actions.push({ kind: "touch", path: target, operation: "write" });
-      }
-      continue;
-    }
-    if (token.startsWith(">") && token.length > 1) {
-      const target = token.slice(1);
-      if (!isIgnoredRedirectTarget(target)) {
-        actions.push({ kind: "touch", path: target, operation: "write" });
-      }
+    const inlineTarget = inlineWriteRedirectTarget(token);
+    if (inlineTarget && !isIgnoredRedirectTarget(inlineTarget)) {
+      actions.push({ kind: "touch", path: inlineTarget, operation: "write" });
     }
   }
 }
@@ -472,7 +475,7 @@ function stripRedirectTokens(tokens) {
   const result = [];
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    if (token === ">" || token === ">>" || token === ">|" || token === "<") {
+    if (isWriteRedirectOperator(token) || token === "<" || /^\d+<$/.test(token)) {
       i += 1;
       continue;
     }
@@ -481,10 +484,10 @@ function stripRedirectTokens(tokens) {
       continue;
     }
     if (
-      token.startsWith(">>") ||
-      token.startsWith(">") ||
+      inlineWriteRedirectTarget(token) ||
       token.startsWith("<<") ||
-      token.startsWith("<")
+      token.startsWith("<") ||
+      /^\d+</.test(token)
     ) {
       continue;
     }
