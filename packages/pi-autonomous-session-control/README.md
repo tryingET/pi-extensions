@@ -138,7 +138,7 @@ The `self` tool accepts operational handoff queries such as `controller handoff 
 
 The `self` tool accepts capability meta-queries such as `What can you do?`, `capability discovery`, and `capability routing`. Its response intentionally distinguishes three surfaces:
 
-1. `self` query domains: perception, direction, crystallization, protection, and action queries understood by the ASC self mirror.
+1. `self` query domains: perception, direction, crystallization, protection, and action queries understood by the ASC self mirror. Action-domain checkpoints and follow-ups are restart-persistent and can be reviewed with `action summary` before Level-4 handoff or dogfood closeout.
 2. Toolbox/bundle discovery: use the Pi `toolbox` tool to search, explain, activate, deactivate, or inspect extension bundles. ASC does not add or replace that tool.
 3. Repo/lane capability-map routing: use documentation surfaces such as `repo-capability-map.md` and `pi-extensions/docs/project/root-capabilities.md` to choose owning repos/packages and read-first docs. These maps are routing guidance, not runtime authority.
 
@@ -440,7 +440,7 @@ Persistence behavior:
 - The package-level `pi-autonomous-session-control/execution` entrypoint now exposes the supported public execution contract for non-tool consumers.
 - ASC now carries an owned rewind runtime slice that captures exact rewind points on turn boundaries, integrates with Pi's built-in `/fork` and `/tree` lifecycle hooks, and can project bounded restore milestones into Replay Fabric when `ASC_REWIND_REPLAY_FABRIC_URL` is configured.
 - Prompt-envelope application, runtime compatibility checks, invariant summaries, failure-memory canary coverage, and Edge Contract Kernel adoption are all live.
-- Scoped self-memory persistence is in place; remaining forward-looking work should live in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
+- Scoped self-memory persistence is in place for crystallization, protection, and action-domain checkpoint/follow-up state; remaining forward-looking work should live in `README.md` + `next_session_prompt.md`, not a separate `status.md` mirror.
 
 ## Live package activation
 

@@ -39,6 +39,8 @@ export type MemoryType =
   | "pattern" // A reusable pattern
   | "trap" // Something to avoid
   | "ontology_candidate" // Candidate-only semantic gap memory
+  | "checkpoint" // Self-action checkpoint that should survive session restart
+  | "followup" // Self-action follow-up reminder that should survive session restart
   | "decision" // A decision made with reasoning
   | "context" // Context about the project/session
   | "error" // An error and its resolution
@@ -378,6 +380,8 @@ export class InMemoryStore implements MemoryStore {
       pattern: 0,
       trap: 0,
       ontology_candidate: 0,
+      checkpoint: 0,
+      followup: 0,
       decision: 0,
       context: 0,
       error: 0,

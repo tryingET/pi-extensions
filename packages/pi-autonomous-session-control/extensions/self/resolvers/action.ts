@@ -11,6 +11,12 @@ export const ACTION_KEYWORDS = [
   "checkpoint",
   "mark checkpoint",
   "save point",
+  "action summary",
+  "what checkpoints",
+  "list checkpoints",
+  "what followups",
+  "list followups",
+  "pending followups",
   "queue followup",
   "queue follow-up",
   "remind me",
@@ -23,6 +29,16 @@ export const ACTION_KEYWORDS = [
 ];
 
 export function mapActionIntent(lower: string): string {
+  if (
+    lower.includes("action summary") ||
+    lower.includes("what checkpoints") ||
+    lower.includes("list checkpoints") ||
+    lower.includes("what followups") ||
+    lower.includes("list followups") ||
+    lower.includes("pending followups")
+  ) {
+    return "list_action_state";
+  }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
   if (
     lower.includes("followup") ||
@@ -54,6 +70,10 @@ export function resolveActionQuery(
       return handlePrefillEditor(query);
     }
 
+    case "list_action_state": {
+      return handleListActionState(state);
+    }
+
     default:
       return {
         understood: true,
@@ -63,6 +83,7 @@ export function resolveActionQuery(
           "create checkpoint before risky refactor",
           "queue followup: remember to test edge cases",
           "prefill: next step description",
+          "action summary",
         ],
       };
   }
@@ -135,6 +156,29 @@ function handleQueueFollowup(query: SelfQuery, state: SelfState): SelfResponse {
     intent: "action",
     answer: `Follow-up queued: "${text}". I will remind myself to address this later.`,
     data: { followupId, text, context },
+  };
+}
+
+function handleListActionState(state: SelfState): SelfResponse {
+  const pendingFollowups = state.followups.filter((followup) => !followup.delivered);
+  const checkpointText = state.checkpoints
+    .slice(-5)
+    .map((checkpoint) => `${checkpoint.label}: ${checkpoint.reason}`)
+    .join("; ");
+  const followupText = pendingFollowups
+    .slice(-5)
+    .map((followup) => `${followup.id}: ${followup.text}`)
+    .join("; ");
+
+  return {
+    understood: true,
+    intent: "action",
+    answer: `Action summary: checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}`,
+    data: {
+      checkpoints: [...state.checkpoints],
+      followups: [...state.followups],
+      pendingFollowups,
+    },
   };
 }
 

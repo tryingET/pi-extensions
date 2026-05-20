@@ -5,6 +5,7 @@
  * - Crystallization domain (pattern memories)
  * - Candidate-only ontology memories
  * - Protection domain (trap memories)
+ * - Action domain (checkpoints and follow-ups)
  */
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -22,13 +23,21 @@ import type { OntologyCandidateMemory, SelfState } from "./types.ts";
 const MEMORY_SNAPSHOT_VERSION = 1;
 const LOAD_LAYER_PRIORITY: MemoryLayer[] = ["longterm", "recent", "session", "ephemeral"];
 const PERSISTED_LAYER: MemoryLayer = "longterm";
-const SCOPED_MEMORY_TYPES = new Set<MemoryType>(["pattern", "ontology_candidate", "trap"]);
+const SCOPED_MEMORY_TYPES = new Set<MemoryType>([
+  "pattern",
+  "ontology_candidate",
+  "trap",
+  "checkpoint",
+  "followup",
+]);
 const VALID_LAYERS: MemoryLayer[] = ["ephemeral", "session", "recent", "longterm"];
 const VALID_TYPES: MemoryType[] = [
   "learning",
   "pattern",
   "trap",
   "ontology_candidate",
+  "checkpoint",
+  "followup",
   "decision",
   "context",
   "error",
@@ -258,6 +267,48 @@ function trapMemoryFromState(state: SelfState): Memory[] {
   }));
 }
 
+function actionCheckpointMemoryFromState(state: SelfState): Memory[] {
+  return state.checkpoints.map((checkpoint) => ({
+    id: checkpoint.id,
+    type: "checkpoint",
+    content: checkpoint.reason,
+    context: "Self action checkpoint",
+    topic: "checkpoint",
+    topics: ["checkpoint", checkpoint.label, checkpoint.entryId].filter((value): value is string =>
+      Boolean(value),
+    ),
+    strength: 1,
+    createdAt: checkpoint.createdAt,
+    lastAccessedAt: checkpoint.createdAt,
+    accessCount: 0,
+    source: "session",
+    metadata: {
+      label: checkpoint.label,
+      entryId: checkpoint.entryId,
+    },
+  }));
+}
+
+function actionFollowupMemoryFromState(state: SelfState): Memory[] {
+  return state.followups.map((followup) => ({
+    id: followup.id,
+    type: "followup",
+    content: followup.text,
+    context: followup.context || "Self action follow-up",
+    topic: "followup",
+    topics: ["followup", followup.context].filter((value): value is string => Boolean(value)),
+    strength: followup.delivered ? 0.5 : 1,
+    createdAt: followup.queuedAt,
+    lastAccessedAt: followup.queuedAt,
+    accessCount: followup.delivered ? 1 : 0,
+    source: "session",
+    metadata: {
+      context: followup.context,
+      delivered: followup.delivered,
+    },
+  }));
+}
+
 function ontologyCandidateMemoryFromState(state: SelfState): Memory[] {
   return Array.from(state.learnings.ontologyCandidates.values()).map((candidate) => ({
     id: candidate.id,
@@ -316,6 +367,14 @@ async function writeScopedStateToStore(state: SelfState, store: MemoryStore): Pr
   for (const memory of trapMemoryFromState(state)) {
     await store.store(memory, PERSISTED_LAYER);
   }
+
+  for (const memory of actionCheckpointMemoryFromState(state)) {
+    await store.store(memory, PERSISTED_LAYER);
+  }
+
+  for (const memory of actionFollowupMemoryFromState(state)) {
+    await store.store(memory, PERSISTED_LAYER);
+  }
 }
 
 function addPatternFromMemory(state: SelfState, memory: Memory): void {
@@ -360,6 +419,37 @@ function addTrapFromMemory(state: SelfState, memory: Memory): void {
     triggers,
     markedAt,
     encounterCount,
+  });
+}
+
+function addCheckpointFromMemory(state: SelfState, memory: Memory): void {
+  const metadata = isRecord(memory.metadata) ? memory.metadata : {};
+  const label = isNonEmptyString(metadata.label) ? metadata.label.trim() : memory.id;
+  const entryId = isNonEmptyString(metadata.entryId) ? metadata.entryId.trim() : undefined;
+
+  state.checkpoints.push({
+    id: memory.id,
+    label,
+    reason: memory.content,
+    entryId,
+    createdAt: memory.createdAt,
+  });
+}
+
+function addFollowupFromMemory(state: SelfState, memory: Memory): void {
+  const metadata = isRecord(memory.metadata) ? memory.metadata : {};
+  const context = isNonEmptyString(metadata.context)
+    ? metadata.context.trim()
+    : memory.context === "Self action follow-up"
+      ? ""
+      : memory.context;
+
+  state.followups.push({
+    id: memory.id,
+    text: memory.content,
+    context,
+    queuedAt: memory.createdAt,
+    delivered: metadata.delivered === true,
   });
 }
 
@@ -427,6 +517,8 @@ async function hydrateScopedStateFromStore(state: SelfState, store: MemoryStore)
   state.learnings.topicsIndex.clear();
   state.learnings.ontologyCandidates.clear();
   state.traps.traps.clear();
+  state.checkpoints.length = 0;
+  state.followups.length = 0;
 
   const loadedIds = new Set<string>();
 
@@ -452,6 +544,14 @@ async function hydrateScopedStateFromStore(state: SelfState, store: MemoryStore)
 
       if (memory.type === "trap") {
         addTrapFromMemory(state, memory);
+      }
+
+      if (memory.type === "checkpoint") {
+        addCheckpointFromMemory(state, memory);
+      }
+
+      if (memory.type === "followup") {
+        addFollowupFromMemory(state, memory);
       }
     }
   }

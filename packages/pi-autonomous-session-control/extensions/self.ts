@@ -76,6 +76,21 @@ function isNamedToolCallEvent<TName extends ToolCallEvent["toolName"]>(
   return event.toolName === toolName;
 }
 
+const RELATIVE_DEV_NULL_REDIRECT_PATTERN = /(^|[\s;&|])(?:\d+|&)?>>?\s*dev\/null(?:\s|$)/;
+
+function readBashCommandInput(input: unknown): string | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+
+  const command = (input as { command?: unknown }).command;
+  return typeof command === "string" && command.trim().length > 0 ? command : null;
+}
+
+function hasRelativeDevNullRedirect(command: string): boolean {
+  return RELATIVE_DEV_NULL_REDIRECT_PATTERN.test(command);
+}
+
 // ============================================================================
 // EXTENSION SESSION STATE HELPERS
 // ============================================================================
@@ -127,6 +142,7 @@ function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentStat
 
 function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
   const bashCommandByCallId = new Map<string, string>();
+  const malformedBashCallIds = new Set<string>();
 
   const handleToolCall = (event: ToolCallEvent): void => {
     if (isNamedToolCallEvent(event, "write")) {
@@ -177,10 +193,29 @@ function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
     }
 
     if (isNamedToolCallEvent(event, "bash")) {
-      const { command } = event.input;
+      const command = readBashCommandInput(event.input);
       const callId = event.toolCallId;
-      if (typeof command === "string" && callId) {
+      if (!command) {
+        if (callId) {
+          malformedBashCallIds.add(callId);
+        }
+        trackError(
+          state.operations,
+          "bash",
+          "Malformed bash tool call: missing non-empty command string.",
+        );
+        return;
+      }
+
+      if (callId) {
         bashCommandByCallId.set(callId, command);
+      }
+      if (hasRelativeDevNullRedirect(command)) {
+        trackError(
+          state.operations,
+          "bash",
+          "Suspicious bash redirection to relative dev/null; use absolute /dev/null to avoid repo artifacts.",
+        );
       }
     }
   };
@@ -190,9 +225,21 @@ function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
     const success = !event.isError;
 
     if (toolName === "bash") {
-      const command = bashCommandByCallId.get(event.toolCallId) || "unknown";
-      bashCommandByCallId.delete(event.toolCallId);
-      trackCommand(state.operations, command, success);
+      if (malformedBashCallIds.has(event.toolCallId)) {
+        malformedBashCallIds.delete(event.toolCallId);
+      } else {
+        const command = bashCommandByCallId.get(event.toolCallId);
+        bashCommandByCallId.delete(event.toolCallId);
+        if (command) {
+          trackCommand(state.operations, command, success);
+        } else {
+          trackError(
+            state.operations,
+            "bash",
+            "Bash tool result had no matching command; command history cannot prove what ran.",
+          );
+        }
+      }
     }
 
     if (event.isError) {
@@ -245,7 +292,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
     promptGuidelines: [
       "Use self when you need to verify what work has actually happened before planning the next step.",
-      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, explicit remember/mark-trap directives, and candidate-only ontology crystallization.",
+      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, explicit remember/mark-trap directives, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
     ],
     parameters: Type.Object({
       query: Type.String({
@@ -266,7 +313,11 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
           : undefined;
       const response = resolveQuery({ query: typedParams.query, context }, state);
 
-      if (response.intent === "crystallization" || response.intent === "protection") {
+      if (
+        response.intent === "crystallization" ||
+        response.intent === "protection" ||
+        response.intent === "action"
+      ) {
         try {
           await memoryLifecycle.persistScopedDomains();
         } catch (error) {

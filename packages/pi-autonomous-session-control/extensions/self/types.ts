@@ -284,7 +284,11 @@ export type CrystallizationIntent =
 
 export type ProtectionIntent = "mark_trap" | "check_traps" | "trap_proximity" | "list_traps";
 
-export type ActionIntent = "create_checkpoint" | "queue_followup" | "prefill_editor";
+export type ActionIntent =
+  | "create_checkpoint"
+  | "queue_followup"
+  | "prefill_editor"
+  | "list_action_state";
 
 export type MetaIntent = "list_capabilities";
 

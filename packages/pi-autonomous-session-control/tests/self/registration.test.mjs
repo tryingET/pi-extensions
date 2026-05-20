@@ -192,6 +192,103 @@ test("bash command tracking stores actual command instead of toolCallId", async 
   await cleanup(tempDir);
 });
 
+test("malformed bash tool calls are diagnosed without inventing an unknown command", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+
+  toolCallHandler({ toolName: "bash", toolCallId: "bash-empty", input: {} });
+  toolResultHandler({ toolName: "bash", toolCallId: "bash-empty", isError: false });
+
+  const tool = harness.tools.get("self");
+  const errors = await tool.execute(
+    "tc-malformed-bash-errors",
+    { query: "what errors have I encountered?" },
+    null,
+    null,
+    createMockContext(),
+  );
+  const commands = await tool.execute(
+    "tc-malformed-bash-commands",
+    { query: "what commands have I run?" },
+    null,
+    null,
+    createMockContext(),
+  );
+
+  assert.equal(errors.details.data.total, 1);
+  assert.equal(errors.details.data.errors[0].tool, "bash");
+  assert.match(errors.details.data.errors[0].signature, /Malformed bash tool call/);
+  assert.equal(commands.details.data.total, 0);
+
+  await cleanup(tempDir);
+});
+
+test("relative dev/null bash redirections are diagnosed", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+
+  toolCallHandler({
+    toolName: "bash",
+    toolCallId: "bash-dev-null",
+    input: { command: "node noisy.js 2>dev/null" },
+  });
+  toolResultHandler({ toolName: "bash", toolCallId: "bash-dev-null", isError: false });
+
+  const tool = harness.tools.get("self");
+  const result = await tool.execute(
+    "tc-relative-dev-null",
+    { query: "what errors have I encountered?" },
+    null,
+    null,
+    createMockContext(),
+  );
+
+  assert.equal(result.details.data.total, 1);
+  assert.match(result.details.data.errors[0].lastMessage, /relative dev\/null/);
+
+  await cleanup(tempDir);
+});
+
+test("absolute /dev/null bash redirections are not diagnosed", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+
+  toolCallHandler({
+    toolName: "bash",
+    toolCallId: "bash-abs-dev-null",
+    input: { command: "node noisy.js 2>/dev/null" },
+  });
+  toolResultHandler({ toolName: "bash", toolCallId: "bash-abs-dev-null", isError: false });
+
+  const tool = harness.tools.get("self");
+  const result = await tool.execute(
+    "tc-absolute-dev-null",
+    { query: "what errors have I encountered?" },
+    null,
+    null,
+    createMockContext(),
+  );
+
+  assert.equal(result.details.data.total, 0);
+
+  await cleanup(tempDir);
+});
+
 test("write tracking includes empty file content", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

@@ -376,10 +376,11 @@ function resolveMetaQuery(intent: string): SelfResponse {
 - "Mark as trap: [pattern]" / "Am I approaching a trap?"
 - "List traps"
 
-**Action** (act):
+**Action** (act, persisted for restart-aware dogfood loops):
 - "Create checkpoint before [reason]"
 - "Queue followup: [task]" / "Remind me: [task]"
 - "Prefill: [text]"
+- "Action summary" / "List checkpoints" / "List followups"
 
 **2. toolbox/bundle discovery** (outside self):
 - Use the \`toolbox\` tool to search, explain, activate, deactivate, or inspect Pi extension bundles when you need extension-provided capabilities.
@@ -417,8 +418,8 @@ function resolveMetaQuery(intent: string): SelfResponse {
           },
           {
             name: "action",
-            description: "Create checkpoints, queue followups, prefill editor",
-            examples: ["Create checkpoint", "Queue followup: X", "Prefill: Y"],
+            description: "Create restart-persistent checkpoints and followups, prefill editor",
+            examples: ["Create checkpoint", "Queue followup: X", "Prefill: Y", "Action summary"],
           },
         ],
         discoverySurfaces: [

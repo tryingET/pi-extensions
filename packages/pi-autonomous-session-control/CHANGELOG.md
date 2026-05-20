@@ -15,6 +15,16 @@ All notable changes to this project should be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- `self` action state now supports `action summary` / checkpoint / follow-up listing for restart-aware dogfood loops.
+- Scoped self-memory persistence now round-trips action checkpoints and follow-ups alongside crystallization/protection memories.
+- `self` perception now diagnoses malformed bash tool-call inputs and suspicious relative `dev/null` redirects instead of inventing unprovable command history.
+
+### Changed
+
+- `self` persists scoped memory after action writes so Level-4 handoff/dogfood checkpoints survive extension restarts.
+
 ## [0.1.5] - 2026-05-12
 
 ### Added

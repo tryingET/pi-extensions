@@ -124,11 +124,35 @@ test("self memory persists crystallization + protection across extension lifecyc
         context,
       );
 
+      await firstSelf.execute(
+        "tc-checkpoint",
+        {
+          query: 'Create checkpoint "Roundtrip checkpoint survives restart"',
+          context: { entryId: "entry-roundtrip" },
+        },
+        null,
+        null,
+        context,
+      );
+
+      await firstSelf.execute(
+        "tc-followup",
+        {
+          query: "Queue followup: Roundtrip followup survives restart",
+          context: { context: "level-4 dogfood" },
+        },
+        null,
+        null,
+        context,
+      );
+
       const snapshot = JSON.parse(await readFile(memoryPath, "utf8"));
       assert.equal(snapshot.schemaVersion, 1);
       assert.ok(Array.isArray(snapshot.entries));
       assert.ok(snapshot.entries.some((entry) => entry.memory?.type === "pattern"));
       assert.ok(snapshot.entries.some((entry) => entry.memory?.type === "trap"));
+      assert.ok(snapshot.entries.some((entry) => entry.memory?.type === "checkpoint"));
+      assert.ok(snapshot.entries.some((entry) => entry.memory?.type === "followup"));
 
       const secondHarness = createPiHarness();
       createExtension(sessionsDir)(secondHarness.pi);
@@ -152,6 +176,21 @@ test("self memory persists crystallization + protection across extension lifecyc
       );
       assert.equal(traps.details.data.count, 1);
       assert.equal(traps.details.data.traps[0].description, "Roundtrip trap survives restart");
+
+      const actions = await secondSelf.execute(
+        "tc-action-summary",
+        { query: "action summary" },
+        null,
+        null,
+        context,
+      );
+      assert.equal(actions.details.data.checkpoints.length, 1);
+      assert.equal(actions.details.data.followups.length, 1);
+      assert.equal(
+        actions.details.data.checkpoints[0].reason,
+        "Roundtrip checkpoint survives restart",
+      );
+      assert.equal(actions.details.data.followups[0].text, "Roundtrip followup survives restart");
     });
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
