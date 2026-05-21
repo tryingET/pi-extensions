@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "9f0a1aeaf5df66eda49d090ce79a1b426ced0901"
-created_at: "2026-05-21T19:01:00Z"
+created_at: "2026-05-21T19:05:05Z"
 intent: "Add local agent_vent diagnostics package and route ASC/root metadata to it"
 files:
   - ".release-please-config.json"
@@ -64,10 +64,10 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
-  total: 4
+  total: 5
   rationale: "New package plus root release/routing metadata and ASC companion guidance"
 links:
   task_ids:
