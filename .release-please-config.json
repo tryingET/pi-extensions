@@ -25,6 +25,10 @@
       "release-type": "node",
       "component": "pi-context-overlay"
     },
+    "packages/pi-context-packer": {
+      "release-type": "node",
+      "component": "pi-context-packer"
+    },
     "packages/pi-designmd-foundry": {
       "release-type": "node",
       "component": "pi-designmd-foundry"

@@ -1,0 +1,162 @@
+---
+summary: "Overview and quickstart for monorepo package @tryinget/pi-context-packer."
+read_when:
+  - "Starting work in this package workspace."
+system4d:
+  container: "Monorepo package scaffold for pi extension delivery."
+  compass: "Ship safe package-level iterations inside a shared workspace."
+  engine: "Plan -> implement -> validate -> coordinate with monorepo release flow."
+  fog: "Drift risk if package scripts diverge from monorepo root conventions."
+---
+
+# @tryinget/pi-context-packer
+
+Read-only context-window packet planning for Pi coding sessions.
+
+This package is the proposed implementation seam for FCOS item `context-window-packer`: it plans how to assemble useful next-turn context from source-owned providers without turning any provider into a monolithic all-context authority.
+
+- Workspace path: `packages/pi-context-packer`
+- Release component key: `pi-context-packer`
+- Release config mode: `component` (default: `component`)
+
+## Current surface
+
+- `/context-pack` — preview the package's read-only planning posture.
+- `context_plan` — model-callable tool that returns a provider plan, budget, risks, and non-authorizations.
+- `context_pack` — model-callable packet assembler for currently wired read-only providers.
+
+`context_pack` is the first bounded retrieval slice: it reads only local AGENTS files, caller-seeded Markdown docs, trusted-system-git status, and SCI code context for caller-seeded code paths/symbols when an SCI CLI is available. It records omissions for planned but unwired providers and does not mutate state. Caller-controlled path seeds are screened before provider planning; URI/drive-letter, absolute, parent-traversing, current-directory, hidden/internal, generated/vendor, or malformed path seeds are omitted from provider queries and surfaced as blocked path risks. Caller-controlled `cwd`/`repoRoot` values are also screened before they are echoed as workspace posture, and retrieval repeats workspace containment plus descriptor/TOCTOU checks before file content enters a packet.
+
+## Provider boundary
+
+`context_plan` may select or mark optional providers for:
+
+- SCI code context (`sci`)
+- repo docs / docs-list (`docs`)
+- active AGENTS/instruction context (`agents`)
+- git posture (`git`)
+- current session context pressure (`session`)
+- Prompt Vault read-only procedures (`prompt_vault`)
+- AK read-only task/decision/evidence orientation (`ak`)
+- FCOS read-only control-board orientation (`fcos`)
+
+See the root source-owner docs:
+
+- [Context-window packer FCOS slice](../../docs/project/2026-05-21-context-window-packer-fcos-slice.md)
+- [Context packer provider contract](../../docs/project/2026-05-21-context-packer-provider-contract.md)
+
+## Current MVP omissions
+
+`context_pack` records explicit omissions instead of pretending full integration exists. Prompt Vault, AK, FCOS, and session-context adapters are planned provider seams. The current MVP assembles bounded AGENTS/docs/git sections plus SCI code context for path and symbol seeds when an SCI CLI is available.
+
+## Runtime dependencies
+
+This package expects pi host runtime APIs and declares them as `peerDependencies`:
+
+- `@mariozechner/pi-coding-agent`
+- `@mariozechner/pi-ai`
+
+When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
+
+## Package checks
+
+Run from package directory:
+
+```bash
+npm install
+npm run check
+```
+
+Run from monorepo root through the canonical package gate:
+
+```bash
+bash ./scripts/package-quality-gate.sh ci packages/pi-context-packer
+```
+
+The generated package-local `scripts/quality-gate.sh` is a thin wrapper that searches upward for the canonical monorepo root gate.
+If you validate the package outside the monorepo tree, set `PACKAGE_QUALITY_GATE_SCRIPT` to the canonical `pi-extensions` root gate path.
+
+## AK task/work-item operations
+
+This package is a monorepo member, not a git root.
+Use the monorepo-root AK wrapper for task/work-item operations:
+
+```bash
+# from the monorepo root
+./scripts/ak.sh --doctor
+./scripts/ak.sh task ready
+
+# from this package directory
+../../scripts/ak.sh --doctor
+../../scripts/ak.sh task show <id> -F json
+```
+
+## Documentation placement
+
+Use:
+- `docs/project/` for dated RFCs, runbooks, and evidence/progress notes
+- `docs/adr/` for adopted architecture decisions
+
+Avoid creating new package-local `docs/dev/` trees.
+
+## Live package activation
+
+Install the package into Pi from the package directory containing this package's `package.json`:
+
+```bash
+pi install /absolute/path/to/your/monorepo/packages/pi-context-packer
+```
+
+Then in Pi:
+
+1. run `/reload`
+2. verify with a real command or tool call from this package
+
+## Release metadata
+
+This scaffold keeps npm identity separate from release component identity:
+
+- npm package name: `@tryinget/pi-context-packer`
+- release component/tag stem: `pi-context-packer` (for example `pi-context-packer-vX.Y.Z`)
+
+The npm package name must stay scoped. The release component should usually stay unscoped so root release-please component tags remain readable and stable.
+
+This scaffold writes component metadata in `package.json` under `x-pi-template`:
+
+- `workspacePath`
+- `releaseComponent`
+- `releaseConfigMode`
+
+Default `releaseConfigMode` is `component`, meaning the package expects root-managed component release metadata such as a monorepo release-please component map. Use `none` only as an explicit opt-out when the monorepo root deliberately manages releases another way.
+
+Use these values when wiring monorepo-level release-please component maps.
+
+## Docs discovery
+
+```bash
+npm run docs:list
+npm run docs:list:workspace
+npm run docs:list:json
+```
+
+## Stack lane companions
+
+This package follows the shared `pi-ts` lane.
+Add companions only when they materially improve clarity or reuse:
+
+- `fast-check` for parser/rendering/selection invariants
+- `@cucumber/cucumber` for executable Gherkin/operator workflows
+- `nunjucks` for reusable text/config/prompt/file templates
+- `engineering-pi-ts.ts-quality.md` when the package explicitly adopts deterministic screening with `ts-quality`
+
+If this package adopts `ts-quality`, prefer repo-local rollout truth in `docs/project/ts-quality-current-vs-target.md` and keep the detailed adoption doctrine upstream in `~/ai-society/softwareco/owned/ts-quality/docs/adoption/`.
+
+## Copier lifecycle policy
+
+- Keep `.copier-answers.yml` committed.
+- Do not edit `.copier-answers.yml` manually.
+- Run update/recopy from a clean destination repo (commit or stash pending changes first).
+- Use `copier update --trust` when `.copier-answers.yml` includes `_commit` and update is supported.
+- In non-interactive shells/CI, append `--defaults` to update/recopy.
+- Use `copier recopy --trust` when update is unavailable (for example local non-VCS source) or cannot reconcile cleanly.
+- After recopy, re-apply local deltas intentionally and run `npm run check`.
