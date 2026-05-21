@@ -32,6 +32,24 @@ const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "`grounding: template=<name>, vault_status=<ok|unavailable>`",
 ].join("\n");
 
+const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
+  "Update @docs/project/product-posture.md before loop completion.",
+  "",
+  "Use the actual implementation, validation, docs, and bugfixes from this iteration.",
+  "Treat product-posture as the next-iteration frontier map, not a changelog.",
+  "",
+  "Make the smallest truthful update that records:",
+  "- what product maturity changed;",
+  "- what proof/validation now exists;",
+  "- what main gap remains;",
+  "- any authority/provenance/source-owner boundary that became clearer;",
+  "- what the next highest-leverage slice should understand before choosing work.",
+  "",
+  "If product-posture cannot be updated truthfully, stop and report the blocker.",
+  "Do not send/allow the visible-loop completion signal until this posture refresh is done.",
+  "Do not commit yet.",
+].join("\n");
+
 export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
   [
     "read @docs/project/vision.md and @docs/project/product-posture.md.",
@@ -108,6 +126,8 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "",
     DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
   ].join("\n"),
+  DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
+  "/commit",
 ] as const;
 
 export type VisibleLoopReportBack = "intercom" | "manual" | "none";
@@ -692,6 +712,7 @@ function renderVisibleLoopCompletionPrompt(input: {
     `- configPath: ${JSON.stringify(input.configPath)}`,
     `- iteration: ${input.iteration}`,
     "Do not call the tool before the previous prompt turn is complete.",
+    "Do not call the tool if any configured product-posture refresh or /commit prompt failed, stopped for clarification, or left validation/commit incomplete.",
     `Context: this checkpoint follows ${input.promptCount} real prompt(s) in the current visible-loop iteration.`,
   ].join("\n");
 }

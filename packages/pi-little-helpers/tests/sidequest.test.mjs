@@ -625,7 +625,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.cwd, "/repo");
     assert.equal(config.reportBack, "intercom");
     assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
-    assert.equal(config.prompts.length, 7);
+    assert.equal(config.prompts.length, 9);
     assert.match(
       config.prompts[0],
       /^read @docs\/project\/vision\.md and @docs\/project\/product-posture\.md\./,
@@ -645,6 +645,13 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
       /Execution means: inspect the current repo\/state, apply the needed bounded fixes, run verification/,
     );
     assert.match(config.prompts[6], /Do not stop after retrieving the template/);
+    assert.match(
+      config.prompts[7],
+      /Update @docs\/project\/product-posture\.md before loop completion/,
+    );
+    assert.match(config.prompts[7], /next-iteration frontier map/);
+    assert.match(config.prompts[7], /Do not commit yet/);
+    assert.equal(config.prompts[8], "/commit");
     assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
@@ -685,6 +692,11 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       "EXPANDED DEEP REVIEW $ARGUMENTS\n",
       "utf8",
     );
+    writeFileSync(
+      `${harness.ctx.cwd}/.pi/prompts/commit.md`,
+      "EXPANDED COMMIT $ARGUMENTS\n",
+      "utf8",
+    );
 
     await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
     const ghosttyCall = execStub.calls.find(
@@ -702,28 +714,36 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
 
     const agentStart = events.get("agent_start")[0];
     await agentStart({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    assert.equal(userMessages.length, 8);
+    assert.equal(userMessages.length, 10);
     assert.equal(userMessages[1].message, "proceed");
     assert.notEqual(userMessages[4].message, "/deep-review");
     assert.match(userMessages[4].message, /DEEP REVIEW/);
     assert.match(userMessages[6].message, /Prompt Vault/);
     assert.match(userMessages[6].message, /Do not stop after retrieving the template/);
-    assert.match(userMessages[7].message, /Visible-loop internal completion checkpoint/);
-    assert.match(userMessages[7].message, /visible_loop_child_complete/);
     assert.match(
       userMessages[7].message,
+      /Update @docs\/project\/product-posture\.md before loop completion/,
+    );
+    assert.match(userMessages[7].message, /next-iteration frontier map/);
+    assert.notEqual(userMessages[8].message, "/commit");
+    assert.match(userMessages[8].message, /commit orchestrator|EXPANDED COMMIT/i);
+    assert.match(userMessages[9].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[9].message, /visible_loop_child_complete/);
+    assert.match(userMessages[9].message, /product-posture refresh or \/commit prompt failed/);
+    assert.match(
+      userMessages[9].message,
       new RegExp(configPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
     assert.deepEqual(
       userMessages.slice(1).map((entry) => entry.options),
-      Array(7).fill({ deliverAs: "followUp" }),
+      Array(9).fill({ deliverAs: "followUp" }),
     );
     await new Promise((resolve) => setTimeout(resolve, 360));
     assert.equal(
       userMessages.length,
-      8,
+      10,
       "next iteration should not queue before explicit completion checkpoint runs",
     );
     let visibleLoopLaunches = execStub.calls.filter(
@@ -747,7 +767,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       .get("visible-loop-child-complete")
       .handler(`${configPath} --iteration 1`, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
-    assert.equal(userMessages.length, 8);
+    assert.equal(userMessages.length, 10);
     visibleLoopLaunches = execStub.calls.filter(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -1032,7 +1052,9 @@ test("visible-loop manual completion command advances non-final iterations", asy
     await new Promise((resolve) => setTimeout(resolve, 60));
 
     assert.equal(userMessages.length, 1);
-    assert.match(config.prompts.at(-1), /Prompt Vault/);
+    assert.match(config.prompts.at(-3), /Prompt Vault/);
+    assert.match(config.prompts.at(-2), /product-posture\.md/);
+    assert.equal(config.prompts.at(-1), "/commit");
     await commands.get("visible-loop-child-complete").handler("", harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
 
@@ -1106,7 +1128,9 @@ test("visible-loop manual completion command finalizes", async () => {
     await new Promise((resolve) => setTimeout(resolve, 60));
 
     assert.equal(userMessages.length, 1);
-    assert.match(config.prompts.at(-1), /Prompt Vault/);
+    assert.match(config.prompts.at(-3), /Prompt Vault/);
+    assert.match(config.prompts.at(-2), /product-posture\.md/);
+    assert.equal(config.prompts.at(-1), "/commit");
     assert.doesNotMatch(config.prompts.at(-1), /visible_loop_child_complete/);
     assert.equal(commands.has("visible-loop-child-complete"), true);
     assert.equal(tools.has("visible_loop_child_complete"), false);
