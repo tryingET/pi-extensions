@@ -189,6 +189,60 @@ test("agent_vent records minimized local diagnostics without external authority 
       pathResult.content[0].text,
       /curation projections are local diagnostics, not tasks, issues, incidents, evidence, telemetry, or ASC\/self state/,
     );
+
+    const previewResult = await tool.execute(
+      "tool-call-8",
+      {
+        action: "retention",
+        retentionAction: "preview",
+        recurrenceKey: "tool_failure:repeated-reload-loses-tool-registration",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(previewResult.content[0].text, /Confirmation token: archive:/);
+    assert.equal(previewResult.details.retention.archivable, true);
+
+    const archiveResult = await tool.execute(
+      "tool-call-9",
+      {
+        action: "retention",
+        retentionAction: "archive",
+        recurrenceKey: "tool_failure:repeated-reload-loses-tool-registration",
+        confirmationToken: previewResult.details.retention.confirmationToken,
+        retentionNote: "archive locally token=abc123",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(archiveResult.content[0].text, /Archived 2 local diagnostic record/);
+    assert.match(archiveResult.content[0].text, /No AK task, GitHub issue, incident, evidence/);
+    assert.equal(fs.existsSync(archiveResult.details.retention.backupPath), true);
+
+    const restoreResult = await tool.execute(
+      "tool-call-10",
+      {
+        action: "retention",
+        retentionAction: "restore",
+        backupPath: archiveResult.details.retention.backupPath,
+        confirmationToken: archiveResult.details.retention.restoreConfirmationToken,
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(restoreResult.content[0].text, /Restored local diagnostic backup/);
   } finally {
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
     else process.env.PI_AGENT_VENT_DIR = oldDir;

@@ -44,7 +44,7 @@ Then in Pi:
 
 ## Tool behavior
 
-`agent_vent` supports eight actions:
+`agent_vent` supports eleven actions:
 
 | Action | Purpose |
 |---|---|
@@ -58,6 +58,7 @@ Then in Pi:
 | `draft` | Generate draft-only owner-surface text for a recurrence group. |
 | `stats` | Show local store counts, byte sizes, malformed-line counts, curation counts, and review-state totals. |
 | `export` | Produce a bounded local diagnostic projection in markdown or JSON. |
+| `retention` | Preview, confirmation-gate, archive, and restore reviewed local diagnostic records with local backups/receipts. |
 
 The tool prompt tells the agent to avoid ordinary status updates, raw logs, secrets, and private user payloads.
 
@@ -74,6 +75,9 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent draft github_issue bug:reload-tools
 /agent_vent stats
 /agent_vent export markdown
+/agent_vent retention preview bug:reload-tools
+/agent_vent retention archive bug:reload-tools archive:<token> "reviewed locally"
+/agent_vent retention restore /path/to/backups/<backup>.agent-vent-backup.json restore:<token>
 /agent_vent path
 ```
 
@@ -100,6 +104,8 @@ Default store:
 ~/.pi/agent/agent-vent/vents.jsonl
 ~/.pi/agent/agent-vent/review-events.jsonl
 ~/.pi/agent/agent-vent/curation-events.jsonl
+~/.pi/agent/agent-vent/retention-events.jsonl
+~/.pi/agent/agent-vent/backups/
 ```
 
 Override:
@@ -108,9 +114,11 @@ Override:
 PI_AGENT_VENT_DIR=/path/to/private/dir pi
 ```
 
-Records are append-only JSONL with `schemaVersion: 1`. Review state changes are append-only local events in `review-events.jsonl`; recurrence curation changes are append-only local events in `curation-events.jsonl`. Recurrence review state and merged/renamed groups are projections from the latest local events; raw vent records are not rewritten.
+Records are append-only JSONL with `schemaVersion: 1`. Review state changes are append-only local events in `review-events.jsonl`; recurrence curation changes are append-only local events in `curation-events.jsonl`. Retention lifecycle receipts are append-only local events in `retention-events.jsonl`; archive rollback artifacts are package-created local files under `backups/`. Recurrence review state and merged/renamed groups are projections from the latest local events; raw vent records are not rewritten except by explicit, confirmation-gated local retention archive/restore operations.
 
-Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `curate`, `draft`, `stats`, and `export` are local diagnostic projection surfaces, not evidence, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
+Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `curate`, `draft`, `stats`, `export`, and `retention` are local diagnostic surfaces, not evidence, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
+
+Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. Archive creates a backup before rewriting `vents.jsonl` and appends a local receipt. Restore requires the package-created backup path, exact `restore:<token>`, and a current-store hash match so stale backups fail closed.
 
 All display/export/draft paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits.
 

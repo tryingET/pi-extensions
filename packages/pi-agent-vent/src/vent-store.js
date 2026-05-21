@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +8,8 @@ export const DEFAULT_LIMIT = 10;
 export const STORE_FILE_NAME = "vents.jsonl";
 export const REVIEW_EVENT_FILE_NAME = "review-events.jsonl";
 export const CURATION_EVENT_FILE_NAME = "curation-events.jsonl";
+export const RETENTION_EVENT_FILE_NAME = "retention-events.jsonl";
+export const BACKUP_DIR_NAME = "backups";
 export const CATEGORIES = [
   "bug",
   "friction",
@@ -24,6 +26,8 @@ export const SEVERITIES = ["low", "medium", "high", "critical"];
 export const REVIEW_STATES = ["new", "acknowledged", "dismissed", "escalation_drafted"];
 export const CURATION_ACTIONS = ["merge", "rename", "remove"];
 export const DRAFT_TARGETS = ["github_issue", "ak_task", "incident_review", "maintainer_note"];
+export const RETENTION_ACTIONS = ["preview", "archive", "restore"];
+export const RETENTION_EVENT_ACTIONS = ["archive", "restore"];
 export const MAX_JSONL_FILE_BYTES = 5 * 1024 * 1024;
 export const MAX_JSONL_LINE_BYTES = 64 * 1024;
 
@@ -57,6 +61,14 @@ export function defaultReviewPath(env = process.env) {
 
 export function defaultCurationPath(env = process.env) {
   return path.join(defaultStoreDir(env), CURATION_EVENT_FILE_NAME);
+}
+
+export function defaultRetentionPath(env = process.env) {
+  return path.join(defaultStoreDir(env), RETENTION_EVENT_FILE_NAME);
+}
+
+export function defaultBackupDir(env = process.env) {
+  return path.join(defaultStoreDir(env), BACKUP_DIR_NAME);
 }
 
 export function normalizeCategory(value) {
@@ -108,6 +120,19 @@ export function normalizeDraftTarget(value) {
   if (!DRAFT_TARGETS.includes(normalized)) {
     throw new Error(
       `invalid agent_vent draft target: ${value}; expected one of ${DRAFT_TARGETS.join(", ")}`,
+    );
+  }
+  return normalized;
+}
+
+export function normalizeRetentionAction(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("-", "_");
+  if (!RETENTION_ACTIONS.includes(normalized)) {
+    throw new Error(
+      `invalid agent_vent retention action: ${value}; expected one of ${RETENTION_ACTIONS.join(", ")}`,
     );
   }
   return normalized;
@@ -286,6 +311,45 @@ export function createCurationEvent(input, context = {}) {
   });
 }
 
+export function createRetentionEvent(input, context = {}) {
+  const action = String(input?.action || "")
+    .trim()
+    .toLowerCase();
+  if (!RETENTION_EVENT_ACTIONS.includes(action)) {
+    throw new Error(
+      `invalid agent_vent retention event action: ${input?.action}; expected one of ${RETENTION_EVENT_ACTIONS.join(", ")}`,
+    );
+  }
+  const note = sanitizeOptionalText(input?.note || input?.retentionNote, 1200);
+  return removeUndefined({
+    schemaVersion: SCHEMA_VERSION,
+    eventType: "retention_lifecycle",
+    id: context.id || randomUUID(),
+    createdAt: context.now || new Date().toISOString(),
+    action,
+    recurrenceKey: sanitizeDisplayText(input?.recurrenceKey, 200),
+    requestedRecurrenceKey: sanitizeDisplayText(input?.requestedRecurrenceKey, 200),
+    backupPath: sanitizeDisplayText(input?.backupPath, 1200),
+    archivedRecordCount: Number.isFinite(Number(input?.archivedRecordCount))
+      ? Number(input.archivedRecordCount)
+      : undefined,
+    archivedRecordIds: Array.isArray(input?.archivedRecordIds)
+      ? input.archivedRecordIds.map((id) => sanitizeDisplayText(id, 120)).filter(Boolean)
+      : undefined,
+    beforeHash: sanitizeDisplayText(input?.beforeHash, 128),
+    afterHash: sanitizeDisplayText(input?.afterHash, 128),
+    note: note.value,
+    context: removeUndefined({
+      source: context.source || "agent_vent_retention",
+    }),
+    privacy: {
+      classification: "local-diagnostic-user-data",
+      redacted: note.redacted,
+      redactionPatterns: [...note.patterns].sort(),
+    },
+  });
+}
+
 export function ensureStore(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const existing = safeLstat(filePath);
@@ -307,6 +371,10 @@ export function appendReviewEvent(filePath, event) {
 }
 
 export function appendCurationEvent(filePath, event) {
+  appendJsonlRecord(filePath, event);
+}
+
+export function appendRetentionEvent(filePath, event) {
   appendJsonlRecord(filePath, event);
 }
 
@@ -339,29 +407,49 @@ export function readCurationEvents(filePath) {
   };
 }
 
+export function readRetentionEvents(filePath) {
+  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { events, invalidEvents } = sanitizeRetentionEvents(values);
+  return {
+    events,
+    malformedLines,
+    oversizedLines,
+    invalidEvents,
+  };
+}
+
 export function loadDiagnosticState(options = {}) {
   const storePath = options.storePath || defaultStorePath();
   const reviewPath = options.reviewPath || defaultReviewPath();
   const curationPath = options.curationPath || defaultCurationPath();
+  const retentionPath = options.retentionPath || defaultRetentionPath();
+  const backupDir = options.backupDir || defaultBackupDir();
   const vents = readVentRecords(storePath);
   const reviews = readReviewEvents(reviewPath);
   const curations = readCurationEvents(curationPath);
+  const retentions = readRetentionEvents(retentionPath);
   return {
     storePath,
     reviewPath,
     curationPath,
+    retentionPath,
+    backupDir,
     records: vents.records,
     reviewEvents: reviews.events,
     curationEvents: curations.events,
+    retentionEvents: retentions.events,
     malformedLines: vents.malformedLines,
     malformedReviewLines: reviews.malformedLines,
     malformedCurationLines: curations.malformedLines,
+    malformedRetentionLines: retentions.malformedLines,
     oversizedLines: vents.oversizedLines,
     oversizedReviewLines: reviews.oversizedLines,
     oversizedCurationLines: curations.oversizedLines,
+    oversizedRetentionLines: retentions.oversizedLines,
     invalidRecords: vents.invalidRecords,
     invalidReviewEvents: reviews.invalidEvents,
     invalidCurationEvents: curations.invalidEvents,
+    invalidRetentionEvents: retentions.invalidEvents,
     quarantinedCurationEvents: curations.quarantinedEvents,
   };
 }
@@ -416,9 +504,12 @@ export function buildLifecycleSnapshot(input = {}) {
   const records = input.records || [];
   const reviewEvents = input.reviewEvents || [];
   const curationEvents = input.curationEvents || [];
+  const retentionEvents = input.retentionEvents || [];
   const storePath = input.storePath || defaultStorePath();
   const reviewPath = input.reviewPath || defaultReviewPath();
   const curationPath = input.curationPath || defaultCurationPath();
+  const retentionPath = input.retentionPath || defaultRetentionPath();
+  const backupDir = input.backupDir || defaultBackupDir();
   const allReviewItems = buildReviewQueueItems(records, reviewEvents, curationEvents);
   const reviewStateCounts = Object.fromEntries(REVIEW_STATES.map((state) => [state, 0]));
   for (const item of allReviewItems) {
@@ -434,26 +525,32 @@ export function buildLifecycleSnapshot(input = {}) {
       vents: storePath,
       reviewEvents: reviewPath,
       curationEvents: curationPath,
+      retentionEvents: retentionPath,
+      backups: backupDir,
     },
     files: {
       vents: jsonlFileInfo(storePath),
       reviewEvents: jsonlFileInfo(reviewPath),
       curationEvents: jsonlFileInfo(curationPath),
+      retentionEvents: jsonlFileInfo(retentionPath),
     },
     malformedLines: {
       vents: input.malformedLines || 0,
       reviewEvents: input.malformedReviewLines || 0,
       curationEvents: input.malformedCurationLines || 0,
+      retentionEvents: input.malformedRetentionLines || 0,
     },
     oversizedLines: {
       vents: input.oversizedLines || 0,
       reviewEvents: input.oversizedReviewLines || 0,
       curationEvents: input.oversizedCurationLines || 0,
+      retentionEvents: input.oversizedRetentionLines || 0,
     },
     invalidEntries: {
       vents: input.invalidRecords || 0,
       reviewEvents: input.invalidReviewEvents || 0,
       curationEvents: input.invalidCurationEvents || 0,
+      retentionEvents: input.invalidRetentionEvents || 0,
       quarantinedCurationEvents: input.quarantinedCurationEvents || 0,
     },
     counts: {
@@ -461,6 +558,7 @@ export function buildLifecycleSnapshot(input = {}) {
       recurrenceGroups: allReviewItems.length,
       reviewEvents: reviewEvents.length,
       curationEvents: curationEvents.length,
+      retentionEvents: retentionEvents.length,
       candidateIncidents: allReviewItems.filter((item) => item.candidateIncident).length,
       reviewStates: reviewStateCounts,
     },
@@ -538,14 +636,18 @@ export function formatPath(
   storePath = defaultStorePath(),
   reviewPath = defaultReviewPath(),
   curationPath = defaultCurationPath(),
+  retentionPath = defaultRetentionPath(),
+  backupDir = defaultBackupDir(),
 ) {
   return [
     `Agent vent store: ${storePath}`,
     `Agent vent review events: ${reviewPath}`,
     `Agent vent curation events: ${curationPath}`,
-    "Schema: append-only JSONL, one local diagnostic vent, review event, or curation event per line.",
+    `Agent vent retention events: ${retentionPath}`,
+    `Agent vent retention backups: ${backupDir}`,
+    "Schema: append-only JSONL events plus confirmation-gated local retention backup artifacts.",
     "Override: set PI_AGENT_VENT_DIR to use a different private directory.",
-    "Authority boundary: records, review states, and curation projections are local diagnostics, not tasks, issues, incidents, evidence, telemetry, or ASC/self state.",
+    "Authority boundary: records, review states, and curation projections are local diagnostics, not tasks, issues, incidents, evidence, telemetry, or ASC/self state; retention receipts and backups are local diagnostics too.",
   ].join("\n");
 }
 
@@ -556,10 +658,11 @@ export function formatLifecycleStats(snapshot) {
     `- recurrence groups: ${snapshot.counts.recurrenceGroups}; candidate incidents for human review: ${snapshot.counts.candidateIncidents}`,
     `- review events: ${snapshot.counts.reviewEvents} event(s), ${snapshot.files.reviewEvents.sizeBytes} byte(s), exists=${snapshot.files.reviewEvents.exists}`,
     `- curation events: ${snapshot.counts.curationEvents} event(s), ${snapshot.files.curationEvents.sizeBytes} byte(s), exists=${snapshot.files.curationEvents.exists}`,
+    `- retention events: ${snapshot.counts.retentionEvents} event(s), ${snapshot.files.retentionEvents.sizeBytes} byte(s), exists=${snapshot.files.retentionEvents.exists}`,
     `- review states: new=${snapshot.counts.reviewStates.new}, acknowledged=${snapshot.counts.reviewStates.acknowledged}, dismissed=${snapshot.counts.reviewStates.dismissed}, escalation_drafted=${snapshot.counts.reviewStates.escalation_drafted}`,
-    `- malformed lines: vents=${snapshot.malformedLines.vents}, reviewEvents=${snapshot.malformedLines.reviewEvents}, curationEvents=${snapshot.malformedLines.curationEvents}`,
-    `- oversized lines: vents=${snapshot.oversizedLines.vents}, reviewEvents=${snapshot.oversizedLines.reviewEvents}, curationEvents=${snapshot.oversizedLines.curationEvents}`,
-    `- invalid/quarantined entries: vents=${snapshot.invalidEntries.vents}, reviewEvents=${snapshot.invalidEntries.reviewEvents}, curationEvents=${snapshot.invalidEntries.curationEvents}, quarantinedCurationEvents=${snapshot.invalidEntries.quarantinedCurationEvents}`,
+    `- malformed lines: vents=${snapshot.malformedLines.vents}, reviewEvents=${snapshot.malformedLines.reviewEvents}, curationEvents=${snapshot.malformedLines.curationEvents}, retentionEvents=${snapshot.malformedLines.retentionEvents}`,
+    `- oversized lines: vents=${snapshot.oversizedLines.vents}, reviewEvents=${snapshot.oversizedLines.reviewEvents}, curationEvents=${snapshot.oversizedLines.curationEvents}, retentionEvents=${snapshot.oversizedLines.retentionEvents}`,
+    `- invalid/quarantined entries: vents=${snapshot.invalidEntries.vents}, reviewEvents=${snapshot.invalidEntries.reviewEvents}, curationEvents=${snapshot.invalidEntries.curationEvents}, retentionEvents=${snapshot.invalidEntries.retentionEvents}, quarantinedCurationEvents=${snapshot.invalidEntries.quarantinedCurationEvents}`,
     `- paths: ${snapshot.paths.vents}; ${snapshot.paths.reviewEvents}; ${snapshot.paths.curationEvents}`,
     `Boundary: ${snapshot.boundary}`,
   ].join("\n");
@@ -580,10 +683,11 @@ export function formatExportMarkdown(snapshot) {
     `- Candidate incidents for human review: ${snapshot.counts.candidateIncidents}`,
     `- Review events: ${snapshot.counts.reviewEvents}`,
     `- Curation events: ${snapshot.counts.curationEvents}`,
+    `- Retention events: ${snapshot.counts.retentionEvents}`,
     `- Review states: ${JSON.stringify(snapshot.counts.reviewStates)}`,
-    `- Malformed lines: vents=${snapshot.malformedLines.vents}, reviewEvents=${snapshot.malformedLines.reviewEvents}, curationEvents=${snapshot.malformedLines.curationEvents}`,
-    `- Oversized lines: vents=${snapshot.oversizedLines.vents}, reviewEvents=${snapshot.oversizedLines.reviewEvents}, curationEvents=${snapshot.oversizedLines.curationEvents}`,
-    `- Invalid/quarantined entries: vents=${snapshot.invalidEntries.vents}, reviewEvents=${snapshot.invalidEntries.reviewEvents}, curationEvents=${snapshot.invalidEntries.curationEvents}, quarantinedCurationEvents=${snapshot.invalidEntries.quarantinedCurationEvents}`,
+    `- Malformed lines: vents=${snapshot.malformedLines.vents}, reviewEvents=${snapshot.malformedLines.reviewEvents}, curationEvents=${snapshot.malformedLines.curationEvents}, retentionEvents=${snapshot.malformedLines.retentionEvents}`,
+    `- Oversized lines: vents=${snapshot.oversizedLines.vents}, reviewEvents=${snapshot.oversizedLines.reviewEvents}, curationEvents=${snapshot.oversizedLines.curationEvents}, retentionEvents=${snapshot.oversizedLines.retentionEvents}`,
+    `- Invalid/quarantined entries: vents=${snapshot.invalidEntries.vents}, reviewEvents=${snapshot.invalidEntries.reviewEvents}, curationEvents=${snapshot.invalidEntries.curationEvents}, retentionEvents=${snapshot.invalidEntries.retentionEvents}, quarantinedCurationEvents=${snapshot.invalidEntries.quarantinedCurationEvents}`,
     "",
     "## Review queue",
     "",
@@ -602,6 +706,218 @@ export function formatExportMarkdown(snapshot) {
 
 export function formatExportJson(snapshot) {
   return JSON.stringify(snapshot, null, 2);
+}
+
+export function buildRetentionPreview(input = {}) {
+  const recurrenceKey = sanitizeDisplayText(input.recurrenceKey, 200);
+  if (!recurrenceKey) throw new Error("agent_vent retention preview requires a recurrenceKey");
+  const records = input.records || [];
+  const reviewEvents = input.reviewEvents || [];
+  const curationEvents = input.curationEvents || [];
+  const plan = planRetentionArchive({ records, reviewEvents, curationEvents, recurrenceKey });
+  return {
+    generatedAt: input.now || new Date().toISOString(),
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Local diagnostic retention preview only. No archive, restore, AK task, GitHub issue, incident, evidence, telemetry, or ASC/self state mutation occurred.",
+    ...plan,
+    samples: plan.records.slice(0, clampLimit(input.limit, 5)).map((record) => ({
+      id: record.id,
+      createdAt: record.createdAt,
+      severity: normalizeSeverity(record.severity),
+      category: normalizeCategory(record.category),
+      summary: sanitizeDisplayText(record.summary, 300),
+    })),
+  };
+}
+
+export function archiveRecurrenceGroup(input = {}) {
+  const storePath = input.storePath || defaultStorePath();
+  const reviewPath = input.reviewPath || defaultReviewPath();
+  const curationPath = input.curationPath || defaultCurationPath();
+  const retentionPath = input.retentionPath || defaultRetentionPath();
+  const backupDir = input.backupDir || defaultBackupDir();
+  const confirmationToken = sanitizeDisplayText(input.confirmationToken, 300);
+  const state = loadDiagnosticState({
+    storePath,
+    reviewPath,
+    curationPath,
+    retentionPath,
+    backupDir,
+  });
+  const plan = planRetentionArchive({
+    records: state.records,
+    reviewEvents: state.reviewEvents,
+    curationEvents: state.curationEvents,
+    recurrenceKey: input.recurrenceKey,
+  });
+  if (!plan.archivable) {
+    throw new Error(
+      `cannot archive recurrence group ${plan.recurrenceKey} before local review; set review state to acknowledged, dismissed, or escalation_drafted first`,
+    );
+  }
+  if (confirmationToken !== plan.confirmationToken) {
+    throw new Error(
+      `agent_vent retention archive requires exact confirmation token: ${plan.confirmationToken}`,
+    );
+  }
+
+  const existing = safeLstat(storePath);
+  if (!existing) throw new Error(`cannot archive from missing agent_vent store: ${storePath}`);
+  assertSafeJsonlFile(storePath, existing);
+  if (existing.size > MAX_JSONL_FILE_BYTES) {
+    throw new Error(
+      `agent_vent store file is too large: ${storePath} (${existing.size} bytes > ${MAX_JSONL_FILE_BYTES})`,
+    );
+  }
+  const beforeText = fs.readFileSync(storePath, "utf8");
+  const beforeHash = sha256Hex(beforeText);
+  const archiveIds = new Set(plan.records.map((record) => record.id));
+  const remainingRecords = state.records.filter((record) => !archiveIds.has(record.id));
+  const afterText = recordsToJsonl(remainingRecords);
+  const afterHash = sha256Hex(afterText);
+  const now = input.now || new Date().toISOString();
+  const backupPath = writeRetentionBackup({
+    backupDir,
+    now,
+    recurrenceKey: plan.recurrenceKey,
+    requestedRecurrenceKey: plan.requestedRecurrenceKey,
+    confirmationToken: plan.confirmationToken,
+    restoreConfirmationToken: buildRestoreToken(plan.recurrenceKey, beforeHash, afterHash),
+    beforeHash,
+    afterHash,
+    archivedRecordIds: plan.archivedRecordIds,
+    archivedRecordCount: plan.archivedRecordCount,
+    ventsJsonl: beforeText,
+  });
+
+  writeTextFileAtomically(storePath, afterText, 0o600);
+  const event = createRetentionEvent(
+    {
+      action: "archive",
+      recurrenceKey: plan.recurrenceKey,
+      requestedRecurrenceKey: plan.requestedRecurrenceKey,
+      backupPath,
+      archivedRecordCount: plan.archivedRecordCount,
+      archivedRecordIds: plan.archivedRecordIds,
+      beforeHash,
+      afterHash,
+      note: input.note || input.retentionNote,
+    },
+    { source: input.source || "agent_vent_retention", now },
+  );
+  appendRetentionEvent(retentionPath, event);
+  return {
+    generatedAt: now,
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Local diagnostic records were archived from the active vents store only. No AK task, GitHub issue, incident, evidence, telemetry, publication, or ASC/self state mutation occurred.",
+    ...plan,
+    backupPath,
+    retentionPath,
+    beforeHash,
+    afterHash,
+    restoreConfirmationToken: buildRestoreToken(plan.recurrenceKey, beforeHash, afterHash),
+    retentionEvent: event,
+  };
+}
+
+export function restoreRetentionBackup(input = {}) {
+  const storePath = input.storePath || defaultStorePath();
+  const retentionPath = input.retentionPath || defaultRetentionPath();
+  const backupDir = input.backupDir || defaultBackupDir();
+  const confirmationToken = sanitizeDisplayText(input.confirmationToken, 300);
+  const backupPath = assertBackupPathInsideDir(input.backupPath, backupDir);
+  const backup = readRetentionBackup(backupPath);
+  if (confirmationToken !== backup.restoreConfirmationToken) {
+    throw new Error(
+      `agent_vent retention restore requires exact confirmation token: ${backup.restoreConfirmationToken}`,
+    );
+  }
+
+  const existing = safeLstat(storePath);
+  if (!existing)
+    throw new Error(`agent_vent retention restore requires current vents store: ${storePath}`);
+  assertSafeJsonlFile(storePath, existing);
+  const currentText = fs.readFileSync(storePath, "utf8");
+  const currentHash = sha256Hex(currentText);
+  if (currentHash !== backup.afterHash) {
+    throw new Error(
+      "agent_vent retention restore refused stale backup: current vents store no longer matches the archived-after hash",
+    );
+  }
+
+  writeTextFileAtomically(storePath, backup.ventsJsonl, 0o600);
+  const now = input.now || new Date().toISOString();
+  const event = createRetentionEvent(
+    {
+      action: "restore",
+      recurrenceKey: backup.recurrenceKey,
+      requestedRecurrenceKey: backup.requestedRecurrenceKey,
+      backupPath,
+      archivedRecordCount: backup.archivedRecordCount,
+      archivedRecordIds: backup.archivedRecordIds,
+      beforeHash: backup.afterHash,
+      afterHash: backup.beforeHash,
+      note: input.note || input.retentionNote,
+    },
+    { source: input.source || "agent_vent_retention", now },
+  );
+  appendRetentionEvent(retentionPath, event);
+  return {
+    generatedAt: now,
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Local diagnostic backup was restored to the active vents store only. No AK task, GitHub issue, incident, evidence, telemetry, publication, or ASC/self state mutation occurred.",
+    recurrenceKey: backup.recurrenceKey,
+    requestedRecurrenceKey: backup.requestedRecurrenceKey,
+    restoredRecordCount: backup.archivedRecordCount,
+    backupPath,
+    retentionPath,
+    beforeHash: backup.afterHash,
+    afterHash: backup.beforeHash,
+    retentionEvent: event,
+  };
+}
+
+export function formatRetentionPreview(preview) {
+  const lines = [
+    `Agent vent retention preview for ${preview.recurrenceKey}: ${preview.archivedRecordCount} active local diagnostic record(s).`,
+    `Review state: ${preview.reviewState}; archivable=${preview.archivable}`,
+    `Boundary: ${preview.boundary}`,
+  ];
+  if (preview.archivable) {
+    lines.push(
+      `Confirmation token: ${preview.confirmationToken}`,
+      `Next: /agent_vent retention archive ${preview.recurrenceKey} ${preview.confirmationToken} [note]`,
+    );
+  } else {
+    lines.push(
+      `Next: /agent_vent review set acknowledged ${preview.recurrenceKey} [note] before archiving.`,
+    );
+  }
+  for (const sample of preview.samples || []) {
+    lines.push(`- ${sample.id || "unknown-id"}: ${sample.summary || "(no summary)"}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatRetentionArchiveResult(result) {
+  return [
+    `Archived ${result.archivedRecordCount} local diagnostic record(s) from ${result.recurrenceKey}.`,
+    `Backup: ${result.backupPath}`,
+    `Restore token: ${result.restoreConfirmationToken}`,
+    `Next rollback: /agent_vent retention restore ${result.backupPath} ${result.restoreConfirmationToken}`,
+    `Boundary: ${result.boundary}`,
+  ].join("\n");
+}
+
+export function formatRetentionRestoreResult(result) {
+  return [
+    `Restored local diagnostic backup for ${result.recurrenceKey}; restored ${result.restoredRecordCount} archived record(s).`,
+    `Backup: ${result.backupPath}`,
+    `Boundary: ${result.boundary}`,
+  ].join("\n");
 }
 
 export function buildEscalationDraft(input = {}) {
@@ -803,6 +1119,193 @@ function sanitizeCurationEvents(values) {
     }
   }
   return { events, invalidEvents, quarantinedEvents };
+}
+
+function sanitizeRetentionEvents(values) {
+  const events = [];
+  let invalidEvents = 0;
+  for (const value of values) {
+    try {
+      if (value?.eventType !== "retention_lifecycle") continue;
+      const action = String(value?.action || "")
+        .trim()
+        .toLowerCase();
+      if (!RETENTION_EVENT_ACTIONS.includes(action)) throw new Error("invalid action");
+      events.push(
+        removeUndefined({
+          ...value,
+          schemaVersion: Number(value?.schemaVersion) || SCHEMA_VERSION,
+          eventType: "retention_lifecycle",
+          id: compactText(value?.id, 120) || randomUUID(),
+          createdAt: compactText(value?.createdAt, 80),
+          action,
+          recurrenceKey: sanitizeDisplayText(value?.recurrenceKey, 200),
+          requestedRecurrenceKey: sanitizeDisplayText(value?.requestedRecurrenceKey, 200),
+          backupPath: sanitizeDisplayText(value?.backupPath, 1200),
+          archivedRecordCount: Number.isFinite(Number(value?.archivedRecordCount))
+            ? Number(value.archivedRecordCount)
+            : undefined,
+          archivedRecordIds: Array.isArray(value?.archivedRecordIds)
+            ? value.archivedRecordIds.map((id) => sanitizeDisplayText(id, 120)).filter(Boolean)
+            : undefined,
+          beforeHash: sanitizeDisplayText(value?.beforeHash, 128),
+          afterHash: sanitizeDisplayText(value?.afterHash, 128),
+          note: sanitizeDisplayText(value?.note, 1200),
+        }),
+      );
+    } catch {
+      invalidEvents += 1;
+    }
+  }
+  return { events, invalidEvents };
+}
+
+function planRetentionArchive({
+  records = [],
+  reviewEvents = [],
+  curationEvents = [],
+  recurrenceKey,
+}) {
+  const requestedRecurrenceKey = sanitizeDisplayText(recurrenceKey, 200);
+  if (!requestedRecurrenceKey) throw new Error("agent_vent retention requires a recurrenceKey");
+  const curationMap = buildCurationMap(curationEvents);
+  const resolvedKey = resolveRecurrenceKey(requestedRecurrenceKey, curationMap);
+  const groupRecords = records.filter(
+    (record) =>
+      resolveRecurrenceKey(
+        String(record.recurrenceKey || buildRecurrenceKey(record)),
+        curationMap,
+      ) === resolvedKey,
+  );
+  if (groupRecords.length === 0) {
+    throw new Error(`cannot archive unknown recurrence group: ${requestedRecurrenceKey}`);
+  }
+  const reviewStates = latestReviewStates(reviewEvents, curationEvents);
+  const reviewState = reviewStates.get(resolvedKey)?.state || "new";
+  const archivedRecordIds = groupRecords
+    .map((record) => sanitizeDisplayText(record.id, 120))
+    .filter(Boolean);
+  const fingerprint = sha256Hex(`${resolvedKey}\n${archivedRecordIds.join("\n")}`);
+  return {
+    requestedRecurrenceKey,
+    recurrenceKey: resolvedKey,
+    reviewState,
+    archivable: reviewState !== "new",
+    archivedRecordCount: groupRecords.length,
+    archivedRecordIds,
+    confirmationToken: `archive:${fingerprint.slice(0, 16)}`,
+    records: groupRecords,
+  };
+}
+
+function recordsToJsonl(records) {
+  return records.map((record) => JSON.stringify(record)).join("\n") + (records.length ? "\n" : "");
+}
+
+function writeRetentionBackup(input) {
+  ensurePrivateDirectory(input.backupDir);
+  const stamp = input.now.replace(/[:.]/g, "-");
+  const slug = recurrenceSlug(input.recurrenceKey).slice(0, 60);
+  const backupPath = path.join(
+    input.backupDir,
+    `${stamp}-${slug}-${randomUUID()}.agent-vent-backup.json`,
+  );
+  const backup = {
+    schemaVersion: SCHEMA_VERSION,
+    artifactType: "agent_vent_retention_backup",
+    createdAt: input.now,
+    recurrenceKey: input.recurrenceKey,
+    requestedRecurrenceKey: input.requestedRecurrenceKey,
+    confirmationToken: input.confirmationToken,
+    restoreConfirmationToken: input.restoreConfirmationToken,
+    beforeHash: input.beforeHash,
+    afterHash: input.afterHash,
+    archivedRecordCount: input.archivedRecordCount,
+    archivedRecordIds: input.archivedRecordIds,
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Local diagnostic rollback artifact only; not evidence, task truth, issue truth, incident truth, publication, telemetry, or ASC/self state.",
+    ventsJsonl: input.ventsJsonl,
+  };
+  writeNewFileNoFollow(backupPath, `${JSON.stringify(backup, null, 2)}\n`, 0o600);
+  return backupPath;
+}
+
+function readRetentionBackup(backupPath) {
+  const stat = safeLstat(backupPath);
+  if (!stat) throw new Error(`agent_vent retention backup not found: ${backupPath}`);
+  assertSafeJsonlFile(backupPath, stat);
+  if (stat.size > MAX_JSONL_FILE_BYTES * 2) {
+    throw new Error(`agent_vent retention backup is too large: ${backupPath}`);
+  }
+  const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
+  if (backup?.artifactType !== "agent_vent_retention_backup") {
+    throw new Error("agent_vent retention restore requires a package-created backup artifact");
+  }
+  for (const field of [
+    "recurrenceKey",
+    "beforeHash",
+    "afterHash",
+    "restoreConfirmationToken",
+    "ventsJsonl",
+  ]) {
+    if (!backup[field]) throw new Error(`agent_vent retention backup is missing ${field}`);
+  }
+  if (sha256Hex(String(backup.ventsJsonl)) !== backup.beforeHash) {
+    throw new Error("agent_vent retention backup failed integrity check");
+  }
+  return backup;
+}
+
+function buildRestoreToken(recurrenceKey, beforeHash, afterHash) {
+  return `restore:${sha256Hex(`${recurrenceKey}\n${beforeHash}\n${afterHash}`).slice(0, 16)}`;
+}
+
+function sha256Hex(value) {
+  return createHash("sha256").update(String(value), "utf8").digest("hex");
+}
+
+function assertBackupPathInsideDir(backupPath, backupDir) {
+  const safeBackupDir = path.resolve(backupDir);
+  const resolved = path.resolve(String(backupPath || ""));
+  if (!resolved.startsWith(`${safeBackupDir}${path.sep}`)) {
+    throw new Error(`agent_vent retention backup path must stay inside ${safeBackupDir}`);
+  }
+  return resolved;
+}
+
+function ensurePrivateDirectory(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true, mode: 0o700 });
+  const stat = fs.lstatSync(dirPath);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error(`agent_vent path must be a real private directory: ${dirPath}`);
+  }
+}
+
+function writeNewFileNoFollow(filePath, text, mode) {
+  const fd = fs.openSync(filePath, createFileFlags(), mode);
+  try {
+    fs.writeFileSync(fd, text, "utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function writeTextFileAtomically(filePath, text, mode) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  const existing = safeLstat(filePath);
+  if (existing) assertSafeJsonlFile(filePath, existing);
+  const tempPath = path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.${randomUUID()}.tmp`,
+  );
+  writeNewFileNoFollow(tempPath, text, mode);
+  try {
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    fs.rmSync(tempPath, { force: true });
+    throw error;
+  }
 }
 
 export function assertCanCurateRecurrence(records, curationEvents, input) {

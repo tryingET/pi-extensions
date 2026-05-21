@@ -38,6 +38,8 @@ Selected guidance from `~/ai-society/core/engineering-core/`:
 | Recurrence key | Stable grouping key, explicit or derived from category + summary. | Local grouping aid only. |
 | Review event | Append-only local state change for one recurrence group. | Local operator inbox state only. |
 | Curation event | Append-only merge/rename projection for recurrence keys. | Local grouping projection only; raw vents are not rewritten. |
+| Retention event | Append-only receipt for a local archive or restore operation. | Local lifecycle receipt only; not evidence or owner-system deletion. |
+| Retention backup | Package-created local rollback artifact containing the pre-archive vents store. | Local rollback artifact only; not canonical evidence. |
 | Candidate incident | A repeated/high-severity local pattern worth human review. | Recommendation only; not an incident declaration. |
 | Task/issue/evidence | Canonical work or evidence artifact. | Owned by AK/GitHub/other owner surfaces, not this package. |
 
@@ -57,11 +59,13 @@ PI_AGENT_VENT_DIR=/path/to/private/dir
 
 Record shape is schema-versioned (`schemaVersion: 1`) and append-only. Each line is one JSON object.
 
-Review-state and recurrence-curation events are stored beside vents:
+Review-state, recurrence-curation, and retention lifecycle events are stored beside vents; retention backups are stored under a package-created local backup directory:
 
 ```text
 ~/.pi/agent/agent-vent/review-events.jsonl
 ~/.pi/agent/agent-vent/curation-events.jsonl
+~/.pi/agent/agent-vent/retention-events.jsonl
+~/.pi/agent/agent-vent/backups/
 ```
 
 Review lifecycle is local-only:
@@ -74,7 +78,7 @@ A missing review event means `new`; the latest event for a recurrence key is the
 
 Read behavior goes through a diagnostic-state membrane: malformed JSONL lines are ignored and counted, oversized lines are skipped, oversized files fail closed, schema-invalid records are ignored, stored display fields are redacted again on read, and semantic curation cycles are quarantined instead of bricking all projections. JSONL store files fail closed if replaced by symlinks.
 
-Retention/delete posture: no automatic deletion in v0.1. The `/agent_vent path` command shows the store paths so the operator can inspect, back up, or remove them. A future delete/export command should be explicit and confirmation-gated.
+Retention/delete posture: no automatic deletion. Reviewed recurrence groups can be archived only after an explicit preview returns the exact affected record count/sample ids and an `archive:<token>`. Archive writes a package-created backup before replacing the active `vents.jsonl`, then appends a retention receipt. Restore requires the package-created backup path, exact `restore:<token>`, and a current-store hash match so stale rollback attempts fail closed. Backup artifacts remain local diagnostic user data and are not evidence. Future hard-delete policy should remain separate and confirmation-gated.
 
 ## Privacy contract
 
@@ -101,6 +105,7 @@ Actions:
 - `draft` — generate draft-only owner-surface text for a recurrence group.
 - `stats` — show local store counts, byte sizes, malformed-line counts, curation counts, and review-state totals.
 - `export` — emit a bounded local diagnostic projection in markdown or JSON.
+- `retention` — preview, confirmation-gate, archive, and restore reviewed local diagnostic records with local backup receipts.
 
 Important behavior:
 
@@ -113,6 +118,7 @@ Important behavior:
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it returns text only and never submits, files, declares, records evidence, or changes review state automatically.
 - `stats` and `export` are read-only projections and must not claim evidence, publication, task, issue, or incident authority.
+- `retention preview` is read-only; `retention archive` mutates only the active local vents store after exact confirmation and backup creation; `retention restore` mutates only the active local vents store after exact confirmation and stale-state checks.
 
 ### `/agent_vent`
 
@@ -130,6 +136,9 @@ Human/operator command for lightweight inspection. `/agent-vent` remains a compa
 - `/agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]`
 - `/agent_vent stats`
 - `/agent_vent export [markdown|json] [state|all] [limit]`
+- `/agent_vent retention preview <recurrenceKey>`
+- `/agent_vent retention archive <recurrenceKey> <archive:token> [note]`
+- `/agent_vent retention restore <backupPath> <restore:token> [note]`
 
 ## Candidate incident heuristic
 

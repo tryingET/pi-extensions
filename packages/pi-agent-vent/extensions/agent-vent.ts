@@ -5,9 +5,11 @@ import {
   appendCurationEvent,
   appendReviewEvent,
   appendVentRecord,
+  archiveRecurrenceGroup,
   assertCanCurateRecurrence,
   buildEscalationDraft,
   buildLifecycleSnapshot,
+  buildRetentionPreview,
   CATEGORIES,
   CURATION_ACTIONS,
   clampLimit,
@@ -15,7 +17,9 @@ import {
   createReviewEvent,
   createVentRecord,
   DRAFT_TARGETS,
+  defaultBackupDir,
   defaultCurationPath,
+  defaultRetentionPath,
   defaultReviewPath,
   defaultStorePath,
   formatExportJson,
@@ -23,12 +27,18 @@ import {
   formatLifecycleStats,
   formatPath,
   formatRecent,
+  formatRetentionArchiveResult,
+  formatRetentionPreview,
+  formatRetentionRestoreResult,
   formatReviewQueue,
   formatSummary,
   hasRecurrenceGroup,
   loadDiagnosticState,
+  normalizeRetentionAction,
   normalizeReviewState,
+  RETENTION_ACTIONS,
   REVIEW_STATES,
+  restoreRetentionBackup,
   SEVERITIES,
   summarizeRecords,
   summarizeReviewQueue,
@@ -45,6 +55,7 @@ const ACTIONS = [
   "export",
   "curate",
   "draft",
+  "retention",
 ] as const;
 const EXPORT_FORMATS = ["markdown", "json"] as const;
 
@@ -150,6 +161,28 @@ const AgentVentParams = Type.Object({
       },
     ),
   ),
+  retentionAction: Type.Optional(
+    Type.Union(
+      RETENTION_ACTIONS.map((action) => Type.Literal(action)),
+      {
+        description:
+          "Confirmation-gated local data lifecycle action for action=retention: preview, archive, or restore.",
+      },
+    ),
+  ),
+  confirmationToken: Type.Optional(
+    Type.String({ description: "Exact retention confirmation token shown by preview or archive." }),
+  ),
+  backupPath: Type.Optional(
+    Type.String({
+      description: "Package-created retention backup path for action=retention restore.",
+    }),
+  ),
+  retentionNote: Type.Optional(
+    Type.String({
+      description: "Optional minimized local retention note. Do not include secrets.",
+    }),
+  ),
   tags: Type.Optional(Type.Array(Type.String(), { description: "Optional local grouping tags." })),
   limit: Type.Optional(
     Type.Integer({
@@ -174,6 +207,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
       "Use action=draft to generate owner-surface draft text only; never claim it submitted, filed, declared, or recorded anything.",
+      "Use action=retention to preview, confirmation-gate, archive, or restore local diagnostic records only; never imply owner-system deletion or canonical evidence changes.",
       "Do not use agent_vent for ordinary progress updates, single-use complaints, or content that belongs in the final answer.",
       "agent_vent records and review states are local diagnostics only; agent_vent must not claim to create AK tasks, incidents, GitHub issues, canonical evidence, external telemetry, or ASC/self state.",
       "When calling agent_vent, summarize minimally and never include secrets, credentials, private user payloads, or long raw logs.",
@@ -183,15 +217,22 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       const storePath = defaultStorePath();
       const reviewPath = defaultReviewPath();
       const curationPath = defaultCurationPath();
+      const retentionPath = defaultRetentionPath();
+      const backupDir = defaultBackupDir();
       const action = params.action || (params.summary ? "record" : "summary");
 
       if (action === "path") {
-        return textResult(formatPath(storePath, reviewPath, curationPath), {
-          action,
-          storePath,
-          reviewPath,
-          curationPath,
-        });
+        return textResult(
+          formatPath(storePath, reviewPath, curationPath, retentionPath, backupDir),
+          {
+            action,
+            storePath,
+            reviewPath,
+            curationPath,
+            retentionPath,
+            backupDir,
+          },
+        );
       }
 
       if (action === "record") {
@@ -202,7 +243,13 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           source: "agent_vent_tool",
         });
         appendVentRecord(storePath, record);
-        const state = loadDiagnosticState({ storePath, reviewPath, curationPath });
+        const state = loadDiagnosticState({
+          storePath,
+          reviewPath,
+          curationPath,
+          retentionPath,
+          backupDir,
+        });
         const { records, curationEvents, malformedLines } = state;
         const group = summarizeRecords(
           records.filter((entry) => entry.recurrenceKey === record.recurrenceKey),
@@ -219,20 +266,30 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         });
       }
 
-      const state = loadDiagnosticState({ storePath, reviewPath, curationPath });
+      const state = loadDiagnosticState({
+        storePath,
+        reviewPath,
+        curationPath,
+        retentionPath,
+        backupDir,
+      });
       const {
         records,
         reviewEvents,
         curationEvents,
+        retentionEvents,
         malformedLines,
         malformedReviewLines,
         malformedCurationLines,
+        malformedRetentionLines,
         oversizedLines,
         oversizedReviewLines,
         oversizedCurationLines,
+        oversizedRetentionLines,
         invalidRecords,
         invalidReviewEvents,
         invalidCurationEvents,
+        invalidRetentionEvents,
         quarantinedCurationEvents,
       } = state;
 
@@ -342,23 +399,92 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         });
       }
 
+      if (action === "retention") {
+        const retentionAction = normalizeRetentionAction(params.retentionAction || "preview");
+        if (retentionAction === "preview") {
+          const preview = buildRetentionPreview({
+            recurrenceKey: params.recurrenceKey,
+            records,
+            reviewEvents,
+            curationEvents,
+            limit: clampLimit(params.limit, 5),
+          });
+          return textResult(formatRetentionPreview(preview), {
+            action,
+            retentionAction,
+            storePath,
+            reviewPath,
+            curationPath,
+            retentionPath,
+            backupDir,
+            retention: preview,
+          });
+        }
+        if (retentionAction === "archive") {
+          const result = archiveRecurrenceGroup({
+            storePath,
+            reviewPath,
+            curationPath,
+            retentionPath,
+            backupDir,
+            recurrenceKey: params.recurrenceKey,
+            confirmationToken: params.confirmationToken,
+            note: params.retentionNote,
+            source: "agent_vent_tool",
+          });
+          return textResult(formatRetentionArchiveResult(result), {
+            action,
+            retentionAction,
+            storePath,
+            reviewPath,
+            curationPath,
+            retentionPath,
+            backupDir,
+            retention: result,
+          });
+        }
+        const result = restoreRetentionBackup({
+          storePath,
+          retentionPath,
+          backupDir,
+          backupPath: params.backupPath,
+          confirmationToken: params.confirmationToken,
+          note: params.retentionNote,
+          source: "agent_vent_tool",
+        });
+        return textResult(formatRetentionRestoreResult(result), {
+          action,
+          retentionAction,
+          storePath,
+          retentionPath,
+          backupDir,
+          retention: result,
+        });
+      }
+
       if (action === "stats" || action === "export") {
         const snapshot = buildLifecycleSnapshot({
           records,
           reviewEvents,
           curationEvents,
+          retentionEvents,
           storePath,
           reviewPath,
           curationPath,
+          retentionPath,
+          backupDir,
           malformedLines,
           malformedReviewLines,
           malformedCurationLines,
+          malformedRetentionLines,
           oversizedLines,
           oversizedReviewLines,
           oversizedCurationLines,
+          oversizedRetentionLines,
           invalidRecords,
           invalidReviewEvents,
           invalidCurationEvents,
+          invalidRetentionEvents,
           quarantinedCurationEvents,
           state: params.reviewState || "all",
           limit: clampLimit(params.limit, 20),
@@ -404,12 +530,12 @@ export default function agentVentExtension(pi: ExtensionAPI) {
   registerAgentVentCommand(
     pi,
     "agent_vent",
-    "Inspect local agent vent records: /agent_vent [help|summary|list|review|curate|draft|stats|export|path]",
+    "Inspect local agent vent records: /agent_vent [help|summary|list|review|curate|draft|retention|stats|export|path]",
   );
   registerAgentVentCommand(
     pi,
     "agent-vent",
-    "Alias for /agent_vent [help|summary|list|review|curate|draft|stats|export|path]",
+    "Alias for /agent_vent [help|summary|list|review|curate|draft|retention|stats|export|path]",
   );
 }
 
@@ -433,6 +559,8 @@ function handleCommand(args: string) {
   const storePath = defaultStorePath();
   const reviewPath = defaultReviewPath();
   const curationPath = defaultCurationPath();
+  const retentionPath = defaultRetentionPath();
+  const backupDir = defaultBackupDir();
 
   if (action === "help" || action === "--help" || action === "-h") {
     return [
@@ -447,6 +575,11 @@ function handleCommand(args: string) {
       "  /agent_vent curate remove <sourceKey> [note]             Append a local curation undo event.",
       "  /agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]",
       "                                                        Generate draft-only owner-surface text.",
+      "  /agent_vent retention preview <recurrenceKey>        Preview exact local records and confirmation token.",
+      "  /agent_vent retention archive <recurrenceKey> <token> [note]",
+      "                                                        Archive reviewed local records with a backup receipt.",
+      "  /agent_vent retention restore <backupPath> <token> [note]",
+      "                                                        Restore a package-created local retention backup.",
       "  /agent_vent stats                                    Show local store counts, sizes, and review-state totals.",
       "  /agent_vent export [markdown|json] [state|all] [limit] Export a bounded local diagnostic projection.",
       "  /agent_vent path                                     Show local JSONL store paths.",
@@ -458,10 +591,16 @@ function handleCommand(args: string) {
   }
 
   if (action === "path") {
-    return formatPath(storePath, reviewPath, curationPath);
+    return formatPath(storePath, reviewPath, curationPath, retentionPath, backupDir);
   }
 
-  const state = loadDiagnosticState({ storePath, reviewPath, curationPath });
+  const state = loadDiagnosticState({
+    storePath,
+    reviewPath,
+    curationPath,
+    retentionPath,
+    backupDir,
+  });
   const { records } = state;
   const suffix = formatDiagnosticWarnings(state);
 
@@ -473,6 +612,15 @@ function handleCommand(args: string) {
   }
   if (action === "draft") {
     return `${handleDraftCommand(tokens.slice(1), state)}${suffix}`;
+  }
+  if (action === "retention") {
+    return `${handleRetentionCommand(tokens.slice(1), state, {
+      storePath,
+      reviewPath,
+      curationPath,
+      retentionPath,
+      backupDir,
+    })}${suffix}`;
   }
   if (action === "stats" || action === "export") {
     return handleLifecycleCommand(action, tokens.slice(1), state);
@@ -578,6 +726,67 @@ function handleDraftCommand(tokens: string[], state: Record<string, unknown>) {
   }).text;
 }
 
+function handleRetentionCommand(
+  tokens: string[],
+  state: Record<string, unknown>,
+  paths: {
+    storePath: string;
+    reviewPath: string;
+    curationPath: string;
+    retentionPath: string;
+    backupDir: string;
+  },
+) {
+  const retentionAction = normalizeRetentionAction(tokens[0] || "preview");
+  if (retentionAction === "preview") {
+    const recurrenceKey = tokens[1];
+    if (!recurrenceKey) return "Usage: /agent_vent retention preview <recurrenceKey>";
+    return formatRetentionPreview(
+      buildRetentionPreview({
+        recurrenceKey,
+        records: state.records as unknown[],
+        reviewEvents: state.reviewEvents as unknown[],
+        curationEvents: state.curationEvents as unknown[],
+        limit: 5,
+      }),
+    );
+  }
+  if (retentionAction === "archive") {
+    const recurrenceKey = tokens[1];
+    const confirmationToken = tokens[2];
+    const note = tokens.slice(3).join(" ");
+    if (!recurrenceKey || !confirmationToken) {
+      return "Usage: /agent_vent retention archive <recurrenceKey> <confirmationToken> [note]";
+    }
+    return formatRetentionArchiveResult(
+      archiveRecurrenceGroup({
+        ...paths,
+        recurrenceKey,
+        confirmationToken,
+        note,
+        source: "agent_vent_command",
+      }),
+    );
+  }
+  const backupPath = tokens[1];
+  const confirmationToken = tokens[2];
+  const note = tokens.slice(3).join(" ");
+  if (!backupPath || !confirmationToken) {
+    return "Usage: /agent_vent retention restore <backupPath> <confirmationToken> [note]";
+  }
+  return formatRetentionRestoreResult(
+    restoreRetentionBackup({
+      storePath: paths.storePath,
+      retentionPath: paths.retentionPath,
+      backupDir: paths.backupDir,
+      backupPath,
+      confirmationToken,
+      note,
+      source: "agent_vent_command",
+    }),
+  );
+}
+
 function handleLifecycleCommand(action: string, tokens: string[], state: Record<string, unknown>) {
   const formatToken = tokens[0] === "json" || tokens[0] === "markdown" ? tokens[0] : "markdown";
   const stateToken = formatToken === tokens[0] ? tokens[1] : tokens[0];
@@ -605,12 +814,15 @@ function formatDiagnosticWarnings(state: Record<string, unknown>) {
     ["malformed vent", state.malformedLines],
     ["malformed review", state.malformedReviewLines],
     ["malformed curation", state.malformedCurationLines],
+    ["malformed retention", state.malformedRetentionLines],
     ["oversized vent", state.oversizedLines],
     ["oversized review", state.oversizedReviewLines],
     ["oversized curation", state.oversizedCurationLines],
+    ["oversized retention", state.oversizedRetentionLines],
     ["invalid vent", state.invalidRecords],
     ["invalid review", state.invalidReviewEvents],
     ["invalid curation", state.invalidCurationEvents],
+    ["invalid retention", state.invalidRetentionEvents],
     ["quarantined curation", state.quarantinedCurationEvents],
   ];
   for (const [label, value] of pairs) {
