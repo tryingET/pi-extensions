@@ -63,13 +63,164 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.equal(result.details.record.context.sessionFile, "session.jsonl");
     assert.equal(fs.existsSync(path.join(dir, "vents.jsonl")), true);
 
-    const pathResult = await tool.execute("tool-call-2", { action: "path" }, undefined, undefined, {
+    await tool.execute(
+      "tool-call-1b",
+      {
+        action: "record",
+        summary: "Reload registration duplicate wording",
+        category: "tool-failure",
+        severity: "medium",
+        recurrenceKey: "reload-registration-dupe",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+
+    const curateResult = await tool.execute(
+      "tool-call-1c",
+      {
+        action: "curate",
+        curationAction: "merge",
+        sourceRecurrenceKey: "tool_failure:reload-registration-dupe",
+        targetRecurrenceKey: "tool_failure:repeated-reload-loses-tool-registration",
+        curationNote: "same local issue token=abc123",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(curateResult.content[0].text, /local diagnostic curation projection only/);
+    assert.match(curateResult.details.curationEvent.note, /token=\[REDACTED\]/);
+
+    const reviewResult = await tool.execute(
+      "tool-call-2",
+      { action: "review" },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(reviewResult.content[0].text, /Agent vent review queue/);
+    assert.match(reviewResult.content[0].text, /no AK task, GitHub issue, incident, evidence/);
+    assert.equal(reviewResult.details.reviewQueue.items[0].reviewState, "new");
+    assert.equal(reviewResult.details.reviewQueue.groupCount, 1);
+    assert.equal(reviewResult.details.reviewQueue.items[0].count, 2);
+
+    const setReviewResult = await tool.execute(
+      "tool-call-3",
+      {
+        action: "set_review",
+        recurrenceKey: "tool_failure:repeated-reload-loses-tool-registration",
+        reviewState: "acknowledged",
+        reviewNote: "Operator acknowledged token=abc123 locally",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(setReviewResult.content[0].text, /local diagnostic review state only/);
+    assert.equal(setReviewResult.details.reviewEvent.state, "acknowledged");
+    assert.match(setReviewResult.details.reviewEvent.note, /token=\[REDACTED\]/);
+
+    const draftResult = await tool.execute(
+      "tool-call-4",
+      {
+        action: "draft",
+        draftTarget: "github_issue",
+        recurrenceKey: "tool_failure:repeated-reload-loses-tool-registration",
+        limit: 2,
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(draftResult.content[0].text, /Draft-only GitHub issue text/);
+    assert.match(draftResult.content[0].text, /No AK task, GitHub issue, incident, evidence/);
+    assert.equal(draftResult.details.draft.samples.length, 2);
+    assert.equal(draftResult.details.draft.group.count, 2);
+
+    const statsResult = await tool.execute(
+      "tool-call-5",
+      { action: "stats" },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(statsResult.content[0].text, /Agent vent lifecycle stats/);
+    assert.equal(statsResult.details.lifecycle.counts.vents, 2);
+    assert.equal(statsResult.details.lifecycle.counts.curationEvents, 1);
+
+    const exportResult = await tool.execute(
+      "tool-call-6",
+      { action: "export", exportFormat: "json" },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.equal(JSON.parse(exportResult.content[0].text).counts.reviewStates.acknowledged, 1);
+    assert.match(exportResult.content[0].text, /Local diagnostic projection only/);
+
+    const pathResult = await tool.execute("tool-call-7", { action: "path" }, undefined, undefined, {
       cwd: "/repo",
       sessionManager: { getSessionFile: () => undefined },
     });
     assert.match(
       pathResult.content[0].text,
-      /local diagnostics, not tasks, issues, incidents, or evidence/,
+      /curation projections are local diagnostics, not tasks, issues, incidents, evidence, telemetry, or ASC\/self state/,
+    );
+  } finally {
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent fails closed for unknown review groups", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-extension-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  process.env.PI_AGENT_VENT_DIR = dir;
+  try {
+    const tool = pi.tools.get("agent_vent");
+    await assert.rejects(
+      () =>
+        tool.execute(
+          "tool-call-unknown-review",
+          {
+            action: "set_review",
+            recurrenceKey: "bug:no-such-group",
+            reviewState: "dismissed",
+          },
+          undefined,
+          undefined,
+          {
+            cwd: "/repo",
+            sessionManager: { getSessionFile: () => undefined },
+          },
+        ),
+      /unknown recurrence group/,
     );
   } finally {
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;

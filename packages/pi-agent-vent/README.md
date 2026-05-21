@@ -12,9 +12,9 @@ system4d:
 
 # @tryinget/pi-agent-vent
 
-`pi-agent-vent` gives Pi agents a local `agent_vent` tool for recording recurring frustrations they notice while working: long-lived bugs, repeated tool/runtime failures, brittle workflows, context-loss patterns, missing affordances, and documentation gaps.
+`pi-agent-vent` gives Pi agents a local `agent_vent` tool for recording and reviewing recurring frustrations they notice while working: long-lived bugs, repeated tool/runtime failures, brittle workflows, context-loss patterns, missing affordances, and documentation gaps.
 
-It is intentionally local-first and advisory. It does **not** create AK tasks, GitHub issues, canonical evidence, external telemetry, or real incidents.
+It is intentionally local-first and advisory. It does **not** create AK tasks, GitHub issues, canonical evidence, external telemetry, ASC/self state, or real incidents.
 
 - Workspace path: `packages/pi-agent-vent`
 - Release component key: `pi-agent-vent`
@@ -23,7 +23,7 @@ It is intentionally local-first and advisory. It does **not** create AK tasks, G
 
 ## Why this exists
 
-Agents often encounter the same friction repeatedly but have no durable low-cost place to say “this keeps hurting.” This package captures those observations as small local JSONL records and groups them by recurrence key so a human can decide whether to escalate.
+Agents often encounter the same friction repeatedly but have no durable low-cost place to say “this keeps hurting.” This package captures those observations as small local JSONL records, groups them by recurrence key, and lets a human mark local review state before deciding whether any owner surface should act.
 
 ## Install and activate
 
@@ -44,7 +44,7 @@ Then in Pi:
 
 ## Tool behavior
 
-`agent_vent` supports four actions:
+`agent_vent` supports eight actions:
 
 | Action | Purpose |
 |---|---|
@@ -52,6 +52,12 @@ Then in Pi:
 | `summary` | Show recurrence groups and advisory candidate incidents. |
 | `list` | Show recent local records. |
 | `path` | Show the store path and boundary contract. |
+| `review` | Show recurrence groups as a local operator review queue. |
+| `set_review` | Set local review state for a recurrence group. |
+| `curate` | Append local recurrence merge/rename projection events without rewriting raw vents. |
+| `draft` | Generate draft-only owner-surface text for a recurrence group. |
+| `stats` | Show local store counts, byte sizes, malformed-line counts, curation counts, and review-state totals. |
+| `export` | Produce a bounded local diagnostic projection in markdown or JSON. |
 
 The tool prompt tells the agent to avoid ordinary status updates, raw logs, secrets, and private user payloads.
 
@@ -61,6 +67,12 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent help
 /agent_vent summary
 /agent_vent list 20
+/agent_vent review
+/agent_vent review set acknowledged bug:reload-tools "seen locally"
+/agent_vent curate merge bug:reload-tool-a bug:reload-tools "same local pattern"
+/agent_vent draft github_issue bug:reload-tools
+/agent_vent stats
+/agent_vent export markdown
 /agent_vent path
 ```
 
@@ -85,6 +97,8 @@ Default store:
 
 ```text
 ~/.pi/agent/agent-vent/vents.jsonl
+~/.pi/agent/agent-vent/review-events.jsonl
+~/.pi/agent/agent-vent/curation-events.jsonl
 ```
 
 Override:
@@ -93,7 +107,11 @@ Override:
 PI_AGENT_VENT_DIR=/path/to/private/dir pi
 ```
 
-Records are append-only JSONL with `schemaVersion: 1`. Reads tolerate malformed old lines and report a malformed-line count. The package applies conservative redaction heuristics for common token/password/API-key shapes, but callers must still avoid submitting secrets.
+Records are append-only JSONL with `schemaVersion: 1`. Review state changes are append-only local events in `review-events.jsonl`; recurrence curation changes are append-only local events in `curation-events.jsonl`. Recurrence review state and merged/renamed groups are projections from the latest local events; raw vent records are not rewritten.
+
+Reads tolerate malformed old lines and report a malformed-line count. JSONL store files fail closed when replaced by symlinks. `curate`, `draft`, `stats`, and `export` are local diagnostic projection surfaces, not evidence, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
+
+The package applies conservative redaction heuristics for common token/password/API-key shapes, including review notes, but callers must still avoid submitting secrets.
 
 Data classification: local diagnostic user data. No network calls are made by this package.
 
@@ -111,8 +129,10 @@ uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show p
 
 Package-specific selected disciplines are documented in [docs/engineering.local.md](docs/engineering.local.md), including `local-first-data`, `data-governance`, `domain-modeling`, and `observability` because this package owns durable local diagnostic records.
 
-Design and plan:
+Product docs:
 
+- [Vision](docs/project/vision.md)
+- [Product posture](docs/project/product-posture.md)
 - [Agent vent design](docs/project/2026-05-21-agent-vent-design.md)
 - [Implementation plan](docs/project/2026-05-21-agent-vent-implementation-plan.md)
 

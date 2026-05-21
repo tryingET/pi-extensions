@@ -21,6 +21,8 @@ Continue one focused slice of the local agent venting tool while preserving priv
 - release component key: `pi-agent-vent`
 - primary extension entry: `extensions/agent-vent.ts`
 - core logic: `src/vent-store.js`
+- vision: `docs/project/vision.md`
+- product posture: `docs/project/product-posture.md`
 - design: `docs/project/2026-05-21-agent-vent-design.md`
 
 ## Quick start
@@ -40,7 +42,7 @@ Live check after install/reload:
 
 ## Session checklist
 
-1. Read `AGENTS.md`, `README.md`, `docs/engineering.local.md`, and the design doc.
+1. Read `AGENTS.md`, `README.md`, `docs/engineering.local.md`, `docs/project/vision.md`, `docs/project/product-posture.md`, and the design doc.
 2. Keep `agent_vent` local-only unless a new design explicitly changes the boundary.
 3. Add or update `node:test` coverage for redaction, recurrence grouping, JSONL reads/writes, and command/tool behavior affected by the change.
 4. Run `npm run check`.
