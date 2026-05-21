@@ -139,7 +139,7 @@ The `self` tool accepts operational handoff queries such as `controller handoff 
 The `self` tool accepts capability meta-queries such as `What can you do?`, `capability discovery`, and `capability routing`. Its response intentionally distinguishes three surfaces:
 
 1. `self` query domains: perception, direction, crystallization, protection, and action queries understood by the ASC self mirror. Action-domain checkpoints and follow-ups are restart-persistent and can be reviewed with `action summary` before Level-4 handoff or dogfood closeout.
-2. Toolbox/bundle discovery: use the Pi `toolbox` tool to search, explain, activate, deactivate, or inspect extension bundles. ASC does not add or replace that tool.
+2. Toolbox/bundle discovery: use the Pi `toolbox` tool to search, explain, activate, deactivate, or inspect extension bundles. ASC does not add or replace that tool. Recurring agent frustration diagnostics belong to the separate `pi-agent-vent` package and same-named `agent_vent` toolbox bundle/tool, not ASC/self state.
 3. Repo/lane capability-map routing: use documentation surfaces such as `repo-capability-map.md` and `pi-extensions/docs/project/root-capabilities.md` to choose owning repos/packages and read-first docs. These maps are routing guidance, not runtime authority.
 
 ### Public execution contract

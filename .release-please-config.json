@@ -9,6 +9,10 @@
       "release-type": "node",
       "component": "pi-activity-strip"
     },
+    "packages/pi-agent-vent": {
+      "release-type": "node",
+      "component": "pi-agent-vent"
+    },
     "packages/pi-autonomous-session-control": {
       "release-type": "node",
       "component": "pi-autonomous-session-control"

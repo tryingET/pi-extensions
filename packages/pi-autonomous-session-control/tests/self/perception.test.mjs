@@ -116,6 +116,7 @@ test("self query: capability discovery", async () => {
     result.content[0].text.includes("pi-extensions/docs/project/root-capabilities.md"),
     "should mention root capabilities docs",
   );
+  assert.ok(result.content[0].text.includes("agent_vent"), "should mention agent-vent companion");
   assert.ok(result.details.data.domains, "should return domains data");
   assert.ok(result.details.data.discoverySurfaces, "should return discovery surfaces data");
 
@@ -142,6 +143,7 @@ test("self query: capability routing variant", async () => {
   assert.ok(result.details.understood, "should understand capability routing query");
   assert.equal(result.details.intent, "meta");
   assert.ok(result.content[0].text.includes("toolbox"), "should mention toolbox discovery");
+  assert.ok(result.content[0].text.includes("agent_vent"), "should mention agent-vent companion");
   assert.ok(result.content[0].text.includes("capability maps"), "should mention capability maps");
 
   await cleanup(tempDir);

@@ -132,6 +132,7 @@ Use package/group roots for:
 - code-quality configs tied to package source
 - package build/test/release contracts
 - package-specific docs and stack deviations
+- package-owned local diagnostic surfaces, such as `packages/pi-agent-vent` for agent frustration/recurrence capture
 - canonicalized legacy runtime ownership, such as `packages/pi-evalset-lab` for `/evalset` datasets, compare runs, and report export
 
 ## Deletion rule for legacy standalone repos

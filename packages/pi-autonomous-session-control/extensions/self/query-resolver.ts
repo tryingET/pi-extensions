@@ -384,6 +384,7 @@ function resolveMetaQuery(intent: string): SelfResponse {
 
 **2. toolbox/bundle discovery** (outside self):
 - Use the \`toolbox\` tool to search, explain, activate, deactivate, or inspect Pi extension bundles when you need extension-provided capabilities.
+- For recurring agent frustration, repeated bugs, tool failures, or workflow friction, use the separate \`agent_vent\` bundle/tool; do not store vent diagnostics in self/ASC state.
 - Keep toolbox/bundle discovery separate from this self-tool query list; self explains itself, toolbox discovers extension bundles.
 
 **3. repo/lane capability-map routing surfaces** (documentation/read-first routing):
@@ -431,7 +432,7 @@ function resolveMetaQuery(intent: string): SelfResponse {
           {
             name: "toolbox/bundle discovery",
             description:
-              "Use the toolbox tool for Pi extension bundle search, explanation, activation, deactivation, and inspection.",
+              "Use the toolbox tool for Pi extension bundle search, explanation, activation, deactivation, and inspection; route recurring agent frustration diagnostics to the separate agent_vent bundle/tool rather than self/ASC state.",
           },
           {
             name: "repo/lane capability-map routing",
