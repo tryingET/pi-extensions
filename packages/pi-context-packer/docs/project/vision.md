@@ -11,16 +11,18 @@ system4d:
 
 # Vision
 
-Deliver a read-only context-window planning package for Pi sessions.
+Deliver a read-only context-window planning and packet assembly package for Pi sessions.
 
 The package should help a harnessed agent or operator:
 
 - decide which source-owned providers should contribute context;
+- assemble bounded Markdown-primary packets when that will reduce raw `read`/search/status churn;
 - preserve SCI as a code-context provider rather than an all-context owner;
-- include docs, AGENTS, git, Prompt Vault, AK, FCOS, and session signals through explicit provider boundaries;
-- expose token/byte budgets and omissions before stuffing a large model context window;
-- measure whether a planned packet reduces low-level tool calls.
+- include docs/docs-list, AGENTS, git, Prompt Vault, AK, FCOS, and session signals through explicit provider boundaries;
+- expose token/byte budgets, omissions, and already-loaded dedupe before stuffing a large model context window;
+- measure whether a planned packet reduces low-level tool calls;
+- keep structured tool details compact so raw JSON does not become the actual context payload.
 
-This package owns packet planning and, later, packet assembly. It does not own canonical task, evidence, decision, prompt, documentation, FCOS, SCI, or git authority.
+This package owns packet planning and bounded read-only packet assembly. It does not own canonical task, evidence, decision, prompt, documentation, FCOS, SCI, or git authority.
 
-For the project-level concept map, see [Project foundation model](foundation.md).
+For current maturity and trust gates, see [Product posture](product-posture.md). For the project-level concept map, see [Project foundation model](foundation.md).

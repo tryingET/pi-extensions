@@ -36,7 +36,7 @@ Provide Pi with a read-only planning and packing seam that can:
 - inspect an objective and seeds;
 - choose relevant providers with explicit budget caps;
 - explain authority boundaries and non-authorizations;
-- later assemble context packets with provenance, omissions, and measurement receipts.
+- assemble context packets with provenance, omissions, and measurement receipts.
 
 ## Ownership boundary
 
@@ -44,7 +44,7 @@ This package owns:
 
 - the `/context-pack` command;
 - the `context_plan` model-callable tool;
-- future read-only `context_pack` packet assembly;
+- read-only `context_pack` packet assembly;
 - provider planning/ranking/omission contracts.
 
 This package does **not** own:
