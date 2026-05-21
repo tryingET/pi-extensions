@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "b4837a1830994a0f652bb78e77ecd93bd551cd35"
+created_at: "2026-05-21T19:01:46Z"
+intent: "Require product posture and commit prompts before visible-loop iteration completion"
+files:
+  - "packages/pi-little-helpers/README.md"
+  - "packages/pi-little-helpers/src/visibleLoop.ts"
+  - "packages/pi-little-helpers/tests/sidequest.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 4
+  total: 4
+  rationale: "Visible-loop completion guardrail update"
+links:
+  task_ids:
+    - 3314
