@@ -1,0 +1,28 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8911ae0958c25cdb1bb042008c6e68ed46ab9584"
+created_at: "2026-05-21T19:46:57Z"
+intent: "Add pi-agent-vent local review lifecycle projections and safety checks."
+files:
+  - "packages/pi-agent-vent/README.md"
+  - "packages/pi-agent-vent/docs/project/2026-05-21-agent-vent-design.md"
+  - "packages/pi-agent-vent/docs/project/product-posture.md"
+  - "packages/pi-agent-vent/docs/project/vision.md"
+  - "packages/pi-agent-vent/extensions/agent-vent.ts"
+  - "packages/pi-agent-vent/next_session_prompt.md"
+  - "packages/pi-agent-vent/src/vent-store.js"
+  - "packages/pi-agent-vent/tests/agent-vent-extension.test.js"
+  - "packages/pi-agent-vent/tests/vent-store.test.js"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-agent-vent run check"
+    status: "pass"
+  full_gate:
+    command: "bash scripts/package-quality-gate.sh ci packages/pi-context-packer && bash scripts/package-quality-gate.sh ci packages/pi-agent-vent && npm --prefix packages/pi-context-packer run docs:list -- --strict && npm --prefix packages/pi-agent-vent run docs:list -- --strict"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "Agent-vent implementation, tests, and product docs are one package lifecycle slice."
