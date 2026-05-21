@@ -19,7 +19,7 @@ Related source-owner note: [Context-window packer over SCI — FCOS source-owner
 
 Define the first read-only contract for a Pi context-packer capability that can reduce low-level tool calls and make better use of large context windows.
 
-This began as a draft implementation contract. Current first slices now exist in `packages/pi-context-packer`: `context_plan` plans provider use, and `context_pack` assembles bounded AGENTS/docs/git/SCI-seeded-code packets while recording omissions for unwired providers.
+This began as a draft implementation contract. Current first slices now exist in `packages/pi-context-packer`: `context_plan` plans provider use, and `context_pack` assembles bounded AGENTS/docs-list/git/SCI-seeded-code packets while recording omissions for unwired providers.
 
 ## Recommended package seam
 

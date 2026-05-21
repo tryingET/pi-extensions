@@ -2,36 +2,36 @@ import { execFile } from "node:child_process";
 import { open, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { buildContextPlan, CONTEXT_PLAN_PARAMETERS, formatContextPlan } from "./context-plan.js";
+import { formatContextPacket, toolResultFromContextPacketResult } from "./context-pack-result.js";
+import { buildContextPlan, CONTEXT_PLAN_PARAMETERS } from "./context-plan.js";
+import { discoverDocsSeeds } from "./docs-provider.js";
 import { buildSciSection } from "./sci-provider.js";
+import {
+  buildMeasurementHints,
+  buildMeasurementReceipt,
+  buildSessionAwareness,
+  buildSessionSection,
+  shouldShowSessionSection,
+} from "./session-measurement.js";
 
 const execFileAsync = promisify(execFile);
 const ESTIMATED_BYTES_PER_TOKEN = 4;
 const MAX_ITEM_BYTES = 48_000;
 const GIT_MAX_BUFFER = 32_000;
 const TRUSTED_GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git"];
-
 const SECTION_AUTHORITY = {
   agents: "Active/relevant AGENTS files are instruction context; this packet only mirrors them.",
   git: "Git status is current workspace posture; read-only metadata only.",
   docs: "Markdown/docs are source-owned data unless active instructions make them authoritative.",
 };
-
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
-
 const isMarkdownPath = (value) => /\.md$/i.test(value);
-
-const textResult = (text, details = {}) => ({ content: [{ type: "text", text }], details });
-
 const selectedProviderIds = (plan) =>
   plan.providerPlans
     .filter((providerPlan) => providerPlan.posture === "selected")
     .map((providerPlan) => providerPlan.provider);
-
 const unique = (values) => Array.from(new Set(values));
-
 const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${sep}`);
-
 const resolveContainedPath = async (root, pathSeed) => {
   if (isAbsolute(pathSeed) || pathSeed.includes("\0")) {
     return { ok: false, reason: "path seed is absolute or contains NUL" };
@@ -58,7 +58,43 @@ const resolveContainedPath = async (root, pathSeed) => {
   return { ok: true, path: realCandidate, relativePath: pathSeed };
 };
 
-const readBoundedFile = async ({ root, pathSeed, provider, rationale, budgetBytes }) => {
+const contentAlreadyLoaded = (loadedText, content) => {
+  if (typeof loadedText !== "string" || loadedText.length === 0) return false;
+  const trimmed = content.trim();
+  return trimmed.length > 0 && loadedText.includes(trimmed);
+};
+
+const loadedDuplicateItem = ({ provider, pathSeed, rationale, content, duplicateOf }) => {
+  const duplicateNote = [
+    `[already loaded in ${duplicateOf}; duplicate whole-file content omitted]`,
+    `path: ${pathSeed}`,
+    `originalBytes: ${Buffer.byteLength(content)}`,
+    `originalEstimatedTokens: ${textTokens(content)}`,
+  ].join("\n");
+  return {
+    id: `${provider}:${pathSeed}`,
+    kind: isMarkdownPath(pathSeed) ? "doc" : "file",
+    provenance: { provider, path: pathSeed },
+    rationale: `${rationale}; duplicate content already present in ${duplicateOf}`,
+    estimatedTokens: textTokens(duplicateNote),
+    bytes: Buffer.byteLength(duplicateNote),
+    content: duplicateNote,
+    contentMode: "metadata",
+    freshness: "live filesystem read with already-loaded prompt dedupe",
+    duplicateOf,
+    duplicateBytesAvoided: Buffer.byteLength(content),
+    duplicateTokensAvoided: textTokens(content),
+  };
+};
+
+const readBoundedFile = async ({
+  root,
+  pathSeed,
+  provider,
+  rationale,
+  budgetBytes,
+  loadedSystemPrompt,
+}) => {
   const resolved = await resolveContainedPath(root, pathSeed);
   if (!resolved.ok) {
     return {
@@ -127,6 +163,19 @@ const readBoundedFile = async ({ root, pathSeed, provider, rationale, budgetByte
       omission: { provider, reason: "blocked", detail: `${pathSeed}: changed during read` },
     };
   }
+  if (contentAlreadyLoaded(loadedSystemPrompt, content)) {
+    return {
+      item: loadedDuplicateItem({
+        provider,
+        pathSeed,
+        rationale,
+        content,
+        duplicateOf: "system_prompt",
+      }),
+      omission: undefined,
+    };
+  }
+
   return {
     item: {
       id: `${provider}:${pathSeed}`,
@@ -160,7 +209,7 @@ const findAgentFiles = async (cwd, repoRoot) => {
     .filter((candidate) => candidate && !candidate.startsWith(".."));
 };
 
-const buildAgentsSection = async ({ cwd, repoRoot, maxBytes }) => {
+const buildAgentsSection = async ({ cwd, repoRoot, maxBytes, loadedSystemPrompt }) => {
   const agentFiles = await findAgentFiles(cwd, repoRoot);
   const items = [];
   const omissions = [];
@@ -172,6 +221,7 @@ const buildAgentsSection = async ({ cwd, repoRoot, maxBytes }) => {
       provider: "agents",
       rationale: "active or ancestor AGENTS file for package/workspace instruction context",
       budgetBytes: maxBytes,
+      loadedSystemPrompt,
     });
     if (item) items.push(item);
     if (omission) omissions.push(omission);
@@ -180,7 +230,7 @@ const buildAgentsSection = async ({ cwd, repoRoot, maxBytes }) => {
   return { section: sectionFromItems("agents", "Instruction context", items), omissions };
 };
 
-const buildDocsSection = async ({ repoRoot, seeds, maxBytes }) => {
+const buildDocsSection = async ({ repoRoot, seeds, maxBytes, loadedSystemPrompt }) => {
   const markdownSeeds = seeds.filter((seed) => seed.kind === "path" && isMarkdownPath(seed.value));
   const items = [];
   const omissions = [];
@@ -192,6 +242,7 @@ const buildDocsSection = async ({ repoRoot, seeds, maxBytes }) => {
       provider: "docs",
       rationale: seed.note ?? "caller-seeded Markdown context",
       budgetBytes: maxBytes,
+      loadedSystemPrompt,
     });
     if (item) items.push(item);
     if (omission) omissions.push(omission);
@@ -272,7 +323,7 @@ const sectionFromItems = (provider, title, items) => ({
 
 const unavailableProviderOmissions = (providerIds) =>
   providerIds
-    .filter((provider) => !["agents", "docs", "git", "sci"].includes(provider))
+    .filter((provider) => !["agents", "docs", "git", "sci", "session"].includes(provider))
     .map((provider) => ({
       provider,
       reason: "unavailable",
@@ -314,41 +365,6 @@ const appendSectionWithinBudget = ({ sections, omissions, section, remainingBudg
   if (kept.length > 0) sections.push(sectionWithItems(section, kept));
 };
 
-const buildMeasurementReceipt = ({ estimatedTokens, sections, omissions, budget }) => {
-  const wiredProviders = sections.map((section) => section.provider);
-  const selectedItemCount = sections.reduce((sum, section) => sum + section.items.length, 0);
-  const estimatedToolCallsAvoided = sections.reduce((sum, section) => {
-    if (section.provider === "sci") return sum + section.items.length * 2;
-    return sum + section.items.length;
-  }, 0);
-  const packetFillRatio = budget.maxTokens > 0 ? estimatedTokens / budget.maxTokens : 0;
-  return {
-    estimatedToolCallsAvoided,
-    packetFillRatio,
-    wiredProviders,
-    selectedItemCount,
-    omittedCandidateCount: omissions.length,
-    unwiredProviderOmissions: omissions
-      .filter((omission) => omission.reason === "unavailable")
-      .map((omission) => omission.provider),
-  };
-};
-
-const buildMeasurementHints = (receipt, budget) => [
-  {
-    metric: "tool_calls_avoided",
-    note: `${receipt.estimatedToolCallsAvoided} estimated low-level read/search/status calls avoided by this packet`,
-  },
-  {
-    metric: "packet_fill",
-    note: `${Math.round(receipt.packetFillRatio * 100)}% of ${budget.maxTokens} estimated packet tokens selected`,
-  },
-  {
-    metric: "provider_gap",
-    note: `${receipt.omittedCandidateCount} candidate/provider omissions recorded`,
-  },
-];
-
 export const buildContextPacket = async (input = {}, env = {}) => {
   const plan = buildContextPlan(input, env);
   if (!plan.ok) return { ok: false, errors: plan.errors, plan };
@@ -357,6 +373,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const repoRoot = resolve(plan.repoRoot ?? plan.cwd);
   const providerIds = selectedProviderIds(plan);
   const sections = [];
+  const sessionAwareness = buildSessionAwareness({ ...env, cwd });
   const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
   const omissions = (plan.omittedSeeds ?? []).map((seed) => ({
     provider: "docs",
@@ -369,23 +386,32 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       .flatMap((providerPlan) => providerPlan.proposedQueries.flatMap((query) => query.seeds ?? []))
       .map((seed) => JSON.stringify(seed)),
   ).map((seed) => JSON.parse(seed));
-  const docsSeeds = allSeeds.filter((seed) => seed.kind === "path" && isMarkdownPath(seed.value));
+  let docsSeeds = allSeeds.filter((seed) => seed.kind === "path" && isMarkdownPath(seed.value));
 
   if (providerIds.includes("agents")) {
     const result = await buildAgentsSection({
       cwd,
       repoRoot,
       maxBytes: providerMaxBytes(plan, "agents", remainingBudget),
+      loadedSystemPrompt: env.systemPrompt,
     });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
   }
 
   if (providerIds.includes("docs")) {
+    if (docsSeeds.length === 0 && (plan.omittedSeeds ?? []).length === 0) {
+      const discovered = await discoverDocsSeeds({ repoRoot, objective: plan.objective, env });
+      docsSeeds = unique(
+        [...docsSeeds, ...discovered.seeds].map((seed) => JSON.stringify(seed)),
+      ).map((seed) => JSON.parse(seed));
+      omissions.push(...discovered.omissions);
+    }
     const result = await buildDocsSection({
       repoRoot,
       seeds: docsSeeds,
       maxBytes: providerMaxBytes(plan, "docs", remainingBudget),
+      loadedSystemPrompt: env.systemPrompt,
     });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
@@ -400,6 +426,12 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
+  }
+
+  if (providerIds.includes("session") && shouldShowSessionSection({ plan, sessionAwareness })) {
+    const result = buildSessionSection({ sessionAwareness });
+    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
+    sessionAwareness.visibleSessionSection = true;
   }
 
   if (providerIds.includes("git")) {
@@ -417,6 +449,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     sections,
     omissions,
     budget: plan.budget,
+    sessionAwareness,
   });
   const packet = {
     ok: true,
@@ -447,27 +480,9 @@ export const buildContextPacket = async (input = {}, env = {}) => {
 
 export const CONTEXT_PACK_PARAMETERS = CONTEXT_PLAN_PARAMETERS;
 
-export const formatContextPacket = (result) => {
-  if (!result.ok) return formatContextPlan(result.plan);
-  const { packet } = result;
-  const sections = packet.sections.map(
-    (section) =>
-      `- ${section.provider}: ${section.items.length} item(s), ${section.estimatedTokens} tokens`,
-  );
-  const omissions = packet.omissions.map(
-    (omission) => `- ${omission.provider}/${omission.reason}: ${omission.detail}`,
-  );
-  return [
-    `Context packet for: ${packet.objective}`,
-    `selected: ${packet.totals.candidatesSelected} item(s), ${packet.totals.estimatedTokens} estimated tokens, ${packet.totals.bytes} bytes`,
-    sections.length ? `sections:\n${sections.join("\n")}` : "sections: none",
-    omissions.length ? `omissions:\n${omissions.join("\n")}` : "omissions: none",
-    "non-authorizations:",
-    ...packet.nonAuthorizations.map((item) => `- ${item}`),
-  ].join("\n");
-};
+export { formatContextPacket };
 
 export const contextPacketToolResult = async (input = {}, env = {}) => {
   const result = await buildContextPacket(input, env);
-  return textResult(formatContextPacket(result), { ok: result.ok, ...result });
+  return toolResultFromContextPacketResult(result);
 };

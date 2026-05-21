@@ -231,11 +231,11 @@ Delivered:
   - caller-seeded Markdown/docs provider;
   - trusted git status provider;
   - SCI CLI provider for caller-seeded code paths and symbols, with generated `.ontology` cleanup when the target repo did not already own SCI artifacts;
-- packet output with budget, provenance, omissions, next suggested reads, and a measurement receipt estimating low-level tool calls avoided / packet fill / provider gaps.
+- packet output with budget, provenance, omissions, next suggested reads, and a measurement receipt estimating low-level tool calls avoided / packet fill / already-loaded prompt dedupe / provider gaps;
+- session-context metadata in packet measurement/details when the Pi host supplies current context usage.
 
 Remaining:
 
-- session-context adapter;
 - Prompt Vault read provider;
 - AK/FCOS read providers when ids are supplied;
 - live Pi tool-call smoke after reload.

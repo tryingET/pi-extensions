@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -35,7 +35,7 @@ test("context_pack assembles AGENTS and seeded Markdown without mutating provide
   assert.equal(byProvider.docs.items.length, 1);
   assert.match(byProvider.docs.items[0].content, /source-owned Markdown/);
   assert.ok(result.packet.nonAuthorizations.some((item) => item.includes("does not mutate")));
-  assert.equal(result.packet.measurementReceipt.selectedItemCount, 2);
+  assert.ok(result.packet.measurementReceipt.selectedItemCount >= 2);
   assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 2);
 });
 
@@ -60,6 +60,33 @@ test("context_pack enforces the global packet budget across providers while pres
   assert.ok(result.packet.totals.bytes <= result.packet.budget.maxBytes, result.packet);
   assert.ok(result.packet.measurementReceipt.packetFillRatio <= 1, result.packet);
   assert.ok(result.packet.omissions.some((omission) => omission.reason === "budget"));
+});
+
+test("context_pack discovers ranked Markdown docs through docs-list when available", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "auto.md"),
+    "# Auto\n\nRanked docs-list context.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-fake.mjs");
+  await writeFile(script, "console.log('docs/project/auto.md');\n", "utf8");
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use architecture docs for implementation",
+      cwd: root,
+      repoRoot: root,
+      providers: { docs: "required", git: "off", sci: "off" },
+    },
+    { docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(docs.items.length, 1);
+  assert.equal(docs.items[0].provenance.path, "docs/project/auto.md");
+  assert.match(docs.items[0].content, /Ranked docs-list context/);
 });
 
 test("context_pack treats uppercase Markdown seeds as docs", async () => {
@@ -167,9 +194,9 @@ test("formatContextPacket summarizes selected sections and omissions", async () 
   });
   const text = formatContextPacket(result);
 
-  assert.match(text, /Context packet for:/);
-  assert.match(text, /sections:/);
-  assert.match(text, /omissions:/);
+  assert.match(text, /# Context packet:/);
+  assert.match(text, /## Section summary/);
+  assert.match(text, /## Omissions/);
 });
 
 test("context_pack emits measurement receipt for packet usefulness", async () => {
@@ -186,4 +213,46 @@ test("context_pack emits measurement receipt for packet usefulness", async () =>
   assert.equal(result.packet.measurementReceipt.wiredProviders.includes("docs"), true);
   assert.equal(typeof result.packet.measurementReceipt.packetFillRatio, "number");
   assert.ok(result.packet.measurementHints.some((hint) => hint.metric === "tool_calls_avoided"));
+});
+
+test("context_pack deduplicates content already loaded in the system prompt", async () => {
+  const root = await makeWorkspace();
+  const loadedAgents = "# AGENTS\n\nUse bounded read-only context.\n";
+  const result = await buildContextPacket(
+    {
+      objective: "Plan with already-loaded instructions",
+      cwd: root,
+      repoRoot: root,
+      providers: { git: "off" },
+    },
+    { systemPrompt: `prefix\n${loadedAgents}\nsuffix` },
+  );
+
+  const agents = result.packet.sections.find((section) => section.provider === "agents");
+  assert.equal(agents.items[0].contentMode, "metadata");
+  assert.equal(agents.items[0].duplicateOf, "system_prompt");
+  assert.equal(result.packet.measurementReceipt.alreadyLoadedItems, 1);
+  assert.ok(result.packet.measurementReceipt.duplicateTokensAvoided > 0);
+});
+
+test("context_pack includes session environment metadata when selected", async () => {
+  const root = await makeWorkspace();
+  const result = await buildContextPacket(
+    {
+      objective: "Plan current context window environment",
+      cwd: root,
+      repoRoot: root,
+      providers: { session: "required", git: "off" },
+    },
+    {
+      systemPrompt: "loaded prompt",
+      contextUsage: { tokens: 1234 },
+      modelLabel: "test/model",
+    },
+  );
+
+  const session = result.packet.sections.find((section) => section.provider === "session");
+  assert.equal(session.items.length, 1);
+  assert.match(session.items[0].content, /systemPromptEstimatedTokens/);
+  assert.match(session.items[0].content, /test\/model/);
 });

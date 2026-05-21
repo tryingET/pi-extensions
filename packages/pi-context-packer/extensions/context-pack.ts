@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { CONTEXT_PACK_PARAMETERS, contextPacketToolResult } from "../src/context-pack.js";
 import {
   buildContextPlan,
@@ -11,6 +11,13 @@ const textResult = (text: string, details: Record<string, unknown> = {}) => ({
   details,
 });
 
+const contextEnv = (ctx: ExtensionContext | undefined) => ({
+  cwd: ctx?.cwd,
+  systemPrompt: ctx?.getSystemPrompt?.(),
+  contextUsage: ctx?.getContextUsage?.(),
+  modelLabel: ctx?.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
+});
+
 export default function contextPackerExtension(pi: ExtensionAPI) {
   pi.registerCommand("context-pack", {
     description: "Preview the read-only context-packer planning surface",
@@ -21,7 +28,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
             "Plan a read-only context packet for the current task using source-owned providers.",
           cwd: ctx.cwd,
         },
-        { cwd: ctx.cwd },
+        contextEnv(ctx),
       );
       const message = formatContextPlan(plan);
       if (ctx.hasUI) {
@@ -46,7 +53,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     ],
     parameters: CONTEXT_PLAN_PARAMETERS,
     async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
-      const plan = buildContextPlan(rawParams, { cwd: ctx?.cwd });
+      const plan = buildContextPlan(rawParams, contextEnv(ctx));
       return textResult(formatContextPlan(plan), { ok: plan.ok, plan });
     },
   });
@@ -65,7 +72,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     ],
     parameters: CONTEXT_PACK_PARAMETERS,
     async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
-      return contextPacketToolResult(rawParams, { cwd: ctx?.cwd });
+      return contextPacketToolResult(rawParams, contextEnv(ctx));
     },
   });
 }
