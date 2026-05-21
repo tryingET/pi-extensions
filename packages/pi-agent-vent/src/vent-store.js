@@ -507,6 +507,60 @@ export function summarizeReviewQueue(records, reviewEvents, options = {}) {
   };
 }
 
+export function buildReviewDetail(input = {}) {
+  const recurrenceKey = sanitizeDisplayText(input.recurrenceKey, 200);
+  if (!recurrenceKey) throw new Error("agent_vent review detail requires a recurrenceKey");
+
+  const records = input.records || [];
+  const reviewEvents = input.reviewEvents || [];
+  const curationEvents = input.curationEvents || [];
+  const curationMap = buildCurationMap(curationEvents);
+  const resolvedKey = resolveRecurrenceKey(recurrenceKey, curationMap);
+  const group = buildReviewQueueItems(records, reviewEvents, curationEvents).find(
+    (item) => item.recurrenceKey === resolvedKey,
+  );
+  if (!group) {
+    throw new Error(`cannot inspect unknown recurrence group: ${recurrenceKey}`);
+  }
+
+  const samples = records
+    .filter(
+      (record) =>
+        resolveRecurrenceKey(
+          String(record.recurrenceKey || buildRecurrenceKey(record)),
+          curationMap,
+        ) === resolvedKey,
+    )
+    .slice(-clampLimit(input.limit, 5))
+    .reverse()
+    .map((record) => ({
+      id: sanitizeDisplayText(record.id, 120),
+      createdAt: sanitizeDisplayText(record.createdAt, 80),
+      severity: normalizeSeverity(record.severity),
+      category: normalizeCategory(record.category),
+      summary: sanitizeDisplayText(record.summary, 300),
+      frustration: sanitizeDisplayText(record.frustration, 500),
+      evidence: sanitizeDisplayText(record.evidence, 500),
+      expected: sanitizeDisplayText(record.expected, 400),
+      actual: sanitizeDisplayText(record.actual, 400),
+      reproduction: sanitizeDisplayText(record.reproduction, 500),
+      tags: Array.isArray(record.tags)
+        ? record.tags.map((tag) => recurrenceSlug(tag)).filter((tag) => tag !== "unspecified")
+        : [],
+    }));
+
+  return {
+    generatedAt: input.now || new Date().toISOString(),
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Read-only local diagnostic review projection. No AK task, GitHub issue, incident, evidence, telemetry, publication, or ASC/self state mutation occurred.",
+    recurrenceKey: resolvedKey,
+    requestedRecurrenceKey: recurrenceKey,
+    group,
+    samples,
+  };
+}
+
 export function buildLifecycleSnapshot(input = {}) {
   const records = input.records || [];
   const reviewEvents = input.reviewEvents || [];
@@ -622,14 +676,57 @@ export function formatReviewQueue(queue) {
   ];
   for (const item of queue.items) {
     const marker = item.candidateIncident ? "candidate incident for human review" : "watch";
+    const facets = [
+      item.categories?.length ? `categories=${item.categories.join(",")}` : undefined,
+      item.tags?.length ? `tags=${item.tags.join(",")}` : undefined,
+    ]
+      .filter(Boolean)
+      .join("; ");
+    const facetText = facets ? `; ${facets}` : "";
     lines.push(
-      `- [${item.reviewState}] ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}; latest: ${item.latestSummary}`,
+      `- [${item.reviewState}] ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}${facetText}; latest: ${item.latestSummary}`,
     );
     if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
+    lines.push(`  inspect: /agent_vent review show ${item.recurrenceKey} [limit]`);
     lines.push(
       `  next: /agent_vent review set acknowledged ${item.recurrenceKey} [note] | dismissed | escalation_drafted`,
     );
   }
+  return lines.join("\n");
+}
+
+export function formatReviewDetail(detail) {
+  const group = detail.group;
+  const lines = [
+    `Agent vent review detail for ${detail.recurrenceKey}: ${group.count} local diagnostic record(s).`,
+    `Review state: ${group.reviewState}; max severity: ${group.maxSeverity}; candidate incident for human review: ${group.candidateIncident ? "yes" : "no"}`,
+    `Boundary: ${detail.boundary}`,
+  ];
+  if (detail.requestedRecurrenceKey !== detail.recurrenceKey) {
+    lines.push(`Requested key resolved through local curation: ${detail.requestedRecurrenceKey}`);
+  }
+  if (group.categories?.length) lines.push(`Categories: ${group.categories.join(", ")}`);
+  if (group.tags?.length) lines.push(`Tags: ${group.tags.join(", ")}`);
+  if (group.reviewNote) lines.push(`Review note: ${group.reviewNote}`);
+  lines.push("", "Representative local samples:");
+  for (const sample of detail.samples || []) {
+    lines.push(
+      `- ${sample.id || "unknown-id"} ${sample.createdAt || "unknown-time"} [${sample.severity}/${sample.category}] ${sample.summary || "(no summary)"}`,
+    );
+    if (sample.tags?.length) lines.push(`  tags: ${sample.tags.join(", ")}`);
+    if (sample.frustration) lines.push(`  frustration: ${sample.frustration}`);
+    if (sample.evidence) lines.push(`  evidence: ${sample.evidence}`);
+    if (sample.expected) lines.push(`  expected: ${sample.expected}`);
+    if (sample.actual) lines.push(`  actual: ${sample.actual}`);
+    if (sample.reproduction) lines.push(`  reproduction: ${sample.reproduction}`);
+  }
+  if (!detail.samples?.length) lines.push("No sample vents available.");
+  lines.push(
+    "",
+    `Next: /agent_vent review set acknowledged ${detail.recurrenceKey} [note] | dismissed | escalation_drafted`,
+    `Optional draft-only handoff: /agent_vent draft github_issue ${detail.recurrenceKey}`,
+    `Optional after review: /agent_vent retention preview ${detail.recurrenceKey}`,
+  );
   return lines.join("\n");
 }
 
@@ -1475,6 +1572,7 @@ function buildGroupSummaries(records, curationEvents = []) {
       lastSeen: undefined,
       latestSummary: undefined,
       sampleIds: [],
+      tags: new Set(),
     };
     existing.count += 1;
     const severity = normalizeSeverity(record.severity);
@@ -1482,6 +1580,12 @@ function buildGroupSummaries(records, curationEvents = []) {
       existing.maxSeverity = severity;
     }
     existing.categories.add(normalizeCategory(record.category));
+    if (Array.isArray(record.tags)) {
+      for (const tag of record.tags) {
+        const normalizedTag = recurrenceSlug(tag);
+        if (normalizedTag !== "unspecified") existing.tags.add(normalizedTag);
+      }
+    }
     if (!existing.firstSeen || String(record.createdAt) < existing.firstSeen)
       existing.firstSeen = record.createdAt;
     if (!existing.lastSeen || String(record.createdAt) > existing.lastSeen) {
@@ -1501,6 +1605,7 @@ function buildGroupSummaries(records, curationEvents = []) {
         maxSeverity: group.maxSeverity,
         candidateIncident,
         categories: [...group.categories].sort(),
+        tags: [...group.tags].sort(),
         firstSeen: group.firstSeen,
         lastSeen: group.lastSeen,
         latestSummary: group.latestSummary,

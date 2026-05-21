@@ -14,6 +14,7 @@ import {
   buildLifecycleSnapshot,
   buildRecurrenceKey,
   buildRetentionPreview,
+  buildReviewDetail,
   createCurationEvent,
   createReviewEvent,
   createVentRecord,
@@ -26,6 +27,7 @@ import {
   formatExportJson,
   formatExportMarkdown,
   formatLifecycleStats,
+  formatReviewDetail,
   formatReviewQueue,
   formatSummary,
   loadDiagnosticState,
@@ -366,6 +368,86 @@ test("review state follows curated recurrence key", () => {
   assert.equal(queue.groupCount, 1);
   assert.equal(queue.items[0].reviewState, "acknowledged");
   assert.equal(queue.items[0].recurrenceKey, first.recurrenceKey);
+});
+
+test("review detail expands curated groups with bounded redacted samples", () => {
+  const first = createVentRecord(
+    {
+      summary: "Primary reload failure",
+      category: "tool_failure",
+      recurrenceKey: "reload-primary",
+      evidence: "Bearer abcdefghijklmnop should redact",
+      tags: ["Pi Tool", "Reload"],
+    },
+    { id: "v1", now: "2026-05-21T00:00:00.000Z" },
+  );
+  const second = createVentRecord(
+    {
+      summary: "Duplicate reload wording",
+      category: "workflow",
+      recurrenceKey: "reload-dupe",
+      reproduction: "Run reload with token=abc123 in shell",
+      tags: ["Reload"],
+    },
+    { id: "v2", now: "2026-05-21T00:01:00.000Z" },
+  );
+  const curation = createCurationEvent({
+    action: "merge",
+    sourceRecurrenceKey: second.recurrenceKey,
+    targetRecurrenceKey: first.recurrenceKey,
+  });
+  const review = createReviewEvent({ recurrenceKey: second.recurrenceKey, state: "acknowledged" });
+
+  const detail = buildReviewDetail({
+    recurrenceKey: second.recurrenceKey,
+    records: [first, second],
+    reviewEvents: [review],
+    curationEvents: [curation],
+    limit: 999,
+  });
+  assert.equal(detail.recurrenceKey, first.recurrenceKey);
+  assert.equal(detail.group.count, 2);
+  assert.equal(detail.group.reviewState, "acknowledged");
+  assert.deepEqual(detail.group.categories, ["tool_failure", "workflow"]);
+  assert.deepEqual(detail.group.tags, ["pi-tool", "reload"]);
+  assert.equal(detail.samples.length, 2);
+  const text = formatReviewDetail(detail);
+  assert.match(text, /Requested key resolved through local curation/);
+  assert.match(text, /Bearer \[REDACTED\]/);
+  assert.match(text, /token=\[REDACTED\]/);
+  assert.match(text, /No AK task, GitHub issue, incident, evidence/);
+});
+
+test("review detail fails closed for unknown groups and redacts legacy JSONL", () => {
+  assert.throws(
+    () => buildReviewDetail({ recurrenceKey: "bug:missing", records: [] }),
+    /cannot inspect unknown recurrence group/,
+  );
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-review-detail-"));
+  const storePath = path.join(dir, "vents.jsonl");
+  fs.writeFileSync(
+    storePath,
+    `${JSON.stringify({
+      schemaVersion: 1,
+      id: "legacy",
+      createdAt: "2026-05-21T00:00:00.000Z",
+      category: "bug",
+      severity: "high",
+      recurrenceKey: "bug:legacy-secret",
+      summary: "Legacy token=abc123 should redact",
+      evidence: "Authorization Bearer abcdefghijklmnop",
+    })}\n`,
+    "utf8",
+  );
+
+  const records = readVentRecords(storePath).records;
+  const text = formatReviewDetail(
+    buildReviewDetail({ recurrenceKey: "bug:legacy-secret", records, limit: 1000 }),
+  );
+  assert.doesNotMatch(text, /abc123|abcdefghijklmnop/);
+  assert.match(text, /token=\[REDACTED\]/);
+  assert.match(text, /Bearer \[REDACTED\]/);
 });
 
 test("curation JSONL tolerates malformed lines and symlink stores fail closed", () => {

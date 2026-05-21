@@ -52,7 +52,7 @@ Then in Pi:
 | `summary` | Show recurrence groups and advisory candidate incidents. |
 | `list` | Show recent local records. |
 | `path` | Show the store path and boundary contract. |
-| `review` | Show recurrence groups as a local operator review queue. |
+| `review` | Show recurrence groups as a local operator review queue; include a recurrence key to inspect bounded representative samples. |
 | `set_review` | Set local review state for a recurrence group. |
 | `curate` | Append local recurrence merge/rename projection events without rewriting raw vents. |
 | `draft` | Generate draft-only owner-surface text for a recurrence group. |
@@ -69,6 +69,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent summary
 /agent_vent list 20
 /agent_vent review
+/agent_vent review show bug:reload-tools
 /agent_vent review set acknowledged bug:reload-tools "seen locally"
 /agent_vent curate merge bug:reload-tool-a bug:reload-tools "same local pattern"
 /agent_vent curate remove bug:reload-tool-a "undo local merge"
@@ -120,7 +121,7 @@ Reads tolerate malformed old lines, oversized lines, invalid records, and semant
 
 Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed.
 
-All display/export/draft paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits.
+All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits.
 
 The package applies conservative redaction heuristics for common token/password/API-key shapes, including review notes, but callers must still avoid submitting secrets.
 

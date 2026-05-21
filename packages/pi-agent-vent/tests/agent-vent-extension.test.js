@@ -114,6 +114,29 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.equal(reviewResult.details.reviewQueue.items[0].reviewState, "new");
     assert.equal(reviewResult.details.reviewQueue.groupCount, 1);
     assert.equal(reviewResult.details.reviewQueue.items[0].count, 2);
+    assert.match(reviewResult.content[0].text, /review show/);
+
+    const reviewDetailResult = await tool.execute(
+      "tool-call-2b",
+      {
+        action: "review",
+        recurrenceKey: "tool_failure:reload-registration-dupe",
+        limit: 1000,
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(reviewDetailResult.content[0].text, /Agent vent review detail/);
+    assert.match(
+      reviewDetailResult.content[0].text,
+      /Requested key resolved through local curation/,
+    );
+    assert.equal(reviewDetailResult.details.reviewDetail.group.count, 2);
+    assert.equal(reviewDetailResult.details.reviewDetail.samples.length, 2);
 
     const setReviewResult = await tool.execute(
       "tool-call-3",

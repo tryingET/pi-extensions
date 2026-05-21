@@ -10,6 +10,7 @@ import {
   buildEscalationDraft,
   buildLifecycleSnapshot,
   buildRetentionPreview,
+  buildReviewDetail,
   CATEGORIES,
   CURATION_ACTIONS,
   clampLimit,
@@ -30,6 +31,7 @@ import {
   formatRetentionArchiveResult,
   formatRetentionPreview,
   formatRetentionRestoreResult,
+  formatReviewDetail,
   formatReviewQueue,
   formatSummary,
   hasRecurrenceGroup,
@@ -203,7 +205,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "Record minimized local frustration events and review recurring patterns without creating incidents, tasks, issues, evidence records, or telemetry.",
     promptGuidelines: [
       "Use agent_vent when you encounter recurring agent frustration, long-lived bugs, repeated tool/runtime failures, context-loss patterns, or missing affordances worth later human review.",
-      "Use action=review to inspect the local recurrence review queue and action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
+      "Use action=review to inspect the local recurrence review queue; include recurrenceKey to inspect bounded representative samples for one local group; use action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
       "Use action=draft to generate owner-surface draft text only; never claim it submitted, filed, declared, or recorded anything.",
@@ -360,6 +362,25 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       }
 
       if (action === "review") {
+        if (params.recurrenceKey) {
+          const detail = buildReviewDetail({
+            recurrenceKey: params.recurrenceKey,
+            records,
+            reviewEvents,
+            curationEvents,
+            limit: clampLimit(params.limit, 5),
+          });
+          return textResult(formatReviewDetail(detail), {
+            action,
+            storePath,
+            reviewPath,
+            curationPath,
+            reviewDetail: detail,
+            malformedLines,
+            malformedReviewLines,
+            malformedCurationLines,
+          });
+        }
         const queue = summarizeReviewQueue(records, reviewEvents, {
           state: params.reviewState,
           limit: clampLimit(params.limit, 20),
@@ -572,6 +593,7 @@ function handleCommand(args: string) {
       "  /agent_vent list [limit]                             Show recent local vent records.",
       "  /agent_vent review [new|acknowledged|dismissed|escalation_drafted|all] [limit]",
       "                                                        Show local recurrence review queue.",
+      "  /agent_vent review show <recurrenceKey> [limit]      Show bounded representative local samples.",
       "  /agent_vent review set <state> <recurrenceKey> [note] Set local review state for a recurrence group.",
       "  /agent_vent curate merge <sourceKey> <targetKey> [note] Append a local merge projection event.",
       "  /agent_vent curate rename <sourceKey> <targetKey> [note] Append a local rename projection event.",
@@ -647,6 +669,23 @@ function handleReviewCommand(
   const records = diagnosticState.records as unknown[];
   const curationEvents = diagnosticState.curationEvents as unknown[];
   const reviewEvents = diagnosticState.reviewEvents as unknown[];
+  if (tokens[0] === "show") {
+    const recurrenceKey = tokens[1];
+    const rawLimit = tokens[2];
+    if (!recurrenceKey) {
+      return "Usage: /agent_vent review show <recurrenceKey> [limit]";
+    }
+    return formatReviewDetail(
+      buildReviewDetail({
+        recurrenceKey,
+        records,
+        reviewEvents,
+        curationEvents,
+        limit: clampLimit(rawLimit, 5),
+      }),
+    );
+  }
+
   if (tokens[0] === "set") {
     const state = tokens[1];
     const recurrenceKey = tokens[2];
