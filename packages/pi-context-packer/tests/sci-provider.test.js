@@ -55,6 +55,34 @@ test("context_pack uses SCI read_file for code path seeds", async () => {
   assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 3);
 });
 
+test("context_pack does not route uppercase Markdown path seeds to SCI", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "docs"), { recursive: true });
+  await writeFile(join(root, "docs", "README.MD"), "# Uppercase Markdown\n", "utf8");
+  const calls = [];
+  const fakeExec = async (command, args, options) => {
+    calls.push({ command, args, options });
+    return { stdout: sciStdout({}) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Read docs context",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "docs/README.MD" }],
+      providers: { git: "off", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(calls.length, 0);
+  assert.equal(docs.items.length, 1);
+  assert.equal(docs.items[0].kind, "doc");
+  assert.ok(result.packet.omissions.some((omission) => omission.provider === "sci"));
+});
+
 test("context_pack falls back from SCI symbol_search to text_search", async () => {
   const root = await makeWorkspace();
   const workflows = [];

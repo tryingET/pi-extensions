@@ -39,6 +39,65 @@ test("context_pack assembles AGENTS and seeded Markdown without mutating provide
   assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 2);
 });
 
+test("context_pack enforces the global packet budget across providers", async () => {
+  const root = await makeWorkspace();
+  const body = "x".repeat(3900);
+  await writeFile(join(root, "AGENTS.md"), body, "utf8");
+  await writeFile(join(root, "docs", "project", "note.md"), body, "utf8");
+
+  const result = await buildContextPacket({
+    objective: "Read docs context",
+    cwd: root,
+    repoRoot: root,
+    budget: { maxTokens: 1000 },
+    seeds: [{ kind: "path", value: "docs/project/note.md" }],
+    providers: { git: "off", sci: "off" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.ok(result.packet.totals.estimatedTokens <= result.packet.budget.maxTokens, result.packet);
+  assert.ok(result.packet.totals.bytes <= result.packet.budget.maxBytes, result.packet);
+  assert.ok(result.packet.measurementReceipt.packetFillRatio <= 1, result.packet);
+  assert.ok(result.packet.omissions.some((omission) => omission.reason === "budget"));
+});
+
+test("context_pack treats uppercase Markdown seeds as docs", async () => {
+  const root = await makeWorkspace();
+  await writeFile(join(root, "docs", "project", "README.MD"), "# Uppercase markdown\n", "utf8");
+
+  const result = await buildContextPacket({
+    objective: "Read docs context",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "docs/project/README.MD" }],
+    providers: { git: "off", sci: "off" },
+  });
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(docs.items.length, 1);
+  assert.equal(docs.items[0].kind, "doc");
+  assert.match(docs.items[0].content, /Uppercase markdown/);
+});
+
+test("context_pack preserves loader-style AGENTS order", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "packages", "pkg"), { recursive: true });
+  await writeFile(join(root, "packages", "pkg", "AGENTS.md"), "# Package AGENTS\n", "utf8");
+
+  const result = await buildContextPacket({
+    objective: "Read instruction context",
+    cwd: join(root, "packages", "pkg"),
+    repoRoot: root,
+    providers: { git: "off", sci: "off", docs: "off" },
+  });
+
+  const agents = result.packet.sections.find((section) => section.provider === "agents");
+  assert.deepEqual(
+    agents.items.map((item) => item.provenance.path),
+    ["AGENTS.md", "packages/pkg/AGENTS.md"],
+  );
+});
+
 test("context_pack records planned provider omissions for selected unwired providers", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({

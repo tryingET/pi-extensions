@@ -106,6 +106,17 @@ test("context_plan default reserve leaves usable packet budget", () => {
   assert.ok(plan.budget.reserveTokens < plan.budget.maxTokens);
 });
 
+test("context_plan clamps reserve below max tokens", () => {
+  const plan = buildContextPlan({
+    objective: "Context token budget planning",
+    budget: { maxTokens: 1000 },
+  });
+
+  assert.equal(plan.budget.maxTokens, 1000);
+  assert.equal(plan.budget.reserveTokens, 999);
+  assert.ok(plan.budget.reserveTokens < plan.budget.maxTokens);
+});
+
 test("context_plan normalizes budget and exposes a stable schema", () => {
   const plan = buildContextPlan({
     objective: "Context token budget planning",

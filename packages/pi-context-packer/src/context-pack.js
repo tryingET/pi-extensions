@@ -19,6 +19,8 @@ const SECTION_AUTHORITY = {
 
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
 
+const isMarkdownPath = (value) => /\.md$/i.test(value);
+
 const textResult = (text, details = {}) => ({ content: [{ type: "text", text }], details });
 
 const selectedProviderIds = (plan) =>
@@ -128,7 +130,7 @@ const readBoundedFile = async ({ root, pathSeed, provider, rationale, budgetByte
   return {
     item: {
       id: `${provider}:${pathSeed}`,
-      kind: pathSeed.endsWith(".md") ? "doc" : "file",
+      kind: isMarkdownPath(pathSeed) ? "doc" : "file",
       provenance: { provider, path: pathSeed },
       rationale,
       estimatedTokens: textTokens(content),
@@ -153,6 +155,7 @@ const findAgentFiles = async (cwd, repoRoot) => {
   }
 
   return unique(candidates)
+    .reverse()
     .map((candidate) => candidate.slice(root.length + 1))
     .filter((candidate) => candidate && !candidate.startsWith(".."));
 };
@@ -178,7 +181,7 @@ const buildAgentsSection = async ({ cwd, repoRoot, maxBytes }) => {
 };
 
 const buildDocsSection = async ({ repoRoot, seeds, maxBytes }) => {
-  const markdownSeeds = seeds.filter((seed) => seed.kind === "path" && seed.value.endsWith(".md"));
+  const markdownSeeds = seeds.filter((seed) => seed.kind === "path" && isMarkdownPath(seed.value));
   const items = [];
   const omissions = [];
 
@@ -276,11 +279,38 @@ const unavailableProviderOmissions = (providerIds) =>
       detail: `${provider} adapter is planned but not wired in the read-only MVP`,
     }));
 
-const providerMaxBytes = (plan, provider) =>
+const providerMaxBytes = (plan, provider, remainingBudget = {}) =>
   Math.min(
     plan.budget.maxBytes,
+    remainingBudget.bytes ?? plan.budget.maxBytes,
+    (remainingBudget.tokens ?? plan.budget.maxTokens) * ESTIMATED_BYTES_PER_TOKEN,
     plan.budget.perProviderMaxTokens[provider] * ESTIMATED_BYTES_PER_TOKEN,
   );
+
+const sectionWithItems = (section, items) => ({
+  ...section,
+  estimatedTokens: items.reduce((sum, item) => sum + item.estimatedTokens, 0),
+  bytes: items.reduce((sum, item) => sum + item.bytes, 0),
+  items,
+});
+
+const appendSectionWithinBudget = ({ sections, omissions, section, remainingBudget }) => {
+  const kept = [];
+  for (const item of section.items) {
+    if (item.bytes <= remainingBudget.bytes && item.estimatedTokens <= remainingBudget.tokens) {
+      kept.push(item);
+      remainingBudget.bytes -= item.bytes;
+      remainingBudget.tokens -= item.estimatedTokens;
+    } else {
+      omissions.push({
+        provider: section.provider,
+        reason: "budget",
+        detail: `${item.id}: packet budget exhausted before selection`,
+      });
+    }
+  }
+  if (kept.length > 0) sections.push(sectionWithItems(section, kept));
+};
 
 const buildMeasurementReceipt = ({ estimatedTokens, sections, omissions, budget }) => {
   const wiredProviders = sections.map((section) => section.provider);
@@ -325,6 +355,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const repoRoot = resolve(plan.repoRoot ?? plan.cwd);
   const providerIds = selectedProviderIds(plan);
   const sections = [];
+  const remainingBudget = { bytes: plan.budget.maxBytes, tokens: plan.budget.maxTokens };
   const omissions = (plan.omittedSeeds ?? []).map((seed) => ({
     provider: "docs",
     reason: "unsafe_path",
@@ -336,43 +367,43 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       .flatMap((providerPlan) => providerPlan.proposedQueries.flatMap((query) => query.seeds ?? []))
       .map((seed) => JSON.stringify(seed)),
   ).map((seed) => JSON.parse(seed));
-  const docsSeeds = allSeeds.filter((seed) => seed.kind === "path" && seed.value.endsWith(".md"));
+  const docsSeeds = allSeeds.filter((seed) => seed.kind === "path" && isMarkdownPath(seed.value));
 
   if (providerIds.includes("agents")) {
     const result = await buildAgentsSection({
       cwd,
       repoRoot,
-      maxBytes: providerMaxBytes(plan, "agents"),
+      maxBytes: providerMaxBytes(plan, "agents", remainingBudget),
     });
-    if (result.section.items.length > 0) sections.push(result.section);
     omissions.push(...result.omissions);
+    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
   }
 
   if (providerIds.includes("docs")) {
     const result = await buildDocsSection({
       repoRoot,
       seeds: docsSeeds,
-      maxBytes: providerMaxBytes(plan, "docs"),
+      maxBytes: providerMaxBytes(plan, "docs", remainingBudget),
     });
-    if (result.section.items.length > 0) sections.push(result.section);
     omissions.push(...result.omissions);
+    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
   }
 
   if (providerIds.includes("sci")) {
     const result = await buildSciSection({
       cwd,
       seeds: allSeeds,
-      maxBytes: providerMaxBytes(plan, "sci"),
+      maxBytes: providerMaxBytes(plan, "sci", remainingBudget),
       env,
     });
-    if (result.section.items.length > 0) sections.push(result.section);
     omissions.push(...result.omissions);
+    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
   }
 
   if (providerIds.includes("git")) {
     const result = await buildGitSection({ cwd });
-    if (result.section.items.length > 0) sections.push(result.section);
     omissions.push(...result.omissions);
+    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
   }
 
   omissions.push(...unavailableProviderOmissions(providerIds));

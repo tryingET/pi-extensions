@@ -68,7 +68,8 @@ const includesAny = (haystack, needles) => needles.some((needle) => haystack.inc
 const normalizeBudget = (inputBudget = {}) => {
   const budget = asObject(inputBudget);
   const maxTokens = positiveInteger(budget.maxTokens, DEFAULT_MAX_TOKENS);
-  const reserveTokens = positiveInteger(budget.reserveTokens, DEFAULT_RESERVE_TOKENS);
+  const rawReserveTokens = positiveInteger(budget.reserveTokens, DEFAULT_RESERVE_TOKENS);
+  const reserveTokens = Math.min(rawReserveTokens, Math.max(0, maxTokens - 1));
   const maxBytes = positiveInteger(budget.maxBytes, maxTokens * ESTIMATED_BYTES_PER_TOKEN);
   const rawPerProvider = asObject(budget.perProviderMaxTokens);
   const perProviderMaxTokens = {};

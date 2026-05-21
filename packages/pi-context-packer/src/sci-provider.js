@@ -10,6 +10,8 @@ const SCI_TIMEOUT_MS = 10_000;
 
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
 
+const isMarkdownPath = (value) => /\.md$/i.test(value);
+
 const sciCommandCandidates = (env = {}) => {
   const candidates = [
     env.sciCommand,
@@ -66,7 +68,7 @@ const tryWorkflow = async ({ cwd, workflow, args, env, exec }) => {
 
 const pathSeedsForSci = (seeds) =>
   seeds
-    .filter((seed) => seed.kind === "path" && !seed.value.endsWith(".md"))
+    .filter((seed) => seed.kind === "path" && !isMarkdownPath(seed.value))
     .slice(0, 3)
     .map((seed) => seed.value);
 
