@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -264,6 +265,20 @@ test("JSONL write permission failures propagate instead of pretending success", 
     fs.chmodSync(dir, 0o700);
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("stale vent-store lock files are removed before append", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-stale-lock-"));
+  const filePath = path.join(dir, "vents.jsonl");
+  const lockPath = `${filePath}.lock`;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(lockPath, "stale\n", "utf8");
+  const old = new Date(Date.now() - 60_000);
+  fs.utimesSync(lockPath, old, old);
+  appendVentRecord(filePath, createVentRecord({ summary: "Stale lock clears" }, { id: "v1" }));
+
+  assert.equal(readVentRecords(filePath).records.length, 1);
+  assert.equal(fs.existsSync(lockPath), false);
 });
 
 test("curation events merge recurrence groups without rewriting source records", () => {
@@ -659,6 +674,9 @@ test("retention archive is confirmation-gated, backed up, receipted, and restora
     recurrenceKey: archive.recurrenceKey,
     records: state.records,
     reviewEvents: state.reviewEvents,
+    storeHash: state.ventsHash,
+    reviewHash: state.reviewEventsHash,
+    curationHash: state.curationEventsHash,
   });
   assert.equal(preview.archivable, true);
   assert.equal(preview.archivedRecordCount, 1);
@@ -718,7 +736,15 @@ test("retention fails closed for unreviewed groups, path escape, and stale resto
     { id: "v1" },
   );
   appendVentRecord(storePath, record);
-  const preview = buildRetentionPreview({ recurrenceKey: record.recurrenceKey, records: [record] });
+  const unreviewed = loadDiagnosticState({ storePath, reviewPath, retentionPath, backupDir });
+  const preview = buildRetentionPreview({
+    recurrenceKey: record.recurrenceKey,
+    records: unreviewed.records,
+    reviewEvents: unreviewed.reviewEvents,
+    storeHash: unreviewed.ventsHash,
+    reviewHash: unreviewed.reviewEventsHash,
+    curationHash: unreviewed.curationEventsHash,
+  });
   assert.equal(preview.archivable, false);
   assert.throws(
     () =>
@@ -737,11 +763,26 @@ test("retention fails closed for unreviewed groups, path escape, and stale resto
     reviewPath,
     createReviewEvent({ recurrenceKey: record.recurrenceKey, state: "acknowledged" }),
   );
+  assert.throws(
+    () =>
+      archiveRecurrenceGroup({
+        storePath,
+        reviewPath,
+        retentionPath,
+        backupDir,
+        recurrenceKey: record.recurrenceKey,
+        confirmationToken: preview.confirmationToken,
+      }),
+    /requires exact confirmation token/,
+  );
   const reviewed = loadDiagnosticState({ storePath, reviewPath, retentionPath, backupDir });
   const token = buildRetentionPreview({
     recurrenceKey: record.recurrenceKey,
     records: reviewed.records,
     reviewEvents: reviewed.reviewEvents,
+    storeHash: reviewed.ventsHash,
+    reviewHash: reviewed.reviewEventsHash,
+    curationHash: reviewed.curationEventsHash,
   }).confirmationToken;
   const archived = archiveRecurrenceGroup({
     storePath,
@@ -780,6 +821,157 @@ test("retention fails closed for unreviewed groups, path escape, and stale resto
   );
 });
 
+test("retention archive rejects stale confirmation when active store changes", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-retention-stale-token-"));
+  const storePath = path.join(dir, "vents.jsonl");
+  const reviewPath = path.join(dir, "review-events.jsonl");
+  const retentionPath = path.join(dir, "retention-events.jsonl");
+  const backupDir = path.join(dir, "backups");
+  const record = createVentRecord(
+    { summary: "Archive target", category: "bug", recurrenceKey: "target" },
+    { id: "target" },
+  );
+  appendVentRecord(storePath, record);
+  appendReviewEvent(
+    reviewPath,
+    createReviewEvent({ recurrenceKey: record.recurrenceKey, state: "acknowledged" }),
+  );
+  const state = loadDiagnosticState({ storePath, reviewPath, retentionPath, backupDir });
+  const preview = buildRetentionPreview({
+    recurrenceKey: record.recurrenceKey,
+    records: state.records,
+    reviewEvents: state.reviewEvents,
+    storeHash: state.ventsHash,
+    reviewHash: state.reviewEventsHash,
+    curationHash: state.curationEventsHash,
+  });
+  appendVentRecord(
+    storePath,
+    createVentRecord({ summary: "Concurrent new record", category: "bug" }, { id: "new" }),
+  );
+  assert.throws(
+    () =>
+      archiveRecurrenceGroup({
+        storePath,
+        reviewPath,
+        retentionPath,
+        backupDir,
+        recurrenceKey: record.recurrenceKey,
+        confirmationToken: preview.confirmationToken,
+      }),
+    /requires exact confirmation token/,
+  );
+  assert.deepEqual(
+    readVentRecords(storePath)
+      .records.map((entry) => entry.id)
+      .sort(),
+    ["new", "target"],
+  );
+});
+
+test("retention archive rolls active store back when receipt append fails", (context) => {
+  if (process.getuid?.() === 0) {
+    context.skip("root can bypass file write permissions");
+    return;
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-retention-receipt-fail-"));
+  const storePath = path.join(dir, "vents.jsonl");
+  const reviewPath = path.join(dir, "review-events.jsonl");
+  const retentionPath = path.join(dir, "retention-events.jsonl");
+  const backupDir = path.join(dir, "backups");
+  const record = createVentRecord(
+    { summary: "Receipt failure target", category: "bug", recurrenceKey: "receipt-fail" },
+    { id: "target" },
+  );
+  appendVentRecord(storePath, record);
+  appendReviewEvent(
+    reviewPath,
+    createReviewEvent({ recurrenceKey: record.recurrenceKey, state: "dismissed" }),
+  );
+  fs.writeFileSync(retentionPath, "", "utf8");
+  fs.chmodSync(retentionPath, 0o400);
+  try {
+    const state = loadDiagnosticState({ storePath, reviewPath, retentionPath, backupDir });
+    const token = buildRetentionPreview({
+      recurrenceKey: record.recurrenceKey,
+      records: state.records,
+      reviewEvents: state.reviewEvents,
+      storeHash: state.ventsHash,
+      reviewHash: state.reviewEventsHash,
+      curationHash: state.curationEventsHash,
+    }).confirmationToken;
+    assert.throws(
+      () =>
+        archiveRecurrenceGroup({
+          storePath,
+          reviewPath,
+          retentionPath,
+          backupDir,
+          recurrenceKey: record.recurrenceKey,
+          confirmationToken: token,
+        }),
+      /EACCES|EPERM|permission/i,
+    );
+    assert.equal(readVentRecords(storePath).records.length, 1);
+    assert.equal(fs.readdirSync(backupDir).length, 0);
+  } finally {
+    fs.chmodSync(retentionPath, 0o600);
+  }
+});
+
+test("retention restore rejects symlinked backup directories and tampered restore tokens", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-retention-symlink-backup-"));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-retention-external-"));
+  const storePath = path.join(dir, "vents.jsonl");
+  const retentionPath = path.join(dir, "retention-events.jsonl");
+  const backupDir = path.join(dir, "backups");
+  const current = createVentRecord({ summary: "Current", category: "bug" }, { id: "current" });
+  const injectedJsonl = `${JSON.stringify(createVentRecord({ summary: "Injected", category: "bug" }, { id: "injected" }))}\n`;
+  appendVentRecord(storePath, current);
+  const currentText = fs.readFileSync(storePath, "utf8");
+  const hash = (value) => createHash("sha256").update(value, "utf8").digest("hex");
+  const backup = {
+    schemaVersion: 1,
+    artifactType: "agent_vent_retention_backup",
+    recurrenceKey: "bug:crafted",
+    beforeHash: hash(injectedJsonl),
+    afterHash: hash(currentText),
+    restoreConfirmationToken: "restore:not-derived",
+    ventsJsonl: injectedJsonl,
+  };
+  fs.writeFileSync(
+    path.join(externalDir, "crafted.agent-vent-backup.json"),
+    JSON.stringify(backup),
+  );
+  fs.symlinkSync(externalDir, backupDir);
+  assert.throws(
+    () =>
+      restoreRetentionBackup({
+        storePath,
+        retentionPath,
+        backupDir,
+        backupPath: path.join(backupDir, "crafted.agent-vent-backup.json"),
+        confirmationToken: "restore:not-derived",
+      }),
+    /backup directory must be a real directory/,
+  );
+  fs.rmSync(backupDir);
+  fs.mkdirSync(backupDir);
+  const localBackupPath = path.join(backupDir, "crafted.agent-vent-backup.json");
+  fs.writeFileSync(localBackupPath, JSON.stringify(backup));
+  assert.throws(
+    () =>
+      restoreRetentionBackup({
+        storePath,
+        retentionPath,
+        backupDir,
+        backupPath: localBackupPath,
+        confirmationToken: "restore:not-derived",
+      }),
+    /restore token failed integrity check/,
+  );
+});
+
 test("retention restore fails closed when current store is missing", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-retention-missing-"));
   const storePath = path.join(dir, "vents.jsonl");
@@ -804,6 +996,9 @@ test("retention restore fails closed when current store is missing", () => {
     recurrenceKey: record.recurrenceKey,
     records: state.records,
     reviewEvents: state.reviewEvents,
+    storeHash: state.ventsHash,
+    reviewHash: state.reviewEventsHash,
+    curationHash: state.curationEventsHash,
   }).confirmationToken;
   const archived = archiveRecurrenceGroup({
     storePath,

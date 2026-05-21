@@ -363,7 +363,7 @@ export function ensureStore(filePath) {
 }
 
 export function appendVentRecord(filePath, record) {
-  appendJsonlRecord(filePath, record);
+  appendJsonlRecord(filePath, record, { lockPath: `${filePath}.lock` });
 }
 
 export function appendReviewEvent(filePath, event) {
@@ -379,24 +379,25 @@ export function appendRetentionEvent(filePath, event) {
 }
 
 export function readVentRecords(filePath) {
-  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { values, malformedLines, oversizedLines, fileHash } = readJsonlRecords(filePath);
   const { records, invalidRecords } = sanitizeVentRecords(values);
-  return { records, malformedLines, oversizedLines, invalidRecords };
+  return { records, malformedLines, oversizedLines, invalidRecords, fileHash };
 }
 
 export function readReviewEvents(filePath) {
-  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { values, malformedLines, oversizedLines, fileHash } = readJsonlRecords(filePath);
   const { events, invalidEvents } = sanitizeReviewEvents(values);
   return {
     events,
     malformedLines,
     oversizedLines,
     invalidEvents,
+    fileHash,
   };
 }
 
 export function readCurationEvents(filePath) {
-  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { values, malformedLines, oversizedLines, fileHash } = readJsonlRecords(filePath);
   const { events, invalidEvents, quarantinedEvents } = sanitizeCurationEvents(values);
   return {
     events,
@@ -404,17 +405,19 @@ export function readCurationEvents(filePath) {
     oversizedLines,
     invalidEvents,
     quarantinedEvents,
+    fileHash,
   };
 }
 
 export function readRetentionEvents(filePath) {
-  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { values, malformedLines, oversizedLines, fileHash } = readJsonlRecords(filePath);
   const { events, invalidEvents } = sanitizeRetentionEvents(values);
   return {
     events,
     malformedLines,
     oversizedLines,
     invalidEvents,
+    fileHash,
   };
 }
 
@@ -435,9 +438,13 @@ export function loadDiagnosticState(options = {}) {
     retentionPath,
     backupDir,
     records: vents.records,
+    ventsHash: vents.fileHash,
     reviewEvents: reviews.events,
+    reviewEventsHash: reviews.fileHash,
     curationEvents: curations.events,
+    curationEventsHash: curations.fileHash,
     retentionEvents: retentions.events,
+    retentionEventsHash: retentions.fileHash,
     malformedLines: vents.malformedLines,
     malformedReviewLines: reviews.malformedLines,
     malformedCurationLines: curations.malformedLines,
@@ -714,7 +721,15 @@ export function buildRetentionPreview(input = {}) {
   const records = input.records || [];
   const reviewEvents = input.reviewEvents || [];
   const curationEvents = input.curationEvents || [];
-  const plan = planRetentionArchive({ records, reviewEvents, curationEvents, recurrenceKey });
+  const plan = planRetentionArchive({
+    records,
+    reviewEvents,
+    curationEvents,
+    recurrenceKey,
+    storeHash: input.storeHash,
+    reviewHash: input.reviewHash,
+    curationHash: input.curationHash,
+  });
   return {
     generatedAt: input.now || new Date().toISOString(),
     classification: "local-diagnostic-user-data",
@@ -738,88 +753,105 @@ export function archiveRecurrenceGroup(input = {}) {
   const retentionPath = input.retentionPath || defaultRetentionPath();
   const backupDir = input.backupDir || defaultBackupDir();
   const confirmationToken = sanitizeDisplayText(input.confirmationToken, 300);
-  const state = loadDiagnosticState({
-    storePath,
-    reviewPath,
-    curationPath,
-    retentionPath,
-    backupDir,
-  });
-  const plan = planRetentionArchive({
-    records: state.records,
-    reviewEvents: state.reviewEvents,
-    curationEvents: state.curationEvents,
-    recurrenceKey: input.recurrenceKey,
-  });
-  if (!plan.archivable) {
-    throw new Error(
-      `cannot archive recurrence group ${plan.recurrenceKey} before local review; set review state to acknowledged, dismissed, or escalation_drafted first`,
-    );
-  }
-  if (confirmationToken !== plan.confirmationToken) {
-    throw new Error(
-      `agent_vent retention archive requires exact confirmation token: ${plan.confirmationToken}`,
-    );
-  }
+  const lock = acquireFileLock(`${storePath}.lock`);
+  try {
+    const state = loadDiagnosticState({
+      storePath,
+      reviewPath,
+      curationPath,
+      retentionPath,
+      backupDir,
+    });
+    const plan = planRetentionArchive({
+      records: state.records,
+      reviewEvents: state.reviewEvents,
+      curationEvents: state.curationEvents,
+      recurrenceKey: input.recurrenceKey,
+      storeHash: state.ventsHash,
+      reviewHash: state.reviewEventsHash,
+      curationHash: state.curationEventsHash,
+    });
+    if (!plan.archivable) {
+      throw new Error(
+        `cannot archive recurrence group ${plan.recurrenceKey} before local review; set review state to acknowledged, dismissed, or escalation_drafted first`,
+      );
+    }
+    if (confirmationToken !== plan.confirmationToken) {
+      throw new Error(
+        `agent_vent retention archive requires exact confirmation token: ${plan.confirmationToken}`,
+      );
+    }
 
-  const existing = safeLstat(storePath);
-  if (!existing) throw new Error(`cannot archive from missing agent_vent store: ${storePath}`);
-  assertSafeJsonlFile(storePath, existing);
-  if (existing.size > MAX_JSONL_FILE_BYTES) {
-    throw new Error(
-      `agent_vent store file is too large: ${storePath} (${existing.size} bytes > ${MAX_JSONL_FILE_BYTES})`,
-    );
-  }
-  const beforeText = fs.readFileSync(storePath, "utf8");
-  const beforeHash = sha256Hex(beforeText);
-  const archiveIds = new Set(plan.records.map((record) => record.id));
-  const remainingRecords = state.records.filter((record) => !archiveIds.has(record.id));
-  const afterText = recordsToJsonl(remainingRecords);
-  const afterHash = sha256Hex(afterText);
-  const now = input.now || new Date().toISOString();
-  const backupPath = writeRetentionBackup({
-    backupDir,
-    now,
-    recurrenceKey: plan.recurrenceKey,
-    requestedRecurrenceKey: plan.requestedRecurrenceKey,
-    confirmationToken: plan.confirmationToken,
-    restoreConfirmationToken: buildRestoreToken(plan.recurrenceKey, beforeHash, afterHash),
-    beforeHash,
-    afterHash,
-    archivedRecordIds: plan.archivedRecordIds,
-    archivedRecordCount: plan.archivedRecordCount,
-    ventsJsonl: beforeText,
-  });
-
-  writeTextFileAtomically(storePath, afterText, 0o600);
-  const event = createRetentionEvent(
-    {
-      action: "archive",
+    const existing = safeLstat(storePath);
+    if (!existing) throw new Error(`cannot archive from missing agent_vent store: ${storePath}`);
+    assertSafeJsonlFile(storePath, existing);
+    if (existing.size > MAX_JSONL_FILE_BYTES) {
+      throw new Error(
+        `agent_vent store file is too large: ${storePath} (${existing.size} bytes > ${MAX_JSONL_FILE_BYTES})`,
+      );
+    }
+    const beforeText = fs.readFileSync(storePath, "utf8");
+    const beforeHash = sha256Hex(beforeText);
+    if (beforeHash !== state.ventsHash) {
+      throw new Error("agent_vent retention archive refused changing vents store");
+    }
+    const archiveIds = new Set(plan.records.map((record) => record.id));
+    const remainingRecords = state.records.filter((record) => !archiveIds.has(record.id));
+    const afterText = recordsToJsonl(remainingRecords);
+    const afterHash = sha256Hex(afterText);
+    const now = input.now || new Date().toISOString();
+    const backupPath = writeRetentionBackup({
+      backupDir,
+      now,
       recurrenceKey: plan.recurrenceKey,
       requestedRecurrenceKey: plan.requestedRecurrenceKey,
-      backupPath,
-      archivedRecordCount: plan.archivedRecordCount,
-      archivedRecordIds: plan.archivedRecordIds,
+      confirmationToken: plan.confirmationToken,
+      restoreConfirmationToken: buildRestoreToken(plan.recurrenceKey, beforeHash, afterHash),
       beforeHash,
       afterHash,
-      note: input.note || input.retentionNote,
-    },
-    { source: input.source || "agent_vent_retention", now },
-  );
-  appendRetentionEvent(retentionPath, event);
-  return {
-    generatedAt: now,
-    classification: "local-diagnostic-user-data",
-    boundary:
-      "Local diagnostic records were archived from the active vents store only. No AK task, GitHub issue, incident, evidence, telemetry, publication, or ASC/self state mutation occurred.",
-    ...plan,
-    backupPath,
-    retentionPath,
-    beforeHash,
-    afterHash,
-    restoreConfirmationToken: buildRestoreToken(plan.recurrenceKey, beforeHash, afterHash),
-    retentionEvent: event,
-  };
+      archivedRecordIds: plan.archivedRecordIds,
+      archivedRecordCount: plan.archivedRecordCount,
+      ventsJsonl: beforeText,
+    });
+
+    const event = createRetentionEvent(
+      {
+        action: "archive",
+        recurrenceKey: plan.recurrenceKey,
+        requestedRecurrenceKey: plan.requestedRecurrenceKey,
+        backupPath,
+        archivedRecordCount: plan.archivedRecordCount,
+        archivedRecordIds: plan.archivedRecordIds,
+        beforeHash,
+        afterHash,
+        note: input.note || input.retentionNote,
+      },
+      { source: input.source || "agent_vent_retention", now },
+    );
+    try {
+      writeTextFileAtomically(storePath, afterText, 0o600);
+      appendRetentionEvent(retentionPath, event);
+    } catch (error) {
+      restoreTextIfHashMatches(storePath, afterHash, beforeText);
+      fs.rmSync(backupPath, { force: true });
+      throw error;
+    }
+    return {
+      generatedAt: now,
+      classification: "local-diagnostic-user-data",
+      boundary:
+        "Local diagnostic records were archived from the active vents store only. No AK task, GitHub issue, incident, evidence, telemetry, publication, or ASC/self state mutation occurred.",
+      ...plan,
+      backupPath,
+      retentionPath,
+      beforeHash,
+      afterHash,
+      restoreConfirmationToken: buildRestoreToken(plan.recurrenceKey, beforeHash, afterHash),
+      retentionEvent: event,
+    };
+  } finally {
+    releaseFileLock(lock);
+  }
 }
 
 export function restoreRetentionBackup(input = {}) {
@@ -828,56 +860,75 @@ export function restoreRetentionBackup(input = {}) {
   const backupDir = input.backupDir || defaultBackupDir();
   const confirmationToken = sanitizeDisplayText(input.confirmationToken, 300);
   const backupPath = assertBackupPathInsideDir(input.backupPath, backupDir);
-  const backup = readRetentionBackup(backupPath);
-  if (confirmationToken !== backup.restoreConfirmationToken) {
-    throw new Error(
-      `agent_vent retention restore requires exact confirmation token: ${backup.restoreConfirmationToken}`,
+  const lock = acquireFileLock(`${storePath}.lock`);
+  try {
+    const backup = readRetentionBackup(backupPath);
+    const expectedRestoreToken = buildRestoreToken(
+      backup.recurrenceKey,
+      backup.beforeHash,
+      backup.afterHash,
     );
-  }
+    if (backup.restoreConfirmationToken !== expectedRestoreToken) {
+      throw new Error("agent_vent retention backup restore token failed integrity check");
+    }
+    if (confirmationToken !== expectedRestoreToken) {
+      throw new Error(
+        `agent_vent retention restore requires exact confirmation token: ${expectedRestoreToken}`,
+      );
+    }
 
-  const existing = safeLstat(storePath);
-  if (!existing)
-    throw new Error(`agent_vent retention restore requires current vents store: ${storePath}`);
-  assertSafeJsonlFile(storePath, existing);
-  const currentText = fs.readFileSync(storePath, "utf8");
-  const currentHash = sha256Hex(currentText);
-  if (currentHash !== backup.afterHash) {
-    throw new Error(
-      "agent_vent retention restore refused stale backup: current vents store no longer matches the archived-after hash",
+    const existing = safeLstat(storePath);
+    if (!existing)
+      throw new Error(`agent_vent retention restore requires current vents store: ${storePath}`);
+    assertSafeJsonlFile(storePath, existing);
+    const currentText = fs.readFileSync(storePath, "utf8");
+    const currentHash = sha256Hex(currentText);
+    if (currentHash !== backup.afterHash) {
+      throw new Error(
+        "agent_vent retention restore refused stale backup: current vents store no longer matches the archived-after hash",
+      );
+    }
+
+    const restoredHash = backup.beforeHash;
+    writeTextFileAtomically(storePath, backup.ventsJsonl, 0o600);
+    const now = input.now || new Date().toISOString();
+    const event = createRetentionEvent(
+      {
+        action: "restore",
+        recurrenceKey: backup.recurrenceKey,
+        requestedRecurrenceKey: backup.requestedRecurrenceKey,
+        backupPath,
+        archivedRecordCount: backup.archivedRecordCount,
+        archivedRecordIds: backup.archivedRecordIds,
+        beforeHash: backup.afterHash,
+        afterHash: backup.beforeHash,
+        note: input.note || input.retentionNote,
+      },
+      { source: input.source || "agent_vent_retention", now },
     );
-  }
-
-  writeTextFileAtomically(storePath, backup.ventsJsonl, 0o600);
-  const now = input.now || new Date().toISOString();
-  const event = createRetentionEvent(
-    {
-      action: "restore",
+    try {
+      appendRetentionEvent(retentionPath, event);
+    } catch (error) {
+      restoreTextIfHashMatches(storePath, restoredHash, currentText);
+      throw error;
+    }
+    return {
+      generatedAt: now,
+      classification: "local-diagnostic-user-data",
+      boundary:
+        "Local diagnostic backup was restored to the active vents store only. No AK task, GitHub issue, incident, evidence, telemetry, publication, or ASC/self state mutation occurred.",
       recurrenceKey: backup.recurrenceKey,
       requestedRecurrenceKey: backup.requestedRecurrenceKey,
+      restoredRecordCount: backup.archivedRecordCount,
       backupPath,
-      archivedRecordCount: backup.archivedRecordCount,
-      archivedRecordIds: backup.archivedRecordIds,
+      retentionPath,
       beforeHash: backup.afterHash,
       afterHash: backup.beforeHash,
-      note: input.note || input.retentionNote,
-    },
-    { source: input.source || "agent_vent_retention", now },
-  );
-  appendRetentionEvent(retentionPath, event);
-  return {
-    generatedAt: now,
-    classification: "local-diagnostic-user-data",
-    boundary:
-      "Local diagnostic backup was restored to the active vents store only. No AK task, GitHub issue, incident, evidence, telemetry, publication, or ASC/self state mutation occurred.",
-    recurrenceKey: backup.recurrenceKey,
-    requestedRecurrenceKey: backup.requestedRecurrenceKey,
-    restoredRecordCount: backup.archivedRecordCount,
-    backupPath,
-    retentionPath,
-    beforeHash: backup.afterHash,
-    afterHash: backup.beforeHash,
-    retentionEvent: event,
-  };
+      retentionEvent: event,
+    };
+  } finally {
+    releaseFileLock(lock);
+  }
 }
 
 export function formatRetentionPreview(preview) {
@@ -907,7 +958,7 @@ export function formatRetentionArchiveResult(result) {
     `Archived ${result.archivedRecordCount} local diagnostic record(s) from ${result.recurrenceKey}.`,
     `Backup: ${result.backupPath}`,
     `Restore token: ${result.restoreConfirmationToken}`,
-    `Next rollback: /agent_vent retention restore ${result.backupPath} ${result.restoreConfirmationToken}`,
+    `Next rollback: /agent_vent retention restore ${quoteCommandArg(result.backupPath)} ${result.restoreConfirmationToken}`,
     `Boundary: ${result.boundary}`,
   ].join("\n");
 }
@@ -1165,6 +1216,9 @@ function planRetentionArchive({
   reviewEvents = [],
   curationEvents = [],
   recurrenceKey,
+  storeHash,
+  reviewHash,
+  curationHash,
 }) {
   const requestedRecurrenceKey = sanitizeDisplayText(recurrenceKey, 200);
   if (!requestedRecurrenceKey) throw new Error("agent_vent retention requires a recurrenceKey");
@@ -1185,7 +1239,9 @@ function planRetentionArchive({
   const archivedRecordIds = groupRecords
     .map((record) => sanitizeDisplayText(record.id, 120))
     .filter(Boolean);
-  const fingerprint = sha256Hex(`${resolvedKey}\n${archivedRecordIds.join("\n")}`);
+  const fingerprint = sha256Hex(
+    `${resolvedKey}\n${storeHash || "unknown-store-hash"}\n${reviewHash || "unknown-review-hash"}\n${curationHash || "unknown-curation-hash"}\n${reviewState}\n${archivedRecordIds.join("\n")}`,
+  );
   return {
     requestedRecurrenceKey,
     recurrenceKey: resolvedKey,
@@ -1267,11 +1323,22 @@ function sha256Hex(value) {
 
 function assertBackupPathInsideDir(backupPath, backupDir) {
   const safeBackupDir = path.resolve(backupDir);
+  const backupDirStat = safeLstat(safeBackupDir);
+  if (!backupDirStat || backupDirStat.isSymbolicLink() || !backupDirStat.isDirectory()) {
+    throw new Error(
+      `agent_vent retention backup directory must be a real directory: ${safeBackupDir}`,
+    );
+  }
   const resolved = path.resolve(String(backupPath || ""));
   if (!resolved.startsWith(`${safeBackupDir}${path.sep}`)) {
     throw new Error(`agent_vent retention backup path must stay inside ${safeBackupDir}`);
   }
-  return resolved;
+  const realBackupDir = fs.realpathSync.native(safeBackupDir);
+  const realBackupPath = fs.realpathSync.native(resolved);
+  if (!realBackupPath.startsWith(`${realBackupDir}${path.sep}`)) {
+    throw new Error(`agent_vent retention backup path must stay inside ${realBackupDir}`);
+  }
+  return realBackupPath;
 }
 
 function ensurePrivateDirectory(dirPath) {
@@ -1306,6 +1373,58 @@ function writeTextFileAtomically(filePath, text, mode) {
     fs.rmSync(tempPath, { force: true });
     throw error;
   }
+}
+
+function restoreTextIfHashMatches(filePath, expectedHash, text) {
+  const existing = safeLstat(filePath);
+  if (!existing) return;
+  assertSafeJsonlFile(filePath, existing);
+  const currentText = fs.readFileSync(filePath, "utf8");
+  if (sha256Hex(currentText) === expectedHash) {
+    writeTextFileAtomically(filePath, text, 0o600);
+  }
+}
+
+function acquireFileLock(lockPath, timeoutMs = 2000) {
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true, mode: 0o700 });
+  const started = Date.now();
+  while (true) {
+    try {
+      const fd = fs.openSync(lockPath, createFileFlags(), 0o600);
+      fs.writeFileSync(fd, `${process.pid}\n${new Date().toISOString()}\n`, "utf8");
+      fs.closeSync(fd);
+      return lockPath;
+    } catch (error) {
+      if (error?.code === "EACCES" || error?.code === "EPERM") throw error;
+      if (error?.code === "EEXIST" && removeStaleLock(lockPath)) continue;
+      if (error?.code !== "EEXIST" || Date.now() - started >= timeoutMs) {
+        throw new Error(`agent_vent lock unavailable: ${lockPath}`);
+      }
+      sleepSync(25);
+    }
+  }
+}
+
+function releaseFileLock(lockPath) {
+  if (lockPath) fs.rmSync(lockPath, { force: true });
+}
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function removeStaleLock(lockPath) {
+  const stat = safeLstat(lockPath);
+  if (!stat || stat.isSymbolicLink() || !stat.isFile()) return false;
+  if (Date.now() - stat.mtimeMs < 30_000) return false;
+  fs.rmSync(lockPath, { force: true });
+  return true;
+}
+
+function quoteCommandArg(value) {
+  const text = String(value || "");
+  if (!/[\s"'\\]/.test(text)) return text;
+  return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 export function assertCanCurateRecurrence(records, curationEvents, input) {
@@ -1447,19 +1566,25 @@ function jsonlFileInfo(filePath) {
   };
 }
 
-function appendJsonlRecord(filePath, record) {
-  ensureStore(filePath);
-  const fd = fs.openSync(filePath, appendFileFlags(), 0o600);
+function appendJsonlRecord(filePath, record, options = {}) {
+  const lock = options.lockPath ? acquireFileLock(options.lockPath) : undefined;
   try {
-    fs.writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
+    ensureStore(filePath);
+    const fd = fs.openSync(filePath, appendFileFlags(), 0o600);
+    try {
+      fs.writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
+    } finally {
+      fs.closeSync(fd);
+    }
   } finally {
-    fs.closeSync(fd);
+    releaseFileLock(lock);
   }
 }
 
 function readJsonlRecords(filePath) {
   const existing = safeLstat(filePath);
-  if (!existing) return { values: [], malformedLines: 0, oversizedLines: 0 };
+  if (!existing)
+    return { values: [], malformedLines: 0, oversizedLines: 0, fileHash: sha256Hex("") };
   assertSafeJsonlFile(filePath, existing);
   if (existing.size > MAX_JSONL_FILE_BYTES) {
     throw new Error(
@@ -1493,7 +1618,7 @@ function readJsonlRecords(filePath) {
       malformedLines += 1;
     }
   }
-  return { values, malformedLines, oversizedLines };
+  return { values, malformedLines, oversizedLines, fileHash: sha256Hex(text) };
 }
 
 function safeLstat(filePath) {

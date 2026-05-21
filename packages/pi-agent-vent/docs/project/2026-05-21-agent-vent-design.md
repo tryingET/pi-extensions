@@ -78,7 +78,7 @@ A missing review event means `new`; the latest event for a recurrence key is the
 
 Read behavior goes through a diagnostic-state membrane: malformed JSONL lines are ignored and counted, oversized lines are skipped, oversized files fail closed, schema-invalid records are ignored, stored display fields are redacted again on read, and semantic curation cycles are quarantined instead of bricking all projections. JSONL store files fail closed if replaced by symlinks.
 
-Retention/delete posture: no automatic deletion. Reviewed recurrence groups can be archived only after an explicit preview returns the exact affected record count/sample ids and an `archive:<token>`. Archive writes a package-created backup before replacing the active `vents.jsonl`, then appends a retention receipt. Restore requires the package-created backup path, exact `restore:<token>`, and a current-store hash match so stale rollback attempts fail closed. Backup artifacts remain local diagnostic user data and are not evidence. Future hard-delete policy should remain separate and confirmation-gated.
+Retention/delete posture: no automatic deletion. Reviewed recurrence groups can be archived only after an explicit preview returns the exact affected record count/sample ids and an `archive:<token>` derived from the active store hash. Archive and vent-record append share a local lock, archive writes a package-created backup before replacing the active `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale rollback attempts fail closed. Backup artifacts remain local diagnostic user data and are not evidence. Future hard-delete policy should remain separate and confirmation-gated.
 
 ## Privacy contract
 
@@ -118,7 +118,7 @@ Important behavior:
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it returns text only and never submits, files, declares, records evidence, or changes review state automatically.
 - `stats` and `export` are read-only projections and must not claim evidence, publication, task, issue, or incident authority.
-- `retention preview` is read-only; `retention archive` mutates only the active local vents store after exact confirmation and backup creation; `retention restore` mutates only the active local vents store after exact confirmation and stale-state checks.
+- `retention preview` is read-only; `retention archive` mutates only the active local vents store after exact confirmation, lock acquisition, store-hash verification, and backup creation; `retention restore` mutates only the active local vents store after exact confirmation, realpath containment, and stale-state checks.
 
 ### `/agent_vent`
 

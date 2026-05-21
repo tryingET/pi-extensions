@@ -407,6 +407,9 @@ export default function agentVentExtension(pi: ExtensionAPI) {
             records,
             reviewEvents,
             curationEvents,
+            storeHash: state.ventsHash,
+            reviewHash: state.reviewEventsHash,
+            curationHash: state.curationEventsHash,
             limit: clampLimit(params.limit, 5),
           });
           return textResult(formatRetentionPreview(preview), {
@@ -554,7 +557,7 @@ function registerAgentVentCommand(pi: ExtensionAPI, name: string, description: s
 }
 
 function handleCommand(args: string) {
-  const tokens = args.trim().split(/\s+/).filter(Boolean);
+  const tokens = splitCommandArgs(args);
   const action = tokens[0] || "summary";
   const storePath = defaultStorePath();
   const reviewPath = defaultReviewPath();
@@ -747,6 +750,9 @@ function handleRetentionCommand(
         records: state.records as unknown[],
         reviewEvents: state.reviewEvents as unknown[],
         curationEvents: state.curationEvents as unknown[],
+        storeHash: state.ventsHash as string,
+        reviewHash: state.reviewEventsHash as string,
+        curationHash: state.curationEventsHash as string,
         limit: 5,
       }),
     );
@@ -785,6 +791,44 @@ function handleRetentionCommand(
       source: "agent_vent_command",
     }),
   );
+}
+
+function splitCommandArgs(args: string) {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: string | undefined;
+  let escaping = false;
+  for (const char of args.trim()) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = undefined;
+      else current += char;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (escaping) current += "\\";
+  if (current) tokens.push(current);
+  return tokens;
 }
 
 function handleLifecycleCommand(action: string, tokens: string[], state: Record<string, unknown>) {
