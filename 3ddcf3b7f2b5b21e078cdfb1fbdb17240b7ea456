@@ -1,0 +1,35 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3ddcf3b7f2b5b21e078cdfb1fbdb17240b7ea456"
+created_at: "2026-05-21T19:46:34Z"
+intent: "Harden pi-context-packer read-only intake, rendering, and owner-boundary routing."
+files:
+  - "packages/pi-context-packer/README.md"
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+  - "packages/pi-context-packer/docs/project/vision.md"
+  - "packages/pi-context-packer/extensions/context-pack.ts"
+  - "packages/pi-context-packer/src/context-intake-safety.js"
+  - "packages/pi-context-packer/src/context-pack-result.js"
+  - "packages/pi-context-packer/src/context-pack.js"
+  - "packages/pi-context-packer/src/context-plan.js"
+  - "packages/pi-context-packer/src/docs-provider.js"
+  - "packages/pi-context-packer/src/owner-surface-routing.js"
+  - "packages/pi-context-packer/src/sci-provider.js"
+  - "packages/pi-context-packer/tests/context-pack.test.js"
+  - "packages/pi-context-packer/tests/context-plan.test.js"
+  - "packages/pi-context-packer/tests/owner-surface-routing.test.js"
+  - "packages/pi-context-packer/tests/sci-provider.test.js"
+  - "packages/pi-context-packer/tests/tool-result.test.js"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-context-packer run check"
+    status: "pass"
+  full_gate:
+    command: "bash scripts/package-quality-gate.sh ci packages/pi-context-packer && bash scripts/package-quality-gate.sh ci packages/pi-agent-vent && npm --prefix packages/pi-context-packer run docs:list -- --strict && npm --prefix packages/pi-agent-vent run docs:list -- --strict"
+    status: "pending"
+group:
+  index: 1
+  total: 2
+  rationale: "Context-packer implementation, tests, and posture docs are one package slice."
