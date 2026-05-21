@@ -49,8 +49,8 @@ When an agent keeps hitting the same bug, missing affordance, brittle workflow, 
 
 ## Current product maturity
 
-- maturity: `local diagnostic alpha, review-and-retention safety hardened`
-- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane with privacy metadata recomputation, facet-aware draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with local backup receipts and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
+- maturity: `local diagnostic alpha, review-and-retention safety hardened; privacy and destructive-selection membrane verified`
+- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane with privacy metadata recomputation, facet-aware draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with duplicate-id-safe record selection, local backup receipts, and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
 - release posture: first publishable package release at `0.1.0`; npm package not yet published at time of first release checks
 - current strategic line: harden the local review workflow before adding owner-surface escalation adapters
 
@@ -76,7 +76,7 @@ The package currently owns:
 - conservative redaction for common secret/token/password shapes;
 - recurrence key derivation and grouping;
 - advisory candidate-incident heuristic based on repetition/severity;
-- malformed JSONL line tolerance, oversized-line/file guards, read-time schema normalization/redaction, and semantic curation quarantine during reads;
+- malformed JSONL line tolerance, oversized-line/file guards, read-time schema normalization/redaction with privacy metadata recomputation, and semantic curation quarantine during reads;
 - package-local tests for redaction, privacy metadata recomputation, record creation, JSONL round trip, recurrence summaries, local facet summaries, review detail, review/curation/draft/retention projections, hostile legacy JSONL redaction, curation-cycle quarantine, file/line-size guards, confirmation-gated archive/restore, duplicate-id retention selection, complete token-input requirements, stale token/restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, quoted rollback commands, and extension registration;
 - `pi-toolbox-discovery` integration through the same-named `agent_vent` bundle;
 - ASC/self capability-routing text that points frustration diagnostics to `agent_vent` instead of self/ASC state.
@@ -116,7 +116,7 @@ local vent capture -> operator review queue -> draft-only owner routing -> human
 
 Do not add automatic GitHub/AK/incident writers. The local facet summary, local review queue, bounded review-detail samples, curation, facet-aware draft-only routing, retention archive/restore, and privacy membrane now have package validation; the main remaining product gap is richer review-flow affordances without broadening authority. Hard-delete beyond backup-backed archive is a separate policy decision, not the default next slice.
 
-Current proof: `npm run check` passes with package tests and release dry-run, `npm run release:check` passed with isolated tarball install, docs strict check passes, and dogfood covered quoted rollback commands with whitespace/single-quote paths. Review follow-up also covered complete retention token inputs, stale-token/stale-restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, and backup restore.
+Current proof: `npm run check` and the root package quality gate pass with package tests and release dry-run, docs strict check passes, and the package was reinstalled locally for Pi runtime pickup. Validation now covers quoted rollback commands, complete retention token inputs, stale-token/stale-restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, backup restore, duplicate-id-safe retention archive selection, tag/facet privacy metadata recomputation, hostile legacy JSONL privacy recomputation, and local Pi subagent artifact ignore behavior.
 
 ## Next product bets
 
@@ -136,7 +136,7 @@ Make local data lifecycle explicit before records accumulate:
 
 - show store size/count — landed via `stats`;
 - export JSON or markdown diagnostic projections — landed via `export`;
-- archive reviewed groups with confirmation — landed through `retention preview|archive` with exact store/review/curation-hash tokens, local lock coordination with vent appends, local backups, append-only receipts, and receipt-failure rollback;
+- archive reviewed groups with confirmation — landed through `retention preview|archive` with exact store/review/curation-hash tokens, local lock coordination with vent appends, duplicate-id-safe selected-record removal, local backups, append-only receipts, and receipt-failure rollback;
 - restore archived groups from package backups — landed through `retention restore` with derived exact tokens, real backup-directory containment, current-store hash checks, and quoted rollback command support;
 - delete reviewed groups without backup — explicitly deferred to AK task `#3318`; archive remains the destructive lifecycle baseline until a retention/delete policy decision exists;
 - document backup/restore posture — covered by explicit paths, lifecycle stats, and retention command output;
@@ -166,7 +166,7 @@ These drafts do not submit automatically. The package prepares local text, local
 
 ## Next frontier guidance
 
-The next highest-leverage slice should assume the facets/review/detail/draft/curation/retention membrane is the baseline and should not broaden authority. Retention now has transaction-oriented safeguards (store/review/curation-hash tokens, append/archive locking, stale-lock cleanup, receipt-failure rollback, derived restore tokens, realpath backup containment, quoted rollback commands, and stale-restore checks). The next slice should likely improve review-flow affordances without treating local labels as canonical routing. Treat hard-delete as decision-gated work via AK `#3318`, not as incidental cleanup.
+The next highest-leverage slice should assume the facets/review/detail/draft/curation/retention membrane is the baseline and should not broaden authority. Retention now has transaction-oriented safeguards (store/review/curation-hash tokens, append/archive locking, duplicate-id-safe selected-record removal, stale-lock cleanup, receipt-failure rollback, derived restore tokens, realpath backup containment, quoted rollback commands, and stale-restore checks). Local facet labels are diagnostic hints only; Prompt Vault, AK, GitHub, incident, evidence, ROCS, ASC/self, and toolbox surfaces remain separate owners. The next slice should likely improve review-flow affordances without treating local labels as canonical routing, and should keep new agent-local artifacts outside package validation scans. Treat hard-delete as decision-gated work via AK `#3318`, not as incidental cleanup.
 
 ## Ownership map
 
