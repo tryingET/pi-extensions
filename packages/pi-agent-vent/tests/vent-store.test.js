@@ -92,6 +92,14 @@ test("createVentRecord minimizes, redacts, and derives recurrence key", () => {
   assert.match(record.summary, /token=\[REDACTED\]/);
   assert.match(record.frustration, /Bearer \[REDACTED\]/);
   assert.deepEqual(record.tags, ["tool-failure", "runtime"]);
+
+  const tagOnlySecret = createVentRecord({
+    summary: "Tag-only secret must update privacy metadata",
+    tags: ["token=abc123"],
+  });
+  assert.deepEqual(tagOnlySecret.tags, ["token-redacted"]);
+  assert.equal(tagOnlySecret.privacy.redacted, true);
+  assert.deepEqual(tagOnlySecret.privacy.redactionPatterns, ["assigned_secret"]);
 });
 
 test("explicit recurrence keys are redacted before slugging", () => {
@@ -643,6 +651,13 @@ test("diagnostic state membrane redacts legacy valid JSONL before draft/export",
       summary: "Legacy unredacted payload",
       evidence: "password=hunter2",
       reproduction: "Bearer abcdefghijklmnop",
+      tool: "tool token=abc123",
+      tags: ["secret=tagged"],
+      privacy: {
+        classification: "local-diagnostic-user-data",
+        redacted: false,
+        redactionPatterns: [],
+      },
     })}\n`,
     "utf8",
   );
@@ -653,9 +668,12 @@ test("diagnostic state membrane redacts legacy valid JSONL before draft/export",
     records: state.records,
   });
 
+  assert.equal(state.records[0].privacy.redacted, true);
+  assert.deepEqual(state.records[0].tags, ["secret-redacted"]);
+  assert.equal(state.records[0].tool, "tool-token-redacted");
   assert.match(draft.text, /password=\[REDACTED\]/);
   assert.match(draft.text, /Bearer \[REDACTED\]/);
-  assert.doesNotMatch(draft.text, /hunter2|abcdefghijklmnop/);
+  assert.doesNotMatch(draft.text, /hunter2|abcdefghijklmnop|abc123/);
 });
 
 test("draft lookup is not constrained by display limits", () => {
@@ -889,6 +907,51 @@ test("retention archive is confirmation-gated, backed up, receipted, and restora
   assert.equal(restore.restoredRecordCount, 1);
   assert.equal(readVentRecords(storePath).records.length, 2);
   assert.equal(readRetentionEvents(retentionPath).events.length, 2);
+});
+
+test("retention archive removes only selected group records when legacy ids collide", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-retention-duplicate-id-"));
+  const storePath = path.join(dir, "vents.jsonl");
+  const reviewPath = path.join(dir, "review-events.jsonl");
+  const retentionPath = path.join(dir, "retention-events.jsonl");
+  const backupDir = path.join(dir, "backups");
+  const archive = createVentRecord(
+    { summary: "Archive duplicate id", category: "bug", recurrenceKey: "archive-duplicate" },
+    { id: "duplicate-id" },
+  );
+  const keep = createVentRecord(
+    { summary: "Keep duplicate id", category: "workflow", recurrenceKey: "keep-duplicate" },
+    { id: "duplicate-id" },
+  );
+  appendVentRecord(storePath, archive);
+  appendVentRecord(storePath, keep);
+  appendReviewEvent(
+    reviewPath,
+    createReviewEvent({ recurrenceKey: archive.recurrenceKey, state: "acknowledged" }),
+  );
+
+  const state = loadDiagnosticState({ storePath, reviewPath, retentionPath, backupDir });
+  const preview = buildRetentionPreview({
+    recurrenceKey: archive.recurrenceKey,
+    records: state.records,
+    reviewEvents: state.reviewEvents,
+    storeHash: state.ventsHash,
+    reviewHash: state.reviewEventsHash,
+    curationHash: state.curationEventsHash,
+  });
+  archiveRecurrenceGroup({
+    storePath,
+    reviewPath,
+    retentionPath,
+    backupDir,
+    recurrenceKey: archive.recurrenceKey,
+    confirmationToken: preview.confirmationToken,
+  });
+
+  const remaining = readVentRecords(storePath).records;
+  assert.equal(remaining.length, 1);
+  assert.equal(remaining[0].recurrenceKey, keep.recurrenceKey);
+  assert.equal(remaining[0].id, "duplicate-id");
 });
 
 test("retention fails closed for unreviewed groups, path escape, and stale restore", () => {

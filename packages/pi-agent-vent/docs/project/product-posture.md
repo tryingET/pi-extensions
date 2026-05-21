@@ -50,7 +50,7 @@ When an agent keeps hitting the same bug, missing affordance, brittle workflow, 
 ## Current product maturity
 
 - maturity: `local diagnostic alpha, review-and-retention safety hardened`
-- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane, facet-aware draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with local backup receipts and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
+- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane with privacy metadata recomputation, facet-aware draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with local backup receipts and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
 - release posture: first publishable package release at `0.1.0`; npm package not yet published at time of first release checks
 - current strategic line: harden the local review workflow before adding owner-surface escalation adapters
 
@@ -77,7 +77,7 @@ The package currently owns:
 - recurrence key derivation and grouping;
 - advisory candidate-incident heuristic based on repetition/severity;
 - malformed JSONL line tolerance, oversized-line/file guards, read-time schema normalization/redaction, and semantic curation quarantine during reads;
-- package-local tests for redaction, record creation, JSONL round trip, recurrence summaries, local facet summaries, review detail, review/curation/draft/retention projections, hostile legacy JSONL redaction, curation-cycle quarantine, file/line-size guards, confirmation-gated archive/restore, complete token-input requirements, stale token/restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, quoted rollback commands, and extension registration;
+- package-local tests for redaction, privacy metadata recomputation, record creation, JSONL round trip, recurrence summaries, local facet summaries, review detail, review/curation/draft/retention projections, hostile legacy JSONL redaction, curation-cycle quarantine, file/line-size guards, confirmation-gated archive/restore, duplicate-id retention selection, complete token-input requirements, stale token/restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, quoted rollback commands, and extension registration;
 - `pi-toolbox-discovery` integration through the same-named `agent_vent` bundle;
 - ASC/self capability-routing text that points frustration diagnostics to `agent_vent` instead of self/ASC state.
 

@@ -3,3 +3,5 @@ dist/
 *.log
 .DS_Store
 *.tgz
+.pi-subagent-sessions/
+.pi-subagent-sessions.*

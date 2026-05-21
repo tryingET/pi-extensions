@@ -202,6 +202,31 @@ function sanitizeFacetText(value, maxLength = 160) {
   };
 }
 
+function sanitizeTagList(value) {
+  if (!Array.isArray(value)) return { values: [], redacted: false, patterns: [] };
+  const patterns = new Set();
+  let redacted = false;
+  const values = [];
+  for (const tag of value) {
+    const sanitized = sanitizeFacetText(tag, 120);
+    redacted = redacted || sanitized.redacted;
+    for (const pattern of sanitized.patterns) patterns.add(pattern);
+    if (sanitized.value) values.push(sanitized.value);
+    if (values.length >= 12) break;
+  }
+  return { values, redacted, patterns: [...patterns].sort() };
+}
+
+function collectRedactionMetadata(fields) {
+  const redactionPatterns = new Set();
+  let redacted = false;
+  for (const field of fields) {
+    redacted = redacted || Boolean(field?.redacted);
+    for (const pattern of field?.patterns || []) redactionPatterns.add(pattern);
+  }
+  return { redacted, redactionPatterns: [...redactionPatterns].sort() };
+}
+
 export function createVentRecord(input, context = {}) {
   const summary = sanitizeOptionalText(input?.summary, 600);
   if (!summary.value) {
@@ -219,22 +244,16 @@ export function createVentRecord(input, context = {}) {
     tool: sanitizeFacetText(input?.tool || input?.toolName, 160),
     packageName: sanitizeFacetText(input?.packageName, 200),
   };
-
-  const redactionPatterns = new Set(summary.patterns);
-  let redacted = summary.redacted;
-  for (const field of [...Object.values(optionalFields), ...Object.values(localFacets)]) {
-    redacted = redacted || field.redacted;
-    for (const pattern of field.patterns) redactionPatterns.add(pattern);
-  }
+  const tags = sanitizeTagList(input?.tags);
+  const privacy = collectRedactionMetadata([
+    summary,
+    ...Object.values(optionalFields),
+    ...Object.values(localFacets),
+    tags,
+  ]);
 
   const category = normalizeCategory(input?.category);
   const severity = normalizeSeverity(input?.severity);
-  const tags = Array.isArray(input?.tags)
-    ? input.tags
-        .map((tag) => recurrenceSlug(tag))
-        .filter((tag) => tag !== "unspecified")
-        .slice(0, 12)
-    : [];
 
   return removeUndefined({
     schemaVersion: SCHEMA_VERSION,
@@ -255,7 +274,7 @@ export function createVentRecord(input, context = {}) {
     expected: optionalFields.expected.value,
     actual: optionalFields.actual.value,
     reproduction: optionalFields.reproduction.value,
-    tags,
+    tags: tags.values,
     context: removeUndefined({
       cwd: context.cwd,
       sessionFile: context.sessionFile,
@@ -263,8 +282,8 @@ export function createVentRecord(input, context = {}) {
     }),
     privacy: {
       classification: "local-diagnostic-user-data",
-      redacted,
-      redactionPatterns: [...redactionPatterns].sort(),
+      redacted: privacy.redacted,
+      redactionPatterns: privacy.redactionPatterns,
     },
   });
 }
@@ -999,8 +1018,8 @@ export function archiveRecurrenceGroup(input = {}) {
     if (beforeHash !== state.ventsHash) {
       throw new Error("agent_vent retention archive refused changing vents store");
     }
-    const archiveIds = new Set(plan.records.map((record) => record.id));
-    const remainingRecords = state.records.filter((record) => !archiveIds.has(record.id));
+    const archivedRecords = new Set(plan.records);
+    const remainingRecords = state.records.filter((record) => !archivedRecords.has(record));
     const afterText = recordsToJsonl(remainingRecords);
     const afterHash = sha256Hex(afterText);
     const now = input.now || new Date().toISOString();
@@ -1297,8 +1316,26 @@ function sanitizeVentRecords(values) {
   let invalidRecords = 0;
   for (const value of values) {
     try {
-      const summary = sanitizeDisplayText(value?.summary, 600);
-      if (!summary) throw new Error("missing summary");
+      const summary = sanitizeOptionalText(value?.summary, 600);
+      if (!summary.value) throw new Error("missing summary");
+      const optionalFields = {
+        frustration: sanitizeOptionalText(value?.frustration, 1200),
+        evidence: sanitizeOptionalText(value?.evidence, 1600),
+        expected: sanitizeOptionalText(value?.expected, 800),
+        actual: sanitizeOptionalText(value?.actual, 800),
+        reproduction: sanitizeOptionalText(value?.reproduction, 1200),
+      };
+      const localFacets = {
+        tool: sanitizeFacetText(value?.tool || value?.toolName, 160),
+        packageName: sanitizeFacetText(value?.packageName, 200),
+      };
+      const tags = sanitizeTagList(value?.tags);
+      const privacy = collectRedactionMetadata([
+        summary,
+        ...Object.values(optionalFields),
+        ...Object.values(localFacets),
+        tags,
+      ]);
       const category = normalizeCategory(value?.category);
       const record = removeUndefined({
         ...value,
@@ -1309,21 +1346,21 @@ function sanitizeVentRecords(values) {
         severity: normalizeSeverity(value?.severity),
         recurrenceKey:
           sanitizeDisplayText(value?.recurrenceKey, 200) ||
-          buildRecurrenceKey({ ...value, category, summary }),
-        summary,
-        tool: sanitizeFacetText(value?.tool || value?.toolName, 160).value,
-        packageName: sanitizeFacetText(value?.packageName, 200).value,
-        frustration: sanitizeDisplayText(value?.frustration, 1200),
-        evidence: sanitizeDisplayText(value?.evidence, 1600),
-        expected: sanitizeDisplayText(value?.expected, 800),
-        actual: sanitizeDisplayText(value?.actual, 800),
-        reproduction: sanitizeDisplayText(value?.reproduction, 1200),
-        tags: Array.isArray(value?.tags)
-          ? value.tags
-              .map((tag) => recurrenceSlug(tag))
-              .filter((tag) => tag !== "unspecified")
-              .slice(0, 12)
-          : [],
+          buildRecurrenceKey({ ...value, category, summary: summary.value }),
+        summary: summary.value,
+        tool: localFacets.tool.value,
+        packageName: localFacets.packageName.value,
+        frustration: optionalFields.frustration.value,
+        evidence: optionalFields.evidence.value,
+        expected: optionalFields.expected.value,
+        actual: optionalFields.actual.value,
+        reproduction: optionalFields.reproduction.value,
+        tags: tags.values,
+        privacy: {
+          classification: "local-diagnostic-user-data",
+          redacted: privacy.redacted,
+          redactionPatterns: privacy.redactionPatterns,
+        },
       });
       records.push(record);
     } catch {
