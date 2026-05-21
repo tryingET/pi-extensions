@@ -670,6 +670,16 @@ test("retention archive is confirmation-gated, backed up, receipted, and restora
   );
 
   const state = loadDiagnosticState({ storePath, reviewPath, retentionPath, backupDir });
+  assert.throws(
+    () =>
+      buildRetentionPreview({
+        recurrenceKey: archive.recurrenceKey,
+        records: state.records,
+        reviewEvents: state.reviewEvents,
+        storeHash: state.ventsHash,
+      }),
+    /requires current store, review, and curation hashes/,
+  );
   const preview = buildRetentionPreview({
     recurrenceKey: archive.recurrenceKey,
     records: state.records,

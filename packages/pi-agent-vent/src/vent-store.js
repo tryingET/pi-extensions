@@ -1222,6 +1222,11 @@ function planRetentionArchive({
 }) {
   const requestedRecurrenceKey = sanitizeDisplayText(recurrenceKey, 200);
   if (!requestedRecurrenceKey) throw new Error("agent_vent retention requires a recurrenceKey");
+  if (!storeHash || !reviewHash || !curationHash) {
+    throw new Error(
+      "agent_vent retention preview requires current store, review, and curation hashes",
+    );
+  }
   const curationMap = buildCurationMap(curationEvents);
   const resolvedKey = resolveRecurrenceKey(requestedRecurrenceKey, curationMap);
   const groupRecords = records.filter(
@@ -1240,7 +1245,7 @@ function planRetentionArchive({
     .map((record) => sanitizeDisplayText(record.id, 120))
     .filter(Boolean);
   const fingerprint = sha256Hex(
-    `${resolvedKey}\n${storeHash || "unknown-store-hash"}\n${reviewHash || "unknown-review-hash"}\n${curationHash || "unknown-curation-hash"}\n${reviewState}\n${archivedRecordIds.join("\n")}`,
+    `${resolvedKey}\n${storeHash}\n${reviewHash}\n${curationHash}\n${reviewState}\n${archivedRecordIds.join("\n")}`,
   );
   return {
     requestedRecurrenceKey,
