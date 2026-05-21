@@ -70,6 +70,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent review
 /agent_vent review set acknowledged bug:reload-tools "seen locally"
 /agent_vent curate merge bug:reload-tool-a bug:reload-tools "same local pattern"
+/agent_vent curate remove bug:reload-tool-a "undo local merge"
 /agent_vent draft github_issue bug:reload-tools
 /agent_vent stats
 /agent_vent export markdown
@@ -109,7 +110,9 @@ PI_AGENT_VENT_DIR=/path/to/private/dir pi
 
 Records are append-only JSONL with `schemaVersion: 1`. Review state changes are append-only local events in `review-events.jsonl`; recurrence curation changes are append-only local events in `curation-events.jsonl`. Recurrence review state and merged/renamed groups are projections from the latest local events; raw vent records are not rewritten.
 
-Reads tolerate malformed old lines and report a malformed-line count. JSONL store files fail closed when replaced by symlinks. `curate`, `draft`, `stats`, and `export` are local diagnostic projection surfaces, not evidence, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
+Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `curate`, `draft`, `stats`, and `export` are local diagnostic projection surfaces, not evidence, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
+
+All display/export/draft paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits.
 
 The package applies conservative redaction heuristics for common token/password/API-key shapes, including review notes, but callers must still avoid submitting secrets.
 

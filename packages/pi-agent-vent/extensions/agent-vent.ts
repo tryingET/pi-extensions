@@ -26,11 +26,9 @@ import {
   formatReviewQueue,
   formatSummary,
   hasRecurrenceGroup,
+  loadDiagnosticState,
   normalizeReviewState,
   REVIEW_STATES,
-  readCurationEvents,
-  readReviewEvents,
-  readVentRecords,
   SEVERITIES,
   summarizeRecords,
   summarizeReviewQueue,
@@ -204,8 +202,8 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           source: "agent_vent_tool",
         });
         appendVentRecord(storePath, record);
-        const { records, malformedLines } = readVentRecords(storePath);
-        const { events: curationEvents } = readCurationEvents(curationPath);
+        const state = loadDiagnosticState({ storePath, reviewPath, curationPath });
+        const { records, curationEvents, malformedLines } = state;
         const group = summarizeRecords(
           records.filter((entry) => entry.recurrenceKey === record.recurrenceKey),
           { limit: 1, curationEvents },
@@ -221,9 +219,22 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         });
       }
 
-      const { records, malformedLines } = readVentRecords(storePath);
-      const { events: curationEvents, malformedLines: malformedCurationLines } =
-        readCurationEvents(curationPath);
+      const state = loadDiagnosticState({ storePath, reviewPath, curationPath });
+      const {
+        records,
+        reviewEvents,
+        curationEvents,
+        malformedLines,
+        malformedReviewLines,
+        malformedCurationLines,
+        oversizedLines,
+        oversizedReviewLines,
+        oversizedCurationLines,
+        invalidRecords,
+        invalidReviewEvents,
+        invalidCurationEvents,
+        quarantinedCurationEvents,
+      } = state;
 
       if (action === "curate") {
         const input = {
@@ -235,8 +246,9 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         assertCanCurateRecurrence(records, curationEvents, input);
         const event = createCurationEvent(input, { source: "agent_vent_tool" });
         appendCurationEvent(curationPath, event);
+        const targetText = event.targetRecurrenceKey ? ` -> ${event.targetRecurrenceKey}` : "";
         const text = [
-          `Recorded local recurrence ${event.action} curation: ${event.sourceRecurrenceKey} -> ${event.targetRecurrenceKey}.`,
+          `Recorded local recurrence ${event.action} curation: ${event.sourceRecurrenceKey}${targetText}.`,
           "Boundary: local diagnostic curation projection only; raw vents were not rewritten and no AK task, GitHub issue, incident, evidence, telemetry, or ASC/self state was created.",
         ].join("\n");
         return textResult(text, {
@@ -291,8 +303,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       }
 
       if (action === "review") {
-        const { events, malformedLines: malformedReviewLines } = readReviewEvents(reviewPath);
-        const queue = summarizeReviewQueue(records, events, {
+        const queue = summarizeReviewQueue(records, reviewEvents, {
           state: params.reviewState,
           limit: clampLimit(params.limit, 20),
           curationEvents,
@@ -310,12 +321,11 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       }
 
       if (action === "draft") {
-        const { events, malformedLines: malformedReviewLines } = readReviewEvents(reviewPath);
         const draft = buildEscalationDraft({
           target: params.draftTarget,
           recurrenceKey: params.recurrenceKey,
           records,
-          reviewEvents: events,
+          reviewEvents,
           curationEvents,
           limit: clampLimit(params.limit, 5),
         });
@@ -333,10 +343,9 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       }
 
       if (action === "stats" || action === "export") {
-        const { events, malformedLines: malformedReviewLines } = readReviewEvents(reviewPath);
         const snapshot = buildLifecycleSnapshot({
           records,
-          reviewEvents: events,
+          reviewEvents,
           curationEvents,
           storePath,
           reviewPath,
@@ -344,6 +353,13 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           malformedLines,
           malformedReviewLines,
           malformedCurationLines,
+          oversizedLines,
+          oversizedReviewLines,
+          oversizedCurationLines,
+          invalidRecords,
+          invalidReviewEvents,
+          invalidCurationEvents,
+          quarantinedCurationEvents,
           state: params.reviewState || "all",
           limit: clampLimit(params.limit, 20),
         });
@@ -428,6 +444,7 @@ function handleCommand(args: string) {
       "  /agent_vent review set <state> <recurrenceKey> [note] Set local review state for a recurrence group.",
       "  /agent_vent curate merge <sourceKey> <targetKey> [note] Append a local merge projection event.",
       "  /agent_vent curate rename <sourceKey> <targetKey> [note] Append a local rename projection event.",
+      "  /agent_vent curate remove <sourceKey> [note]             Append a local curation undo event.",
       "  /agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]",
       "                                                        Generate draft-only owner-surface text.",
       "  /agent_vent stats                                    Show local store counts, sizes, and review-state totals.",
@@ -444,47 +461,41 @@ function handleCommand(args: string) {
     return formatPath(storePath, reviewPath, curationPath);
   }
 
-  const { records, malformedLines } = readVentRecords(storePath);
-  const suffix =
-    malformedLines > 0 ? `\nWarning: ignored ${malformedLines} malformed vent JSONL line(s).` : "";
+  const state = loadDiagnosticState({ storePath, reviewPath, curationPath });
+  const { records } = state;
+  const suffix = formatDiagnosticWarnings(state);
 
   if (action === "review") {
-    return `${handleReviewCommand(tokens.slice(1), records, reviewPath, curationPath)}${suffix}`;
+    return `${handleReviewCommand(tokens.slice(1), state, reviewPath)}${suffix}`;
   }
   if (action === "curate") {
-    return `${handleCurateCommand(tokens.slice(1), records, curationPath)}${suffix}`;
+    return `${handleCurateCommand(tokens.slice(1), state, curationPath)}${suffix}`;
   }
   if (action === "draft") {
-    return handleDraftCommand(tokens.slice(1), records, reviewPath, curationPath);
+    return `${handleDraftCommand(tokens.slice(1), state)}${suffix}`;
   }
   if (action === "stats" || action === "export") {
-    return handleLifecycleCommand(
-      action,
-      tokens.slice(1),
-      records,
-      malformedLines,
-      storePath,
-      reviewPath,
-      curationPath,
-    );
+    return handleLifecycleCommand(action, tokens.slice(1), state);
   }
   if (action === "list") {
     return `${formatRecent(records, clampLimit(tokens[1]))}${suffix}`;
   }
   if (action === "summary") {
-    const { events: curationEvents } = readCurationEvents(curationPath);
-    return `${formatSummary(summarizeRecords(records, { limit: 20, curationEvents }))}${suffix}`;
+    return `${formatSummary(
+      summarizeRecords(records, { limit: 20, curationEvents: state.curationEvents }),
+    )}${suffix}`;
   }
   return `Unknown /agent_vent action: ${action}\nRun /agent_vent help for usage.`;
 }
 
 function handleReviewCommand(
   tokens: string[],
-  records: unknown[],
+  diagnosticState: Record<string, unknown>,
   reviewPath: string,
-  curationPath: string,
 ) {
-  const { events: curationEvents } = readCurationEvents(curationPath);
+  const records = diagnosticState.records as unknown[];
+  const curationEvents = diagnosticState.curationEvents as unknown[];
+  const reviewEvents = diagnosticState.reviewEvents as unknown[];
   if (tokens[0] === "set") {
     const state = tokens[1];
     const recurrenceKey = tokens[2];
@@ -510,52 +521,53 @@ function handleReviewCommand(
   const state = first && !/^\d+$/.test(first) ? first : undefined;
   const rawLimit = state ? tokens[1] : first;
   const normalizedState = state && state !== "all" ? normalizeReviewState(state) : state;
-  const { events, malformedLines } = readReviewEvents(reviewPath);
-  const queue = summarizeReviewQueue(records, events, {
+  const queue = summarizeReviewQueue(records, reviewEvents, {
     state: normalizedState,
     limit: clampLimit(rawLimit, 20),
     curationEvents,
   });
-  const suffix =
-    malformedLines > 0
-      ? `\nWarning: ignored ${malformedLines} malformed review JSONL line(s).`
-      : "";
-  return `${formatReviewQueue(queue)}${suffix}`;
+  return formatReviewQueue(queue);
 }
 
-function handleCurateCommand(tokens: string[], records: unknown[], curationPath: string) {
+function handleCurateCommand(
+  tokens: string[],
+  state: Record<string, unknown>,
+  curationPath: string,
+) {
+  const records = state.records as unknown[];
+  const curationEvents = state.curationEvents as unknown[];
   const curationAction = tokens[0];
   const sourceRecurrenceKey = tokens[1];
-  const targetRecurrenceKey = tokens[2];
-  const note = tokens.slice(3).join(" ");
-  if (!curationAction || !sourceRecurrenceKey || !targetRecurrenceKey) {
-    return "Usage: /agent_vent curate <merge|rename> <sourceRecurrenceKey> <targetRecurrenceKey> [note]";
+  const targetRecurrenceKey = curationAction === "remove" ? undefined : tokens[2];
+  const note = tokens.slice(curationAction === "remove" ? 2 : 3).join(" ");
+  if (
+    !curationAction ||
+    !sourceRecurrenceKey ||
+    (curationAction !== "remove" && !targetRecurrenceKey)
+  ) {
+    return "Usage: /agent_vent curate <merge|rename> <sourceRecurrenceKey> <targetRecurrenceKey> [note] OR /agent_vent curate remove <sourceRecurrenceKey> [note]";
   }
-  const { events: curationEvents } = readCurationEvents(curationPath);
   const input = { action: curationAction, sourceRecurrenceKey, targetRecurrenceKey, note };
   assertCanCurateRecurrence(records, curationEvents, input);
   const event = createCurationEvent(input, { source: "agent_vent_command" });
   appendCurationEvent(curationPath, event);
+  const targetText = event.targetRecurrenceKey ? ` -> ${event.targetRecurrenceKey}` : "";
   return [
-    `Recorded local recurrence ${event.action} curation: ${event.sourceRecurrenceKey} -> ${event.targetRecurrenceKey}.`,
+    `Recorded local recurrence ${event.action} curation: ${event.sourceRecurrenceKey}${targetText}.`,
     "Boundary: local diagnostic curation projection only; raw vents were not rewritten and no AK task, GitHub issue, incident, evidence, telemetry, or ASC/self state was created.",
   ].join("\n");
 }
 
-function handleDraftCommand(
-  tokens: string[],
-  records: unknown[],
-  reviewPath: string,
-  curationPath: string,
-) {
+function handleDraftCommand(tokens: string[], state: Record<string, unknown>) {
+  const records = state.records as unknown[];
+  const reviewEvents = state.reviewEvents as unknown[];
+  const curationEvents = state.curationEvents as unknown[];
   const draftTarget = tokens[0];
   const recurrenceKey = tokens[1];
   const rawLimit = tokens[2];
   if (!draftTarget || !recurrenceKey) {
     return "Usage: /agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]";
   }
-  const { events: reviewEvents } = readReviewEvents(reviewPath);
-  const { events: curationEvents } = readCurationEvents(curationPath);
   return buildEscalationDraft({
     target: draftTarget,
     recurrenceKey,
@@ -566,18 +578,7 @@ function handleDraftCommand(
   }).text;
 }
 
-function handleLifecycleCommand(
-  action: string,
-  tokens: string[],
-  records: unknown[],
-  malformedLines: number,
-  storePath: string,
-  reviewPath: string,
-  curationPath: string,
-) {
-  const { events, malformedLines: malformedReviewLines } = readReviewEvents(reviewPath);
-  const { events: curationEvents, malformedLines: malformedCurationLines } =
-    readCurationEvents(curationPath);
+function handleLifecycleCommand(action: string, tokens: string[], state: Record<string, unknown>) {
   const formatToken = tokens[0] === "json" || tokens[0] === "markdown" ? tokens[0] : "markdown";
   const stateToken = formatToken === tokens[0] ? tokens[1] : tokens[0];
   const limitToken = formatToken === tokens[0] ? tokens[2] : tokens[1];
@@ -589,21 +590,35 @@ function handleLifecycleCommand(
         : "all";
   const rawLimit = /^\d+$/.test(stateToken || "") ? stateToken : limitToken;
   const snapshot = buildLifecycleSnapshot({
-    records,
-    reviewEvents: events,
-    curationEvents,
-    storePath,
-    reviewPath,
-    curationPath,
-    malformedLines,
-    malformedReviewLines,
-    malformedCurationLines,
+    ...state,
     state: normalizedState,
     limit: clampLimit(rawLimit, 20),
   });
 
   if (action === "stats") return formatLifecycleStats(snapshot);
   return formatToken === "json" ? formatExportJson(snapshot) : formatExportMarkdown(snapshot);
+}
+
+function formatDiagnosticWarnings(state: Record<string, unknown>) {
+  const warnings = [];
+  const pairs = [
+    ["malformed vent", state.malformedLines],
+    ["malformed review", state.malformedReviewLines],
+    ["malformed curation", state.malformedCurationLines],
+    ["oversized vent", state.oversizedLines],
+    ["oversized review", state.oversizedReviewLines],
+    ["oversized curation", state.oversizedCurationLines],
+    ["invalid vent", state.invalidRecords],
+    ["invalid review", state.invalidReviewEvents],
+    ["invalid curation", state.invalidCurationEvents],
+    ["quarantined curation", state.quarantinedCurationEvents],
+  ];
+  for (const [label, value] of pairs) {
+    if (Number(value) > 0) warnings.push(`${label}=${value}`);
+  }
+  return warnings.length > 0
+    ? `\nWarning: ignored local diagnostic entries (${warnings.join(", ")}).`
+    : "";
 }
 
 function textResult(text: string, details: Record<string, unknown>) {

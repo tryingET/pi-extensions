@@ -49,8 +49,8 @@ When an agent keeps hitting the same bug, missing affordance, brittle workflow, 
 
 ## Current product maturity
 
-- maturity: `local diagnostic alpha`
-- current capability baseline: local append-only vent capture, recurrence grouping, local operator review queue, review-state events, append-only recurrence curation projections, draft-only owner-surface text generation, lifecycle stats/export projections, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
+- maturity: `local diagnostic alpha, review-workflow hardened`
+- current capability baseline: local append-only vent capture, recurrence grouping, local operator review queue, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane, draft-only owner-surface text generation, lifecycle stats/export projections, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
 - release posture: first publishable package release at `0.1.0`; npm package not yet published at time of first release checks
 - current strategic line: harden the local review workflow before adding owner-surface escalation adapters
 
@@ -76,8 +76,8 @@ The package currently owns:
 - conservative redaction for common secret/token/password shapes;
 - recurrence key derivation and grouping;
 - advisory candidate-incident heuristic based on repetition/severity;
-- malformed JSONL line tolerance during reads;
-- package-local tests for redaction, record creation, JSONL round trip, recurrence summaries, and extension registration;
+- malformed JSONL line tolerance, oversized-line/file guards, read-time schema normalization/redaction, and semantic curation quarantine during reads;
+- package-local tests for redaction, record creation, JSONL round trip, recurrence summaries, review/curation/draft projections, hostile legacy JSONL redaction, curation-cycle quarantine, file/line-size guards, and extension registration;
 - `pi-toolbox-discovery` integration through the same-named `agent_vent` bundle;
 - ASC/self capability-routing text that points frustration diagnostics to `agent_vent` instead of self/ASC state.
 
@@ -114,7 +114,9 @@ The highest-leverage product line is:
 local vent capture -> operator review queue -> draft-only owner routing -> human-approved escalation
 ```
 
-Do not add automatic GitHub/AK/incident writers until the local review queue, dedupe/merge behavior, retention/delete controls, and privacy posture are explicit and tested.
+Do not add automatic GitHub/AK/incident writers. The local review queue, curation, draft-only routing, and privacy membrane now have package validation; the main remaining product gap is confirmation-gated retention/delete/archive with clear backup/restore and rollback posture.
+
+Current proof: `npm run check` passes with package tests and release dry-run, docs strict check passes, and dogfood covered legacy-secret redaction, curation-cycle quarantine, and append-only curation removal.
 
 ## Next product bets
 
@@ -126,7 +128,7 @@ The local review surface turns recurrence groups into an inbox:
 new -> acknowledged | dismissed | escalation_drafted
 ```
 
-The landed baseline lists groups by recurrence priority, shows representative summaries/sample ids through recurrence projections, and records append-only local review-state events without mutating owner systems. Remaining product depth includes richer merge/dedupe, representative-vent expansion, and draft text generation.
+The landed baseline lists groups by recurrence priority, shows representative summaries/sample ids through recurrence projections, and records append-only local review-state events without mutating owner systems. Remaining product depth is operator ergonomics: richer representative-vent expansion and clearer review-flow affordances, not more authority.
 
 ### Bet 2 — Retention, export, and deletion controls — non-destructive baseline landed
 
@@ -136,7 +138,7 @@ Make local data lifecycle explicit before records accumulate:
 - export JSON or markdown diagnostic projections — landed via `export`;
 - delete or archive reviewed groups with confirmation — still deferred because it is destructive and needs a separate confirmation/rollback design;
 - document backup/restore posture — partially covered by explicit paths and lifecycle stats;
-- keep corruption behavior fail-soft and visible — landed for reads via malformed-line counts and fail-closed symlink checks.
+- keep corruption behavior fail-soft and visible — landed for malformed lines, oversized lines, invalid entries, semantic curation quarantine, and fail-closed symlink/oversized-file checks.
 
 ### Bet 3 — Recurrence curation — merge/rename baseline landed
 
@@ -144,6 +146,7 @@ Improve signal quality without over-modeling:
 
 - merge recurrence groups — landed as append-only local curation projection events;
 - rename recurrence keys — landed as append-only local curation projection events;
+- undo local curation aliases — landed as append-only `remove` curation events;
 - dismiss noisy groups — already covered by local review state;
 - show top categories/tools/packages — still deferred;
 - preserve append-only source records while treating curated summaries as local projections — landed; raw vents are not rewritten.
@@ -157,13 +160,17 @@ Generate human-reviewable drafts for likely owner surfaces:
 - incident review draft — landed;
 - package maintainer note — landed.
 
-These drafts do not submit automatically. The package prepares local text and exact next-step guidance; the owner system performs any mutation only after explicit human/operator action. Producing a draft does not automatically mark review state; operators can set `escalation_drafted` explicitly when useful.
+These drafts do not submit automatically. The package prepares local text and exact next-step guidance; the owner system performs any mutation only after explicit human/operator action. Producing a draft does not automatically mark review state; operators can set `escalation_drafted` explicitly when useful. This clarified the provenance seam: draft text is a local diagnostic projection, not evidence, task truth, issue truth, or incident truth.
+
+## Next frontier guidance
+
+The next highest-leverage slice should assume the review/draft/curation membrane is the baseline and should not broaden authority. Choose retention/delete/archive only after designing confirmation, backup/restore, exact affected-record previews, append-only receipts or tombstones, and failure rollback. If that is too risky, the safer next slice is operator ergonomics for inspecting representative vents inside a curated group.
 
 ## Ownership map
 
 | Concern | Owner |
 |---|---|
-| Local vent records, recurrence grouping, review queue | `packages/pi-agent-vent` |
+| Local vent records, recurrence grouping, review queue, local curation events, draft text projections, diagnostic-state membrane | `packages/pi-agent-vent` |
 | Tool discovery/activation | `packages/pi-toolbox-discovery` |
 | Operational self mirror and subagent runtime | `packages/pi-autonomous-session-control` |
 | Durable task/evidence/direction truth | AK / society authority surfaces |

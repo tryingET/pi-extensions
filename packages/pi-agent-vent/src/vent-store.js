@@ -22,8 +22,10 @@ export const CATEGORIES = [
 ];
 export const SEVERITIES = ["low", "medium", "high", "critical"];
 export const REVIEW_STATES = ["new", "acknowledged", "dismissed", "escalation_drafted"];
-export const CURATION_ACTIONS = ["merge", "rename"];
+export const CURATION_ACTIONS = ["merge", "rename", "remove"];
 export const DRAFT_TARGETS = ["github_issue", "ak_task", "incident_review", "maintainer_note"];
+export const MAX_JSONL_FILE_BYTES = 5 * 1024 * 1024;
+export const MAX_JSONL_LINE_BYTES = 64 * 1024;
 
 const SEVERITY_RANK = new Map(SEVERITIES.map((severity, index) => [severity, index]));
 const SENSITIVE_PATTERNS = [
@@ -141,7 +143,8 @@ export function compactText(value, maxLength = 1200) {
 }
 
 export function recurrenceSlug(value) {
-  const slug = String(value || "")
+  const redacted = redactSensitiveText(value).text;
+  const slug = String(redacted || "")
     .toLowerCase()
     .replace(/[`'"“”‘’]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
@@ -224,7 +227,7 @@ export function createVentRecord(input, context = {}) {
 }
 
 export function createReviewEvent(input, context = {}) {
-  const recurrenceKey = compactText(input?.recurrenceKey, 200);
+  const recurrenceKey = sanitizeDisplayText(input?.recurrenceKey, 200);
   if (!recurrenceKey) {
     throw new Error("agent_vent review state requires a recurrenceKey");
   }
@@ -253,12 +256,12 @@ export function createReviewEvent(input, context = {}) {
 
 export function createCurationEvent(input, context = {}) {
   const action = normalizeCurationAction(input?.action || input?.curationAction);
-  const sourceRecurrenceKey = compactText(input?.sourceRecurrenceKey, 200);
-  const targetRecurrenceKey = compactText(input?.targetRecurrenceKey, 200);
-  if (!sourceRecurrenceKey || !targetRecurrenceKey) {
+  const sourceRecurrenceKey = sanitizeDisplayText(input?.sourceRecurrenceKey, 200);
+  const targetRecurrenceKey = sanitizeDisplayText(input?.targetRecurrenceKey, 200);
+  if (!sourceRecurrenceKey || (action !== "remove" && !targetRecurrenceKey)) {
     throw new Error("agent_vent curation requires sourceRecurrenceKey and targetRecurrenceKey");
   }
-  if (sourceRecurrenceKey === targetRecurrenceKey) {
+  if (targetRecurrenceKey && sourceRecurrenceKey === targetRecurrenceKey) {
     throw new Error("agent_vent curation source and target must differ");
   }
 
@@ -308,23 +311,58 @@ export function appendCurationEvent(filePath, event) {
 }
 
 export function readVentRecords(filePath) {
-  const { values, malformedLines } = readJsonlRecords(filePath);
-  return { records: values, malformedLines };
+  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { records, invalidRecords } = sanitizeVentRecords(values);
+  return { records, malformedLines, oversizedLines, invalidRecords };
 }
 
 export function readReviewEvents(filePath) {
-  const { values, malformedLines } = readJsonlRecords(filePath);
+  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { events, invalidEvents } = sanitizeReviewEvents(values);
   return {
-    events: values.filter((value) => value?.eventType === "review_state"),
+    events,
     malformedLines,
+    oversizedLines,
+    invalidEvents,
   };
 }
 
 export function readCurationEvents(filePath) {
-  const { values, malformedLines } = readJsonlRecords(filePath);
+  const { values, malformedLines, oversizedLines } = readJsonlRecords(filePath);
+  const { events, invalidEvents, quarantinedEvents } = sanitizeCurationEvents(values);
   return {
-    events: values.filter((value) => value?.eventType === "recurrence_curation"),
+    events,
     malformedLines,
+    oversizedLines,
+    invalidEvents,
+    quarantinedEvents,
+  };
+}
+
+export function loadDiagnosticState(options = {}) {
+  const storePath = options.storePath || defaultStorePath();
+  const reviewPath = options.reviewPath || defaultReviewPath();
+  const curationPath = options.curationPath || defaultCurationPath();
+  const vents = readVentRecords(storePath);
+  const reviews = readReviewEvents(reviewPath);
+  const curations = readCurationEvents(curationPath);
+  return {
+    storePath,
+    reviewPath,
+    curationPath,
+    records: vents.records,
+    reviewEvents: reviews.events,
+    curationEvents: curations.events,
+    malformedLines: vents.malformedLines,
+    malformedReviewLines: reviews.malformedLines,
+    malformedCurationLines: curations.malformedLines,
+    oversizedLines: vents.oversizedLines,
+    oversizedReviewLines: reviews.oversizedLines,
+    oversizedCurationLines: curations.oversizedLines,
+    invalidRecords: vents.invalidRecords,
+    invalidReviewEvents: reviews.invalidEvents,
+    invalidCurationEvents: curations.invalidEvents,
+    quarantinedCurationEvents: curations.quarantinedEvents,
   };
 }
 
@@ -406,6 +444,17 @@ export function buildLifecycleSnapshot(input = {}) {
       vents: input.malformedLines || 0,
       reviewEvents: input.malformedReviewLines || 0,
       curationEvents: input.malformedCurationLines || 0,
+    },
+    oversizedLines: {
+      vents: input.oversizedLines || 0,
+      reviewEvents: input.oversizedReviewLines || 0,
+      curationEvents: input.oversizedCurationLines || 0,
+    },
+    invalidEntries: {
+      vents: input.invalidRecords || 0,
+      reviewEvents: input.invalidReviewEvents || 0,
+      curationEvents: input.invalidCurationEvents || 0,
+      quarantinedCurationEvents: input.quarantinedCurationEvents || 0,
     },
     counts: {
       vents: records.length,
@@ -509,6 +558,8 @@ export function formatLifecycleStats(snapshot) {
     `- curation events: ${snapshot.counts.curationEvents} event(s), ${snapshot.files.curationEvents.sizeBytes} byte(s), exists=${snapshot.files.curationEvents.exists}`,
     `- review states: new=${snapshot.counts.reviewStates.new}, acknowledged=${snapshot.counts.reviewStates.acknowledged}, dismissed=${snapshot.counts.reviewStates.dismissed}, escalation_drafted=${snapshot.counts.reviewStates.escalation_drafted}`,
     `- malformed lines: vents=${snapshot.malformedLines.vents}, reviewEvents=${snapshot.malformedLines.reviewEvents}, curationEvents=${snapshot.malformedLines.curationEvents}`,
+    `- oversized lines: vents=${snapshot.oversizedLines.vents}, reviewEvents=${snapshot.oversizedLines.reviewEvents}, curationEvents=${snapshot.oversizedLines.curationEvents}`,
+    `- invalid/quarantined entries: vents=${snapshot.invalidEntries.vents}, reviewEvents=${snapshot.invalidEntries.reviewEvents}, curationEvents=${snapshot.invalidEntries.curationEvents}, quarantinedCurationEvents=${snapshot.invalidEntries.quarantinedCurationEvents}`,
     `- paths: ${snapshot.paths.vents}; ${snapshot.paths.reviewEvents}; ${snapshot.paths.curationEvents}`,
     `Boundary: ${snapshot.boundary}`,
   ].join("\n");
@@ -531,6 +582,8 @@ export function formatExportMarkdown(snapshot) {
     `- Curation events: ${snapshot.counts.curationEvents}`,
     `- Review states: ${JSON.stringify(snapshot.counts.reviewStates)}`,
     `- Malformed lines: vents=${snapshot.malformedLines.vents}, reviewEvents=${snapshot.malformedLines.reviewEvents}, curationEvents=${snapshot.malformedLines.curationEvents}`,
+    `- Oversized lines: vents=${snapshot.oversizedLines.vents}, reviewEvents=${snapshot.oversizedLines.reviewEvents}, curationEvents=${snapshot.oversizedLines.curationEvents}`,
+    `- Invalid/quarantined entries: vents=${snapshot.invalidEntries.vents}, reviewEvents=${snapshot.invalidEntries.reviewEvents}, curationEvents=${snapshot.invalidEntries.curationEvents}, quarantinedCurationEvents=${snapshot.invalidEntries.quarantinedCurationEvents}`,
     "",
     "## Review queue",
     "",
@@ -553,7 +606,7 @@ export function formatExportJson(snapshot) {
 
 export function buildEscalationDraft(input = {}) {
   const target = normalizeDraftTarget(input.target || input.draftTarget);
-  const recurrenceKey = compactText(input.recurrenceKey, 200);
+  const recurrenceKey = sanitizeDisplayText(input.recurrenceKey, 200);
   if (!recurrenceKey) throw new Error("agent_vent draft requires a recurrenceKey");
 
   const records = input.records || [];
@@ -561,12 +614,8 @@ export function buildEscalationDraft(input = {}) {
   const curationEvents = input.curationEvents || [];
   const curationMap = buildCurationMap(curationEvents);
   const resolvedKey = resolveRecurrenceKey(recurrenceKey, curationMap);
-  const queue = summarizeReviewQueue(records, reviewEvents, {
-    curationEvents,
-    state: "all",
-    limit: 100,
-  });
-  const group = queue.items.find((item) => item.recurrenceKey === resolvedKey);
+  const allGroups = buildReviewQueueItems(records, reviewEvents, curationEvents);
+  const group = allGroups.find((item) => item.recurrenceKey === resolvedKey);
   if (!group)
     throw new Error(`cannot draft escalation for unknown recurrence group: ${recurrenceKey}`);
 
@@ -585,9 +634,9 @@ export function buildEscalationDraft(input = {}) {
       createdAt: record.createdAt,
       severity: normalizeSeverity(record.severity),
       category: normalizeCategory(record.category),
-      summary: compactText(record.summary, 300),
-      evidence: compactText(record.evidence, 500),
-      reproduction: compactText(record.reproduction, 500),
+      summary: sanitizeDisplayText(record.summary, 300),
+      evidence: sanitizeDisplayText(record.evidence, 500),
+      reproduction: sanitizeDisplayText(record.reproduction, 500),
     }));
 
   const draft = {
@@ -647,14 +696,123 @@ export function formatEscalationDraftText(draft) {
   return lines.join("\n");
 }
 
+function sanitizeDisplayText(value, maxLength) {
+  const compact = compactText(value, maxLength);
+  if (compact === undefined) return undefined;
+  return redactSensitiveText(compact).text;
+}
+
+function sanitizeVentRecords(values) {
+  const records = [];
+  let invalidRecords = 0;
+  for (const value of values) {
+    try {
+      const summary = sanitizeDisplayText(value?.summary, 600);
+      if (!summary) throw new Error("missing summary");
+      const category = normalizeCategory(value?.category);
+      const record = removeUndefined({
+        ...value,
+        schemaVersion: Number(value?.schemaVersion) || SCHEMA_VERSION,
+        id: compactText(value?.id, 120) || randomUUID(),
+        createdAt: compactText(value?.createdAt, 80),
+        category,
+        severity: normalizeSeverity(value?.severity),
+        recurrenceKey:
+          sanitizeDisplayText(value?.recurrenceKey, 200) ||
+          buildRecurrenceKey({ ...value, category, summary }),
+        summary,
+        frustration: sanitizeDisplayText(value?.frustration, 1200),
+        evidence: sanitizeDisplayText(value?.evidence, 1600),
+        expected: sanitizeDisplayText(value?.expected, 800),
+        actual: sanitizeDisplayText(value?.actual, 800),
+        reproduction: sanitizeDisplayText(value?.reproduction, 1200),
+        tags: Array.isArray(value?.tags)
+          ? value.tags
+              .map((tag) => recurrenceSlug(tag))
+              .filter((tag) => tag !== "unspecified")
+              .slice(0, 12)
+          : [],
+      });
+      records.push(record);
+    } catch {
+      invalidRecords += 1;
+    }
+  }
+  return { records, invalidRecords };
+}
+
+function sanitizeReviewEvents(values) {
+  const events = [];
+  let invalidEvents = 0;
+  for (const value of values) {
+    try {
+      if (value?.eventType !== "review_state") continue;
+      const recurrenceKey = sanitizeDisplayText(value?.recurrenceKey, 200);
+      if (!recurrenceKey) throw new Error("missing recurrence key");
+      events.push(
+        removeUndefined({
+          ...value,
+          schemaVersion: Number(value?.schemaVersion) || SCHEMA_VERSION,
+          eventType: "review_state",
+          id: compactText(value?.id, 120) || randomUUID(),
+          createdAt: compactText(value?.createdAt, 80),
+          recurrenceKey,
+          state: normalizeReviewState(value?.state),
+          note: sanitizeDisplayText(value?.note, 1200),
+        }),
+      );
+    } catch {
+      invalidEvents += 1;
+    }
+  }
+  return { events, invalidEvents };
+}
+
+function sanitizeCurationEvents(values) {
+  const events = [];
+  let invalidEvents = 0;
+  let quarantinedEvents = 0;
+  for (const value of values) {
+    try {
+      if (value?.eventType !== "recurrence_curation") continue;
+      const action = normalizeCurationAction(value?.action);
+      const sourceRecurrenceKey = sanitizeDisplayText(value?.sourceRecurrenceKey, 200);
+      const targetRecurrenceKey = sanitizeDisplayText(value?.targetRecurrenceKey, 200);
+      if (!sourceRecurrenceKey || (action !== "remove" && !targetRecurrenceKey)) {
+        throw new Error("missing recurrence key");
+      }
+      if (targetRecurrenceKey && sourceRecurrenceKey === targetRecurrenceKey) {
+        throw new Error("self alias");
+      }
+      const candidate = removeUndefined({
+        ...value,
+        schemaVersion: Number(value?.schemaVersion) || SCHEMA_VERSION,
+        eventType: "recurrence_curation",
+        id: compactText(value?.id, 120) || randomUUID(),
+        createdAt: compactText(value?.createdAt, 80),
+        action,
+        sourceRecurrenceKey,
+        targetRecurrenceKey,
+        note: sanitizeDisplayText(value?.note, 1200),
+      });
+      buildCurationMap([...events, candidate]);
+      events.push(candidate);
+    } catch (error) {
+      if (String(error?.message || "").includes("curation cycle")) quarantinedEvents += 1;
+      else invalidEvents += 1;
+    }
+  }
+  return { events, invalidEvents, quarantinedEvents };
+}
+
 export function assertCanCurateRecurrence(records, curationEvents, input) {
   const action = normalizeCurationAction(input?.action || input?.curationAction);
-  const sourceRecurrenceKey = compactText(input?.sourceRecurrenceKey, 200);
-  const targetRecurrenceKey = compactText(input?.targetRecurrenceKey, 200);
-  if (!sourceRecurrenceKey || !targetRecurrenceKey) {
+  const sourceRecurrenceKey = sanitizeDisplayText(input?.sourceRecurrenceKey, 200);
+  const targetRecurrenceKey = sanitizeDisplayText(input?.targetRecurrenceKey, 200);
+  if (!sourceRecurrenceKey || (action !== "remove" && !targetRecurrenceKey)) {
     throw new Error("agent_vent curation requires sourceRecurrenceKey and targetRecurrenceKey");
   }
-  if (sourceRecurrenceKey === targetRecurrenceKey) {
+  if (targetRecurrenceKey && sourceRecurrenceKey === targetRecurrenceKey) {
     throw new Error("agent_vent curation source and target must differ");
   }
 
@@ -670,7 +828,8 @@ export function assertCanCurateRecurrence(records, curationEvents, input) {
   }
 
   const nextMap = buildCurationMap(curationEvents);
-  nextMap.set(sourceRecurrenceKey, targetRecurrenceKey);
+  if (action === "remove") nextMap.delete(sourceRecurrenceKey);
+  else nextMap.set(sourceRecurrenceKey, targetRecurrenceKey);
   assertNoCurationCycles(nextMap);
 }
 
@@ -746,12 +905,13 @@ function buildCurationMap(curationEvents = []) {
       event?.eventType !== "recurrence_curation" ||
       !CURATION_ACTIONS.includes(event.action) ||
       !event.sourceRecurrenceKey ||
-      !event.targetRecurrenceKey ||
-      event.sourceRecurrenceKey === event.targetRecurrenceKey
+      (event.action !== "remove" && !event.targetRecurrenceKey) ||
+      (event.targetRecurrenceKey && event.sourceRecurrenceKey === event.targetRecurrenceKey)
     ) {
       continue;
     }
-    aliases.set(String(event.sourceRecurrenceKey), String(event.targetRecurrenceKey));
+    if (event.action === "remove") aliases.delete(String(event.sourceRecurrenceKey));
+    else aliases.set(String(event.sourceRecurrenceKey), String(event.targetRecurrenceKey));
   }
   assertNoCurationCycles(aliases);
   return aliases;
@@ -796,8 +956,13 @@ function appendJsonlRecord(filePath, record) {
 
 function readJsonlRecords(filePath) {
   const existing = safeLstat(filePath);
-  if (!existing) return { values: [], malformedLines: 0 };
+  if (!existing) return { values: [], malformedLines: 0, oversizedLines: 0 };
   assertSafeJsonlFile(filePath, existing);
+  if (existing.size > MAX_JSONL_FILE_BYTES) {
+    throw new Error(
+      `agent_vent store file is too large: ${filePath} (${existing.size} bytes > ${MAX_JSONL_FILE_BYTES})`,
+    );
+  }
 
   const fd = fs.openSync(filePath, readFileFlags());
   let text;
@@ -809,8 +974,13 @@ function readJsonlRecords(filePath) {
 
   const values = [];
   let malformedLines = 0;
+  let oversizedLines = 0;
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
+    if (Buffer.byteLength(line, "utf8") > MAX_JSONL_LINE_BYTES) {
+      oversizedLines += 1;
+      continue;
+    }
     try {
       const value = JSON.parse(line);
       if (value && typeof value === "object") {
@@ -820,7 +990,7 @@ function readJsonlRecords(filePath) {
       malformedLines += 1;
     }
   }
-  return { values, malformedLines };
+  return { values, malformedLines, oversizedLines };
 }
 
 function safeLstat(filePath) {

@@ -70,9 +70,9 @@ Review lifecycle is local-only:
 new -> acknowledged | dismissed | escalation_drafted
 ```
 
-A missing review event means `new`; the latest event for a recurrence key is the projected local review state. Resetting to `new` appends another local event. Curation events project source recurrence keys onto target recurrence keys for merge/rename views; raw vent records keep their original keys.
+A missing review event means `new`; the latest event for a recurrence key is the projected local review state. Resetting to `new` appends another local event. Curation events project source recurrence keys onto target recurrence keys for merge/rename views; raw vent records keep their original keys. Curation rollback uses an append-only `remove` event for the source recurrence key.
 
-Corruption behavior: malformed JSONL lines are ignored during reads and counted as `malformedLines`; new records append to the same file. JSONL store files fail closed if replaced by symlinks.
+Read behavior goes through a diagnostic-state membrane: malformed JSONL lines are ignored and counted, oversized lines are skipped, oversized files fail closed, schema-invalid records are ignored, stored display fields are redacted again on read, and semantic curation cycles are quarantined instead of bricking all projections. JSONL store files fail closed if replaced by symlinks.
 
 Retention/delete posture: no automatic deletion in v0.1. The `/agent_vent path` command shows the store paths so the operator can inspect, back up, or remove them. A future delete/export command should be explicit and confirmation-gated.
 
@@ -110,7 +110,7 @@ Important behavior:
 - `recurrenceKey` may be supplied by the agent; otherwise it is derived from category + summary.
 - candidate incident flagging is local and advisory.
 - `set_review` requires an existing recurrence group and never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
-- `curate` requires an existing source group, rejects self/cycle aliases, and stores local projection events only.
+- `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it returns text only and never submits, files, declares, records evidence, or changes review state automatically.
 - `stats` and `export` are read-only projections and must not claim evidence, publication, task, issue, or incident authority.
 
@@ -126,6 +126,7 @@ Human/operator command for lightweight inspection. `/agent-vent` remains a compa
 - `/agent_vent review set <state> <recurrenceKey> [note]`
 - `/agent_vent curate merge <sourceRecurrenceKey> <targetRecurrenceKey> [note]`
 - `/agent_vent curate rename <sourceRecurrenceKey> <targetRecurrenceKey> [note]`
+- `/agent_vent curate remove <sourceRecurrenceKey> [note]`
 - `/agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]`
 - `/agent_vent stats`
 - `/agent_vent export [markdown|json] [state|all] [limit]`
