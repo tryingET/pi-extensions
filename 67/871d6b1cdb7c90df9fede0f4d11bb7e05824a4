@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "67871d6b1cdb7c90df9fede0f4d11bb7e05824a4"
+created_at: "2026-05-21T21:02:07Z"
+intent: "Refresh pi-agent-vent product posture frontier after privacy and retention membrane validation"
+files:
+  - "packages/pi-agent-vent/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run check"
+    status: "pass"
+  full_gate:
+    command: "git -C /home/tryinget/ai-society/softwareco/owned/pi-extensions bash ./scripts/package-quality-gate.sh ci packages/pi-agent-vent"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "posture-only frontier refresh"
