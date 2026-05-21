@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "3ddcf3b7f2b5b21e078cdfb1fbdb17240b7ea456"
-created_at: "2026-05-21T19:46:34Z"
+created_at: "2026-05-21T19:47:32Z"
 intent: "Harden pi-context-packer read-only intake, rendering, and owner-boundary routing."
 files:
   - "packages/pi-context-packer/README.md"
@@ -27,8 +27,8 @@ validation:
     command: "npm --prefix packages/pi-context-packer run check"
     status: "pass"
   full_gate:
-    command: "bash scripts/package-quality-gate.sh ci packages/pi-context-packer && bash scripts/package-quality-gate.sh ci packages/pi-agent-vent && npm --prefix packages/pi-context-packer run docs:list -- --strict && npm --prefix packages/pi-agent-vent run docs:list -- --strict"
-    status: "pending"
+    command: "bash /home/tryinget/ai-society/softwareco/owned/pi-extensions/scripts/package-quality-gate.sh ci packages/pi-context-packer && bash /home/tryinget/ai-society/softwareco/owned/pi-extensions/scripts/package-quality-gate.sh ci packages/pi-agent-vent && npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-context-packer run docs:list -- --strict && npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-agent-vent run docs:list -- --strict"
+    status: "fail"
 group:
   index: 1
   total: 2
