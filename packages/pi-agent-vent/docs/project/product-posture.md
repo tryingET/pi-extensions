@@ -50,7 +50,7 @@ When an agent keeps hitting the same bug, missing affordance, brittle workflow, 
 ## Current product maturity
 
 - maturity: `local diagnostic alpha, review-and-retention safety hardened`
-- current capability baseline: local append-only vent capture, recurrence grouping, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane, draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with local backup receipts and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
+- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane, draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with local backup receipts and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
 - release posture: first publishable package release at `0.1.0`; npm package not yet published at time of first release checks
 - current strategic line: harden the local review workflow before adding owner-surface escalation adapters
 
@@ -70,14 +70,14 @@ The package is product-healthy when:
 
 The package currently owns:
 
-- `agent_vent` tool with `record`, `summary`, `list`, `path`, `review`, `set_review`, `curate`, `draft`, `stats`, `export`, and `retention` actions;
+- `agent_vent` tool with `record`, `summary`, `list`, `path`, `facets`, `review`, `set_review`, `curate`, `draft`, `stats`, `export`, and `retention` actions;
 - `/agent_vent` command for local inspection and recurrence review, with `/agent-vent` retained as a compatibility alias;
 - schema-versioned local JSONL storage at `~/.pi/agent/agent-vent/vents.jsonl`, local review events at `~/.pi/agent/agent-vent/review-events.jsonl`, local curation events at `~/.pi/agent/agent-vent/curation-events.jsonl`, local retention receipts at `~/.pi/agent/agent-vent/retention-events.jsonl`, and retention backups under `~/.pi/agent/agent-vent/backups/`, overridable via `PI_AGENT_VENT_DIR`;
 - conservative redaction for common secret/token/password shapes;
 - recurrence key derivation and grouping;
 - advisory candidate-incident heuristic based on repetition/severity;
 - malformed JSONL line tolerance, oversized-line/file guards, read-time schema normalization/redaction, and semantic curation quarantine during reads;
-- package-local tests for redaction, record creation, JSONL round trip, recurrence summaries, review detail, review/curation/draft/retention projections, hostile legacy JSONL redaction, curation-cycle quarantine, file/line-size guards, confirmation-gated archive/restore, complete token-input requirements, stale token/restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, quoted rollback commands, and extension registration;
+- package-local tests for redaction, record creation, JSONL round trip, recurrence summaries, local facet summaries, review detail, review/curation/draft/retention projections, hostile legacy JSONL redaction, curation-cycle quarantine, file/line-size guards, confirmation-gated archive/restore, complete token-input requirements, stale token/restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, quoted rollback commands, and extension registration;
 - `pi-toolbox-discovery` integration through the same-named `agent_vent` bundle;
 - ASC/self capability-routing text that points frustration diagnostics to `agent_vent` instead of self/ASC state.
 
@@ -114,7 +114,7 @@ The highest-leverage product line is:
 local vent capture -> operator review queue -> draft-only owner routing -> human-approved escalation
 ```
 
-Do not add automatic GitHub/AK/incident writers. The local review queue, bounded review-detail samples, curation, draft-only routing, retention archive/restore, and privacy membrane now have package validation; the main remaining product gap is richer facet/routing ergonomics without broadening authority. Hard-delete beyond backup-backed archive is a separate policy decision, not the default next slice.
+Do not add automatic GitHub/AK/incident writers. The local facet summary, local review queue, bounded review-detail samples, curation, draft-only routing, retention archive/restore, and privacy membrane now have package validation; the main remaining product gap is richer owner-hint ergonomics without broadening authority. Hard-delete beyond backup-backed archive is a separate policy decision, not the default next slice.
 
 Current proof: `npm run check` passes with package tests and release dry-run, `npm run release:check` passed with isolated tarball install, docs strict check passes, and dogfood covered quoted rollback commands with whitespace/single-quote paths. Review follow-up also covered complete retention token inputs, stale-token/stale-restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, and backup restore.
 
@@ -150,7 +150,7 @@ Improve signal quality without over-modeling:
 - rename recurrence keys — landed as append-only local curation projection events;
 - undo local curation aliases — landed as append-only `remove` curation events;
 - dismiss noisy groups — already covered by local review state;
-- show top categories/tools/packages — explicitly deferred to AK task `#3319` as review-ergonomics product depth;
+- show top categories/tags/tools/packages — landed as read-only local facet summaries; owner hints remain deferred to AK task `#3319` as review-ergonomics product depth;
 - preserve append-only source records while treating curated summaries as local projections — landed; raw vents are not rewritten.
 
 ### Bet 4 — Draft-only owner escalation — landed baseline
@@ -166,7 +166,7 @@ These drafts do not submit automatically. The package prepares local text and ex
 
 ## Next frontier guidance
 
-The next highest-leverage slice should assume the review/detail/draft/curation/retention membrane is the baseline and should not broaden authority. Retention now has transaction-oriented safeguards (store/review/curation-hash tokens, append/archive locking, stale-lock cleanup, receipt-failure rollback, derived restore tokens, realpath backup containment, quoted rollback commands, and stale-restore checks). The next slice should likely improve facet/routing ergonomics for categories, tools, packages, or owner hints. Treat hard-delete as decision-gated work via AK `#3318`, not as incidental cleanup.
+The next highest-leverage slice should assume the facets/review/detail/draft/curation/retention membrane is the baseline and should not broaden authority. Retention now has transaction-oriented safeguards (store/review/curation-hash tokens, append/archive locking, stale-lock cleanup, receipt-failure rollback, derived restore tokens, realpath backup containment, quoted rollback commands, and stale-restore checks). The next slice should likely improve owner-hint ergonomics or review-flow affordances without treating local labels as canonical routing. Treat hard-delete as decision-gated work via AK `#3318`, not as incidental cleanup.
 
 ## Ownership map
 

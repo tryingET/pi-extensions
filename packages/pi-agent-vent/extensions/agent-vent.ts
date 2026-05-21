@@ -8,6 +8,7 @@ import {
   archiveRecurrenceGroup,
   assertCanCurateRecurrence,
   buildEscalationDraft,
+  buildFacetSummary,
   buildLifecycleSnapshot,
   buildRetentionPreview,
   buildReviewDetail,
@@ -25,6 +26,7 @@ import {
   defaultStorePath,
   formatExportJson,
   formatExportMarkdown,
+  formatFacetSummary,
   formatLifecycleStats,
   formatPath,
   formatRecent,
@@ -55,6 +57,7 @@ const ACTIONS = [
   "set_review",
   "stats",
   "export",
+  "facets",
   "curate",
   "draft",
   "retention",
@@ -105,6 +108,12 @@ const AgentVentParams = Type.Object({
   actual: Type.Optional(Type.String({ description: "What actually happened." })),
   reproduction: Type.Optional(
     Type.String({ description: "Minimal reproduction hint if known; avoid sensitive inputs." }),
+  ),
+  tool: Type.Optional(
+    Type.String({ description: "Optional local diagnostic tool facet. Not owner routing." }),
+  ),
+  packageName: Type.Optional(
+    Type.String({ description: "Optional local diagnostic package facet. Not owner routing." }),
   ),
   recurrenceKey: Type.Optional(
     Type.String({
@@ -206,6 +215,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
     promptGuidelines: [
       "Use agent_vent when you encounter recurring agent frustration, long-lived bugs, repeated tool/runtime failures, context-loss patterns, or missing affordances worth later human review.",
       "Use action=review to inspect the local recurrence review queue; include recurrenceKey to inspect bounded representative samples for one local group; use action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
+      "Use action=facets for read-only local category/tag/tool/package triage; facets are caller-supplied diagnostic labels, not owner routing.",
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
       "Use action=draft to generate owner-surface draft text only; never claim it submitted, filed, declared, or recorded anything.",
@@ -358,6 +368,25 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           storePath,
           count: records.length,
           malformedLines,
+        });
+      }
+
+      if (action === "facets") {
+        const facets = buildFacetSummary({
+          records,
+          reviewEvents,
+          curationEvents,
+          limit: clampLimit(params.limit, 10),
+        });
+        return textResult(formatFacetSummary(facets), {
+          action,
+          storePath,
+          reviewPath,
+          curationPath,
+          facets,
+          malformedLines,
+          malformedReviewLines,
+          malformedCurationLines,
         });
       }
 
@@ -554,12 +583,12 @@ export default function agentVentExtension(pi: ExtensionAPI) {
   registerAgentVentCommand(
     pi,
     "agent_vent",
-    "Inspect local agent vent records: /agent_vent [help|summary|list|review|curate|draft|retention|stats|export|path]",
+    "Inspect local agent vent records: /agent_vent [help|summary|list|facets|review|curate|draft|retention|stats|export|path]",
   );
   registerAgentVentCommand(
     pi,
     "agent-vent",
-    "Alias for /agent_vent [help|summary|list|review|curate|draft|retention|stats|export|path]",
+    "Alias for /agent_vent [help|summary|list|facets|review|curate|draft|retention|stats|export|path]",
   );
 }
 
@@ -591,6 +620,7 @@ function handleCommand(args: string) {
       "agent_vent commands:",
       "  /agent_vent summary                                  Show recurrence groups and candidate incidents.",
       "  /agent_vent list [limit]                             Show recent local vent records.",
+      "  /agent_vent facets [limit]                           Show read-only local category/tag/tool/package facets.",
       "  /agent_vent review [new|acknowledged|dismissed|escalation_drafted|all] [limit]",
       "                                                        Show local recurrence review queue.",
       "  /agent_vent review show <recurrenceKey> [limit]      Show bounded representative local samples.",
@@ -649,6 +679,16 @@ function handleCommand(args: string) {
   }
   if (action === "stats" || action === "export") {
     return handleLifecycleCommand(action, tokens.slice(1), state);
+  }
+  if (action === "facets") {
+    return `${formatFacetSummary(
+      buildFacetSummary({
+        records: state.records as unknown[],
+        reviewEvents: state.reviewEvents as unknown[],
+        curationEvents: state.curationEvents as unknown[],
+        limit: clampLimit(tokens[1], 10),
+      }),
+    )}${suffix}`;
   }
   if (action === "list") {
     return `${formatRecent(records, clampLimit(tokens[1]))}${suffix}`;

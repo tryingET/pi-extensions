@@ -100,6 +100,7 @@ Actions:
 - `list` — show recent records.
 - `path` — show local store path and data contract.
 - `review` — show recurrence groups as a local review queue; when given a recurrence key, show bounded representative local samples for that group.
+- `facets` — show read-only local category/tag/tool/package facet counts for triage.
 - `set_review` — append a local review-state event for a recurrence group.
 - `curate` — append a local recurrence merge/rename projection event.
 - `draft` — generate draft-only owner-surface text for a recurrence group.
@@ -114,6 +115,8 @@ Important behavior:
 - `category` defaults to `other`.
 - `recurrenceKey` may be supplied by the agent; otherwise it is derived from category + summary.
 - candidate incident flagging is local and advisory.
+- `tool` and `packageName` are optional caller-supplied local diagnostic facets, not owner-routing truth.
+- `facets` is read-only and summarizes local labels; it never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `set_review` requires an existing recurrence group and never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it returns text only and never submits, files, declares, records evidence, or changes review state automatically.
@@ -128,6 +131,7 @@ Human/operator command for lightweight inspection. `/agent-vent` remains a compa
 - `/agent_vent summary`
 - `/agent_vent list [limit]`
 - `/agent_vent path`
+- `/agent_vent facets [limit]`
 - `/agent_vent review [new|acknowledged|dismissed|escalation_drafted|all] [limit]`
 - `/agent_vent review show <recurrenceKey> [limit]`
 - `/agent_vent review set <state> <recurrenceKey> [note]`

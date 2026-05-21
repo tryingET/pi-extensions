@@ -47,6 +47,8 @@ test("agent_vent records minimized local diagnostics without external authority 
         summary: "Repeated reload loses tool registration",
         category: "tool-failure",
         severity: "high",
+        tool: "pi reload",
+        packageName: "@tryinget/pi-agent-vent",
       },
       undefined,
       undefined,
@@ -71,6 +73,8 @@ test("agent_vent records minimized local diagnostics without external authority 
         category: "tool-failure",
         severity: "medium",
         recurrenceKey: "reload-registration-dupe",
+        tool: "pi reload",
+        packageName: "@tryinget/pi-agent-vent",
       },
       undefined,
       undefined,
@@ -137,6 +141,21 @@ test("agent_vent records minimized local diagnostics without external authority 
     );
     assert.equal(reviewDetailResult.details.reviewDetail.group.count, 2);
     assert.equal(reviewDetailResult.details.reviewDetail.samples.length, 2);
+
+    const facetsResult = await tool.execute(
+      "tool-call-2c",
+      { action: "facets" },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(facetsResult.content[0].text, /Agent vent facets/);
+    assert.match(facetsResult.content[0].text, /not owner routing/);
+    assert.equal(facetsResult.details.facets.records.tools[0].name, "pi-reload");
+    assert.equal(facetsResult.details.facets.records.packages[0].count, 2);
 
     const setReviewResult = await tool.execute(
       "tool-call-3",

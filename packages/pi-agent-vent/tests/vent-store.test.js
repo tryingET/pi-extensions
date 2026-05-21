@@ -11,6 +11,7 @@ import {
   archiveRecurrenceGroup,
   assertCanCurateRecurrence,
   buildEscalationDraft,
+  buildFacetSummary,
   buildLifecycleSnapshot,
   buildRecurrenceKey,
   buildRetentionPreview,
@@ -26,6 +27,7 @@ import {
   defaultStorePath,
   formatExportJson,
   formatExportMarkdown,
+  formatFacetSummary,
   formatLifecycleStats,
   formatReviewDetail,
   formatReviewQueue,
@@ -74,6 +76,8 @@ test("createVentRecord minimizes, redacts, and derives recurrence key", () => {
       summary: "Bash retry keeps failing with token=abc123",
       frustration: "Same brittle flow; Authorization: Bearer abcdefghijklmnop should not leak.",
       tags: ["Tool Failure", "runtime"],
+      tool: "bash token=abc123",
+      packageName: "@tryinget/pi-agent-vent secret=hidden",
     },
     { id: "vent-1", now: "2026-05-21T00:00:00.000Z", cwd: "/repo", sessionFile: "session.jsonl" },
   );
@@ -82,6 +86,8 @@ test("createVentRecord minimizes, redacts, and derives recurrence key", () => {
   assert.equal(record.category, "tool_failure");
   assert.equal(record.severity, "high");
   assert.equal(record.recurrenceKey, "tool_failure:bash-retry-keeps-failing-with-token-redacted");
+  assert.equal(record.tool, "bash-token-redacted");
+  assert.equal(record.packageName, "tryinget-pi-agent-vent-secret-redacted");
   assert.equal(record.privacy.redacted, true);
   assert.match(record.summary, /token=\[REDACTED\]/);
   assert.match(record.frustration, /Bearer \[REDACTED\]/);
@@ -368,6 +374,54 @@ test("review state follows curated recurrence key", () => {
   assert.equal(queue.groupCount, 1);
   assert.equal(queue.items[0].reviewState, "acknowledged");
   assert.equal(queue.items[0].recurrenceKey, first.recurrenceKey);
+});
+
+test("facet summary counts local categories tags tools packages and review states", () => {
+  const first = createVentRecord(
+    {
+      summary: "Facet primary",
+      category: "tool_failure",
+      severity: "high",
+      recurrenceKey: "facet-primary",
+      tags: ["Reload", "Runtime"],
+      tool: "pi reload",
+      packageName: "@tryinget/pi-agent-vent",
+    },
+    { id: "v1" },
+  );
+  const second = createVentRecord(
+    {
+      summary: "Facet duplicate token=abc123",
+      category: "workflow",
+      recurrenceKey: "facet-dupe",
+      tags: ["Reload"],
+      tool: "pi reload",
+      packageName: "@tryinget/pi-agent-vent",
+    },
+    { id: "v2" },
+  );
+  const curation = createCurationEvent({
+    action: "merge",
+    sourceRecurrenceKey: second.recurrenceKey,
+    targetRecurrenceKey: first.recurrenceKey,
+  });
+  const review = createReviewEvent({ recurrenceKey: first.recurrenceKey, state: "acknowledged" });
+
+  const summary = buildFacetSummary({
+    records: [first, second],
+    reviewEvents: [review],
+    curationEvents: [curation],
+    limit: 1,
+  });
+  assert.equal(summary.totalRecords, 2);
+  assert.equal(summary.groupCount, 1);
+  assert.deepEqual(summary.records.tools, [{ name: "pi-reload", count: 2 }]);
+  assert.deepEqual(summary.records.packages, [{ name: "tryinget-pi-agent-vent", count: 2 }]);
+  assert.deepEqual(summary.groups.reviewStates, [{ name: "acknowledged", count: 1 }]);
+  const text = formatFacetSummary(summary);
+  assert.match(text, /not owner routing/);
+  assert.match(text, /tools: pi-reload=2/);
+  assert.doesNotMatch(text, /abc123/);
 });
 
 test("review detail expands curated groups with bounded redacted samples", () => {

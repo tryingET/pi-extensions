@@ -191,6 +191,17 @@ function sanitizeOptionalText(value, maxLength) {
   return { value: redacted.text, redacted: redacted.redacted, patterns: redacted.patterns };
 }
 
+function sanitizeFacetText(value, maxLength = 160) {
+  const sanitized = sanitizeOptionalText(value, maxLength);
+  if (sanitized.value === undefined) return sanitized;
+  const normalized = recurrenceSlug(sanitized.value);
+  return {
+    value: normalized === "unspecified" ? undefined : normalized,
+    redacted: sanitized.redacted,
+    patterns: sanitized.patterns,
+  };
+}
+
 export function createVentRecord(input, context = {}) {
   const summary = sanitizeOptionalText(input?.summary, 600);
   if (!summary.value) {
@@ -204,9 +215,14 @@ export function createVentRecord(input, context = {}) {
     actual: sanitizeOptionalText(input?.actual, 800),
     reproduction: sanitizeOptionalText(input?.reproduction, 1200),
   };
+  const localFacets = {
+    tool: sanitizeFacetText(input?.tool || input?.toolName, 160),
+    packageName: sanitizeFacetText(input?.packageName, 200),
+  };
+
   const redactionPatterns = new Set(summary.patterns);
   let redacted = summary.redacted;
-  for (const field of Object.values(optionalFields)) {
+  for (const field of [...Object.values(optionalFields), ...Object.values(localFacets)]) {
     redacted = redacted || field.redacted;
     for (const pattern of field.patterns) redactionPatterns.add(pattern);
   }
@@ -232,6 +248,8 @@ export function createVentRecord(input, context = {}) {
       summary: summary.value,
     }),
     summary: summary.value,
+    tool: localFacets.tool.value,
+    packageName: localFacets.packageName.value,
     frustration: optionalFields.frustration.value,
     evidence: optionalFields.evidence.value,
     expected: optionalFields.expected.value,
@@ -507,6 +525,59 @@ export function summarizeReviewQueue(records, reviewEvents, options = {}) {
   };
 }
 
+export function buildFacetSummary(input = {}) {
+  const records = input.records || [];
+  const reviewEvents = input.reviewEvents || [];
+  const curationEvents = input.curationEvents || [];
+  const groups = buildReviewQueueItems(records, reviewEvents, curationEvents);
+  const limit = clampLimit(input.limit, 10);
+
+  const recordCounts = {
+    categories: new Map(),
+    severities: new Map(),
+    tags: new Map(),
+    tools: new Map(),
+    packages: new Map(),
+  };
+  for (const record of records) {
+    incrementCount(recordCounts.categories, normalizeCategory(record.category));
+    incrementCount(recordCounts.severities, normalizeSeverity(record.severity));
+    if (record.tool) incrementCount(recordCounts.tools, sanitizeFacetText(record.tool, 160).value);
+    if (record.packageName)
+      incrementCount(recordCounts.packages, sanitizeFacetText(record.packageName, 200).value);
+    if (Array.isArray(record.tags)) {
+      for (const tag of record.tags) incrementCount(recordCounts.tags, recurrenceSlug(tag));
+    }
+  }
+
+  const groupCounts = {
+    reviewStates: new Map(),
+    categories: new Map(),
+    tags: new Map(),
+    tools: new Map(),
+    packages: new Map(),
+  };
+  for (const group of groups) {
+    incrementCount(groupCounts.reviewStates, group.reviewState);
+    for (const category of group.categories || []) incrementCount(groupCounts.categories, category);
+    for (const tag of group.tags || []) incrementCount(groupCounts.tags, tag);
+    for (const tool of group.tools || []) incrementCount(groupCounts.tools, tool);
+    for (const packageName of group.packages || [])
+      incrementCount(groupCounts.packages, packageName);
+  }
+
+  return {
+    generatedAt: input.now || new Date().toISOString(),
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Read-only local diagnostic facet projection. Facets are caller-supplied local labels, not owner routing, evidence, tasks, issues, incidents, telemetry, publication, or ASC/self state.",
+    totalRecords: records.length,
+    groupCount: groups.length,
+    records: mapFacetCounts(recordCounts, limit),
+    groups: mapFacetCounts(groupCounts, limit),
+  };
+}
+
 export function buildReviewDetail(input = {}) {
   const recurrenceKey = sanitizeDisplayText(input.recurrenceKey, 200);
   if (!recurrenceKey) throw new Error("agent_vent review detail requires a recurrenceKey");
@@ -538,6 +609,8 @@ export function buildReviewDetail(input = {}) {
       createdAt: sanitizeDisplayText(record.createdAt, 80),
       severity: normalizeSeverity(record.severity),
       category: normalizeCategory(record.category),
+      tool: sanitizeFacetText(record.tool, 160).value,
+      packageName: sanitizeFacetText(record.packageName, 200).value,
       summary: sanitizeDisplayText(record.summary, 300),
       frustration: sanitizeDisplayText(record.frustration, 500),
       evidence: sanitizeDisplayText(record.evidence, 500),
@@ -658,6 +731,34 @@ export function formatSummary(summary) {
   return lines.join("\n");
 }
 
+export function formatFacetSummary(summary) {
+  if (summary.totalRecords === 0) {
+    return [
+      "No agent vent records found yet. Record minimized vents before reviewing local facets.",
+      `Boundary: ${summary.boundary}`,
+    ].join("\n");
+  }
+
+  const lines = [
+    `Agent vent facets: ${summary.totalRecords} record(s), ${summary.groupCount} recurrence group(s).`,
+    `Boundary: ${summary.boundary}`,
+    "Record facets:",
+    `- categories: ${formatFacetEntries(summary.records.categories)}`,
+    `- severities: ${formatFacetEntries(summary.records.severities)}`,
+    `- tags: ${formatFacetEntries(summary.records.tags)}`,
+    `- tools: ${formatFacetEntries(summary.records.tools)}`,
+    `- packages: ${formatFacetEntries(summary.records.packages)}`,
+    "Group facets:",
+    `- review states: ${formatFacetEntries(summary.groups.reviewStates)}`,
+    `- categories: ${formatFacetEntries(summary.groups.categories)}`,
+    `- tags: ${formatFacetEntries(summary.groups.tags)}`,
+    `- tools: ${formatFacetEntries(summary.groups.tools)}`,
+    `- packages: ${formatFacetEntries(summary.groups.packages)}`,
+    "Next: /agent_vent review [state] [limit] | /agent_vent review show <recurrenceKey> [limit]",
+  ];
+  return lines.join("\n");
+}
+
 export function formatReviewQueue(queue) {
   if (queue.totalRecords === 0) {
     return "No agent vent records found yet. Record minimized vents before reviewing recurrence groups.";
@@ -679,6 +780,8 @@ export function formatReviewQueue(queue) {
     const facets = [
       item.categories?.length ? `categories=${item.categories.join(",")}` : undefined,
       item.tags?.length ? `tags=${item.tags.join(",")}` : undefined,
+      item.tools?.length ? `tools=${item.tools.join(",")}` : undefined,
+      item.packages?.length ? `packages=${item.packages.join(",")}` : undefined,
     ]
       .filter(Boolean)
       .join("; ");
@@ -707,6 +810,8 @@ export function formatReviewDetail(detail) {
   }
   if (group.categories?.length) lines.push(`Categories: ${group.categories.join(", ")}`);
   if (group.tags?.length) lines.push(`Tags: ${group.tags.join(", ")}`);
+  if (group.tools?.length) lines.push(`Tools: ${group.tools.join(", ")}`);
+  if (group.packages?.length) lines.push(`Packages: ${group.packages.join(", ")}`);
   if (group.reviewNote) lines.push(`Review note: ${group.reviewNote}`);
   lines.push("", "Representative local samples:");
   for (const sample of detail.samples || []) {
@@ -714,6 +819,8 @@ export function formatReviewDetail(detail) {
       `- ${sample.id || "unknown-id"} ${sample.createdAt || "unknown-time"} [${sample.severity}/${sample.category}] ${sample.summary || "(no summary)"}`,
     );
     if (sample.tags?.length) lines.push(`  tags: ${sample.tags.join(", ")}`);
+    if (sample.tool) lines.push(`  tool: ${sample.tool}`);
+    if (sample.packageName) lines.push(`  package: ${sample.packageName}`);
     if (sample.frustration) lines.push(`  frustration: ${sample.frustration}`);
     if (sample.evidence) lines.push(`  evidence: ${sample.evidence}`);
     if (sample.expected) lines.push(`  expected: ${sample.expected}`);
@@ -1185,6 +1292,8 @@ function sanitizeVentRecords(values) {
           sanitizeDisplayText(value?.recurrenceKey, 200) ||
           buildRecurrenceKey({ ...value, category, summary }),
         summary,
+        tool: sanitizeFacetText(value?.tool || value?.toolName, 160).value,
+        packageName: sanitizeFacetText(value?.packageName, 200).value,
         frustration: sanitizeDisplayText(value?.frustration, 1200),
         evidence: sanitizeDisplayText(value?.evidence, 1600),
         expected: sanitizeDisplayText(value?.expected, 800),
@@ -1573,6 +1682,8 @@ function buildGroupSummaries(records, curationEvents = []) {
       latestSummary: undefined,
       sampleIds: [],
       tags: new Set(),
+      tools: new Set(),
+      packages: new Set(),
     };
     existing.count += 1;
     const severity = normalizeSeverity(record.severity);
@@ -1586,6 +1697,10 @@ function buildGroupSummaries(records, curationEvents = []) {
         if (normalizedTag !== "unspecified") existing.tags.add(normalizedTag);
       }
     }
+    const tool = sanitizeFacetText(record.tool, 160).value;
+    if (tool) existing.tools.add(tool);
+    const packageName = sanitizeFacetText(record.packageName, 200).value;
+    if (packageName) existing.packages.add(packageName);
     if (!existing.firstSeen || String(record.createdAt) < existing.firstSeen)
       existing.firstSeen = record.createdAt;
     if (!existing.lastSeen || String(record.createdAt) > existing.lastSeen) {
@@ -1606,6 +1721,8 @@ function buildGroupSummaries(records, curationEvents = []) {
         candidateIncident,
         categories: [...group.categories].sort(),
         tags: [...group.tags].sort(),
+        tools: [...group.tools].sort(),
+        packages: [...group.packages].sort(),
         firstSeen: group.firstSeen,
         lastSeen: group.lastSeen,
         latestSummary: group.latestSummary,
@@ -1628,6 +1745,29 @@ function buildReviewQueueItems(records, reviewEvents, curationEvents = []) {
       reviewEventId: latestReview?.id,
     };
   });
+}
+
+function incrementCount(counts, value) {
+  if (!value || value === "unspecified") return;
+  counts.set(value, (counts.get(value) || 0) + 1);
+}
+
+function mapFacetCounts(facetMaps, limit) {
+  return Object.fromEntries(
+    Object.entries(facetMaps).map(([name, counts]) => [name, sortedFacetEntries(counts, limit)]),
+  );
+}
+
+function sortedFacetEntries(counts, limit) {
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+    .slice(0, limit);
+}
+
+function formatFacetEntries(entries = []) {
+  if (!entries.length) return "none";
+  return entries.map((entry) => `${entry.name}=${entry.count}`).join(", ");
 }
 
 function buildCurationMap(curationEvents = []) {

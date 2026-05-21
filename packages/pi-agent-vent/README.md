@@ -44,7 +44,7 @@ Then in Pi:
 
 ## Tool behavior
 
-`agent_vent` supports eleven actions:
+`agent_vent` supports twelve actions:
 
 | Action | Purpose |
 |---|---|
@@ -53,6 +53,7 @@ Then in Pi:
 | `list` | Show recent local records. |
 | `path` | Show the store path and boundary contract. |
 | `review` | Show recurrence groups as a local operator review queue; include a recurrence key to inspect bounded representative samples. |
+| `facets` | Show read-only local category/tag/tool/package facet counts for triage. |
 | `set_review` | Set local review state for a recurrence group. |
 | `curate` | Append local recurrence merge/rename projection events without rewriting raw vents. |
 | `draft` | Generate draft-only owner-surface text for a recurrence group. |
@@ -68,6 +69,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent help
 /agent_vent summary
 /agent_vent list 20
+/agent_vent facets
 /agent_vent review
 /agent_vent review show bug:reload-tools
 /agent_vent review set acknowledged bug:reload-tools "seen locally"
@@ -115,9 +117,9 @@ Override:
 PI_AGENT_VENT_DIR=/path/to/private/dir pi
 ```
 
-Records are append-only JSONL with `schemaVersion: 1`. Review state changes are append-only local events in `review-events.jsonl`; recurrence curation changes are append-only local events in `curation-events.jsonl`. Retention lifecycle receipts are append-only local events in `retention-events.jsonl`; archive rollback artifacts are package-created local files under `backups/`. Recurrence review state and merged/renamed groups are projections from the latest local events; raw vent records are not rewritten except by explicit, confirmation-gated local retention archive/restore operations.
+Records are append-only JSONL with `schemaVersion: 1`. Optional `tool` and `packageName` record fields are local diagnostic facets only, not owner-routing truth. Review state changes are append-only local events in `review-events.jsonl`; recurrence curation changes are append-only local events in `curation-events.jsonl`. Retention lifecycle receipts are append-only local events in `retention-events.jsonl`; archive rollback artifacts are package-created local files under `backups/`. Recurrence review state and merged/renamed groups are projections from the latest local events; raw vent records are not rewritten except by explicit, confirmation-gated local retention archive/restore operations.
 
-Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `curate`, `draft`, `stats`, `export`, and `retention` are local diagnostic surfaces, not evidence, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
+Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `facets`, `curate`, `draft`, `stats`, `export`, and `retention` are local diagnostic surfaces, not evidence, owner routing, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
 
 Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed.
 
