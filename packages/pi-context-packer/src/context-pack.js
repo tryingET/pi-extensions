@@ -279,11 +279,13 @@ const unavailableProviderOmissions = (providerIds) =>
       detail: `${provider} adapter is planned but not wired in the read-only MVP`,
     }));
 
+const usablePacketTokens = (budget) => Math.max(0, budget.maxTokens - budget.reserveTokens);
+
 const providerMaxBytes = (plan, provider, remainingBudget = {}) =>
   Math.min(
     plan.budget.maxBytes,
     remainingBudget.bytes ?? plan.budget.maxBytes,
-    (remainingBudget.tokens ?? plan.budget.maxTokens) * ESTIMATED_BYTES_PER_TOKEN,
+    (remainingBudget.tokens ?? usablePacketTokens(plan.budget)) * ESTIMATED_BYTES_PER_TOKEN,
     plan.budget.perProviderMaxTokens[provider] * ESTIMATED_BYTES_PER_TOKEN,
   );
 
@@ -355,7 +357,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const repoRoot = resolve(plan.repoRoot ?? plan.cwd);
   const providerIds = selectedProviderIds(plan);
   const sections = [];
-  const remainingBudget = { bytes: plan.budget.maxBytes, tokens: plan.budget.maxTokens };
+  const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
   const omissions = (plan.omittedSeeds ?? []).map((seed) => ({
     provider: "docs",
     reason: "unsafe_path",

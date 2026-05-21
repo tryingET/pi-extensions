@@ -39,9 +39,9 @@ test("context_pack assembles AGENTS and seeded Markdown without mutating provide
   assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 2);
 });
 
-test("context_pack enforces the global packet budget across providers", async () => {
+test("context_pack enforces the global packet budget across providers while preserving reserve", async () => {
   const root = await makeWorkspace();
-  const body = "x".repeat(3900);
+  const body = "x".repeat(2400);
   await writeFile(join(root, "AGENTS.md"), body, "utf8");
   await writeFile(join(root, "docs", "project", "note.md"), body, "utf8");
 
@@ -55,7 +55,8 @@ test("context_pack enforces the global packet budget across providers", async ()
   });
 
   assert.equal(result.ok, true);
-  assert.ok(result.packet.totals.estimatedTokens <= result.packet.budget.maxTokens, result.packet);
+  const usableTokens = result.packet.budget.maxTokens - result.packet.budget.reserveTokens;
+  assert.ok(result.packet.totals.estimatedTokens <= usableTokens, result.packet);
   assert.ok(result.packet.totals.bytes <= result.packet.budget.maxBytes, result.packet);
   assert.ok(result.packet.measurementReceipt.packetFillRatio <= 1, result.packet);
   assert.ok(result.packet.omissions.some((omission) => omission.reason === "budget"));
