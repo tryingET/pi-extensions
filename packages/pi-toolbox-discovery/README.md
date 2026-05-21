@@ -20,7 +20,7 @@ The package registers:
 
 `toolbox` does not import owner packages or create missing owner-tool registrations. It discovers the catalog, verifies which tools are registered in the current Pi runtime, and manages the active set with risk gates. For already-registered tools, activation updates Pi's active tool set immediately, queues a same-task continuation when the active set changes, and is intended to be visible on the next provider/model request after the toolbox result. It cannot retroactively change an already-issued provider request or an external API/client schema snapshot.
 
-The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), the visible-loop checkpoint fallback (`visible_loop_child_complete`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
+The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), the lightweight context planning tool (`context_plan`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), the visible-loop checkpoint fallback (`visible_loop_child_complete`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
 - enforces the standard active tool set on `session_start`
 - searches/explains catalog metadata and plans activation without importing owner packages
@@ -33,14 +33,16 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - clears lease bookkeeping on `session_start` before re-applying the standard active-tool baseline
 - provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, catalog registration completeness, active leases, and unleased active catalog tools
 
-The package-owned production bundles are `vault`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, and `peer-spawn`. Their tools must be registered by the owning package's Pi extension entry before toolbox activation; toolbox activation only changes the active set.
+The package-owned production bundles are `vault`, `context-packer`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, `agent_vent`, and `peer-spawn`. Their tools must be registered by the owning package's Pi extension entry before toolbox activation; toolbox activation only changes the active set.
+
+`agent_vent` is intentionally a diagnostic/local-write bundle: activation can expose the same-named `agent_vent` tool, which may append local JSONL vent records, but it does not create AK tasks, GitHub issues, real incidents, canonical evidence, external telemetry, or ASC/self state.
 
 ## Standard startup contract
 
 After a clean `/reload`, the expected healthy baseline is:
 
 ```text
-active tools (17): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, fork_peer_spawn, scout_peer_spawn, candidate_peer_spawn, visible_loop_child_complete, toolbox
+active tools (18): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, fork_peer_spawn, scout_peer_spawn, candidate_peer_spawn, visible_loop_child_complete, context_plan, toolbox
 missing catalog registrations (0): none
 ```
 
@@ -53,13 +55,12 @@ toolbox({ action: "doctor" })
 Expected healthy signals:
 
 ```text
-verdict: pass
+verdict: pass      # or warn when only optional catalog bundles are missing
 foundational baseline: ok
-missing catalog registrations (0): none
 unleased active catalog tools (0): none
 ```
 
-If doctor reports missing catalog registrations, enable/install the owning package extension and `/reload` or start a fresh session. If doctor reports unleased active catalog tools, deactivate them or reactivate them through toolbox so TTL/pin state is explicit. If activation succeeds but an outer API client still cannot call the tool after the queued continuation, treat that as a client schema snapshot limitation and reload/start a fresh session after confirming the owner extension is installed.
+Missing catalog registrations are warnings when the baseline is healthy because optional owner packages may be filtered/disabled in a given Pi runtime. Enable/install the owning package extension and `/reload` or start a fresh session before activating those optional bundles. If doctor reports unleased active catalog tools, deactivate them or reactivate them through toolbox so TTL/pin state is explicit. If activation succeeds but an outer API client still cannot call the tool after the queued continuation, treat that as a client schema snapshot limitation and reload/start a fresh session after confirming the owner extension is installed.
 
 ## Activation continuation and cache behavior
 

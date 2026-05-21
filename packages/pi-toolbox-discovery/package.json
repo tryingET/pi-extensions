@@ -43,6 +43,7 @@
   },
   "files": [
     "extensions/toolbox.ts",
+    "src",
     "prompts",
     "examples",
     "policy/security-policy.json",

@@ -20,6 +20,7 @@ const ALWAYS_ACTIVE_TOOLS = [
   "scout_peer_spawn",
   "candidate_peer_spawn",
   "visible_loop_child_complete",
+  "context_plan",
   "toolbox",
 ];
 
@@ -118,12 +119,20 @@ test("search does not change active tools", async () => {
   assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
 });
 
-test("doctor reports startup registration gaps", async () => {
+test("status action reports leases without throwing", async () => {
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), { action: "status" });
+  assert.match(result.content[0].text, /toolbox status/);
+  assert.deepEqual(result.details.leases, []);
+  assert.equal(Array.isArray(result.details.missingCatalogRegistrations), true);
+});
+
+test("doctor reports optional catalog registration gaps as warnings", async () => {
   const harness = createHarness({
     omitRegisteredTools: ["autoresearch_runtime_status", "autoresearch_runtime_run"],
   });
   const result = await executeToolbox(harness.tools.get("toolbox"), { action: "doctor" });
-  assert.match(result.content[0].text, /verdict: fail/);
+  assert.match(result.content[0].text, /verdict: warn/);
   assert.match(
     result.content[0].text,
     /missing catalog registrations \(2\): autoresearch_runtime_run, autoresearch_runtime_status/,
@@ -135,6 +144,8 @@ test("doctor reports startup registration gaps", async () => {
     "autoresearch_runtime_run",
     "autoresearch_runtime_status",
   ]);
+  assert.equal(result.details.ok, true);
+  assert.match(result.details.warnings[0], /catalog tools not registered/);
 });
 
 test("doctor passes for complete startup registration", async () => {
@@ -267,6 +278,49 @@ test("catalog includes autoresearch foreground resume executor", () => {
   const mutating = autoresearch?.profiles.find((profile) => profile.id === "mutating");
   assert.ok(mutating);
   assert.equal(mutating.tools.includes("autoresearch_runtime_resume_apply"), true);
+});
+
+test("catalog includes context-packer read profile", async () => {
+  const contextPacker = CATALOG.find((bundle) => bundle.id === "context-packer");
+  const read = contextPacker?.profiles.find((profile) => profile.id === "read");
+  assert.ok(read);
+  assert.deepEqual(read.tools, ["context_plan", "context_pack"]);
+  assert.equal(read.risk, "read");
+
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    bundle: "context-packer",
+  });
+  assert.match(result.content[0].text, /Activated tools: context_plan, context_pack/);
+  assert.deepEqual(result.details.activatedNewTools, ["context_pack"]);
+  assert.equal(harness.activeTools.includes("context_plan"), true);
+  assert.equal(harness.activeTools.includes("context_pack"), true);
+});
+
+test("catalog includes agent_vent as diagnostic companion to ASC", async () => {
+  const agentVent = CATALOG.find((bundle) => bundle.id === "agent_vent");
+  const profile = agentVent?.profiles.find((entry) => entry.id === "default");
+  assert.ok(profile);
+  assert.deepEqual(profile.tools, ["agent_vent"]);
+  assert.equal(profile.risk, "diagnostic");
+  assert.equal(profile.requiresExplicitUserIntent, false);
+  assert.match(agentVent.ownerSemantics, /without moving vent state into self\/ASC/);
+
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    bundle: "agent_vent",
+  });
+  assert.match(result.content[0].text, /Activated tools: agent_vent/);
+  assert.deepEqual(result.details.activatedNewTools, ["agent_vent"]);
+  assert.equal(harness.activeTools.includes("agent_vent"), true);
+
+  const aliasResult = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "explain",
+    bundle: "agent-vent",
+  });
+  assert.match(aliasResult.content[0].text, /agent_vent: Agent vent diagnostics/);
 });
 
 test("session_start clears stale leases and TTL keeps activation for one future turn", async () => {
