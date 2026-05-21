@@ -1,4 +1,11 @@
 import path from "node:path";
+import {
+  hasControlCharacter,
+  hasSchemeOrDrivePrefix,
+  includesBoundedSignal,
+  repoRelativePathSafetyIssue,
+} from "./context-intake-safety.js";
+import { buildOwnerSurfaceRecommendations } from "./owner-surface-routing.js";
 
 const PROVIDER_IDS = ["agents", "git", "sci", "docs", "session", "prompt_vault", "ak", "fcos"];
 
@@ -20,9 +27,10 @@ const PROVIDER_AUTHORITY = {
 };
 
 const NON_AUTHORIZATIONS = [
-  "does not mutate files, git, AK, FCOS, Prompt Vault, SCI, or source-owner repos",
+  "does not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, peer tooling, or source-owner repos",
   "does not treat retrieved Markdown as higher authority than active instructions",
   "does not close FCOS items or create/update AK tasks",
+  "does not call self, dispatch subagents, launch peers, send intercom messages, supervise workflows, fan in, persist, or authorize owner-surface movement",
   "does not apply patches or run validation commands",
 ];
 
@@ -42,7 +50,14 @@ const PROVIDER_KEYWORDS = {
   ],
   docs: ["doc", "docs", "markdown", "architecture", "policy", "adr", "rfc", "readme"],
   session: ["context", "token", "tokens", "tool-call", "tool call", "compact", "window"],
-  prompt_vault: ["prompt", "procedure", "template", "vault"],
+  prompt_vault: [
+    "prompt vault",
+    "vault_query",
+    "vault_retrieve",
+    "reusable prompt",
+    "prompt procedure",
+    "prompt template",
+  ],
   ak: ["ak", "task", "evidence", "decision", "lineage"],
   fcos: ["fcos", "cross-repo", "control-board", "coordination"],
   git: ["change", "dirty", "diff", "status", "commit", "validation", "implement"],
@@ -62,8 +77,6 @@ const normalizeMode = (value) => {
   if (value === "required" || value === "off" || value === "auto") return value;
   return "auto";
 };
-
-const includesAny = (haystack, needles) => needles.some((needle) => haystack.includes(needle));
 
 const normalizeBudget = (inputBudget = {}) => {
   const budget = asObject(inputBudget);
@@ -108,31 +121,8 @@ const normalizeSeeds = (seeds) => {
     .filter(Boolean);
 };
 
-const hasControlCharacter = (value) =>
-  Array.from(value).some((character) => character.charCodeAt(0) < 32);
-
-const hasSchemeOrDrivePrefix = (value) => /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value);
-
-const pathSeedSafetyIssue = (seed) => {
-  if (seed.kind !== "path") return undefined;
-  const value = seed.value;
-  if (hasControlCharacter(value)) return "path seed contains control characters";
-  if (hasSchemeOrDrivePrefix(value)) return "URI or drive-letter path seed omitted";
-  if (value.startsWith("/") || value.startsWith("~"))
-    return "absolute/home-relative path seed omitted";
-  if (value.includes("\\")) return "path seed must use repo-relative POSIX separators";
-  const parts = value.split("/").filter(Boolean);
-  if (!parts.length || parts.some((part) => part === "." || part === "..")) {
-    return "current-directory or parent-traversing path seed omitted";
-  }
-  if (parts.some((part) => [".git", ".pi-subagent-sessions", "__pycache__"].includes(part))) {
-    return "hidden/internal path seed omitted";
-  }
-  if (parts.some((part) => ["node_modules", "dist", "build", "coverage"].includes(part))) {
-    return "generated/vendor path seed omitted";
-  }
-  return undefined;
-};
+const pathSeedSafetyIssue = (seed) =>
+  seed.kind === "path" ? repoRelativePathSafetyIssue(seed.value) : undefined;
 
 const partitionSeeds = (seeds) => {
   const safeSeeds = [];
@@ -160,8 +150,14 @@ const workspacePathIssue = (value, label) => {
   return undefined;
 };
 
+const pathIsInside = (root, candidate) => {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+};
+
 const normalizeWorkspace = (raw, env) => {
-  const fallbackCwd = coerceString(env.cwd, process.cwd()).trim() || process.cwd();
+  const trustedEnvCwd = coerceString(env.cwd).trim();
+  const fallbackCwd = trustedEnvCwd || process.cwd();
   const requestedCwd = coerceString(raw.cwd, fallbackCwd).trim() || fallbackCwd;
   const requestedRepoRoot = coerceString(raw.repoRoot).trim();
   const risks = [];
@@ -190,9 +186,30 @@ const normalizeWorkspace = (raw, env) => {
     }
   }
 
+  if (trustedEnvCwd && path.isAbsolute(trustedEnvCwd) && path.isAbsolute(cwd)) {
+    if (!pathIsInside(trustedEnvCwd, cwd)) {
+      risks.push({
+        kind: "path",
+        severity: "blocked",
+        message: "cwd is outside trusted environment cwd; falling back to environment cwd",
+      });
+      cwd = trustedEnvCwd;
+    }
+  }
+
+  if (trustedEnvCwd && repoRoot && path.isAbsolute(trustedEnvCwd) && path.isAbsolute(repoRoot)) {
+    if (!pathIsInside(trustedEnvCwd, repoRoot)) {
+      risks.push({
+        kind: "path",
+        severity: "blocked",
+        message: "repoRoot is outside trusted environment cwd; repoRoot omitted",
+      });
+      repoRoot = undefined;
+    }
+  }
+
   if (repoRoot && path.isAbsolute(repoRoot) && path.isAbsolute(cwd)) {
-    const relative = path.relative(repoRoot, cwd);
-    if (relative === ".." || relative.startsWith("../") || path.isAbsolute(relative)) {
+    if (!pathIsInside(repoRoot, cwd)) {
       risks.push({
         kind: "path",
         severity: "blocked",
@@ -207,8 +224,8 @@ const normalizeWorkspace = (raw, env) => {
 
 const providerMatches = (provider, objective, seeds) => {
   if (provider === "agents") return true;
-  if (provider === "git") return includesAny(objective, PROVIDER_KEYWORDS.git);
-  if (includesAny(objective, PROVIDER_KEYWORDS[provider] ?? [])) return true;
+  if (provider === "git") return includesBoundedSignal(objective, PROVIDER_KEYWORDS.git);
+  if (includesBoundedSignal(objective, PROVIDER_KEYWORDS[provider] ?? [])) return true;
 
   return seeds.some((seed) => {
     if (provider === "sci") return seed.kind === "path" || seed.kind === "symbol";
@@ -330,6 +347,11 @@ export const buildContextPlan = (input = {}, env = {}) => {
     providers,
     budget,
   });
+  const ownerSurfaceRecommendations = buildOwnerSurfaceRecommendations({
+    objective: normalizedObjective,
+    seeds: safeSeeds,
+    providerPlans,
+  });
 
   return {
     ok: true,
@@ -338,6 +360,7 @@ export const buildContextPlan = (input = {}, env = {}) => {
     ...(repoRoot ? { repoRoot } : {}),
     budget,
     providerPlans,
+    ownerSurfaceRecommendations,
     ...(omittedSeeds.length ? { omittedSeeds } : {}),
     risks: buildRisks({
       objective: normalizedObjective,
@@ -421,6 +444,12 @@ export const formatContextPlan = (plan) => {
     .map((providerPlan) => providerPlan.provider)
     .join(", ");
   const risks = plan.risks.map((risk) => `- ${risk.severity}: ${risk.message}`).join("\n");
+  const ownerRouting = (plan.ownerSurfaceRecommendations ?? [])
+    .map(
+      (recommendation) =>
+        `- ${recommendation.surface}: ${recommendation.nextAction} (${recommendation.nonAuthorization})`,
+    )
+    .join("\n");
 
   return [
     `Context plan for: ${plan.objective}`,
@@ -428,6 +457,7 @@ export const formatContextPlan = (plan) => {
     `selected providers: ${selected || "none"}`,
     `optional providers: ${optional || "none"}`,
     risks ? `risks:\n${risks}` : "risks: none",
+    ownerRouting ? `owner-surface routing:\n${ownerRouting}` : "owner-surface routing: none",
     "non-authorizations:",
     ...plan.nonAuthorizations.map((item) => `- ${item}`),
   ].join("\n");

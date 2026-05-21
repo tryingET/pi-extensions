@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { rm, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -103,13 +103,6 @@ const pathExists = async (path) => {
   }
 };
 
-const cleanupGeneratedSciArtifacts = async (cwd, hadOntologyBefore) => {
-  const ontologyPath = resolve(cwd, ".ontology");
-  if (!hadOntologyBefore && (await pathExists(ontologyPath))) {
-    await rm(ontologyPath, { recursive: true, force: true });
-  }
-};
-
 export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
   const items = [];
   const omissions = [];
@@ -131,85 +124,100 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
     };
   }
 
-  try {
-    for (const path of pathSeedsForSci(seeds)) {
-      const result = await tryWorkflow({
-        cwd,
+  for (const path of pathSeedsForSci(seeds)) {
+    const result = await tryWorkflow({
+      cwd,
+      workflow: "read_file",
+      args: { path, range: { startLine: 1, endLine: 120 } },
+      env,
+      exec,
+    });
+    if (result.ok) {
+      const item = itemFromValue({
+        id: `sci:read_file:${path}`,
         workflow: "read_file",
-        args: { path, range: { startLine: 1, endLine: 120 } },
-        env,
-        exec,
+        command: result.command,
+        value: result.value,
+        rationale: "SCI bounded code file range for seeded path",
       });
-      if (result.ok) {
-        const item = itemFromValue({
-          id: `sci:read_file:${path}`,
-          workflow: "read_file",
-          command: result.command,
-          value: result.value,
-          rationale: "SCI bounded code file range for seeded path",
+      if (item.bytes <= maxBytes) items.push(item);
+      else
+        omissions.push({
+          provider: "sci",
+          reason: "budget",
+          detail: `${path}: SCI result over budget`,
         });
-        if (item.bytes <= maxBytes) items.push(item);
-        else
-          omissions.push({
-            provider: "sci",
-            reason: "budget",
-            detail: `${path}: SCI result over budget`,
-          });
-      } else {
-        omissions.push({ provider: "sci", reason: "unavailable", detail: result.error });
-        break;
-      }
+    } else {
+      omissions.push({ provider: "sci", reason: "unavailable", detail: result.error });
+      break;
     }
+  }
 
-    for (const symbol of symbolSeedsForSci(seeds)) {
-      const symbolResult = await tryWorkflow({
-        cwd,
-        workflow: "symbol_search",
-        args: { query: symbol, maxResults: 8 },
-        env,
-        exec,
+  for (const symbol of symbolSeedsForSci(seeds)) {
+    const symbolResult = await tryWorkflow({
+      cwd,
+      workflow: "symbol_search",
+      args: { query: symbol, maxResults: 8 },
+      env,
+      exec,
+    });
+    const result =
+      symbolResult.ok && (symbolResult.value?.count ?? 0) > 0
+        ? symbolResult
+        : await tryWorkflow({
+            cwd,
+            workflow: "text_search",
+            args: { query: symbol, path: ".", maxResults: 8 },
+            env,
+            exec,
+          });
+
+    if (result.ok) {
+      const item = itemFromValue({
+        id: `sci:symbol:${symbol}`,
+        workflow: result === symbolResult ? "symbol_search" : "text_search",
+        command: result.command,
+        value: result.value,
+        rationale: "SCI bounded symbol/text search for seeded symbol",
       });
-      const result =
-        symbolResult.ok && (symbolResult.value?.count ?? 0) > 0
-          ? symbolResult
-          : await tryWorkflow({
-              cwd,
-              workflow: "text_search",
-              args: { query: symbol, path: ".", maxResults: 8 },
-              env,
-              exec,
-            });
-
-      if (result.ok) {
-        const item = itemFromValue({
-          id: `sci:symbol:${symbol}`,
-          workflow: result === symbolResult ? "symbol_search" : "text_search",
-          command: result.command,
-          value: result.value,
-          rationale: "SCI bounded symbol/text search for seeded symbol",
+      if (item.bytes <= maxBytes) items.push(item);
+      else
+        omissions.push({
+          provider: "sci",
+          reason: "budget",
+          detail: `${symbol}: SCI result over budget`,
         });
-        if (item.bytes <= maxBytes) items.push(item);
-        else
-          omissions.push({
-            provider: "sci",
-            reason: "budget",
-            detail: `${symbol}: SCI result over budget`,
-          });
-      } else {
-        omissions.push({ provider: "sci", reason: "unavailable", detail: result.error });
-        break;
-      }
+    } else {
+      omissions.push({ provider: "sci", reason: "unavailable", detail: result.error });
+      break;
     }
+  }
 
-    if (items.length === 0 && omissions.length === 0) {
-      omissions.push({
-        provider: "sci",
-        reason: "low_rank",
-        detail: "SCI selected but no code path or symbol seeds were supplied",
-      });
-    }
-  } finally {
-    await cleanupGeneratedSciArtifacts(cwd, hadOntologyBefore);
+  if (items.length === 0 && omissions.length === 0) {
+    omissions.push({
+      provider: "sci",
+      reason: "low_rank",
+      detail: "SCI selected but no code path or symbol seeds were supplied",
+    });
+  }
+
+  if (
+    !hadOntologyBefore &&
+    (await pathExists(ontologyPath)) &&
+    env.allowSciArtifactCreation !== true
+  ) {
+    return {
+      section: sectionFromItems([]),
+      omissions: [
+        ...omissions,
+        {
+          provider: "sci",
+          reason: "blocked",
+          detail:
+            "SCI created .ontology artifacts during a read-only packet attempt; artifacts were left untouched and SCI packet items were omitted",
+        },
+      ],
+    };
   }
 
   return { section: sectionFromItems(items), omissions };

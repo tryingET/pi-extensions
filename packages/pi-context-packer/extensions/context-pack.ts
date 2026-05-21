@@ -50,6 +50,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
       "Use context_plan for cross-source planning before collecting large code/docs/task context.",
       "Treat the result as a read-only plan and provider-boundary membrane, not as task/evidence authority.",
       "Use SCI for code context and separate docs/AGENTS/AK/FCOS/Prompt Vault providers for non-code context.",
+      "Follow owner-surface recommendations directly when the task needs self, subagent execution, peer messaging/launch, workflow supervision, AK/FCOS authority, or Prompt Vault governance.",
     ],
     parameters: CONTEXT_PLAN_PARAMETERS,
     async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
@@ -62,13 +63,14 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     name: "context_pack",
     label: "Context Pack",
     description:
-      "Assemble a bounded read-only context packet from currently wired providers: AGENTS files, seeded Markdown docs, and git status, while recording omissions for planned providers such as SCI, AK, FCOS, Prompt Vault, and session context.",
+      "Assemble a bounded read-only context packet from wired providers such as AGENTS files, Markdown/docs-list, git status, session metadata, and SCI seeded code context, while recording omissions and owner-surface routes for unavailable or authority-sensitive providers.",
     promptSnippet:
       "Use context_pack after context_plan when a small read-only packet from AGENTS/docs/git plus explicit provider omissions can reduce raw read/search tool calls.",
     promptGuidelines: [
-      "Use context_pack only for read-only packet assembly; it must not mutate files, git, AK, FCOS, Prompt Vault, or SCI.",
+      "Use context_pack only for read-only packet assembly; it must not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, or peer tooling.",
       "Treat packet content as a projection with provenance and omissions, not source-owner authority.",
       "Expect early MVP omissions for providers that are planned but not wired yet.",
+      "Treat owner-surface routing as advice only; context_pack does not call self, spawn subagents, message peers, launch worktrees, supervise workflows, or move authority.",
     ],
     parameters: CONTEXT_PACK_PARAMETERS,
     async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {

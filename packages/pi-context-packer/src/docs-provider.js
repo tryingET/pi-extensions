@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { repoRelativePathSafetyIssue } from "./context-intake-safety.js";
 
 const execFileAsync = promisify(execFile);
 const DOCS_LIST_MAX_BUFFER = 64_000;
@@ -30,12 +31,29 @@ const firstExistingScript = async (env = {}) => {
   return undefined;
 };
 
-const normalizeOutputPaths = (stdout) =>
-  stdout
+const normalizeOutputPaths = (stdout) => {
+  const paths = [];
+  const omissions = [];
+  const candidates = stdout
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith("Docs ") && !line.startsWith("Showing "))
     .filter((line) => /\.md$/iu.test(line));
+
+  for (const candidate of candidates) {
+    const issue = repoRelativePathSafetyIssue(candidate, "docs-list path");
+    if (issue) {
+      omissions.push({
+        provider: "docs",
+        reason: "unsafe_path",
+        detail: `${candidate}: docs-list output omitted: ${issue}`,
+      });
+    } else {
+      paths.push(candidate);
+    }
+  }
+  return { paths, omissions };
+};
 
 export const discoverDocsSeeds = async ({ repoRoot, objective, env = {}, top = DEFAULT_TOP }) => {
   const script = await firstExistingScript(env);
@@ -68,12 +86,13 @@ export const discoverDocsSeeds = async ({ repoRoot, objective, env = {}, top = D
       ],
       { cwd: repoRoot, timeout: DOCS_LIST_TIMEOUT_MS, maxBuffer: DOCS_LIST_MAX_BUFFER },
     );
-    const seeds = normalizeOutputPaths(stdout).map((value) => ({
+    const discovered = normalizeOutputPaths(stdout);
+    const seeds = discovered.paths.map((value) => ({
       kind: "path",
       value,
       note: "docs-list ranked Markdown context",
     }));
-    return { seeds, omissions: [] };
+    return { seeds, omissions: discovered.omissions };
   } catch (error) {
     return {
       seeds: [],

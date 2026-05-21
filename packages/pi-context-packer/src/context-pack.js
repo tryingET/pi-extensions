@@ -133,6 +133,7 @@ const readBoundedFile = async ({
   let content;
   let afterReadStat;
   let handle;
+  let blockedDetail;
   try {
     handle = await open(resolved.path, "r");
     const openedStat = await handle.stat();
@@ -141,15 +142,26 @@ const readBoundedFile = async ({
       openedStat.ino !== fileStat.ino ||
       openedStat.size !== fileStat.size
     ) {
-      return {
-        item: undefined,
-        omission: { provider, reason: "blocked", detail: `${pathSeed}: changed before read` },
-      };
+      blockedDetail = `${pathSeed}: changed before read`;
+    } else {
+      content = await handle.readFile("utf8");
+      afterReadStat = await handle.stat();
     }
-    content = await handle.readFile("utf8");
-    afterReadStat = await handle.stat();
-  } finally {
+  } catch (error) {
+    blockedDetail = `${pathSeed}: read failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  try {
     await handle?.close();
+  } catch (error) {
+    blockedDetail = `${pathSeed}: close failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  if (blockedDetail) {
+    return {
+      item: undefined,
+      omission: { provider, reason: "blocked", detail: blockedDetail },
+    };
   }
 
   if (
@@ -327,8 +339,30 @@ const unavailableProviderOmissions = (providerIds) =>
     .map((provider) => ({
       provider,
       reason: "unavailable",
-      detail: `${provider} adapter is planned but not wired in the read-only MVP`,
+      detail: `${provider} read-only adapter is planned but not wired; use the owning surface directly if this task needs live authority or governed retrieval`,
     }));
+
+const ownerActionFromRecommendation = (recommendation) => ({
+  surface: recommendation.surface,
+  reason: recommendation.reason,
+  action: recommendation.nextAction,
+  nonAuthorization: recommendation.nonAuthorization,
+});
+
+const ownerSurfaceForProvider = (provider) => {
+  if (provider === "prompt_vault") return "Prompt Vault governed read surfaces";
+  if (provider === "ak") return "AK / accepted society authority surfaces";
+  if (provider === "fcos") return "FCOS control-board owner surface";
+  if (provider === "sci") return "SCI / semantic-code-intelligence";
+  return `${provider} owner surface`;
+};
+
+const suggestionFromOmission = (omission) => ({
+  tool: ownerSurfaceForProvider(omission.provider),
+  reason: omission.detail,
+  nonAuthorization:
+    "context-packer recorded an omission only; it did not execute the owner surface",
+});
 
 const usablePacketTokens = (budget) => Math.max(0, budget.maxTokens - budget.reserveTokens);
 
@@ -451,6 +485,8 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     budget: plan.budget,
     sessionAwareness,
   });
+  const ownerSurfaceRecommendations = plan.ownerSurfaceRecommendations ?? [];
+  const nextOwnerActions = ownerSurfaceRecommendations.map(ownerActionFromRecommendation);
   const packet = {
     ok: true,
     objective: plan.objective,
@@ -466,10 +502,16 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     },
     sections,
     omissions,
-    nextToolSuggestions: omissions.map((omission) => ({
-      tool: omission.provider === "sci" ? "SCI provider" : "provider adapter",
-      reason: omission.detail,
-    })),
+    ownerSurfaceRecommendations,
+    nextOwnerActions,
+    nextToolSuggestions: [
+      ...nextOwnerActions.map((action) => ({
+        tool: action.surface,
+        reason: action.action,
+        nonAuthorization: action.nonAuthorization,
+      })),
+      ...omissions.map(suggestionFromOmission),
+    ],
     measurementReceipt,
     measurementHints: buildMeasurementHints(measurementReceipt, plan.budget),
     nonAuthorizations: plan.nonAuthorizations,

@@ -28,5 +28,7 @@ test("contextPacketToolResult returns markdown content and compact details", asy
   assert.equal(result.details.ok, true);
   assert.equal(result.details.sections[0].items[0].content, undefined);
   assert.equal(result.details.sections[0].items[0].id.startsWith("agents:"), true);
+  assert.equal(Array.isArray(result.details.ownerSurfaceRecommendations), true);
+  assert.equal(Array.isArray(result.details.nextOwnerActions), true);
   assert.equal(typeof result.details.measurementReceipt.estimatedToolCallsAvoided, "number");
 });

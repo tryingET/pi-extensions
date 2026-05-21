@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -18,6 +18,15 @@ const sciStdout = (value) =>
     content: [{ type: "text", text: JSON.stringify(value) }],
     isError: false,
   });
+
+const pathExists = async (path) => {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 test("context_pack uses SCI read_file for code path seeds", async () => {
   const root = await makeWorkspace();
@@ -114,4 +123,39 @@ test("context_pack falls back from SCI symbol_search to text_search", async () =
   assert.deepEqual(workflows, ["symbol_search", "text_search"]);
   assert.equal(sci.items.length, 1);
   assert.match(sci.items[0].content, /src\/example\.js/);
+});
+
+test("context_pack does not delete SCI artifacts created during a read-only attempt", async () => {
+  const root = await makeWorkspace();
+  const fakeExec = async (_command, _args, options) => {
+    await mkdir(join(options.cwd, ".ontology"));
+    return {
+      stdout: sciStdout({
+        path: "src/example.js",
+        content: "export const target = 1;\n",
+      }),
+    };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { git: "off" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec },
+  );
+
+  assert.equal(await pathExists(join(root, ".ontology")), true);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("left untouched"),
+    ),
+  );
 });

@@ -1,8 +1,7 @@
+import { markdownFence } from "./context-intake-safety.js";
 import { formatContextPlan } from "./context-plan.js";
 
 export const textResult = (text, details = {}) => ({ content: [{ type: "text", text }], details });
-
-const fenced = (label, content) => ["```", `# ${label}`, content, "```"].join("\n");
 
 const formatPacketItem = (item) => {
   const heading = `### ${item.id}`;
@@ -13,7 +12,7 @@ const formatPacketItem = (item) => {
     item.provenance?.command ? `- command: ${item.provenance.command}` : undefined,
     `- rationale: ${item.rationale}`,
   ].filter(Boolean);
-  return [heading, ...meta, "", fenced(item.id, item.content)].join("\n");
+  return [heading, ...meta, "", markdownFence(item.id, item.content)].join("\n");
 };
 
 export const formatContextPacket = (result) => {
@@ -35,6 +34,10 @@ export const formatContextPacket = (result) => {
   const omissions = packet.omissions.map(
     (omission) => `- ${omission.provider}/${omission.reason}: ${omission.detail}`,
   );
+  const ownerRouting = (packet.ownerSurfaceRecommendations ?? []).map(
+    (recommendation) =>
+      `- ${recommendation.surface}: ${recommendation.nextAction} (${recommendation.nonAuthorization})`,
+  );
   return [
     `# Context packet: ${packet.objective}`,
     "",
@@ -48,6 +51,9 @@ export const formatContextPacket = (result) => {
     "",
     "## Omissions",
     omissions.length ? omissions.join("\n") : "- none",
+    "",
+    "## Owner-surface routing",
+    ownerRouting.length ? ownerRouting.join("\n") : "- none",
     "",
     "## Non-authorizations",
     ...packet.nonAuthorizations.map((item) => `- ${item}`),
@@ -84,6 +90,9 @@ export const compactContextPacketDetails = (result) => {
       })),
     })),
     omissions: packet.omissions,
+    ownerSurfaceRecommendations: packet.ownerSurfaceRecommendations,
+    nextOwnerActions: packet.nextOwnerActions,
+    nextToolSuggestions: packet.nextToolSuggestions,
     measurementReceipt: packet.measurementReceipt,
     measurementHints: packet.measurementHints,
     nonAuthorizations: packet.nonAuthorizations,
