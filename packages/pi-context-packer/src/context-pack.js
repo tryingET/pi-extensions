@@ -282,6 +282,41 @@ const providerMaxBytes = (plan, provider) =>
     plan.budget.perProviderMaxTokens[provider] * ESTIMATED_BYTES_PER_TOKEN,
   );
 
+const buildMeasurementReceipt = ({ estimatedTokens, sections, omissions, budget }) => {
+  const wiredProviders = sections.map((section) => section.provider);
+  const selectedItemCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+  const estimatedToolCallsAvoided = sections.reduce((sum, section) => {
+    if (section.provider === "sci") return sum + section.items.length * 2;
+    return sum + section.items.length;
+  }, 0);
+  const packetFillRatio = budget.maxTokens > 0 ? estimatedTokens / budget.maxTokens : 0;
+  return {
+    estimatedToolCallsAvoided,
+    packetFillRatio,
+    wiredProviders,
+    selectedItemCount,
+    omittedCandidateCount: omissions.length,
+    unwiredProviderOmissions: omissions
+      .filter((omission) => omission.reason === "unavailable")
+      .map((omission) => omission.provider),
+  };
+};
+
+const buildMeasurementHints = (receipt, budget) => [
+  {
+    metric: "tool_calls_avoided",
+    note: `${receipt.estimatedToolCallsAvoided} estimated low-level read/search/status calls avoided by this packet`,
+  },
+  {
+    metric: "packet_fill",
+    note: `${Math.round(receipt.packetFillRatio * 100)}% of ${budget.maxTokens} estimated packet tokens selected`,
+  },
+  {
+    metric: "provider_gap",
+    note: `${receipt.omittedCandidateCount} candidate/provider omissions recorded`,
+  },
+];
+
 export const buildContextPacket = async (input = {}, env = {}) => {
   const plan = buildContextPlan(input, env);
   if (!plan.ok) return { ok: false, errors: plan.errors, plan };
@@ -344,6 +379,12 @@ export const buildContextPacket = async (input = {}, env = {}) => {
 
   const estimatedTokens = sections.reduce((sum, section) => sum + section.estimatedTokens, 0);
   const bytes = sections.reduce((sum, section) => sum + section.bytes, 0);
+  const measurementReceipt = buildMeasurementReceipt({
+    estimatedTokens,
+    sections,
+    omissions,
+    budget: plan.budget,
+  });
   const packet = {
     ok: true,
     objective: plan.objective,
@@ -363,16 +404,8 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       tool: omission.provider === "sci" ? "SCI provider" : "provider adapter",
       reason: omission.detail,
     })),
-    measurementHints: [
-      {
-        metric: "packet_fill",
-        note: `${estimatedTokens}/${plan.budget.maxTokens} estimated packet tokens selected`,
-      },
-      {
-        metric: "provider_gap",
-        note: `${omissions.length} candidate/provider omissions recorded`,
-      },
-    ],
+    measurementReceipt,
+    measurementHints: buildMeasurementHints(measurementReceipt, plan.budget),
     nonAuthorizations: plan.nonAuthorizations,
   };
 

@@ -35,6 +35,8 @@ test("context_pack assembles AGENTS and seeded Markdown without mutating provide
   assert.equal(byProvider.docs.items.length, 1);
   assert.match(byProvider.docs.items[0].content, /source-owned Markdown/);
   assert.ok(result.packet.nonAuthorizations.some((item) => item.includes("does not mutate")));
+  assert.equal(result.packet.measurementReceipt.selectedItemCount, 2);
+  assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 2);
 });
 
 test("context_pack records planned provider omissions for selected unwired providers", async () => {
@@ -108,4 +110,20 @@ test("formatContextPacket summarizes selected sections and omissions", async () 
   assert.match(text, /Context packet for:/);
   assert.match(text, /sections:/);
   assert.match(text, /omissions:/);
+});
+
+test("context_pack emits measurement receipt for packet usefulness", async () => {
+  const root = await makeWorkspace();
+  const result = await buildContextPacket({
+    objective: "Measure docs context packet",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "docs/project/note.md" }],
+    providers: { git: "off" },
+  });
+
+  assert.equal(result.packet.measurementReceipt.wiredProviders.includes("agents"), true);
+  assert.equal(result.packet.measurementReceipt.wiredProviders.includes("docs"), true);
+  assert.equal(typeof result.packet.measurementReceipt.packetFillRatio, "number");
+  assert.ok(result.packet.measurementHints.some((hint) => hint.metric === "tool_calls_avoided"));
 });

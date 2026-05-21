@@ -52,6 +52,7 @@ test("context_pack uses SCI read_file for code path seeds", async () => {
   assert.equal(sci.items.length, 1);
   assert.equal(sci.items[0].content, "export const target = 1;\n");
   assert.equal(sci.items[0].contentMode, "range");
+  assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 3);
 });
 
 test("context_pack falls back from SCI symbol_search to text_search", async () => {
