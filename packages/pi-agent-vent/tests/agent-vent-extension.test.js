@@ -193,6 +193,8 @@ test("agent_vent records minimized local diagnostics without external authority 
     );
     assert.match(draftResult.content[0].text, /Draft-only GitHub issue text/);
     assert.match(draftResult.content[0].text, /No AK task, GitHub issue, incident, evidence/);
+    assert.match(draftResult.content[0].text, /Local diagnostic facets \(not owner routing\)/);
+    assert.match(draftResult.content[0].text, /Tools: pi-reload/);
     assert.equal(draftResult.details.draft.samples.length, 2);
     assert.equal(draftResult.details.draft.group.count, 2);
 

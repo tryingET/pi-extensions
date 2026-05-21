@@ -123,7 +123,7 @@ Reads tolerate malformed old lines, oversized lines, invalid records, and semant
 
 Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed.
 
-All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits.
+All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits. Drafts include local diagnostic facets when present, but those facets are hints for human review rather than owner-routing truth.
 
 The package applies conservative redaction heuristics for common token/password/API-key shapes, including review notes, but callers must still avoid submitting secrets.
 

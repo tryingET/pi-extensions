@@ -536,6 +536,9 @@ test("draft-only escalation text is bounded and authority-safe", () => {
         category: "bug",
         severity: index === 7 ? "high" : "medium",
         recurrenceKey: "draft-target",
+        tool: index % 2 === 0 ? "pi reload token=abc123" : undefined,
+        packageName: "@tryinget/pi-agent-vent",
+        tags: ["Draft Flow"],
       },
       { id: `v${index}`, now: `2026-05-21T00:0${index}:00.000Z` },
     ),
@@ -558,8 +561,11 @@ test("draft-only escalation text is bounded and authority-safe", () => {
   assert.equal(draft.group.reviewState, "acknowledged");
   assert.match(draft.text, /Draft-only GitHub issue text/);
   assert.match(draft.text, /No AK task, GitHub issue, incident, evidence/);
+  assert.match(draft.text, /Local diagnostic facets \(not owner routing\)/);
+  assert.match(draft.text, /Tools: pi-reload-token-redacted/);
+  assert.match(draft.text, /Packages: tryinget-pi-agent-vent/);
   assert.match(draft.text, /token=\[REDACTED\]/);
-  assert.doesNotMatch(draft.text, /was created|was filed|was declared/);
+  assert.doesNotMatch(draft.text, /abc123|was created|was filed|was declared/);
 });
 
 test("draft-only escalation supports all targets and curation projections", () => {
@@ -570,11 +576,23 @@ test("draft-only escalation supports all targets and curation projections", () =
     "maintainer_note",
   ]);
   const first = createVentRecord(
-    { summary: "Primary draft", category: "workflow", recurrenceKey: "draft-primary" },
+    {
+      summary: "Primary draft",
+      category: "workflow",
+      recurrenceKey: "draft-primary",
+      tool: "pi reload",
+      packageName: "@tryinget/pi-agent-vent",
+    },
     { id: "v1" },
   );
   const second = createVentRecord(
-    { summary: "Duplicate draft", category: "workflow", recurrenceKey: "draft-dupe" },
+    {
+      summary: "Duplicate draft",
+      category: "workflow",
+      recurrenceKey: "draft-dupe",
+      tool: "pi toolbox",
+      packageName: "@tryinget/pi-toolbox-discovery",
+    },
     { id: "v2" },
   );
   const curation = createCurationEvent({
@@ -592,7 +610,9 @@ test("draft-only escalation supports all targets and curation projections", () =
     });
     assert.equal(draft.recurrenceKey, first.recurrenceKey);
     assert.equal(draft.group.count, 2);
+    assert.deepEqual(draft.group.tools, ["pi-reload", "pi-toolbox"]);
     assert.match(draft.text, /Draft-only/);
+    assert.match(draft.text, /Local facets are hints, not owner routing/);
   }
 });
 

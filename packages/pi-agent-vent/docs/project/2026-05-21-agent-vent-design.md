@@ -119,7 +119,7 @@ Important behavior:
 - `facets` is read-only and summarizes local labels; it never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `set_review` requires an existing recurrence group and never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
-- `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it returns text only and never submits, files, declares, records evidence, or changes review state automatically.
+- `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it includes local diagnostic facets when present, returns text only, and never submits, files, declares, records evidence, assigns owners, or changes review state automatically.
 - `stats` and `export` are read-only projections and must not claim evidence, publication, task, issue, or incident authority.
 - `retention preview` is read-only; `retention archive` mutates only the active local vents store after exact confirmation, lock acquisition, store-hash verification, and backup creation; `retention restore` mutates only the active local vents store after exact confirmation, realpath containment, and stale-state checks.
 

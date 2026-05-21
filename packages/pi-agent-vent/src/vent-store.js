@@ -1205,6 +1205,11 @@ export function buildEscalationDraft(input = {}) {
       createdAt: record.createdAt,
       severity: normalizeSeverity(record.severity),
       category: normalizeCategory(record.category),
+      tool: sanitizeFacetText(record.tool, 160).value,
+      packageName: sanitizeFacetText(record.packageName, 200).value,
+      tags: Array.isArray(record.tags)
+        ? record.tags.map((tag) => recurrenceSlug(tag)).filter((tag) => tag !== "unspecified")
+        : [],
       summary: sanitizeDisplayText(record.summary, 300),
       evidence: sanitizeDisplayText(record.evidence, 500),
       reproduction: sanitizeDisplayText(record.reproduction, 500),
@@ -1249,11 +1254,25 @@ export function formatEscalationDraftText(draft) {
     `- Review state: ${draft.group.reviewState}`,
   ];
   if (draft.group.reviewNote) lines.push(`- Local review note: ${draft.group.reviewNote}`);
+  const localFacetLines = [
+    draft.group.categories?.length
+      ? `- Categories: ${draft.group.categories.join(", ")}`
+      : undefined,
+    draft.group.tags?.length ? `- Tags: ${draft.group.tags.join(", ")}` : undefined,
+    draft.group.tools?.length ? `- Tools: ${draft.group.tools.join(", ")}` : undefined,
+    draft.group.packages?.length ? `- Packages: ${draft.group.packages.join(", ")}` : undefined,
+  ].filter(Boolean);
+  if (localFacetLines.length) {
+    lines.push("", "## Local diagnostic facets (not owner routing)", "", ...localFacetLines);
+  }
   lines.push("", "## Representative local samples", "");
   for (const sample of draft.samples) {
     lines.push(
       `- ${sample.createdAt || "unknown-time"} [${sample.severity}/${sample.category}] ${sample.summary}`,
     );
+    if (sample.tags?.length) lines.push(`  - Tags: ${sample.tags.join(", ")}`);
+    if (sample.tool) lines.push(`  - Tool: ${sample.tool}`);
+    if (sample.packageName) lines.push(`  - Package: ${sample.packageName}`);
     if (sample.evidence) lines.push(`  - Evidence: ${sample.evidence}`);
     if (sample.reproduction) lines.push(`  - Reproduction: ${sample.reproduction}`);
   }
@@ -1262,7 +1281,7 @@ export function formatEscalationDraftText(draft) {
     "",
     "## Owner-system handoff reminder",
     "",
-    "This text is only a local draft. The target owner system remains authoritative for acceptance, schema, lifecycle, evidence, and publication.",
+    "This text is only a local draft. Local facets are hints, not owner routing. The target owner system remains authoritative for acceptance, schema, lifecycle, evidence, and publication.",
   );
   return lines.join("\n");
 }

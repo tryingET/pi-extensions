@@ -50,7 +50,7 @@ When an agent keeps hitting the same bug, missing affordance, brittle workflow, 
 ## Current product maturity
 
 - maturity: `local diagnostic alpha, review-and-retention safety hardened`
-- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane, draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with local backup receipts and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
+- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane, facet-aware draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with local backup receipts and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
 - release posture: first publishable package release at `0.1.0`; npm package not yet published at time of first release checks
 - current strategic line: harden the local review workflow before adding owner-surface escalation adapters
 
@@ -114,7 +114,7 @@ The highest-leverage product line is:
 local vent capture -> operator review queue -> draft-only owner routing -> human-approved escalation
 ```
 
-Do not add automatic GitHub/AK/incident writers. The local facet summary, local review queue, bounded review-detail samples, curation, draft-only routing, retention archive/restore, and privacy membrane now have package validation; the main remaining product gap is richer owner-hint ergonomics without broadening authority. Hard-delete beyond backup-backed archive is a separate policy decision, not the default next slice.
+Do not add automatic GitHub/AK/incident writers. The local facet summary, local review queue, bounded review-detail samples, curation, facet-aware draft-only routing, retention archive/restore, and privacy membrane now have package validation; the main remaining product gap is richer review-flow affordances without broadening authority. Hard-delete beyond backup-backed archive is a separate policy decision, not the default next slice.
 
 Current proof: `npm run check` passes with package tests and release dry-run, `npm run release:check` passed with isolated tarball install, docs strict check passes, and dogfood covered quoted rollback commands with whitespace/single-quote paths. Review follow-up also covered complete retention token inputs, stale-token/stale-restore failures, path-escape/symlink backup failures, receipt-failure rollback, stale lock cleanup, and backup restore.
 
@@ -162,11 +162,11 @@ Generate human-reviewable drafts for likely owner surfaces:
 - incident review draft — landed;
 - package maintainer note — landed.
 
-These drafts do not submit automatically. The package prepares local text and exact next-step guidance; the owner system performs any mutation only after explicit human/operator action. Producing a draft does not automatically mark review state; operators can set `escalation_drafted` explicitly when useful. This clarified the provenance seam: draft text is a local diagnostic projection, not evidence, task truth, issue truth, or incident truth.
+These drafts do not submit automatically. The package prepares local text, local diagnostic facet hints, and exact next-step guidance; the owner system performs any mutation only after explicit human/operator action. Producing a draft does not automatically mark review state; operators can set `escalation_drafted` explicitly when useful. This clarified the provenance seam: draft text is a local diagnostic projection, not evidence, task truth, issue truth, incident truth, or owner-routing truth.
 
 ## Next frontier guidance
 
-The next highest-leverage slice should assume the facets/review/detail/draft/curation/retention membrane is the baseline and should not broaden authority. Retention now has transaction-oriented safeguards (store/review/curation-hash tokens, append/archive locking, stale-lock cleanup, receipt-failure rollback, derived restore tokens, realpath backup containment, quoted rollback commands, and stale-restore checks). The next slice should likely improve owner-hint ergonomics or review-flow affordances without treating local labels as canonical routing. Treat hard-delete as decision-gated work via AK `#3318`, not as incidental cleanup.
+The next highest-leverage slice should assume the facets/review/detail/draft/curation/retention membrane is the baseline and should not broaden authority. Retention now has transaction-oriented safeguards (store/review/curation-hash tokens, append/archive locking, stale-lock cleanup, receipt-failure rollback, derived restore tokens, realpath backup containment, quoted rollback commands, and stale-restore checks). The next slice should likely improve review-flow affordances without treating local labels as canonical routing. Treat hard-delete as decision-gated work via AK `#3318`, not as incidental cleanup.
 
 ## Ownership map
 
