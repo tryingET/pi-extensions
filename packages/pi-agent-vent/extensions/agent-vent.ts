@@ -1013,9 +1013,6 @@ function exportSyntaxError(tokens: string[], parsed = parseLifecycleTokens(token
   if (parsed.invalidFilters.length) {
     return `Invalid /agent_vent export filter value(s): ${parsed.invalidFilters.join(", ")}\n${usage}`;
   }
-  if (parsed.invalidFormat) {
-    return `Invalid /agent_vent export format: ${parsed.invalidFormat}\n${usage}`;
-  }
   if (parsed.invalidState) {
     return `Invalid /agent_vent export state: ${parsed.invalidState}\n${usage}`;
   }
@@ -1105,7 +1102,6 @@ function parseLifecycleTokens(tokens: string[]) {
     unknownFilters: parsed.unknownFilters,
     invalidFilters: parsed.invalidFilters,
     invalidState: parsed.invalidState,
-    invalidFormat: undefined as string | undefined,
   };
 }
 
