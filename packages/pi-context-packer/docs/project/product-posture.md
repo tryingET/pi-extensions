@@ -71,7 +71,7 @@ The package currently owns:
 - primary Markdown packet output;
 - advisory owner-surface routing for authority-sensitive work without invoking those surfaces;
 - compact structured `details` that omit raw item content by default;
-- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, session awareness, and unwired provider omissions;
+- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, session awareness, unwired provider omissions, and packet-local utility recommendations;
 - explicit omissions for planned-but-unwired provider seams.
 
 ## Product non-goals

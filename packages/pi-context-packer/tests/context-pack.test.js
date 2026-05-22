@@ -323,6 +323,7 @@ test("formatContextPacket summarizes selected sections, omissions, and owner rou
   const text = formatContextPacket(result);
 
   assert.match(text, /# Context packet:/);
+  assert.match(text, /## Packet utility/);
   assert.match(text, /## Section summary/);
   assert.match(text, /## Omissions/);
   assert.match(text, /## Owner-surface routing/);
@@ -368,6 +369,11 @@ test("context_pack emits measurement receipt for packet usefulness", async () =>
   assert.equal(result.packet.measurementReceipt.wiredProviders.includes("agents"), true);
   assert.equal(result.packet.measurementReceipt.wiredProviders.includes("docs"), true);
   assert.equal(typeof result.packet.measurementReceipt.packetFillRatio, "number");
+  assert.equal(result.packet.measurementReceipt.freshItemCount, 2);
+  assert.equal(
+    result.packet.measurementReceipt.packetUtilityRecommendation.status,
+    "use_packet_review_omissions",
+  );
   assert.ok(result.packet.measurementHints.some((hint) => hint.metric === "tool_calls_avoided"));
 });
 
@@ -388,7 +394,33 @@ test("context_pack deduplicates content already loaded in the system prompt", as
   assert.equal(agents.items[0].contentMode, "metadata");
   assert.equal(agents.items[0].duplicateOf, "system_prompt");
   assert.equal(result.packet.measurementReceipt.alreadyLoadedItems, 1);
+  assert.equal(result.packet.measurementReceipt.freshItemCount, 0);
+  assert.equal(
+    result.packet.measurementReceipt.packetUtilityRecommendation.status,
+    "no_packet_needed",
+  );
   assert.ok(result.packet.measurementReceipt.duplicateTokensAvoided > 0);
+});
+
+test("context_pack recommends reviewing omissions when no fresh packet content is selected", async () => {
+  const root = await makeWorkspace();
+  const result = await buildContextPacket({
+    objective: "Read docs context",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "../secret.md" }],
+    providers: { agents: "off", git: "off", sci: "off" },
+  });
+
+  assert.equal(result.packet.measurementReceipt.freshItemCount, 0);
+  assert.equal(
+    result.packet.measurementReceipt.packetUtilityRecommendation.status,
+    "review_omissions",
+  );
+  assert.match(
+    result.packet.measurementReceipt.packetUtilityRecommendation.nextAction,
+    /Review omissions/,
+  );
 });
 
 test("context_pack includes session environment metadata when selected", async () => {

@@ -101,24 +101,85 @@ export const buildMeasurementReceipt = ({
     (sum, section) => sum + section.items.filter((item) => item.duplicateOf).length,
     0,
   );
+  const freshItemCount = selectedItemCount - alreadyLoadedItems;
   const duplicateTokensAvoided = sections.reduce(
     (sum, section) =>
       sum + section.items.reduce((inner, item) => inner + (item.duplicateTokensAvoided ?? 0), 0),
     0,
   );
   const packetFillRatio = budget.maxTokens > 0 ? estimatedTokens / budget.maxTokens : 0;
-  return {
+  const receipt = {
     estimatedToolCallsAvoided,
     packetFillRatio,
     wiredProviders,
     selectedItemCount,
     alreadyLoadedItems,
+    freshItemCount,
     duplicateTokensAvoided,
     sessionAwareness,
     omittedCandidateCount: omissions.length,
     unwiredProviderOmissions: omissions
       .filter((omission) => omission.reason === "unavailable")
       .map((omission) => omission.provider),
+  };
+  return {
+    ...receipt,
+    packetUtilityRecommendation: buildPacketUtilityRecommendation(receipt),
+  };
+};
+
+export const buildPacketUtilityRecommendation = (receipt) => {
+  const hasOmissions = receipt.omittedCandidateCount > 0;
+  const hasFreshContent = receipt.freshItemCount > 0;
+  const allSelectedAlreadyLoaded =
+    receipt.selectedItemCount > 0 && receipt.alreadyLoadedItems === receipt.selectedItemCount;
+
+  if (hasFreshContent) {
+    return {
+      status: hasOmissions ? "use_packet_review_omissions" : "use_packet",
+      reason: hasOmissions
+        ? "packet contains fresh selected context, but omissions may require owner-surface follow-up"
+        : "packet contains fresh selected context not already detected in the active prompt",
+      nextAction: hasOmissions
+        ? "Use the selected packet content, then review omissions before assuming coverage is complete."
+        : "Use the selected packet content as read-only source-owned context for the next step.",
+      nonAuthorization: "advisory packet-local recommendation only; no owner surface was executed",
+    };
+  }
+
+  if (allSelectedAlreadyLoaded) {
+    return {
+      status: hasOmissions ? "skip_packet_review_omissions" : "no_packet_needed",
+      reason: hasOmissions
+        ? "all selected packet content is already loaded, but omissions still need review"
+        : "all selected packet content is already represented in the active prompt/session",
+      nextAction: hasOmissions
+        ? "Do not spend context on duplicate packet content; review omissions or use owning surfaces if coverage matters."
+        : "Skip loading duplicate packet content and proceed with the already-loaded context.",
+      nonAuthorization:
+        "advisory packet-local recommendation only; it does not prove task readiness or completion",
+    };
+  }
+
+  if (hasOmissions) {
+    return {
+      status: "review_omissions",
+      reason:
+        "no fresh packet content was selected and one or more candidates/providers were omitted",
+      nextAction:
+        "Review omissions and use the owning surface directly when live authority or governed retrieval is required.",
+      nonAuthorization:
+        "advisory packet-local recommendation only; omissions are not owner-surface execution",
+    };
+  }
+
+  return {
+    status: "no_packet_needed",
+    reason: "no fresh packet content was selected",
+    nextAction:
+      "Skip packet loading unless the objective changes or additional safe seeds are available.",
+    nonAuthorization:
+      "advisory packet-local recommendation only; it does not prove task readiness or completion",
   };
 };
 

@@ -38,11 +38,22 @@ export const formatContextPacket = (result) => {
     (recommendation) =>
       `- ${recommendation.surface}: ${recommendation.nextAction} (${recommendation.nonAuthorization})`,
   );
+  const utility = packet.measurementReceipt.packetUtilityRecommendation;
   return [
     `# Context packet: ${packet.objective}`,
     "",
     `Selected: ${packet.totals.candidatesSelected} item(s), ${packet.totals.estimatedTokens} estimated tokens, ${packet.totals.bytes} bytes`,
     `Estimated tool calls avoided: ${packet.measurementReceipt.estimatedToolCallsAvoided}`,
+    "",
+    "## Packet utility",
+    utility
+      ? [
+          `- status: ${utility.status}`,
+          `- reason: ${utility.reason}`,
+          `- next: ${utility.nextAction}`,
+          `- non-authorization: ${utility.nonAuthorization}`,
+        ].join("\n")
+      : "- none",
     "",
     "## Section summary",
     sectionSummaries.length ? sectionSummaries.join("\n") : "- none",
@@ -94,6 +105,7 @@ export const compactContextPacketDetails = (result) => {
     nextOwnerActions: packet.nextOwnerActions,
     nextToolSuggestions: packet.nextToolSuggestions,
     measurementReceipt: packet.measurementReceipt,
+    packetUtilityRecommendation: packet.measurementReceipt.packetUtilityRecommendation,
     measurementHints: packet.measurementHints,
     nonAuthorizations: packet.nonAuthorizations,
   };

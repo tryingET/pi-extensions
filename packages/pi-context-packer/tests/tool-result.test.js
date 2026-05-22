@@ -31,4 +31,9 @@ test("contextPacketToolResult returns markdown content and compact details", asy
   assert.equal(Array.isArray(result.details.ownerSurfaceRecommendations), true);
   assert.equal(Array.isArray(result.details.nextOwnerActions), true);
   assert.equal(typeof result.details.measurementReceipt.estimatedToolCallsAvoided, "number");
+  assert.equal(result.details.packetUtilityRecommendation.status, "use_packet");
+  assert.equal(
+    result.details.packetUtilityRecommendation.nonAuthorization.includes("advisory"),
+    true,
+  );
 });
