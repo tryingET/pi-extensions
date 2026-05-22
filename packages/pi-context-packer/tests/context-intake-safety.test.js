@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { markdownInlineLabel, publicOmissionDetail } from "../src/context-intake-safety.js";
+import {
+  markdownInlineLabel,
+  publicOmissionDetail,
+  repoRelativePathSafetyIssue,
+} from "../src/context-intake-safety.js";
 
 test("markdownInlineLabel collapses control characters and bounds labels", () => {
   assert.equal(
@@ -9,6 +13,10 @@ test("markdownInlineLabel collapses control characters and bounds labels", () =>
   );
   assert.equal(markdownInlineLabel("", "fallback"), "fallback");
   assert.equal(markdownInlineLabel("x".repeat(300)).length, 240);
+});
+
+test("repoRelativePathSafetyIssue rejects DEL control characters", () => {
+  assert.match(repoRelativePathSafetyIssue("docs/\u007fsecret.md"), /control characters/);
 });
 
 test("publicOmissionDetail withholds POSIX, Windows, UNC, and secret-like raw details", () => {

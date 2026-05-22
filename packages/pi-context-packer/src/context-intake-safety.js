@@ -2,7 +2,10 @@ const GENERATED_OR_VENDOR_PARTS = new Set(["node_modules", "dist", "build", "cov
 const HIDDEN_OR_INTERNAL_PARTS = new Set(["__pycache__"]);
 
 export const hasControlCharacter = (value) =>
-  Array.from(value).some((character) => character.charCodeAt(0) < 32);
+  Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127;
+  });
 
 export const hasSchemeOrDrivePrefix = (value) => /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value);
 

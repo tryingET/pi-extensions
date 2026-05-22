@@ -69,6 +69,40 @@ test("context_pack enforces the global packet budget across providers while pres
   assert.ok(result.packet.omissions.some((omission) => omission.reason === "budget"));
 });
 
+test("context_pack enforces cumulative per-provider budget across multiple items", async () => {
+  const root = await makeWorkspace();
+  await writeFile(join(root, "docs", "project", "a.md"), `# A\n${"a ".repeat(70)}`, "utf8");
+  await writeFile(join(root, "docs", "project", "b.md"), `# B\n${"b ".repeat(70)}`, "utf8");
+
+  const result = await buildContextPacket({
+    objective: "Read docs context",
+    cwd: root,
+    repoRoot: root,
+    seeds: [
+      { kind: "path", value: "docs/project/a.md" },
+      { kind: "path", value: "docs/project/b.md" },
+    ],
+    providers: { agents: "off", git: "off", sci: "off" },
+    budget: {
+      maxTokens: 1000,
+      reserveTokens: 1,
+      perProviderMaxTokens: { docs: 50 },
+    },
+  });
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.ok(docs.estimatedTokens <= result.packet.budget.perProviderMaxTokens.docs, docs);
+  assert.equal(docs.items.length, 1);
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "docs" &&
+        omission.reason === "budget" &&
+        omission.detail.includes("provider budget exhausted"),
+    ),
+  );
+});
+
 test("context_pack discovers ranked Markdown docs through docs-list when available", async () => {
   const root = await makeWorkspace();
   await writeFile(
@@ -94,6 +128,34 @@ test("context_pack discovers ranked Markdown docs through docs-list when availab
   assert.equal(docs.items.length, 1);
   assert.equal(docs.items[0].provenance.path, "docs/project/auto.md");
   assert.match(docs.items[0].content, /Ranked docs-list context/);
+});
+
+test("context_pack still runs docs-list when unsafe seeds were omitted and no safe docs seed exists", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "auto-after-unsafe.md"),
+    "# Auto after unsafe\n\nRanked context still available.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-fake.mjs");
+  await writeFile(script, "console.log('docs/project/auto-after-unsafe.md');\n", "utf8");
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use architecture docs",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "../unsafe.md" }],
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(docs.items.length, 1);
+  assert.equal(docs.items[0].provenance.path, "docs/project/auto-after-unsafe.md");
+  assert.ok(result.packet.omissions.some((omission) => omission.reason === "unsafe_path"));
 });
 
 test("context_pack screens docs-list discovered paths with the shared path policy", async () => {
@@ -242,7 +304,7 @@ test("context_pack fails closed on unsafe path seeds", async () => {
     cwd: root,
     repoRoot: root,
     seeds: [{ kind: "path", value: "../secret.md" }],
-    providers: { git: "off" },
+    providers: { docs: "off", git: "off" },
   });
 
   assert.equal(result.ok, true);
@@ -576,7 +638,7 @@ test("context_pack recommends reviewing omissions when no fresh packet content i
     cwd: root,
     repoRoot: root,
     seeds: [{ kind: "path", value: "../secret.md" }],
-    providers: { agents: "off", git: "off", sci: "off" },
+    providers: { agents: "off", docs: "off", git: "off", sci: "off" },
   });
 
   assert.equal(result.packet.measurementReceipt.freshItemCount, 0);
@@ -626,4 +688,29 @@ test("context_pack includes compact session environment metadata when selected",
   assert.doesNotMatch(toolResult.content[0].text, /SECRET SESSION PROMPT|customer-acme|abc123/);
   assert.doesNotMatch(serializedDetails, /SECRET SESSION PROMPT|customer-acme|abc123/);
   assert.doesNotMatch(serializedToolDetails, /SECRET SESSION PROMPT|customer-acme|abc123/);
+});
+
+test("context_pack reports session visibility only when session section is selected", async () => {
+  const root = await makeWorkspace();
+  const result = await buildContextPacket(
+    {
+      objective: "Plan current context window environment",
+      cwd: root,
+      repoRoot: root,
+      providers: { agents: "off", docs: "off", git: "off", sci: "off", session: "required" },
+      budget: { maxTokens: 10, reserveTokens: 1, maxBytes: 100 },
+    },
+    { contextUsage: { tokens: 9, contextWindow: 10 } },
+  );
+
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "session"),
+    false,
+  );
+  assert.equal(result.packet.measurementReceipt.sessionAwareness.visibleSessionSection, false);
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "session" && omission.reason === "budget",
+    ),
+  );
 });

@@ -396,6 +396,21 @@ const providerMaxBytes = (plan, provider, remainingBudget = {}) =>
     plan.budget.perProviderMaxTokens[provider] * ESTIMATED_BYTES_PER_TOKEN,
   );
 
+const initialProviderBudget = (plan, provider) => ({
+  bytes: Math.min(
+    plan.budget.maxBytes,
+    plan.budget.perProviderMaxTokens[provider] * ESTIMATED_BYTES_PER_TOKEN,
+  ),
+  tokens: plan.budget.perProviderMaxTokens[provider],
+});
+
+const remainingProviderBudget = (providerBudgets, plan, provider) => {
+  if (!providerBudgets.has(provider)) {
+    providerBudgets.set(provider, initialProviderBudget(plan, provider));
+  }
+  return providerBudgets.get(provider);
+};
+
 const sectionWithItems = (section, items) => ({
   ...section,
   estimatedTokens: items.reduce((sum, item) => sum + item.estimatedTokens, 0),
@@ -403,22 +418,38 @@ const sectionWithItems = (section, items) => ({
   items,
 });
 
-const appendSectionWithinBudget = ({ sections, omissions, section, remainingBudget }) => {
+const appendSectionWithinBudget = ({
+  sections,
+  omissions,
+  section,
+  remainingBudget,
+  providerRemainingBudget,
+}) => {
   const kept = [];
   for (const item of section.items) {
-    if (item.bytes <= remainingBudget.bytes && item.estimatedTokens <= remainingBudget.tokens) {
+    const fitsPacket =
+      item.bytes <= remainingBudget.bytes && item.estimatedTokens <= remainingBudget.tokens;
+    const fitsProvider =
+      item.bytes <= providerRemainingBudget.bytes &&
+      item.estimatedTokens <= providerRemainingBudget.tokens;
+    if (fitsPacket && fitsProvider) {
       kept.push(item);
       remainingBudget.bytes -= item.bytes;
       remainingBudget.tokens -= item.estimatedTokens;
+      providerRemainingBudget.bytes -= item.bytes;
+      providerRemainingBudget.tokens -= item.estimatedTokens;
     } else {
       omissions.push({
         provider: section.provider,
         reason: "budget",
-        detail: `${item.id}: packet budget exhausted before selection`,
+        detail: fitsPacket
+          ? `${item.id}: provider budget exhausted before selection`
+          : `${item.id}: packet budget exhausted before selection`,
       });
     }
   }
   if (kept.length > 0) sections.push(sectionWithItems(section, kept));
+  return { keptCount: kept.length, omittedCount: section.items.length - kept.length };
 };
 
 export const buildContextPacket = async (input = {}, env = {}) => {
@@ -431,6 +462,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const sections = [];
   const sessionAwareness = buildSessionAwareness({ ...env, cwd });
   const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
+  const providerBudgets = new Map();
   const omissions = (plan.omittedSeeds ?? []).map((seed) => ({
     provider: "docs",
     reason: "unsafe_path",
@@ -452,11 +484,17 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       loadedSystemPrompt: env.systemPrompt,
     });
     omissions.push(...result.omissions);
-    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
+    appendSectionWithinBudget({
+      sections,
+      omissions,
+      section: result.section,
+      remainingBudget,
+      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "agents"),
+    });
   }
 
   if (providerIds.includes("docs")) {
-    if (docsSeeds.length === 0 && (plan.omittedSeeds ?? []).length === 0) {
+    if (docsSeeds.length === 0) {
       const discovered = await discoverDocsSeeds({ repoRoot, objective: plan.objective, env });
       docsSeeds = unique(
         [...docsSeeds, ...discovered.seeds].map((seed) => JSON.stringify(seed)),
@@ -470,7 +508,13 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       loadedSystemPrompt: env.systemPrompt,
     });
     omissions.push(...result.omissions);
-    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
+    appendSectionWithinBudget({
+      sections,
+      omissions,
+      section: result.section,
+      remainingBudget,
+      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "docs"),
+    });
   }
 
   if (providerIds.includes("sci")) {
@@ -481,19 +525,37 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       env,
     });
     omissions.push(...result.omissions);
-    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
+    appendSectionWithinBudget({
+      sections,
+      omissions,
+      section: result.section,
+      remainingBudget,
+      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "sci"),
+    });
   }
 
   if (providerIds.includes("session") && shouldShowSessionSection({ plan, sessionAwareness })) {
     const result = buildSessionSection({ sessionAwareness });
-    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
-    sessionAwareness.visibleSessionSection = true;
+    const selection = appendSectionWithinBudget({
+      sections,
+      omissions,
+      section: result.section,
+      remainingBudget,
+      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "session"),
+    });
+    sessionAwareness.visibleSessionSection = selection.keptCount > 0;
   }
 
   if (providerIds.includes("git")) {
     const result = await buildGitSection({ cwd });
     omissions.push(...result.omissions);
-    appendSectionWithinBudget({ sections, omissions, section: result.section, remainingBudget });
+    appendSectionWithinBudget({
+      sections,
+      omissions,
+      section: result.section,
+      remainingBudget,
+      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "git"),
+    });
   }
 
   omissions.push(...unavailableProviderOmissions(providerIds));
