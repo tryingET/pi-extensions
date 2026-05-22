@@ -133,8 +133,13 @@ function validatePackageJson() {
     fail("package.json engines.node must be '>=22'");
   }
 
+  const expectedWorkspacePath = readCopierAnswer("workspace_relative_path");
   if (typeof p.repository?.directory !== "string" || p.repository.directory.length === 0) {
     fail("package.json repository.directory must be set for monorepo package mode");
+  } else if (expectedWorkspacePath && p.repository.directory !== expectedWorkspacePath) {
+    fail(
+      `package.json repository.directory must match .copier-answers.yml workspace_relative_path '${expectedWorkspacePath}' (got '${p.repository.directory}')`,
+    );
   }
 
   const templateMeta = p["x-pi-template"];
@@ -146,14 +151,26 @@ function validatePackageJson() {
         "package.json x-pi-template.scaffoldMode must be 'simple-package' or legacy alias 'monorepo-package'",
       );
     }
+    const expectedReleaseComponent = readCopierAnswer("release_component_key");
     if (typeof templateMeta.workspacePath !== "string" || templateMeta.workspacePath.length === 0) {
       fail("package.json x-pi-template.workspacePath must be non-empty");
+    } else if (expectedWorkspacePath && templateMeta.workspacePath !== expectedWorkspacePath) {
+      fail(
+        `package.json x-pi-template.workspacePath must match .copier-answers.yml workspace_relative_path '${expectedWorkspacePath}' (got '${templateMeta.workspacePath}')`,
+      );
     }
     if (
       typeof templateMeta.releaseComponent !== "string" ||
       templateMeta.releaseComponent.length === 0
     ) {
       fail("package.json x-pi-template.releaseComponent must be non-empty");
+    } else if (
+      expectedReleaseComponent &&
+      templateMeta.releaseComponent !== expectedReleaseComponent
+    ) {
+      fail(
+        `package.json x-pi-template.releaseComponent must match .copier-answers.yml release_component_key '${expectedReleaseComponent}' (got '${templateMeta.releaseComponent}')`,
+      );
     }
     if (!["component", "none"].includes(templateMeta.releaseConfigMode)) {
       fail("package.json x-pi-template.releaseConfigMode must be 'component' or 'none'");
