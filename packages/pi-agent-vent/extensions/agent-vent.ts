@@ -44,13 +44,13 @@ import {
   formatReviewOutcomes,
   formatReviewQueue,
   formatSummary,
-  hasRecurrenceGroup,
   loadDiagnosticState,
   normalizeRetentionAction,
   normalizeReviewState,
   RETENTION_ACTIONS,
   REVIEW_STATES,
   readRetentionEvents,
+  resolveRecurrenceGroup,
   restoreRetentionBackup,
   SEVERITIES,
   summarizeRecords,
@@ -287,10 +287,12 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           backupDir,
         });
         const { records, curationEvents, malformedLines } = state;
-        const group = summarizeRecords(
-          records.filter((entry) => entry.recurrenceKey === record.recurrenceKey),
-          { limit: 1, curationEvents },
-        ).groups[0];
+        const group =
+          resolveRecurrenceGroup(records, record.recurrenceKey, curationEvents)?.group ||
+          summarizeRecords(
+            records.filter((entry) => entry.recurrenceKey === record.recurrenceKey),
+            { limit: 1, curationEvents },
+          ).groups[0];
         const candidate = group?.candidateIncident ? " Candidate incident for human review." : "";
         const text = `Recorded agent vent ${record.id} (${record.severity}/${record.category}) under ${record.recurrenceKey}.${candidate}`;
         return textResult(text, {
@@ -382,12 +384,13 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         const recurrenceKey = params.recurrenceKey?.trim();
         if (!recurrenceKey) throw new Error("action=set_review requires recurrenceKey");
         if (!params.reviewState) throw new Error("action=set_review requires reviewState");
-        if (!hasRecurrenceGroup(records, recurrenceKey, curationEvents)) {
+        const resolved = resolveRecurrenceGroup(records, recurrenceKey, curationEvents);
+        if (!resolved) {
           throw new Error(`cannot set review state for unknown recurrence group: ${recurrenceKey}`);
         }
         const event = createReviewEvent(
           {
-            recurrenceKey,
+            recurrenceKey: resolved.recurrenceKey,
             state: params.reviewState,
             note: params.reviewNote,
           },
@@ -913,11 +916,12 @@ function handleReviewCommand(
     if (!state || !recurrenceKey) {
       return "Usage: /agent_vent review set <new|acknowledged|dismissed|escalation_drafted> <recurrenceKey> [note]";
     }
-    if (!hasRecurrenceGroup(records, recurrenceKey, curationEvents)) {
+    const resolved = resolveRecurrenceGroup(records, recurrenceKey, curationEvents);
+    if (!resolved) {
       return `Cannot set review state for unknown recurrence group: ${recurrenceKey}`;
     }
     const event = createReviewEvent(
-      { recurrenceKey, state, note },
+      { recurrenceKey: resolved.recurrenceKey, state, note },
       { source: "agent_vent_command" },
     );
     appendReviewEvent(reviewPath, event);

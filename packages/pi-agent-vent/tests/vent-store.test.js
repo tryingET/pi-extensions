@@ -48,6 +48,7 @@ import {
   readReviewEvents,
   readVentRecords,
   redactSensitiveText,
+  resolveRecurrenceGroup,
   restoreRetentionBackup,
   summarizeRecords,
   summarizeReviewQueue,
@@ -386,6 +387,9 @@ test("review state follows curated recurrence key", () => {
   });
   const review = createReviewEvent({ recurrenceKey: second.recurrenceKey, state: "acknowledged" });
 
+  const resolved = resolveRecurrenceGroup([first, second], second.recurrenceKey, [curation]);
+  assert.equal(resolved.recurrenceKey, first.recurrenceKey);
+  assert.equal(resolved.resolvedThroughCuration, true);
   const queue = summarizeReviewQueue([first, second], [review], { curationEvents: [curation] });
   assert.equal(queue.groupCount, 1);
   assert.equal(queue.items[0].reviewState, "acknowledged");
@@ -1195,6 +1199,11 @@ test("lifecycle stats and exports are bounded local projections", () => {
   assert.match(formatLifecycleStats(snapshot), /no AK task, GitHub issue, incident, evidence/);
   const markdown = formatExportMarkdown(snapshot);
   assert.match(markdown, /# Agent vent local diagnostic export/);
+  assert.match(markdown, /Decision posture: draft_recorded_owner_external/);
+  assert.match(
+    markdown,
+    /not resolution, assignment, evidence, publication, issue status, task truth, or incident state/,
+  );
   assert.match(markdown, /## Safe local follow-up/);
   assert.match(markdown, /Optional local retention preview: \/agent_vent retention preview/);
   assert.match(markdown, /Draft-only handoff:/);
@@ -1204,6 +1213,7 @@ test("lifecycle stats and exports are bounded local projections", () => {
   );
   const json = JSON.parse(formatExportJson(snapshot));
   assert.equal(json.counts.vents, 1);
+  assert.equal(json.nextActions[0].decisionPosture.state, "draft_recorded_owner_external");
   assert.equal(
     json.nextActions[0].retentionPreviewCommand,
     `/agent_vent retention preview ${record.recurrenceKey}`,

@@ -508,10 +508,25 @@ export function summarizeRecords(records, options = {}) {
   };
 }
 
-export function hasRecurrenceGroup(records, recurrenceKey, curationEvents = []) {
-  return buildGroupSummaries(records, curationEvents).some(
-    (group) => group.recurrenceKey === recurrenceKey,
+export function resolveRecurrenceGroup(records, recurrenceKey, curationEvents = []) {
+  const requestedRecurrenceKey = sanitizeDisplayText(recurrenceKey, 200);
+  if (!requestedRecurrenceKey) return undefined;
+  const curationMap = buildCurationMap(curationEvents);
+  const resolvedKey = resolveRecurrenceKey(requestedRecurrenceKey, curationMap);
+  const group = buildGroupSummaries(records, curationEvents).find(
+    (entry) => entry.recurrenceKey === resolvedKey,
   );
+  if (!group) return undefined;
+  return {
+    requestedRecurrenceKey,
+    recurrenceKey: resolvedKey,
+    resolvedThroughCuration: requestedRecurrenceKey !== resolvedKey,
+    group,
+  };
+}
+
+export function hasRecurrenceGroup(records, recurrenceKey, curationEvents = []) {
+  return Boolean(resolveRecurrenceGroup(records, recurrenceKey, curationEvents));
 }
 
 export function latestReviewStates(reviewEvents, curationEvents = []) {
@@ -695,14 +710,15 @@ export function buildReviewDetail(input = {}) {
   const records = input.records || [];
   const reviewEvents = input.reviewEvents || [];
   const curationEvents = input.curationEvents || [];
+  const resolved = resolveRecurrenceGroup(records, recurrenceKey, curationEvents);
+  if (!resolved) {
+    throw new Error(`cannot inspect unknown recurrence group: ${recurrenceKey}`);
+  }
   const curationMap = buildCurationMap(curationEvents);
-  const resolvedKey = resolveRecurrenceKey(recurrenceKey, curationMap);
+  const resolvedKey = resolved.recurrenceKey;
   const group = buildReviewQueueItems(records, reviewEvents, curationEvents).find(
     (item) => item.recurrenceKey === resolvedKey,
   );
-  if (!group) {
-    throw new Error(`cannot inspect unknown recurrence group: ${recurrenceKey}`);
-  }
 
   const samples = records
     .filter(
@@ -1239,6 +1255,7 @@ export function formatExportMarkdown(snapshot) {
     lines.push(
       `- [${item.reviewState}] ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}; latest: ${item.latestSummary}`,
     );
+    lines.push(`  - Decision posture: ${formatDecisionPosture(item)}`);
     if (item.reviewNote) lines.push(`  - Review note: ${item.reviewNote}`);
   }
   if (snapshot.reviewQueue.items.length === 0)
@@ -2449,6 +2466,7 @@ function buildExportNextActions(items = [], options = {}) {
     return {
       recurrenceKey: key,
       reviewState: item.reviewState,
+      decisionPosture: item.decisionPosture || buildDecisionPosture(item),
       inspectCommand: `${formatAgentVentCommand("review", "show", key)} [limit]`,
       reviewCommands,
       retentionPreviewCommand:

@@ -74,7 +74,7 @@ Review lifecycle is local-only:
 new -> acknowledged | dismissed | escalation_drafted
 ```
 
-A missing review event means `new`; the latest event for a recurrence key is the projected local review state. Resetting to `new` appends another local event. Curation events project source recurrence keys onto target recurrence keys for merge/rename views; raw vent records keep their original keys. Curation rollback uses an append-only `remove` event for the source recurrence key.
+A missing review event means `new`; the latest event for a recurrence key is the projected local review state. Resetting to `new` appends another local event. Curation events project source recurrence keys onto target recurrence keys for merge/rename views; raw vent records keep their original keys. Local review-state commands and record feedback resolve curated source keys to the active projected recurrence group before displaying or appending review state. Curation rollback uses an append-only `remove` event for the source recurrence key.
 
 Read behavior goes through a diagnostic-state membrane: malformed JSONL lines are ignored and counted, oversized lines are skipped, oversized files fail closed, schema-invalid records are ignored, stored display fields are redacted again on read, privacy metadata is recomputed for loaded vent records, and semantic curation cycles are quarantined instead of bricking all projections. JSONL store files fail closed if replaced by symlinks.
 

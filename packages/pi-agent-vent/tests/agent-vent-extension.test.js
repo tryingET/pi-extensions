@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import agentVentExtension from "../extensions/agent-vent.ts";
-import { createVentRecord, readReviewEvents } from "../src/vent-store.js";
+import { createCurationEvent, createVentRecord, readReviewEvents } from "../src/vent-store.js";
 
 function createMockPi() {
   const tools = new Map();
@@ -200,7 +200,7 @@ test("agent_vent records minimized local diagnostics without external authority 
       "tool-call-3",
       {
         action: "set_review",
-        recurrenceKey: "tool_failure:repeated-reload-loses-tool-registration",
+        recurrenceKey: "tool_failure:reload-registration-dupe",
         reviewState: "acknowledged",
         reviewNote: "Operator acknowledged token=abc123 locally",
       },
@@ -212,6 +212,10 @@ test("agent_vent records minimized local diagnostics without external authority 
       },
     );
     assert.match(setReviewResult.content[0].text, /local diagnostic review state only/);
+    assert.equal(
+      setReviewResult.details.reviewEvent.recurrenceKey,
+      "tool_failure:repeated-reload-loses-tool-registration",
+    );
     assert.equal(setReviewResult.details.reviewEvent.state, "acknowledged");
     assert.match(setReviewResult.details.reviewEvent.note, /token=\[REDACTED\]/);
 
@@ -600,6 +604,121 @@ test("agent_vent command round-trips quoted legacy recurrence keys", async () =>
     assert.equal(
       readReviewEvents(path.join(dir, "review-events.jsonl")).events[0].recurrenceKey,
       legacy.recurrenceKey,
+    );
+  } finally {
+    console.log = oldLog;
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent record feedback summarizes resolved curated groups", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-record-curated-feedback-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  process.env.PI_AGENT_VENT_DIR = dir;
+  try {
+    const primary = createVentRecord({
+      summary: "Primary curated record group",
+      category: "bug",
+      recurrenceKey: "primary-record",
+    });
+    const duplicate = createVentRecord({
+      summary: "Duplicate curated record group",
+      category: "bug",
+      recurrenceKey: "duplicate-record",
+    });
+    const curation = createCurationEvent({
+      action: "merge",
+      sourceRecurrenceKey: duplicate.recurrenceKey,
+      targetRecurrenceKey: primary.recurrenceKey,
+    });
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "vents.jsonl"),
+      `${JSON.stringify(primary)}\n${JSON.stringify(duplicate)}\n`,
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(dir, "curation-events.jsonl"),
+      `${JSON.stringify(curation)}\n`,
+      "utf8",
+    );
+
+    const result = await pi.tools.get("agent_vent").execute(
+      "tool-call-record-curated-feedback",
+      {
+        action: "record",
+        summary: "Third curated record group",
+        category: "bug",
+        recurrenceKey: "duplicate-record",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+
+    assert.equal(result.details.recurrenceGroup.recurrenceKey, primary.recurrenceKey);
+    assert.equal(result.details.recurrenceGroup.count, 3);
+  } finally {
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent command review set accepts curated source keys", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-command-curated-review-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  const oldLog = console.log;
+  const messages = [];
+  process.env.PI_AGENT_VENT_DIR = dir;
+  console.log = (message) => messages.push(String(message));
+  try {
+    const primary = createVentRecord({
+      summary: "Primary curated command group",
+      category: "bug",
+      recurrenceKey: "primary-command",
+    });
+    const duplicate = createVentRecord({
+      summary: "Duplicate curated command group",
+      category: "bug",
+      recurrenceKey: "duplicate-command",
+    });
+    const curation = createCurationEvent({
+      action: "merge",
+      sourceRecurrenceKey: duplicate.recurrenceKey,
+      targetRecurrenceKey: primary.recurrenceKey,
+    });
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "vents.jsonl"),
+      `${JSON.stringify(primary)}\n${JSON.stringify(duplicate)}\n`,
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(dir, "curation-events.jsonl"),
+      `${JSON.stringify(curation)}\n`,
+      "utf8",
+    );
+
+    await pi.commands
+      .get("agent_vent")
+      .handler(`review set acknowledged ${duplicate.recurrenceKey} seen via source key`, {
+        hasUI: false,
+      });
+
+    assert.match(messages[0], /Set local review state/);
+    assert.equal(
+      readReviewEvents(path.join(dir, "review-events.jsonl")).events[0].recurrenceKey,
+      primary.recurrenceKey,
     );
   } finally {
     console.log = oldLog;
