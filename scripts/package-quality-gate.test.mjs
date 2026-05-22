@@ -74,9 +74,9 @@ exit 1
     logPath,
     quickMarkerPath,
     packMarkerPath,
-    run(stage = "ci") {
-      return execFileSync("bash", [SCRIPT, stage, packageDir], {
-        cwd: ROOT,
+    run(stage = "ci", options = {}) {
+      return execFileSync("bash", [SCRIPT, stage, options.target ?? packageDir], {
+        cwd: options.cwd ?? ROOT,
         encoding: "utf8",
         env,
       });
@@ -120,4 +120,25 @@ test("ci skips packaging for private packages without release:check:quick", (t) 
   assert.equal(fs.existsSync(fixture.quickMarkerPath), false);
   assert.equal(fs.existsSync(fixture.packMarkerPath), false);
   assert.deepEqual(fixture.readLog(), []);
+});
+
+test("target paths are resolved from cwd parents before repo root", (t) => {
+  const fixture = createFixture(t);
+  const repoTmpRoot = fs.mkdtempSync(path.join(ROOT, ".git", "tmp", "package-gate-target-"));
+  t.after(() => {
+    fs.rmSync(repoTmpRoot, { recursive: true, force: true });
+  });
+  const packageRoot = path.join(repoTmpRoot, "package-under-test");
+  fs.mkdirSync(packageRoot, { recursive: true });
+  writeJson(path.join(packageRoot, "package.json"), {
+    name: "repo-relative-fixture-package",
+    version: "0.0.0",
+  });
+
+  const target = path.relative(ROOT, packageRoot);
+  const nestedCwd = path.join(ROOT, "packages", "pi-context-packer");
+  const output = fixture.run("ci", { cwd: nestedCwd, target });
+
+  assert.match(output, /package quality gate: \.git\/tmp\/package-gate-target-/);
+  assert.equal(fs.existsSync(fixture.packMarkerPath), true);
 });

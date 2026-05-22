@@ -60,9 +60,41 @@ case "$mode" in
   *) echo "error: invalid mode: $mode" >&2; usage; exit 1 ;;
 esac
 
-TARGET_ROOT="$(cd "$target" && pwd)"
-[[ -f "$TARGET_ROOT/package.json" ]] || {
+resolve_target_root() {
+  local raw_target="$1"
+  local -a candidates=()
+
+  if [[ "$raw_target" = /* ]]; then
+    candidates+=("$raw_target")
+  else
+    candidates+=("$PWD/$raw_target")
+    candidates+=("$(dirname "$PWD")/$raw_target")
+    candidates+=("$(dirname "$(dirname "$PWD")")/$raw_target")
+    candidates+=("$REPO_ROOT/$raw_target")
+  fi
+
+  local candidate
+  local seen=":"
+  for candidate in "${candidates[@]}"; do
+    local normalized_parent
+    local normalized
+    normalized_parent="$(cd "$(dirname "$candidate")" 2>/dev/null && pwd || true)"
+    [[ -n "$normalized_parent" ]] || continue
+    normalized="$normalized_parent/$(basename "$candidate")"
+    [[ "$seen" != *":$normalized:"* ]] || continue
+    seen="$seen$normalized:"
+    if [[ -f "$normalized/package.json" ]]; then
+      (cd "$normalized" && pwd)
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+TARGET_ROOT="$(resolve_target_root "$target")" || {
   echo "error: target is not a package root: $target" >&2
+  echo "looked relative to cwd, one parent, two parents, and repo root" >&2
   exit 1
 }
 
