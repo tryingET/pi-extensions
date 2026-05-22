@@ -26,7 +26,7 @@ export const SEVERITIES = ["low", "medium", "high", "critical"];
 export const REVIEW_STATES = ["new", "acknowledged", "dismissed", "escalation_drafted"];
 export const CURATION_ACTIONS = ["merge", "rename", "remove"];
 export const DRAFT_TARGETS = ["github_issue", "ak_task", "incident_review", "maintainer_note"];
-export const RETENTION_ACTIONS = ["preview", "archive", "restore"];
+export const RETENTION_ACTIONS = ["preview", "archive", "restore", "candidates"];
 export const RETENTION_EVENT_ACTIONS = ["archive", "restore"];
 export const MAX_JSONL_FILE_BYTES = 5 * 1024 * 1024;
 export const MAX_JSONL_LINE_BYTES = 64 * 1024;
@@ -1092,6 +1092,38 @@ export function buildRetentionPreview(input = {}) {
   };
 }
 
+export function buildRetentionCandidates(input = {}) {
+  const records = input.records || [];
+  const reviewEvents = input.reviewEvents || [];
+  const curationEvents = input.curationEvents || [];
+  const stateFilter = normalizeRetentionCandidateState(input.state);
+  const filters = normalizeReviewFilters(input.filters);
+  const allItems = buildReviewQueueItems(records, reviewEvents, curationEvents);
+  const facetFilteredItems = allItems.filter((item) => reviewItemMatchesFilters(item, filters));
+  const visibleItems = facetFilteredItems.filter((item) => {
+    if (stateFilter === "all") return true;
+    if (stateFilter === "reviewed") return item.reviewState !== "new";
+    return item.reviewState === stateFilter;
+  });
+  const limit = clampLimit(input.limit, 20);
+
+  return {
+    generatedAt: input.now || new Date().toISOString(),
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Read-only local diagnostic retention planning projection. No archive, restore, AK task, GitHub issue, incident, evidence, telemetry, publication, owner assignment, or ASC/self state mutation occurred; no archive confirmation tokens are emitted here.",
+    totalRecords: records.length,
+    groupCount: allItems.length,
+    matchingGroupCount: facetFilteredItems.length,
+    candidateCount: visibleItems.length,
+    stateFilter,
+    filters,
+    hasFilters: hasReviewFilters(filters),
+    limit,
+    items: visibleItems.slice(0, limit),
+  };
+}
+
 export function archiveRecurrenceGroup(input = {}) {
   const storePath = input.storePath || defaultStorePath();
   const reviewPath = input.reviewPath || defaultReviewPath();
@@ -1295,6 +1327,76 @@ export function formatRetentionPreview(preview) {
   }
   for (const sample of preview.samples || []) {
     lines.push(`- ${sample.id || "unknown-id"}: ${sample.summary || "(no summary)"}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatRetentionCandidates(candidates) {
+  const filterText = formatReviewFilters(candidates.filters);
+  if (candidates.totalRecords === 0) {
+    return [
+      "No agent vent records found yet. Record minimized vents before retention planning.",
+      candidates.hasFilters
+        ? `Filters requested: ${filterText}. Local diagnostic labels only; not owner routing.`
+        : undefined,
+      `Boundary: ${candidates.boundary}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  const scopeText = candidates.hasFilters
+    ? `${candidates.matchingGroupCount} matching of ${candidates.groupCount} total recurrence group(s)`
+    : `${candidates.groupCount} total recurrence group(s)`;
+  const lines = [
+    `Agent vent retention candidates: ${candidates.items.length} of ${candidates.candidateCount} group(s) shown (${scopeText}); state filter=${candidates.stateFilter}; limit=${candidates.limit}.`,
+    candidates.hasFilters
+      ? `Filters: ${filterText}. Local diagnostic labels only; not owner routing or owner assignment.`
+      : undefined,
+    "This is a read-only planning view. It does not archive records and intentionally does not emit archive confirmation tokens.",
+    `Boundary: ${candidates.boundary}`,
+  ].filter(Boolean);
+
+  if (!candidates.items.length) {
+    lines.push("- none");
+    if (candidates.stateFilter === "reviewed") {
+      lines.push("Next: review local groups first, then run retention candidates again.");
+    }
+    return lines.join("\n");
+  }
+
+  for (const item of candidates.items) {
+    const facets = [
+      item.categories?.length ? `categories=${item.categories.join(",")}` : undefined,
+      item.tags?.length ? `tags=${item.tags.join(",")}` : undefined,
+      item.tools?.length ? `tools=${item.tools.join(",")}` : undefined,
+      item.packages?.length ? `packages=${item.packages.join(",")}` : undefined,
+    ]
+      .filter(Boolean)
+      .join("; ");
+    const facetText = facets ? `; ${facets}` : "";
+    lines.push(
+      `- [${item.reviewState}] ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, first=${item.firstSeen || "unknown"}, last=${item.lastSeen || "unknown"}${facetText}; latest: ${item.latestSummary}`,
+    );
+    if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
+    lines.push(
+      `  inspect: ${formatAgentVentCommand("review", "show", item.recurrenceKey)} [limit]`,
+    );
+    if (item.reviewState === "new") {
+      lines.push(
+        `  review before archive: ${formatAgentVentCommand("review", "set", "acknowledged", item.recurrenceKey)} [note] | ${formatAgentVentCommand("review", "set", "dismissed", item.recurrenceKey)} [note]`,
+      );
+    } else {
+      lines.push(
+        `  preview archive token: ${formatAgentVentCommand("retention", "preview", item.recurrenceKey)}`,
+        `  export this outcome bucket: ${formatAgentVentCommand("export", "markdown", item.reviewState)} [limit]`,
+      );
+    }
+  }
+  if (candidates.hasFilters) {
+    lines.push(
+      "Filter note: category/tag/tool/package values are local diagnostic labels only, not owner routing or owner assignment.",
+    );
   }
   return lines.join("\n");
 }
@@ -1594,6 +1696,13 @@ function sanitizeRetentionEvents(values) {
     }
   }
   return { events, invalidEvents };
+}
+
+function normalizeRetentionCandidateState(value) {
+  if (value === undefined || value === null || value === "") return "reviewed";
+  const normalized = String(value).trim().toLowerCase().replaceAll("-", "_");
+  if (normalized === "reviewed" || normalized === "all") return normalized;
+  return normalizeReviewState(normalized);
 }
 
 function planRetentionArchive({

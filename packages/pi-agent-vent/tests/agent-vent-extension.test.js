@@ -224,6 +224,31 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.equal(outcomesResult.details.reviewOutcomes.counts.acknowledged, 1);
     assert.equal(outcomesResult.details.reviewOutcomes.filters.tool, "pi-reload");
 
+    const retentionCandidatesResult = await tool.execute(
+      "tool-call-3c",
+      {
+        action: "retention",
+        retentionAction: "candidates",
+        reviewState: "acknowledged",
+        category: "tool_failure",
+        tags: ["reload"],
+        tool: "pi reload",
+        packageName: "@tryinget/pi-agent-vent",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(retentionCandidatesResult.content[0].text, /Agent vent retention candidates/);
+    assert.match(retentionCandidatesResult.content[0].text, /does not archive records/);
+    assert.match(retentionCandidatesResult.content[0].text, /retention preview/);
+    assert.doesNotMatch(retentionCandidatesResult.content[0].text, /Confirmation token: archive:/);
+    assert.equal(retentionCandidatesResult.details.retention.candidateCount, 1);
+    assert.equal(retentionCandidatesResult.details.retention.filters.tool, "pi-reload");
+
     const draftResult = await tool.execute(
       "tool-call-4",
       {
@@ -376,6 +401,12 @@ test("agent_vent command rejects unknown review filter keys without creating sto
     assert.doesNotMatch(messages[6], /symlink/);
     await pi.commands.get("agent_vent").handler("outcomes resolved", { hasUI: false });
     assert.match(messages[7], /Invalid \/agent_vent outcomes state: resolved/);
+    await pi.commands.get("agent_vent").handler("retention candidates owner=", { hasUI: false });
+    assert.match(messages[8], /Unknown \/agent_vent retention candidates filter\(s\): owner/);
+    assert.doesNotMatch(messages[8], /symlink/);
+    await pi.commands.get("agent_vent").handler("retention candidates resolved", { hasUI: false });
+    assert.match(messages[9], /Invalid \/agent_vent retention candidates state: resolved/);
+    assert.doesNotMatch(messages[9], /symlink/);
   } finally {
     console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;

@@ -14,6 +14,7 @@ import {
   buildFacetSummary,
   buildLifecycleSnapshot,
   buildRecurrenceKey,
+  buildRetentionCandidates,
   buildRetentionPreview,
   buildReviewDetail,
   buildReviewOutcomes,
@@ -30,6 +31,7 @@ import {
   formatExportMarkdown,
   formatFacetSummary,
   formatLifecycleStats,
+  formatRetentionCandidates,
   formatReviewDetail,
   formatReviewOutcomes,
   formatReviewQueue,
@@ -1121,6 +1123,76 @@ test("lifecycle stats count more groups than the display limit", () => {
   assert.equal(snapshot.counts.recurrenceGroups, 125);
   assert.equal(snapshot.summary.groups.length, 5);
   assert.equal(snapshot.reviewQueue.items.length, 5);
+});
+
+test("retention candidates list reviewed groups without tokens or mutation", () => {
+  const fresh = createVentRecord({
+    summary: "Fresh retention group",
+    category: "workflow",
+    recurrenceKey: "fresh-retention",
+  });
+  const acknowledged = createVentRecord({
+    summary: "Acknowledged retention group token=abc123",
+    category: "tool_failure",
+    recurrenceKey: "ack-retention",
+    tags: ["Retention"],
+    tool: "pi reload",
+    packageName: "@tryinget/pi-agent-vent",
+  });
+  const dismissed = createVentRecord({
+    summary: "Dismissed retention group",
+    category: "documentation",
+    recurrenceKey: "dismissed-retention",
+    tags: ["Retention"],
+  });
+  const reviews = [
+    createReviewEvent({
+      recurrenceKey: acknowledged.recurrenceKey,
+      state: "acknowledged",
+      note: "reviewed token=abc123 locally",
+    }),
+    createReviewEvent({ recurrenceKey: dismissed.recurrenceKey, state: "dismissed" }),
+  ];
+
+  const candidates = buildRetentionCandidates({
+    records: [fresh, acknowledged, dismissed],
+    reviewEvents: reviews,
+    filters: { tags: ["retention"], tool: "pi reload" },
+    limit: 10,
+    now: "2026-05-22T00:00:00.000Z",
+  });
+  assert.equal(candidates.stateFilter, "reviewed");
+  assert.equal(candidates.groupCount, 3);
+  assert.equal(candidates.matchingGroupCount, 1);
+  assert.equal(candidates.candidateCount, 1);
+  assert.equal(candidates.items[0].reviewState, "acknowledged");
+  assert.equal(candidates.filters.tool, "pi-reload");
+
+  const text = formatRetentionCandidates(candidates);
+  assert.match(text, /Agent vent retention candidates/);
+  assert.match(text, /read-only planning view/);
+  assert.match(text, /preview archive token: \/agent_vent retention preview/);
+  assert.match(text, /reviewed token=\[REDACTED\] locally/);
+  assert.match(text, /No archive, restore, AK task, GitHub issue, incident, evidence/);
+  assert.match(text, /not owner routing/);
+  assert.doesNotMatch(text, /archive:[a-f0-9]/);
+  assert.doesNotMatch(text, /abc123|was archived|was filed|owner was assigned/);
+
+  const allCandidates = buildRetentionCandidates({
+    records: [fresh, acknowledged],
+    reviewEvents: reviews,
+    state: "all",
+  });
+  assert.equal(allCandidates.candidateCount, 2);
+  assert.match(formatRetentionCandidates(allCandidates), /review before archive/);
+  assert.throws(
+    () => buildRetentionCandidates({ records: [], reviewEvents: [], state: "resolved" }),
+    /invalid agent_vent review state/,
+  );
+  assert.throws(
+    () => buildRetentionCandidates({ filters: { category: "../../etc/passwd" } }),
+    /invalid agent_vent review filter category/,
+  );
 });
 
 test("retention archive is confirmation-gated, backed up, receipted, and restorable", () => {

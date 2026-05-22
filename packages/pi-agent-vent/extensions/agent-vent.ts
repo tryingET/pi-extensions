@@ -10,6 +10,7 @@ import {
   buildEscalationDraft,
   buildFacetSummary,
   buildLifecycleSnapshot,
+  buildRetentionCandidates,
   buildRetentionPreview,
   buildReviewDetail,
   buildReviewOutcomes,
@@ -32,6 +33,7 @@ import {
   formatPath,
   formatRecent,
   formatRetentionArchiveResult,
+  formatRetentionCandidates,
   formatRetentionPreview,
   formatRetentionRestoreResult,
   formatReviewDetail,
@@ -223,7 +225,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
       "Use action=draft to generate owner-surface draft text only; never claim it submitted, filed, declared, or recorded anything.",
-      "Use action=retention to preview, confirmation-gate, archive, or restore local diagnostic records only; never imply owner-system deletion or canonical evidence changes.",
+      "Use action=retention to list read-only archive candidates, preview, confirmation-gate, archive, or restore local diagnostic records only; never imply owner-system deletion or canonical evidence changes.",
       "Do not use agent_vent for ordinary progress updates, single-use complaints, or content that belongs in the final answer.",
       "agent_vent records and review states are local diagnostics only; agent_vent must not claim to create AK tasks, incidents, GitHub issues, canonical evidence, external telemetry, or ASC/self state.",
       "When calling agent_vent, summarize minimally and never include secrets, credentials, private user payloads, or long raw logs.",
@@ -487,6 +489,31 @@ export default function agentVentExtension(pi: ExtensionAPI) {
 
       if (action === "retention") {
         const retentionAction = normalizeRetentionAction(params.retentionAction || "preview");
+        if (retentionAction === "candidates") {
+          const candidates = buildRetentionCandidates({
+            records,
+            reviewEvents,
+            curationEvents,
+            state: params.reviewState,
+            limit: clampLimit(params.limit, 20),
+            filters: {
+              category: params.category,
+              tool: params.tool,
+              packageName: params.packageName,
+              tags: params.tags,
+            },
+          });
+          return textResult(formatRetentionCandidates(candidates), {
+            action,
+            retentionAction,
+            storePath,
+            reviewPath,
+            curationPath,
+            retentionPath,
+            backupDir,
+            retention: candidates,
+          });
+        }
         if (retentionAction === "preview") {
           const preview = buildRetentionPreview({
             recurrenceKey: params.recurrenceKey,
@@ -668,6 +695,8 @@ function handleCommand(args: string) {
       "  /agent_vent curate remove <sourceKey> [note]             Append a local curation undo event.",
       "  /agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]",
       "                                                        Generate draft-only owner-surface text.",
+      "  /agent_vent retention candidates [reviewed|state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
+      "                                                        Show read-only reviewed groups ready for retention planning, without tokens.",
       "  /agent_vent retention preview <recurrenceKey>        Preview exact local records and confirmation token.",
       "  /agent_vent retention archive <recurrenceKey> <token> [note]",
       "                                                        Archive reviewed local records with a backup receipt.",
@@ -689,6 +718,10 @@ function handleCommand(args: string) {
 
   if (action === "review" || action === "outcomes") {
     const syntaxError = reviewListSyntaxError(tokens.slice(1), action);
+    if (syntaxError) return syntaxError;
+  }
+  if (action === "retention" && tokens[1] === "candidates") {
+    const syntaxError = retentionCandidatesSyntaxError(tokens.slice(2));
     if (syntaxError) return syntaxError;
   }
 
@@ -860,7 +893,25 @@ function reviewListSyntaxError(
   return undefined;
 }
 
-function parseReviewListTokens(tokens: string[]) {
+function retentionCandidatesSyntaxError(
+  tokens: string[],
+  parsed = parseReviewListTokens(tokens, { allowReviewedState: true }),
+) {
+  const usage =
+    "Usage: /agent_vent retention candidates [reviewed|new|acknowledged|dismissed|escalation_drafted|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
+  if (parsed.unknownFilters.length) {
+    return `Unknown /agent_vent retention candidates filter(s): ${parsed.unknownFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.invalidFilters.length) {
+    return `Invalid /agent_vent retention candidates filter value(s): ${parsed.invalidFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.invalidState) {
+    return `Invalid /agent_vent retention candidates state: ${parsed.invalidState}\n${usage}`;
+  }
+  return undefined;
+}
+
+function parseReviewListTokens(tokens: string[], options: { allowReviewedState?: boolean } = {}) {
   const filters: { category?: string; tags?: string[]; tool?: string; packageName?: string } = {};
   const tags: string[] = [];
   const unknownFilters: string[] = [];
@@ -904,7 +955,10 @@ function parseReviewListTokens(tokens: string[]) {
   }
   const normalizedState = state?.toLowerCase().replaceAll("-", "_");
   const invalidState =
-    normalizedState && normalizedState !== "all" && !REVIEW_STATES.includes(normalizedState)
+    normalizedState &&
+    normalizedState !== "all" &&
+    !(options.allowReviewedState && normalizedState === "reviewed") &&
+    !REVIEW_STATES.includes(normalizedState)
       ? state
       : undefined;
   return {
@@ -978,6 +1032,21 @@ function handleRetentionCommand(
   },
 ) {
   const retentionAction = normalizeRetentionAction(tokens[0] || "preview");
+  if (retentionAction === "candidates") {
+    const parsed = parseReviewListTokens(tokens.slice(1), { allowReviewedState: true });
+    const syntaxError = retentionCandidatesSyntaxError(tokens.slice(1), parsed);
+    if (syntaxError) return syntaxError;
+    return formatRetentionCandidates(
+      buildRetentionCandidates({
+        records: state.records as unknown[],
+        reviewEvents: state.reviewEvents as unknown[],
+        curationEvents: state.curationEvents as unknown[],
+        state: parsed.state,
+        limit: clampLimit(parsed.limit, 20),
+        filters: parsed.filters,
+      }),
+    );
+  }
   if (retentionAction === "preview") {
     const recurrenceKey = tokens[1];
     if (!recurrenceKey) return "Usage: /agent_vent retention preview <recurrenceKey>";
