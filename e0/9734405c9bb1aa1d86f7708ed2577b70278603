@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "e09734405c9bb1aa1d86f7708ed2577b70278603"
-created_at: "2026-05-22T16:14:04Z"
+created_at: "2026-05-22T16:14:44Z"
 intent: "Harden pi-agent-vent release smoke coverage for installed registered-tool path execution"
 files:
   - "packages/pi-agent-vent/README.md"
@@ -21,5 +21,5 @@ validation:
     status: "pass"
 group:
   index: 1
-  total: 2
+  total: 3
   rationale: "agent-vent release smoke contract changes"
