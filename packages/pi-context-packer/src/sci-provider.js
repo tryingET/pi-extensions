@@ -54,7 +54,7 @@ const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync 
   return parseWorkflowStdout(stdout);
 };
 
-const tryWorkflow = async ({ cwd, workflow, args, env, exec }) => {
+const tryWorkflow = async ({ cwd, workflow, args, env, exec, shouldAbort }) => {
   const errors = [];
   for (const command of sciCommandCandidates(env)) {
     try {
@@ -62,6 +62,13 @@ const tryWorkflow = async ({ cwd, workflow, args, env, exec }) => {
       return { ...result, command };
     } catch (error) {
       errors.push(subprocessFailureDetail("SCI workflow", error, workflow));
+      if (shouldAbort && (await shouldAbort())) {
+        return {
+          ok: false,
+          aborted: true,
+          error: "SCI workflow aborted after owner-state artifact appeared",
+        };
+      }
     }
   }
   const uniqueErrors = Array.from(new Set(errors));
@@ -117,7 +124,7 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
   const ontologyPath = resolve(cwd, ".ontology");
   const hadOntologyBefore = await pathExists(ontologyPath);
 
-  if (env.sciReadOnlySafe !== true && env.allowSciArtifactCreation !== true) {
+  if (env.sciReadOnlySafe !== true) {
     return {
       section: sectionFromItems([]),
       omissions: [
@@ -125,13 +132,13 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
           provider: "sci",
           reason: "blocked",
           detail:
-            "SCI read-only safety was not confirmed; refusing to run workflows that may create or mutate .ontology artifacts",
+            "SCI read-only safety was not confirmed; context-packer cannot authorize workflows that may create or mutate .ontology artifacts; use the SCI owner surface directly when indexing is required",
         },
       ],
     };
   }
 
-  if (hadOntologyBefore && env.allowExistingSciArtifacts !== true) {
+  if (hadOntologyBefore) {
     return {
       section: sectionFromItems([]),
       omissions: [
@@ -139,11 +146,24 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
           provider: "sci",
           reason: "blocked",
           detail:
-            "existing .ontology SCI artifacts present; refusing to mutate source-owned SCI state",
+            "existing .ontology SCI artifacts present; refusing to run against source-owned SCI state from context-packer; use the SCI owner surface directly",
         },
       ],
     };
   }
+
+  const artifactCreatedResult = () => ({
+    section: sectionFromItems([]),
+    omissions: [
+      ...omissions,
+      {
+        provider: "sci",
+        reason: "blocked",
+        detail:
+          "SCI created .ontology artifacts during a read-only packet attempt; artifacts were left untouched for the SCI owner surface and SCI packet items were omitted",
+      },
+    ],
+  });
 
   for (const path of pathSeedsForSci(seeds)) {
     const result = await tryWorkflow({
@@ -152,7 +172,9 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
       args: { path, range: { startLine: 1, endLine: 120 } },
       env,
       exec,
+      shouldAbort: () => pathExists(ontologyPath),
     });
+    if (await pathExists(ontologyPath)) return artifactCreatedResult();
     if (result.ok) {
       const item = itemFromValue({
         id: `sci:read_file:${path}`,
@@ -181,7 +203,9 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
       args: { query: symbol, maxResults: 8 },
       env,
       exec,
+      shouldAbort: () => pathExists(ontologyPath),
     });
+    if (await pathExists(ontologyPath)) return artifactCreatedResult();
     const result =
       symbolResult.ok && (symbolResult.value?.count ?? 0) > 0
         ? symbolResult
@@ -191,8 +215,10 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
             args: { query: symbol, path: ".", maxResults: 8 },
             env,
             exec,
+            shouldAbort: () => pathExists(ontologyPath),
           });
 
+    if (await pathExists(ontologyPath)) return artifactCreatedResult();
     if (result.ok) {
       const item = itemFromValue({
         id: `sci:symbol:${symbol}`,
@@ -222,24 +248,7 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
     });
   }
 
-  if (
-    !hadOntologyBefore &&
-    (await pathExists(ontologyPath)) &&
-    env.allowSciArtifactCreation !== true
-  ) {
-    return {
-      section: sectionFromItems([]),
-      omissions: [
-        ...omissions,
-        {
-          provider: "sci",
-          reason: "blocked",
-          detail:
-            "SCI created .ontology artifacts during a read-only packet attempt; artifacts were left untouched and SCI packet items were omitted",
-        },
-      ],
-    };
-  }
+  if (!hadOntologyBefore && (await pathExists(ontologyPath))) return artifactCreatedResult();
 
   return { section: sectionFromItems(items), omissions };
 };

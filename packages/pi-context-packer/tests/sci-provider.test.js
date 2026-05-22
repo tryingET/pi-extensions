@@ -199,3 +199,250 @@ test("context_pack refuses SCI workflows until read-only safety is confirmed", a
     ),
   );
 });
+
+test("context_pack ignores allowSciArtifactCreation as a read-only safety bypass", async () => {
+  const root = await makeWorkspace();
+  const calls = [];
+  const fakeExec = async (_command, _args, options) => {
+    calls.push(options.cwd);
+    await mkdir(join(options.cwd, ".ontology"));
+    return { stdout: sciStdout({ content: "should not appear" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { git: "off" },
+    },
+    {
+      sciCommand: "/tmp/fake-sci",
+      execFileAsync: fakeExec,
+      allowSciArtifactCreation: true,
+    },
+  );
+
+  assert.equal(calls.length, 0);
+  assert.equal(await pathExists(join(root, ".ontology")), false);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "sci" &&
+        omission.detail.includes("context-packer cannot authorize workflows"),
+    ),
+  );
+});
+
+test("context_pack refuses existing SCI artifacts even when bypass flag is set", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, ".ontology"));
+  const calls = [];
+  const fakeExec = async () => {
+    calls.push("called");
+    return { stdout: sciStdout({ content: "should not run" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { git: "off" },
+    },
+    {
+      sciCommand: "/tmp/fake-sci",
+      execFileAsync: fakeExec,
+      sciReadOnlySafe: true,
+      allowExistingSciArtifacts: true,
+    },
+  );
+
+  assert.equal(calls.length, 0);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("existing .ontology"),
+    ),
+  );
+});
+
+test("context_pack omits SCI items when workflow creates .ontology despite artifact flag", async () => {
+  const root = await makeWorkspace();
+  const fakeExec = async (_command, _args, options) => {
+    await mkdir(join(options.cwd, ".ontology"));
+    return {
+      stdout: sciStdout({
+        path: "src/example.js",
+        content: "SECRET SHOULD NOT BE SELECTED\n",
+      }),
+    };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { git: "off" },
+    },
+    {
+      sciCommand: "/tmp/fake-sci",
+      execFileAsync: fakeExec,
+      sciReadOnlySafe: true,
+      allowSciArtifactCreation: true,
+    },
+  );
+
+  assert.equal(await pathExists(join(root, ".ontology")), true);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+    ),
+  );
+  assert.doesNotMatch(JSON.stringify(result.packet), /SECRET SHOULD NOT BE SELECTED/);
+});
+
+test("context_pack stops SCI calls immediately after .ontology is created", async () => {
+  const root = await makeWorkspace();
+  await writeFile(join(root, "src", "second.js"), "export const second = 2;\n", "utf8");
+  const calls = [];
+  const fakeExec = async (_command, args, options) => {
+    calls.push(args[1]);
+    if (calls.length === 1) {
+      await mkdir(join(options.cwd, ".ontology"));
+      return { stdout: sciStdout({ content: "FIRST SHOULD BE OMITTED\n" }) };
+    }
+    return { stdout: sciStdout({ content: "SECOND SHOULD NOT RUN\n" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [
+        { kind: "path", value: "src/example.js" },
+        { kind: "path", value: "src/second.js" },
+      ],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    {
+      sciCommand: "/tmp/fake-sci",
+      execFileAsync: fakeExec,
+      sciReadOnlySafe: true,
+      allowSciArtifactCreation: true,
+    },
+  );
+
+  assert.deepEqual(calls, ["read_file"]);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+    ),
+  );
+  assert.doesNotMatch(
+    JSON.stringify(result.packet),
+    /FIRST SHOULD BE OMITTED|SECOND SHOULD NOT RUN/,
+  );
+});
+
+test("context_pack stops SCI symbol fallback after .ontology is created", async () => {
+  const root = await makeWorkspace();
+  const calls = [];
+  const fakeExec = async (_command, args, options) => {
+    calls.push(args[1]);
+    if (args[1] === "symbol_search") {
+      await mkdir(join(options.cwd, ".ontology"));
+      return { stdout: sciStdout({ query: "target", count: 0, symbols: [] }) };
+    }
+    return { stdout: sciStdout({ content: "TEXT SEARCH SHOULD NOT RUN\n" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Find code symbol context",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "symbol", value: "target" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    {
+      sciCommand: "/tmp/fake-sci",
+      execFileAsync: fakeExec,
+      sciReadOnlySafe: true,
+      allowSciArtifactCreation: true,
+    },
+  );
+
+  assert.deepEqual(calls, ["symbol_search"]);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+    ),
+  );
+  assert.doesNotMatch(JSON.stringify(result.packet), /TEXT SEARCH SHOULD NOT RUN/);
+});
+
+test("context_pack stops SCI command-candidate fallback after .ontology is created", async () => {
+  const root = await makeWorkspace();
+  const calls = [];
+  const fakeExec = async (command, _args, options) => {
+    calls.push(command);
+    if (calls.length === 1) {
+      await mkdir(join(options.cwd, ".ontology"));
+      throw new Error("first SCI candidate failed after creating owner state");
+    }
+    return { stdout: sciStdout({ content: "SECOND CANDIDATE SHOULD NOT RUN\n" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    {
+      sciCommand: "/tmp/first-sci",
+      execFileAsync: fakeExec,
+      sciReadOnlySafe: true,
+      allowSciArtifactCreation: true,
+    },
+  );
+
+  assert.deepEqual(calls, ["/tmp/first-sci"]);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+    ),
+  );
+  assert.doesNotMatch(JSON.stringify(result.packet), /SECOND CANDIDATE SHOULD NOT RUN/);
+});
