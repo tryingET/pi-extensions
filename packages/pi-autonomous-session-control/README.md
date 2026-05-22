@@ -466,6 +466,7 @@ Then in Pi:
 - [Project resources](docs/project/resources.md)
 - [Project skills](docs/project/skills.md)
 - [ASC public execution contract](docs/project/public-execution-contract.md)
+- [Self continuation harness suggestions](docs/project/self-continuation-harness-suggestions.md)
 - [Rewind salvage and integration plan](docs/project/2026-04-22-rewind-salvage-and-integration-plan.md)
 - [Strategic goals](docs/project/strategic_goals.md)
 - [Tactical goals](docs/project/tactical_goals.md)
