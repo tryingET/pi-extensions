@@ -120,11 +120,11 @@ Important behavior:
 - `tool` and `packageName` are optional caller-supplied local diagnostic facets, not owner-routing truth.
 - `facets` is read-only and summarizes local labels; it never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `review` facet filters are read-only local diagnostic focus aids; review command syntax fails closed before store reads for unknown filter keys, invalid states, and invalid category values, and filters do not assign owners, route work, mutate owner surfaces, or change review state.
-- `review` queue/detail, `outcomes`, and `compare` output may show advisory human-review hints plus exact next-action commands for local review states, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths for legacy key safety. Filtered compare follow-up commands preserve supported category/tag/tool/package filters for `outcomes` and `retention candidates`; export prompts explicitly say when they broaden because export does not support facet filters. Outcome and compare limits are per review-state bucket rather than global. Review/outcome/compare command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states/arguments, and invalid category values. These are UX guidance only and do not route, submit, file, create, declare, assign owners, record evidence, publish, archive, restore, or mutate owner systems; compare intentionally emits no retention confirmation tokens.
+- `review` queue/detail, `outcomes`, and `compare` output may show advisory human-review hints plus exact next-action commands for local review states, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths for legacy key safety. Filtered compare follow-up commands preserve supported category/tag/tool/package filters for `outcomes`, `retention candidates`, and `export`. Outcome and compare limits are per review-state bucket rather than global. Review/outcome/compare/export command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states/arguments, and invalid category values. These are UX guidance only and do not route, submit, file, create, declare, assign owners, record evidence, publish, archive, restore, or mutate owner systems; compare intentionally emits no retention confirmation tokens.
 - `set_review` requires an existing recurrence group and never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it includes local diagnostic facets when present, returns text only, and never submits, files, declares, records evidence, assigns owners, or changes review state automatically.
-- `stats` and `export` are read-only projections and must not claim evidence, publication, task, issue, or incident authority.
+- `stats` and `export` are read-only projections and must not claim evidence, publication, task, issue, owner-routing, owner-assignment, or incident authority. Export may preserve local category/tag/tool/package facet scope as a diagnostic focus aid only.
 - `retention preview` is read-only; `retention archive` mutates only the active local vents store after exact confirmation, lock acquisition, store-hash verification, and backup creation; `retention restore` mutates only the active local vents store after exact confirmation, realpath containment, and stale-state checks.
 
 ### `/agent_vent`
@@ -146,7 +146,7 @@ Human/operator command for lightweight inspection. `/agent-vent` remains a compa
 - `/agent_vent curate remove <sourceRecurrenceKey> [note]`
 - `/agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]`
 - `/agent_vent stats`
-- `/agent_vent export [markdown|json] [state|all] [limit]`
+- `/agent_vent export [markdown|json] [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]`
 - `/agent_vent retention preview <recurrenceKey>`
 - `/agent_vent retention archive <recurrenceKey> <archive:token> [note]`
 - `/agent_vent retention restore <backupPath> <restore:token> [note]`

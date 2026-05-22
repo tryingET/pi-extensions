@@ -754,9 +754,27 @@ export function buildLifecycleSnapshot(input = {}) {
   const curationPath = input.curationPath || defaultCurationPath();
   const retentionPath = input.retentionPath || defaultRetentionPath();
   const backupDir = input.backupDir || defaultBackupDir();
+  const filters = normalizeReviewFilters(input.filters);
+  const hasFilters = hasReviewFilters(filters);
   const allReviewItems = buildReviewQueueItems(records, reviewEvents, curationEvents);
+  const matchingReviewItems = allReviewItems.filter((item) =>
+    reviewItemMatchesFilters(item, filters),
+  );
+  const scopedReviewItems = hasFilters ? matchingReviewItems : allReviewItems;
+  const curationMap = buildCurationMap(curationEvents);
+  const scopedKeys = new Set(scopedReviewItems.map((item) => item.recurrenceKey));
+  const scopedRecords = hasFilters
+    ? records.filter((record) =>
+        scopedKeys.has(
+          resolveRecurrenceKey(
+            String(record.recurrenceKey || buildRecurrenceKey(record)),
+            curationMap,
+          ),
+        ),
+      )
+    : records;
   const reviewStateCounts = Object.fromEntries(REVIEW_STATES.map((state) => [state, 0]));
-  for (const item of allReviewItems) {
+  for (const item of scopedReviewItems) {
     reviewStateCounts[item.reviewState] += 1;
   }
 
@@ -764,7 +782,15 @@ export function buildLifecycleSnapshot(input = {}) {
     generatedAt: input.now || new Date().toISOString(),
     classification: "local-diagnostic-user-data",
     boundary:
-      "Local diagnostic projection only; no AK task, GitHub issue, incident, evidence, telemetry, or ASC/self state was created.",
+      "Local diagnostic projection only; no AK task, GitHub issue, incident, evidence, telemetry, publication, owner assignment, or ASC/self state was created. Facet filters are local diagnostic labels only, not owner routing.",
+    scope: {
+      hasFilters,
+      filters,
+      totalRecords: records.length,
+      totalGroups: allReviewItems.length,
+      matchingRecords: scopedRecords.length,
+      matchingGroups: matchingReviewItems.length,
+    },
     paths: {
       vents: storePath,
       reviewEvents: reviewPath,
@@ -798,15 +824,15 @@ export function buildLifecycleSnapshot(input = {}) {
       quarantinedCurationEvents: input.quarantinedCurationEvents || 0,
     },
     counts: {
-      vents: records.length,
-      recurrenceGroups: allReviewItems.length,
+      vents: scopedRecords.length,
+      recurrenceGroups: scopedReviewItems.length,
       reviewEvents: reviewEvents.length,
       curationEvents: curationEvents.length,
       retentionEvents: retentionEvents.length,
-      candidateIncidents: allReviewItems.filter((item) => item.candidateIncident).length,
+      candidateIncidents: scopedReviewItems.filter((item) => item.candidateIncident).length,
       reviewStates: reviewStateCounts,
     },
-    summary: summarizeRecords(records, {
+    summary: summarizeRecords(scopedRecords, {
       limit: clampLimit(input.limit, 20),
       curationEvents,
     }),
@@ -814,6 +840,7 @@ export function buildLifecycleSnapshot(input = {}) {
       state: input.state || "all",
       limit: clampLimit(input.limit, 20),
       curationEvents,
+      filters,
     }),
   };
 }
@@ -1144,9 +1171,14 @@ export function formatLifecycleStats(snapshot) {
     `- malformed lines: vents=${snapshot.malformedLines.vents}, reviewEvents=${snapshot.malformedLines.reviewEvents}, curationEvents=${snapshot.malformedLines.curationEvents}, retentionEvents=${snapshot.malformedLines.retentionEvents}`,
     `- oversized lines: vents=${snapshot.oversizedLines.vents}, reviewEvents=${snapshot.oversizedLines.reviewEvents}, curationEvents=${snapshot.oversizedLines.curationEvents}, retentionEvents=${snapshot.oversizedLines.retentionEvents}`,
     `- invalid/quarantined entries: vents=${snapshot.invalidEntries.vents}, reviewEvents=${snapshot.invalidEntries.reviewEvents}, curationEvents=${snapshot.invalidEntries.curationEvents}, retentionEvents=${snapshot.invalidEntries.retentionEvents}, quarantinedCurationEvents=${snapshot.invalidEntries.quarantinedCurationEvents}`,
+    snapshot.scope?.hasFilters
+      ? `- scope filters: ${formatReviewFilters(snapshot.scope.filters)} (${snapshot.scope.matchingGroups} matching of ${snapshot.scope.totalGroups} total group(s))`
+      : undefined,
     `- paths: ${snapshot.paths.vents}; ${snapshot.paths.reviewEvents}; ${snapshot.paths.curationEvents}`,
     `Boundary: ${snapshot.boundary}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function formatExportMarkdown(snapshot) {
@@ -1157,11 +1189,24 @@ export function formatExportMarkdown(snapshot) {
     `Classification: ${snapshot.classification}`,
     `Boundary: ${snapshot.boundary}`,
     "",
+    "## Scope",
+    "",
+    snapshot.scope?.hasFilters
+      ? `- Filters: ${formatReviewFilters(snapshot.scope.filters)} (local diagnostic labels only; not owner routing or owner assignment)`
+      : "- Filters: none",
+    snapshot.scope?.hasFilters
+      ? `- Matching groups: ${snapshot.scope.matchingGroups} of ${snapshot.scope.totalGroups}`
+      : `- Groups: ${snapshot.counts.recurrenceGroups}`,
+    snapshot.scope?.hasFilters
+      ? `- Matching vent records: ${snapshot.scope.matchingRecords} of ${snapshot.scope.totalRecords}`
+      : `- Vent records: ${snapshot.counts.vents}`,
+    "- Export is a local diagnostic projection only, not evidence, publication, owner routing, task truth, issue truth, or incident truth.",
+    "",
     "## Stats",
     "",
-    `- Vent records: ${snapshot.counts.vents}`,
-    `- Recurrence groups: ${snapshot.counts.recurrenceGroups}`,
-    `- Candidate incidents for human review: ${snapshot.counts.candidateIncidents}`,
+    `- Vent records in scope: ${snapshot.counts.vents}`,
+    `- Recurrence groups in scope: ${snapshot.counts.recurrenceGroups}`,
+    `- Candidate incidents for human review in scope: ${snapshot.counts.candidateIncidents}`,
     `- Review events: ${snapshot.counts.reviewEvents}`,
     `- Curation events: ${snapshot.counts.curationEvents}`,
     `- Retention events: ${snapshot.counts.retentionEvents}`,
@@ -2266,10 +2311,7 @@ function reviewFilterCommandArgs(filters = {}) {
 }
 
 function formatExportBucketLine(label, state, filters = {}) {
-  const command = `${formatAgentVentCommand("export", "markdown", state)} [limit]`;
-  if (hasReviewFilters(filters)) {
-    return `${label} (broader; export does not support facet filters): ${command}`;
-  }
+  const command = `${formatAgentVentCommandWithFilters(filters, "export", "markdown", state)} [limit]`;
   return `${label}: ${command}`;
 }
 

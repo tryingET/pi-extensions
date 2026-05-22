@@ -262,7 +262,7 @@ test("agent_vent records minimized local diagnostics without external authority 
     );
     assert.match(
       compareResult.content[0].text,
-      /export bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
+      /export bucket: \/agent_vent export markdown acknowledged category=tool_failure tool=pi-reload package=tryinget-pi-agent-vent tag=reload/,
     );
     assert.match(
       compareResult.content[0].text,
@@ -354,7 +354,14 @@ test("agent_vent records minimized local diagnostics without external authority 
 
     const exportResult = await tool.execute(
       "tool-call-6",
-      { action: "export", exportFormat: "json" },
+      {
+        action: "export",
+        exportFormat: "json",
+        category: "tool_failure",
+        tags: ["reload"],
+        tool: "pi reload",
+        packageName: "@tryinget/pi-agent-vent",
+      },
       undefined,
       undefined,
       {
@@ -362,7 +369,11 @@ test("agent_vent records minimized local diagnostics without external authority 
         sessionManager: { getSessionFile: () => undefined },
       },
     );
-    assert.equal(JSON.parse(exportResult.content[0].text).counts.reviewStates.acknowledged, 1);
+    const exported = JSON.parse(exportResult.content[0].text);
+    assert.equal(exported.counts.reviewStates.acknowledged, 1);
+    assert.equal(exported.scope.hasFilters, true);
+    assert.equal(exported.scope.matchingGroups, 1);
+    assert.equal(exported.scope.filters.tool, "pi-reload");
     assert.match(exportResult.content[0].text, /Local diagnostic projection only/);
 
     const pathResult = await tool.execute("tool-call-7", { action: "path" }, undefined, undefined, {
@@ -483,6 +494,12 @@ test("agent_vent command rejects unknown review filter keys without creating sto
     await pi.commands.get("agent_vent").handler("retention candidates resolved", { hasUI: false });
     assert.match(messages[12], /Invalid \/agent_vent retention candidates state: resolved/);
     assert.doesNotMatch(messages[12], /symlink/);
+    await pi.commands.get("agent_vent").handler("export owner=", { hasUI: false });
+    assert.match(messages[13], /Unknown \/agent_vent export filter\(s\): owner/);
+    assert.doesNotMatch(messages[13], /symlink/);
+    await pi.commands.get("agent_vent").handler("export category=bgu", { hasUI: false });
+    assert.match(messages[14], /Invalid \/agent_vent export filter value\(s\): category=bgu/);
+    assert.doesNotMatch(messages[14], /symlink/);
   } finally {
     console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;

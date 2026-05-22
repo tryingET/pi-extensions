@@ -60,7 +60,7 @@ Then in Pi:
 | `curate` | Append local recurrence merge/rename projection events without rewriting raw vents. |
 | `draft` | Generate draft-only owner-surface text for a recurrence group. |
 | `stats` | Show local store counts, byte sizes, malformed-line counts, curation counts, and review-state totals. |
-| `export` | Produce a bounded local diagnostic projection in markdown or JSON. |
+| `export` | Produce a bounded local diagnostic projection in markdown or JSON, optionally focused by local category/tag/tool/package facets. |
 | `retention` | List read-only reviewed archive candidates, preview, confirmation-gate, archive, and restore reviewed local diagnostic records with local backups/receipts. |
 
 The tool prompt tells the agent to avoid ordinary status updates, raw logs, secrets, and private user payloads.
@@ -84,14 +84,14 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent curate remove bug:reload-tool-a "undo local merge"
 /agent_vent draft github_issue bug:reload-tools
 /agent_vent stats
-/agent_vent export markdown
+/agent_vent export markdown acknowledged category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
 /agent_vent retention preview bug:reload-tools
 /agent_vent retention archive bug:reload-tools archive:<token> "reviewed locally"
 /agent_vent retention restore /path/to/backups/<backup>.agent-vent-backup.json restore:<token>
 /agent_vent path
 ```
 
-`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, compare, retention-candidate, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Filtered compare follow-up commands preserve supported category/tag/tool/package filters for `outcomes` and `retention candidates`; export prompts explicitly say when they broaden because export does not support facet filters. Outcome and compare limits are explicit per review-state bucket so `outcomes all 1` can show one `new`, one `acknowledged`, one `dismissed`, and one `escalation_drafted` group, while `compare 1` shows at most one group per state. Review/outcome/compare/retention-candidate command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states/arguments, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, archive, restore, or mutate owner systems.
+`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, compare, retention-candidate, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Filtered compare follow-up commands preserve supported category/tag/tool/package filters for `outcomes`, `retention candidates`, and `export`. Export filters are local diagnostic focus aids only, not evidence scoping, publication, owner routing, or owner assignment. Outcome and compare limits are explicit per review-state bucket so `outcomes all 1` can show one `new`, one `acknowledged`, one `dismissed`, and one `escalation_drafted` group, while `compare 1` shows at most one group per state. Review/outcome/compare/export/retention-candidate command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states/arguments, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, archive, restore, or mutate owner systems.
 
 ## Deeper Pi integration
 
@@ -130,7 +130,7 @@ Reads tolerate malformed old lines, oversized lines, invalid records, and semant
 
 Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: use `retention candidates` for a read-only reviewed-group planning view that emits no archive tokens, preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed. The package intentionally has no hard-delete command in v0.1; permanent removal is operator-owned filesystem/data-lifecycle control, not evidence/task/incident lifecycle.
 
-All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, recomputes privacy metadata for loaded records, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits. Review queue filters can use local category/tag/tool/package labels, but those filters are diagnostic focus aids only, not owner routing or owner assignment. Drafts include local diagnostic facets when present, but those facets are hints for human review rather than owner-routing truth.
+All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, recomputes privacy metadata for loaded records, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits. Review queue and export filters can use local category/tag/tool/package labels, but those filters are diagnostic focus aids only, not owner routing, owner assignment, evidence scoping, or publication. Drafts include local diagnostic facets when present, but those facets are hints for human review rather than owner-routing truth.
 
 The package applies conservative redaction heuristics for common token/password/API-key shapes, including review notes, but callers must still avoid submitting secrets.
 

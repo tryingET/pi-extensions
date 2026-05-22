@@ -744,7 +744,7 @@ test("review outcomes bucket post-review follow-up without authority drift", () 
   assert.match(text, /optional local lifecycle: \/agent_vent retention preview/);
   assert.match(
     text,
-    /export this outcome bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
+    /export this outcome bucket: \/agent_vent export markdown acknowledged tag=outcome/,
   );
   assert.match(text, /Local diagnostic labels only; not owner routing/);
   assert.match(text, /No AK task, GitHub issue, incident, evidence, telemetry/);
@@ -813,10 +813,7 @@ test("review comparison contrasts state buckets without authority drift", () => 
   const text = formatReviewComparison(unfiltered);
   assert.match(text, /Agent vent review comparison/);
   assert.match(text, /State totals:/);
-  assert.match(
-    text,
-    /export bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
-  );
+  assert.match(text, /export bucket: \/agent_vent export markdown acknowledged tag=compare/);
   assert.match(text, /outcomes: \/agent_vent outcomes acknowledged tag=compare/);
   assert.match(
     text,
@@ -1183,6 +1180,53 @@ test("lifecycle stats and exports are bounded local projections", () => {
   assert.equal(JSON.parse(formatExportJson(snapshot)).counts.vents, 1);
 });
 
+test("lifecycle export can preserve facet scope without owner-routing claims", () => {
+  const keep = createVentRecord({
+    summary: "Keep export scoped token=abc123",
+    category: "tool_failure",
+    recurrenceKey: "export-keep",
+    tags: ["Export"],
+    tool: "pi reload",
+    packageName: "@tryinget/pi-agent-vent",
+  });
+  const omit = createVentRecord({
+    summary: "Omit unrelated export group",
+    category: "documentation",
+    recurrenceKey: "export-omit",
+    tags: ["Other"],
+  });
+  const review = createReviewEvent({
+    recurrenceKey: keep.recurrenceKey,
+    state: "acknowledged",
+    note: "review token=abc123 locally",
+  });
+
+  const snapshot = buildLifecycleSnapshot({
+    records: [keep, omit],
+    reviewEvents: [review],
+    filters: { tags: ["export"], tool: "pi reload", packageName: "@tryinget/pi-agent-vent" },
+    state: "acknowledged",
+    limit: 10,
+    now: "2026-05-22T00:00:00.000Z",
+  });
+
+  assert.equal(snapshot.scope.hasFilters, true);
+  assert.equal(snapshot.scope.matchingGroups, 1);
+  assert.equal(snapshot.counts.vents, 1);
+  assert.equal(snapshot.counts.reviewStates.acknowledged, 1);
+  assert.equal(snapshot.reviewQueue.items.length, 1);
+  assert.equal(snapshot.reviewQueue.items[0].recurrenceKey, keep.recurrenceKey);
+  assert.equal(snapshot.summary.groups[0].recurrenceKey, keep.recurrenceKey);
+  const markdown = formatExportMarkdown(snapshot);
+  assert.match(markdown, /Filters: tool=pi-reload; package=tryinget-pi-agent-vent; tags=export/);
+  assert.match(markdown, /not owner routing or owner assignment/);
+  assert.match(markdown, /token=\[REDACTED\]/);
+  assert.doesNotMatch(markdown, /Omit unrelated export group|owner was assigned|archive:[a-f0-9]/);
+  const json = JSON.parse(formatExportJson(snapshot));
+  assert.equal(json.scope.filters.tool, "pi-reload");
+  assert.equal(json.counts.vents, 1);
+});
+
 test("lifecycle stats report missing stores without creating files", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-lifecycle-missing-"));
   const storePath = path.join(dir, "vents.jsonl");
@@ -1263,7 +1307,7 @@ test("retention candidates list reviewed groups without tokens or mutation", () 
   assert.match(text, /reviewed token=\[REDACTED\] locally/);
   assert.match(
     text,
-    /export this outcome bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
+    /export this outcome bucket: \/agent_vent export markdown acknowledged tool=pi-reload tag=retention/,
   );
   assert.match(text, /No archive, restore, AK task, GitHub issue, incident, evidence/);
   assert.match(text, /not owner routing/);

@@ -237,7 +237,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "Use action=outcomes for read-only post-review follow-up across local review-state buckets; outcome guidance is local diagnostic UX only, not owner routing or external completion.",
       "Use action=compare for a read-only cross-state review comparison before export, retention planning, or draft-only handoff; comparison output emits no archive/restore tokens and mutates nothing.",
       "Use action=facets for read-only local category/tag/tool/package triage; facets and review filters are caller-supplied diagnostic labels, not owner routing.",
-      "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
+      "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation. Export may be focused by local category/tag/tool/package facets; those facets are not owner routing.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
       "Use action=draft to generate owner-surface draft text only; never claim it submitted, filed, declared, or recorded anything.",
       "Use action=retention to list read-only archive candidates, preview, confirmation-gate, archive, or restore local diagnostic records only; never imply owner-system deletion or canonical evidence changes.",
@@ -644,6 +644,15 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           quarantinedCurationEvents,
           state: params.reviewState || "all",
           limit: clampLimit(params.limit, 20),
+          filters:
+            action === "export"
+              ? {
+                  category: params.category,
+                  tool: params.tool,
+                  packageName: params.packageName,
+                  tags: params.tags,
+                }
+              : undefined,
         });
         if (action === "stats") {
           return textResult(formatLifecycleStats(snapshot), {
@@ -745,7 +754,8 @@ function handleCommand(args: string) {
       "  /agent_vent retention restore <backupPath> <token> [note]",
       "                                                        Restore a package-created local retention backup.",
       "  /agent_vent stats                                    Show local store counts, sizes, and review-state totals.",
-      "  /agent_vent export [markdown|json] [state|all] [limit] Export a bounded local diagnostic projection.",
+      "  /agent_vent export [markdown|json] [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
+      "                                                        Export a bounded local diagnostic projection, optionally facet-filtered.",
       "  /agent_vent path                                     Show local JSONL store paths.",
       "  /agent-vent ...                                      Backward-compatible alias.",
       "",
@@ -764,6 +774,10 @@ function handleCommand(args: string) {
   }
   if (action === "compare") {
     const syntaxError = compareSyntaxError(tokens.slice(1));
+    if (syntaxError) return syntaxError;
+  }
+  if (action === "export") {
+    const syntaxError = exportSyntaxError(tokens.slice(1));
     if (syntaxError) return syntaxError;
   }
   if (action === "retention" && tokens[1] === "candidates") {
@@ -990,6 +1004,24 @@ function compareSyntaxError(tokens: string[], parsed = parseReviewListTokens(tok
   return undefined;
 }
 
+function exportSyntaxError(tokens: string[], parsed = parseLifecycleTokens(tokens)) {
+  const usage =
+    "Usage: /agent_vent export [markdown|json] [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
+  if (parsed.unknownFilters.length) {
+    return `Unknown /agent_vent export filter(s): ${parsed.unknownFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.invalidFilters.length) {
+    return `Invalid /agent_vent export filter value(s): ${parsed.invalidFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.invalidFormat) {
+    return `Invalid /agent_vent export format: ${parsed.invalidFormat}\n${usage}`;
+  }
+  if (parsed.invalidState) {
+    return `Invalid /agent_vent export state: ${parsed.invalidState}\n${usage}`;
+  }
+  return undefined;
+}
+
 function parseReviewListTokens(tokens: string[], options: { allowReviewedState?: boolean } = {}) {
   const filters: { category?: string; tags?: string[]; tool?: string; packageName?: string } = {};
   const tags: string[] = [];
@@ -1047,6 +1079,21 @@ function parseReviewListTokens(tokens: string[], options: { allowReviewedState?:
     unknownFilters,
     invalidFilters,
     invalidState,
+  };
+}
+
+function parseLifecycleTokens(tokens: string[]) {
+  const format = tokens[0] === "json" || tokens[0] === "markdown" ? tokens[0] : "markdown";
+  const parsed = parseReviewListTokens(format === tokens[0] ? tokens.slice(1) : tokens);
+  return {
+    format,
+    state: parsed.state,
+    limit: parsed.limit,
+    filters: parsed.filters,
+    unknownFilters: parsed.unknownFilters,
+    invalidFilters: parsed.invalidFilters,
+    invalidState: parsed.invalidState,
+    invalidFormat: undefined as string | undefined,
   };
 }
 
@@ -1217,24 +1264,16 @@ function splitCommandArgs(args: string) {
 }
 
 function handleLifecycleCommand(action: string, tokens: string[], state: Record<string, unknown>) {
-  const formatToken = tokens[0] === "json" || tokens[0] === "markdown" ? tokens[0] : "markdown";
-  const stateToken = formatToken === tokens[0] ? tokens[1] : tokens[0];
-  const limitToken = formatToken === tokens[0] ? tokens[2] : tokens[1];
-  const normalizedState =
-    stateToken && stateToken !== "all" && !/^\d+$/.test(stateToken)
-      ? normalizeReviewState(stateToken)
-      : stateToken === "all"
-        ? "all"
-        : "all";
-  const rawLimit = /^\d+$/.test(stateToken || "") ? stateToken : limitToken;
+  const parsed = parseLifecycleTokens(tokens);
   const snapshot = buildLifecycleSnapshot({
     ...state,
-    state: normalizedState,
-    limit: clampLimit(rawLimit, 20),
+    state: parsed.state || "all",
+    limit: clampLimit(parsed.limit, 20),
+    filters: action === "export" ? parsed.filters : undefined,
   });
 
   if (action === "stats") return formatLifecycleStats(snapshot);
-  return formatToken === "json" ? formatExportJson(snapshot) : formatExportMarkdown(snapshot);
+  return parsed.format === "json" ? formatExportJson(snapshot) : formatExportMarkdown(snapshot);
 }
 
 function formatDiagnosticWarnings(state: Record<string, unknown>) {
