@@ -61,6 +61,7 @@
     "docs/project/2026-05-21-agent-vent-design.md",
     "docs/project/2026-05-21-agent-vent-implementation-plan.md",
     "docs/project/extension-sop.md",
+    "docs/project/trusted-publishing.md",
     "docs/adr/2026-05-22-agent-vent-retention-delete-policy.md"
   ],
   "pi": {

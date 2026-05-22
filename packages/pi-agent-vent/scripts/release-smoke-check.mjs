@@ -83,7 +83,7 @@ export const assertInstalledArtifactPackage = ({ packageRoot, packageName, packa
   return { packageJsonPath, extensionPath };
 };
 
-export const buildInstalledArtifactSettings = ({ settings, packageRoot }) => {
+export const buildLocalPathArtifactSettings = ({ settings, packageRoot }) => {
   if (!packageRoot || typeof packageRoot !== "string") {
     throw new Error("packageRoot is required for release smoke settings preparation.");
   }
@@ -94,6 +94,8 @@ export const buildInstalledArtifactSettings = ({ settings, packageRoot }) => {
     extensions: [],
   };
 };
+
+export const buildInstalledArtifactSettings = buildLocalPathArtifactSettings;
 
 export const assertAgentVentPathSmokeOutput = ({ output, ventDir }) => {
   if (!ventDir || typeof ventDir !== "string") {
@@ -260,7 +262,7 @@ export const executeInstalledArtifactToolPathSmoke = async ({ packageRoot, ventD
     );
   }
 
-  return { output, registeredCommandCount: commands.size };
+  return { output, executionMode: "shadow-copy", registeredCommandCount: commands.size };
 };
 
 const readArgValue = (args, name) => {
@@ -290,15 +292,18 @@ const runCli = async () => {
     return;
   }
 
-  if (command === "prepare-installed-artifact-settings") {
+  if (
+    command === "prepare-local-path-artifact-settings" ||
+    command === "prepare-installed-artifact-settings"
+  ) {
     const settingsPath = readArgValue(args, "--settings");
     const packageRoot = readArgValue(args, "--package-root");
     if (!settingsPath) throw new Error("--settings is required");
     const settings = readJsonFile(settingsPath);
-    const nextSettings = buildInstalledArtifactSettings({ settings, packageRoot });
+    const nextSettings = buildLocalPathArtifactSettings({ settings, packageRoot });
     fs.writeFileSync(settingsPath, `${JSON.stringify(nextSettings, null, 2)}\n`, "utf8");
     console.log(
-      "Isolated pi settings now load the installed package artifact through package discovery.",
+      "Isolated pi settings now load the installed package artifact through local-path package discovery.",
     );
     return;
   }
@@ -316,12 +321,12 @@ const runCli = async () => {
     const packageRoot = readArgValue(args, "--package-root");
     const ventDir = readArgValue(args, "--vent-dir");
     await executeInstalledArtifactToolPathSmoke({ packageRoot, ventDir });
-    console.log("Installed agent_vent registered-tool path smoke output OK.");
+    console.log("Installed artifact shadow registered-tool path smoke output OK.");
     return;
   }
 
   throw new Error(
-    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-installed-artifact|prepare-installed-artifact-settings|assert-command-output|assert-installed-tool-path> ...",
+    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-installed-artifact|prepare-local-path-artifact-settings|assert-command-output|assert-installed-tool-path> ...",
   );
 };
 

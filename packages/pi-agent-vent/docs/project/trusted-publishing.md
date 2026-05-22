@@ -17,6 +17,7 @@ system4d:
 - Release automation lives at monorepo root.
 - Package release is component-scoped (release-please component mode or equivalent).
 - Publish workflow uses npm OIDC trusted publishing (no long-lived npm token in CI).
+- If npm registry policy requires first-package bootstrap before trusted publishing can be bound, perform that one-time operator step outside CI, then return CI to OIDC-only publishing.
 
 ## Package-level requirements
 
@@ -43,9 +44,9 @@ system4d:
 ## Verification checklist
 
 - Package passes `npm run release:check:quick` in workspace.
-  - Quick checks are artifact-only and require no Pi auth: they verify `npm pack`, packaged Markdown links, artifact-local `npm install && npm run check`, isolated npm installation of the packed tarball, and installed registered-tool `agent_vent path` execution against isolated vent storage.
+  - Quick checks are artifact-only and require no Pi auth: they verify `npm pack`, packaged Markdown links, artifact-local `npm install && npm run check`, isolated npm installation of the packed tarball, and installed shadow registered-tool `agent_vent path` execution against isolated vent storage.
 - Package passes `npm run release:check` where live Pi smoke is available.
-  - Full checks additionally install the tarball through isolated Pi package settings and smoke `/agent_vent path` through package discovery.
+  - Full checks additionally install the tarball through isolated Pi package settings and smoke `/agent_vent path` through local-path package discovery.
 - Root release workflow can produce/update component release PR.
 - Publish workflow completes with `npm publish --provenance --access public` for package.
 

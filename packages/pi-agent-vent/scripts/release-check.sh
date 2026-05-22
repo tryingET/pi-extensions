@@ -106,7 +106,7 @@ case "$ARTIFACT_PACKAGE_ROOT" in
     ;;
 esac
 
-echo "== npm installed artifact registered-tool smoke (no Pi auth)"
+echo "== npm installed artifact shadow registered-tool smoke (no Pi auth)"
 npm --prefix "$ARTIFACT_NPM_PREFIX" --cache "$ARTIFACT_NPM_CACHE" \
   install --global --ignore-scripts --no-audit --fund=false "$TARBALL_PATH"
 node ./scripts/release-smoke-check.mjs assert-installed-artifact \

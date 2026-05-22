@@ -7,7 +7,7 @@ import {
   assertAgentVentPathSmokeOutput,
   assertInstalledArtifactPackage,
   assertPackageSpecInstalled,
-  buildInstalledArtifactSettings,
+  buildLocalPathArtifactSettings,
   executeInstalledArtifactToolPathSmoke,
   packageSourcesFromSettings,
 } from "../scripts/release-smoke-check.mjs";
@@ -93,9 +93,9 @@ test("release smoke installed artifact check verifies package identity and exten
   }
 });
 
-test("release smoke can rewrite isolated settings to load installed artifact through package discovery", () => {
+test("release smoke can rewrite isolated settings to load installed artifact through local-path package discovery", () => {
   assert.deepEqual(
-    buildInstalledArtifactSettings({
+    buildLocalPathArtifactSettings({
       settings: {
         defaultProvider: "openai",
         defaultModel: "gpt-4o",
@@ -133,7 +133,7 @@ test("release smoke command output check accepts isolated agent vent path output
   }
 });
 
-test("release smoke installed registered-tool path stays isolated and does not read active stores", async () => {
+test("release smoke installed shadow registered-tool path stays isolated and does not read active stores", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-tool-smoke-"));
   try {
     const unsafeTarget = path.join(dir, "unsafe-target.jsonl");
@@ -145,6 +145,7 @@ test("release smoke installed registered-tool path stays isolated and does not r
       ventDir: dir,
     });
 
+    assert.equal(result.executionMode, "shadow-copy");
     assert.match(result.output, /Agent vent store:/);
     assert.match(result.output, /not tasks, issues, incidents, evidence/);
     assert.equal(fs.lstatSync(path.join(dir, "vents.jsonl")).isSymbolicLink(), true);
@@ -157,7 +158,7 @@ test("release smoke installed registered-tool path stays isolated and does not r
   }
 });
 
-test("release smoke installed registered-tool path fails closed when tool is not registered", async () => {
+test("release smoke installed shadow registered-tool path fails closed when tool is not registered", async () => {
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-no-tool-"));
   const ventDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-no-tool-store-"));
   try {

@@ -16,7 +16,7 @@ system4d:
 - [Organization operating model](../org/operating_model.md)
 - [Security policy](../../policy/security-policy.json)
 - [Validation script](../../scripts/validate-structure.sh)
-- [Trusted publishing runbook](../dev/trusted_publishing.md)
+- [Trusted publishing runbook](./trusted-publishing.md)
 - [Biome config](../../biome.jsonc)
 - [VS Code workspace settings](../../.vscode/settings.json)
 - Tech-stack lane reference (pi extension TypeScript):
