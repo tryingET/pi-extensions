@@ -581,6 +581,50 @@ test("sidequest can suppress commands while registering toolbox peer tools", () 
   assert.equal(tools.has("parallelquest_spawn"), false);
 });
 
+test("/scoutpeer uses intercom report-back when the controller session id is available", async () => {
+  const execStub = createExecStub(({ args }) => {
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n" };
+    }
+    if (args[0]?.startsWith("--working-directory=")) {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const harness = createContext({ cwd: "/repo" });
+
+  await commands.get("scoutpeer").handler("Review loop cues", harness.ctx);
+
+  const launchCall = execStub.calls.find(
+    (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+  );
+  assert.ok(launchCall);
+  const prompt = extractPiArgs(launchCall.args).at(-1);
+  assert.match(
+    prompt,
+    /Report to the exact parent target: session-019e10d2-15f5-705a-aea4-01ba49d2bbac/,
+  );
+  assert.match(prompt, /PEER_ACK peer_run_id=scoutpeer-[^:]+: spawned scout peer started/);
+  assert.match(prompt, /PEER_FINAL peer_run_id=scoutpeer-[^:]+: \.\.\./);
+  assert.doesNotMatch(prompt, /Manual report-back is requested/);
+  assert.match(harness.notifications.at(-1).message, /watch with intercom/);
+  assert.match(harness.notifications.at(-1).message, /peer_watch/);
+});
+
 test("visible-loop writes config and launches one clean Ghostty tab with the child command", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-state-`);
   try {

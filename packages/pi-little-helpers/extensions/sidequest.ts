@@ -1654,10 +1654,13 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         return;
       }
 
+      const parentPeerTarget = resolveParentPeerTarget(ctx);
+      const reportBack: SidequestReportBack = parentPeerTarget ? "intercom" : "manual";
       const request: SidequestSpawnRequest = {
         objective,
         role: "scout",
-        reportBack: "manual",
+        reportBack,
+        ...(parentPeerTarget ? { parentPeerTarget } : {}),
       };
       const questId = createQuestId("scoutpeer");
       const cwd = ctx.cwd || process.cwd();
@@ -1666,7 +1669,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         objective,
         cwd,
         request,
-        reportBack: "manual",
+        reportBack,
         questId,
       });
       const launch = await launchPiQuestSession({
@@ -1689,8 +1692,12 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         const modeLabel =
           launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
         const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+        const reportBackNote =
+          reportBack === "intercom"
+            ? `; watch with intercom({ action: "peer_watch", peerRunId: "${questId}", waitFor: "final" })`
+            : "; intercom disabled/manual because no exact parent peer target was available";
         ctx.ui.notify(
-          `Opened scoutpeer in ${modeLabel}: ${summarizePrompt(objective)}${suffix}`,
+          `Opened scoutpeer in ${modeLabel}: ${summarizePrompt(objective)}${reportBackNote}${suffix}`,
           "info",
         );
       }
