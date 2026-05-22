@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "2658532fe5dffde2cc23f2fdae8def879aa0c00c"
-created_at: "2026-05-22T17:18:51Z"
+created_at: "2026-05-22T17:19:16Z"
 intent: "Refresh product-posture.md to reflect receipt-projection accounting, selected-vs-follow-up route receipts, and rendered-overhead improvements."
 files:
   - "packages/pi-context-packer/docs/project/product-posture.md"
@@ -13,7 +13,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm --prefix packages/pi-context-packer run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
