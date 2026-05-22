@@ -13,6 +13,8 @@ export interface AkCloseFrameStatusSnapshot {
   repo: string;
   strategicFrame?: string;
   implementationWave?: string;
+  mode?: "frame_with_wave" | "frame_without_active_wave";
+  nonExecutionWaves: string[];
   routePosture?: string;
   genericProceedRule?: string;
   genericProceedAllowed?: boolean;
@@ -20,6 +22,8 @@ export interface AkCloseFrameStatusSnapshot {
   routePolicyStateMachine?: string;
   routePolicyRecommendedAction?: string;
   activeTask?: AkCloseFrameActiveTaskSummary;
+  activeTaskCloseCheckReady?: boolean;
+  activeTaskCloseCheckWarnings: string[];
   closeoutReady?: boolean;
   closeoutReadinessState?: string;
   readyForOperatorGate?: boolean;
@@ -109,6 +113,17 @@ function findSingleActiveWave(payload: Record<string, unknown>, strategicFrame: 
   return active.length === 1 ? nodeKey(active[0]) : undefined;
 }
 
+function nonExecutionWavesUnderFrame(payload: Record<string, unknown>, strategicFrame: string) {
+  return nodesFromList(payload).flatMap((node) => {
+    if (asString(node.parent_key) !== strategicFrame || nodeState(node) === "active") return [];
+    const key = nodeKey(node);
+    if (!key) return [];
+    const state = asString(node.state);
+    const detail = asString(node.state_detail);
+    return [`${key}${state ? `:${state}` : ""}${detail && detail !== state ? `/${detail}` : ""}`];
+  });
+}
+
 async function runJsonRead(
   params: ReadAkCloseFrameStatusParams,
   args: string[],
@@ -144,6 +159,40 @@ function activeTaskFromOpenFrame(
     status: asString(task.status),
     taskId: asNumber(task.task_id) ?? null,
     title: asString(task.title) ?? null,
+  };
+}
+
+function closeCheckWarningSummary(payload: Record<string, unknown>) {
+  const warnings = stringArray(payload.warnings);
+  const missingOutcomes = stringArray(payload.missing_outcomes);
+  const missingValidation = stringArray(payload.missing_validation);
+  const missingEvidence = stringArray(payload.missing_evidence_classes);
+  const summary = [
+    ...warnings,
+    ...missingOutcomes.map((entry) => `missing outcome: ${entry}`),
+    ...missingValidation.map((entry) => `missing validation: ${entry}`),
+    ...missingEvidence.map((entry) => `missing evidence: ${entry}`),
+  ];
+  return summary.length > 0
+    ? summary
+    : ["close-check false; inspect AK close-check before consuming task as a completed gate"];
+}
+
+async function readActiveTaskCloseCheck(
+  params: ReadAkCloseFrameStatusParams,
+  taskId: number | null | undefined,
+): Promise<{ ready?: boolean; warnings: string[] }> {
+  if (!taskId) return { warnings: [] };
+  const closeCheck = await runJsonRead(
+    params,
+    ["task", "close-check", String(taskId), "-F", "json"],
+    "ak task close-check",
+  );
+  if (!closeCheck.ok) return { warnings: [closeCheck.error] };
+  const ready = asBoolean(closeCheck.value.ready_to_close);
+  return {
+    ready,
+    warnings: ready === false ? closeCheckWarningSummary(closeCheck.value) : [],
   };
 }
 
@@ -199,6 +248,9 @@ export async function readAkCloseFrameStatus(
   const base: AkCloseFrameStatusSnapshot = {
     status: "unavailable",
     repo: params.cwd,
+    mode: undefined,
+    nonExecutionWaves: [],
+    activeTaskCloseCheckWarnings: [],
     closeFrameBlockers: [],
     closeoutBlockers: [],
     nonActions: [],
@@ -227,76 +279,98 @@ export async function readAkCloseFrameStatus(
   if (!waves.ok) return { ...base, strategicFrame, errors: [waves.error] };
 
   const implementationWave = findSingleActiveWave(waves.value, strategicFrame);
-  if (!implementationWave) {
+  const nonExecutionWaves = nonExecutionWavesUnderFrame(waves.value, strategicFrame);
+  const openFrameArgs = [
+    "strategy",
+    "open-frame-status",
+    "--repo",
+    params.cwd,
+    strategicFrame,
+    ...(implementationWave ? ["--implementation-wave", implementationWave] : []),
+    "-F",
+    "json",
+  ];
+
+  const openFrame = await runJsonRead(params, openFrameArgs, "ak strategy open-frame-status");
+  if (!openFrame.ok) {
     return {
       ...base,
       strategicFrame,
-      errors: [`expected exactly one active implementation wave under ${strategicFrame}`],
+      implementationWave,
+      nonExecutionWaves,
+      errors: [openFrame.error],
     };
   }
 
-  const openFrame = await runJsonRead(
-    params,
-    [
-      "strategy",
-      "open-frame-status",
-      "--repo",
-      params.cwd,
+  const closeFrame = implementationWave
+    ? await runJsonRead(
+        params,
+        [
+          "strategy",
+          "close-frame",
+          "--repo",
+          params.cwd,
+          strategicFrame,
+          "--implementation-wave",
+          implementationWave,
+          "--plan",
+          "-F",
+          "json",
+        ],
+        "ak strategy close-frame --plan",
+      )
+    : undefined;
+  if (closeFrame && !closeFrame.ok) {
+    return {
+      ...base,
       strategicFrame,
-      "--implementation-wave",
       implementationWave,
-      "-F",
-      "json",
-    ],
-    "ak strategy open-frame-status",
-  );
-  if (!openFrame.ok) {
-    return { ...base, strategicFrame, implementationWave, errors: [openFrame.error] };
-  }
-
-  const closeFrame = await runJsonRead(
-    params,
-    [
-      "strategy",
-      "close-frame",
-      "--repo",
-      params.cwd,
-      strategicFrame,
-      "--implementation-wave",
-      implementationWave,
-      "--plan",
-      "-F",
-      "json",
-    ],
-    "ak strategy close-frame --plan",
-  );
-  if (!closeFrame.ok) {
-    return { ...base, strategicFrame, implementationWave, errors: [closeFrame.error] };
+      nonExecutionWaves,
+      errors: [closeFrame.error],
+    };
   }
 
   const closeout = closeoutReadyFromOpenFrame(openFrame.value);
   const routeGuidance = routeGuidanceFromOpenFrame(openFrame.value);
   const routePolicy = routePolicyFromOpenFrame(openFrame.value);
+  const activeTask = activeTaskFromOpenFrame(openFrame.value);
+  const activeTaskCloseCheck = await readActiveTaskCloseCheck(params, activeTask?.taskId);
+  const noWaveNonActions = implementationWave
+    ? []
+    : [
+        "no_implementation_wave_creation_from_runtime_status",
+        "no_reserved_placeholder_activation_from_runtime_status",
+      ];
 
   return {
     status: "available",
     repo: params.cwd,
     strategicFrame,
     implementationWave,
+    mode: implementationWave ? "frame_with_wave" : "frame_without_active_wave",
+    nonExecutionWaves,
     routePosture: routePostureFromOpenFrame(openFrame.value),
     genericProceedRule: genericProceedRuleFromOpenFrame(openFrame.value),
     genericProceedAllowed: genericProceedAllowedFromOpenFrame(openFrame.value),
     routePolicyStatus: asString(routePolicy?.status),
     routePolicyStateMachine: asString(routePolicy?.state_machine),
     routePolicyRecommendedAction: asString(routePolicy?.recommended_action),
-    activeTask: activeTaskFromOpenFrame(openFrame.value),
+    activeTask,
+    activeTaskCloseCheckReady: activeTaskCloseCheck.ready,
+    activeTaskCloseCheckWarnings: activeTaskCloseCheck.warnings,
     closeoutReady: closeout.closeoutReady,
     closeoutReadinessState: closeout.closeoutReadinessState,
     readyForOperatorGate: closeout.readyForOperatorGate,
-    closeFrameApplySupported: asBoolean(closeFrame.value.apply_supported),
-    closeFrameBlockers: stringArray(closeFrame.value.blockers),
+    closeFrameApplySupported: implementationWave
+      ? asBoolean(closeFrame?.value.apply_supported)
+      : false,
+    closeFrameBlockers: implementationWave
+      ? stringArray(closeFrame?.value.blockers)
+      : [
+          "no active implementation wave; frame is in DiscoveryOrExecution/default-discovery posture",
+        ],
     closeoutBlockers: closeout.closeoutBlockers,
-    nonActions: stringArray(closeFrame.value.non_actions),
+    nonActions: [...noWaveNonActions, ...stringArray(closeFrame?.value.non_actions)],
     nonAuthorizations: stringArray(routeGuidance?.non_authorizations),
     safeReadCommands: stringArray(routeGuidance?.safe_commands),
     errors: [],
@@ -318,12 +392,18 @@ export function formatAkCloseFrameStatusSection(snapshot: AkCloseFrameStatusSnap
   const taskText = task?.taskId
     ? `#${task.taskId}${task.title ? ` — ${task.title}` : ""}`
     : task?.status || "none";
+  const frameWaveText = snapshot.implementationWave
+    ? `\`${snapshot.strategicFrame}\` / \`${snapshot.implementationWave}\``
+    : `\`${snapshot.strategicFrame}\` / no active implementation wave (DiscoveryOrExecution/default-discovery)`;
 
   return [
     "## AK close-frame/readiness",
     "- status: available (read-only)",
     `- repo: \`${snapshot.repo}\``,
-    `- frame/wave: \`${snapshot.strategicFrame}\` / \`${snapshot.implementationWave}\``,
+    `- frame/wave: ${frameWaveText}`,
+    snapshot.nonExecutionWaves.length > 0
+      ? `- non-execution waves/placeholders: ${snapshot.nonExecutionWaves.map((wave) => `\`${wave}\``).join(", ")}`
+      : "- non-execution waves/placeholders: none reported",
     `- route posture: \`${snapshot.routePosture || "unknown"}\``,
     `- common proceed: \`${snapshot.genericProceedRule || "unknown"}\``,
     `- generic proceed allowed: ${formatBool(snapshot.genericProceedAllowed)}`,
@@ -332,6 +412,8 @@ export function formatAkCloseFrameStatusSection(snapshot: AkCloseFrameStatusSnap
       ? `- recommended action: ${snapshot.routePolicyRecommendedAction}`
       : "- recommended action: unknown",
     `- active task: ${taskText}`,
+    `- active task close-check ready: ${formatBool(snapshot.activeTaskCloseCheckReady)}`,
+    `- active task close-check warnings: ${formatList(snapshot.activeTaskCloseCheckWarnings)}`,
     `- closeout ready: ${formatBool(snapshot.closeoutReady)}`,
     `- readiness state: \`${snapshot.closeoutReadinessState || "unknown"}\``,
     `- ready for operator gate: ${formatBool(snapshot.readyForOperatorGate)}`,

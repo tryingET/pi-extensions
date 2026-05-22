@@ -1332,6 +1332,13 @@ test("AK close-frame status reader uses read-only AK surfaces", async () => {
         stderr: "",
       };
     }
+    if (args[0] === "task" && args[1] === "close-check") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({ ready_to_close: true, warnings: [] }),
+        stderr: "",
+      };
+    }
     if (args[0] === "strategy" && args[1] === "close-frame") {
       return {
         ok: true,
@@ -1362,6 +1369,8 @@ test("AK close-frame status reader uses read-only AK surfaces", async () => {
   assert.equal(snapshot.routePolicyStatus, "inspect_status");
   assert.equal(snapshot.routePolicyStateMachine, "product_posture_first_route_selection_v1");
   assert.equal(snapshot.closeoutReadinessState, "ready");
+  assert.equal(snapshot.activeTaskCloseCheckReady, true);
+  assert.deepEqual(snapshot.activeTaskCloseCheckWarnings, []);
   assert.equal(snapshot.closeFrameApplySupported, false);
   assert.deepEqual(snapshot.closeFrameBlockers, ["unsafe_execution_task_posture"]);
   assert.deepEqual(snapshot.closeoutBlockers, ["packet_lineage (packet check needed)"]);
@@ -1376,10 +1385,116 @@ test("AK close-frame status reader uses read-only AK surfaces", async () => {
     section,
     /route-policy: `inspect_status` \(product_posture_first_route_selection_v1\)/,
   );
+  assert.match(section, /active task close-check ready: true/);
   assert.match(section, /close-frame apply supported: false/);
   assert.match(section, /closeout blockers: packet_lineage \(packet check needed\)/);
   assert.match(section, /non-authorized: no_sf4_closeout, no_lifecycle_state_mutation/);
   assert.match(section, /writes: none; Pi only displays AK readbacks/);
+});
+
+test("AK close-frame status reader renders no-wave active-frame discovery posture", async () => {
+  const calls = [];
+  const runAk = async ({ args, cwd }) => {
+    calls.push(args);
+    assert.equal(cwd, "/repo");
+
+    if (args[0] === "strategy" && args[1] === "list") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({ nodes: [{ key: "SF13", state: "active" }] }),
+        stderr: "",
+      };
+    }
+    if (args[0] === "wave" && args[1] === "list") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          nodes: [
+            {
+              key: "IW25",
+              parent_key: "SF13",
+              state: "next",
+              state_detail: "reserved_post_adr_placeholder",
+            },
+          ],
+        }),
+        stderr: "",
+      };
+    }
+    if (args[0] === "strategy" && args[1] === "open-frame-status") {
+      assert.equal(args.includes("--implementation-wave"), false);
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          implementation_wave: null,
+          active_execution_task: { status: "present", task_id: 3338, title: "Track receipts" },
+          closeout_status: {
+            closeout_ready: false,
+            readiness_state: "blocked",
+            ready_for_operator_gate: false,
+            blockers: [],
+          },
+          route_guidance: {
+            posture: "active_execution",
+            generic_proceed_rule: "continue_current_execution_task",
+            safe_commands: ["ak strategy open-frame-status --repo . SF13 -F json"],
+            non_authorizations: ["no_sf13_closeout", "no_lifecycle_state_mutation"],
+          },
+          route_selection_policy: {
+            status: "active_execution_ok",
+            state_machine: "product_posture_first_route_selection_v1",
+            recommended_action:
+              "continue the linked execution_task; do not create route-wait state",
+          },
+          route_wait_context: { generic_proceed_allowed: true },
+        }),
+        stderr: "",
+      };
+    }
+    if (args[0] === "task" && args[1] === "close-check") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          ready_to_close: false,
+          warnings: ["task can still complete because first-slice close-check is advisory"],
+          missing_outcomes: ["owner receipt"],
+          missing_validation: ["ak direction check --repo . --machine"],
+          missing_evidence_classes: [],
+        }),
+        stderr: "",
+      };
+    }
+    throw new Error(`unexpected ak args: ${args.join(" ")}`);
+  };
+
+  const snapshot = await readAkCloseFrameStatus({
+    cwd: "/repo",
+    societyDb: "/tmp/society.db",
+    akPath: "ak",
+    runAk,
+  });
+
+  assert.equal(snapshot.status, "available");
+  assert.equal(snapshot.strategicFrame, "SF13");
+  assert.equal(snapshot.implementationWave, undefined);
+  assert.equal(snapshot.mode, "frame_without_active_wave");
+  assert.deepEqual(snapshot.nonExecutionWaves, ["IW25:next/reserved_post_adr_placeholder"]);
+  assert.equal(snapshot.genericProceedAllowed, true);
+  assert.equal(snapshot.activeTaskCloseCheckReady, false);
+  assert.match(snapshot.activeTaskCloseCheckWarnings.join("\n"), /missing outcome: owner receipt/);
+  assert.ok(calls.every((args) => !(args[0] === "strategy" && args[1] === "close-frame")));
+
+  const section = formatAkCloseFrameStatusSection(snapshot);
+  assert.match(
+    section,
+    /no active implementation wave \(DiscoveryOrExecution\/default-discovery\)/,
+  );
+  assert.match(
+    section,
+    /non-execution waves\/placeholders: `IW25:next\/reserved_post_adr_placeholder`/,
+  );
+  assert.match(section, /active task close-check ready: false/);
+  assert.match(section, /no_implementation_wave_creation_from_runtime_status/);
 });
 
 test("runtime-status command opens a runtime truth inspector", async () => {
