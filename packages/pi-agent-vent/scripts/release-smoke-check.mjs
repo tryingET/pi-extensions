@@ -16,18 +16,33 @@ export const packageSourcesFromSettings = (settings) => {
     .filter(Boolean);
 };
 
+export const findPackageEntryBySource = (settings, packageSpec) => {
+  const packages = Array.isArray(settings?.packages) ? settings.packages : [];
+  return packages.find((entry) => {
+    if (typeof entry === "string") return entry === packageSpec;
+    return entry && typeof entry === "object" && entry.source === packageSpec;
+  });
+};
+
 export const assertPackageSpecInstalled = ({ settings, packageSpec }) => {
   if (!packageSpec || typeof packageSpec !== "string") {
     throw new Error("PACKAGE_SPEC is required for release smoke validation.");
   }
 
-  const sources = packageSourcesFromSettings(settings);
-  if (!sources.includes(packageSpec)) {
+  const entry = findPackageEntryBySource(settings, packageSpec);
+  if (!entry) {
+    const sources = packageSourcesFromSettings(settings);
     throw new Error(
       [
         `Installed package spec not found in isolated pi settings: ${packageSpec}`,
         `Found: ${sources.join(", ") || "(none)"}`,
       ].join("\n"),
+    );
+  }
+
+  if (typeof entry !== "string") {
+    throw new Error(
+      "Release smoke requires an unfiltered package entry; object-form package filters could disable the extension under test.",
     );
   }
 };
@@ -64,6 +79,18 @@ export const assertInstalledArtifactPackage = ({ packageRoot, packageName, packa
   }
 
   return { packageJsonPath, extensionPath };
+};
+
+export const buildInstalledArtifactSettings = ({ settings, packageRoot }) => {
+  if (!packageRoot || typeof packageRoot !== "string") {
+    throw new Error("packageRoot is required for release smoke settings preparation.");
+  }
+
+  return {
+    ...settings,
+    packages: [packageRoot],
+    extensions: [],
+  };
 };
 
 export const assertAgentVentPathSmokeOutput = ({ output, ventDir }) => {
@@ -134,6 +161,19 @@ const runCli = () => {
     return;
   }
 
+  if (command === "prepare-installed-artifact-settings") {
+    const settingsPath = readArgValue(args, "--settings");
+    const packageRoot = readArgValue(args, "--package-root");
+    if (!settingsPath) throw new Error("--settings is required");
+    const settings = readJsonFile(settingsPath);
+    const nextSettings = buildInstalledArtifactSettings({ settings, packageRoot });
+    fs.writeFileSync(settingsPath, `${JSON.stringify(nextSettings, null, 2)}\n`, "utf8");
+    console.log(
+      "Isolated pi settings now load the installed package artifact through package discovery.",
+    );
+    return;
+  }
+
   if (command === "assert-command-output") {
     const outputPath = readArgValue(args, "--output");
     const ventDir = readArgValue(args, "--vent-dir");
@@ -144,7 +184,7 @@ const runCli = () => {
   }
 
   throw new Error(
-    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-installed-artifact|assert-command-output> ...",
+    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-installed-artifact|prepare-installed-artifact-settings|assert-command-output> ...",
   );
 };
 

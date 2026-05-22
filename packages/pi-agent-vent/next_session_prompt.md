@@ -31,7 +31,7 @@ Continue one focused slice of the local agent venting tool while preserving priv
 # from package directory
 npm run check
 npm run release:check:quick
-# when Pi/auth are available, full release check also installs the tarball and smokes /agent_vent path
+# when Pi/auth are available, full release check installs the tarball with isolated npm state and smokes package-discovery /agent_vent path
 npm run release:check
 ```
 

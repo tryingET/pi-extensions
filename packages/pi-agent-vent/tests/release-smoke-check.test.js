@@ -7,10 +7,11 @@ import {
   assertAgentVentPathSmokeOutput,
   assertInstalledArtifactPackage,
   assertPackageSpecInstalled,
+  buildInstalledArtifactSettings,
   packageSourcesFromSettings,
 } from "../scripts/release-smoke-check.mjs";
 
-test("release smoke settings check accepts string and object package entries", () => {
+test("release smoke settings check accepts only unfiltered string package entries", () => {
   const settings = {
     packages: [
       "npm:/tmp/pkg-a.tgz",
@@ -25,7 +26,11 @@ test("release smoke settings check accepts string and object package entries", (
     "npm:/tmp/pi-agent-vent.tgz",
   ]);
   assert.doesNotThrow(() =>
-    assertPackageSpecInstalled({ settings, packageSpec: "npm:/tmp/pi-agent-vent.tgz" }),
+    assertPackageSpecInstalled({ settings, packageSpec: "npm:/tmp/pkg-a.tgz" }),
+  );
+  assert.throws(
+    () => assertPackageSpecInstalled({ settings, packageSpec: "npm:/tmp/pi-agent-vent.tgz" }),
+    /requires an unfiltered package entry/,
   );
 });
 
@@ -85,6 +90,26 @@ test("release smoke installed artifact check verifies package identity and exten
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("release smoke can rewrite isolated settings to load installed artifact through package discovery", () => {
+  assert.deepEqual(
+    buildInstalledArtifactSettings({
+      settings: {
+        defaultProvider: "openai",
+        defaultModel: "gpt-4o",
+        packages: ["npm:/tmp/pi-agent-vent.tgz"],
+        extensions: ["/tmp/escape.ts"],
+      },
+      packageRoot: "/tmp/isolated-prefix/lib/node_modules/@tryinget/pi-agent-vent",
+    }),
+    {
+      defaultProvider: "openai",
+      defaultModel: "gpt-4o",
+      packages: ["/tmp/isolated-prefix/lib/node_modules/@tryinget/pi-agent-vent"],
+      extensions: [],
+    },
+  );
 });
 
 test("release smoke command output check accepts isolated agent vent path output", () => {

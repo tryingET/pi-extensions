@@ -167,7 +167,7 @@ npm install
 npm run check
 ```
 
-For release confidence, `npm run release:check` packs the package, verifies packaged docs/scripts, runs the packaged fallback gate, installs the tarball into an isolated Pi agent dir, and smokes the installed artifact entrypoint with `/agent_vent path` against an isolated vent store. Use `npm run release:check:quick` for artifact-only checks when live Pi smoke is not available.
+For release confidence, `npm run release:check` packs the package, verifies packaged docs/scripts, runs the packaged fallback gate, installs the tarball with isolated Pi settings and npm prefix/cache, then smokes the installed artifact through Pi package discovery with `/agent_vent path` against an isolated vent store. Use `npm run release:check:quick` for artifact-only checks when live Pi smoke is not available.
 
 Run from monorepo root through the canonical package gate:
 

@@ -50,10 +50,13 @@ node ./scripts/release-smoke-check.mjs assert-installed-artifact \
   --package-name "$PACKAGE_NAME" \
   --package-version "$PACKAGE_VERSION"
 
-echo "== installed /agent_vent command smoke"
+node ./scripts/release-smoke-check.mjs prepare-installed-artifact-settings \
+  --settings "$PI_CODING_AGENT_DIR/settings.json" \
+  --package-root "$INSTALLED_PACKAGE_ROOT"
+
+echo "== installed package-discovery /agent_vent command smoke"
 PI_AGENT_VENT_DIR="$SMOKE_VENT_DIR" \
   pi --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates --no-context-files --no-themes \
-  -e "$INSTALLED_EXTENSION_PATH" \
   -p "/agent_vent path" >"$SMOKE_OUTPUT" 2>&1
 cat "$SMOKE_OUTPUT"
 
@@ -61,4 +64,4 @@ node ./scripts/release-smoke-check.mjs assert-command-output \
   --output "$SMOKE_OUTPUT" \
   --vent-dir "$SMOKE_VENT_DIR"
 
-echo "release smoke done: installed artifact /agent_vent path command loads from $INSTALLED_EXTENSION_PATH."
+echo "release smoke done: installed artifact /agent_vent path command loads through package discovery from $INSTALLED_PACKAGE_ROOT."

@@ -42,12 +42,20 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
 fi
 
 TEST_AGENT_DIR=""
+TEST_NPM_PREFIX=""
+TEST_NPM_CACHE=""
 TARBALL_CHECK_DIR=""
 TARBALL_PATH=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
       rm -rf "$TEST_AGENT_DIR"
+    fi
+    if [[ -n "$TEST_NPM_PREFIX" && -d "$TEST_NPM_PREFIX" ]]; then
+      rm -rf "$TEST_NPM_PREFIX"
+    fi
+    if [[ -n "$TEST_NPM_CACHE" && -d "$TEST_NPM_CACHE" ]]; then
+      rm -rf "$TEST_NPM_CACHE"
     fi
     if [[ -n "$TARBALL_CHECK_DIR" && -d "$TARBALL_CHECK_DIR" ]]; then
       rm -rf "$TARBALL_CHECK_DIR"
@@ -87,6 +95,8 @@ else
   fi
 
   TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
+  TEST_NPM_PREFIX="$(mktemp -d /tmp/pi-extension-release-npm-prefix-XXXXXX)"
+  TEST_NPM_CACHE="$(mktemp -d /tmp/pi-extension-release-npm-cache-XXXXXX)"
 
   cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
 
@@ -104,9 +114,10 @@ else
 }
 JSON
 
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR)"
+  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR and npm prefix)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
+  NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
+    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -130,7 +141,8 @@ NODE
 
   if [[ -x "./scripts/release-smoke.sh" ]]; then
     echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
+    NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
+      PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
   fi
 fi
 
