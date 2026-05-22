@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -24,7 +24,7 @@ const sciStdout = (value) =>
 
 const pathExists = async (path) => {
   try {
-    await stat(path);
+    await lstat(path);
     return true;
   } catch {
     return false;
@@ -95,11 +95,14 @@ test("context_pack does not route uppercase Markdown path seeds to SCI", async (
   assert.ok(result.packet.omissions.some((omission) => omission.provider === "sci"));
 });
 
-test("context_pack falls back from SCI symbol_search to text_search", async () => {
+test("context_pack falls back from SCI symbol_search to text_search inside a sandbox", async () => {
   const root = await makeWorkspace();
   const workflows = [];
   const fakeExec = async (_command, args) => {
     workflows.push(args[1]);
+    if (args[1] === "read_file") {
+      return { stdout: sciStdout({ content: "export const target = 1;\n" }) };
+    }
     if (args[1] === "symbol_search") {
       return { stdout: sciStdout({ query: "target", count: 0, symbols: [] }) };
     }
@@ -116,16 +119,19 @@ test("context_pack falls back from SCI symbol_search to text_search", async () =
       objective: "Find code symbol context",
       cwd: root,
       repoRoot: root,
-      seeds: [{ kind: "symbol", value: "target" }],
+      seeds: [
+        { kind: "path", value: "src/example.js" },
+        { kind: "symbol", value: "target" },
+      ],
       providers: { git: "off" },
     },
     { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
   );
 
   const sci = result.packet.sections.find((section) => section.provider === "sci");
-  assert.deepEqual(workflows, ["symbol_search", "text_search"]);
-  assert.equal(sci.items.length, 1);
-  assert.match(sci.items[0].content, /src\/example\.js/);
+  assert.deepEqual(workflows, ["read_file", "symbol_search", "text_search"]);
+  assert.equal(sci.items.length, 2);
+  assert.ok(sci.items.some((item) => item.content.includes("src/example.js")));
 });
 
 test("context_pack redacts SCI subprocess failures before packet surfaces", async () => {
@@ -304,14 +310,15 @@ test("context_pack omits SCI items when workflow creates .ontology despite artif
     },
   );
 
-  assert.equal(await pathExists(join(root, ".ontology")), true);
+  assert.equal(await pathExists(join(root, ".ontology")), false);
   assert.equal(
     result.packet.sections.some((section) => section.provider === "sci"),
     false,
   );
   assert.ok(
     result.packet.omissions.some(
-      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+      (omission) =>
+        omission.provider === "sci" && omission.detail.includes("created or exposed .ontology"),
     ),
   );
   assert.doesNotMatch(JSON.stringify(result.packet), /SECRET SHOULD NOT BE SELECTED/);
@@ -356,7 +363,8 @@ test("context_pack stops SCI calls immediately after .ontology is created", asyn
   );
   assert.ok(
     result.packet.omissions.some(
-      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+      (omission) =>
+        omission.provider === "sci" && omission.detail.includes("created or exposed .ontology"),
     ),
   );
   assert.doesNotMatch(
@@ -370,6 +378,9 @@ test("context_pack stops SCI symbol fallback after .ontology is created", async 
   const calls = [];
   const fakeExec = async (_command, args, options) => {
     calls.push(args[1]);
+    if (args[1] === "read_file") {
+      return { stdout: sciStdout({ content: "export const target = 1;\n" }) };
+    }
     if (args[1] === "symbol_search") {
       await mkdir(join(options.cwd, ".ontology"));
       return { stdout: sciStdout({ query: "target", count: 0, symbols: [] }) };
@@ -382,7 +393,10 @@ test("context_pack stops SCI symbol fallback after .ontology is created", async 
       objective: "Find code symbol context",
       cwd: root,
       repoRoot: root,
-      seeds: [{ kind: "symbol", value: "target" }],
+      seeds: [
+        { kind: "path", value: "src/example.js" },
+        { kind: "symbol", value: "target" },
+      ],
       providers: { agents: "off", docs: "off", git: "off", sci: "required" },
     },
     {
@@ -393,14 +407,15 @@ test("context_pack stops SCI symbol fallback after .ontology is created", async 
     },
   );
 
-  assert.deepEqual(calls, ["symbol_search"]);
+  assert.deepEqual(calls, ["read_file", "symbol_search"]);
   assert.equal(
     result.packet.sections.some((section) => section.provider === "sci"),
     false,
   );
   assert.ok(
     result.packet.omissions.some(
-      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+      (omission) =>
+        omission.provider === "sci" && omission.detail.includes("created or exposed .ontology"),
     ),
   );
   assert.doesNotMatch(JSON.stringify(result.packet), /TEXT SEARCH SHOULD NOT RUN/);
@@ -441,8 +456,152 @@ test("context_pack stops SCI command-candidate fallback after .ontology is creat
   );
   assert.ok(
     result.packet.omissions.some(
-      (omission) => omission.provider === "sci" && omission.detail.includes("created .ontology"),
+      (omission) =>
+        omission.provider === "sci" && omission.detail.includes("created or exposed .ontology"),
     ),
   );
   assert.doesNotMatch(JSON.stringify(result.packet), /SECOND CANDIDATE SHOULD NOT RUN/);
+});
+
+test("context_pack blocks symlink-escaped SCI path seeds before sandbox execution", async () => {
+  const root = await makeWorkspace();
+  const outside = await mkdtemp(join(tmpdir(), "pi-context-pack-sci-secret-"));
+  await writeFile(join(outside, "secret.js"), "OUTSIDE SECRET\n", "utf8");
+  await symlink(join(outside, "secret.js"), join(root, "src", "link.js"));
+  const calls = [];
+  const fakeExec = async () => {
+    calls.push("called");
+    return { stdout: sciStdout({ content: "should not run" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/link.js" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  assert.deepEqual(calls, []);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("symlink"),
+    ),
+  );
+  assert.doesNotMatch(JSON.stringify(result.packet), /OUTSIDE SECRET|should not run/);
+});
+
+test("context_pack refuses repoRoot SCI artifacts from package cwd", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await mkdir(join(root, ".ontology"), { recursive: true });
+  await mkdir(join(packageCwd, "src"), { recursive: true });
+  await writeFile(
+    join(packageCwd, "src", "example.js"),
+    "export const packageTarget = 1;\n",
+    "utf8",
+  );
+  const calls = [];
+  const fakeExec = async () => {
+    calls.push("called");
+    return { stdout: sciStdout({ content: "should not run" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: packageCwd,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    {
+      cwd: packageCwd,
+      sciCommand: "/tmp/fake-sci",
+      execFileAsync: fakeExec,
+      sciReadOnlySafe: true,
+    },
+  );
+
+  assert.deepEqual(calls, []);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("existing .ontology"),
+    ),
+  );
+});
+
+test("context_pack treats dangling .ontology symlinks as existing SCI artifacts", async () => {
+  const root = await makeWorkspace();
+  await symlink(join(root, "missing-ontology-target"), join(root, ".ontology"));
+  const calls = [];
+  const fakeExec = async () => {
+    calls.push("called");
+    return { stdout: sciStdout({ content: "should not run" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  assert.deepEqual(calls, []);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("existing .ontology"),
+    ),
+  );
+});
+
+test("context_pack runs SCI in a temporary sandbox rather than source cwd", async () => {
+  const root = await makeWorkspace();
+  const execCwds = [];
+  const execPwds = [];
+  const fakeExec = async (_command, _args, options) => {
+    execCwds.push(options.cwd);
+    execPwds.push(options.env.PWD);
+    await mkdir(join(options.cwd, ".ontology"));
+    await rm(join(options.cwd, ".ontology"), { recursive: true, force: true });
+    return { stdout: sciStdout({ content: "sandbox-derived context\n" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  assert.equal(execCwds.length, 1);
+  assert.notEqual(execCwds[0], root);
+  assert.equal(execPwds[0], execCwds[0]);
+  assert.equal(await pathExists(join(root, ".ontology")), false);
+  const sci = result.packet.sections.find((section) => section.provider === "sci");
+  assert.match(sci.items[0].content, /sandbox-derived context/);
 });

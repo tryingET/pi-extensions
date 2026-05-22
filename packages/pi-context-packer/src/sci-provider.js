@@ -1,8 +1,10 @@
 import { execFile } from "node:child_process";
-import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { constants as fsConstants } from "node:fs";
+import { lstat, mkdir, mkdtemp, open, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { subprocessFailureDetail } from "./context-intake-safety.js";
+import { repoRelativePathSafetyIssue, subprocessFailureDetail } from "./context-intake-safety.js";
 
 const execFileAsync = promisify(execFile);
 const ESTIMATED_BYTES_PER_TOKEN = 4;
@@ -12,6 +14,10 @@ const SCI_TIMEOUT_MS = 10_000;
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
 
 const isMarkdownPath = (value) => /\.md$/i.test(value);
+
+const unique = (values) => Array.from(new Set(values.filter(Boolean)));
+
+const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${sep}`);
 
 const sciCommandCandidates = (env = {}) => {
   const candidates = [
@@ -40,6 +46,16 @@ const parseWorkflowStdout = (stdout) => {
   }
 };
 
+const workflowEnv = (cwd) => ({
+  ...process.env,
+  SILENT_MODE: "true",
+  STDIO_MODE: "true",
+  PWD: cwd,
+  OLDPWD: cwd,
+  INIT_CWD: cwd,
+  npm_config_local_prefix: cwd,
+});
+
 const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync }) => {
   const { stdout } = await exec(
     command,
@@ -48,7 +64,7 @@ const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync 
       cwd,
       timeout: SCI_TIMEOUT_MS,
       maxBuffer: SCI_MAX_BUFFER,
-      env: { ...process.env, SILENT_MODE: "true", STDIO_MODE: "true" },
+      env: workflowEnv(cwd),
     },
   );
   return parseWorkflowStdout(stdout);
@@ -104,25 +120,137 @@ const itemFromValue = ({ id, workflow, command, value, rationale }) => {
     bytes: Buffer.byteLength(content),
     content,
     contentMode: workflow === "read_file" ? "range" : "metadata",
-    freshness: "SCI CLI live workflow call",
+    freshness: "SCI CLI live workflow call in temporary sandbox",
   };
 };
 
-const pathExists = async (path) => {
+const artifactExists = async (path) => {
   try {
-    await stat(path);
+    await lstat(path);
     return true;
   } catch {
     return false;
   }
 };
 
-export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
+const sameFileSnapshot = (left, right) =>
+  left.dev === right.dev &&
+  left.ino === right.ino &&
+  left.mode === right.mode &&
+  left.size === right.size &&
+  left.mtimeNs === right.mtimeNs &&
+  left.ctimeNs === right.ctimeNs;
+
+const artifactPaths = ({ cwd, repoRoot, sandboxRoot }) =>
+  unique([cwd, repoRoot, sandboxRoot].map((root) => root && resolve(root, ".ontology")));
+
+const firstExistingArtifact = async (paths) => {
+  for (const path of paths) {
+    if (await artifactExists(path)) return path;
+  }
+  return undefined;
+};
+
+const safeCopyPathSeed = async ({ sourceRoot, sandboxRoot, pathSeed }) => {
+  const issue = repoRelativePathSafetyIssue(pathSeed, "SCI path seed");
+  if (issue) return { ok: false, omission: `${pathSeed}: ${issue}` };
+
+  const realSourceRoot = await realpath(sourceRoot);
+  const sourcePath = resolve(sourceRoot, pathSeed);
+  let sourceStat;
+  try {
+    sourceStat = await lstat(sourcePath, { bigint: true });
+  } catch {
+    return { ok: false, omission: `${pathSeed}: not statable` };
+  }
+
+  if (sourceStat.isSymbolicLink()) {
+    return { ok: false, omission: `${pathSeed}: symlink path seed omitted` };
+  }
+  if (!sourceStat.isFile()) {
+    return { ok: false, omission: `${pathSeed}: not a regular file` };
+  }
+  if (typeof fsConstants.O_NOFOLLOW !== "number") {
+    return { ok: false, omission: `${pathSeed}: no-symlink open is unavailable` };
+  }
+
+  const realSourcePath = await realpath(sourcePath);
+  if (!isInside(realSourceRoot, realSourcePath)) {
+    return { ok: false, omission: `${pathSeed}: path seed escapes workspace` };
+  }
+
+  const relativePath = relative(realSourceRoot, realSourcePath);
+  if (relativePath !== pathSeed) {
+    return { ok: false, omission: `${pathSeed}: path seed resolves to a different real path` };
+  }
+
+  let handle;
+  try {
+    handle = await open(sourcePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    const openedStat = await handle.stat({ bigint: true });
+    if (!sameFileSnapshot(openedStat, sourceStat)) {
+      return { ok: false, omission: `${pathSeed}: changed before sandbox copy` };
+    }
+
+    const content = await handle.readFile();
+    const afterReadStat = await handle.stat({ bigint: true });
+    if (
+      !sameFileSnapshot(afterReadStat, sourceStat) ||
+      BigInt(content.byteLength) !== sourceStat.size
+    ) {
+      return { ok: false, omission: `${pathSeed}: changed during sandbox copy` };
+    }
+
+    const sandboxPath = resolve(sandboxRoot, pathSeed);
+    await mkdir(dirname(sandboxPath), { recursive: true });
+    await writeFile(sandboxPath, content, { flag: "wx" });
+    return { ok: true, path: pathSeed };
+  } finally {
+    await handle?.close();
+  }
+};
+
+const setupSciSandbox = async ({ cwd, pathSeeds }) => {
+  const sandboxRoot = await mkdtemp(join(tmpdir(), "pi-context-packer-sci-"));
+  const copiedPaths = [];
+  const omissions = [];
+
+  for (const pathSeed of pathSeeds) {
+    try {
+      const result = await safeCopyPathSeed({ sourceRoot: cwd, sandboxRoot, pathSeed });
+      if (result.ok) copiedPaths.push(result.path);
+      else omissions.push({ provider: "sci", reason: "unsafe_path", detail: result.omission });
+    } catch {
+      omissions.push({
+        provider: "sci",
+        reason: "blocked",
+        detail: `${pathSeed}: SCI sandbox copy failed; raw filesystem error output omitted`,
+      });
+    }
+  }
+
+  return { sandboxRoot, copiedPaths, omissions };
+};
+
+const sandboxSetupFailure = () => ({
+  section: sectionFromItems([]),
+  omissions: [
+    {
+      provider: "sci",
+      reason: "blocked",
+      detail: "SCI sandbox setup failed; raw filesystem error output omitted",
+    },
+  ],
+});
+
+export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {} }) => {
   const items = [];
   const omissions = [];
   const exec = env.execFileAsync;
-  const ontologyPath = resolve(cwd, ".ontology");
-  const hadOntologyBefore = await pathExists(ontologyPath);
+  const sourceCwd = resolve(cwd);
+  const sourceRepoRoot = repoRoot ? resolve(repoRoot) : undefined;
+  const sourceArtifactPaths = artifactPaths({ cwd: sourceCwd, repoRoot: sourceRepoRoot });
+  const hadSourceArtifactBefore = await firstExistingArtifact(sourceArtifactPaths);
 
   if (env.sciReadOnlySafe !== true) {
     return {
@@ -138,7 +266,7 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
     };
   }
 
-  if (hadOntologyBefore) {
+  if (hadSourceArtifactBefore) {
     return {
       section: sectionFromItems([]),
       omissions: [
@@ -146,11 +274,21 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
           provider: "sci",
           reason: "blocked",
           detail:
-            "existing .ontology SCI artifacts present; refusing to run against source-owned SCI state from context-packer; use the SCI owner surface directly",
+            "existing .ontology SCI artifacts present in source workspace; refusing to run against source-owned SCI state from context-packer; use the SCI owner surface directly",
         },
       ],
     };
   }
+
+  let sandbox;
+  try {
+    sandbox = await setupSciSandbox({ cwd: sourceCwd, pathSeeds: pathSeedsForSci(seeds) });
+  } catch {
+    return sandboxSetupFailure();
+  }
+  omissions.push(...sandbox.omissions);
+  const sandboxArtifactPaths = artifactPaths({ cwd: sandbox.sandboxRoot });
+  const allArtifactPaths = [...sourceArtifactPaths, ...sandboxArtifactPaths];
 
   const artifactCreatedResult = () => ({
     section: sectionFromItems([]),
@@ -160,97 +298,148 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
         provider: "sci",
         reason: "blocked",
         detail:
-          "SCI created .ontology artifacts during a read-only packet attempt; artifacts were left untouched for the SCI owner surface and SCI packet items were omitted",
+          "SCI created or exposed .ontology artifacts during a sandboxed read-only packet attempt; SCI packet items were omitted and source workspace artifacts were left to the SCI owner surface",
       },
     ],
   });
 
-  for (const path of pathSeedsForSci(seeds)) {
-    const result = await tryWorkflow({
-      cwd,
-      workflow: "read_file",
-      args: { path, range: { startLine: 1, endLine: 120 } },
-      env,
-      exec,
-      shouldAbort: () => pathExists(ontologyPath),
-    });
-    if (await pathExists(ontologyPath)) return artifactCreatedResult();
-    if (result.ok) {
-      const item = itemFromValue({
-        id: `sci:read_file:${path}`,
+  const cleanupFailureResult = () => ({
+    section: sectionFromItems([]),
+    omissions: [
+      ...omissions,
+      {
+        provider: "sci",
+        reason: "blocked",
+        detail:
+          "SCI sandbox cleanup failed; raw filesystem error output omitted and SCI packet items were omitted",
+      },
+    ],
+  });
+
+  let result;
+  try {
+    for (const path of sandbox.copiedPaths) {
+      const workflowResult = await tryWorkflow({
+        cwd: sandbox.sandboxRoot,
         workflow: "read_file",
-        command: result.command,
-        value: result.value,
-        rationale: "SCI bounded code file range for seeded path",
+        args: { path, range: { startLine: 1, endLine: 120 } },
+        env,
+        exec,
+        shouldAbort: () => firstExistingArtifact(allArtifactPaths),
       });
-      if (item.bytes <= maxBytes) items.push(item);
-      else
-        omissions.push({
-          provider: "sci",
-          reason: "budget",
-          detail: `${path}: SCI result over budget`,
+      if (await firstExistingArtifact(allArtifactPaths)) {
+        result = artifactCreatedResult();
+        return result;
+      }
+      if (workflowResult.ok) {
+        const item = itemFromValue({
+          id: `sci:read_file:${path}`,
+          workflow: "read_file",
+          command: workflowResult.command,
+          value: workflowResult.value,
+          rationale: "SCI bounded code file range for sandboxed seeded path",
         });
-    } else {
-      omissions.push({ provider: "sci", reason: "unavailable", detail: result.error });
-      break;
-    }
-  }
-
-  for (const symbol of symbolSeedsForSci(seeds)) {
-    const symbolResult = await tryWorkflow({
-      cwd,
-      workflow: "symbol_search",
-      args: { query: symbol, maxResults: 8 },
-      env,
-      exec,
-      shouldAbort: () => pathExists(ontologyPath),
-    });
-    if (await pathExists(ontologyPath)) return artifactCreatedResult();
-    const result =
-      symbolResult.ok && (symbolResult.value?.count ?? 0) > 0
-        ? symbolResult
-        : await tryWorkflow({
-            cwd,
-            workflow: "text_search",
-            args: { query: symbol, path: ".", maxResults: 8 },
-            env,
-            exec,
-            shouldAbort: () => pathExists(ontologyPath),
+        if (item.bytes <= maxBytes) items.push(item);
+        else
+          omissions.push({
+            provider: "sci",
+            reason: "budget",
+            detail: `${path}: SCI result over budget`,
           });
+      } else {
+        omissions.push({ provider: "sci", reason: "unavailable", detail: workflowResult.error });
+        break;
+      }
+    }
 
-    if (await pathExists(ontologyPath)) return artifactCreatedResult();
-    if (result.ok) {
-      const item = itemFromValue({
-        id: `sci:symbol:${symbol}`,
-        workflow: result === symbolResult ? "symbol_search" : "text_search",
-        command: result.command,
-        value: result.value,
-        rationale: "SCI bounded symbol/text search for seeded symbol",
+    const symbols = symbolSeedsForSci(seeds);
+    if (symbols.length > 0 && sandbox.copiedPaths.length === 0) {
+      omissions.push({
+        provider: "sci",
+        reason: "low_rank",
+        detail:
+          "SCI sandboxed symbol search requires at least one safe code path seed; use SCI owner surface directly for broad repository indexing",
       });
-      if (item.bytes <= maxBytes) items.push(item);
-      else
-        omissions.push({
-          provider: "sci",
-          reason: "budget",
-          detail: `${symbol}: SCI result over budget`,
+    }
+
+    for (const symbol of sandbox.copiedPaths.length > 0 ? symbols : []) {
+      const symbolResult = await tryWorkflow({
+        cwd: sandbox.sandboxRoot,
+        workflow: "symbol_search",
+        args: { query: symbol, maxResults: 8 },
+        env,
+        exec,
+        shouldAbort: () => firstExistingArtifact(allArtifactPaths),
+      });
+      if (await firstExistingArtifact(allArtifactPaths)) {
+        result = artifactCreatedResult();
+        return result;
+      }
+      const workflowResult =
+        symbolResult.ok && (symbolResult.value?.count ?? 0) > 0
+          ? symbolResult
+          : await tryWorkflow({
+              cwd: sandbox.sandboxRoot,
+              workflow: "text_search",
+              args: { query: symbol, path: ".", maxResults: 8 },
+              env,
+              exec,
+              shouldAbort: () => firstExistingArtifact(allArtifactPaths),
+            });
+
+      if (await firstExistingArtifact(allArtifactPaths)) {
+        result = artifactCreatedResult();
+        return result;
+      }
+      if (workflowResult.ok) {
+        const item = itemFromValue({
+          id: `sci:symbol:${symbol}`,
+          workflow: workflowResult === symbolResult ? "symbol_search" : "text_search",
+          command: workflowResult.command,
+          value: workflowResult.value,
+          rationale: "SCI bounded symbol/text search in temporary sandbox",
         });
-    } else {
-      omissions.push({ provider: "sci", reason: "unavailable", detail: result.error });
-      break;
+        if (item.bytes <= maxBytes) items.push(item);
+        else
+          omissions.push({
+            provider: "sci",
+            reason: "budget",
+            detail: `${symbol}: SCI result over budget`,
+          });
+      } else {
+        omissions.push({ provider: "sci", reason: "unavailable", detail: workflowResult.error });
+        break;
+      }
+    }
+
+    if (items.length === 0 && omissions.length === 0) {
+      omissions.push({
+        provider: "sci",
+        reason: "low_rank",
+        detail: "SCI selected but no code path or symbol seeds were supplied",
+      });
+    }
+
+    if (await firstExistingArtifact(allArtifactPaths)) {
+      result = artifactCreatedResult();
+      return result;
+    }
+
+    result = { section: sectionFromItems(items), omissions };
+    return result;
+  } finally {
+    try {
+      await rm(sandbox.sandboxRoot, { recursive: true, force: true });
+    } catch {
+      const cleanupResult = cleanupFailureResult();
+      if (result) {
+        result.section = cleanupResult.section;
+        result.omissions = cleanupResult.omissions;
+      } else {
+        result = cleanupResult;
+      }
     }
   }
-
-  if (items.length === 0 && omissions.length === 0) {
-    omissions.push({
-      provider: "sci",
-      reason: "low_rank",
-      detail: "SCI selected but no code path or symbol seeds were supplied",
-    });
-  }
-
-  if (!hadOntologyBefore && (await pathExists(ontologyPath))) return artifactCreatedResult();
-
-  return { section: sectionFromItems(items), omissions };
 };
 
 const sectionFromItems = (items) => ({
@@ -258,7 +447,7 @@ const sectionFromItems = (items) => ({
   title: "SCI code context",
   provider: "sci",
   authority:
-    "Semantic Code Intelligence read-only code navigation output; not docs/task/evidence authority.",
+    "Semantic Code Intelligence read-only code navigation output from a temporary sandbox; not docs/task/evidence authority.",
   estimatedTokens: items.reduce((sum, item) => sum + item.estimatedTokens, 0),
   bytes: items.reduce((sum, item) => sum + item.bytes, 0),
   items,

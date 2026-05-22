@@ -520,6 +520,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   if (providerIds.includes("sci")) {
     const result = await buildSciSection({
       cwd,
+      repoRoot,
       seeds: allSeeds,
       maxBytes: providerMaxBytes(plan, "sci", remainingBudget),
       env,
