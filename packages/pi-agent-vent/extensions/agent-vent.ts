@@ -1035,18 +1035,30 @@ function parseReviewListTokens(tokens: string[], options: { allowReviewedState?:
       const key = token.slice(0, separatorIndex).trim().toLowerCase().replaceAll("-", "_");
       const value = token.slice(separatorIndex + 1).trim();
       if (key === "category") {
-        if (!value) continue;
+        if (!value) {
+          invalidFilters.push("category=");
+          continue;
+        }
         const normalizedCategory = value.toLowerCase().replaceAll("-", "_");
         if (CATEGORIES.includes(normalizedCategory)) filters.category = normalizedCategory;
         else invalidFilters.push(`category=${value}`);
       } else if (key === "tool") {
-        if (!value) continue;
+        if (!value) {
+          invalidFilters.push("tool=");
+          continue;
+        }
         filters.tool = value;
       } else if (key === "package" || key === "package_name" || key === "packagename") {
-        if (!value) continue;
+        if (!value) {
+          invalidFilters.push(`${key}=`);
+          continue;
+        }
         filters.packageName = value;
       } else if (key === "tag" || key === "tags") {
-        if (!value) continue;
+        if (!value) {
+          invalidFilters.push(`${key}=`);
+          continue;
+        }
         tags.push(
           ...value
             .split(",")

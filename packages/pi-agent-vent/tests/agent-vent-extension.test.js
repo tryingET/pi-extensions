@@ -500,6 +500,9 @@ test("agent_vent command rejects unknown review filter keys without creating sto
     await pi.commands.get("agent_vent").handler("export category=bgu", { hasUI: false });
     assert.match(messages[14], /Invalid \/agent_vent export filter value\(s\): category=bgu/);
     assert.doesNotMatch(messages[14], /symlink/);
+    await pi.commands.get("agent_vent").handler("export tag=", { hasUI: false });
+    assert.match(messages[15], /Invalid \/agent_vent export filter value\(s\): tag=/);
+    assert.doesNotMatch(messages[15], /symlink/);
   } finally {
     console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;

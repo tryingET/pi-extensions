@@ -756,23 +756,27 @@ export function buildLifecycleSnapshot(input = {}) {
   const backupDir = input.backupDir || defaultBackupDir();
   const filters = normalizeReviewFilters(input.filters);
   const hasFilters = hasReviewFilters(filters);
-  const allReviewItems = buildReviewQueueItems(records, reviewEvents, curationEvents);
-  const matchingReviewItems = allReviewItems.filter((item) =>
-    reviewItemMatchesFilters(item, filters),
-  );
-  const scopedReviewItems = hasFilters ? matchingReviewItems : allReviewItems;
+  const stateFilter =
+    input.state === "all" || input.state === undefined ? "all" : normalizeReviewState(input.state);
   const curationMap = buildCurationMap(curationEvents);
-  const scopedKeys = new Set(scopedReviewItems.map((item) => item.recurrenceKey));
-  const scopedRecords = hasFilters
-    ? records.filter((record) =>
-        scopedKeys.has(
-          resolveRecurrenceKey(
-            String(record.recurrenceKey || buildRecurrenceKey(record)),
-            curationMap,
-          ),
-        ),
-      )
+  const allReviewItems = buildReviewQueueItems(records, reviewEvents, curationEvents);
+  const facetScopedRecords = hasFilters
+    ? records.filter((record) => recordMatchesReviewFilters(record, filters))
     : records;
+  const facetScopedReviewItems = buildReviewQueueItems(
+    facetScopedRecords,
+    reviewEvents,
+    curationEvents,
+  );
+  const scopedReviewItems = facetScopedReviewItems.filter((item) =>
+    stateFilter === "all" ? true : item.reviewState === stateFilter,
+  );
+  const scopedKeys = new Set(scopedReviewItems.map((item) => item.recurrenceKey));
+  const scopedRecords = facetScopedRecords.filter((record) =>
+    scopedKeys.has(
+      resolveRecurrenceKey(String(record.recurrenceKey || buildRecurrenceKey(record)), curationMap),
+    ),
+  );
   const reviewStateCounts = Object.fromEntries(REVIEW_STATES.map((state) => [state, 0]));
   for (const item of scopedReviewItems) {
     reviewStateCounts[item.reviewState] += 1;
@@ -786,10 +790,13 @@ export function buildLifecycleSnapshot(input = {}) {
     scope: {
       hasFilters,
       filters,
+      stateFilter,
       totalRecords: records.length,
       totalGroups: allReviewItems.length,
+      facetMatchingRecords: facetScopedRecords.length,
+      facetMatchingGroups: facetScopedReviewItems.length,
       matchingRecords: scopedRecords.length,
-      matchingGroups: matchingReviewItems.length,
+      matchingGroups: scopedReviewItems.length,
     },
     paths: {
       vents: storePath,
@@ -836,11 +843,10 @@ export function buildLifecycleSnapshot(input = {}) {
       limit: clampLimit(input.limit, 20),
       curationEvents,
     }),
-    reviewQueue: summarizeReviewQueue(records, reviewEvents, {
-      state: input.state || "all",
+    reviewQueue: summarizeReviewQueue(scopedRecords, reviewEvents, {
+      state: "all",
       limit: clampLimit(input.limit, 20),
       curationEvents,
-      filters,
     }),
   };
 }
@@ -2316,11 +2322,33 @@ function formatExportBucketLine(label, state, filters = {}) {
 }
 
 function normalizeReviewFilters(input = {}) {
+  assertNoEmptyReviewFilterValues(input);
   const category = normalizeReviewFilterCategory(input?.category);
   const tool = sanitizeFacetText(input?.tool || input?.toolName, 160).value;
   const packageName = sanitizeFacetText(input?.packageName || input?.package, 200).value;
   const tags = sanitizeReviewFilterTags(input?.tags || input?.tag);
   return removeUndefined({ category, tool, packageName, tags });
+}
+
+function assertNoEmptyReviewFilterValues(input = {}) {
+  const entries = [
+    ["category", input?.category],
+    ["tool", input?.tool ?? input?.toolName],
+    ["package", input?.packageName ?? input?.package],
+    ["tag", input?.tags ?? input?.tag],
+  ];
+  for (const [name, value] of entries) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      if (value.some((entry) => String(entry || "").trim() === "")) {
+        throw new Error(`invalid agent_vent review filter ${name}: empty value`);
+      }
+      continue;
+    }
+    if (String(value).trim() === "") {
+      throw new Error(`invalid agent_vent review filter ${name}: empty value`);
+    }
+  }
 }
 
 function normalizeReviewFilterCategory(value) {
@@ -2358,6 +2386,27 @@ function reviewItemMatchesFilters(item, filters = {}) {
   if (filters.packageName && !(item.packages || []).includes(filters.packageName)) return false;
   for (const tag of filters.tags || []) {
     if (!(item.tags || []).includes(tag)) return false;
+  }
+  return true;
+}
+
+function recordMatchesReviewFilters(record, filters = {}) {
+  if (!hasReviewFilters(filters)) return true;
+  if (filters.category && normalizeCategory(record.category) !== filters.category) return false;
+  if (filters.tool && sanitizeFacetText(record.tool, 160).value !== filters.tool) return false;
+  if (
+    filters.packageName &&
+    sanitizeFacetText(record.packageName, 200).value !== filters.packageName
+  ) {
+    return false;
+  }
+  const recordTags = new Set(
+    Array.isArray(record.tags)
+      ? record.tags.map((tag) => recurrenceSlug(tag)).filter((tag) => tag !== "unspecified")
+      : [],
+  );
+  for (const tag of filters.tags || []) {
+    if (!recordTags.has(tag)) return false;
   }
   return true;
 }

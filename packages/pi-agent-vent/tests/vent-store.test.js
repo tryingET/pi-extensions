@@ -1195,6 +1195,14 @@ test("lifecycle export can preserve facet scope without owner-routing claims", (
     recurrenceKey: "export-omit",
     tags: ["Other"],
   });
+  const mixedOut = createVentRecord({
+    summary: "Omit mixed-group private payload",
+    category: "tool_failure",
+    recurrenceKey: "export-keep",
+    tags: ["Other"],
+    tool: "pi reload",
+    packageName: "@tryinget/pi-agent-vent",
+  });
   const review = createReviewEvent({
     recurrenceKey: keep.recurrenceKey,
     state: "acknowledged",
@@ -1202,7 +1210,7 @@ test("lifecycle export can preserve facet scope without owner-routing claims", (
   });
 
   const snapshot = buildLifecycleSnapshot({
-    records: [keep, omit],
+    records: [keep, omit, mixedOut],
     reviewEvents: [review],
     filters: { tags: ["export"], tool: "pi reload", packageName: "@tryinget/pi-agent-vent" },
     state: "acknowledged",
@@ -1221,10 +1229,63 @@ test("lifecycle export can preserve facet scope without owner-routing claims", (
   assert.match(markdown, /Filters: tool=pi-reload; package=tryinget-pi-agent-vent; tags=export/);
   assert.match(markdown, /not owner routing or owner assignment/);
   assert.match(markdown, /token=\[REDACTED\]/);
-  assert.doesNotMatch(markdown, /Omit unrelated export group|owner was assigned|archive:[a-f0-9]/);
+  assert.doesNotMatch(
+    markdown,
+    /Omit unrelated export group|Omit mixed-group private payload|owner was assigned|archive:[a-f0-9]/,
+  );
   const json = JSON.parse(formatExportJson(snapshot));
   assert.equal(json.scope.filters.tool, "pi-reload");
   assert.equal(json.counts.vents, 1);
+});
+
+test("lifecycle export state scope constrains counts and summaries", () => {
+  const acknowledged = createVentRecord({
+    summary: "Acknowledged export group",
+    category: "bug",
+    recurrenceKey: "ack-export",
+    tags: ["export-state"],
+  });
+  const fresh = createVentRecord({
+    summary: "Fresh export group should not appear",
+    category: "bug",
+    recurrenceKey: "fresh-export",
+    tags: ["export-state"],
+  });
+  const review = createReviewEvent({
+    recurrenceKey: acknowledged.recurrenceKey,
+    state: "acknowledged",
+  });
+
+  const snapshot = buildLifecycleSnapshot({
+    records: [acknowledged, fresh],
+    reviewEvents: [review],
+    filters: { tags: ["export-state"] },
+    state: "acknowledged",
+    limit: 10,
+  });
+
+  assert.equal(snapshot.scope.stateFilter, "acknowledged");
+  assert.equal(snapshot.scope.facetMatchingGroups, 2);
+  assert.equal(snapshot.scope.matchingGroups, 1);
+  assert.equal(snapshot.counts.vents, 1);
+  assert.equal(snapshot.counts.reviewStates.new, 0);
+  assert.equal(snapshot.counts.reviewStates.acknowledged, 1);
+  assert.equal(snapshot.summary.groups.length, 1);
+  assert.equal(snapshot.reviewQueue.items.length, 1);
+  const markdown = formatExportMarkdown(snapshot);
+  assert.match(markdown, /Acknowledged export group/);
+  assert.doesNotMatch(markdown, /Fresh export group should not appear/);
+});
+
+test("lifecycle export rejects empty facet filters", () => {
+  assert.throws(
+    () => buildLifecycleSnapshot({ records: [], filters: { tags: [""] } }),
+    /invalid agent_vent review filter tag: empty value/,
+  );
+  assert.throws(
+    () => buildLifecycleSnapshot({ records: [], filters: { tool: "" } }),
+    /invalid agent_vent review filter tool: empty value/,
+  );
 });
 
 test("lifecycle stats report missing stores without creating files", () => {
