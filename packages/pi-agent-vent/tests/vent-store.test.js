@@ -522,9 +522,11 @@ test("review detail expands curated groups with bounded redacted samples", () =>
     {
       summary: "Primary reload failure",
       category: "tool_failure",
+      severity: "high",
       recurrenceKey: "reload-primary",
       evidence: "Bearer abcdefghijklmnop should redact",
       tags: ["Pi Tool", "Reload"],
+      packageName: "@tryinget/pi-agent-vent",
     },
     { id: "v1", now: "2026-05-21T00:00:00.000Z" },
   );
@@ -560,6 +562,12 @@ test("review detail expands curated groups with bounded redacted samples", () =>
   assert.equal(detail.samples.length, 2);
   const text = formatReviewDetail(detail);
   assert.match(text, /Requested key resolved through local curation/);
+  assert.match(text, /Human review hints:/);
+  assert.match(text, /incident_review draft may help a human decide/);
+  assert.match(text, /maintainer_note draft may help package\/tool maintainers/);
+  assert.match(text, /github_issue draft may help/);
+  assert.match(text, /ak_task draft may help/);
+  assert.match(text, /not owner routing, assignment, filing, task creation, incident declaration/);
   assert.match(text, /Local next actions:/);
   assert.match(text, /draft github_issue/);
   assert.match(text, /draft ak_task/);
@@ -574,6 +582,32 @@ test("review detail expands curated groups with bounded redacted samples", () =>
   assert.match(text, /token=\[REDACTED\]/);
   assert.match(text, /No AK task, GitHub issue, incident, evidence/);
   assert.doesNotMatch(text, /filed|declared|owner was assigned/);
+});
+
+test("review queue guidance hints remain advisory and authority-safe", () => {
+  const incident = createVentRecord({
+    summary: "Critical package bug",
+    category: "bug",
+    severity: "critical",
+    recurrenceKey: "critical-package-bug",
+    packageName: "@tryinget/pi-agent-vent",
+  });
+  const workflow = createVentRecord({
+    summary: "Workflow docs unclear",
+    category: "documentation",
+    recurrenceKey: "workflow-docs",
+  });
+
+  const text = formatReviewQueue(summarizeReviewQueue([incident, workflow], []));
+  assert.match(text, /incident_review draft may help a human decide/);
+  assert.match(text, /maintainer_note draft may help package\/tool maintainers/);
+  assert.match(text, /github_issue draft may help/);
+  assert.match(text, /ak_task draft may help/);
+  assert.match(text, /Hints are local diagnostics only/);
+  assert.doesNotMatch(
+    text,
+    /GitHub issue was created|AK task was created|incident was declared|owner was assigned|was filed/,
+  );
 });
 
 test("review queue next actions are state-aware and authority-safe", () => {

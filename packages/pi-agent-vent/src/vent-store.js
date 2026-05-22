@@ -834,6 +834,7 @@ export function formatReviewQueue(queue) {
       `- [${item.reviewState}] ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}${facetText}; latest: ${item.latestSummary}`,
     );
     if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
+    lines.push(`  human review hints: ${formatReviewGuidance(item)}`);
     lines.push(`  inspect: /agent_vent review show ${item.recurrenceKey} [limit]`);
     for (const nextAction of buildReviewNextActionLines(item, { compact: true })) {
       lines.push(`  ${nextAction}`);
@@ -862,6 +863,7 @@ export function formatReviewDetail(detail) {
   if (group.tools?.length) lines.push(`Tools: ${group.tools.join(", ")}`);
   if (group.packages?.length) lines.push(`Packages: ${group.packages.join(", ")}`);
   if (group.reviewNote) lines.push(`Review note: ${group.reviewNote}`);
+  lines.push(`Human review hints: ${formatReviewGuidance(group)}`);
   lines.push("", "Representative local samples:");
   for (const sample of detail.samples || []) {
     lines.push(
@@ -1829,6 +1831,39 @@ function buildReviewQueueItems(records, reviewEvents, curationEvents = []) {
       reviewEventId: latestReview?.id,
     };
   });
+}
+
+function formatReviewGuidance(group) {
+  const hints = [];
+  if (group.candidateIncident) {
+    hints.push(
+      "incident_review draft may help a human decide whether this is operationally significant",
+    );
+  }
+  if ((group.packages || []).length) {
+    hints.push(
+      "maintainer_note draft may help package/tool maintainers inspect local diagnostic facets",
+    );
+  }
+  const categories = new Set(group.categories || []);
+  if (categories.has("bug") || categories.has("tool_failure") || categories.has("performance")) {
+    hints.push(
+      "github_issue draft may help if the target repo accepts issue-based maintenance intake",
+    );
+  }
+  if (
+    categories.has("workflow") ||
+    categories.has("documentation") ||
+    categories.has("missing_capability") ||
+    categories.has("context_loss") ||
+    categories.has("permission")
+  ) {
+    hints.push("ak_task draft may help if a human chooses to create durable task truth");
+  }
+  if (!hints.length) {
+    hints.push("inspect samples, then choose a local review state or draft target if useful");
+  }
+  return `${hints.join("; ")}. Hints are local diagnostics only, not owner routing, assignment, filing, task creation, incident declaration, evidence, publication, or telemetry.`;
 }
 
 function buildReviewNextActionLines(group, options = {}) {
