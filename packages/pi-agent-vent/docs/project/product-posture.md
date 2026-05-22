@@ -128,7 +128,7 @@ The local review surface turns recurrence groups into an inbox:
 new -> acknowledged | dismissed | escalation_drafted
 ```
 
-The landed baseline lists groups by recurrence priority, supports fail-closed read-only category/tag/tool/package facet filters, shows advisory human-review hints, shows quoted state-aware local next-action guidance that remains safe for legacy recurrence keys, shows representative summaries/sample ids through recurrence projections, offers bounded read-only representative-sample expansion for a single group, records append-only local review-state events without mutating owner systems, provides read-only outcome follow-up buckets for `new`, `acknowledged`, `dismissed`, and `escalation_drafted` groups, compares review-state buckets with filter-preserving supported follow-up commands, and exports filtered local diagnostic projections. Remaining product depth is richer archive/export ergonomics after review decisions while keeping owner-system mutation human-approved and external.
+The landed baseline lists groups by recurrence priority, supports fail-closed read-only category/tag/tool/package facet filters, shows advisory human-review hints, shows explicit local decision posture, shows quoted state-aware local next-action guidance that remains safe for legacy recurrence keys, shows representative summaries/sample ids through recurrence projections, offers bounded read-only representative-sample expansion for a single group, records append-only local review-state events without mutating owner systems, provides read-only outcome follow-up buckets for `new`, `acknowledged`, `dismissed`, and `escalation_drafted` groups, compares review-state buckets with filter-preserving supported follow-up commands, exports filtered local diagnostic projections with safe local follow-up guidance, and supports retention receipt history. Remaining product depth is contract-parity polish only unless fresh discovery shows a concrete gap; owner-system mutation stays human-approved and external.
 
 ### Bet 2 — Retention, export, and deletion controls — non-destructive baseline landed
 
@@ -152,7 +152,7 @@ Improve signal quality without over-modeling:
 - rename recurrence keys — landed as append-only local curation projection events;
 - undo local curation aliases — landed as append-only `remove` curation events;
 - dismiss noisy groups — already covered by local review state;
-- show top categories/tags/tools/packages — landed as read-only local facet summaries; owner hints remain deferred to AK task `#3319` as review-ergonomics product depth;
+- show top categories/tags/tools/packages — landed as read-only local facet summaries; owner hints are intentionally local diagnostic/draft hints only, not package-owned routing truth;
 - preserve append-only source records while treating curated summaries as local projections — landed; raw vents are not rewritten.
 
 ### Bet 4 — Draft-only owner escalation — landed baseline

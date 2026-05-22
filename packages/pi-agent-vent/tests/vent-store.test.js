@@ -1438,7 +1438,7 @@ test("retention candidates list reviewed groups without tokens or mutation", () 
   const text = formatRetentionCandidates(candidates);
   assert.match(text, /Agent vent retention candidates/);
   assert.match(text, /read-only planning view/);
-  assert.match(text, /preview archive token: \/agent_vent retention preview/);
+  assert.match(text, /preview to request archive token: \/agent_vent retention preview/);
   assert.match(text, /reviewed token=\[REDACTED\] locally/);
   assert.match(
     text,

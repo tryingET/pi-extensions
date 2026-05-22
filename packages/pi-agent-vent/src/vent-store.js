@@ -1670,7 +1670,7 @@ export function formatRetentionCandidates(candidates) {
       );
     } else {
       lines.push(
-        `  preview archive token: ${formatAgentVentCommand("retention", "preview", item.recurrenceKey)}`,
+        `  preview to request archive token: ${formatAgentVentCommand("retention", "preview", item.recurrenceKey)}`,
         `  ${formatExportBucketLine("export this outcome bucket", item.reviewState, candidates.filters)}`,
       );
     }
