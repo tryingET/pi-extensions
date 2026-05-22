@@ -305,10 +305,10 @@ const parseAggregateJsonEntry = (value, ref) => {
 };
 
 const countValues = (values) => {
-  const counts = {};
-  for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
+  const counts = new Map();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
   return Object.fromEntries(
-    Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)),
+    Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right)),
   );
 };
 
@@ -393,9 +393,30 @@ const normalizeStoredEvaluation = (value, ref) => {
 };
 
 const aggregateEntriesFromInput = (input = {}) => {
-  const raw = asObject(input);
+  const raw = asObject(input) ?? {};
   const entries = [];
   const invalidEntries = [];
+  const objectSources = [
+    ["items", raw.items],
+    ["observations", raw.observations],
+    ["evaluations", raw.evaluations],
+  ];
+  const jsonSources = [
+    ["observationJsons", raw.observationJsons],
+    ["evaluationJsons", raw.evaluationJsons],
+  ];
+  const sourceCount = [...objectSources, ...jsonSources].reduce(
+    (sum, [, values]) => sum + (Array.isArray(values) ? values.length : 0),
+    0,
+  );
+  if (sourceCount > MAX_AGGREGATE_ITEMS) {
+    return {
+      entries,
+      invalidEntries,
+      errors: [`aggregate input exceeds ${MAX_AGGREGATE_ITEMS} receipt item(s)`],
+    };
+  }
+
   const pushEntry = (value, ref) => entries.push({ value, ref });
   const pushJsonEntry = (value, ref) => {
     const parsed = parseAggregateJsonEntry(value, ref);
@@ -403,29 +424,16 @@ const aggregateEntriesFromInput = (input = {}) => {
     else invalidEntries.push({ ref, errors: parsed.errors });
   };
 
-  if (Array.isArray(raw.items)) {
-    raw.items.forEach((value, index) => {
-      pushEntry(value, `items[${index}]`);
+  for (const [field, values] of objectSources) {
+    if (!Array.isArray(values)) continue;
+    values.forEach((value, index) => {
+      pushEntry(value, `${field}[${index}]`);
     });
   }
-  if (Array.isArray(raw.observations)) {
-    raw.observations.forEach((value, index) => {
-      pushEntry(value, `observations[${index}]`);
-    });
-  }
-  if (Array.isArray(raw.evaluations)) {
-    raw.evaluations.forEach((value, index) => {
-      pushEntry(value, `evaluations[${index}]`);
-    });
-  }
-  if (Array.isArray(raw.observationJsons)) {
-    raw.observationJsons.forEach((value, index) => {
-      pushJsonEntry(value, `observationJsons[${index}]`);
-    });
-  }
-  if (Array.isArray(raw.evaluationJsons)) {
-    raw.evaluationJsons.forEach((value, index) => {
-      pushJsonEntry(value, `evaluationJsons[${index}]`);
+  for (const [field, values] of jsonSources) {
+    if (!Array.isArray(values)) continue;
+    values.forEach((value, index) => {
+      pushJsonEntry(value, `${field}[${index}]`);
     });
   }
 
@@ -492,7 +500,10 @@ const aggregateNextAction = (status) => {
 };
 
 export const buildDogfoodAggregateEvaluation = (input = {}) => {
-  const { entries, invalidEntries } = aggregateEntriesFromInput(input);
+  const { entries, invalidEntries, errors } = aggregateEntriesFromInput(input);
+  if (errors) {
+    return { ok: false, errors, nonAuthorization: NON_AUTHORIZATION };
+  }
   if (entries.length === 0 && invalidEntries.length === 0) {
     return {
       ok: false,

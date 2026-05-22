@@ -350,3 +350,51 @@ test("dogfood aggregate redacts malicious labels and fails closed on oversized i
   assert.equal(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.additionalProperties, false);
   assert.equal(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.properties.items.maxItems, 20);
 });
+
+test("dogfood aggregate fails closed for non-object top-level input", () => {
+  const nullInput = buildDogfoodAggregateEvaluation(null);
+  const arrayInput = buildDogfoodAggregateEvaluation([]);
+
+  assert.equal(nullInput.ok, false);
+  assert.equal(arrayInput.ok, false);
+  assert.match(nullInput.errors[0], /at least one observation or evaluation is required/);
+  assert.match(arrayInput.errors[0], /at least one observation or evaluation is required/);
+});
+
+test("dogfood aggregate counts prototype-shaped labels without losing them", () => {
+  const aggregate = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation({
+        prediction: {
+          ...baseObservation().prediction,
+          packetUtilityRecommendationStatus: "__proto__",
+          unwiredProviderOmissions: ["__proto__"],
+        },
+        observation: {
+          actualLowLevelReadSearchStatusCalls: 0,
+          actualLowLevelCallsAvoided: 1,
+          duplicateReadsObserved: true,
+          omissionFollowupsUsed: ["__proto__"],
+          recommendationMatchedOutcome: true,
+          notes: "prototype-shaped labels should remain countable",
+        },
+      }),
+    ],
+  });
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.packetUtilityRecommendationCounts.__proto__, 1);
+  assert.equal(aggregate.providerOmissionCounts.__proto__, 1);
+  assert.equal(aggregate.omissionFollowupCounts.__proto__, 1);
+  assert.match(JSON.stringify(aggregate), /"__proto__":1/);
+});
+
+test("dogfood aggregate enforces combined item limit before parsing JSON entries", async () => {
+  const result = await dogfoodAggregateEvaluationToolResult({
+    observationJsons: Array.from({ length: 21 }, () => "{"),
+  });
+
+  assert.equal(result.details.dogfoodAggregateEvaluation.ok, false);
+  assert.match(result.content[0].text, /aggregate input exceeds 20 receipt item/);
+  assert.doesNotMatch(result.content[0].text, /valid JSON/);
+});
