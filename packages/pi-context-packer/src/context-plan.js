@@ -170,6 +170,16 @@ const hasGitMarker = (candidateRoot) => {
   }
 };
 
+const nearestAncestorGitRoot = (cwd) => {
+  let current = path.resolve(cwd);
+  while (true) {
+    if (hasGitMarker(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+};
+
 const directoryIssue = (value, label) => {
   try {
     const pathStat = statSync(value);
@@ -227,6 +237,7 @@ const normalizeWorkspace = (raw, env) => {
   const fallbackCwd = trustedFallbackCwd(env, risks);
   const requestedCwd = coerceString(raw.cwd, fallbackCwd).trim() || fallbackCwd;
   const requestedRepoRoot = coerceString(raw.repoRoot).trim();
+  const shouldInferRepoRoot = !requestedRepoRoot;
   let cwd = requestedCwd;
   let repoRoot = requestedRepoRoot || undefined;
 
@@ -309,6 +320,16 @@ const normalizeWorkspace = (raw, env) => {
         message: "cwd is outside repoRoot; repoRoot omitted to avoid false workspace authority",
       });
       repoRoot = undefined;
+    }
+  }
+
+  if (!repoRoot && shouldInferRepoRoot) {
+    const inferredRepoRoot = nearestAncestorGitRoot(cwd);
+    if (inferredRepoRoot) {
+      const trustIssue = repoRootTrustIssue(inferredRepoRoot, fallbackCwd);
+      if (!trustIssue && pathIsInside(inferredRepoRoot, cwd)) {
+        repoRoot = inferredRepoRoot;
+      }
     }
   }
 

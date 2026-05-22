@@ -282,6 +282,42 @@ test("context_pack refuses existing SCI artifacts even when bypass flag is set",
   );
 });
 
+test("context_pack refuses ancestor repoRoot SCI artifacts from package cwd when repoRoot is omitted", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await mkdir(join(root, ".ontology"));
+  await mkdir(packageCwd, { recursive: true });
+  const calls = [];
+  const fakeExec = async () => {
+    calls.push("called");
+    return { stdout: sciStdout({ content: "should not run" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { git: "off" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.packet.repoRoot, root);
+  assert.equal(calls.length, 0);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("existing .ontology"),
+    ),
+  );
+});
+
 test("context_pack omits SCI items when workflow creates .ontology despite artifact flag", async () => {
   const root = await makeWorkspace();
   const fakeExec = async (_command, _args, options) => {

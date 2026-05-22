@@ -171,6 +171,45 @@ test("context_plan accepts a git repoRoot ancestor of the trusted package cwd", 
   );
 });
 
+test("context_plan infers nearest ancestor git repoRoot from trusted package cwd", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-inferred-root-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await mkdir(packageCwd, { recursive: true });
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan monorepo package context",
+      cwd: packageCwd,
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(plan.cwd, packageCwd);
+  assert.equal(plan.repoRoot, root);
+  assert.equal(
+    plan.risks.some((risk) => risk.message.includes("repoRoot omitted")),
+    false,
+  );
+});
+
+test("context_plan does not infer broad ancestors without a git marker", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-no-infer-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(packageCwd, { recursive: true });
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan monorepo package context",
+      cwd: packageCwd,
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(plan.cwd, packageCwd);
+  assert.equal(plan.repoRoot, undefined);
+});
+
 test("context_plan rejects broad ancestor repoRoot values without a git marker", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-plan-broad-"));
   const packageCwd = join(root, "packages", "pkg");

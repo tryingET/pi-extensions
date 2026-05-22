@@ -300,6 +300,31 @@ test("context_pack accepts a git-root ancestor repoRoot from a package cwd", asy
   );
 });
 
+test("context_pack infers git-root ancestor from package cwd when repoRoot is omitted", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await mkdir(packageCwd, { recursive: true });
+  await writeFile(join(packageCwd, "AGENTS.md"), "# Package AGENTS\n", "utf8");
+
+  const result = await buildContextPacket(
+    {
+      objective: "Read monorepo package instruction context",
+      cwd: packageCwd,
+      providers: { git: "off", sci: "off", docs: "off" },
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.packet.repoRoot, root);
+  const agents = result.packet.sections.find((section) => section.provider === "agents");
+  assert.deepEqual(
+    agents.items.map((item) => item.provenance.path),
+    ["AGENTS.md", "packages/pkg/AGENTS.md"],
+  );
+});
+
 test("context_pack records planned provider omissions and owner routes for selected unwired providers", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({
