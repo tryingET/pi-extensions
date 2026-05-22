@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   buildContextPlan,
@@ -111,6 +114,90 @@ test("context_plan rejects caller workspace roots outside the trusted environmen
   assert.equal(plan.cwd, "/safe/repo");
   assert.equal(plan.repoRoot, undefined);
   assert.ok(plan.risks.some((risk) => risk.message.includes("outside trusted environment cwd")));
+});
+
+test("context_plan accepts a git repoRoot ancestor of the trusted package cwd", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-root-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await mkdir(packageCwd, { recursive: true });
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan monorepo package context",
+      cwd: packageCwd,
+      repoRoot: root,
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(plan.cwd, packageCwd);
+  assert.equal(plan.repoRoot, root);
+  assert.equal(
+    plan.risks.some((risk) => risk.message.includes("repoRoot omitted")),
+    false,
+  );
+});
+
+test("context_plan rejects broad ancestor repoRoot values without a git marker", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-broad-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(packageCwd, { recursive: true });
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan monorepo package context",
+      cwd: packageCwd,
+      repoRoot: root,
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(plan.cwd, packageCwd);
+  assert.equal(plan.repoRoot, undefined);
+  assert.ok(plan.risks.some((risk) => risk.message.includes("lacks a .git marker")));
+});
+
+test("context_plan rejects unrelated repoRoot values even when they have a git marker", async () => {
+  const trustedRoot = await mkdtemp(join(tmpdir(), "pi-context-plan-trusted-"));
+  const unrelatedRoot = await mkdtemp(join(tmpdir(), "pi-context-plan-unrelated-"));
+  const packageCwd = join(trustedRoot, "packages", "pkg");
+  await mkdir(packageCwd, { recursive: true });
+  await mkdir(join(unrelatedRoot, ".git"), { recursive: true });
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan monorepo package context",
+      cwd: packageCwd,
+      repoRoot: unrelatedRoot,
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(plan.cwd, packageCwd);
+  assert.equal(plan.repoRoot, undefined);
+  assert.ok(plan.risks.some((risk) => risk.message.includes("outside trusted environment cwd")));
+});
+
+test("context_plan rejects cwd values outside an accepted ancestor repoRoot", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-root-"));
+  const outside = await mkdtemp(join(tmpdir(), "pi-context-plan-outside-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await mkdir(packageCwd, { recursive: true });
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan monorepo package context",
+      cwd: outside,
+      repoRoot: root,
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(plan.cwd, packageCwd);
+  assert.equal(plan.repoRoot, root);
+  assert.ok(plan.risks.some((risk) => risk.message.includes("outside trusted repoRoot")));
 });
 
 test("context_plan default reserve leaves usable packet budget", () => {

@@ -154,6 +154,36 @@ test("context_pack preserves loader-style AGENTS order", async () => {
   );
 });
 
+test("context_pack accepts a git-root ancestor repoRoot from a package cwd", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await mkdir(packageCwd, { recursive: true });
+  await writeFile(join(packageCwd, "AGENTS.md"), "# Package AGENTS\n", "utf8");
+
+  const result = await buildContextPacket(
+    {
+      objective: "Read monorepo package instruction context",
+      cwd: packageCwd,
+      repoRoot: root,
+      providers: { git: "off", sci: "off", docs: "off" },
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.packet.repoRoot, root);
+  const agents = result.packet.sections.find((section) => section.provider === "agents");
+  assert.deepEqual(
+    agents.items.map((item) => item.provenance.path),
+    ["AGENTS.md", "packages/pkg/AGENTS.md"],
+  );
+  assert.equal(
+    result.packet.omissions.some((omission) => omission.detail.includes("packages/AGENTS.md")),
+    false,
+  );
+});
+
 test("context_pack records planned provider omissions and owner routes for selected unwired providers", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({

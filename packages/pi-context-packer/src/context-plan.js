@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import path from "node:path";
 import {
   hasControlCharacter,
@@ -155,6 +156,41 @@ const pathIsInside = (root, candidate) => {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 };
 
+const hasGitMarker = (candidateRoot) => {
+  try {
+    const marker = statSync(path.join(candidateRoot, ".git"));
+    return marker.isDirectory() || marker.isFile();
+  } catch {
+    return false;
+  }
+};
+
+const repoRootTrustIssue = (repoRoot, trustedEnvCwd) => {
+  if (!trustedEnvCwd || !path.isAbsolute(trustedEnvCwd) || !path.isAbsolute(repoRoot)) {
+    return undefined;
+  }
+  if (pathIsInside(trustedEnvCwd, repoRoot)) return undefined;
+  if (pathIsInside(repoRoot, trustedEnvCwd)) {
+    return hasGitMarker(repoRoot)
+      ? undefined
+      : "repoRoot is an ancestor of trusted environment cwd but lacks a .git marker";
+  }
+  return "repoRoot is outside trusted environment cwd";
+};
+
+const cwdTrustIssue = (cwd, trustedEnvCwd, repoRoot) => {
+  if (!trustedEnvCwd || !path.isAbsolute(trustedEnvCwd) || !path.isAbsolute(cwd)) {
+    return undefined;
+  }
+  if (pathIsInside(trustedEnvCwd, cwd)) return undefined;
+  if (repoRoot && path.isAbsolute(repoRoot) && pathIsInside(repoRoot, trustedEnvCwd)) {
+    return pathIsInside(repoRoot, cwd)
+      ? undefined
+      : "cwd is outside trusted repoRoot and trusted environment cwd";
+  }
+  return "cwd is outside trusted environment cwd";
+};
+
 const normalizeWorkspace = (raw, env) => {
   const trustedEnvCwd = coerceString(env.cwd).trim();
   const fallbackCwd = trustedEnvCwd || process.cwd();
@@ -186,26 +222,26 @@ const normalizeWorkspace = (raw, env) => {
     }
   }
 
-  if (trustedEnvCwd && path.isAbsolute(trustedEnvCwd) && path.isAbsolute(cwd)) {
-    if (!pathIsInside(trustedEnvCwd, cwd)) {
+  if (repoRoot) {
+    const trustIssue = repoRootTrustIssue(repoRoot, trustedEnvCwd);
+    if (trustIssue) {
       risks.push({
         kind: "path",
         severity: "blocked",
-        message: "cwd is outside trusted environment cwd; falling back to environment cwd",
-      });
-      cwd = trustedEnvCwd;
-    }
-  }
-
-  if (trustedEnvCwd && repoRoot && path.isAbsolute(trustedEnvCwd) && path.isAbsolute(repoRoot)) {
-    if (!pathIsInside(trustedEnvCwd, repoRoot)) {
-      risks.push({
-        kind: "path",
-        severity: "blocked",
-        message: "repoRoot is outside trusted environment cwd; repoRoot omitted",
+        message: `${trustIssue}; repoRoot omitted`,
       });
       repoRoot = undefined;
     }
+  }
+
+  const cwdIssueAfterRepoTrust = cwdTrustIssue(cwd, trustedEnvCwd, repoRoot);
+  if (cwdIssueAfterRepoTrust) {
+    risks.push({
+      kind: "path",
+      severity: "blocked",
+      message: `${cwdIssueAfterRepoTrust}; falling back to environment cwd`,
+    });
+    cwd = fallbackCwd;
   }
 
   if (repoRoot && path.isAbsolute(repoRoot) && path.isAbsolute(cwd)) {

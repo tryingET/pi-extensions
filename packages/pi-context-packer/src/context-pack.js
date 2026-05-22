@@ -215,10 +215,22 @@ const findAgentFiles = async (cwd, repoRoot) => {
     current = parent;
   }
 
-  return unique(candidates)
+  const existing = [];
+  const relativeCandidates = unique(candidates)
     .reverse()
     .map((candidate) => candidate.slice(root.length + 1))
     .filter((candidate) => candidate && !candidate.startsWith(".."));
+
+  for (const candidate of relativeCandidates) {
+    try {
+      const candidateStat = await stat(resolve(root, candidate));
+      if (candidateStat.isFile()) existing.push(candidate);
+    } catch {
+      // Missing ancestor AGENTS files are normal loader behavior, not packet omissions.
+    }
+  }
+
+  return existing;
 };
 
 const buildAgentsSection = async ({ cwd, repoRoot, maxBytes, loadedSystemPrompt }) => {
