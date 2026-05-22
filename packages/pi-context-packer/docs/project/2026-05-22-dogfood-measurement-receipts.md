@@ -163,7 +163,7 @@ After AGENTS and product posture content were already in the active session, the
     }
   ],
   "measurementReceipt": {
-    "estimatedToolCallsAvoided": 3,
+    "estimatedToolCallsAvoided": 0,
     "packetFillRatio": 0.0154,
     "wiredProviders": ["agents", "docs"],
     "selectedItemCount": 3,
@@ -184,7 +184,7 @@ After AGENTS and product posture content were already in the active session, the
 ```json
 {
   "status": "observed",
-  "expectedLowLevelCallsAvoided": 3,
+  "expectedLowLevelCallsAvoided": 0,
   "actualLowLevelReadSearchStatusCalls": 0,
   "duplicateReadsObserved": false,
   "omissionFollowupsUsed": [],
@@ -201,4 +201,4 @@ Outcome: no-packet recommendation matched the live work. This is the clearest cu
 - `context_pack` is useful when it returns fresh AGENTS/docs/git context with a concrete follow-up receipt; the current receipt was enough to avoid duplicate AGENTS/product-posture reads.
 - `no_packet_needed` is a first-class success state. In this run it avoided 4,424 duplicate estimated tokens and turned the packet into metadata.
 - SCI omissions should remain explicit. A read-only packet must not hide `.ontology` side effects or pretend SCI coverage exists when artifacts block safe assembly.
-- Landed next improvement: `context_pack` now emits a copy-ready `context_pack_dogfood_observation_v1` template in packet Markdown and compact details so agents can paste observed follow-up counts without persisting evidence, mutating owner surfaces, or duplicating raw packet content. Adding more provider adapters remains lower leverage until more receipts accumulate.
+- Landed next improvement: `context_pack` now emits a redacted copy-ready `context_pack_dogfood_observation_v1` template in packet Markdown and compact details so agents can paste observed follow-up counts without persisting evidence, mutating owner surfaces, duplicating raw packet content, or leaking selected item paths / raw omission details. Adding more provider adapters remains lower leverage until more receipts accumulate.

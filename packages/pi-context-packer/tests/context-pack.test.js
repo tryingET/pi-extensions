@@ -392,15 +392,45 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.equal(template.prediction.expectedLowLevelCallsAvoided, 2);
   assert.match(template.nonAuthorization, /did not persist evidence/);
   assert.doesNotMatch(serializedTemplate, /TOP SECRET PACKET BODY/);
+  assert.doesNotMatch(serializedTemplate, /secret```file/);
+  assert.doesNotMatch(serializedTemplate, /provenance|"id"|"path"/);
 
   const text = formatContextPacket(result);
   const templateStart = text.indexOf("## Dogfood observation template");
-  const sectionSummaryStart = text.indexOf("\n## Section summary");
-  const templateBlock = text.slice(templateStart, sectionSummaryStart);
+  const nonAuthorizationsStart = text.indexOf("\n## Non-authorizations");
+  const templateBlock = text.slice(templateStart, nonAuthorizationsStart);
 
-  assert.match(templateBlock, /````\n# dogfood-observation-template\.json/);
+  assert.match(templateBlock, /```+\n# dogfood-observation-template\.json/);
   assert.match(templateBlock, /context_pack_dogfood_observation_v1/);
   assert.doesNotMatch(templateBlock, /TOP SECRET PACKET BODY/);
+  assert.doesNotMatch(templateBlock, /secret```file/);
+});
+
+test("context_pack redacts omission details and does not call wired provider outages unwired", async () => {
+  const root = await makeWorkspace();
+  const script = join(root, "docs-list-fails.mjs");
+  await writeFile(
+    script,
+    "console.error('SECRET LOCAL PATH /tmp/customer-acme'); process.exit(2);\n",
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use architecture docs",
+      cwd: root,
+      repoRoot: root,
+      providers: { docs: "required", git: "off", sci: "off" },
+    },
+    { docsListScript: script },
+  );
+  const serializedTemplate = JSON.stringify(result.packet.dogfoodObservationTemplate);
+
+  assert.ok(result.packet.omissions.some((omission) => omission.detail.includes("docs-list")));
+  assert.equal(result.packet.measurementReceipt.unwiredProviderOmissions.includes("docs"), false);
+  assert.doesNotMatch(serializedTemplate, /SECRET LOCAL PATH|customer-acme|docs-list failed/);
+  assert.match(serializedTemplate, /detailRef/);
 });
 
 test("context_pack emits measurement receipt for packet usefulness", async () => {

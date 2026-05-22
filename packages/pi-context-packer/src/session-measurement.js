@@ -1,6 +1,9 @@
 const ESTIMATED_BYTES_PER_TOKEN = 4;
+const DOGFOOD_TEMPLATE_ITEM_LIMIT = 20;
+const PLANNED_UNWIRED_PROVIDER_IDS = new Set(["prompt_vault", "ak", "fcos"]);
 
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
+const textBytes = (text) => Buffer.byteLength(typeof text === "string" ? text : "");
 
 const sectionFromItems = (provider, title, items) => ({
   id: provider,
@@ -120,7 +123,10 @@ export const buildMeasurementReceipt = ({
     sessionAwareness,
     omittedCandidateCount: omissions.length,
     unwiredProviderOmissions: omissions
-      .filter((omission) => omission.reason === "unavailable")
+      .filter(
+        (omission) =>
+          omission.reason === "unavailable" && PLANNED_UNWIRED_PROVIDER_IDS.has(omission.provider),
+      )
       .map((omission) => omission.provider),
   };
   return {
@@ -144,24 +150,32 @@ export const buildDogfoodFollowupReceipt = (receipt) => ({
 });
 
 const compactSelectedItems = (sections) =>
-  sections.flatMap((section) =>
-    section.items.map((item) => ({
-      id: item.id,
-      provider: section.provider,
-      kind: item.kind,
-      contentMode: item.contentMode,
-      provenance: item.provenance,
-      duplicateOf: item.duplicateOf,
-      duplicateTokensAvoided: item.duplicateTokensAvoided ?? 0,
-    })),
-  );
+  sections
+    .flatMap((section, sectionIndex) =>
+      section.items.map((item, itemIndex) => ({
+        ref: `packet.sections[${sectionIndex}].items[${itemIndex}]`,
+        provider: section.provider,
+        kind: item.kind,
+        contentMode: item.contentMode,
+        estimatedTokens: item.estimatedTokens,
+        bytes: item.bytes,
+        duplicateOf: item.duplicateOf,
+        duplicateTokensAvoided: item.duplicateTokensAvoided ?? 0,
+      })),
+    )
+    .slice(0, DOGFOOD_TEMPLATE_ITEM_LIMIT);
 
 const compactOmissions = (omissions) =>
-  omissions.map((omission) => ({
-    provider: omission.provider,
-    reason: omission.reason,
-    detail: omission.detail,
-  }));
+  omissions
+    .map((omission, omissionIndex) => ({
+      ref: `packet.omissions[${omissionIndex}]`,
+      provider: omission.provider,
+      reason: omission.reason,
+      detailRef: `packet.omissions[${omissionIndex}].detail`,
+      detailEstimatedTokens: textTokens(omission.detail ?? ""),
+      detailBytes: textBytes(omission.detail),
+    }))
+    .slice(0, DOGFOOD_TEMPLATE_ITEM_LIMIT);
 
 export const buildDogfoodObservationTemplate = ({
   objective,
@@ -183,7 +197,12 @@ export const buildDogfoodObservationTemplate = ({
     candidatesSelected: totals.candidatesSelected,
     candidatesOmitted: totals.candidatesOmitted,
     selectedItems: compactSelectedItems(sections),
+    selectedItemsTruncated: Math.max(
+      0,
+      measurementReceipt.selectedItemCount - DOGFOOD_TEMPLATE_ITEM_LIMIT,
+    ),
     omissions: compactOmissions(omissions),
+    omissionsTruncated: Math.max(0, omissions.length - DOGFOOD_TEMPLATE_ITEM_LIMIT),
   },
   prediction: {
     expectedLowLevelCallsAvoided: measurementReceipt.estimatedToolCallsAvoided,
