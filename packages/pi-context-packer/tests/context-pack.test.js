@@ -439,6 +439,10 @@ test("context_pack redacts omission details and does not call wired provider out
   );
   assert.doesNotMatch(formatted, /SECRET LOCAL PATH|customer-acme|\/tmp\//);
   assert.doesNotMatch(serializedDetails, /SECRET LOCAL PATH|customer-acme/);
+  assert.doesNotMatch(
+    JSON.stringify(toolResult.details.omissions),
+    /SECRET LOCAL PATH|customer-acme|\/tmp\//,
+  );
   assert.doesNotMatch(serializedSuggestions, /SECRET LOCAL PATH|customer-acme|\/tmp\//);
   assert.doesNotMatch(
     serializedTemplate,
