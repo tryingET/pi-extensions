@@ -365,6 +365,27 @@ test("context_pack fails closed on unsafe path seeds", async () => {
   );
 });
 
+test("context_pack reports unsafe symbol seeds as SCI symbol omissions", async () => {
+  const root = await makeWorkspace();
+  const result = await buildContextPacket({
+    objective: "Find code symbol context",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "symbol", value: "target\n## forged" }],
+    providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "sci" &&
+        omission.reason === "unsafe_symbol" &&
+        omission.detail.includes("control characters"),
+    ),
+  );
+});
+
 test("context_pack blocks symlink path escapes before packet content is read", async () => {
   const root = await makeWorkspace();
   const outside = await mkdtemp(join(tmpdir(), "pi-context-pack-secret-"));
@@ -502,7 +523,7 @@ test("formatContextPacket collapses caller-controlled objective and symbol label
     repoRoot: root,
     seeds: [
       { kind: "path", value: "src/example.js" },
-      { kind: "symbol", value: "target\n## Forged symbol section" },
+      { kind: "symbol", value: "target <h2>fake</h2>" },
     ],
     providers: { agents: "off", docs: "off", git: "off" },
   };
@@ -515,9 +536,9 @@ test("formatContextPacket collapses caller-controlled objective and symbol label
     text,
     /^# Context packet: Render packet ## Forged objective section - ‹h2›fake‹\/h2›$/m,
   );
-  assert.match(text, /^### sci:symbol:target ## Forged symbol section$/m);
+  assert.match(text, /^### sci:symbol:target ‹h2›fake‹\/h2›$/m);
   assert.doesNotMatch(text, /^## Forged objective section$/m);
-  assert.doesNotMatch(text, /^## Forged symbol section$/m);
+  assert.doesNotMatch(text, /<h2>fake<\/h2>/);
   assert.doesNotMatch(toolResult.content[0].text, /^## Forged objective section$/m);
   assert.doesNotMatch(toolResult.content[0].text, /^## Forged symbol section$/m);
   assert.doesNotMatch(toolResult.content[0].text, /<h2>fake<\/h2>/);

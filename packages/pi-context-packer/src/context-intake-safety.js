@@ -29,6 +29,13 @@ export const repoRelativePathSafetyIssue = (value, label = "path seed") => {
   return undefined;
 };
 
+export const symbolSeedSafetyIssue = (value, label = "symbol seed") => {
+  if (typeof value !== "string" || !value.trim()) return `${label} is empty`;
+  if (hasControlCharacter(value)) return `${label} contains control characters`;
+  if (value.length > 240) return `${label} exceeds 240 characters`;
+  return undefined;
+};
+
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
 const signalPattern = (signal) =>

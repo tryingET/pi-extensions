@@ -6,6 +6,7 @@ import {
   includesBoundedSignal,
   markdownInlineLabel,
   repoRelativePathSafetyIssue,
+  symbolSeedSafetyIssue,
 } from "./context-intake-safety.js";
 import { buildOwnerSurfaceRecommendations } from "./owner-surface-routing.js";
 
@@ -123,14 +124,17 @@ const normalizeSeeds = (seeds) => {
     .filter(Boolean);
 };
 
-const pathSeedSafetyIssue = (seed) =>
-  seed.kind === "path" ? repoRelativePathSafetyIssue(seed.value) : undefined;
+const seedSafetyIssue = (seed) => {
+  if (seed.kind === "path") return repoRelativePathSafetyIssue(seed.value);
+  if (seed.kind === "symbol") return symbolSeedSafetyIssue(seed.value);
+  return undefined;
+};
 
 const partitionSeeds = (seeds) => {
   const safeSeeds = [];
   const omittedSeeds = [];
   for (const seed of seeds) {
-    const reason = pathSeedSafetyIssue(seed);
+    const reason = seedSafetyIssue(seed);
     if (reason) {
       omittedSeeds.push({ kind: seed.kind, reason });
     } else {
@@ -378,7 +382,7 @@ const buildRisks = ({
 
   for (const omittedSeed of omittedSeeds) {
     risks.push({
-      kind: "path",
+      kind: omittedSeed.kind === "path" ? "path" : "seed",
       severity: "blocked",
       message: `${omittedSeed.reason}; provider queries exclude the unsafe caller-controlled seed`,
     });

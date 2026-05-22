@@ -4,7 +4,11 @@ import { lstat, mkdir, mkdtemp, open, realpath, rm, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { repoRelativePathSafetyIssue, subprocessFailureDetail } from "./context-intake-safety.js";
+import {
+  repoRelativePathSafetyIssue,
+  subprocessFailureDetail,
+  symbolSeedSafetyIssue,
+} from "./context-intake-safety.js";
 
 const execFileAsync = promisify(execFile);
 const ESTIMATED_BYTES_PER_TOKEN = 4;
@@ -104,7 +108,7 @@ const pathSeedsForSci = (seeds) =>
 
 const symbolSeedsForSci = (seeds) =>
   seeds
-    .filter((seed) => seed.kind === "symbol")
+    .filter((seed) => seed.kind === "symbol" && !symbolSeedSafetyIssue(seed.value))
     .slice(0, 4)
     .map((seed) => seed.value);
 

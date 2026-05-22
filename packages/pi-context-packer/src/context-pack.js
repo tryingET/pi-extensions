@@ -464,8 +464,8 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
   const providerBudgets = new Map();
   const omissions = (plan.omittedSeeds ?? []).map((seed) => ({
-    provider: "docs",
-    reason: "unsafe_path",
+    provider: seed.kind === "symbol" ? "sci" : "docs",
+    reason: seed.kind === "symbol" ? "unsafe_symbol" : "unsafe_path",
     detail: `${seed.kind} seed omitted during planning: ${seed.reason}`,
   }));
   const allSeeds = unique(

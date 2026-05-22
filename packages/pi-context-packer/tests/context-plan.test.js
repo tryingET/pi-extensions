@@ -55,11 +55,14 @@ test("context_plan honors provider required and off modes without creating mutat
   assert.ok(plan.nonAuthorizations.some((item) => item.includes("does not close FCOS")));
 });
 
-test("context_plan omits unsafe caller-controlled path seeds from provider queries", () => {
+test("context_plan omits unsafe caller-controlled path and symbol seeds from provider queries", () => {
   const plan = buildContextPlan({
     objective: "Plan implementation context for these files",
     seeds: [
       { kind: "path", value: "src/context-plan.js" },
+      { kind: "symbol", value: "targetSymbol" },
+      { kind: "symbol", value: "target\n## forged" },
+      { kind: "symbol", value: "x".repeat(241) },
       { kind: "path", value: "../secrets.md" },
       { kind: "path", value: "/etc/passwd" },
       { kind: "path", value: "node_modules/pkg/index.js" },
@@ -75,20 +78,27 @@ test("context_plan omits unsafe caller-controlled path seeds from provider queri
   });
 
   assert.equal(plan.ok, true);
-  assert.equal(plan.omittedSeeds.length, 11);
+  assert.equal(plan.omittedSeeds.length, 13);
   assert.equal(
     plan.risks.filter((risk) => risk.kind === "path" && risk.severity === "blocked").length,
     11,
   );
+  assert.equal(
+    plan.risks.filter((risk) => risk.kind === "seed" && risk.severity === "blocked").length,
+    2,
+  );
   for (const providerPlan of plan.providerPlans) {
     for (const query of providerPlan.proposedQueries) {
-      assert.deepEqual(query.seeds, [{ kind: "path", value: "src/context-plan.js" }]);
+      assert.deepEqual(query.seeds, [
+        { kind: "path", value: "src/context-plan.js" },
+        { kind: "symbol", value: "targetSymbol" },
+      ]);
     }
   }
   const serialized = JSON.stringify(plan.providerPlans);
   assert.doesNotMatch(
     serialized,
-    /\.\.|\/etc\/passwd|node_modules|\.git|\.env|\.ontology|windows|file:\/\/|C:|http:\/\/|example\.invalid/,
+    /\.\.|\/etc\/passwd|node_modules|\.git|\.env|\.ontology|windows|file:\/\/|C:|http:\/\/|example\.invalid|forged|xxxxxxxx/,
   );
 });
 

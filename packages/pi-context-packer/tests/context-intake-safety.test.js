@@ -4,6 +4,7 @@ import {
   markdownInlineLabel,
   publicOmissionDetail,
   repoRelativePathSafetyIssue,
+  symbolSeedSafetyIssue,
 } from "../src/context-intake-safety.js";
 
 test("markdownInlineLabel collapses control characters and bounds labels", () => {
@@ -18,6 +19,12 @@ test("markdownInlineLabel collapses control characters and bounds labels", () =>
 test("repoRelativePathSafetyIssue rejects DEL and C1 control characters", () => {
   assert.match(repoRelativePathSafetyIssue("docs/\u007fsecret.md"), /control characters/);
   assert.match(repoRelativePathSafetyIssue("docs/\u0085secret.md"), /control characters/);
+});
+
+test("symbolSeedSafetyIssue rejects control characters and oversized symbol queries", () => {
+  assert.equal(symbolSeedSafetyIssue("targetSymbol"), undefined);
+  assert.match(symbolSeedSafetyIssue("target\n## forged"), /control characters/);
+  assert.match(symbolSeedSafetyIssue("x".repeat(241)), /exceeds 240/);
 });
 
 test("publicOmissionDetail withholds POSIX, Windows, UNC, and secret-like raw details", () => {

@@ -17,11 +17,14 @@ const textResult = (text: string, details: Record<string, unknown> = {}) => ({
   details,
 });
 
+const truthyEnv = (value: string | undefined) => /^(1|true|yes)$/iu.test(value ?? "");
+
 const contextEnv = (ctx: ExtensionContext | undefined) => ({
   cwd: ctx?.cwd,
   systemPrompt: ctx?.getSystemPrompt?.(),
   contextUsage: ctx?.getContextUsage?.(),
   modelLabel: ctx?.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
+  sciReadOnlySafe: truthyEnv(process.env.PI_CONTEXT_PACKER_SCI_READ_ONLY_SAFE),
 });
 
 export default function contextPackerExtension(pi: ExtensionAPI) {
