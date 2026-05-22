@@ -44,7 +44,7 @@ Then in Pi:
 
 ## Tool behavior
 
-`agent_vent` supports fifteen actions:
+`agent_vent` supports fourteen actions:
 
 | Action | Purpose |
 |---|---|

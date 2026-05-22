@@ -24,104 +24,7 @@ echo "== npm pack --dry-run --json"
 PACK_JSON="$(npm pack --dry-run --json)"
 echo "$PACK_JSON"
 
-PACK_JSON="$PACK_JSON" node <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
-
-const normalize = (value) => value.replace(/^\.\//, "").replace(/\\/g, "/");
-
-const fail = (msg) => {
-  console.error(msg);
-  process.exit(1);
-};
-
-const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-const filesEntries = Array.isArray(pkg.files)
-  ? pkg.files.map((entry) => normalize(String(entry).trim())).filter(Boolean)
-  : [];
-
-if (filesEntries.length === 0) {
-  fail("package.json must define a non-empty files array for deterministic publish artifacts.");
-}
-
-const expectedExact = new Set(["package.json"]);
-const expectedDirPrefixes = [];
-const expectedPatternPrefixes = [];
-
-for (const entry of filesEntries) {
-  if (/[*?\[]/.test(entry)) {
-    const prefix = normalize(entry.split(/[*?\[]/, 1)[0]);
-    if (!prefix) {
-      fail(`Unsupported files[] wildcard entry without prefix: ${entry}`);
-    }
-    expectedPatternPrefixes.push(prefix);
-    continue;
-  }
-
-  const fullPath = path.resolve(entry);
-  if (!fs.existsSync(fullPath)) {
-    fail(`files[] entry does not exist: ${entry}`);
-  }
-
-  const stat = fs.statSync(fullPath);
-  if (stat.isDirectory()) {
-    const prefix = entry.endsWith("/") ? entry : `${entry}/`;
-    expectedDirPrefixes.push(prefix);
-  } else {
-    expectedExact.add(entry);
-  }
-}
-
-const pack = JSON.parse(process.env.PACK_JSON || "[]");
-if (!Array.isArray(pack) || !pack[0] || !Array.isArray(pack[0].files)) {
-  fail("Could not parse npm pack --dry-run --json output.");
-}
-
-const actual = pack[0].files.map((f) => normalize(String(f.path || ""))).filter(Boolean).sort();
-const actualSet = new Set(actual);
-
-const allowByAlwaysIncluded = (filePath) => {
-  return (
-    /^README(?:\.[^/]+)?$/i.test(filePath) ||
-    /^LICENSE(?:\.[^/]+)?$/i.test(filePath) ||
-    /^NOTICE(?:\.[^/]+)?$/i.test(filePath)
-  );
-};
-
-const missing = [];
-for (const filePath of expectedExact) {
-  if (!actualSet.has(filePath)) {
-    missing.push(filePath);
-  }
-}
-for (const prefix of expectedDirPrefixes) {
-  if (!actual.some((filePath) => filePath.startsWith(prefix))) {
-    missing.push(`${prefix}*`);
-  }
-}
-for (const prefix of expectedPatternPrefixes) {
-  if (!actual.some((filePath) => filePath.startsWith(prefix))) {
-    missing.push(`${prefix}*`);
-  }
-}
-
-const extra = actual.filter((filePath) => {
-  if (expectedExact.has(filePath)) return false;
-  if (expectedDirPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
-  if (expectedPatternPrefixes.some((prefix) => filePath.startsWith(prefix))) return false;
-  if (allowByAlwaysIncluded(filePath)) return false;
-  return true;
-});
-
-if (missing.length || extra.length) {
-  console.error("Publish file whitelist mismatch.");
-  if (missing.length) console.error(`Missing: ${missing.join(", ")}`);
-  if (extra.length) console.error(`Extra: ${extra.join(", ")}`);
-  process.exit(1);
-}
-
-console.log(`File whitelist OK (${actual.length} files).`);
-NODE
+PACK_JSON="$PACK_JSON" node ./scripts/release-artifact-check.mjs
 
 echo "== npm publish --dry-run"
 set +e
@@ -139,11 +42,15 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
 fi
 
 TEST_AGENT_DIR=""
+TARBALL_CHECK_DIR=""
 TARBALL_PATH=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
       rm -rf "$TEST_AGENT_DIR"
+    fi
+    if [[ -n "$TARBALL_CHECK_DIR" && -d "$TARBALL_CHECK_DIR" ]]; then
+      rm -rf "$TARBALL_CHECK_DIR"
     fi
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
@@ -156,6 +63,15 @@ echo "== npm pack"
 TARBALL="$(npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
+
+TARBALL_CHECK_DIR="$(mktemp -d /tmp/pi-agent-vent-tarball-check-XXXXXX)"
+echo "== unpacked tarball package contract"
+tar -xzf "$TARBALL_PATH" -C "$TARBALL_CHECK_DIR"
+(
+  cd "$TARBALL_CHECK_DIR/package"
+  npm install --ignore-scripts --no-audit --fund=false
+  npm run check
+)
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."

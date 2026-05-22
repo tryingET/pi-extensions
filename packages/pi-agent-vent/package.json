@@ -48,10 +48,20 @@
   "files": [
     "extensions/agent-vent.ts",
     "src/vent-store.js",
+    "scripts",
+    "tests",
+    "biome.jsonc",
     "prompts",
     "examples",
     "policy/security-policy.json",
-    "policy/engineering-lane.json"
+    "policy/engineering-lane.json",
+    "docs/engineering.local.md",
+    "docs/project/vision.md",
+    "docs/project/product-posture.md",
+    "docs/project/2026-05-21-agent-vent-design.md",
+    "docs/project/2026-05-21-agent-vent-implementation-plan.md",
+    "docs/project/extension-sop.md",
+    "docs/adr/2026-05-22-agent-vent-retention-delete-policy.md"
   ],
   "pi": {
     "extensions": [
