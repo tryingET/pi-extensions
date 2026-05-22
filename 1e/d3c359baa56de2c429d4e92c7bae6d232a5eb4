@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "1ed3c359baa56de2c429d4e92c7bae6d232a5eb4"
+created_at: "2026-05-22T12:06:13Z"
+intent: "Refresh pi-context-packer product posture as next-iteration frontier map after redacted receipt export hardening"
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-context-packer run docs:list"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-context-packer run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Documentation-only posture refresh for completed context-packer iteration"
