@@ -16,6 +16,7 @@ import {
   buildRecurrenceKey,
   buildRetentionPreview,
   buildReviewDetail,
+  buildReviewOutcomes,
   createCurationEvent,
   createReviewEvent,
   createVentRecord,
@@ -30,6 +31,7 @@ import {
   formatFacetSummary,
   formatLifecycleStats,
   formatReviewDetail,
+  formatReviewOutcomes,
   formatReviewQueue,
   formatSummary,
   loadDiagnosticState,
@@ -667,6 +669,94 @@ test("review queue next actions are state-aware and authority-safe", () => {
     reviewedQueueText,
     /GitHub issue was created|AK task was created|incident was declared|was filed/,
   );
+});
+
+test("review outcomes bucket post-review follow-up without authority drift", () => {
+  const fresh = createVentRecord({
+    summary: "Fresh outcome needs review",
+    category: "workflow",
+    recurrenceKey: "fresh outcome",
+    tags: ["outcome"],
+  });
+  const acknowledged = createVentRecord({
+    summary: "Acknowledged package issue",
+    category: "tool_failure",
+    recurrenceKey: "acknowledged outcome",
+    packageName: "@tryinget/pi-agent-vent",
+    tags: ["outcome"],
+  });
+  const dismissed = createVentRecord({
+    summary: "Dismissed noisy group",
+    category: "documentation",
+    recurrenceKey: "dismissed outcome",
+    tags: ["outcome"],
+  });
+  const drafted = createVentRecord({
+    summary: "Escalation draft prepared",
+    category: "bug",
+    recurrenceKey: "drafted outcome",
+    severity: "high",
+    tags: ["outcome"],
+  });
+  const reviews = [
+    createReviewEvent({
+      recurrenceKey: acknowledged.recurrenceKey,
+      state: "acknowledged",
+      note: "seen token=abc123 locally",
+    }),
+    createReviewEvent({ recurrenceKey: dismissed.recurrenceKey, state: "dismissed" }),
+    createReviewEvent({ recurrenceKey: drafted.recurrenceKey, state: "escalation_drafted" }),
+  ];
+
+  const outcomes = buildReviewOutcomes({
+    records: [fresh, acknowledged, dismissed, drafted],
+    reviewEvents: reviews,
+    filters: { tags: ["outcome"] },
+    limit: 10,
+  });
+  assert.equal(outcomes.counts.new, 1);
+  assert.equal(outcomes.counts.acknowledged, 1);
+  assert.equal(outcomes.counts.dismissed, 1);
+  assert.equal(outcomes.counts.escalation_drafted, 1);
+  assert.deepEqual(outcomes.filters.tags, ["outcome"]);
+  const boundedFilter = buildReviewOutcomes({
+    records: [fresh],
+    reviewEvents: [],
+    filters: { tags: ["x".repeat(1000)] },
+  });
+  assert.deepEqual(boundedFilter.filters.tags, ["x".repeat(80)]);
+  assert.equal(boundedFilter.matchingGroupCount, 0);
+
+  const text = formatReviewOutcomes(outcomes);
+  assert.match(text, /Agent vent review outcomes/);
+  assert.match(text, /new: 1 group/);
+  assert.match(text, /acknowledged: 1 group/);
+  assert.match(text, /dismissed: 1 group/);
+  assert.match(text, /escalation_drafted: 1 group/);
+  assert.match(text, /seen token=\[REDACTED\] locally/);
+  assert.match(text, /retention waits for local review/);
+  assert.match(text, /optional local lifecycle: \/agent_vent retention preview/);
+  assert.match(text, /export this outcome bucket: \/agent_vent export markdown acknowledged/);
+  assert.match(text, /Local diagnostic labels only; not owner routing/);
+  assert.match(text, /No AK task, GitHub issue, incident, evidence, telemetry/);
+  assert.doesNotMatch(
+    text,
+    /GitHub issue was created|AK task was created|incident was declared|owner was assigned|resolved externally|was filed/,
+  );
+});
+
+test("review outcomes fail closed for invalid states and category filters", () => {
+  assert.throws(
+    () => buildReviewOutcomes({ state: "resolved", records: [], reviewEvents: [] }),
+    /invalid agent_vent review state/,
+  );
+  assert.throws(
+    () => buildReviewOutcomes({ filters: { category: "../../etc/passwd" } }),
+    /invalid agent_vent review filter category/,
+  );
+  const emptyText = formatReviewOutcomes(buildReviewOutcomes({ records: [], reviewEvents: [] }));
+  assert.match(emptyText, /No agent vent records found/);
+  assert.match(emptyText, /Boundary:/);
 });
 
 test("review detail fails closed for unknown groups and redacts legacy JSONL", () => {

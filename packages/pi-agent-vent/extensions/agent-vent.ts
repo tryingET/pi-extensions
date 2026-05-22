@@ -12,6 +12,7 @@ import {
   buildLifecycleSnapshot,
   buildRetentionPreview,
   buildReviewDetail,
+  buildReviewOutcomes,
   CATEGORIES,
   CURATION_ACTIONS,
   clampLimit,
@@ -34,6 +35,7 @@ import {
   formatRetentionPreview,
   formatRetentionRestoreResult,
   formatReviewDetail,
+  formatReviewOutcomes,
   formatReviewQueue,
   formatSummary,
   hasRecurrenceGroup,
@@ -54,6 +56,7 @@ const ACTIONS = [
   "list",
   "path",
   "review",
+  "outcomes",
   "set_review",
   "stats",
   "export",
@@ -215,6 +218,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
     promptGuidelines: [
       "Use agent_vent when you encounter recurring agent frustration, long-lived bugs, repeated tool/runtime failures, context-loss patterns, or missing affordances worth later human review.",
       "Use action=review to inspect the local recurrence review queue; include recurrenceKey to inspect bounded representative samples for one local group; optionally filter review by local category, tag, tool, or package facets; use action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
+      "Use action=outcomes for read-only post-review follow-up across local review-state buckets; outcome guidance is local diagnostic UX only, not owner routing or external completion.",
       "Use action=facets for read-only local category/tag/tool/package triage; facets and review filters are caller-supplied diagnostic labels, not owner routing.",
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
@@ -384,6 +388,32 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           reviewPath,
           curationPath,
           facets,
+          malformedLines,
+          malformedReviewLines,
+          malformedCurationLines,
+        });
+      }
+
+      if (action === "outcomes") {
+        const outcomes = buildReviewOutcomes({
+          records,
+          reviewEvents,
+          curationEvents,
+          state: params.reviewState || "all",
+          limit: clampLimit(params.limit, 5),
+          filters: {
+            category: params.category,
+            tool: params.tool,
+            packageName: params.packageName,
+            tags: params.tags,
+          },
+        });
+        return textResult(formatReviewOutcomes(outcomes), {
+          action,
+          storePath,
+          reviewPath,
+          curationPath,
+          reviewOutcomes: outcomes,
           malformedLines,
           malformedReviewLines,
           malformedCurationLines,
@@ -589,12 +619,12 @@ export default function agentVentExtension(pi: ExtensionAPI) {
   registerAgentVentCommand(
     pi,
     "agent_vent",
-    "Inspect local agent vent records: /agent_vent [help|summary|list|facets|review|curate|draft|retention|stats|export|path]",
+    "Inspect local agent vent records: /agent_vent [help|summary|list|facets|review|outcomes|curate|draft|retention|stats|export|path]",
   );
   registerAgentVentCommand(
     pi,
     "agent-vent",
-    "Alias for /agent_vent [help|summary|list|facets|review|curate|draft|retention|stats|export|path]",
+    "Alias for /agent_vent [help|summary|list|facets|review|outcomes|curate|draft|retention|stats|export|path]",
   );
 }
 
@@ -631,6 +661,8 @@ function handleCommand(args: string) {
       "                                                        Show local recurrence review queue with optional local facet filters.",
       "  /agent_vent review show <recurrenceKey> [limit]      Show bounded representative local samples.",
       "  /agent_vent review set <state> <recurrenceKey> [note] Set local review state for a recurrence group.",
+      "  /agent_vent outcomes [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
+      "                                                        Show read-only local follow-up by review outcome bucket.",
       "  /agent_vent curate merge <sourceKey> <targetKey> [note] Append a local merge projection event.",
       "  /agent_vent curate rename <sourceKey> <targetKey> [note] Append a local rename projection event.",
       "  /agent_vent curate remove <sourceKey> [note]             Append a local curation undo event.",
@@ -655,8 +687,8 @@ function handleCommand(args: string) {
     return formatPath(storePath, reviewPath, curationPath, retentionPath, backupDir);
   }
 
-  if (action === "review") {
-    const syntaxError = reviewSyntaxError(tokens.slice(1));
+  if (action === "review" || action === "outcomes") {
+    const syntaxError = reviewListSyntaxError(tokens.slice(1), action);
     if (syntaxError) return syntaxError;
   }
 
@@ -672,6 +704,9 @@ function handleCommand(args: string) {
 
   if (action === "review") {
     return `${handleReviewCommand(tokens.slice(1), state, reviewPath)}${suffix}`;
+  }
+  if (action === "outcomes") {
+    return `${handleOutcomesCommand(tokens.slice(1), state)}${suffix}`;
   }
   if (action === "curate") {
     return `${handleCurateCommand(tokens.slice(1), state, curationPath)}${suffix}`;
@@ -759,7 +794,7 @@ function handleReviewCommand(
   }
 
   const parsed = parseReviewListTokens(tokens);
-  const syntaxError = reviewSyntaxError(tokens, parsed);
+  const syntaxError = reviewListSyntaxError(tokens, "review", parsed);
   if (syntaxError) return syntaxError;
   const normalizedState =
     parsed.state && parsed.state !== "all" ? normalizeReviewState(parsed.state) : parsed.state;
@@ -772,12 +807,34 @@ function handleReviewCommand(
   return formatReviewQueue(queue);
 }
 
-function reviewSyntaxError(tokens: string[], parsed = parseReviewListTokens(tokens)) {
-  if (tokens[0] === "show") {
+function handleOutcomesCommand(tokens: string[], diagnosticState: Record<string, unknown>) {
+  const parsed = parseReviewListTokens(tokens);
+  const syntaxError = reviewListSyntaxError(tokens, "outcomes", parsed);
+  if (syntaxError) return syntaxError;
+  const normalizedState =
+    parsed.state && parsed.state !== "all" ? normalizeReviewState(parsed.state) : parsed.state;
+  return formatReviewOutcomes(
+    buildReviewOutcomes({
+      records: diagnosticState.records as unknown[],
+      reviewEvents: diagnosticState.reviewEvents as unknown[],
+      curationEvents: diagnosticState.curationEvents as unknown[],
+      state: normalizedState || "all",
+      limit: clampLimit(parsed.limit, 5),
+      filters: parsed.filters,
+    }),
+  );
+}
+
+function reviewListSyntaxError(
+  tokens: string[],
+  action: "review" | "outcomes",
+  parsed = parseReviewListTokens(tokens),
+) {
+  if (action === "review" && tokens[0] === "show") {
     if (!tokens[1]) return "Usage: /agent_vent review show <recurrenceKey> [limit]";
     return undefined;
   }
-  if (tokens[0] === "set") {
+  if (action === "review" && tokens[0] === "set") {
     const state = tokens[1]?.toLowerCase().replaceAll("-", "_");
     if (!tokens[1] || !tokens[2]) {
       return "Usage: /agent_vent review set <new|acknowledged|dismissed|escalation_drafted> <recurrenceKey> [note]";
@@ -788,15 +845,17 @@ function reviewSyntaxError(tokens: string[], parsed = parseReviewListTokens(toke
     return undefined;
   }
   const usage =
-    "Usage: /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
+    action === "review"
+      ? "Usage: /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]"
+      : "Usage: /agent_vent outcomes [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
   if (parsed.unknownFilters.length) {
-    return `Unknown /agent_vent review filter(s): ${parsed.unknownFilters.join(", ")}\n${usage}`;
+    return `Unknown /agent_vent ${action} filter(s): ${parsed.unknownFilters.join(", ")}\n${usage}`;
   }
   if (parsed.invalidFilters.length) {
-    return `Invalid /agent_vent review filter value(s): ${parsed.invalidFilters.join(", ")}\n${usage}`;
+    return `Invalid /agent_vent ${action} filter value(s): ${parsed.invalidFilters.join(", ")}\n${usage}`;
   }
   if (parsed.invalidState) {
-    return `Invalid /agent_vent review state: ${parsed.invalidState}\n${usage}`;
+    return `Invalid /agent_vent ${action} state: ${parsed.invalidState}\n${usage}`;
   }
   return undefined;
 }

@@ -50,7 +50,7 @@ When an agent keeps hitting the same bug, missing affordance, brittle workflow, 
 ## Current product maturity
 
 - maturity: `local diagnostic alpha, review-and-retention safety hardened; privacy, review-command, review-filter, and destructive-selection membranes verified`
-- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with fail-closed-before-store-read command syntax and read-only category/tag/tool/package facet filters, advisory human-review hints, quoted state-aware local next-action guidance that round-trips legacy recurrence keys, bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane with privacy metadata recomputation, facet-aware draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with duplicate-id-safe record selection, local backup receipts, and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
+- current capability baseline: local append-only vent capture with optional local tool/package facets, recurrence grouping, local facet summary, local operator review queue with fail-closed-before-store-read command syntax and read-only category/tag/tool/package facet filters, read-only review outcome follow-up buckets, advisory human-review hints, quoted state-aware local next-action guidance that round-trips legacy recurrence keys, bounded representative-sample detail, review-state events, append-only recurrence curation projections with remove/undo events, diagnostic-state load membrane with privacy metadata recomputation, facet-aware draft-only owner-surface text generation, lifecycle stats/export projections, lock/hash-guarded confirmation-gated retention archive/restore with duplicate-id-safe record selection, local backup receipts, and rollback safeguards, advisory candidate-incident heuristic, redaction/minimization, `/agent_vent` inspection command, toolbox discovery, ASC/self companion routing
 - release posture: first publishable package release at `0.1.0`; npm package not yet published at time of first release checks
 - current strategic line: harden the local review workflow before adding owner-surface escalation adapters
 
@@ -70,7 +70,7 @@ The package is product-healthy when:
 
 The package currently owns:
 
-- `agent_vent` tool with `record`, `summary`, `list`, `path`, `facets`, `review`, `set_review`, `curate`, `draft`, `stats`, `export`, and `retention` actions, including read-only local facet filters for review queues;
+- `agent_vent` tool with `record`, `summary`, `list`, `path`, `facets`, `review`, `outcomes`, `set_review`, `curate`, `draft`, `stats`, `export`, and `retention` actions, including read-only local facet filters for review queues and outcome follow-up;
 - `/agent_vent` command for local inspection and recurrence review, with `/agent-vent` retained as a compatibility alias;
 - schema-versioned local JSONL storage at `~/.pi/agent/agent-vent/vents.jsonl`, local review events at `~/.pi/agent/agent-vent/review-events.jsonl`, local curation events at `~/.pi/agent/agent-vent/curation-events.jsonl`, local retention receipts at `~/.pi/agent/agent-vent/retention-events.jsonl`, and retention backups under `~/.pi/agent/agent-vent/backups/`, overridable via `PI_AGENT_VENT_DIR`;
 - conservative redaction for common secret/token/password shapes;
@@ -128,7 +128,7 @@ The local review surface turns recurrence groups into an inbox:
 new -> acknowledged | dismissed | escalation_drafted
 ```
 
-The landed baseline lists groups by recurrence priority, supports fail-closed read-only category/tag/tool/package facet filters, shows advisory human-review hints, shows quoted state-aware local next-action guidance that remains safe for legacy recurrence keys, shows representative summaries/sample ids through recurrence projections, offers bounded read-only representative-sample expansion for a single group, and records append-only local review-state events without mutating owner systems. Remaining product depth is operator ergonomics after review decisions: clearer outcome follow-through while keeping owner-system mutation human-approved and external.
+The landed baseline lists groups by recurrence priority, supports fail-closed read-only category/tag/tool/package facet filters, shows advisory human-review hints, shows quoted state-aware local next-action guidance that remains safe for legacy recurrence keys, shows representative summaries/sample ids through recurrence projections, offers bounded read-only representative-sample expansion for a single group, records append-only local review-state events without mutating owner systems, and now provides read-only outcome follow-up buckets for `new`, `acknowledged`, `dismissed`, and `escalation_drafted` groups. Remaining product depth is richer comparison/export ergonomics after review decisions while keeping owner-system mutation human-approved and external.
 
 ### Bet 2 — Retention, export, and deletion controls — non-destructive baseline landed
 

@@ -602,6 +602,44 @@ export function buildFacetSummary(input = {}) {
   };
 }
 
+export function buildReviewOutcomes(input = {}) {
+  const records = input.records || [];
+  const reviewEvents = input.reviewEvents || [];
+  const curationEvents = input.curationEvents || [];
+  const stateFilter =
+    input.state === "all" || input.state === undefined ? "all" : normalizeReviewState(input.state);
+  const filters = normalizeReviewFilters(input.filters);
+  const allItems = buildReviewQueueItems(records, reviewEvents, curationEvents);
+  const matchingItems = allItems.filter((item) => reviewItemMatchesFilters(item, filters));
+  const visibleStates = stateFilter === "all" ? REVIEW_STATES : [stateFilter];
+  const counts = Object.fromEntries(REVIEW_STATES.map((state) => [state, 0]));
+  for (const item of matchingItems) counts[item.reviewState] += 1;
+  const limit = clampLimit(input.limit, 5);
+
+  return {
+    generatedAt: input.now || new Date().toISOString(),
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Read-only local diagnostic review-outcome projection. No AK task, GitHub issue, incident, evidence, telemetry, publication, owner assignment, or ASC/self state mutation occurred.",
+    totalRecords: records.length,
+    groupCount: allItems.length,
+    matchingGroupCount: matchingItems.length,
+    stateFilter,
+    filters,
+    hasFilters: hasReviewFilters(filters),
+    counts,
+    buckets: visibleStates.map((state) => {
+      const items = matchingItems.filter((item) => item.reviewState === state);
+      return {
+        state,
+        count: items.length,
+        description: reviewOutcomeDescription(state),
+        items: items.slice(0, limit),
+      };
+    }),
+  };
+}
+
 export function buildReviewDetail(input = {}) {
   const recurrenceKey = sanitizeDisplayText(input.recurrenceKey, 200);
   if (!recurrenceKey) throw new Error("agent_vent review detail requires a recurrenceKey");
@@ -780,6 +818,58 @@ export function formatFacetSummary(summary) {
     `- packages: ${formatFacetEntries(summary.groups.packages)}`,
     "Next: /agent_vent review [state] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent] | /agent_vent review show <recurrenceKey> [limit]",
   ];
+  return lines.join("\n");
+}
+
+export function formatReviewOutcomes(outcomes) {
+  const filterText = formatReviewFilters(outcomes.filters);
+  if (outcomes.totalRecords === 0) {
+    return [
+      "No agent vent records found yet. Record minimized vents before reviewing outcome follow-up.",
+      outcomes.hasFilters
+        ? `Filters requested: ${filterText}. Local diagnostic labels only; not owner routing.`
+        : undefined,
+      `Boundary: ${outcomes.boundary}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  const scopeText = outcomes.hasFilters
+    ? `${outcomes.matchingGroupCount} matching of ${outcomes.groupCount} total recurrence group(s)`
+    : `${outcomes.groupCount} total recurrence group(s)`;
+  const lines = [
+    `Agent vent review outcomes: ${scopeText}; state filter=${outcomes.stateFilter}.`,
+    `State counts: new=${outcomes.counts.new}, acknowledged=${outcomes.counts.acknowledged}, dismissed=${outcomes.counts.dismissed}, escalation_drafted=${outcomes.counts.escalation_drafted}`,
+    outcomes.hasFilters
+      ? `Filters: ${filterText}. Local diagnostic labels only; not owner routing or owner assignment.`
+      : undefined,
+    "States are local review markers only, not resolution, assignment, issue status, task truth, incident state, evidence, publication, or telemetry.",
+    `Boundary: ${outcomes.boundary}`,
+  ].filter(Boolean);
+
+  for (const bucket of outcomes.buckets) {
+    lines.push("", `${bucket.state}: ${bucket.count} group(s) — ${bucket.description}`);
+    if (!bucket.items.length) {
+      lines.push("- none");
+      continue;
+    }
+    for (const item of bucket.items) {
+      const marker = item.candidateIncident ? "candidate incident for human review" : "watch";
+      lines.push(
+        `- ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}; latest: ${item.latestSummary}`,
+      );
+      if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
+      for (const followup of buildReviewOutcomeFollowupLines(item)) {
+        lines.push(`  ${followup}`);
+      }
+    }
+  }
+  if (outcomes.hasFilters) {
+    lines.push(
+      "Filter note: category/tag/tool/package values are local diagnostic labels only, not owner routing or owner assignment.",
+    );
+  }
   return lines.join("\n");
 }
 
@@ -1866,6 +1956,37 @@ function formatReviewGuidance(group) {
     hints.push("inspect samples, then choose a local review state or draft target if useful");
   }
   return `${hints.join("; ")}. Hints are local diagnostics only, not owner routing, assignment, filing, task creation, incident declaration, evidence, publication, or telemetry.`;
+}
+
+function reviewOutcomeDescription(state) {
+  if (state === "new") return "needs local human review before local retention archive";
+  if (state === "acknowledged")
+    return "reviewed locally; a human may inspect, export, draft, or archive if useful";
+  if (state === "dismissed")
+    return "locally dismissed; a human may revisit, export, or archive reviewed diagnostics";
+  return "draft noted locally; owner system remains authoritative for any submitted work";
+}
+
+function buildReviewOutcomeFollowupLines(group) {
+  const key = group.recurrenceKey;
+  const lines = [`inspect: ${formatAgentVentCommand("review", "show", key)} [limit]`];
+  if (group.reviewState === "new") {
+    lines.push(
+      `choose local outcome: ${formatAgentVentCommand("review", "set", "acknowledged", key)} [note] | ${formatAgentVentCommand("review", "set", "dismissed", key)} [note] | ${formatAgentVentCommand("review", "set", "escalation_drafted", key)} [note]`,
+      "retention waits for local review; draft commands still generate text only",
+    );
+  } else {
+    lines.push(
+      `optional local lifecycle: ${formatAgentVentCommand("retention", "preview", key)}`,
+      `export this outcome bucket: ${formatAgentVentCommand("export", "markdown", group.reviewState)} [limit]`,
+      `revisit local state: ${formatAgentVentCommand("review", "set", "new", key)} [note]`,
+    );
+  }
+  lines.push(
+    `draft-only handoff if a human wants text: ${formatAgentVentCommand("draft", "github_issue", key)} | ${formatAgentVentCommand("draft", "ak_task", key)} | ${formatAgentVentCommand("draft", "incident_review", key)} | ${formatAgentVentCommand("draft", "maintainer_note", key)}`,
+    "boundary: follow-up commands are local diagnostics/drafts only; they do not file, create, declare, assign, record evidence, publish, or mutate owner systems",
+  );
+  return lines;
 }
 
 function buildReviewNextActionLines(group, options = {}) {

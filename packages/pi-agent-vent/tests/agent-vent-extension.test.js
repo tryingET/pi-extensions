@@ -200,6 +200,30 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.equal(setReviewResult.details.reviewEvent.state, "acknowledged");
     assert.match(setReviewResult.details.reviewEvent.note, /token=\[REDACTED\]/);
 
+    const outcomesResult = await tool.execute(
+      "tool-call-3b",
+      {
+        action: "outcomes",
+        reviewState: "acknowledged",
+        category: "tool_failure",
+        tags: ["reload"],
+        tool: "pi reload",
+        packageName: "@tryinget/pi-agent-vent",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(outcomesResult.content[0].text, /Agent vent review outcomes/);
+    assert.match(outcomesResult.content[0].text, /acknowledged: 1 group/);
+    assert.match(outcomesResult.content[0].text, /export this outcome bucket/);
+    assert.match(outcomesResult.content[0].text, /not owner routing/);
+    assert.equal(outcomesResult.details.reviewOutcomes.counts.acknowledged, 1);
+    assert.equal(outcomesResult.details.reviewOutcomes.filters.tool, "pi-reload");
+
     const draftResult = await tool.execute(
       "tool-call-4",
       {
@@ -341,6 +365,11 @@ test("agent_vent command rejects unknown review filter keys without creating sto
     assert.match(messages[2], /Usage: \/agent_vent review show <recurrenceKey> \[limit\]/);
     await pi.commands.get("agent_vent").handler("review set resolved bug:legacy", { hasUI: false });
     assert.match(messages[3], /Invalid \/agent_vent review state: resolved/);
+    await pi.commands.get("agent_vent").handler("outcomes owner=github", { hasUI: false });
+    assert.match(messages[4], /Unknown \/agent_vent outcomes filter\(s\): owner/);
+    assert.doesNotMatch(messages[4], /symlink/);
+    await pi.commands.get("agent_vent").handler("outcomes resolved", { hasUI: false });
+    assert.match(messages[5], /Invalid \/agent_vent outcomes state: resolved/);
   } finally {
     console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
