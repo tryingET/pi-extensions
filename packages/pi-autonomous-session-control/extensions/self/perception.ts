@@ -406,6 +406,12 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
   };
 }
 
+export interface SuggestedHarnessMove {
+  slice: string;
+  owner: string;
+  prefillText: string;
+}
+
 export interface HandoffSummaryResult {
   files: FilesTouchedResult["files"];
   commands: Array<{ command: string; rawCommand: string; success: boolean }>;
@@ -413,6 +419,7 @@ export interface HandoffSummaryResult {
   progress: ProgressResult;
   loops: LoopStatusResult;
   cues: string[];
+  nextMove?: SuggestedHarnessMove;
   authority: "mirror_only";
 }
 
@@ -466,6 +473,33 @@ export function queryHandoffSummary(
     progress,
     loops,
     cues,
+    nextMove: suggestNextHarnessMove({ errors, loops, progress }),
     authority: "mirror_only",
   };
+}
+
+function suggestNextHarnessMove(input: {
+  errors: ErrorsResult["errors"];
+  loops: LoopStatusResult;
+  progress: ProgressResult;
+}): SuggestedHarnessMove | undefined {
+  if (input.errors.length > 0 || input.loops.isLooping) {
+    return {
+      slice: "source-owner + authority-risk",
+      owner: "peer-tools",
+      prefillText:
+        'scout_peer_spawn({ role: "reviewer", objective: "Review the visible loop/error cues and recommend the smallest safe next move without changing owner boundaries." })',
+    };
+  }
+
+  if (input.progress.isStalled) {
+    return {
+      slice: "temporal + artifact/packet",
+      owner: "pi-session-compaction",
+      prefillText:
+        "/compact-focus temporal + artifact/packet: preserve objective, recent validation, stall-with-progress context, dirty files, and next safe action; do not make ASC the compaction owner.",
+    };
+  }
+
+  return undefined;
 }

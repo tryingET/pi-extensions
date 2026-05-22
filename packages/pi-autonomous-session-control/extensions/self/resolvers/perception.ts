@@ -158,11 +158,14 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
               .map((error) => `${error.tool}:${error.signature} (${error.count}x)`)
               .join("; ")
           : "none tracked";
+      const nextMoveText = result.nextMove
+        ? `; next suggested move=${result.nextMove.slice} via ${result.nextMove.owner}`
+        : "";
 
       return {
         understood: true,
         intent: "perception",
-        answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}`,
+        answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}${nextMoveText}`,
         data: result,
       };
     }

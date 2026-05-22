@@ -201,6 +201,9 @@ test("self query: stall wording includes productive command evidence", async () 
     handoffResult.details.data.cues.some((cue) => cue.includes("productive command evidence")),
     "handoff cues should contextualize stall evidence",
   );
+  assert.equal(handoffResult.details.data.nextMove.owner, "pi-session-compaction");
+  assert.equal(handoffResult.details.data.nextMove.slice, "temporal + artifact/packet");
+  assert.ok(handoffResult.details.data.nextMove.prefillText.includes("/compact-focus"));
 
   await cleanup(tempDir);
 });
@@ -349,6 +352,9 @@ test("self query: controller handoff summary includes actionable mirror cues", a
   assert.equal(result.details.data.commands.length, 2);
   assert.equal(result.details.data.errors[0].tool, "bash");
   assert.ok(result.details.data.cues.some((cue) => cue.includes("failed command")));
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
+  assert.equal(result.details.data.nextMove.slice, "source-owner + authority-risk");
+  assert.ok(result.details.data.nextMove.prefillText.includes("scout_peer_spawn"));
 
   await cleanup(tempDir);
 });
