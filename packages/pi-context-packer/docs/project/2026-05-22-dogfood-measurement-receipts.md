@@ -259,10 +259,102 @@ Providers `git`, `sci`, `ak`, `fcos`, and `prompt_vault` were disabled for this 
 
 Outcome: reload verification matched the intended product behavior. The copy-ready template is useful even when no packet is needed because it gives the agent a safe place to record the observed no-packet outcome.
 
+## Receipt D — provider-route summary without raw seeds
+
+### Context
+
+After adding redacted provider-route summaries to dogfood observation templates, a local package-source packet was assembled to check whether the template exposes enough route shape to diagnose docs-vs-SCI query mismatches without leaking seed values.
+
+The packet used mixed seed kinds: one code path seed, one Markdown path seed, and one symbol seed. Providers `docs` and `sci` were required; `git` and `session` were disabled for focus. SCI was not marked read-only safe in the local environment, so the SCI provider correctly remained fail-closed while the route summary still recorded the intended query seed shape.
+
+### Packet receipt
+
+```json
+{
+  "totals": {
+    "estimatedTokens": 2061,
+    "bytes": 8245,
+    "candidatesSelected": 2,
+    "candidatesOmitted": 2
+  },
+  "providerRoutes": [
+    {
+      "provider": "agents",
+      "posture": "selected",
+      "queryCount": 1,
+      "seedCount": 0,
+      "seedCounts": {}
+    },
+    {
+      "provider": "sci",
+      "posture": "selected",
+      "queryCount": 1,
+      "seedCount": 2,
+      "seedCounts": {
+        "code": 1,
+        "symbol": 1
+      }
+    },
+    {
+      "provider": "docs",
+      "posture": "selected",
+      "queryCount": 1,
+      "seedCount": 1,
+      "seedCounts": {
+        "markdown": 1
+      }
+    }
+  ],
+  "prediction": {
+    "expectedLowLevelCallsAvoided": 2,
+    "packetUtilityRecommendationStatus": "use_packet_review_omissions",
+    "alreadyLoadedItems": 0,
+    "freshItemCount": 2,
+    "duplicateTokensAvoided": 0,
+    "unwiredProviderOmissions": []
+  },
+  "omissionSummary": [
+    {
+      "provider": "docs",
+      "reason": "budget",
+      "detailEstimatedTokens": 23,
+      "detailBytes": 91
+    },
+    {
+      "provider": "sci",
+      "reason": "blocked",
+      "detailEstimatedTokens": 48,
+      "detailBytes": 189
+    }
+  ],
+  "templateRedactionChecks": {
+    "hasRawPath": false,
+    "hasRawSymbol": false
+  }
+}
+```
+
+### Follow-up observation
+
+```json
+{
+  "status": "observed",
+  "expectedLowLevelCallsAvoided": 2,
+  "actualLowLevelReadSearchStatusCalls": 0,
+  "duplicateReadsObserved": false,
+  "omissionFollowupsUsed": ["SCI read-only safety remained unconfirmed, so SCI content was not trusted as covered"],
+  "recommendationMatchedOutcome": true,
+  "notes": "The route summary showed the expected split: Markdown seed to docs, code and symbol seeds to SCI, and generic providers with zero seeds. The copy-ready template did not include raw path or symbol values. Validation commands were run separately from low-level context probes. This receipt is local package dogfood only, not live reload evidence."
+}
+```
+
+Outcome: provider-route summaries are useful receipt metadata. They make query-seed mismatches reviewable without putting raw seeds into pasteable dogfood evidence, while SCI omissions still force owner-surface follow-up instead of implying coverage.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.
 - `context_pack` is useful when it returns fresh AGENTS/docs/git context with a concrete follow-up receipt; the current receipt was enough to avoid duplicate AGENTS/product-posture reads.
 - `no_packet_needed` is a first-class success state. In this run it avoided 4,424 duplicate estimated tokens and turned the packet into metadata.
 - SCI omissions should remain explicit. A read-only packet must not hide `.ontology` side effects or pretend SCI coverage exists when artifacts block safe assembly.
-- Landed next improvement: `context_pack` now emits a redacted copy-ready `context_pack_dogfood_observation_v1` template in packet Markdown and compact details so agents can paste observed follow-up counts without persisting evidence, mutating owner surfaces, duplicating raw packet content, or leaking selected item paths / raw omission details. Adding more provider adapters remains lower leverage until more receipts accumulate.
+- Landed next improvement: `context_pack` now emits a redacted copy-ready `context_pack_dogfood_observation_v1` template in packet Markdown and compact details so agents can paste observed follow-up counts without persisting evidence, mutating owner surfaces, duplicating raw packet content, or leaking selected item paths / raw omission details.
+- Provider-route summaries are a useful addition to the receipt scaffold: they expose provider/posture/query/seed-kind counts for mismatch review while omitting raw seed values. Adding more provider adapters remains lower leverage until more evaluated receipts accumulate.
