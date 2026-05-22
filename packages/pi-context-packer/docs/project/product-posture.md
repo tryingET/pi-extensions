@@ -122,15 +122,15 @@ A context packet is product-healthy only when:
 
 ## Current main gap
 
-The main remaining product gap is not another provider adapter; it is live usefulness proof. The package has hardened local safety and packet shape, but it still needs dogfood receipts showing when packets reduce low-level probes, when no packet is needed, and how docs/AGENTS/git/SCI/session ranking should change under real agent work.
+The main remaining product gap is not another provider adapter; it is a growing body of live usefulness proof. The package has hardened local safety and packet shape, and the first dogfood receipts now show both a useful packet and a `no_packet_needed` outcome in [Dogfood measurement receipts — 2026-05-22](2026-05-22-dogfood-measurement-receipts.md). It still needs repeated receipts across implementation, review, and validation tasks before ranking changes or new owner adapters are justified.
 
 ## Next product bets
 
 Near-term bets:
 
-- dogfood `context_plan` / `context_pack` against real implementation and review tasks, recording whether packets reduced raw `read` / search / status churn;
-- tune docs/docs-list, AGENTS, git, SCI, and session-awareness ranking from those receipts before adding new owner adapters;
-- recommend when no packet is needed because current prompt/session context is already sufficient;
+- continue dogfooding `context_plan` / `context_pack` against real implementation and review tasks, recording whether packets reduced raw `read` / search / status churn;
+- tune docs/docs-list, AGENTS, git, SCI, and session-awareness ranking from accumulated receipts before adding new owner adapters;
+- preserve `no_packet_needed` as a success state when current prompt/session context is already sufficient;
 - add AK/FCOS read-only orientation only after the current output and docs/SCI/session slices stay stable under dogfood;
 - add Prompt Vault read-only procedure retrieval only through governed vault read surfaces and only after owner-routing remains non-executing;
 - keep file-size discipline so agents can read package source without fragmenting context.
