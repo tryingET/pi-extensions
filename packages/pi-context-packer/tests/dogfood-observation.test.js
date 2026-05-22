@@ -150,6 +150,31 @@ test("dogfood evaluator reports incomplete observations without claiming evidenc
   assert.match(evaluation.nonAuthorization, /did not persist evidence/);
 });
 
+test("dogfood evaluator rejects fractional count fields instead of flooring them", () => {
+  const evaluation = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      prediction: {
+        ...baseObservation().prediction,
+        expectedLowLevelCallsAvoided: 3.9,
+        alreadyLoadedItems: 0.1,
+      },
+      observation: {
+        actualLowLevelReadSearchStatusCalls: 0,
+        actualLowLevelCallsAvoided: 3.1,
+        duplicateReadsObserved: false,
+        omissionFollowupsUsed: [],
+        recommendationMatchedOutcome: true,
+        notes: "fractional counts are invalid",
+      },
+    }),
+  });
+
+  assert.equal(evaluation.ok, false);
+  assert.match(evaluation.errors.join("\n"), /expectedLowLevelCallsAvoided/);
+  assert.match(evaluation.errors.join("\n"), /actualLowLevelCallsAvoided/);
+  assert.match(evaluation.errors.join("\n"), /alreadyLoadedItems/);
+});
+
 test("dogfood evaluator fails closed on malformed or wrong-version observations", async () => {
   const malformed = await dogfoodObservationEvaluationToolResult({ observationJson: "{" });
   const wrongKind = buildDogfoodObservationEvaluation({ observation: { kind: "other" } });

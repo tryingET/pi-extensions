@@ -19,12 +19,14 @@ const asObject = (value) => {
   return value;
 };
 
-const finiteNonNegativeNumber = (value) =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+const finiteNonNegativeInteger = (value) =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 
-const finiteNonNegativeInteger = (value) => {
-  const number = finiteNonNegativeNumber(value);
-  return number === undefined ? undefined : Math.floor(number);
+const readOptionalCount = (value, path, errors) => {
+  if (value === null || value === undefined) return undefined;
+  const count = finiteNonNegativeInteger(value);
+  if (count === undefined) errors.push(`${path} must be a non-negative integer when supplied`);
+  return count;
 };
 
 const booleanOrNull = (value) => (typeof value === "boolean" ? value : null);
@@ -134,23 +136,45 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
 
   const prediction = asObject(observation.prediction) ?? {};
   const filledObservation = asObject(observation.observation) ?? {};
+  const errors = [];
   const expectedAvoided = finiteNonNegativeInteger(prediction.expectedLowLevelCallsAvoided);
   if (expectedAvoided === undefined) {
-    return {
-      ok: false,
-      errors: ["prediction.expectedLowLevelCallsAvoided must be a non-negative number"],
-      nonAuthorization: NON_AUTHORIZATION,
-    };
+    errors.push("prediction.expectedLowLevelCallsAvoided must be a non-negative integer");
   }
 
-  const actualResidualCalls = finiteNonNegativeInteger(
+  const actualResidualCalls = readOptionalCount(
     filledObservation.actualLowLevelReadSearchStatusCalls,
+    "observation.actualLowLevelReadSearchStatusCalls",
+    errors,
   );
-  const actualAvoided = finiteNonNegativeInteger(filledObservation.actualLowLevelCallsAvoided);
+  const actualAvoided = readOptionalCount(
+    filledObservation.actualLowLevelCallsAvoided,
+    "observation.actualLowLevelCallsAvoided",
+    errors,
+  );
   const duplicateReadsObserved = booleanOrNull(filledObservation.duplicateReadsObserved);
   const recommendationMatchedOutcome = booleanOrNull(
     filledObservation.recommendationMatchedOutcome,
   );
+  const alreadyLoadedItems = readOptionalCount(
+    prediction.alreadyLoadedItems,
+    "prediction.alreadyLoadedItems",
+    errors,
+  );
+  const freshItemCount = readOptionalCount(
+    prediction.freshItemCount,
+    "prediction.freshItemCount",
+    errors,
+  );
+  const duplicateTokensAvoided = readOptionalCount(
+    prediction.duplicateTokensAvoided,
+    "prediction.duplicateTokensAvoided",
+    errors,
+  );
+  if (errors.length > 0) {
+    return { ok: false, errors, nonAuthorization: NON_AUTHORIZATION };
+  }
+
   const omissionFollowupsUsed = sanitizeFollowups(filledObservation.omissionFollowupsUsed);
   const notes = sanitizeNote(filledObservation.notes);
   const calibrationStatus = classifyCalibration({
@@ -183,9 +207,9 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
       typeof prediction.packetUtilityRecommendationStatus === "string"
         ? sanitizeLabel(prediction.packetUtilityRecommendationStatus, "packet utility status")
         : "unknown",
-    alreadyLoadedItems: finiteNonNegativeInteger(prediction.alreadyLoadedItems) ?? null,
-    freshItemCount: finiteNonNegativeInteger(prediction.freshItemCount) ?? null,
-    duplicateTokensAvoided: finiteNonNegativeInteger(prediction.duplicateTokensAvoided) ?? null,
+    alreadyLoadedItems: alreadyLoadedItems ?? null,
+    freshItemCount: freshItemCount ?? null,
+    duplicateTokensAvoided: duplicateTokensAvoided ?? null,
     unwiredProviderOmissions: sanitizeFollowups(prediction.unwiredProviderOmissions),
     notes,
     nextAction: nextActionForStatus(calibrationStatus),
