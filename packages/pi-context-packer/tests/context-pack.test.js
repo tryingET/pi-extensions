@@ -133,6 +133,15 @@ test("context_pack keeps provider query seeds scoped through mixed docs and SCI 
   ]);
   assert.deepEqual(sciReadFilePaths, ["src/example.js"]);
   assert.deepEqual(sciSymbolQueries, ["target"]);
+  const routeByProvider = Object.fromEntries(
+    result.packet.dogfoodObservationTemplate.packet.providerRoutes.map((route) => [
+      route.provider,
+      route,
+    ]),
+  );
+  assert.deepEqual(routeByProvider.docs.seedCounts, { markdown: 1 });
+  assert.deepEqual(routeByProvider.sci.seedCounts, { code: 1, symbol: 1 });
+  assert.equal(routeByProvider.agents.seedCount, 0);
   const docs = result.packet.sections.find((section) => section.provider === "docs");
   assert.deepEqual(
     docs.items.map((item) => item.provenance.path),
@@ -808,6 +817,7 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.equal(template.packet.objective, undefined);
   assert.equal(template.observation.actualLowLevelReadSearchStatusCalls, null);
   assert.equal(template.prediction.expectedLowLevelCallsAvoided, 2);
+  assert.ok(template.packet.providerRoutes.some((route) => route.provider === "docs"));
   assert.match(template.nonAuthorization, /did not persist evidence/);
   assert.doesNotMatch(serializedTemplate, /TOP SECRET PACKET BODY/);
   assert.doesNotMatch(serializedTemplate, /secret```file/);

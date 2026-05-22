@@ -188,6 +188,36 @@ const compactOmissions = (omissions) =>
     }))
     .slice(0, DOGFOOD_TEMPLATE_ITEM_LIMIT);
 
+const seedRouteKind = (seed) => {
+  if (seed?.kind === "symbol") return "symbol";
+  if (seed?.kind === "task") return "task";
+  if (seed?.kind === "ak") return "ak";
+  if (seed?.kind === "fcos") return "fcos";
+  if (seed?.kind === "prompt") return "prompt";
+  if (seed?.kind === "free_text") return "free_text";
+  if (seed?.kind === "path") return /\.md$/iu.test(seed.value ?? "") ? "markdown" : "code";
+  return "other";
+};
+
+const compactProviderRoutes = (providerPlans = []) =>
+  providerPlans
+    .map((providerPlan) => {
+      const seeds = (providerPlan.proposedQueries ?? []).flatMap((query) => query.seeds ?? []);
+      const seedCounts = {};
+      for (const seed of seeds) {
+        const routeKind = seedRouteKind(seed);
+        seedCounts[routeKind] = (seedCounts[routeKind] ?? 0) + 1;
+      }
+      return {
+        provider: providerPlan.provider,
+        posture: providerPlan.posture,
+        queryCount: providerPlan.proposedQueries?.length ?? 0,
+        seedCount: seeds.length,
+        seedCounts,
+      };
+    })
+    .slice(0, DOGFOOD_TEMPLATE_ITEM_LIMIT);
+
 export const buildDogfoodObservationTemplate = ({
   objective,
   generatedAt,
@@ -195,6 +225,7 @@ export const buildDogfoodObservationTemplate = ({
   sections,
   omissions,
   measurementReceipt,
+  providerPlans = [],
 }) => ({
   kind: "context_pack_dogfood_observation_v1",
   status: "observation_pending",
@@ -214,6 +245,8 @@ export const buildDogfoodObservationTemplate = ({
     ),
     omissions: compactOmissions(omissions),
     omissionsTruncated: Math.max(0, omissions.length - DOGFOOD_TEMPLATE_ITEM_LIMIT),
+    providerRoutes: compactProviderRoutes(providerPlans),
+    providerRoutesTruncated: Math.max(0, providerPlans.length - DOGFOOD_TEMPLATE_ITEM_LIMIT),
   },
   prediction: {
     expectedLowLevelCallsAvoided: measurementReceipt.estimatedToolCallsAvoided,

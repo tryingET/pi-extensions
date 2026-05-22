@@ -581,6 +581,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     sections,
     omissions: publicOmissions,
     measurementReceipt,
+    providerPlans: plan.providerPlans,
   });
   const ownerSurfaceRecommendations = plan.ownerSurfaceRecommendations ?? [];
   const nextOwnerActions = ownerSurfaceRecommendations.map(ownerActionFromRecommendation);
