@@ -40,10 +40,11 @@ test("agent_vent tool schema stays aligned with retention candidate and compare 
 
   assert.match(schemaText, /"compare"/);
   assert.match(schemaText, /"candidates"/);
+  assert.match(schemaText, /"history"/);
   assert.match(schemaText, /retentionCandidateState/);
   assert.match(schemaText, /"reviewed"/);
   assert.match(schemaText, /"all"/);
-  assert.match(schemaText, /candidates, preview, archive, or restore/);
+  assert.match(schemaText, /candidates, history, preview, archive, or restore/);
   assert.match(schemaText, /outcomes, compare, export, or retention planning/);
 });
 
@@ -422,6 +423,30 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.match(archiveResult.content[0].text, /No AK task, GitHub issue, incident, evidence/);
     assert.equal(fs.existsSync(archiveResult.details.retention.backupPath), true);
 
+    const historyResult = await tool.execute(
+      "tool-call-9b",
+      {
+        action: "retention",
+        retentionAction: "history",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(historyResult.content[0].text, /Agent vent retention history/);
+    assert.match(
+      historyResult.content[0].text,
+      /rollback candidate: \/agent_vent retention restore/,
+    );
+    assert.match(historyResult.content[0].text, /read-only receipt projection/i);
+    assert.equal(
+      historyResult.details.retention.items[0].restoreConfirmationToken,
+      archiveResult.details.retention.restoreConfirmationToken,
+    );
+
     const restoreResult = await tool.execute(
       "tool-call-10",
       {
@@ -503,8 +528,47 @@ test("agent_vent command rejects unknown review filter keys without creating sto
     await pi.commands.get("agent_vent").handler("export tag=", { hasUI: false });
     assert.match(messages[15], /Invalid \/agent_vent export filter value\(s\): tag=/);
     assert.doesNotMatch(messages[15], /symlink/);
+    await pi.commands.get("agent_vent").handler("retention history owner=", { hasUI: false });
+    assert.match(messages[16], /Invalid \/agent_vent retention history argument: owner=/);
+    assert.doesNotMatch(messages[16], /symlink/);
+    await pi.commands.get("agent_vent").handler("retention history", { hasUI: false });
+    assert.match(messages[17], /No agent vent retention events found yet/);
+    assert.doesNotMatch(messages[17], /symlink/);
   } finally {
     console.log = oldLog;
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent tool retention history does not read active vent store", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-tool-history-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  process.env.PI_AGENT_VENT_DIR = dir;
+  try {
+    const unsafeTarget = path.join(dir, "unsafe-target.jsonl");
+    fs.writeFileSync(unsafeTarget, "", "utf8");
+    fs.symlinkSync(unsafeTarget, path.join(dir, "vents.jsonl"));
+    const result = await pi.tools
+      .get("agent_vent")
+      .execute(
+        "tool-call-history-empty",
+        { action: "retention", retentionAction: "history" },
+        undefined,
+        undefined,
+        {
+          cwd: "/repo",
+          sessionManager: { getSessionFile: () => undefined },
+        },
+      );
+
+    assert.match(result.content[0].text, /No agent vent retention events found yet/);
+    assert.doesNotMatch(result.content[0].text, /symlink/);
+    assert.equal(result.details.retention.totalEvents, 0);
+  } finally {
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
     else process.env.PI_AGENT_VENT_DIR = oldDir;
     fs.rmSync(dir, { recursive: true, force: true });

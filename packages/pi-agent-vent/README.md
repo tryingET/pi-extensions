@@ -44,7 +44,7 @@ Then in Pi:
 
 ## Tool behavior
 
-`agent_vent` supports fourteen actions:
+`agent_vent` supports fifteen actions:
 
 | Action | Purpose |
 |---|---|
@@ -61,7 +61,7 @@ Then in Pi:
 | `draft` | Generate draft-only owner-surface text for a recurrence group. |
 | `stats` | Show local store counts, byte sizes, malformed-line counts, curation counts, and review-state totals. |
 | `export` | Produce a bounded local diagnostic projection in markdown or JSON, optionally focused by local category/tag/tool/package facets. |
-| `retention` | List read-only reviewed archive candidates, preview, confirmation-gate, archive, and restore reviewed local diagnostic records with local backups/receipts. |
+| `retention` | List read-only reviewed archive candidates and receipt history, preview, confirmation-gate, archive, and restore reviewed local diagnostic records with local backups/receipts. |
 
 The tool prompt tells the agent to avoid ordinary status updates, raw logs, secrets, and private user payloads.
 
@@ -80,6 +80,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 # outcomes and compare limits are per review-state bucket, not a global row cap
 /agent_vent compare 10 category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
 /agent_vent retention candidates reviewed 20 category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
+/agent_vent retention history 20
 /agent_vent curate merge bug:reload-tool-a bug:reload-tools "same local pattern"
 /agent_vent curate remove bug:reload-tool-a "undo local merge"
 /agent_vent draft github_issue bug:reload-tools
@@ -91,7 +92,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent path
 ```
 
-`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, compare, retention-candidate, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Filtered compare follow-up commands preserve supported category/tag/tool/package filters for `outcomes`, `retention candidates`, and `export`. Export filters are local diagnostic focus aids only, not evidence scoping, publication, owner routing, or owner assignment; export applies review-state and facet scope before counts, summaries, and display rows. Outcome and compare limits are explicit per review-state bucket so `outcomes all 1` can show one `new`, one `acknowledged`, one `dismissed`, and one `escalation_drafted` group, while `compare 1` shows at most one group per state. Review/outcome/compare/export/retention-candidate command syntax fails closed before store reads for unknown filters, empty filter values such as `owner=` or `tag=`, invalid states/arguments, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, archive, restore, or mutate owner systems.
+`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, compare, retention-candidate, retention-history, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, retention preview eligibility, and rollback-candidate commands from archive receipts; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Filtered compare follow-up commands preserve supported category/tag/tool/package filters for `outcomes`, `retention candidates`, and `export`. Export filters are local diagnostic focus aids only, not evidence scoping, publication, owner routing, or owner assignment; export applies review-state and facet scope before counts, summaries, and display rows. Outcome and compare limits are explicit per review-state bucket so `outcomes all 1` can show one `new`, one `acknowledged`, one `dismissed`, and one `escalation_drafted` group, while `compare 1` shows at most one group per state. Review/outcome/compare/export/retention-candidate/history command syntax fails closed before store reads for unknown filters, empty filter values such as `owner=` or `tag=`, invalid states/arguments, invalid category values, or invalid retention-history arguments. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, archive, restore, or mutate owner systems.
 
 ## Deeper Pi integration
 
@@ -128,7 +129,7 @@ Records are append-only JSONL with `schemaVersion: 1`. Optional `tool` and `pack
 
 Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `facets`, `review`, `outcomes`, `compare`, `curate`, `draft`, `stats`, `export`, and `retention` are local diagnostic surfaces, not evidence, owner routing, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
 
-Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: use `retention candidates` for a read-only reviewed-group planning view that emits no archive tokens, preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed. The package intentionally has no hard-delete command in v0.1; permanent removal is operator-owned filesystem/data-lifecycle control, not evidence/task/incident lifecycle.
+Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: use `retention candidates` for a read-only reviewed-group planning view that emits no archive tokens, preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. `retention history` is a read-only receipt projection that can rediscover recent archive/restore receipts and reconstruct rollback-candidate restore commands from archive receipts; those commands still fail closed during actual restore if the backup is stale, moved, symlink-escaped, missing, or outside the real backup directory. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed. The package intentionally has no hard-delete command in v0.1; permanent removal is operator-owned filesystem/data-lifecycle control, not evidence/task/incident lifecycle.
 
 All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, recomputes privacy metadata for loaded records, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits. Review queue and export filters can use local category/tag/tool/package labels, but those filters are diagnostic focus aids only, not owner routing, owner assignment, evidence scoping, or publication. Filtered export is record/state scoped so mixed recurrence groups do not broaden exported counts, summaries, or rows. Drafts include local diagnostic facets when present, but those facets are hints for human review rather than owner-routing truth.
 

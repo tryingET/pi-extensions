@@ -26,7 +26,7 @@ export const SEVERITIES = ["low", "medium", "high", "critical"];
 export const REVIEW_STATES = ["new", "acknowledged", "dismissed", "escalation_drafted"];
 export const CURATION_ACTIONS = ["merge", "rename", "remove"];
 export const DRAFT_TARGETS = ["github_issue", "ak_task", "incident_review", "maintainer_note"];
-export const RETENTION_ACTIONS = ["preview", "archive", "restore", "candidates"];
+export const RETENTION_ACTIONS = ["preview", "archive", "restore", "candidates", "history"];
 export const RETENTION_EVENT_ACTIONS = ["archive", "restore"];
 export const MAX_JSONL_FILE_BYTES = 5 * 1024 * 1024;
 export const MAX_JSONL_LINE_BYTES = 64 * 1024;
@@ -1303,6 +1303,61 @@ export function buildRetentionCandidates(input = {}) {
   };
 }
 
+export function buildRetentionHistory(input = {}) {
+  const retentionEvents = input.retentionEvents || [];
+  const backupDir = input.backupDir || defaultBackupDir();
+  const limit = clampLimit(input.limit, 20);
+  const items = retentionEvents
+    .slice()
+    .reverse()
+    .slice(0, limit)
+    .map((event) => buildRetentionHistoryItem(event, backupDir));
+
+  return {
+    generatedAt: input.now || new Date().toISOString(),
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Read-only local diagnostic retention receipt history. No archive, restore, AK task, GitHub issue, incident, evidence, telemetry, publication, owner assignment, or ASC/self state mutation occurred; restore commands are candidates guarded by the restore command's backup containment and stale-store checks.",
+    backupDir,
+    totalEvents: retentionEvents.length,
+    eventCount: items.length,
+    limit,
+    items,
+  };
+}
+
+export function formatRetentionHistory(history) {
+  if (!history.totalEvents) {
+    return [
+      "No agent vent retention events found yet. Archive reviewed local diagnostic groups before retention history exists.",
+      `Boundary: ${history.boundary}`,
+    ].join("\n");
+  }
+
+  const lines = [
+    `Agent vent retention history: ${history.eventCount} of ${history.totalEvents} local retention event(s) shown; limit=${history.limit}.`,
+    "This is a read-only receipt projection. It does not archive, restore, delete, file, create tasks, declare incidents, record evidence, publish, assign owners, or mutate ASC/self state.",
+    "Restore commands shown here are rollback candidates only; actual restore still requires package-created backup containment and current active-store hash checks, so stale/moved/path-invalid backups fail closed.",
+    `Boundary: ${history.boundary}`,
+  ];
+
+  for (const item of history.items) {
+    lines.push(
+      `- [${item.action}] ${item.createdAt || "unknown-time"} ${item.recurrenceKey || "unknown-recurrence"} — ${item.archivedRecordCount || 0} record(s); backup=${item.backupPath || "none"}`,
+    );
+    if (item.note) lines.push(`  note: ${item.note}`);
+    if (item.restoreCommand) {
+      lines.push(
+        `  rollback candidate: ${item.restoreCommand}`,
+        `  restore guard: requires backup inside ${history.backupDir} and current active vents store hash ${item.afterHashPrefix}`,
+      );
+    } else {
+      lines.push(`  rollback candidate: unavailable (${item.restoreUnavailableReason})`);
+    }
+  }
+  return lines.join("\n");
+}
+
 export function archiveRecurrenceGroup(input = {}) {
   const storePath = input.storePath || defaultStorePath();
   const reviewPath = input.reviewPath || defaultReviewPath();
@@ -1882,6 +1937,56 @@ function normalizeRetentionCandidateState(value) {
   const normalized = String(value).trim().toLowerCase().replaceAll("-", "_");
   if (normalized === "reviewed" || normalized === "all") return normalized;
   return normalizeReviewState(normalized);
+}
+
+function buildRetentionHistoryItem(event, backupDir) {
+  const item = {
+    id: event.id,
+    createdAt: event.createdAt,
+    action: event.action,
+    recurrenceKey: event.recurrenceKey,
+    requestedRecurrenceKey: event.requestedRecurrenceKey,
+    backupPath: event.backupPath,
+    archivedRecordCount: event.archivedRecordCount,
+    archivedRecordIds: Array.isArray(event.archivedRecordIds) ? event.archivedRecordIds : [],
+    beforeHash: event.beforeHash,
+    afterHash: event.afterHash,
+    afterHashPrefix: event.afterHash ? `${String(event.afterHash).slice(0, 12)}…` : "unknown",
+    note: event.note,
+    restoreConfirmationToken: undefined,
+    restoreCommand: undefined,
+    restoreUnavailableReason: undefined,
+  };
+
+  const restoreIssue = retentionRestoreCommandIssue(event, backupDir);
+  if (restoreIssue) {
+    item.restoreUnavailableReason = restoreIssue;
+    return item;
+  }
+
+  const token = buildRestoreToken(event.recurrenceKey, event.beforeHash, event.afterHash);
+  item.restoreConfirmationToken = token;
+  item.restoreCommand = formatAgentVentCommand("retention", "restore", event.backupPath, token);
+  return item;
+}
+
+function retentionRestoreCommandIssue(event, backupDir) {
+  if (event?.action !== "archive") return "event is not an archive receipt";
+  if (!event.recurrenceKey) return "archive receipt is missing recurrence key";
+  if (!event.backupPath) return "archive receipt is missing backup path";
+  if (!isSha256Hex(event.beforeHash) || !isSha256Hex(event.afterHash)) {
+    return "archive receipt is missing valid before/after hashes";
+  }
+  const safeBackupDir = path.resolve(backupDir);
+  const resolvedBackupPath = path.resolve(String(event.backupPath));
+  if (!resolvedBackupPath.startsWith(`${safeBackupDir}${path.sep}`)) {
+    return "backup path is outside the configured backup directory";
+  }
+  return undefined;
+}
+
+function isSha256Hex(value) {
+  return /^[a-f0-9]{64}$/i.test(String(value || ""));
 }
 
 function planRetentionArchive({

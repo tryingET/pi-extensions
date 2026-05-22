@@ -15,6 +15,7 @@ import {
   buildLifecycleSnapshot,
   buildRecurrenceKey,
   buildRetentionCandidates,
+  buildRetentionHistory,
   buildRetentionPreview,
   buildReviewComparison,
   buildReviewDetail,
@@ -33,6 +34,7 @@ import {
   formatFacetSummary,
   formatLifecycleStats,
   formatRetentionCandidates,
+  formatRetentionHistory,
   formatReviewComparison,
   formatReviewDetail,
   formatReviewOutcomes,
@@ -1481,6 +1483,74 @@ test("retention archive is confirmation-gated, backed up, receipted, and restora
   assert.equal(restore.restoredRecordCount, 1);
   assert.equal(readVentRecords(storePath).records.length, 2);
   assert.equal(readRetentionEvents(retentionPath).events.length, 2);
+});
+
+test("retention history reconstructs restore candidates without trusting escaped receipt paths", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent vent retention history-"));
+  const storePath = path.join(dir, "vents.jsonl");
+  const reviewPath = path.join(dir, "review-events.jsonl");
+  const retentionPath = path.join(dir, "retention-events.jsonl");
+  const backupDir = path.join(dir, "backups");
+  const record = createVentRecord(
+    { summary: "History archive", category: "workflow", recurrenceKey: "history archive" },
+    { id: "history" },
+  );
+  appendVentRecord(storePath, record);
+  appendReviewEvent(
+    reviewPath,
+    createReviewEvent({ recurrenceKey: record.recurrenceKey, state: "acknowledged" }),
+  );
+
+  const state = loadDiagnosticState({ storePath, reviewPath, retentionPath, backupDir });
+  const preview = buildRetentionPreview({
+    recurrenceKey: record.recurrenceKey,
+    records: state.records,
+    reviewEvents: state.reviewEvents,
+    curationEvents: state.curationEvents,
+    storeHash: state.ventsHash,
+    reviewHash: state.reviewEventsHash,
+    curationHash: state.curationEventsHash,
+  });
+  const archived = archiveRecurrenceGroup({
+    storePath,
+    reviewPath,
+    retentionPath,
+    backupDir,
+    recurrenceKey: record.recurrenceKey,
+    confirmationToken: preview.confirmationToken,
+  });
+  const events = readRetentionEvents(retentionPath).events;
+  const history = buildRetentionHistory({ retentionEvents: events, backupDir, limit: 5 });
+
+  assert.equal(history.totalEvents, 1);
+  assert.match(history.items[0].restoreConfirmationToken, /^restore:/);
+  assert.equal(history.items[0].restoreConfirmationToken, archived.restoreConfirmationToken);
+  assert.match(history.items[0].restoreCommand, /retention restore/);
+  assert.match(history.items[0].restoreCommand, /".*history-archive.*\.agent-vent-backup\.json"/);
+  const text = formatRetentionHistory(history);
+  assert.match(text, /read-only receipt projection/i);
+  assert.match(text, /rollback candidate: \/agent_vent retention restore/);
+  assert.match(text, /stale\/moved\/path-invalid backups fail closed/);
+  assert.doesNotMatch(
+    text,
+    /AK task was created|GitHub issue was created|incident was declared|evidence was recorded|owner was assigned/,
+  );
+
+  const escaped = buildRetentionHistory({
+    retentionEvents: [
+      {
+        ...events[0],
+        id: "evil-receipt",
+        backupPath: path.join(dir, "outside.agent-vent-backup.json"),
+      },
+    ],
+    backupDir,
+  });
+  assert.equal(escaped.items[0].restoreCommand, undefined);
+  assert.match(
+    escaped.items[0].restoreUnavailableReason,
+    /outside the configured backup directory/,
+  );
 });
 
 test("retention archive removes only selected group records when legacy ids collide", () => {

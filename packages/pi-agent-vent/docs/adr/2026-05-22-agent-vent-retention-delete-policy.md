@@ -55,8 +55,8 @@ Backup-backed archive already satisfies the near-term product need: keep active 
 
 ## Consequences
 
-- `agent_vent retention` remains `preview|archive|restore` only.
-- Product docs should describe archive as the destructive package baseline.
+- `agent_vent retention` may include read-only planning/history projections such as `candidates` and `history`, while `archive|restore` remain the only package-owned mutating lifecycle actions.
+- Product docs should describe archive as the destructive package baseline and retention history as a local receipt projection, not evidence or owner-system lifecycle.
 - Future review-ergonomics work can proceed without waiting for hard-delete implementation.
 - Operators who need permanent removal must use filesystem-level removal of the local store/backups and remain responsible for their own backup, retention, and secure-erasure requirements.
 

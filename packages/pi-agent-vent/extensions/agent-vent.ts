@@ -11,6 +11,7 @@ import {
   buildFacetSummary,
   buildLifecycleSnapshot,
   buildRetentionCandidates,
+  buildRetentionHistory,
   buildRetentionPreview,
   buildReviewComparison,
   buildReviewDetail,
@@ -35,6 +36,7 @@ import {
   formatRecent,
   formatRetentionArchiveResult,
   formatRetentionCandidates,
+  formatRetentionHistory,
   formatRetentionPreview,
   formatRetentionRestoreResult,
   formatReviewComparison,
@@ -48,6 +50,7 @@ import {
   normalizeReviewState,
   RETENTION_ACTIONS,
   REVIEW_STATES,
+  readRetentionEvents,
   restoreRetentionBackup,
   SEVERITIES,
   summarizeRecords,
@@ -195,7 +198,7 @@ const AgentVentParams = Type.Object({
       RETENTION_ACTIONS.map((action) => Type.Literal(action)),
       {
         description:
-          "Local data lifecycle action for action=retention: candidates, preview, archive, or restore. Only archive/restore mutate local diagnostic stores and require confirmation tokens.",
+          "Local data lifecycle action for action=retention: candidates, history, preview, archive, or restore. Only archive/restore mutate local diagnostic stores and require confirmation tokens.",
       },
     ),
   ),
@@ -240,7 +243,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation. Export may be focused by local category/tag/tool/package facets; those facets are not owner routing.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
       "Use action=draft to generate owner-surface draft text only; never claim it submitted, filed, declared, or recorded anything.",
-      "Use action=retention to list read-only archive candidates, preview, confirmation-gate, archive, or restore local diagnostic records only; never imply owner-system deletion or canonical evidence changes.",
+      "Use action=retention to list read-only archive candidates or retention history, preview, confirmation-gate, archive, or restore local diagnostic records only; never imply owner-system deletion or canonical evidence changes.",
       "Do not use agent_vent for ordinary progress updates, single-use complaints, or content that belongs in the final answer.",
       "agent_vent records and review states are local diagnostics only; agent_vent must not claim to create AK tasks, incidents, GitHub issues, canonical evidence, external telemetry, or ASC/self state.",
       "When calling agent_vent, summarize minimally and never include secrets, credentials, private user payloads, or long raw logs.",
@@ -296,6 +299,29 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           record,
           recurrenceGroup: group,
           malformedLines,
+        });
+      }
+
+      if (
+        action === "retention" &&
+        normalizeRetentionAction(params.retentionAction || "preview") === "history"
+      ) {
+        const retentions = readRetentionEvents(retentionPath);
+        const history = buildRetentionHistory({
+          retentionEvents: retentions.events,
+          backupDir,
+          limit: clampLimit(params.limit, 20),
+        });
+        const suffix = formatRetentionReadWarnings(retentions);
+        return textResult(`${formatRetentionHistory(history)}${suffix}`, {
+          action,
+          retentionAction: "history",
+          retentionPath,
+          backupDir,
+          retention: history,
+          malformedRetentionLines: retentions.malformedLines,
+          oversizedRetentionLines: retentions.oversizedLines,
+          invalidRetentionEvents: retentions.invalidEvents,
         });
       }
 
@@ -748,6 +774,7 @@ function handleCommand(args: string) {
       "                                                        Generate draft-only owner-surface text.",
       "  /agent_vent retention candidates [reviewed|state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
       "                                                        Show read-only reviewed groups ready for retention planning, without tokens.",
+      "  /agent_vent retention history [limit]                Show read-only local archive/restore receipt history and restore candidates.",
       "  /agent_vent retention preview <recurrenceKey>        Preview exact local records and confirmation token.",
       "  /agent_vent retention archive <recurrenceKey> <token> [note]",
       "                                                        Archive reviewed local records with a backup receipt.",
@@ -783,6 +810,17 @@ function handleCommand(args: string) {
   if (action === "retention" && tokens[1] === "candidates") {
     const syntaxError = retentionCandidatesSyntaxError(tokens.slice(2));
     if (syntaxError) return syntaxError;
+  }
+  if (action === "retention" && tokens[1] === "history") {
+    const syntaxError = retentionHistorySyntaxError(tokens.slice(2));
+    if (syntaxError) return syntaxError;
+    const retentions = readRetentionEvents(retentionPath);
+    const history = buildRetentionHistory({
+      retentionEvents: retentions.events,
+      backupDir,
+      limit: clampLimit(tokens[2], 20),
+    });
+    return `${formatRetentionHistory(history)}${formatRetentionReadWarnings(retentions)}`;
   }
 
   const state = loadDiagnosticState({
@@ -985,6 +1023,14 @@ function retentionCandidatesSyntaxError(
   }
   if (parsed.invalidState) {
     return `Invalid /agent_vent retention candidates state: ${parsed.invalidState}\n${usage}`;
+  }
+  return undefined;
+}
+
+function retentionHistorySyntaxError(tokens: string[]) {
+  const usage = "Usage: /agent_vent retention history [limit]";
+  if (tokens.length > 1 || (tokens[0] && !/^\d+$/.test(tokens[0]))) {
+    return `Invalid /agent_vent retention history argument: ${tokens.join(" ")}\n${usage}`;
   }
   return undefined;
 }
@@ -1282,6 +1328,23 @@ function handleLifecycleCommand(action: string, tokens: string[], state: Record<
 
   if (action === "stats") return formatLifecycleStats(snapshot);
   return parsed.format === "json" ? formatExportJson(snapshot) : formatExportMarkdown(snapshot);
+}
+
+function formatRetentionReadWarnings(retentions: {
+  malformedLines?: number;
+  oversizedLines?: number;
+  invalidEvents?: number;
+}) {
+  const warnings = [];
+  if (Number(retentions.malformedLines) > 0)
+    warnings.push(`malformed retention=${retentions.malformedLines}`);
+  if (Number(retentions.oversizedLines) > 0)
+    warnings.push(`oversized retention=${retentions.oversizedLines}`);
+  if (Number(retentions.invalidEvents) > 0)
+    warnings.push(`invalid retention=${retentions.invalidEvents}`);
+  return warnings.length > 0
+    ? `\nWarning: ignored local retention receipt entries (${warnings.join(", ")}).`
+    : "";
 }
 
 function formatDiagnosticWarnings(state: Record<string, unknown>) {

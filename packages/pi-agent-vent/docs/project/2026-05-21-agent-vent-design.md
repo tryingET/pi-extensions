@@ -108,7 +108,7 @@ Actions:
 - `draft` — generate draft-only owner-surface text for a recurrence group.
 - `stats` — show local store counts, byte sizes, malformed-line counts, curation counts, and review-state totals.
 - `export` — emit a bounded local diagnostic projection in markdown or JSON.
-- `retention` — preview, confirmation-gate, archive, and restore reviewed local diagnostic records with local backup receipts.
+- `retention` — list read-only retention candidates and receipt history, preview, confirmation-gate, archive, and restore reviewed local diagnostic records with local backup receipts.
 
 Important behavior:
 
@@ -125,7 +125,7 @@ Important behavior:
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it includes local diagnostic facets when present, returns text only, and never submits, files, declares, records evidence, assigns owners, or changes review state automatically.
 - `stats` and `export` are read-only projections and must not claim evidence, publication, task, issue, owner-routing, owner-assignment, or incident authority. Export may preserve local category/tag/tool/package facet scope as a diagnostic focus aid only.
-- `retention preview` is read-only; `retention archive` mutates only the active local vents store after exact confirmation, lock acquisition, store-hash verification, and backup creation; `retention restore` mutates only the active local vents store after exact confirmation, realpath containment, and stale-state checks.
+- `retention candidates` and `retention history` are read-only projections; history reconstructs rollback-candidate restore commands from archive receipts without reading active vents/backups, while actual restore still enforces realpath containment and stale-state checks. `retention preview` is read-only; `retention archive` mutates only the active local vents store after exact confirmation, lock acquisition, store-hash verification, and backup creation; `retention restore` mutates only the active local vents store after exact confirmation, realpath containment, and stale-state checks.
 
 ### `/agent_vent`
 
@@ -147,6 +147,7 @@ Human/operator command for lightweight inspection. `/agent-vent` remains a compa
 - `/agent_vent draft <github_issue|ak_task|incident_review|maintainer_note> <recurrenceKey> [limit]`
 - `/agent_vent stats`
 - `/agent_vent export [markdown|json] [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]`
+- `/agent_vent retention history [limit]`
 - `/agent_vent retention preview <recurrenceKey>`
 - `/agent_vent retention archive <recurrenceKey> <archive:token> [note]`
 - `/agent_vent retention restore <backupPath> <restore:token> [note]`
