@@ -45,7 +45,8 @@ const longestBacktickRun = (text) => {
 
 const UNSAFE_DETAIL_SIGNALS =
   /\b(token|password|passwd|api[_-]?key|credential|customer-[a-z0-9_-]+)\b/iu;
-const ABSOLUTE_POSIX_PATH_SIGNAL = /(^|[\s"'`=(:])\/[\w./~+-]+/u;
+const ABSOLUTE_POSIX_PATH_SIGNAL = /(^|[\s"'`=(:,;])\/[\w./~+-]+/u;
+const WINDOWS_PATH_SIGNAL = /(^|[\s"'`=(:,;])(?:[A-Za-z]:\\|\\\\)[^\s"'`<>|]+/u;
 
 const safeErrorCode = (value) => {
   if (typeof value !== "string" && typeof value !== "number") return undefined;
@@ -77,7 +78,11 @@ export const publicOmissionDetail = (detail, fallback = "omission detail withhel
   if (!text.trim()) return fallback;
   if (text.length > 1000) return `${fallback}; raw detail exceeded safe public length`;
   if (hasControlCharacter(text)) return `${fallback}; raw detail contained control characters`;
-  if (UNSAFE_DETAIL_SIGNALS.test(text) || ABSOLUTE_POSIX_PATH_SIGNAL.test(text)) {
+  if (
+    UNSAFE_DETAIL_SIGNALS.test(text) ||
+    ABSOLUTE_POSIX_PATH_SIGNAL.test(text) ||
+    WINDOWS_PATH_SIGNAL.test(text)
+  ) {
     return `${fallback}; raw detail contained local path or secret-like text`;
   }
   return text;
