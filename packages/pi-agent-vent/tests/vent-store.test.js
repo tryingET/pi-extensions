@@ -718,6 +718,7 @@ test("review outcomes bucket post-review follow-up without authority drift", () 
   assert.equal(outcomes.counts.acknowledged, 1);
   assert.equal(outcomes.counts.dismissed, 1);
   assert.equal(outcomes.counts.escalation_drafted, 1);
+  assert.equal(outcomes.limitPerBucket, 10);
   assert.deepEqual(outcomes.filters.tags, ["outcome"]);
   const boundedFilter = buildReviewOutcomes({
     records: [fresh],
@@ -729,6 +730,7 @@ test("review outcomes bucket post-review follow-up without authority drift", () 
 
   const text = formatReviewOutcomes(outcomes);
   assert.match(text, /Agent vent review outcomes/);
+  assert.match(text, /showing up to 10 group\(s\) per state bucket/);
   assert.match(text, /new: 1 group/);
   assert.match(text, /acknowledged: 1 group/);
   assert.match(text, /dismissed: 1 group/);
@@ -743,6 +745,30 @@ test("review outcomes bucket post-review follow-up without authority drift", () 
     text,
     /GitHub issue was created|AK task was created|incident was declared|owner was assigned|resolved externally|was filed/,
   );
+});
+
+test("review outcomes limit is explicit per state bucket", () => {
+  const states = ["new", "acknowledged", "dismissed", "escalation_drafted"];
+  const records = [];
+  const reviews = [];
+  for (const state of states) {
+    const record = createVentRecord({
+      summary: `${state} grouped`,
+      recurrenceKey: `${state}-group`,
+    });
+    records.push(record);
+    if (state !== "new") {
+      reviews.push(createReviewEvent({ recurrenceKey: record.recurrenceKey, state }));
+    }
+  }
+
+  const outcomes = buildReviewOutcomes({ records, reviewEvents: reviews, state: "all", limit: 1 });
+  assert.equal(outcomes.limitPerBucket, 1);
+  assert.deepEqual(
+    outcomes.buckets.map((bucket) => `${bucket.state}:${bucket.items.length}`),
+    ["new:1", "acknowledged:1", "dismissed:1", "escalation_drafted:1"],
+  );
+  assert.match(formatReviewOutcomes(outcomes), /showing up to 1 group\(s\) per state bucket/);
 });
 
 test("review outcomes fail closed for invalid states and category filters", () => {

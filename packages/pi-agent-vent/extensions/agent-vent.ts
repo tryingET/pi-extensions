@@ -661,7 +661,7 @@ function handleCommand(args: string) {
       "                                                        Show local recurrence review queue with optional local facet filters.",
       "  /agent_vent review show <recurrenceKey> [limit]      Show bounded representative local samples.",
       "  /agent_vent review set <state> <recurrenceKey> [note] Set local review state for a recurrence group.",
-      "  /agent_vent outcomes [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
+      "  /agent_vent outcomes [state|all] [per-state-limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
       "                                                        Show read-only local follow-up by review outcome bucket.",
       "  /agent_vent curate merge <sourceKey> <targetKey> [note] Append a local merge projection event.",
       "  /agent_vent curate rename <sourceKey> <targetKey> [note] Append a local rename projection event.",
@@ -847,7 +847,7 @@ function reviewListSyntaxError(
   const usage =
     action === "review"
       ? "Usage: /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]"
-      : "Usage: /agent_vent outcomes [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
+      : "Usage: /agent_vent outcomes [state|all] [per-state-limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
   if (parsed.unknownFilters.length) {
     return `Unknown /agent_vent ${action} filter(s): ${parsed.unknownFilters.join(", ")}\n${usage}`;
   }
@@ -872,15 +872,19 @@ function parseReviewListTokens(tokens: string[]) {
     if (separatorIndex > 0) {
       const key = token.slice(0, separatorIndex).trim().toLowerCase().replaceAll("-", "_");
       const value = token.slice(separatorIndex + 1).trim();
-      if (!value) continue;
       if (key === "category") {
+        if (!value) continue;
         const normalizedCategory = value.toLowerCase().replaceAll("-", "_");
         if (CATEGORIES.includes(normalizedCategory)) filters.category = normalizedCategory;
         else invalidFilters.push(`category=${value}`);
-      } else if (key === "tool") filters.tool = value;
-      else if (key === "package" || key === "package_name" || key === "packagename") {
+      } else if (key === "tool") {
+        if (!value) continue;
+        filters.tool = value;
+      } else if (key === "package" || key === "package_name" || key === "packagename") {
+        if (!value) continue;
         filters.packageName = value;
       } else if (key === "tag" || key === "tags") {
+        if (!value) continue;
         tags.push(
           ...value
             .split(",")
@@ -888,7 +892,7 @@ function parseReviewListTokens(tokens: string[]) {
             .filter(Boolean),
         );
       } else {
-        unknownFilters.push(key);
+        unknownFilters.push(key || token.slice(0, separatorIndex));
       }
       continue;
     }

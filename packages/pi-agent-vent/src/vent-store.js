@@ -628,6 +628,7 @@ export function buildReviewOutcomes(input = {}) {
     filters,
     hasFilters: hasReviewFilters(filters),
     counts,
+    limitPerBucket: limit,
     buckets: visibleStates.map((state) => {
       const items = matchingItems.filter((item) => item.reviewState === state);
       return {
@@ -839,7 +840,7 @@ export function formatReviewOutcomes(outcomes) {
     ? `${outcomes.matchingGroupCount} matching of ${outcomes.groupCount} total recurrence group(s)`
     : `${outcomes.groupCount} total recurrence group(s)`;
   const lines = [
-    `Agent vent review outcomes: ${scopeText}; state filter=${outcomes.stateFilter}.`,
+    `Agent vent review outcomes: ${scopeText}; state filter=${outcomes.stateFilter}; showing up to ${outcomes.limitPerBucket} group(s) per state bucket.`,
     `State counts: new=${outcomes.counts.new}, acknowledged=${outcomes.counts.acknowledged}, dismissed=${outcomes.counts.dismissed}, escalation_drafted=${outcomes.counts.escalation_drafted}`,
     outcomes.hasFilters
       ? `Filters: ${filterText}. Local diagnostic labels only; not owner routing or owner assignment.`

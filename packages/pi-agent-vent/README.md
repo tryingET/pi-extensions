@@ -76,6 +76,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent review show bug:reload-tools
 /agent_vent review set acknowledged bug:reload-tools "seen locally"
 /agent_vent outcomes all 10 category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
+# outcomes limit is per review-state bucket, not a global row cap
 /agent_vent curate merge bug:reload-tool-a bug:reload-tools "same local pattern"
 /agent_vent curate remove bug:reload-tool-a "undo local merge"
 /agent_vent draft github_issue bug:reload-tools
@@ -87,7 +88,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent path
 ```
 
-`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Review/outcome command syntax fails closed before store reads for unknown filters, invalid states, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, or mutate owner systems.
+`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Outcome limits are explicit per review-state bucket so `outcomes all 1` can show one `new`, one `acknowledged`, one `dismissed`, and one `escalation_drafted` group. Review/outcome command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, or mutate owner systems.
 
 ## Deeper Pi integration
 
