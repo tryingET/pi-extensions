@@ -31,6 +31,8 @@ Continue one focused slice of the local agent venting tool while preserving priv
 # from package directory
 npm run check
 npm run release:check:quick
+# when Pi/auth are available, full release check also installs the tarball and smokes /agent_vent path
+npm run release:check
 ```
 
 Live check after install/reload:
@@ -46,5 +48,5 @@ Live check after install/reload:
 2. Keep `agent_vent` local-only unless a new design explicitly changes the boundary.
 3. Add or update `node:test` coverage for redaction, recurrence grouping, JSONL reads/writes, and command/tool behavior affected by the change.
 4. Run `npm run check`.
-5. If release/package surface changed, run `npm run release:check:quick`.
+5. If release/package surface changed, run `npm run release:check:quick`; run `npm run release:check` when live Pi smoke is available.
 6. Update docs and this handoff prompt when behavior changes.
