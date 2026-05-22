@@ -275,20 +275,27 @@ The packet used mixed seed kinds: one code path seed, one Markdown path seed, an
     "estimatedTokens": 2061,
     "bytes": 8245,
     "candidatesSelected": 2,
-    "candidatesOmitted": 2
+    "candidatesOmitted": 2,
+    "budgetAccounting": "selected_provider_content_only"
   },
   "providerRoutes": [
     {
       "provider": "agents",
       "posture": "selected",
+      "routeRole": "selected",
       "queryCount": 1,
+      "selectedQueryCount": 1,
+      "followupQueryCount": 0,
       "seedCount": 0,
       "seedCounts": {}
     },
     {
       "provider": "sci",
       "posture": "selected",
+      "routeRole": "selected",
       "queryCount": 1,
+      "selectedQueryCount": 1,
+      "followupQueryCount": 0,
       "seedCount": 2,
       "seedCounts": {
         "code": 1,
@@ -298,13 +305,27 @@ The packet used mixed seed kinds: one code path seed, one Markdown path seed, an
     {
       "provider": "docs",
       "posture": "selected",
+      "routeRole": "selected",
       "queryCount": 1,
+      "selectedQueryCount": 1,
+      "followupQueryCount": 0,
       "seedCount": 1,
       "seedCounts": {
         "markdown": 1
       }
+    },
+    {
+      "provider": "prompt_vault",
+      "posture": "optional",
+      "routeRole": "followup",
+      "queryCount": 0,
+      "selectedQueryCount": 0,
+      "followupQueryCount": 1,
+      "seedCount": 0,
+      "seedCounts": {}
     }
   ],
+  "providerRoutesNote": "excerpt: full template also includes skipped/follow-up providers with selected queryCount separated from followupQueryCount",
   "prediction": {
     "expectedLowLevelCallsAvoided": 2,
     "packetUtilityRecommendationStatus": "use_packet_review_omissions",
@@ -348,7 +369,7 @@ The packet used mixed seed kinds: one code path seed, one Markdown path seed, an
 }
 ```
 
-Outcome: provider-route summaries are useful receipt metadata. They make query-seed mismatches reviewable without putting raw seeds into pasteable dogfood evidence, while SCI omissions still force owner-surface follow-up instead of implying coverage.
+Outcome: provider-route summaries are useful receipt metadata. They make query-seed mismatches reviewable without putting raw seeds into pasteable dogfood evidence, while SCI omissions still force owner-surface follow-up instead of implying coverage. The receipt projection now separates selected `queryCount` from optional `followupQueryCount`, and packet totals explicitly count selected provider content rather than rendered Markdown scaffolding.
 
 ## Lessons for ranking and product bets
 
@@ -357,4 +378,5 @@ Outcome: provider-route summaries are useful receipt metadata. They make query-s
 - `no_packet_needed` is a first-class success state. In this run it avoided 4,424 duplicate estimated tokens and turned the packet into metadata.
 - SCI omissions should remain explicit. A read-only packet must not hide `.ontology` side effects or pretend SCI coverage exists when artifacts block safe assembly.
 - Landed next improvement: `context_pack` now emits a redacted copy-ready `context_pack_dogfood_observation_v1` template in packet Markdown and compact details so agents can paste observed follow-up counts without persisting evidence, mutating owner surfaces, duplicating raw packet content, or leaking selected item paths / raw omission details.
-- Provider-route summaries are a useful addition to the receipt scaffold: they expose provider/posture/query/seed-kind counts for mismatch review while omitting raw seed values. Adding more provider adapters remains lower leverage until more evaluated receipts accumulate.
+- Provider-route summaries are a useful addition to the receipt scaffold: they expose provider/posture/query/seed-kind counts for mismatch review while omitting raw seed values, and they must distinguish selected query counts from optional follow-up query counts. Adding more provider adapters remains lower leverage until more evaluated receipts accumulate.
+- Packet budget metrics are selected-content metrics unless a receipt explicitly says otherwise; rendered Markdown scaffolding needs separate accounting in tool details.

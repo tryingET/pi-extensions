@@ -597,6 +597,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       bytes,
       candidatesSelected: sections.reduce((sum, section) => sum + section.items.length, 0),
       candidatesOmitted: publicOmissions.length,
+      budgetAccounting: "selected_provider_content_only",
     },
     sections,
     omissions: publicOmissions,

@@ -55,7 +55,8 @@ export const formatContextPacket = (result) => {
   return [
     `# Context packet: ${markdownInlineLabel(packet.objective, "objective")}`,
     "",
-    `Selected: ${packet.totals.candidatesSelected} item(s), ${packet.totals.estimatedTokens} estimated tokens, ${packet.totals.bytes} bytes`,
+    `Selected provider content: ${packet.totals.candidatesSelected} item(s), ${packet.totals.estimatedTokens} estimated tokens, ${packet.totals.bytes} bytes`,
+    "Budget accounting: packet totals count selected provider content only; rendered scaffolding is reported separately in tool details.",
     `Estimated tool calls avoided: ${packet.measurementReceipt.estimatedToolCallsAvoided}`,
     "",
     "## Packet utility",
@@ -97,9 +98,18 @@ export const formatContextPacket = (result) => {
   ].join("\n");
 };
 
-export const compactContextPacketDetails = (result) => {
+export const compactContextPacketDetails = (result, renderedMarkdownText) => {
   if (!result.ok) return { ok: false, errors: result.errors ?? [], plan: result.plan };
   const { packet } = result;
+  const renderedMarkdown =
+    typeof renderedMarkdownText === "string"
+      ? {
+          estimatedTokens: Math.ceil(renderedMarkdownText.length / 4),
+          bytes: Buffer.byteLength(renderedMarkdownText),
+          budgetAccounting:
+            "rendered Markdown includes packet scaffolding; packet.totals and measurementReceipt count selected provider content only",
+        }
+      : undefined;
   return {
     ok: true,
     objective: packet.objective,
@@ -108,6 +118,7 @@ export const compactContextPacketDetails = (result) => {
     repoRoot: packet.repoRoot,
     budget: packet.budget,
     totals: packet.totals,
+    ...(renderedMarkdown ? { renderedMarkdown } : {}),
     sections: packet.sections.map((section) => ({
       id: section.id,
       provider: section.provider,
@@ -139,5 +150,7 @@ export const compactContextPacketDetails = (result) => {
   };
 };
 
-export const toolResultFromContextPacketResult = (result) =>
-  textResult(formatContextPacket(result), compactContextPacketDetails(result));
+export const toolResultFromContextPacketResult = (result) => {
+  const text = formatContextPacket(result);
+  return textResult(text, compactContextPacketDetails(result, text));
+};

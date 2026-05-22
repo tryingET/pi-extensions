@@ -199,6 +199,12 @@ const seedRouteKind = (seed) => {
   return "other";
 };
 
+const providerRouteRole = (posture) => {
+  if (posture === "selected") return "selected";
+  if (posture === "optional") return "followup";
+  return "skipped";
+};
+
 const compactProviderRoutes = (providerPlans = []) =>
   providerPlans
     .map((providerPlan) => {
@@ -208,10 +214,17 @@ const compactProviderRoutes = (providerPlans = []) =>
         const routeKind = seedRouteKind(seed);
         seedCounts[routeKind] = (seedCounts[routeKind] ?? 0) + 1;
       }
+      const rawQueryCount = providerPlan.proposedQueries?.length ?? 0;
+      const routeRole = providerRouteRole(providerPlan.posture);
+      const selectedQueryCount = routeRole === "selected" ? rawQueryCount : 0;
+      const followupQueryCount = routeRole === "followup" ? rawQueryCount : 0;
       return {
         provider: providerPlan.provider,
         posture: providerPlan.posture,
-        queryCount: providerPlan.proposedQueries?.length ?? 0,
+        routeRole,
+        queryCount: selectedQueryCount,
+        selectedQueryCount,
+        followupQueryCount,
         seedCount: seeds.length,
         seedCounts,
       };

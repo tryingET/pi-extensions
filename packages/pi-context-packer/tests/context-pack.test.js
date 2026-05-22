@@ -139,9 +139,18 @@ test("context_pack keeps provider query seeds scoped through mixed docs and SCI 
       route,
     ]),
   );
+  assert.equal(routeByProvider.docs.routeRole, "selected");
+  assert.equal(routeByProvider.docs.queryCount, 1);
+  assert.equal(routeByProvider.docs.followupQueryCount, 0);
   assert.deepEqual(routeByProvider.docs.seedCounts, { markdown: 1 });
+  assert.equal(routeByProvider.sci.routeRole, "selected");
+  assert.equal(routeByProvider.sci.queryCount, 1);
+  assert.equal(routeByProvider.sci.followupQueryCount, 0);
   assert.deepEqual(routeByProvider.sci.seedCounts, { code: 1, symbol: 1 });
   assert.equal(routeByProvider.agents.seedCount, 0);
+  assert.equal(routeByProvider.prompt_vault.routeRole, "followup");
+  assert.equal(routeByProvider.prompt_vault.queryCount, 0);
+  assert.equal(routeByProvider.prompt_vault.followupQueryCount, 1);
   const docs = result.packet.sections.find((section) => section.provider === "docs");
   assert.deepEqual(
     docs.items.map((item) => item.provenance.path),
@@ -168,6 +177,7 @@ test("context_pack enforces the global packet budget across providers while pres
   const usableTokens = result.packet.budget.maxTokens - result.packet.budget.reserveTokens;
   assert.ok(result.packet.totals.estimatedTokens <= usableTokens, result.packet);
   assert.ok(result.packet.totals.bytes <= result.packet.budget.maxBytes, result.packet);
+  assert.equal(result.packet.totals.budgetAccounting, "selected_provider_content_only");
   assert.ok(result.packet.measurementReceipt.packetFillRatio <= 1, result.packet);
   assert.ok(result.packet.omissions.some((omission) => omission.reason === "budget"));
 });
@@ -670,7 +680,7 @@ test("context_pack records unreadable files as omissions instead of throwing", a
   }
 });
 
-test("formatContextPacket summarizes selected sections, omissions, and owner routes", async () => {
+test("formatContextPacket summarizes selected sections, omissions, owner routes, and budget scope", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({
     objective: "Use docs, SCI, Prompt Vault, and intercom peer messaging",
@@ -682,6 +692,8 @@ test("formatContextPacket summarizes selected sections, omissions, and owner rou
   const text = formatContextPacket(result);
 
   assert.match(text, /# Context packet:/);
+  assert.match(text, /Selected provider content:/);
+  assert.match(text, /Budget accounting: packet totals count selected provider content only/);
   assert.match(text, /## Packet utility/);
   assert.match(text, /## Dogfood follow-up/);
   assert.match(text, /## Dogfood observation template/);
@@ -876,6 +888,30 @@ test("context_pack redacts omission details and does not call wired provider out
     /SECRET LOCAL PATH|customer-acme|docs-list failed|\/tmp\//,
   );
   assert.match(serializedTemplate, /detailRef/);
+});
+
+test("context_pack reports rendered Markdown overhead separately from selected content budget", async () => {
+  const root = await makeWorkspace();
+  const input = {
+    objective: "Tiny docs packet",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "docs/project/note.md" }],
+    providers: { agents: "off", git: "off", sci: "off", session: "off" },
+    budget: { maxTokens: 1000, reserveTokens: 999 },
+  };
+
+  const toolResult = await contextPacketToolResult(input, { cwd: root });
+
+  assert.equal(toolResult.details.totals.budgetAccounting, "selected_provider_content_only");
+  assert.ok(
+    toolResult.details.renderedMarkdown.estimatedTokens > toolResult.details.totals.estimatedTokens,
+  );
+  assert.match(
+    toolResult.details.renderedMarkdown.budgetAccounting,
+    /rendered Markdown includes packet scaffolding/,
+  );
+  assert.match(toolResult.content[0].text, /Budget accounting: packet totals count selected/);
 });
 
 test("context_pack emits measurement receipt for packet usefulness", async () => {
