@@ -44,6 +44,7 @@ test("agent_vent tool schema stays aligned with retention candidate and compare 
   assert.match(schemaText, /"reviewed"/);
   assert.match(schemaText, /"all"/);
   assert.match(schemaText, /candidates, preview, archive, or restore/);
+  assert.match(schemaText, /outcomes, compare, export, or retention planning/);
 });
 
 test("agent_vent records minimized local diagnostics without external authority claims", async () => {
@@ -257,7 +258,11 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.match(compareResult.content[0].text, /acknowledged: groups=1/);
     assert.match(
       compareResult.content[0].text,
-      /retention planning: \/agent_vent retention candidates acknowledged/,
+      /retention planning: \/agent_vent retention candidates acknowledged category=tool_failure tool=pi-reload package=tryinget-pi-agent-vent tag=reload/,
+    );
+    assert.match(
+      compareResult.content[0].text,
+      /export bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
     );
     assert.match(
       compareResult.content[0].text,
