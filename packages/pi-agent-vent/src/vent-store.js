@@ -835,9 +835,9 @@ export function formatReviewQueue(queue) {
     );
     if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
     lines.push(`  inspect: /agent_vent review show ${item.recurrenceKey} [limit]`);
-    lines.push(
-      `  next: /agent_vent review set acknowledged ${item.recurrenceKey} [note] | /agent_vent review set dismissed ${item.recurrenceKey} [note] | /agent_vent review set escalation_drafted ${item.recurrenceKey} [note]`,
-    );
+    for (const nextAction of buildReviewNextActionLines(item, { compact: true })) {
+      lines.push(`  ${nextAction}`);
+    }
   }
   if (queue.hasFilters) {
     lines.push(
@@ -877,12 +877,10 @@ export function formatReviewDetail(detail) {
     if (sample.reproduction) lines.push(`  reproduction: ${sample.reproduction}`);
   }
   if (!detail.samples?.length) lines.push("No sample vents available.");
-  lines.push(
-    "",
-    `Next: /agent_vent review set acknowledged ${detail.recurrenceKey} [note] | /agent_vent review set dismissed ${detail.recurrenceKey} [note] | /agent_vent review set escalation_drafted ${detail.recurrenceKey} [note]`,
-    `Optional draft-only handoff: /agent_vent draft github_issue ${detail.recurrenceKey}`,
-    `Optional after review: /agent_vent retention preview ${detail.recurrenceKey}`,
-  );
+  lines.push("", "Local next actions:");
+  for (const nextAction of buildReviewNextActionLines(group)) {
+    lines.push(`- ${nextAction}`);
+  }
   return lines.join("\n");
 }
 
@@ -1831,6 +1829,27 @@ function buildReviewQueueItems(records, reviewEvents, curationEvents = []) {
       reviewEventId: latestReview?.id,
     };
   });
+}
+
+function buildReviewNextActionLines(group, options = {}) {
+  const key = group.recurrenceKey;
+  const state = group.reviewState || "new";
+  const prefix = options.compact ? "next:" : "Set local review state:";
+  const lines = [
+    `${prefix} /agent_vent review set acknowledged ${key} [note] | /agent_vent review set dismissed ${key} [note] | /agent_vent review set escalation_drafted ${key} [note]`,
+  ];
+  if (state === "new") {
+    lines.push(
+      "review first before local retention archive; drafts are still draft-only and require human owner-system action",
+    );
+  } else {
+    lines.push(`optional local lifecycle: /agent_vent retention preview ${key}`);
+  }
+  lines.push(
+    `draft-only handoff options: /agent_vent draft github_issue ${key} | /agent_vent draft ak_task ${key} | /agent_vent draft incident_review ${key} | /agent_vent draft maintainer_note ${key}`,
+    "boundary: draft commands only generate local text; they do not file, create, declare, assign, record evidence, publish, or mutate owner systems",
+  );
+  return lines;
 }
 
 function normalizeReviewFilters(input = {}) {

@@ -85,7 +85,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent path
 ```
 
-`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands.
+`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue and detail output include exact local next-action commands for review state, draft-only handoff targets, and retention preview eligibility; these are guidance only and do not file, create, declare, assign, record evidence, publish, or mutate owner systems.
 
 ## Deeper Pi integration
 

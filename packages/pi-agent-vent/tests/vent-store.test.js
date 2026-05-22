@@ -560,9 +560,50 @@ test("review detail expands curated groups with bounded redacted samples", () =>
   assert.equal(detail.samples.length, 2);
   const text = formatReviewDetail(detail);
   assert.match(text, /Requested key resolved through local curation/);
+  assert.match(text, /Local next actions:/);
+  assert.match(text, /draft github_issue/);
+  assert.match(text, /draft ak_task/);
+  assert.match(text, /draft incident_review/);
+  assert.match(text, /draft maintainer_note/);
+  assert.match(text, /retention preview/);
+  assert.match(
+    text,
+    /do not file, create, declare, assign, record evidence, publish, or mutate owner systems/,
+  );
   assert.match(text, /Bearer \[REDACTED\]/);
   assert.match(text, /token=\[REDACTED\]/);
   assert.match(text, /No AK task, GitHub issue, incident, evidence/);
+  assert.doesNotMatch(text, /filed|declared|owner was assigned/);
+});
+
+test("review queue next actions are state-aware and authority-safe", () => {
+  const record = createVentRecord({
+    summary: "State-aware next action",
+    category: "workflow",
+    recurrenceKey: "state-aware",
+  });
+
+  const newQueueText = formatReviewQueue(summarizeReviewQueue([record], []));
+  assert.match(newQueueText, /review first before local retention archive/);
+  assert.match(newQueueText, /draft ak_task/);
+  assert.match(
+    newQueueText,
+    /do not file, create, declare, assign, record evidence, publish, or mutate owner systems/,
+  );
+  assert.doesNotMatch(newQueueText, /optional local lifecycle: \/agent_vent retention preview/);
+
+  const reviewedQueueText = formatReviewQueue(
+    summarizeReviewQueue(
+      [record],
+      [createReviewEvent({ recurrenceKey: record.recurrenceKey, state: "acknowledged" })],
+    ),
+  );
+  assert.match(reviewedQueueText, /optional local lifecycle: \/agent_vent retention preview/);
+  assert.match(reviewedQueueText, /draft maintainer_note/);
+  assert.doesNotMatch(
+    reviewedQueueText,
+    /GitHub issue was created|AK task was created|incident was declared|was filed/,
+  );
 });
 
 test("review detail fails closed for unknown groups and redacts legacy JSONL", () => {
