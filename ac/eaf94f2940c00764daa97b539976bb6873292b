@@ -1,0 +1,1 @@
+{"summary":"Added explicit compact-details omission redaction assertion for context-packer tool results.","validation":{"docs_list_strict":"pass: npm run docs:list -- --strict","package_check":"pass: npm run check","pre_commit":"pass: package quality gate pre-commit"},"safety":"Tool result details omissions are covered against raw docs-list subprocess secrets and local paths."}
