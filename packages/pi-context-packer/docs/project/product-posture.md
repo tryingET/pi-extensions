@@ -49,9 +49,9 @@ The package should feel like a context advisory membrane: it helps decide what c
 
 ## Current maturity
 
-- maturity: `internal dogfood / pre-provider safety hardened MVP with redacted receipt export`
+- maturity: `internal dogfood / pre-provider safety-and-accounting hardened MVP with redacted receipt export`
 - current strategic line: keep `context_plan` cheap and always available, keep `context_pack` activatable, preserve Markdown-primary output, and use redacted live dogfood receipts to prove ranking/utility before adding AK/FCOS/Prompt Vault adapters
-- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, C0/C1/DEL control-character path intake, dot-prefixed/internal path intake, docs-list path intake, docs-list fallback after unsafe seed omission, Markdown fence injection, Markdown structural-label injection, owner-surface false positives, unreadable files, symlink escapes, missing workspace-root degradation, SCI workflow refusal until read-only safety is confirmed, compact details, global and cumulative provider-local budgets, fresh-vs-duplicate tool-call estimates, session dedupe, budget-accurate session visibility, compact session metadata without raw context-usage echoing, redacted dogfood observation templates, public omission/error detail redaction across Markdown/details/next suggestions, raw omission-detail suppression, and wired-vs-planned-unwired provider gap classification; docs list passes
+- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, C0/C1/DEL control-character path intake, dot-prefixed/internal path intake, docs-list path intake including raw docs-list control/whitespace handling, docs-list fallback after unsafe seed omission, Markdown fence injection, Markdown structural-label injection, owner-surface false positives, unreadable files, symlink escapes, missing workspace-root degradation, SCI workflow refusal until read-only safety is confirmed, compact details, global and cumulative provider-local budgets, fresh-vs-duplicate tool-call estimates, session dedupe, budget-accurate session visibility, compact session metadata without raw context-usage echoing, redacted dogfood observation templates, public omission/error detail redaction across Markdown/details/next suggestions, raw omission-detail suppression, and wired-vs-planned-unwired provider gap classification; docs list passes; package is installed locally after the latest pass
 - release posture: package checks pass; package is installed locally into Pi; live activation is via toolbox `context-packer` bundle
 
 ## Current landed capability baseline
@@ -63,15 +63,15 @@ The package currently owns:
 - toolbox-activatable `context_pack` for bounded packet assembly;
 - AGENTS provider with loader-style root-to-leaf ordering;
 - caller-seeded Markdown docs provider;
-- docs-list-ranked Markdown discovery when no explicit safe Markdown seed was supplied;
-- shared intake-safety membrane for caller and provider-discovered paths, default-deny dot-prefixed path segments, monorepo ancestor repoRoot acceptance only with a `.git` marker, boundary-aware provider/owner-surface matching, adaptive Markdown fences, and bounded one-line Markdown structural labels;
+- docs-list-ranked Markdown discovery when no explicit safe Markdown seed was supplied, including after unrelated unsafe seeds were omitted;
+- shared intake-safety membrane for caller and provider-discovered paths, default-deny dot-prefixed path segments, C0/C1/DEL control-character rejection, monorepo ancestor repoRoot acceptance only with a `.git` marker, boundary-aware provider/owner-surface matching, adaptive Markdown fences, and bounded one-line Markdown structural labels;
 - trusted-system-git status provider;
 - read-only SCI provider seam for caller-seeded code paths and symbols that refuses workflow execution unless SCI read-only safety is explicitly confirmed;
 - session/system-prompt-aware measurement and already-loaded dedupe;
 - primary Markdown packet output;
 - advisory owner-surface routing for authority-sensitive work without invoking those surfaces;
 - compact structured `details` that omit raw item content by default;
-- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, compact session awareness that omits raw context-usage objects and reports visibility from actual selected sections, planned-unwired provider omissions, packet-local utility recommendations, post-use dogfood follow-up scaffolds, public provider-failure omission details that omit raw subprocess error text, and redacted copy-ready observation templates that omit raw packet content, selected item paths, and raw omission details;
+- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, cumulative provider-local budget accounting, compact session awareness that omits raw context-usage objects and reports visibility from actual selected sections, planned-unwired provider omissions, packet-local utility recommendations, post-use dogfood follow-up scaffolds, public provider-failure omission details that omit raw subprocess error text, and redacted copy-ready observation templates that omit raw packet content, selected item paths, and raw omission details;
 - explicit omissions for planned-but-unwired provider seams.
 
 ## Product non-goals
@@ -122,14 +122,14 @@ A context packet is product-healthy only when:
 
 ## Current main gap
 
-The main remaining product gap is not another provider adapter; it is still a growing body of live usefulness proof under the stricter pre-provider safety membrane, now supported by redacted copy-ready packet-local observation templates. The dogfood export boundary is clearer: packet Markdown/details may show source-owned packet content for immediate use, but pasteable observation templates are receipt scaffolds only and must omit raw packet content, selected item paths, and raw omission details. The package now refuses artifact-prone SCI workflows unless read-only safety is explicitly confirmed, so current SCI output is usually an honest omission rather than a risky packet section. First dogfood receipts show both a useful packet and a `no_packet_needed` outcome in [Dogfood measurement receipts — 2026-05-22](2026-05-22-dogfood-measurement-receipts.md), but the next frontier is repeated receipts across implementation, review, and validation tasks that distinguish useful omissions from missing capability before ranking changes or new owner adapters are justified.
+The main remaining product gap is not another provider adapter; it is still a growing body of live usefulness proof under the stricter pre-provider safety and accounting membrane. The latest iteration clarified that packet truth must come from one selected/omitted accounting path: provider-local budgets are cumulative, docs-list discovery remains available after unrelated unsafe seed omission, and session visibility is receipt truth only when the section actually survives budget selection. The dogfood export boundary is clearer: packet Markdown/details may show source-owned packet content for immediate use, but pasteable observation templates are receipt scaffolds only and must omit raw packet content, selected item paths, raw session/context-usage objects, and raw omission details. The package now refuses artifact-prone SCI workflows unless read-only safety is explicitly confirmed, so current SCI output is usually an honest omission rather than a risky packet section. First dogfood receipts show useful packets, no-packet outcomes, and post-reload template checks in [Dogfood measurement receipts — 2026-05-22](2026-05-22-dogfood-measurement-receipts.md), but the next frontier is repeated receipts across implementation, review, and validation tasks that distinguish useful omissions from missing capability before ranking changes or new owner adapters are justified.
 
 ## Next product bets
 
 Near-term bets:
 
-- continue dogfooding `context_plan` / `context_pack` against real implementation and review tasks, recording whether packets reduced raw `read` / search / status churn under the stricter safety membrane, and treat the redacted observation template as the pasteable receipt while keeping full packet content local to the active turn;
-- before choosing more provider work, review whether accumulated receipts show ranking failures, provider availability failures, or simply correct omissions; wired provider outages should not be treated as planned-unwired adapter gaps;
+- continue dogfooding `context_plan` / `context_pack` against real implementation, review, and validation tasks, recording whether packets reduced raw `read` / search / status churn under the stricter safety/accounting membrane, and treat the redacted observation template as the pasteable receipt while keeping full packet content local to the active turn;
+- before choosing more provider work, review whether accumulated receipts show ranking failures, provider availability failures, accounting/omission mismatches, or simply correct omissions; wired provider outages should not be treated as planned-unwired adapter gaps;
 - decide whether SCI should gain a verified no-artifact/temp-workspace execution mode or remain omission-only by default before tuning SCI ranking;
 - tune docs/docs-list, AGENTS, git, and session-awareness ranking from accumulated receipts before adding new owner adapters;
 - preserve `no_packet_needed` as a success state when current prompt/session context is already sufficient;
