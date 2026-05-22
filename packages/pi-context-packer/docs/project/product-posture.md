@@ -49,9 +49,9 @@ The package should feel like a context advisory membrane: it helps decide what c
 
 ## Current maturity
 
-- maturity: `internal dogfood / hardened read-only MVP`
+- maturity: `internal dogfood / pre-provider safety hardened MVP`
 - current strategic line: keep `context_plan` cheap and always available, keep `context_pack` activatable, preserve Markdown-primary output, and use live dogfood receipts to prove ranking/utility before adding AK/FCOS/Prompt Vault adapters
-- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, docs-list path intake, Markdown fence injection, owner-surface false positives, unreadable files, symlink escapes, SCI artifact creation, compact details, budgets, and session dedupe; docs strict check passes
+- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, dot-prefixed/internal path intake, docs-list path intake, Markdown fence injection, owner-surface false positives, unreadable files, symlink escapes, missing workspace-root degradation, SCI workflow refusal until read-only safety is confirmed, compact details, budgets, fresh-vs-duplicate tool-call estimates, and session dedupe; docs list passes
 - release posture: package checks pass; package is installed locally into Pi; live activation is via toolbox `context-packer` bundle
 
 ## Current landed capability baseline
@@ -122,14 +122,15 @@ A context packet is product-healthy only when:
 
 ## Current main gap
 
-The main remaining product gap is not another provider adapter; it is a growing body of live usefulness proof. The package has hardened local safety and packet shape, and the first dogfood receipts now show both a useful packet and a `no_packet_needed` outcome in [Dogfood measurement receipts — 2026-05-22](2026-05-22-dogfood-measurement-receipts.md). It still needs repeated receipts across implementation, review, and validation tasks before ranking changes or new owner adapters are justified.
+The main remaining product gap is not another provider adapter; it is a growing body of live usefulness proof under the stricter pre-provider safety membrane. The package now refuses artifact-prone SCI workflows unless read-only safety is explicitly confirmed, so current SCI output is usually an honest omission rather than a risky packet section. First dogfood receipts show both a useful packet and a `no_packet_needed` outcome in [Dogfood measurement receipts — 2026-05-22](2026-05-22-dogfood-measurement-receipts.md), but the next frontier is repeated receipts across implementation, review, and validation tasks that distinguish useful omissions from missing capability before ranking changes or new owner adapters are justified.
 
 ## Next product bets
 
 Near-term bets:
 
-- continue dogfooding `context_plan` / `context_pack` against real implementation and review tasks, recording whether packets reduced raw `read` / search / status churn;
-- tune docs/docs-list, AGENTS, git, SCI, and session-awareness ranking from accumulated receipts before adding new owner adapters;
+- continue dogfooding `context_plan` / `context_pack` against real implementation and review tasks, recording whether packets reduced raw `read` / search / status churn under the stricter safety membrane;
+- decide whether SCI should gain a verified no-artifact/temp-workspace execution mode or remain omission-only by default before tuning SCI ranking;
+- tune docs/docs-list, AGENTS, git, and session-awareness ranking from accumulated receipts before adding new owner adapters;
 - preserve `no_packet_needed` as a success state when current prompt/session context is already sufficient;
 - add AK/FCOS read-only orientation only after the current output and docs/SCI/session slices stay stable under dogfood;
 - add Prompt Vault read-only procedure retrieval only through governed vault read surfaces and only after owner-routing remains non-executing;
