@@ -946,6 +946,7 @@ export function formatReviewOutcomes(outcomes) {
       lines.push(
         `- ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}; latest: ${item.latestSummary}`,
       );
+      lines.push(`  decision posture: ${formatDecisionPosture(item)}`);
       if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
       for (const followup of buildReviewOutcomeFollowupLines(item, outcomes.filters)) {
         lines.push(`  ${followup}`);
@@ -1010,6 +1011,7 @@ export function formatReviewComparison(comparison) {
       lines.push(
         `- ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}; latest: ${item.latestSummary}`,
       );
+      lines.push(`  decision posture: ${formatDecisionPosture(item)}`);
       lines.push(
         `  inspect: ${formatAgentVentCommand("review", "show", item.recurrenceKey)} [limit]`,
       );
@@ -1091,6 +1093,7 @@ export function formatReviewQueue(queue) {
     lines.push(
       `- [${item.reviewState}] ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}${facetText}; latest: ${item.latestSummary}`,
     );
+    lines.push(`  decision posture: ${formatDecisionPosture(item)}`);
     if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
     lines.push(`  human review hints: ${formatReviewGuidance(item)}`);
     lines.push(
@@ -1122,6 +1125,7 @@ export function formatReviewDetail(detail) {
   if (group.tags?.length) lines.push(`Tags: ${group.tags.join(", ")}`);
   if (group.tools?.length) lines.push(`Tools: ${group.tools.join(", ")}`);
   if (group.packages?.length) lines.push(`Packages: ${group.packages.join(", ")}`);
+  lines.push(`Decision posture: ${formatDecisionPosture(group)}`);
   if (group.reviewNote) lines.push(`Review note: ${group.reviewNote}`);
   lines.push(`Human review hints: ${formatReviewGuidance(group)}`);
   lines.push("", "Representative local samples:");
@@ -1638,6 +1642,7 @@ export function formatRetentionCandidates(candidates) {
     lines.push(
       `- [${item.reviewState}] ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, first=${item.firstSeen || "unknown"}, last=${item.lastSeen || "unknown"}${facetText}; latest: ${item.latestSummary}`,
     );
+    lines.push(`  decision posture: ${formatDecisionPosture(item)}`);
     if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
     lines.push(
       `  inspect: ${formatAgentVentCommand("review", "show", item.recurrenceKey)} [limit]`,
@@ -2335,14 +2340,56 @@ function buildReviewQueueItems(records, reviewEvents, curationEvents = []) {
   const allGroups = buildGroupSummaries(records, curationEvents);
   return allGroups.map((group) => {
     const latestReview = reviewStates.get(group.recurrenceKey);
+    const reviewState = latestReview?.state || "new";
     return {
       ...group,
-      reviewState: latestReview?.state || "new",
+      reviewState,
+      decisionPosture: buildDecisionPosture({ ...group, reviewState }),
       reviewedAt: latestReview?.createdAt,
       reviewNote: latestReview?.note,
       reviewEventId: latestReview?.id,
     };
   });
+}
+
+function buildDecisionPosture(group) {
+  const priority = group.candidateIncident ? "human_review_candidate" : "watch";
+  const state = group.reviewState || "new";
+  if (state === "new") {
+    return {
+      state: "needs_local_review",
+      priority,
+      summary:
+        "No local review decision has been recorded; choose acknowledge, dismiss, or draft locally before retention archive.",
+    };
+  }
+  if (state === "acknowledged") {
+    return {
+      state: "reviewed_retention_ready",
+      priority,
+      summary:
+        "Locally acknowledged; a human may export, draft, revisit, or preview local retention archive if useful.",
+    };
+  }
+  if (state === "dismissed") {
+    return {
+      state: "dismissed_retention_ready",
+      priority,
+      summary:
+        "Locally dismissed; a human may revisit, export, or preview local retention archive if useful.",
+    };
+  }
+  return {
+    state: "draft_recorded_owner_external",
+    priority,
+    summary:
+      "Draft status was recorded locally; any submitted work remains owned by the external owner system.",
+  };
+}
+
+function formatDecisionPosture(group) {
+  const posture = group.decisionPosture || buildDecisionPosture(group);
+  return `${posture.state}; priority=${posture.priority}; ${posture.summary} This is not resolution, assignment, evidence, publication, issue status, task truth, or incident state.`;
 }
 
 function formatReviewGuidance(group) {

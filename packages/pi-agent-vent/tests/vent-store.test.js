@@ -570,11 +570,17 @@ test("review detail expands curated groups with bounded redacted samples", () =>
   assert.equal(detail.recurrenceKey, first.recurrenceKey);
   assert.equal(detail.group.count, 2);
   assert.equal(detail.group.reviewState, "acknowledged");
+  assert.equal(detail.group.decisionPosture.state, "reviewed_retention_ready");
   assert.deepEqual(detail.group.categories, ["tool_failure", "workflow"]);
   assert.deepEqual(detail.group.tags, ["pi-tool", "reload"]);
   assert.equal(detail.samples.length, 2);
   const text = formatReviewDetail(detail);
   assert.match(text, /Requested key resolved through local curation/);
+  assert.match(text, /Decision posture: reviewed_retention_ready/);
+  assert.match(
+    text,
+    /not resolution, assignment, evidence, publication, issue status, task truth, or incident state/,
+  );
   assert.match(text, /Human review hints:/);
   assert.match(text, /incident_review draft may help a human decide/);
   assert.match(text, /maintainer_note draft may help package\/tool maintainers/);
@@ -635,7 +641,12 @@ test("review queue guidance hints remain advisory and authority-safe", () => {
     tool: "pi reload",
   });
 
-  const text = formatReviewQueue(summarizeReviewQueue([incident, workflow, toolOnly], []));
+  const queue = summarizeReviewQueue([incident, workflow, toolOnly], []);
+  assert.equal(queue.items[0].decisionPosture.priority, "human_review_candidate");
+  assert.equal(queue.items[0].decisionPosture.state, "needs_local_review");
+  const text = formatReviewQueue(queue);
+  assert.match(text, /decision posture: needs_local_review; priority=human_review_candidate/);
+  assert.match(text, /No local review decision has been recorded/);
   assert.match(text, /incident_review draft may help a human decide/);
   assert.match(text, /maintainer_note draft may help package\/tool maintainers/);
   assert.match(text, /github_issue draft may help/);
@@ -669,6 +680,7 @@ test("review queue next actions are state-aware and authority-safe", () => {
       [createReviewEvent({ recurrenceKey: record.recurrenceKey, state: "acknowledged" })],
     ),
   );
+  assert.match(reviewedQueueText, /decision posture: reviewed_retention_ready/);
   assert.match(reviewedQueueText, /optional local lifecycle: \/agent_vent retention preview/);
   assert.match(reviewedQueueText, /draft maintainer_note/);
   assert.doesNotMatch(
@@ -741,6 +753,9 @@ test("review outcomes bucket post-review follow-up without authority drift", () 
   assert.match(text, /acknowledged: 1 group/);
   assert.match(text, /dismissed: 1 group/);
   assert.match(text, /escalation_drafted: 1 group/);
+  assert.match(text, /decision posture: needs_local_review/);
+  assert.match(text, /decision posture: dismissed_retention_ready/);
+  assert.match(text, /decision posture: draft_recorded_owner_external/);
   assert.match(text, /seen token=\[REDACTED\] locally/);
   assert.match(text, /retention waits for local review/);
   assert.match(text, /optional local lifecycle: \/agent_vent retention preview/);
