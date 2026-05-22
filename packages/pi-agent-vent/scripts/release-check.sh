@@ -44,6 +44,9 @@ fi
 TEST_AGENT_DIR=""
 TEST_NPM_PREFIX=""
 TEST_NPM_CACHE=""
+ARTIFACT_NPM_PREFIX=""
+ARTIFACT_NPM_CACHE=""
+ARTIFACT_TOOL_VENT_DIR=""
 TARBALL_CHECK_DIR=""
 TARBALL_PATH=""
 cleanup() {
@@ -56,6 +59,15 @@ cleanup() {
     fi
     if [[ -n "$TEST_NPM_CACHE" && -d "$TEST_NPM_CACHE" ]]; then
       rm -rf "$TEST_NPM_CACHE"
+    fi
+    if [[ -n "$ARTIFACT_NPM_PREFIX" && -d "$ARTIFACT_NPM_PREFIX" ]]; then
+      rm -rf "$ARTIFACT_NPM_PREFIX"
+    fi
+    if [[ -n "$ARTIFACT_NPM_CACHE" && -d "$ARTIFACT_NPM_CACHE" ]]; then
+      rm -rf "$ARTIFACT_NPM_CACHE"
+    fi
+    if [[ -n "$ARTIFACT_TOOL_VENT_DIR" && -d "$ARTIFACT_TOOL_VENT_DIR" ]]; then
+      rm -rf "$ARTIFACT_TOOL_VENT_DIR"
     fi
     if [[ -n "$TARBALL_CHECK_DIR" && -d "$TARBALL_CHECK_DIR" ]]; then
       rm -rf "$TARBALL_CHECK_DIR"
@@ -80,6 +92,30 @@ tar -xzf "$TARBALL_PATH" -C "$TARBALL_CHECK_DIR"
   npm install --ignore-scripts --no-audit --fund=false
   npm run check
 )
+
+ARTIFACT_NPM_PREFIX="$(mktemp -d /tmp/pi-agent-vent-artifact-npm-prefix-XXXXXX)"
+ARTIFACT_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-artifact-npm-cache-XXXXXX)"
+ARTIFACT_TOOL_VENT_DIR="$(mktemp -d /tmp/pi-agent-vent-artifact-tool-store-XXXXXX)"
+ARTIFACT_PACKAGE_ROOT="$(npm --prefix "$ARTIFACT_NPM_PREFIX" root -g)/$NAME"
+
+case "$ARTIFACT_PACKAGE_ROOT" in
+  "$ARTIFACT_NPM_PREFIX"/*) ;;
+  *)
+    echo "Artifact package root escaped isolated npm prefix: $ARTIFACT_PACKAGE_ROOT" >&2
+    exit 1
+    ;;
+esac
+
+echo "== npm installed artifact registered-tool smoke (no Pi auth)"
+npm --prefix "$ARTIFACT_NPM_PREFIX" --cache "$ARTIFACT_NPM_CACHE" \
+  install --global --ignore-scripts --no-audit --fund=false "$TARBALL_PATH"
+node ./scripts/release-smoke-check.mjs assert-installed-artifact \
+  --package-root "$ARTIFACT_PACKAGE_ROOT" \
+  --package-name "$NAME" \
+  --package-version "$VERSION"
+node ./scripts/release-smoke-check.mjs assert-installed-tool-path \
+  --package-root "$ARTIFACT_PACKAGE_ROOT" \
+  --vent-dir "$ARTIFACT_TOOL_VENT_DIR"
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
@@ -110,6 +146,7 @@ else
   "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
   "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
   "enabledModels": ${PI_TEST_ENABLED_MODELS},
+  "npmCommand": ["npm", "--prefix", "${TEST_NPM_PREFIX}", "--cache", "${TEST_NPM_CACHE}"],
   "extensions": []
 }
 JSON

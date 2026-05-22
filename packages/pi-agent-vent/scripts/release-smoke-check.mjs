@@ -1,5 +1,7 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 export const readJsonFile = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 
@@ -134,13 +136,140 @@ export const assertAgentVentPathSmokeOutput = ({ output, ventDir }) => {
   }
 };
 
+const activeStoreArtifacts = (ventDir) => [
+  path.join(ventDir, "vents.jsonl"),
+  path.join(ventDir, "review-events.jsonl"),
+  path.join(ventDir, "curation-events.jsonl"),
+  path.join(ventDir, "retention-events.jsonl"),
+  path.join(ventDir, "backups"),
+];
+
+const findNodeModulesAncestor = (startPath) => {
+  let current = path.resolve(startPath);
+  while (current && current !== path.dirname(current)) {
+    if (path.basename(current) === "node_modules") return current;
+    current = path.dirname(current);
+  }
+  return undefined;
+};
+
+const createImportablePackageShadow = (packageRoot) => {
+  const resolvedPackageRoot = path.resolve(packageRoot);
+  const shadowParent = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-installed-shadow-"));
+  const shadowRoot = path.join(shadowParent, "package");
+  fs.cpSync(resolvedPackageRoot, shadowRoot, {
+    recursive: true,
+    filter: (sourcePath) => {
+      const relativePath = path.relative(resolvedPackageRoot, sourcePath);
+      return !relativePath.split(path.sep).includes("node_modules");
+    },
+  });
+
+  const packageNodeModules = path.join(packageRoot, "node_modules");
+  const dependencyRoot = fs.existsSync(packageNodeModules)
+    ? packageNodeModules
+    : findNodeModulesAncestor(packageRoot);
+  if (dependencyRoot) {
+    fs.symlinkSync(dependencyRoot, path.join(shadowRoot, "node_modules"), "dir");
+  }
+
+  return { shadowParent, shadowRoot };
+};
+
+export const executeInstalledArtifactToolPathSmoke = async ({ packageRoot, ventDir }) => {
+  if (!packageRoot || typeof packageRoot !== "string") {
+    throw new Error("packageRoot is required for installed tool smoke validation.");
+  }
+  if (!ventDir || typeof ventDir !== "string") {
+    throw new Error("ventDir is required for installed tool smoke validation.");
+  }
+
+  const installedExtensionPath = path.join(packageRoot, "extensions", "agent-vent.ts");
+  if (!fs.existsSync(installedExtensionPath)) {
+    throw new Error(`Installed agent_vent extension not found: ${installedExtensionPath}`);
+  }
+
+  const tools = new Map();
+  const commands = new Map();
+  const shadow = createImportablePackageShadow(packageRoot);
+  try {
+    const extensionPath = path.join(shadow.shadowRoot, "extensions", "agent-vent.ts");
+    const extensionModule = await import(pathToFileURL(extensionPath).href);
+    if (typeof extensionModule.default !== "function") {
+      throw new Error(
+        `Installed agent_vent extension has no default factory: ${installedExtensionPath}`,
+      );
+    }
+
+    extensionModule.default({
+      registerTool(tool) {
+        if (tool?.name) tools.set(tool.name, tool);
+      },
+      registerCommand(name, command) {
+        commands.set(name, command);
+      },
+    });
+  } finally {
+    fs.rmSync(shadow.shadowParent, { recursive: true, force: true });
+  }
+
+  const tool = tools.get("agent_vent");
+  if (!tool || typeof tool.execute !== "function") {
+    throw new Error("Installed agent_vent extension did not register executable agent_vent tool.");
+  }
+
+  const artifacts = activeStoreArtifacts(ventDir);
+  const existingArtifacts = new Set(
+    artifacts.filter((artifactPath) => fs.existsSync(artifactPath)),
+  );
+  const oldVentDir = process.env.PI_AGENT_VENT_DIR;
+  let result;
+  try {
+    process.env.PI_AGENT_VENT_DIR = ventDir;
+    result = await tool.execute(
+      "release-smoke-tool-path",
+      { action: "path" },
+      undefined,
+      undefined,
+      {
+        cwd: packageRoot,
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+  } finally {
+    if (oldVentDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldVentDir;
+  }
+
+  const output = result?.content?.[0]?.text;
+  if (typeof output !== "string") {
+    throw new Error("Installed agent_vent tool path smoke did not return text content.");
+  }
+
+  assertAgentVentPathSmokeOutput({ output, ventDir });
+
+  const createdArtifacts = artifacts.filter(
+    (artifactPath) => !existingArtifacts.has(artifactPath) && fs.existsSync(artifactPath),
+  );
+  if (createdArtifacts.length) {
+    throw new Error(
+      [
+        "Installed agent_vent tool path smoke created local store artifacts; action=path must stay no-store-read/no-store-write.",
+        ...createdArtifacts.map((artifactPath) => `Created: ${artifactPath}`),
+      ].join("\n"),
+    );
+  }
+
+  return { output, registeredCommandCount: commands.size };
+};
+
 const readArgValue = (args, name) => {
   const index = args.indexOf(name);
   if (index === -1) return undefined;
   return args[index + 1];
 };
 
-const runCli = () => {
+const runCli = async () => {
   const [command, ...args] = process.argv.slice(2);
 
   if (command === "assert-settings") {
@@ -183,14 +312,22 @@ const runCli = () => {
     return;
   }
 
+  if (command === "assert-installed-tool-path") {
+    const packageRoot = readArgValue(args, "--package-root");
+    const ventDir = readArgValue(args, "--vent-dir");
+    await executeInstalledArtifactToolPathSmoke({ packageRoot, ventDir });
+    console.log("Installed agent_vent registered-tool path smoke output OK.");
+    return;
+  }
+
   throw new Error(
-    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-installed-artifact|prepare-installed-artifact-settings|assert-command-output> ...",
+    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-installed-artifact|prepare-installed-artifact-settings|assert-command-output|assert-installed-tool-path> ...",
   );
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   try {
-    runCli();
+    await runCli();
   } catch (error) {
     console.error(error.message);
     process.exit(1);

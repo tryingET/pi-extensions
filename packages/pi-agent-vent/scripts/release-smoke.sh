@@ -34,12 +34,27 @@ trap cleanup EXIT
 
 SMOKE_DIR="$(mktemp -d /tmp/pi-agent-vent-release-smoke-XXXXXX)"
 SMOKE_VENT_DIR="$SMOKE_DIR/agent-vent-store"
+SMOKE_TOOL_VENT_DIR="$SMOKE_DIR/agent-vent-tool-store"
 SMOKE_OUTPUT="$SMOKE_DIR/agent-vent-path.out"
 PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
-GLOBAL_NODE_MODULES="$(npm root -g)"
+if [[ -n "${NPM_CONFIG_PREFIX:-}" ]]; then
+  GLOBAL_NODE_MODULES="$(npm --prefix "$NPM_CONFIG_PREFIX" root -g)"
+else
+  GLOBAL_NODE_MODULES="$(npm root -g)"
+fi
 INSTALLED_PACKAGE_ROOT="$GLOBAL_NODE_MODULES/$PACKAGE_NAME"
 INSTALLED_EXTENSION_PATH="$INSTALLED_PACKAGE_ROOT/extensions/agent-vent.ts"
+
+if [[ -n "${NPM_CONFIG_PREFIX:-}" ]]; then
+  case "$INSTALLED_PACKAGE_ROOT" in
+    "$NPM_CONFIG_PREFIX"/*) ;;
+    *)
+      echo "Installed package root escaped isolated npm prefix: $INSTALLED_PACKAGE_ROOT" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 node ./scripts/release-smoke-check.mjs assert-settings \
   --settings "$PI_CODING_AGENT_DIR/settings.json" \
@@ -64,4 +79,9 @@ node ./scripts/release-smoke-check.mjs assert-command-output \
   --output "$SMOKE_OUTPUT" \
   --vent-dir "$SMOKE_VENT_DIR"
 
-echo "release smoke done: installed artifact /agent_vent path command loads through package discovery from $INSTALLED_PACKAGE_ROOT."
+echo "== installed artifact agent_vent registered-tool path smoke"
+node ./scripts/release-smoke-check.mjs assert-installed-tool-path \
+  --package-root "$INSTALLED_PACKAGE_ROOT" \
+  --vent-dir "$SMOKE_TOOL_VENT_DIR"
+
+echo "release smoke done: installed artifact /agent_vent path command loads through package discovery and agent_vent tool path executes from $INSTALLED_PACKAGE_ROOT."

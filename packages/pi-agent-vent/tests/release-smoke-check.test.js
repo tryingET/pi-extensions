@@ -8,6 +8,7 @@ import {
   assertInstalledArtifactPackage,
   assertPackageSpecInstalled,
   buildInstalledArtifactSettings,
+  executeInstalledArtifactToolPathSmoke,
   packageSourcesFromSettings,
 } from "../scripts/release-smoke-check.mjs";
 
@@ -129,6 +130,50 @@ test("release smoke command output check accepts isolated agent vent path output
     assert.doesNotThrow(() => assertAgentVentPathSmokeOutput({ output, ventDir: dir }));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("release smoke installed registered-tool path stays isolated and does not read active stores", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-tool-smoke-"));
+  try {
+    const unsafeTarget = path.join(dir, "unsafe-target.jsonl");
+    fs.writeFileSync(unsafeTarget, "", "utf8");
+    fs.symlinkSync(unsafeTarget, path.join(dir, "vents.jsonl"));
+
+    const result = await executeInstalledArtifactToolPathSmoke({
+      packageRoot: process.cwd(),
+      ventDir: dir,
+    });
+
+    assert.match(result.output, /Agent vent store:/);
+    assert.match(result.output, /not tasks, issues, incidents, evidence/);
+    assert.equal(fs.lstatSync(path.join(dir, "vents.jsonl")).isSymbolicLink(), true);
+    assert.equal(fs.existsSync(path.join(dir, "review-events.jsonl")), false);
+    assert.equal(fs.existsSync(path.join(dir, "curation-events.jsonl")), false);
+    assert.equal(fs.existsSync(path.join(dir, "retention-events.jsonl")), false);
+    assert.equal(fs.existsSync(path.join(dir, "backups")), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("release smoke installed registered-tool path fails closed when tool is not registered", async () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-no-tool-"));
+  const ventDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-no-tool-store-"));
+  try {
+    fs.mkdirSync(path.join(packageRoot, "extensions"));
+    fs.writeFileSync(
+      path.join(packageRoot, "extensions", "agent-vent.ts"),
+      "export default function(pi) { pi.registerCommand('agent_vent', { handler() {} }); }\n",
+    );
+
+    await assert.rejects(
+      () => executeInstalledArtifactToolPathSmoke({ packageRoot, ventDir }),
+      /did not register executable agent_vent tool/,
+    );
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+    fs.rmSync(ventDir, { recursive: true, force: true });
   }
 });
 
