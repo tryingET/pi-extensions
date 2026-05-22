@@ -456,6 +456,11 @@ test("review queue filters by local facets without owner-routing claims", () => 
     { id: "v2" },
   );
 
+  assert.throws(
+    () => summarizeReviewQueue([reload, docs], [], { filters: { category: "bgu" } }),
+    /invalid agent_vent review filter category/,
+  );
+
   const queue = summarizeReviewQueue([reload, docs], [], {
     filters: {
       category: "tool-failure",
@@ -584,6 +589,24 @@ test("review detail expands curated groups with bounded redacted samples", () =>
   assert.doesNotMatch(text, /filed|declared|owner was assigned/);
 });
 
+test("review output quotes generated commands for legacy recurrence keys", () => {
+  const legacy = {
+    ...createVentRecord({ summary: "Legacy key with spaces", category: "bug" }),
+    recurrenceKey: 'bug:legacy key "quoted"',
+  };
+
+  const queueText = formatReviewQueue(summarizeReviewQueue([legacy], []));
+  assert.match(queueText, /review show "bug:legacy key \\"quoted\\""/);
+  assert.match(queueText, /review set acknowledged "bug:legacy key \\"quoted\\""/);
+  assert.match(queueText, /draft github_issue "bug:legacy key \\"quoted\\""/);
+
+  const detailText = formatReviewDetail(
+    buildReviewDetail({ recurrenceKey: legacy.recurrenceKey, records: [legacy] }),
+  );
+  assert.match(detailText, /review set dismissed "bug:legacy key \\"quoted\\""/);
+  assert.match(detailText, /draft maintainer_note "bug:legacy key \\"quoted\\""/);
+});
+
 test("review queue guidance hints remain advisory and authority-safe", () => {
   const incident = createVentRecord({
     summary: "Critical package bug",
@@ -597,8 +620,14 @@ test("review queue guidance hints remain advisory and authority-safe", () => {
     category: "documentation",
     recurrenceKey: "workflow-docs",
   });
+  const toolOnly = createVentRecord({
+    summary: "Tool-only reload issue",
+    category: "workflow",
+    recurrenceKey: "tool-only",
+    tool: "pi reload",
+  });
 
-  const text = formatReviewQueue(summarizeReviewQueue([incident, workflow], []));
+  const text = formatReviewQueue(summarizeReviewQueue([incident, workflow, toolOnly], []));
   assert.match(text, /incident_review draft may help a human decide/);
   assert.match(text, /maintainer_note draft may help package\/tool maintainers/);
   assert.match(text, /github_issue draft may help/);

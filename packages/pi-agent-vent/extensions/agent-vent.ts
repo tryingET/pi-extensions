@@ -655,6 +655,11 @@ function handleCommand(args: string) {
     return formatPath(storePath, reviewPath, curationPath, retentionPath, backupDir);
   }
 
+  if (action === "review") {
+    const syntaxError = reviewListSyntaxError(tokens.slice(1));
+    if (syntaxError) return syntaxError;
+  }
+
   const state = loadDiagnosticState({
     storePath,
     reviewPath,
@@ -754,9 +759,8 @@ function handleReviewCommand(
   }
 
   const parsed = parseReviewListTokens(tokens);
-  if (parsed.unknownFilters.length) {
-    return `Unknown /agent_vent review filter(s): ${parsed.unknownFilters.join(", ")}\nUsage: /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]`;
-  }
+  const syntaxError = reviewListSyntaxError(tokens, parsed);
+  if (syntaxError) return syntaxError;
   const normalizedState =
     parsed.state && parsed.state !== "all" ? normalizeReviewState(parsed.state) : parsed.state;
   const queue = summarizeReviewQueue(records, reviewEvents, {
@@ -768,10 +772,27 @@ function handleReviewCommand(
   return formatReviewQueue(queue);
 }
 
+function reviewListSyntaxError(tokens: string[], parsed = parseReviewListTokens(tokens)) {
+  if (tokens[0] === "show" || tokens[0] === "set") return undefined;
+  const usage =
+    "Usage: /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
+  if (parsed.unknownFilters.length) {
+    return `Unknown /agent_vent review filter(s): ${parsed.unknownFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.invalidFilters.length) {
+    return `Invalid /agent_vent review filter value(s): ${parsed.invalidFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.invalidState) {
+    return `Invalid /agent_vent review state: ${parsed.invalidState}\n${usage}`;
+  }
+  return undefined;
+}
+
 function parseReviewListTokens(tokens: string[]) {
   const filters: { category?: string; tag?: string; tool?: string; packageName?: string } = {};
   const tags: string[] = [];
   const unknownFilters: string[] = [];
+  const invalidFilters: string[] = [];
   let state: string | undefined;
   let limit: string | undefined;
   for (const token of tokens) {
@@ -780,8 +801,11 @@ function parseReviewListTokens(tokens: string[]) {
       const key = token.slice(0, separatorIndex).trim().toLowerCase().replaceAll("-", "_");
       const value = token.slice(separatorIndex + 1).trim();
       if (!value) continue;
-      if (key === "category") filters.category = value;
-      else if (key === "tool") filters.tool = value;
+      if (key === "category") {
+        const normalizedCategory = value.toLowerCase().replaceAll("-", "_");
+        if (CATEGORIES.includes(normalizedCategory)) filters.category = normalizedCategory;
+        else invalidFilters.push(`category=${value}`);
+      } else if (key === "tool") filters.tool = value;
       else if (key === "package" || key === "package_name" || key === "packagename") {
         filters.packageName = value;
       } else if (key === "tag" || key === "tags") {
@@ -802,7 +826,19 @@ function parseReviewListTokens(tokens: string[]) {
     }
     if (!state) state = token;
   }
-  return { state, limit, filters: tags.length ? { ...filters, tags } : filters, unknownFilters };
+  const normalizedState = state?.toLowerCase().replaceAll("-", "_");
+  const invalidState =
+    normalizedState && normalizedState !== "all" && !REVIEW_STATES.includes(normalizedState)
+      ? state
+      : undefined;
+  return {
+    state: normalizedState,
+    limit,
+    filters: tags.length ? { ...filters, tags } : filters,
+    unknownFilters,
+    invalidFilters,
+    invalidState,
+  };
 }
 
 function handleCurateCommand(

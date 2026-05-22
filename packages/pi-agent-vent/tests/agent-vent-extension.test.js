@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import agentVentExtension from "../extensions/agent-vent.ts";
+import { createVentRecord, readReviewEvents } from "../src/vent-store.js";
 
 function createMockPi() {
   const tools = new Map();
@@ -327,10 +328,49 @@ test("agent_vent command rejects unknown review filter keys without creating sto
   process.env.PI_AGENT_VENT_DIR = dir;
   console.log = (message) => messages.push(String(message));
   try {
+    const unsafeTarget = path.join(dir, "unsafe-target.jsonl");
+    fs.writeFileSync(unsafeTarget, "", "utf8");
+    fs.symlinkSync(unsafeTarget, path.join(dir, "vents.jsonl"));
     await pi.commands.get("agent_vent").handler("review owner=github", { hasUI: false });
     assert.match(messages[0], /Unknown \/agent_vent review filter\(s\): owner/);
     assert.match(messages[0], /category=bug/);
-    assert.equal(fs.existsSync(path.join(dir, "vents.jsonl")), false);
+    assert.doesNotMatch(messages[0], /symlink/);
+    await pi.commands.get("agent_vent").handler("review category=bgu", { hasUI: false });
+    assert.match(messages[1], /Invalid \/agent_vent review filter value\(s\): category=bgu/);
+  } finally {
+    console.log = oldLog;
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent command round-trips quoted legacy recurrence keys", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-legacy-key-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  const oldLog = console.log;
+  const messages = [];
+  process.env.PI_AGENT_VENT_DIR = dir;
+  console.log = (message) => messages.push(String(message));
+  try {
+    const legacy = {
+      ...createVentRecord({ summary: "Legacy spaced key", category: "bug" }),
+      recurrenceKey: 'bug:legacy key "quoted"',
+    };
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "vents.jsonl"), `${JSON.stringify(legacy)}\n`, "utf8");
+    await pi.commands
+      .get("agent_vent")
+      .handler('review set acknowledged "bug:legacy key \\"quoted\\"" seen locally', {
+        hasUI: false,
+      });
+    assert.match(messages[0], /Set local review state/);
+    assert.equal(
+      readReviewEvents(path.join(dir, "review-events.jsonl")).events[0].recurrenceKey,
+      legacy.recurrenceKey,
+    );
   } finally {
     console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;

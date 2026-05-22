@@ -117,8 +117,8 @@ Important behavior:
 - candidate incident flagging is local and advisory.
 - `tool` and `packageName` are optional caller-supplied local diagnostic facets, not owner-routing truth.
 - `facets` is read-only and summarizes local labels; it never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
-- `review` facet filters are read-only local diagnostic focus aids; they do not assign owners, route work, mutate owner surfaces, or change review state.
-- `review` queue/detail output may show advisory human-review hints plus exact next-action commands for local review states, draft-only handoff targets, and retention preview eligibility; these are UX guidance only and do not route, submit, file, create, declare, assign owners, record evidence, publish, or mutate owner systems.
+- `review` facet filters are read-only local diagnostic focus aids; they fail closed for unknown filter keys and invalid category values, and they do not assign owners, route work, mutate owner surfaces, or change review state.
+- `review` queue/detail output may show advisory human-review hints plus exact next-action commands for local review states, draft-only handoff targets, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths for legacy key safety. These are UX guidance only and do not route, submit, file, create, declare, assign owners, record evidence, publish, or mutate owner systems.
 - `set_review` requires an existing recurrence group and never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it includes local diagnostic facets when present, returns text only, and never submits, files, declares, records evidence, assigns owners, or changes review state automatically.

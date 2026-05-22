@@ -835,7 +835,9 @@ export function formatReviewQueue(queue) {
     );
     if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
     lines.push(`  human review hints: ${formatReviewGuidance(item)}`);
-    lines.push(`  inspect: /agent_vent review show ${item.recurrenceKey} [limit]`);
+    lines.push(
+      `  inspect: ${formatAgentVentCommand("review", "show", item.recurrenceKey)} [limit]`,
+    );
     for (const nextAction of buildReviewNextActionLines(item, { compact: true })) {
       lines.push(`  ${nextAction}`);
     }
@@ -1193,11 +1195,11 @@ export function formatRetentionPreview(preview) {
   if (preview.archivable) {
     lines.push(
       `Confirmation token: ${preview.confirmationToken}`,
-      `Next: /agent_vent retention archive ${preview.recurrenceKey} ${preview.confirmationToken} [note]`,
+      `Next: ${formatAgentVentCommand("retention", "archive", preview.recurrenceKey, preview.confirmationToken)} [note]`,
     );
   } else {
     lines.push(
-      `Next: /agent_vent review set acknowledged ${preview.recurrenceKey} [note] before archiving.`,
+      `Next: ${formatAgentVentCommand("review", "set", "acknowledged", preview.recurrenceKey)} [note] before archiving.`,
     );
   }
   for (const sample of preview.samples || []) {
@@ -1211,7 +1213,7 @@ export function formatRetentionArchiveResult(result) {
     `Archived ${result.archivedRecordCount} local diagnostic record(s) from ${result.recurrenceKey}.`,
     `Backup: ${result.backupPath}`,
     `Restore token: ${result.restoreConfirmationToken}`,
-    `Next rollback: /agent_vent retention restore ${quoteCommandArg(result.backupPath)} ${result.restoreConfirmationToken}`,
+    `Next rollback: ${formatAgentVentCommand("retention", "restore", result.backupPath, result.restoreConfirmationToken)}`,
     `Boundary: ${result.boundary}`,
   ].join("\n");
 }
@@ -1290,7 +1292,7 @@ export function formatEscalationDraftText(draft) {
     "",
     `Boundary: ${draft.boundary}`,
     "Next action: a human may copy/edit this text into the owner system after review.",
-    `Optional local follow-up: /agent_vent review set escalation_drafted ${draft.recurrenceKey}`,
+    `Optional local follow-up: ${formatAgentVentCommand("review", "set", "escalation_drafted", draft.recurrenceKey)}`,
     "",
     `Title: Investigate recurring agent friction: ${draft.recurrenceKey}`,
     "",
@@ -1840,7 +1842,7 @@ function formatReviewGuidance(group) {
       "incident_review draft may help a human decide whether this is operationally significant",
     );
   }
-  if ((group.packages || []).length) {
+  if ((group.packages || []).length || (group.tools || []).length) {
     hints.push(
       "maintainer_note draft may help package/tool maintainers inspect local diagnostic facets",
     );
@@ -1871,28 +1873,43 @@ function buildReviewNextActionLines(group, options = {}) {
   const state = group.reviewState || "new";
   const prefix = options.compact ? "next:" : "Set local review state:";
   const lines = [
-    `${prefix} /agent_vent review set acknowledged ${key} [note] | /agent_vent review set dismissed ${key} [note] | /agent_vent review set escalation_drafted ${key} [note]`,
+    `${prefix} ${formatAgentVentCommand("review", "set", "acknowledged", key)} [note] | ${formatAgentVentCommand("review", "set", "dismissed", key)} [note] | ${formatAgentVentCommand("review", "set", "escalation_drafted", key)} [note]`,
   ];
   if (state === "new") {
     lines.push(
       "review first before local retention archive; drafts are still draft-only and require human owner-system action",
     );
   } else {
-    lines.push(`optional local lifecycle: /agent_vent retention preview ${key}`);
+    lines.push(`optional local lifecycle: ${formatAgentVentCommand("retention", "preview", key)}`);
   }
   lines.push(
-    `draft-only handoff options: /agent_vent draft github_issue ${key} | /agent_vent draft ak_task ${key} | /agent_vent draft incident_review ${key} | /agent_vent draft maintainer_note ${key}`,
+    `draft-only handoff options: ${formatAgentVentCommand("draft", "github_issue", key)} | ${formatAgentVentCommand("draft", "ak_task", key)} | ${formatAgentVentCommand("draft", "incident_review", key)} | ${formatAgentVentCommand("draft", "maintainer_note", key)}`,
     "boundary: draft commands only generate local text; they do not file, create, declare, assign, record evidence, publish, or mutate owner systems",
   );
   return lines;
 }
 
+function formatAgentVentCommand(...args) {
+  return `/agent_vent ${args.map((arg) => quoteCommandArg(arg)).join(" ")}`;
+}
+
 function normalizeReviewFilters(input = {}) {
-  const category = input?.category === undefined ? undefined : normalizeCategory(input.category);
+  const category = normalizeReviewFilterCategory(input?.category);
   const tool = sanitizeFacetText(input?.tool || input?.toolName, 160).value;
   const packageName = sanitizeFacetText(input?.packageName || input?.package, 200).value;
   const tags = sanitizeReviewFilterTags(input?.tags || input?.tag);
   return removeUndefined({ category, tool, packageName, tags });
+}
+
+function normalizeReviewFilterCategory(value) {
+  if (value === undefined) return undefined;
+  const normalized = String(value).trim().toLowerCase().replaceAll("-", "_");
+  if (!CATEGORIES.includes(normalized)) {
+    throw new Error(
+      `invalid agent_vent review filter category: ${value}; expected one of ${CATEGORIES.join(", ")}`,
+    );
+  }
+  return normalized;
 }
 
 function sanitizeReviewFilterTags(value) {
