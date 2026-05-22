@@ -13,6 +13,12 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.1.2] - 2026-05-22
+
+### Fixed
+
+- Hardened extension load so review-state command schema construction has a local fallback if the Pi extension loader sees a stale `REVIEW_STATES` import during reload.
+
 ## [0.1.1] - 2026-05-22
 
 ### Changed
