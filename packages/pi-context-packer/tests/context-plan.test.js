@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,6 +8,11 @@ import {
   CONTEXT_PLAN_PARAMETERS,
   formatContextPlan,
 } from "../src/context-plan.js";
+
+const writeGitMarker = async (root) => {
+  await mkdir(join(root, ".git"), { recursive: true });
+  await writeFile(join(root, ".git", "HEAD"), "ref: refs/heads/main\n", "utf8");
+};
 
 test("context_plan requires an objective", () => {
   const plan = buildContextPlan({});
@@ -90,7 +95,7 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
   for (const providerPlan of plan.providerPlans) {
     for (const query of providerPlan.proposedQueries) {
       assert.deepEqual(query.seeds, [
-        { kind: "path", value: "src/context-plan.js" },
+        { kind: "path", value: "packages/pi-context-packer/src/context-plan.js" },
         { kind: "symbol", value: "targetSymbol" },
       ]);
     }
@@ -151,7 +156,7 @@ test("context_plan uses process cwd as trust anchor when env cwd is unavailable"
 test("context_plan accepts a git repoRoot ancestor of the trusted package cwd", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-plan-root-"));
   const packageCwd = join(root, "packages", "pkg");
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(packageCwd, { recursive: true });
 
   const plan = buildContextPlan(
@@ -174,7 +179,7 @@ test("context_plan accepts a git repoRoot ancestor of the trusted package cwd", 
 test("context_plan infers nearest ancestor git repoRoot from trusted package cwd", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-plan-inferred-root-"));
   const packageCwd = join(root, "packages", "pkg");
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(packageCwd, { recursive: true });
 
   const plan = buildContextPlan(
@@ -210,6 +215,47 @@ test("context_plan does not infer broad ancestors without a git marker", async (
   assert.equal(plan.repoRoot, undefined);
 });
 
+test("context_plan does not infer repoRoot from arbitrary dot-git files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-fake-git-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(packageCwd, { recursive: true });
+  await writeFile(join(root, ".git"), "not a gitdir\n", "utf8");
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan monorepo package context",
+      cwd: packageCwd,
+    },
+    { cwd: packageCwd },
+  );
+
+  assert.equal(plan.cwd, packageCwd);
+  assert.equal(plan.repoRoot, undefined);
+});
+
+test("context_plan rebases cwd-relative path seeds to an inferred repoRoot", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-rebase-seed-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await writeGitMarker(root);
+  await mkdir(join(packageCwd, "docs"), { recursive: true });
+  await writeFile(join(packageCwd, "docs", "vision.md"), "# Vision\n", "utf8");
+
+  const plan = buildContextPlan(
+    {
+      objective: "Read package-local docs",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: "docs/vision.md" }],
+    },
+    { cwd: packageCwd },
+  );
+
+  const docsPlan = plan.providerPlans.find((providerPlan) => providerPlan.provider === "docs");
+  assert.equal(plan.repoRoot, root);
+  assert.deepEqual(docsPlan.proposedQueries[0].seeds, [
+    { kind: "path", value: "packages/pkg/docs/vision.md" },
+  ]);
+});
+
 test("context_plan rejects broad ancestor repoRoot values without a git marker", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-plan-broad-"));
   const packageCwd = join(root, "packages", "pkg");
@@ -234,7 +280,7 @@ test("context_plan rejects unrelated repoRoot values even when they have a git m
   const unrelatedRoot = await mkdtemp(join(tmpdir(), "pi-context-plan-unrelated-"));
   const packageCwd = join(trustedRoot, "packages", "pkg");
   await mkdir(packageCwd, { recursive: true });
-  await mkdir(join(unrelatedRoot, ".git"), { recursive: true });
+  await writeGitMarker(unrelatedRoot);
 
   const plan = buildContextPlan(
     {
@@ -254,7 +300,7 @@ test("context_plan rejects cwd values outside an accepted ancestor repoRoot", as
   const root = await mkdtemp(join(tmpdir(), "pi-context-plan-root-"));
   const outside = await mkdtemp(join(tmpdir(), "pi-context-plan-outside-"));
   const packageCwd = join(root, "packages", "pkg");
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(packageCwd, { recursive: true });
 
   const plan = buildContextPlan(

@@ -16,6 +16,11 @@ const makeWorkspace = async () => {
   return root;
 };
 
+const writeGitMarker = async (root) => {
+  await mkdir(join(root, ".git"), { recursive: true });
+  await writeFile(join(root, ".git", "HEAD"), "ref: refs/heads/main\n", "utf8");
+};
+
 const sciStdout = (value) =>
   JSON.stringify({
     content: [{ type: "text", text: JSON.stringify(value) }],
@@ -285,7 +290,7 @@ test("context_pack refuses existing SCI artifacts even when bypass flag is set",
 test("context_pack refuses ancestor repoRoot SCI artifacts from package cwd when repoRoot is omitted", async () => {
   const root = await makeWorkspace();
   const packageCwd = join(root, "packages", "pkg");
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(join(root, ".ontology"));
   await mkdir(packageCwd, { recursive: true });
   const calls = [];
@@ -305,6 +310,114 @@ test("context_pack refuses ancestor repoRoot SCI artifacts from package cwd when
   );
 
   assert.equal(result.ok, true);
+  assert.equal(result.packet.repoRoot, root);
+  assert.equal(calls.length, 0);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "sci" && omission.detail.includes("existing .ontology"),
+    ),
+  );
+});
+
+test("context_pack reads repo-root-relative SCI path seeds from package cwd", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  const repoRelativePath = "packages/pkg/src/example.js";
+  await writeGitMarker(root);
+  await mkdir(join(packageCwd, "src"), { recursive: true });
+  await writeFile(
+    join(packageCwd, "src", "example.js"),
+    "export const packageTarget = 1;\n",
+    "utf8",
+  );
+  const calls = [];
+  const fakeExec = async (_command, args, options) => {
+    calls.push({ args, cwd: options.cwd });
+    return {
+      stdout: sciStdout({
+        path: repoRelativePath,
+        content: "export const packageTarget = 1;\n",
+      }),
+    };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: repoRelativePath }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  const sci = result.packet.sections.find((section) => section.provider === "sci");
+  assert.equal(result.packet.repoRoot, root);
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.parse(calls[0].args[3]).path, repoRelativePath);
+  assert.equal(sci.items[0].content, "export const packageTarget = 1;\n");
+});
+
+test("context_pack rebases cwd-relative SCI path seeds after repoRoot inference", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await writeGitMarker(root);
+  await mkdir(join(packageCwd, "src"), { recursive: true });
+  await writeFile(join(packageCwd, "src", "local.js"), "export const localTarget = 1;\n", "utf8");
+  const calls = [];
+  const fakeExec = async (_command, args, options) => {
+    calls.push({ args, cwd: options.cwd });
+    return {
+      stdout: sciStdout({
+        path: "packages/pkg/src/local.js",
+        content: "export const localTarget = 1;\n",
+      }),
+    };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: "src/local.js" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  const sci = result.packet.sections.find((section) => section.provider === "sci");
+  assert.equal(result.packet.repoRoot, root);
+  assert.equal(JSON.parse(calls[0].args[3]).path, "packages/pkg/src/local.js");
+  assert.equal(sci.items[0].content, "export const localTarget = 1;\n");
+});
+
+test("context_pack refuses intermediate ancestor SCI artifacts from package cwd", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await writeGitMarker(root);
+  await mkdir(join(root, "packages", ".ontology"), { recursive: true });
+  await mkdir(packageCwd, { recursive: true });
+  await writeFile(join(packageCwd, "file.js"), "export const x = 1;\n", "utf8");
+  const calls = [];
+  const fakeExec = async () => {
+    calls.push("called");
+    return { stdout: sciStdout({ content: "should not run" }) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: "file.js" }],
+      providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
   assert.equal(result.packet.repoRoot, root);
   assert.equal(calls.length, 0);
   assert.equal(
@@ -537,7 +650,7 @@ test("context_pack blocks symlink-escaped SCI path seeds before sandbox executio
 test("context_pack refuses repoRoot SCI artifacts from package cwd", async () => {
   const root = await makeWorkspace();
   const packageCwd = join(root, "packages", "pkg");
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(join(root, ".ontology"), { recursive: true });
   await mkdir(join(packageCwd, "src"), { recursive: true });
   await writeFile(

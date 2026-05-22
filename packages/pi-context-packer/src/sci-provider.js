@@ -145,8 +145,30 @@ const sameFileSnapshot = (left, right) =>
   left.mtimeNs === right.mtimeNs &&
   left.ctimeNs === right.ctimeNs;
 
+const ancestorRootsBetween = ({ cwd, repoRoot }) => {
+  const roots = [];
+  const sourceCwd = resolve(cwd);
+  const sourceRepoRoot = repoRoot ? resolve(repoRoot) : undefined;
+  if (!sourceRepoRoot || !isInside(sourceRepoRoot, sourceCwd)) return [sourceCwd];
+
+  let current = sourceCwd;
+  while (true) {
+    roots.push(current);
+    if (current === sourceRepoRoot) break;
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return roots;
+};
+
 const artifactPaths = ({ cwd, repoRoot, sandboxRoot }) =>
-  unique([cwd, repoRoot, sandboxRoot].map((root) => root && resolve(root, ".ontology")));
+  unique(
+    [
+      ...ancestorRootsBetween({ cwd, repoRoot }),
+      sandboxRoot ? resolve(sandboxRoot) : undefined,
+    ].map((root) => root && resolve(root, ".ontology")),
+  );
 
 const firstExistingArtifact = async (paths) => {
   for (const path of paths) {
@@ -214,14 +236,14 @@ const safeCopyPathSeed = async ({ sourceRoot, sandboxRoot, pathSeed }) => {
   }
 };
 
-const setupSciSandbox = async ({ cwd, pathSeeds }) => {
+const setupSciSandbox = async ({ sourceRoot, pathSeeds }) => {
   const sandboxRoot = await mkdtemp(join(tmpdir(), "pi-context-packer-sci-"));
   const copiedPaths = [];
   const omissions = [];
 
   for (const pathSeed of pathSeeds) {
     try {
-      const result = await safeCopyPathSeed({ sourceRoot: cwd, sandboxRoot, pathSeed });
+      const result = await safeCopyPathSeed({ sourceRoot, sandboxRoot, pathSeed });
       if (result.ok) copiedPaths.push(result.path);
       else omissions.push({ provider: "sci", reason: "unsafe_path", detail: result.omission });
     } catch {
@@ -286,7 +308,10 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
 
   let sandbox;
   try {
-    sandbox = await setupSciSandbox({ cwd: sourceCwd, pathSeeds: pathSeedsForSci(seeds) });
+    sandbox = await setupSciSandbox({
+      sourceRoot: sourceRepoRoot ?? sourceCwd,
+      pathSeeds: pathSeedsForSci(seeds),
+    });
   } catch {
     return sandboxSetupFailure();
   }

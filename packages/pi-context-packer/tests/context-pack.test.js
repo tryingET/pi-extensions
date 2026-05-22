@@ -24,6 +24,11 @@ const makeWorkspace = async () => {
   return root;
 };
 
+const writeGitMarker = async (root) => {
+  await mkdir(join(root, ".git"), { recursive: true });
+  await writeFile(join(root, ".git", "HEAD"), "ref: refs/heads/main\n", "utf8");
+};
+
 test("context_pack assembles AGENTS and seeded Markdown without mutating providers", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({
@@ -252,7 +257,7 @@ test("context_pack treats uppercase Markdown seeds as docs", async () => {
 
 test("context_pack preserves loader-style AGENTS order", async () => {
   const root = await makeWorkspace();
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(join(root, "packages", "pkg"), { recursive: true });
   await writeFile(join(root, "packages", "pkg", "AGENTS.md"), "# Package AGENTS\n", "utf8");
 
@@ -273,7 +278,7 @@ test("context_pack preserves loader-style AGENTS order", async () => {
 test("context_pack accepts a git-root ancestor repoRoot from a package cwd", async () => {
   const root = await makeWorkspace();
   const packageCwd = join(root, "packages", "pkg");
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(packageCwd, { recursive: true });
   await writeFile(join(packageCwd, "AGENTS.md"), "# Package AGENTS\n", "utf8");
 
@@ -303,7 +308,7 @@ test("context_pack accepts a git-root ancestor repoRoot from a package cwd", asy
 test("context_pack infers git-root ancestor from package cwd when repoRoot is omitted", async () => {
   const root = await makeWorkspace();
   const packageCwd = join(root, "packages", "pkg");
-  await mkdir(join(root, ".git"), { recursive: true });
+  await writeGitMarker(root);
   await mkdir(packageCwd, { recursive: true });
   await writeFile(join(packageCwd, "AGENTS.md"), "# Package AGENTS\n", "utf8");
 
@@ -323,6 +328,55 @@ test("context_pack infers git-root ancestor from package cwd when repoRoot is om
     agents.items.map((item) => item.provenance.path),
     ["AGENTS.md", "packages/pkg/AGENTS.md"],
   );
+});
+
+test("context_pack rebases cwd-relative docs seeds after repoRoot inference", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await writeGitMarker(root);
+  await mkdir(join(packageCwd, "docs", "project"), { recursive: true });
+  await writeFile(join(packageCwd, "docs", "project", "vision.md"), "# Package Vision\n", "utf8");
+
+  const result = await buildContextPacket(
+    {
+      objective: "Read package-local docs",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: "docs/project/vision.md" }],
+      providers: { agents: "off", git: "off", sci: "off", docs: "required" },
+    },
+    { cwd: packageCwd },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(result.packet.repoRoot, root);
+  assert.equal(docs.items[0].provenance.path, "packages/pkg/docs/project/vision.md");
+  assert.match(docs.items[0].content, /Package Vision/);
+});
+
+test("context_pack runs git status at repoRoot after package-cwd inference", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await writeGitMarker(root);
+  await mkdir(packageCwd, { recursive: true });
+  const calls = [];
+  const fakeExec = async (_command, _args, options) => {
+    calls.push(options.cwd);
+    return { stdout: " M packages/pkg/file.js\n" };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Check git status before implementation",
+      cwd: packageCwd,
+      providers: { agents: "off", docs: "off", sci: "off", git: "required" },
+    },
+    { cwd: packageCwd, execFileAsync: fakeExec },
+  );
+
+  const git = result.packet.sections.find((section) => section.provider === "git");
+  assert.deepEqual(calls, [root]);
+  assert.match(git.items[0].content, /packages\/pkg\/file\.js/);
+  assert.doesNotMatch(git.items[0].content, /\.\.\//);
 });
 
 test("context_pack records planned provider omissions and owner routes for selected unwired providers", async () => {

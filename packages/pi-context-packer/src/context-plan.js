@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
   hasControlCharacter,
@@ -162,9 +162,17 @@ const pathIsInside = (root, candidate) => {
 };
 
 const hasGitMarker = (candidateRoot) => {
+  const markerPath = path.join(candidateRoot, ".git");
   try {
-    const marker = statSync(path.join(candidateRoot, ".git"));
-    return marker.isDirectory() || marker.isFile();
+    const marker = statSync(markerPath);
+    if (marker.isDirectory()) {
+      return statSync(path.join(markerPath, "HEAD")).isFile();
+    }
+    if (!marker.isFile()) return false;
+    const firstLine = readFileSync(markerPath, "utf8").split(/\r?\n/u, 1)[0] ?? "";
+    if (!firstLine.startsWith("gitdir: ")) return false;
+    const gitDir = path.resolve(candidateRoot, firstLine.slice("gitdir: ".length).trim());
+    return statSync(path.join(gitDir, "HEAD")).isFile();
   } catch {
     return false;
   }
@@ -230,6 +238,36 @@ const cwdTrustIssue = (cwd, trustedEnvCwd, repoRoot) => {
       : "cwd is outside trusted repoRoot and trusted environment cwd";
   }
   return "cwd is outside trusted environment cwd";
+};
+
+const pathExists = (value) => {
+  try {
+    statSync(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const rebasePathSeedsToRepoRoot = ({ seeds, cwd, repoRoot }) => {
+  if (
+    !repoRoot ||
+    !path.isAbsolute(cwd) ||
+    !path.isAbsolute(repoRoot) ||
+    !pathIsInside(repoRoot, cwd)
+  ) {
+    return seeds;
+  }
+
+  return seeds.map((seed) => {
+    if (seed.kind !== "path") return seed;
+    const cwdCandidate = path.resolve(cwd, seed.value);
+    if (pathIsInside(repoRoot, cwdCandidate) && pathExists(cwdCandidate)) {
+      const rebasedValue = path.relative(repoRoot, cwdCandidate);
+      if (rebasedValue && rebasedValue !== seed.value) return { ...seed, value: rebasedValue };
+    }
+    return seed;
+  });
 };
 
 const normalizeWorkspace = (raw, env) => {
@@ -452,7 +490,12 @@ export const buildContextPlan = (input = {}, env = {}) => {
   const { cwd, repoRoot, risks: workspaceRisks } = normalizeWorkspace(raw, env);
   const budget = normalizeBudget(raw.budget);
   const seeds = normalizeSeeds(raw.seeds);
-  const { safeSeeds, omittedSeeds } = partitionSeeds(seeds);
+  const { safeSeeds: partitionedSafeSeeds, omittedSeeds } = partitionSeeds(seeds);
+  const safeSeeds = rebasePathSeedsToRepoRoot({
+    seeds: partitionedSafeSeeds,
+    cwd,
+    repoRoot,
+  });
   const providers = asObject(raw.providers);
   const normalizedObjective = objective.toLowerCase();
   const providerPlans = buildProviderPlans({

@@ -289,7 +289,7 @@ const trustedGitPath = async () => {
   return undefined;
 };
 
-const buildGitSection = async ({ cwd }) => {
+const buildGitSection = async ({ cwd, exec = execFileAsync }) => {
   const gitPath = await trustedGitPath();
   if (!gitPath) {
     return {
@@ -301,15 +301,11 @@ const buildGitSection = async ({ cwd }) => {
   }
 
   try {
-    const { stdout } = await execFileAsync(
-      gitPath,
-      ["status", "--short", "--untracked-files=all"],
-      {
-        cwd,
-        timeout: 5_000,
-        maxBuffer: GIT_MAX_BUFFER,
-      },
-    );
+    const { stdout } = await exec(gitPath, ["status", "--short", "--untracked-files=all"], {
+      cwd,
+      timeout: 5_000,
+      maxBuffer: GIT_MAX_BUFFER,
+    });
     const content = stdout.trim() || "clean";
     const item = {
       id: "git:status",
@@ -548,7 +544,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   }
 
   if (providerIds.includes("git")) {
-    const result = await buildGitSection({ cwd });
+    const result = await buildGitSection({ cwd: repoRoot, exec: env.execFileAsync });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({
       sections,
