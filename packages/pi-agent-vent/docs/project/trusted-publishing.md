@@ -43,5 +43,10 @@ system4d:
 ## Verification checklist
 
 - Package passes `npm run release:check:quick` in workspace.
+  - Quick checks are artifact-only and require no Pi auth: they verify `npm pack`, packaged Markdown links, artifact-local `npm install && npm run check`, isolated npm installation of the packed tarball, and installed registered-tool `agent_vent path` execution against isolated vent storage.
+- Package passes `npm run release:check` where live Pi smoke is available.
+  - Full checks additionally install the tarball through isolated Pi package settings and smoke `/agent_vent path` through package discovery.
 - Root release workflow can produce/update component release PR.
 - Publish workflow completes with `npm publish --provenance --access public` for package.
+
+Local release checks prove artifact/package-loading behavior only. npm trusted publisher binding, GitHub release execution, and provenance publication remain external owner-surface facts.
