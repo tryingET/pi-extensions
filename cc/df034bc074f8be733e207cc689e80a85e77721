@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ccdf034bc074f8be733e207cc689e80a85e77721"
+created_at: "2026-05-22T13:06:01Z"
+intent: "Reject fractional context-packer dogfood evaluator count fields instead of flooring them"
+files:
+  - "packages/pi-context-packer/src/dogfood-observation.js"
+  - "packages/pi-context-packer/tests/dogfood-observation.test.js"
+validation:
+  fast_gate:
+    command: "npm --prefix ../pi-context-packer run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict && npm --prefix ../pi-context-packer run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs ../pi-context-packer --strict"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "context-packer dogfood evaluator numeric validation"
