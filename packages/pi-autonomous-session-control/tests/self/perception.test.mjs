@@ -6,6 +6,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
 
+function recordBash(harness, id, command, { isError = false, text = "" } = {}) {
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+
+  toolCallHandler({ toolName: "bash", toolCallId: id, input: { command } });
+  toolResultHandler({
+    toolName: "bash",
+    toolCallId: id,
+    isError,
+    content: text ? [{ type: "text", text }] : [],
+  });
+}
+
 test("self query: files touched returns empty when no operations", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -39,7 +52,172 @@ test("self query: am I looping returns no loops initially", async () => {
 
   const result = await tool.execute("tc-1", { query: "Am I in a loop?" }, null, null, ctx);
 
-  assert.ok(result.content[0].text.includes("No loop patterns"), "should report no loops");
+  assert.ok(result.content[0].text.includes("no loop concern"), "should report no loops");
+
+  await cleanup(tempDir);
+});
+
+test("self query: repeated successful validation commands are productive workflow, not a loop", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-validation-${i}`, "npm run check");
+  }
+
+  const loopResult = await tool.execute(
+    "tc-validation-loop",
+    { query: "Am I in a loop?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(loopResult.details.data.isLooping, false);
+  assert.equal(loopResult.details.data.concern, "productive_repeated_workflow");
+  assert.ok(
+    loopResult.details.data.productivePatterns.some(
+      (pattern) => pattern.type === "productive_repetition",
+    ),
+    "should preserve productive repetition evidence",
+  );
+
+  const commandsResult = await tool.execute(
+    "tc-validation-commands",
+    { query: "What commands have I run?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(commandsResult.details.data.total, 3);
+  assert.equal(commandsResult.details.data.successRate, 1);
+  assert.ok(
+    commandsResult.details.data.commands.some((command) => command.role === "validation"),
+    "should classify validation command role",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: repeated successful provenance helper commands are not a loop", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 5; i++) {
+    recordBash(
+      harness,
+      `cmd-provenance-${i}`,
+      `node scripts/provenance-note.mjs --task AK-${100 + i}`,
+    );
+  }
+
+  const result = await tool.execute(
+    "tc-provenance-loop",
+    { query: "Am I in a loop?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.isLooping, false);
+  assert.equal(result.details.data.concern, "productive_repeated_workflow");
+  assert.ok(
+    result.details.data.productivePatterns.some((pattern) => pattern.count === 5),
+    "should retain repeated provenance-helper evidence without calling it a loop",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: repeated failed commands remain a loop concern", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-${i}`, "npm run check", {
+      isError: true,
+      text: "lint failed on a.ts",
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-failed-loop",
+    { query: "Am I in a loop?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.isLooping, true);
+  assert.equal(result.details.data.concern, "possible_repetition");
+  assert.ok(
+    result.details.data.patterns.some(
+      (pattern) => pattern.type === "command_loop" && pattern.severity === "critical",
+    ),
+    "should keep repeated failed command loop evidence",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: stall wording includes productive command evidence", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const turnStartHandler = harness.eventHandlers.get("turn_start");
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  toolCallHandler({ toolName: "edit", input: { path: "a.ts", oldText: "a", newText: "ab" } });
+  for (let i = 0; i < 6; i++) {
+    turnStartHandler();
+  }
+  recordBash(harness, "cmd-stall-validation", "npm run check");
+
+  const progressResult = await tool.execute(
+    "tc-stall-progress-evidence",
+    { query: "What progress have I made?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(progressResult.details.data.isStalled, true);
+  assert.equal(progressResult.details.data.concern, "stall_with_progress_evidence");
+  assert.ok(progressResult.content[0].text.includes("progress evidence"));
+  assert.equal(progressResult.details.data.progressEvidence.recentSuccessfulProductiveCommands, 1);
+
+  const handoffResult = await tool.execute(
+    "tc-stall-handoff-evidence",
+    { query: "controller handoff summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(
+    handoffResult.details.data.cues.some((cue) => cue.includes("productive command evidence")),
+    "handoff cues should contextualize stall evidence",
+  );
 
   await cleanup(tempDir);
 });
@@ -62,7 +240,8 @@ test("self query: progress status when no progress", async () => {
   );
 
   assert.ok(
-    result.content[0].text.includes("No progress") || result.content[0].text.includes("Progress"),
+    result.content[0].text.includes("No file progress") ||
+      result.content[0].text.includes("Progress"),
     "should report progress status",
   );
 
