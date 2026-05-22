@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "2658532fe5dffde2cc23f2fdae8def879aa0c00c"
+created_at: "2026-05-22T17:18:51Z"
+intent: "Refresh product-posture.md to reflect receipt-projection accounting, selected-vs-follow-up route receipts, and rendered-overhead improvements."
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-context-packer run docs:list"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-context-packer run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Single coherent posture refresh after receipt/accounting feature commits."
