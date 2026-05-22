@@ -131,13 +131,22 @@ const seedSafetyIssue = (seed) => {
   return undefined;
 };
 
+const omittedSeedProvider = (seed) => {
+  if (seed.kind === "symbol") return "sci";
+  if (seed.kind === "path") return isMarkdownPath(seed.value) ? "docs" : "sci";
+  if (seed.kind === "ak" || seed.kind === "task") return "ak";
+  if (seed.kind === "fcos") return "fcos";
+  if (seed.kind === "prompt") return "prompt_vault";
+  return "context_plan";
+};
+
 const partitionSeeds = (seeds) => {
   const safeSeeds = [];
   const omittedSeeds = [];
   for (const seed of seeds) {
     const reason = seedSafetyIssue(seed);
     if (reason) {
-      omittedSeeds.push({ kind: seed.kind, reason });
+      omittedSeeds.push({ kind: seed.kind, provider: omittedSeedProvider(seed), reason });
     } else {
       safeSeeds.push(seed);
     }
@@ -388,7 +397,7 @@ const seedMatchesProvider = (provider, seed) => {
   if (provider === "ak") return seed.kind === "ak" || seed.kind === "task";
   if (provider === "fcos") return seed.kind === "fcos";
   if (provider === "prompt_vault") return seed.kind === "prompt";
-  return provider === "agents" || provider === "git" || provider === "session";
+  return false;
 };
 
 const providerQuerySeeds = (provider, seeds) =>

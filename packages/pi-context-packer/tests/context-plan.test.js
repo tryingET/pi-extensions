@@ -44,6 +44,14 @@ test("context_plan selects code and docs providers from objective and seeds", as
   assert.equal(byProvider.sci.posture, "selected");
   assert.equal(byProvider.docs.posture, "selected");
   assert.equal(byProvider.fcos.posture, "optional");
+  assert.deepEqual(byProvider.agents.proposedQueries[0].seeds, []);
+  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [
+    { kind: "symbol", value: "buildContextPlan" },
+  ]);
+  assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, [
+    { kind: "path", value: "docs/project/architecture.md" },
+  ]);
+  assert.deepEqual(byProvider.fcos.proposedQueries[0].seeds, []);
 });
 
 test("context_plan routes Markdown-only path seeds to docs without selecting SCI", async () => {
@@ -106,6 +114,16 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
 
   assert.equal(plan.ok, true);
   assert.equal(plan.omittedSeeds.length, 13);
+  assert.ok(
+    plan.omittedSeeds.some(
+      (seed) => seed.provider === "sci" && seed.reason.includes("generated/vendor"),
+    ),
+  );
+  assert.ok(
+    plan.omittedSeeds.some(
+      (seed) => seed.provider === "docs" && seed.reason.includes("parent-traversing"),
+    ),
+  );
   assert.equal(
     plan.risks.filter((risk) => risk.kind === "path" && risk.severity === "blocked").length,
     11,
@@ -115,6 +133,9 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
     2,
   );
   const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
+  assert.deepEqual(byProvider.agents.proposedQueries[0].seeds, []);
+  assert.deepEqual(byProvider.git.proposedQueries[0].seeds, []);
+  assert.deepEqual(byProvider.session.proposedQueries[0].seeds, []);
   assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [
     { kind: "path", value: "packages/pi-context-packer/src/context-plan.js" },
     { kind: "symbol", value: "targetSymbol" },

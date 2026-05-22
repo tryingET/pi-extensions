@@ -72,6 +72,39 @@ test("context_pack uses SCI read_file for code path seeds", async () => {
   assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 3);
 });
 
+test("context_pack does not pass Markdown path seeds to SCI when SCI is selected", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "docs"), { recursive: true });
+  await writeFile(join(root, "docs", "README.md"), "# Docs\n", "utf8");
+  const readFilePaths = [];
+  const fakeExec = async (_command, args) => {
+    if (args[1] === "read_file") {
+      readFilePaths.push(JSON.parse(args[3]).path);
+      return { stdout: sciStdout({ content: "export const target = 1;\n" }) };
+    }
+    return { stdout: sciStdout({}) };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use implementation code and docs context",
+      cwd: root,
+      repoRoot: root,
+      seeds: [
+        { kind: "path", value: "src/example.js" },
+        { kind: "path", value: "docs/README.md" },
+      ],
+      providers: { git: "off", session: "off" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(readFilePaths, ["src/example.js"]);
+  assert.ok(result.packet.sections.some((section) => section.provider === "docs"));
+  assert.ok(result.packet.sections.some((section) => section.provider === "sci"));
+});
+
 test("context_pack does not route uppercase Markdown path seeds to SCI", async () => {
   const root = await makeWorkspace();
   await mkdir(join(root, "docs"), { recursive: true });

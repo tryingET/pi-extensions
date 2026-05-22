@@ -33,6 +33,13 @@ const selectedProviderIds = (plan) =>
     .filter((providerPlan) => providerPlan.posture === "selected")
     .map((providerPlan) => providerPlan.provider);
 const unique = (values) => Array.from(new Set(values));
+const providerQuerySeeds = (plan, provider) =>
+  unique(
+    plan.providerPlans
+      .filter((providerPlan) => providerPlan.provider === provider)
+      .flatMap((providerPlan) => providerPlan.proposedQueries.flatMap((query) => query.seeds ?? []))
+      .map((seed) => JSON.stringify(seed)),
+  ).map((seed) => JSON.parse(seed));
 const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${sep}`);
 const resolveContainedPath = async (root, pathSeed) => {
   if (isAbsolute(pathSeed) || pathSeed.includes("\0")) {
@@ -460,17 +467,14 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
   const providerBudgets = new Map();
   const omissions = (plan.omittedSeeds ?? []).map((seed) => ({
-    provider: seed.kind === "symbol" ? "sci" : "docs",
+    provider: seed.provider ?? (seed.kind === "symbol" ? "sci" : "docs"),
     reason: seed.kind === "symbol" ? "unsafe_symbol" : "unsafe_path",
     detail: `${seed.kind} seed omitted during planning: ${seed.reason}`,
   }));
-  const allSeeds = unique(
-    plan.providerPlans
-      .filter((providerPlan) => providerPlan.posture === "selected")
-      .flatMap((providerPlan) => providerPlan.proposedQueries.flatMap((query) => query.seeds ?? []))
-      .map((seed) => JSON.stringify(seed)),
-  ).map((seed) => JSON.parse(seed));
-  let docsSeeds = allSeeds.filter((seed) => seed.kind === "path" && isMarkdownPath(seed.value));
+  let docsSeeds = providerQuerySeeds(plan, "docs").filter(
+    (seed) => seed.kind === "path" && isMarkdownPath(seed.value),
+  );
+  const sciSeeds = providerQuerySeeds(plan, "sci");
 
   if (providerIds.includes("agents")) {
     const result = await buildAgentsSection({
@@ -517,7 +521,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     const result = await buildSciSection({
       cwd,
       repoRoot,
-      seeds: allSeeds,
+      seeds: sciSeeds,
       maxBytes: providerMaxBytes(plan, "sci", remainingBudget),
       env,
     });

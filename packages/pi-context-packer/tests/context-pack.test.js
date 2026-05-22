@@ -72,6 +72,74 @@ test("context_pack keeps Markdown-only path packets on docs without SCI omission
   );
 });
 
+test("context_pack keeps provider query seeds scoped through mixed docs and SCI packets", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, "src", "example.js"), "export const target = 1;\n", "utf8");
+  const sciReadFilePaths = [];
+  const sciSymbolQueries = [];
+  const fakeExec = async (_command, args) => {
+    const workflow = args[1];
+    const workflowArgs = JSON.parse(args[3]);
+    if (workflow === "read_file") {
+      sciReadFilePaths.push(workflowArgs.path);
+      assert.equal(workflowArgs.path, "src/example.js");
+      return {
+        stdout: JSON.stringify({
+          content: [
+            { type: "text", text: JSON.stringify({ content: "export const target = 1;\n" }) },
+          ],
+          isError: false,
+        }),
+      };
+    }
+    assert.equal(workflow, "symbol_search");
+    sciSymbolQueries.push(workflowArgs.query);
+    assert.equal(workflowArgs.query, "target");
+    return {
+      stdout: JSON.stringify({
+        content: [{ type: "text", text: JSON.stringify({ count: 1, symbols: [] }) }],
+        isError: false,
+      }),
+    };
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use architecture docs and implementation code",
+      cwd: root,
+      repoRoot: root,
+      seeds: [
+        { kind: "path", value: "docs/project/note.md" },
+        { kind: "path", value: "src/example.js" },
+        { kind: "symbol", value: "target" },
+      ],
+      providers: { git: "off", session: "off", docs: "required", sci: "required" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+
+  assert.equal(result.ok, true);
+  const plans = Object.fromEntries(
+    result.plan.providerPlans.map((providerPlan) => [providerPlan.provider, providerPlan]),
+  );
+  assert.deepEqual(plans.agents.proposedQueries[0].seeds, []);
+  assert.deepEqual(plans.docs.proposedQueries[0].seeds, [
+    { kind: "path", value: "docs/project/note.md" },
+  ]);
+  assert.deepEqual(plans.sci.proposedQueries[0].seeds, [
+    { kind: "path", value: "src/example.js" },
+    { kind: "symbol", value: "target" },
+  ]);
+  assert.deepEqual(sciReadFilePaths, ["src/example.js"]);
+  assert.deepEqual(sciSymbolQueries, ["target"]);
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["docs/project/note.md"],
+  );
+});
+
 test("context_pack enforces the global packet budget across providers while preserving reserve", async () => {
   const root = await makeWorkspace();
   const body = "x".repeat(2400);
@@ -487,6 +555,27 @@ test("context_pack fails closed on unsafe path seeds", async () => {
   assert.ok(
     result.packet.omissions.some(
       (omission) => omission.reason === "unsafe_path" && omission.detail.includes("parent"),
+    ),
+  );
+});
+
+test("context_pack reports unsafe code path seeds as SCI path omissions", async () => {
+  const root = await makeWorkspace();
+  const result = await buildContextPacket({
+    objective: "Read code context",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "../src/secret.js" }],
+    providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "sci" &&
+        omission.reason === "unsafe_path" &&
+        omission.detail.includes("parent"),
     ),
   );
 });
