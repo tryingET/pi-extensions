@@ -34,13 +34,17 @@ self observes -> chooses slice + owning harness move -> prefills editor -> opera
 
 ## Slice-to-harness map
 
+`self` may rank slice candidates with `rank continuation slices`; the top candidate remains `nextMove` for `prefill suggested next move` compatibility.
+
 | Situation visible to `self` | Suggested slice | Prefill target |
 |---|---|---|
 | Continuation, handoff, or compaction pressure | temporal + artifact/packet | `/compact-focus ...` or handoff text |
+| Repeated failures, loop recovery, or ambiguous stuckness | temporal + failure-recovery + source-owner + authority-risk | `/scoutpeer ...` |
 | Unclear boundary or design risk | source-owner + authority-risk | `/scoutpeer ...` |
+| Multiple touched sibling files/packages | horizontal + artifact/packet + source-owner | natural-language request naming `context_plan` |
 | Bounded implementation alternative | vertical + artifact/packet | `/parallelquest ...` |
 | Missing future context packet | source-owner + artifact/packet | natural-language request naming `context_plan` |
-| Obvious local verification | vertical | local validation command |
+| Obvious local verification | vertical + local-validation | local validation command |
 | Multi-step workflow coordination | phase/lifecycle + authority-risk | society-orchestrator-owned slash/workflow surface |
 
 ## Prefill rule

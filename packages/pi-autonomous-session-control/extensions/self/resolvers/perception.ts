@@ -40,6 +40,10 @@ export const PERCEPTION_KEYWORDS = [
   "am i stalled",
   "success rate",
   "how many turns",
+  "rank continuation slices",
+  "suggest next slice",
+  "best slice",
+  "slice ranking",
 ];
 
 export function mapPerceptionIntent(lower: string): string {
@@ -52,6 +56,14 @@ export function mapPerceptionIntent(lower: string): string {
     lower.includes("session close")
   ) {
     return "handoff_summary";
+  }
+  if (
+    lower.includes("rank continuation slices") ||
+    lower.includes("suggest next slice") ||
+    lower.includes("best slice") ||
+    lower.includes("slice ranking")
+  ) {
+    return "slice_ranking";
   }
   if (lower.includes("file")) return "files_touched";
   if (lower.includes("command")) return "commands_run";
@@ -131,6 +143,29 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
         intent: "perception",
         answer: result.summary,
         data: result,
+      };
+    }
+
+    case "slice_ranking": {
+      const result = queryHandoffSummary(state.operations, state.patterns);
+      const rankingText =
+        result.sliceCandidates.length > 0
+          ? result.sliceCandidates
+              .map(
+                (candidate, index) =>
+                  `${index + 1}. ${candidate.slice} via ${candidate.owner} (${candidate.confidence}, ${candidate.score}) — ${candidate.reason}`,
+              )
+              .join("; ")
+          : "no continuation slice candidate from current mirror state";
+      return {
+        understood: true,
+        intent: "perception",
+        answer: `Mirror-only slice ranking: ${rankingText}`,
+        data: {
+          sliceCandidates: result.sliceCandidates,
+          nextMove: result.nextMove,
+          authority: result.authority,
+        },
       };
     }
 

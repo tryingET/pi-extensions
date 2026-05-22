@@ -353,9 +353,47 @@ test("self query: controller handoff summary includes actionable mirror cues", a
   assert.equal(result.details.data.errors[0].tool, "bash");
   assert.ok(result.details.data.cues.some((cue) => cue.includes("failed command")));
   assert.equal(result.details.data.nextMove.owner, "peer-tools");
-  assert.equal(result.details.data.nextMove.slice, "source-owner + authority-risk");
+  assert.ok(result.details.data.nextMove.slice.includes("failure-recovery"));
+  assert.ok(result.details.data.nextMove.slice.includes("source-owner"));
+  assert.ok(result.details.data.nextMove.slice.includes("authority-risk"));
   assert.ok(result.details.data.nextMove.prefillText.startsWith("/scoutpeer "));
   assert.equal(result.details.data.nextMove.prefillText.includes("scout_peer_spawn"), false);
+  assert.ok(result.details.data.sliceCandidates.length >= 1);
+
+  await cleanup(tempDir);
+});
+
+test("self query: rank continuation slices surfaces multi-dimensional candidates", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-slice-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-slice-ranking",
+    { query: "rank continuation slices" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Mirror-only slice ranking"));
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
+  assert.ok(result.details.data.nextMove.slice.includes("temporal"));
+  assert.ok(result.details.data.nextMove.slice.includes("failure-recovery"));
+  assert.ok(result.details.data.nextMove.slice.includes("authority-risk"));
+  assert.ok(result.details.data.nextMove.prefillText.startsWith("/scoutpeer "));
+  assert.equal(result.details.data.sliceCandidates[0].confidence, "high");
 
   await cleanup(tempDir);
 });
