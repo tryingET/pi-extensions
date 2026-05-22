@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "pi"
+actor: "pi"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9f722ec805c7b17f28137ca623e2d008ac82bf0d"
+created_at: "2026-05-22T16:50:56Z"
+intent: "Enforce provider-scoped context-packer seeds and omission attribution."
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+  - "packages/pi-context-packer/src/context-pack.js"
+  - "packages/pi-context-packer/src/context-plan.js"
+  - "packages/pi-context-packer/tests/context-pack.test.js"
+  - "packages/pi-context-packer/tests/context-plan.test.js"
+  - "packages/pi-context-packer/tests/sci-provider.test.js"
+validation:
+  fast_gate:
+    command: "git diff --check && cd packages/pi-context-packer && node --test tests/context-plan.test.js tests/context-pack.test.js tests/sci-provider.test.js"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-context-packer && npm run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Single coherent fix across context planning, packet assembly, regressions, and product-posture frontier."
