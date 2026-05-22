@@ -432,6 +432,91 @@ test("facet summary counts local categories tags tools packages and review state
   assert.doesNotMatch(text, /abc123/);
 });
 
+test("review queue filters by local facets without owner-routing claims", () => {
+  const reload = createVentRecord(
+    {
+      summary: "Reload tool fails",
+      category: "tool_failure",
+      recurrenceKey: "reload-tool",
+      tags: ["Review Flow", "Reload"],
+      tool: "pi reload",
+      packageName: "@tryinget/pi-agent-vent",
+    },
+    { id: "v1" },
+  );
+  const docs = createVentRecord(
+    {
+      summary: "Docs stale",
+      category: "documentation",
+      recurrenceKey: "docs-stale",
+      tags: ["Docs"],
+      tool: "docs-list",
+      packageName: "@tryinget/other-package",
+    },
+    { id: "v2" },
+  );
+
+  const queue = summarizeReviewQueue([reload, docs], [], {
+    filters: {
+      category: "tool-failure",
+      tags: ["review flow"],
+      tool: "pi reload token=abc123",
+      packageName: "@tryinget/pi-agent-vent",
+    },
+  });
+  assert.equal(queue.groupCount, 2);
+  assert.equal(queue.matchingGroupCount, 0);
+  assert.equal(queue.queueCount, 0);
+  assert.equal(queue.filters.tool, "pi-reload-token-redacted");
+  const noMatchText = formatReviewQueue(queue);
+  assert.match(noMatchText, /not owner routing/);
+  assert.match(noMatchText, /token-redacted/);
+  assert.doesNotMatch(noMatchText, /abc123/);
+
+  const matchingQueue = summarizeReviewQueue([reload, docs], [], {
+    filters: {
+      category: "tool-failure",
+      tags: ["review flow", "reload"],
+      tool: "pi reload",
+      packageName: "@tryinget/pi-agent-vent",
+    },
+  });
+  assert.equal(matchingQueue.matchingGroupCount, 1);
+  assert.equal(matchingQueue.queueCount, 1);
+  assert.equal(matchingQueue.items[0].recurrenceKey, reload.recurrenceKey);
+  assert.equal(matchingQueue.filters.tool, "pi-reload");
+  assert.deepEqual(matchingQueue.filters.tags, ["review-flow", "reload"]);
+  const matchingText = formatReviewQueue(matchingQueue);
+  assert.match(
+    matchingText,
+    /Filters: category=tool_failure; tool=pi-reload; package=tryinget-pi-agent-vent; tags=review-flow,reload/,
+  );
+  assert.match(matchingText, /Filter note:/);
+  assert.doesNotMatch(matchingText, /owner assignment was created/);
+});
+
+test("review queue facet filters are bounded for huge caller-controlled input", () => {
+  const record = createVentRecord({
+    summary: "Huge filter should not leak",
+    category: "workflow",
+    recurrenceKey: "huge-filter",
+    tags: ["safe"],
+    tool: "small-tool",
+  });
+  const queue = summarizeReviewQueue([record], [], {
+    filters: {
+      tool: `${"x".repeat(5000)} token=abc123`,
+      tags: Array.from({ length: 20 }, (_, index) => `tag-${index}`),
+    },
+  });
+  assert.equal(queue.queueCount, 0);
+  assert.ok(queue.filters.tool.length <= 80);
+  assert.equal(queue.filters.tags.length, 12);
+  const text = formatReviewQueue(queue);
+  assert.doesNotMatch(text, /abc123/);
+  assert.match(text, /not owner routing/);
+});
+
 test("review detail expands curated groups with bounded redacted samples", () => {
   const first = createVentRecord(
     {

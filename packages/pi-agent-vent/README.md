@@ -52,7 +52,7 @@ Then in Pi:
 | `summary` | Show recurrence groups and advisory candidate incidents. |
 | `list` | Show recent local records. |
 | `path` | Show the store path and boundary contract. |
-| `review` | Show recurrence groups as a local operator review queue; include a recurrence key to inspect bounded representative samples. |
+| `review` | Show recurrence groups as a local operator review queue; optionally filter by local category/tag/tool/package facets; include a recurrence key to inspect bounded representative samples. |
 | `facets` | Show read-only local category/tag/tool/package facet counts for triage. |
 | `set_review` | Set local review state for a recurrence group. |
 | `curate` | Append local recurrence merge/rename projection events without rewriting raw vents. |
@@ -71,6 +71,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent list 20
 /agent_vent facets
 /agent_vent review
+/agent_vent review new 20 category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
 /agent_vent review show bug:reload-tools
 /agent_vent review set acknowledged bug:reload-tools "seen locally"
 /agent_vent curate merge bug:reload-tool-a bug:reload-tools "same local pattern"
@@ -121,9 +122,9 @@ Records are append-only JSONL with `schemaVersion: 1`. Optional `tool` and `pack
 
 Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `facets`, `curate`, `draft`, `stats`, `export`, and `retention` are local diagnostic surfaces, not evidence, owner routing, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
 
-Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed.
+Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed. The package intentionally has no hard-delete command in v0.1; permanent removal is operator-owned filesystem/data-lifecycle control, not evidence/task/incident lifecycle.
 
-All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, recomputes privacy metadata for loaded records, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits. Drafts include local diagnostic facets when present, but those facets are hints for human review rather than owner-routing truth.
+All display/export/draft/review-detail paths pass loaded records through a diagnostic-state membrane that normalizes schema, re-applies redaction on read, recomputes privacy metadata for loaded records, quarantines curation cycles, and keeps exact recurrence lookup separate from display limits. Review queue filters can use local category/tag/tool/package labels, but those filters are diagnostic focus aids only, not owner routing or owner assignment. Drafts include local diagnostic facets when present, but those facets are hints for human review rather than owner-routing truth.
 
 The package applies conservative redaction heuristics for common token/password/API-key shapes, including review notes, but callers must still avoid submitting secrets.
 

@@ -49,6 +49,7 @@ test("agent_vent records minimized local diagnostics without external authority 
         severity: "high",
         tool: "pi reload",
         packageName: "@tryinget/pi-agent-vent",
+        tags: ["reload"],
       },
       undefined,
       undefined,
@@ -75,6 +76,7 @@ test("agent_vent records minimized local diagnostics without external authority 
         recurrenceKey: "reload-registration-dupe",
         tool: "pi reload",
         packageName: "@tryinget/pi-agent-vent",
+        tags: ["reload"],
       },
       undefined,
       undefined,
@@ -156,6 +158,27 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.match(facetsResult.content[0].text, /not owner routing/);
     assert.equal(facetsResult.details.facets.records.tools[0].name, "pi-reload");
     assert.equal(facetsResult.details.facets.records.packages[0].count, 2);
+
+    const filteredReviewResult = await tool.execute(
+      "tool-call-2d",
+      {
+        action: "review",
+        category: "tool_failure",
+        tags: ["reload"],
+        tool: "pi reload",
+        packageName: "@tryinget/pi-agent-vent",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(filteredReviewResult.content[0].text, /Filters:/);
+    assert.match(filteredReviewResult.content[0].text, /not owner routing/);
+    assert.equal(filteredReviewResult.details.reviewQueue.matchingGroupCount, 1);
+    assert.equal(filteredReviewResult.details.reviewQueue.filters.tool, "pi-reload");
 
     const setReviewResult = await tool.execute(
       "tool-call-3",
@@ -288,6 +311,28 @@ test("agent_vent records minimized local diagnostics without external authority 
     );
     assert.match(restoreResult.content[0].text, /Restored local diagnostic backup/);
   } finally {
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent command rejects unknown review filter keys without creating stores", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-command-filter-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  const oldLog = console.log;
+  const messages = [];
+  process.env.PI_AGENT_VENT_DIR = dir;
+  console.log = (message) => messages.push(String(message));
+  try {
+    await pi.commands.get("agent_vent").handler("review owner=github", { hasUI: false });
+    assert.match(messages[0], /Unknown \/agent_vent review filter\(s\): owner/);
+    assert.match(messages[0], /category=bug/);
+    assert.equal(fs.existsSync(path.join(dir, "vents.jsonl")), false);
+  } finally {
+    console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
     else process.env.PI_AGENT_VENT_DIR = oldDir;
     fs.rmSync(dir, { recursive: true, force: true });

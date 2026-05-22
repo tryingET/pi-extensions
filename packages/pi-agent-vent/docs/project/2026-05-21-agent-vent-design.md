@@ -78,7 +78,7 @@ A missing review event means `new`; the latest event for a recurrence key is the
 
 Read behavior goes through a diagnostic-state membrane: malformed JSONL lines are ignored and counted, oversized lines are skipped, oversized files fail closed, schema-invalid records are ignored, stored display fields are redacted again on read, privacy metadata is recomputed for loaded vent records, and semantic curation cycles are quarantined instead of bricking all projections. JSONL store files fail closed if replaced by symlinks.
 
-Retention/delete posture: no automatic deletion. Reviewed recurrence groups can be archived only after an explicit preview returns the exact affected record count/sample ids and an `archive:<token>` derived from the active store hash. Archive and vent-record append share a local lock, archive writes a package-created backup before replacing the active `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale rollback attempts fail closed. Backup artifacts remain local diagnostic user data and are not evidence. Future hard-delete policy should remain separate and confirmation-gated.
+Retention/delete posture: no automatic deletion. Reviewed recurrence groups can be archived only after an explicit preview returns the exact affected record count/sample ids and an `archive:<token>` derived from the active store hash. Archive and vent-record append share a local lock, archive writes a package-created backup before replacing the active `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale rollback attempts fail closed. Backup artifacts remain local diagnostic user data and are not evidence. The accepted retention/delete policy is [ADR 2026-05-22](../adr/2026-05-22-agent-vent-retention-delete-policy.md): no in-package hard-delete action for v0.1; permanent removal remains operator-owned filesystem/data-lifecycle control unless a future decision accepts a narrower purge design.
 
 ## Privacy contract
 
@@ -99,7 +99,7 @@ Actions:
 - `summary` — summarize recurrence groups and candidate incidents.
 - `list` — show recent records.
 - `path` — show local store path and data contract.
-- `review` — show recurrence groups as a local review queue; when given a recurrence key, show bounded representative local samples for that group.
+- `review` — show recurrence groups as a local review queue, optionally focused by local category/tag/tool/package facet filters; when given a recurrence key, show bounded representative local samples for that group.
 - `facets` — show read-only local category/tag/tool/package facet counts for triage.
 - `set_review` — append a local review-state event for a recurrence group.
 - `curate` — append a local recurrence merge/rename projection event.
@@ -117,6 +117,7 @@ Important behavior:
 - candidate incident flagging is local and advisory.
 - `tool` and `packageName` are optional caller-supplied local diagnostic facets, not owner-routing truth.
 - `facets` is read-only and summarizes local labels; it never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
+- `review` facet filters are read-only local diagnostic focus aids; they do not assign owners, route work, mutate owner surfaces, or change review state.
 - `set_review` requires an existing recurrence group and never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it includes local diagnostic facets when present, returns text only, and never submits, files, declares, records evidence, assigns owners, or changes review state automatically.
@@ -132,7 +133,7 @@ Human/operator command for lightweight inspection. `/agent-vent` remains a compa
 - `/agent_vent list [limit]`
 - `/agent_vent path`
 - `/agent_vent facets [limit]`
-- `/agent_vent review [new|acknowledged|dismissed|escalation_drafted|all] [limit]`
+- `/agent_vent review [new|acknowledged|dismissed|escalation_drafted|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]`
 - `/agent_vent review show <recurrenceKey> [limit]`
 - `/agent_vent review set <state> <recurrenceKey> [note]`
 - `/agent_vent curate merge <sourceRecurrenceKey> <targetRecurrenceKey> [note]`

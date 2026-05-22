@@ -39,7 +39,7 @@ Out of scope for v0.1:
 - Creating AK tasks, GitHub issues, canonical evidence, or real incidents.
 - Remote telemetry or team sync.
 - Dashboard/UI beyond text command/tool output.
-- Automatic deletion/retention policy beyond documented store path and operator-managed files.
+- In-package hard-delete/purge of local diagnostic records or retention backups; backup-backed archive/restore is the package-owned lifecycle baseline, and permanent removal remains operator-owned filesystem/data-lifecycle control.
 
 ## Vocabulary
 

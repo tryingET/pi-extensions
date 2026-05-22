@@ -214,8 +214,8 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "Record minimized local frustration events and review recurring patterns without creating incidents, tasks, issues, evidence records, or telemetry.",
     promptGuidelines: [
       "Use agent_vent when you encounter recurring agent frustration, long-lived bugs, repeated tool/runtime failures, context-loss patterns, or missing affordances worth later human review.",
-      "Use action=review to inspect the local recurrence review queue; include recurrenceKey to inspect bounded representative samples for one local group; use action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
-      "Use action=facets for read-only local category/tag/tool/package triage; facets are caller-supplied diagnostic labels, not owner routing.",
+      "Use action=review to inspect the local recurrence review queue; include recurrenceKey to inspect bounded representative samples for one local group; optionally filter review by local category, tag, tool, or package facets; use action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
+      "Use action=facets for read-only local category/tag/tool/package triage; facets and review filters are caller-supplied diagnostic labels, not owner routing.",
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
       "Use action=draft to generate owner-surface draft text only; never claim it submitted, filed, declared, or recorded anything.",
@@ -414,6 +414,12 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           state: params.reviewState,
           limit: clampLimit(params.limit, 20),
           curationEvents,
+          filters: {
+            category: params.category,
+            tool: params.tool,
+            packageName: params.packageName,
+            tags: params.tags,
+          },
         });
         return textResult(formatReviewQueue(queue), {
           action,
@@ -621,8 +627,8 @@ function handleCommand(args: string) {
       "  /agent_vent summary                                  Show recurrence groups and candidate incidents.",
       "  /agent_vent list [limit]                             Show recent local vent records.",
       "  /agent_vent facets [limit]                           Show read-only local category/tag/tool/package facets.",
-      "  /agent_vent review [new|acknowledged|dismissed|escalation_drafted|all] [limit]",
-      "                                                        Show local recurrence review queue.",
+      "  /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
+      "                                                        Show local recurrence review queue with optional local facet filters.",
       "  /agent_vent review show <recurrenceKey> [limit]      Show bounded representative local samples.",
       "  /agent_vent review set <state> <recurrenceKey> [note] Set local review state for a recurrence group.",
       "  /agent_vent curate merge <sourceKey> <targetKey> [note] Append a local merge projection event.",
@@ -747,16 +753,56 @@ function handleReviewCommand(
     ].join("\n");
   }
 
-  const first = tokens[0];
-  const state = first && !/^\d+$/.test(first) ? first : undefined;
-  const rawLimit = state ? tokens[1] : first;
-  const normalizedState = state && state !== "all" ? normalizeReviewState(state) : state;
+  const parsed = parseReviewListTokens(tokens);
+  if (parsed.unknownFilters.length) {
+    return `Unknown /agent_vent review filter(s): ${parsed.unknownFilters.join(", ")}\nUsage: /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]`;
+  }
+  const normalizedState =
+    parsed.state && parsed.state !== "all" ? normalizeReviewState(parsed.state) : parsed.state;
   const queue = summarizeReviewQueue(records, reviewEvents, {
     state: normalizedState,
-    limit: clampLimit(rawLimit, 20),
+    limit: clampLimit(parsed.limit, 20),
     curationEvents,
+    filters: parsed.filters,
   });
   return formatReviewQueue(queue);
+}
+
+function parseReviewListTokens(tokens: string[]) {
+  const filters: { category?: string; tag?: string; tool?: string; packageName?: string } = {};
+  const tags: string[] = [];
+  const unknownFilters: string[] = [];
+  let state: string | undefined;
+  let limit: string | undefined;
+  for (const token of tokens) {
+    const separatorIndex = token.indexOf("=");
+    if (separatorIndex > 0) {
+      const key = token.slice(0, separatorIndex).trim().toLowerCase().replaceAll("-", "_");
+      const value = token.slice(separatorIndex + 1).trim();
+      if (!value) continue;
+      if (key === "category") filters.category = value;
+      else if (key === "tool") filters.tool = value;
+      else if (key === "package" || key === "package_name" || key === "packagename") {
+        filters.packageName = value;
+      } else if (key === "tag" || key === "tags") {
+        tags.push(
+          ...value
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+      } else {
+        unknownFilters.push(key);
+      }
+      continue;
+    }
+    if (!limit && /^\d+$/.test(token)) {
+      limit = token;
+      continue;
+    }
+    if (!state) state = token;
+  }
+  return { state, limit, filters: tags.length ? { ...filters, tags } : filters, unknownFilters };
 }
 
 function handleCurateCommand(

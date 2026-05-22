@@ -527,8 +527,10 @@ export function latestReviewStates(reviewEvents, curationEvents = []) {
 export function summarizeReviewQueue(records, reviewEvents, options = {}) {
   const stateFilter =
     options.state === "all" ? "all" : options.state && normalizeReviewState(options.state);
+  const filters = normalizeReviewFilters(options.filters);
   const allItems = buildReviewQueueItems(records, reviewEvents, options.curationEvents);
-  const items = allItems.filter((item) => {
+  const facetFilteredItems = allItems.filter((item) => reviewItemMatchesFilters(item, filters));
+  const items = facetFilteredItems.filter((item) => {
     if (stateFilter === "all") return true;
     if (stateFilter) return item.reviewState === stateFilter;
     return item.reviewState !== "dismissed";
@@ -537,9 +539,12 @@ export function summarizeReviewQueue(records, reviewEvents, options = {}) {
   return {
     totalRecords: records.length,
     groupCount: allItems.length,
+    matchingGroupCount: facetFilteredItems.length,
     reviewEventCount: reviewEvents.length,
     queueCount: items.length,
     stateFilter: stateFilter || "active",
+    filters,
+    hasFilters: hasReviewFilters(filters),
     items: items.slice(0, clampLimit(options.limit, 20)),
   };
 }
@@ -773,27 +778,47 @@ export function formatFacetSummary(summary) {
     `- tags: ${formatFacetEntries(summary.groups.tags)}`,
     `- tools: ${formatFacetEntries(summary.groups.tools)}`,
     `- packages: ${formatFacetEntries(summary.groups.packages)}`,
-    "Next: /agent_vent review [state] [limit] | /agent_vent review show <recurrenceKey> [limit]",
+    "Next: /agent_vent review [state] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent] | /agent_vent review show <recurrenceKey> [limit]",
   ];
   return lines.join("\n");
 }
 
 export function formatReviewQueue(queue) {
+  const filterText = formatReviewFilters(queue.filters);
+  const filterSuffix = queue.hasFilters ? ` for filters: ${filterText}` : "";
   if (queue.totalRecords === 0) {
-    return "No agent vent records found yet. Record minimized vents before reviewing recurrence groups.";
+    return [
+      "No agent vent records found yet. Record minimized vents before reviewing recurrence groups.",
+      queue.hasFilters
+        ? `Filters requested: ${filterText}. Local diagnostic labels only; not owner routing.`
+        : undefined,
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
   if (queue.queueCount === 0) {
     return [
-      `Agent vent review queue: no ${queue.stateFilter} recurrence group(s) to show.`,
+      `Agent vent review queue: no ${queue.stateFilter} recurrence group(s) to show${filterSuffix}.`,
+      queue.hasFilters
+        ? "Filters are local diagnostic labels only; not owner routing or owner assignment."
+        : undefined,
       "Boundary: local review state only; no AK task, GitHub issue, incident, evidence, telemetry, or ASC/self state was created.",
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
+  const scopeText = queue.hasFilters
+    ? `${queue.matchingGroupCount} matching of ${queue.groupCount} total group(s)`
+    : `${queue.groupCount} total group(s)`;
   const lines = [
-    `Agent vent review queue: ${queue.items.length} of ${queue.queueCount} ${queue.stateFilter} recurrence group(s) shown (${queue.groupCount} total group(s)).`,
+    `Agent vent review queue: ${queue.items.length} of ${queue.queueCount} ${queue.stateFilter} recurrence group(s) shown (${scopeText}).`,
+    queue.hasFilters
+      ? `Filters: ${filterText}. Local diagnostic labels only; not owner routing or owner assignment.`
+      : undefined,
     "States: new -> acknowledged | dismissed | escalation_drafted. Review state is local diagnostic state only.",
     "Boundary: no AK task, GitHub issue, incident, evidence, telemetry, or ASC/self state was created.",
-  ];
+  ].filter(Boolean);
   for (const item of queue.items) {
     const marker = item.candidateIncident ? "candidate incident for human review" : "watch";
     const facets = [
@@ -811,7 +836,12 @@ export function formatReviewQueue(queue) {
     if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
     lines.push(`  inspect: /agent_vent review show ${item.recurrenceKey} [limit]`);
     lines.push(
-      `  next: /agent_vent review set acknowledged ${item.recurrenceKey} [note] | dismissed | escalation_drafted`,
+      `  next: /agent_vent review set acknowledged ${item.recurrenceKey} [note] | /agent_vent review set dismissed ${item.recurrenceKey} [note] | /agent_vent review set escalation_drafted ${item.recurrenceKey} [note]`,
+    );
+  }
+  if (queue.hasFilters) {
+    lines.push(
+      "Filter note: category/tag/tool/package values are local diagnostic labels only, not owner routing or owner assignment.",
     );
   }
   return lines.join("\n");
@@ -849,7 +879,7 @@ export function formatReviewDetail(detail) {
   if (!detail.samples?.length) lines.push("No sample vents available.");
   lines.push(
     "",
-    `Next: /agent_vent review set acknowledged ${detail.recurrenceKey} [note] | dismissed | escalation_drafted`,
+    `Next: /agent_vent review set acknowledged ${detail.recurrenceKey} [note] | /agent_vent review set dismissed ${detail.recurrenceKey} [note] | /agent_vent review set escalation_drafted ${detail.recurrenceKey} [note]`,
     `Optional draft-only handoff: /agent_vent draft github_issue ${detail.recurrenceKey}`,
     `Optional after review: /agent_vent retention preview ${detail.recurrenceKey}`,
   );
@@ -1801,6 +1831,51 @@ function buildReviewQueueItems(records, reviewEvents, curationEvents = []) {
       reviewEventId: latestReview?.id,
     };
   });
+}
+
+function normalizeReviewFilters(input = {}) {
+  const category = input?.category === undefined ? undefined : normalizeCategory(input.category);
+  const tool = sanitizeFacetText(input?.tool || input?.toolName, 160).value;
+  const packageName = sanitizeFacetText(input?.packageName || input?.package, 200).value;
+  const tags = sanitizeReviewFilterTags(input?.tags || input?.tag);
+  return removeUndefined({ category, tool, packageName, tags });
+}
+
+function sanitizeReviewFilterTags(value) {
+  const rawTags = Array.isArray(value) ? value : value ? String(value).split(",") : [];
+  const tags = [];
+  for (const rawTag of rawTags) {
+    const tag = sanitizeFacetText(rawTag, 120).value;
+    if (tag && !tags.includes(tag)) tags.push(tag);
+    if (tags.length >= 12) break;
+  }
+  return tags;
+}
+
+function hasReviewFilters(filters = {}) {
+  return Boolean(
+    filters.category || filters.tool || filters.packageName || (filters.tags || []).length,
+  );
+}
+
+function reviewItemMatchesFilters(item, filters = {}) {
+  if (!hasReviewFilters(filters)) return true;
+  if (filters.category && !(item.categories || []).includes(filters.category)) return false;
+  if (filters.tool && !(item.tools || []).includes(filters.tool)) return false;
+  if (filters.packageName && !(item.packages || []).includes(filters.packageName)) return false;
+  for (const tag of filters.tags || []) {
+    if (!(item.tags || []).includes(tag)) return false;
+  }
+  return true;
+}
+
+function formatReviewFilters(filters = {}) {
+  const parts = [];
+  if (filters.category) parts.push(`category=${filters.category}`);
+  if (filters.tool) parts.push(`tool=${filters.tool}`);
+  if (filters.packageName) parts.push(`package=${filters.packageName}`);
+  if (filters.tags?.length) parts.push(`tags=${filters.tags.join(",")}`);
+  return parts.join("; ") || "none";
 }
 
 function incrementCount(counts, value) {
