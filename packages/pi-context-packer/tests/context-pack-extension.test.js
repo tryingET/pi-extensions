@@ -22,8 +22,12 @@ test("context-packer extension registers command and all model-callable tools", 
   const { commands, tools } = createHarness();
 
   assert.equal(commands.has("context-pack"), true);
-  assert.deepEqual([...tools.keys()], ["context_plan", "context_pack", "context_dogfood_evaluate"]);
+  assert.deepEqual(
+    [...tools.keys()],
+    ["context_plan", "context_pack", "context_dogfood_evaluate", "context_dogfood_summarize"],
+  );
   assert.equal(tools.get("context_dogfood_evaluate").parameters.additionalProperties, false);
+  assert.equal(tools.get("context_dogfood_summarize").parameters.additionalProperties, false);
 
   const result = await tools.get("context_dogfood_evaluate").execute("tool-call-1", {
     observation: {
@@ -45,4 +49,11 @@ test("context-packer extension registers command and all model-callable tools", 
 
   assert.match(result.content[0].text, /Status: matched/);
   assert.equal(result.details.dogfoodObservationEvaluation.status, "matched");
+
+  const aggregate = await tools.get("context_dogfood_summarize").execute("tool-call-2", {
+    evaluations: [result.details.dogfoodObservationEvaluation],
+  });
+
+  assert.match(aggregate.content[0].text, /Context-pack dogfood aggregate evaluation/);
+  assert.equal(aggregate.details.dogfoodAggregateEvaluation.validReceiptCount, 1);
 });

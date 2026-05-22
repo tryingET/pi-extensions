@@ -6,7 +6,9 @@ import {
   formatContextPlan,
 } from "../src/context-plan.js";
 import {
+  DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS,
   DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
+  dogfoodAggregateEvaluationToolResult,
   dogfoodObservationEvaluationToolResult,
 } from "../src/dogfood-observation.js";
 
@@ -97,6 +99,24 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     parameters: DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
     async execute(_toolCallId, rawParams) {
       return dogfoodObservationEvaluationToolResult(rawParams);
+    },
+  });
+
+  pi.registerTool({
+    name: "context_dogfood_summarize",
+    label: "Context Dogfood Summarize",
+    description:
+      "Summarize multiple redacted context_pack dogfood observations or evaluations locally without persisting evidence, reading files, invoking providers, or moving owner-surface authority.",
+    promptSnippet:
+      "Use context_dogfood_summarize to compare repeated redacted dogfood receipts before tuning ranking or adding provider adapters.",
+    promptGuidelines: [
+      "Use only with redacted context_pack dogfood observations/evaluations; do not paste raw packet content, selected paths, or secrets.",
+      "Treat aggregate output as packet-local calibration, not AK evidence, FCOS closeout, session memory, or provider authority.",
+      "Review invalid, overestimated, or needs_review clusters before making product or provider changes.",
+    ],
+    parameters: DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS,
+    async execute(_toolCallId, rawParams) {
+      return dogfoodAggregateEvaluationToolResult(rawParams);
     },
   });
 }

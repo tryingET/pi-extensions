@@ -6,10 +6,19 @@ import {
 import { textResult } from "./context-pack-result.js";
 
 const OBSERVATION_KIND = "context_pack_dogfood_observation_v1";
+const EVALUATION_KIND = "context_pack_dogfood_evaluation_v1";
 const MAX_FOLLOWUPS = 12;
 const MAX_SAFE_NOTE_LENGTH = 480;
 const MAX_SAFE_LABEL_LENGTH = 80;
 const MAX_OBSERVATION_JSON_BYTES = 64_000;
+const MAX_AGGREGATE_ITEMS = 20;
+const CALIBRATION_STATUSES = [
+  "matched",
+  "overestimated",
+  "underestimated",
+  "needs_review",
+  "observation_incomplete",
+];
 
 const NON_AUTHORIZATION =
   "packet-local dogfood evaluation only; context-packer did not persist evidence, update AK/FCOS, write session memory, read files, call providers, or validate task completion";
@@ -283,6 +292,364 @@ export const dogfoodObservationEvaluationToolResult = async (input = {}) => {
   });
 };
 
+const parseAggregateJsonEntry = (value, ref) => {
+  if (typeof value !== "string") return { ok: false, errors: [`${ref} must be a JSON string`] };
+  if (Buffer.byteLength(value) > MAX_OBSERVATION_JSON_BYTES) {
+    return { ok: false, errors: [`${ref} exceeds the compact evaluator input limit`] };
+  }
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch {
+    return { ok: false, errors: [`${ref} must be valid JSON`] };
+  }
+};
+
+const countValues = (values) => {
+  const counts = {};
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
+  return Object.fromEntries(
+    Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)),
+  );
+};
+
+const normalizeStoredEvaluation = (value, ref) => {
+  const evaluation = asObject(value);
+  if (!evaluation || evaluation.kind !== EVALUATION_KIND) {
+    return { ok: false, errors: [`${ref}.kind must be ${EVALUATION_KIND}`] };
+  }
+  const errors = [];
+  const status = CALIBRATION_STATUSES.includes(evaluation.status) ? evaluation.status : undefined;
+  if (!status) errors.push(`${ref}.status must be a known calibration status`);
+  const expectedLowLevelCallsAvoided = finiteNonNegativeInteger(
+    evaluation.expectedLowLevelCallsAvoided,
+  );
+  if (expectedLowLevelCallsAvoided === undefined) {
+    errors.push(`${ref}.expectedLowLevelCallsAvoided must be a non-negative integer`);
+  }
+  const actualLowLevelReadSearchStatusCalls = readOptionalCount(
+    evaluation.actualLowLevelReadSearchStatusCalls,
+    `${ref}.actualLowLevelReadSearchStatusCalls`,
+    errors,
+  );
+  const actualLowLevelCallsAvoided = readOptionalCount(
+    evaluation.actualLowLevelCallsAvoided,
+    `${ref}.actualLowLevelCallsAvoided`,
+    errors,
+  );
+  const alreadyLoadedItems = readOptionalCount(
+    evaluation.alreadyLoadedItems,
+    `${ref}.alreadyLoadedItems`,
+    errors,
+  );
+  const freshItemCount = readOptionalCount(
+    evaluation.freshItemCount,
+    `${ref}.freshItemCount`,
+    errors,
+  );
+  const duplicateTokensAvoided = readOptionalCount(
+    evaluation.duplicateTokensAvoided,
+    `${ref}.duplicateTokensAvoided`,
+    errors,
+  );
+  if (errors.length) return { ok: false, errors };
+
+  return {
+    ok: true,
+    kind: EVALUATION_KIND,
+    sourceKind:
+      typeof evaluation.sourceKind === "string" ? sanitizeLabel(evaluation.sourceKind) : "unknown",
+    status,
+    expectedLowLevelCallsAvoided,
+    actualLowLevelReadSearchStatusCalls: actualLowLevelReadSearchStatusCalls ?? null,
+    actualLowLevelCallsAvoided: actualLowLevelCallsAvoided ?? null,
+    duplicateReadsObserved: booleanOrNull(evaluation.duplicateReadsObserved),
+    omissionFollowupsUsed: sanitizeFollowups(evaluation.omissionFollowupsUsed),
+    omissionFollowupsTruncated: Math.max(
+      0,
+      Array.isArray(evaluation.omissionFollowupsUsed)
+        ? evaluation.omissionFollowupsUsed.length - MAX_FOLLOWUPS
+        : 0,
+    ),
+    recommendationMatchedOutcome: booleanOrNull(evaluation.recommendationMatchedOutcome),
+    packetUtilityRecommendationStatus:
+      typeof evaluation.packetUtilityRecommendationStatus === "string"
+        ? sanitizeLabel(evaluation.packetUtilityRecommendationStatus, "packet utility status")
+        : "unknown",
+    alreadyLoadedItems: alreadyLoadedItems ?? null,
+    freshItemCount: freshItemCount ?? null,
+    duplicateTokensAvoided: duplicateTokensAvoided ?? null,
+    unwiredProviderOmissions: sanitizeFollowups(evaluation.unwiredProviderOmissions),
+    notes: sanitizeNote(evaluation.notes),
+    nextAction:
+      typeof evaluation.nextAction === "string"
+        ? sanitizeNote(evaluation.nextAction)
+        : nextActionForStatus(status),
+    countingRule:
+      typeof evaluation.countingRule === "string"
+        ? sanitizeNote(evaluation.countingRule)
+        : "Count ad-hoc read/search/list/status probes separately from validation commands.",
+    nonAuthorization: NON_AUTHORIZATION,
+  };
+};
+
+const aggregateEntriesFromInput = (input = {}) => {
+  const raw = asObject(input);
+  const entries = [];
+  const invalidEntries = [];
+  const pushEntry = (value, ref) => entries.push({ value, ref });
+  const pushJsonEntry = (value, ref) => {
+    const parsed = parseAggregateJsonEntry(value, ref);
+    if (parsed.ok) pushEntry(parsed.value, ref);
+    else invalidEntries.push({ ref, errors: parsed.errors });
+  };
+
+  if (Array.isArray(raw.items)) {
+    raw.items.forEach((value, index) => {
+      pushEntry(value, `items[${index}]`);
+    });
+  }
+  if (Array.isArray(raw.observations)) {
+    raw.observations.forEach((value, index) => {
+      pushEntry(value, `observations[${index}]`);
+    });
+  }
+  if (Array.isArray(raw.evaluations)) {
+    raw.evaluations.forEach((value, index) => {
+      pushEntry(value, `evaluations[${index}]`);
+    });
+  }
+  if (Array.isArray(raw.observationJsons)) {
+    raw.observationJsons.forEach((value, index) => {
+      pushJsonEntry(value, `observationJsons[${index}]`);
+    });
+  }
+  if (Array.isArray(raw.evaluationJsons)) {
+    raw.evaluationJsons.forEach((value, index) => {
+      pushJsonEntry(value, `evaluationJsons[${index}]`);
+    });
+  }
+
+  return { entries, invalidEntries };
+};
+
+const normalizeAggregateEntry = ({ value, ref }) => {
+  if (typeof value === "string") {
+    const parsed = parseAggregateJsonEntry(value, ref);
+    if (!parsed.ok) return { ok: false, ref, errors: parsed.errors };
+    return normalizeAggregateEntry({ value: parsed.value, ref });
+  }
+  const object = asObject(value);
+  if (!object) return { ok: false, ref, errors: [`${ref} must be an object or JSON string`] };
+  if (object.kind === OBSERVATION_KIND) {
+    const evaluation = buildDogfoodObservationEvaluation({ observation: object });
+    return evaluation.ok
+      ? { ok: true, ref, evaluation }
+      : { ok: false, ref, errors: evaluation.errors };
+  }
+  if (object.kind === EVALUATION_KIND) {
+    const evaluation = normalizeStoredEvaluation(object, ref);
+    return evaluation.ok
+      ? { ok: true, ref, evaluation }
+      : { ok: false, ref, errors: evaluation.errors };
+  }
+  return {
+    ok: false,
+    ref,
+    errors: [`${ref}.kind must be ${OBSERVATION_KIND} or ${EVALUATION_KIND}`],
+  };
+};
+
+const aggregateStatusFor = ({ validCount, invalidCount, statusCounts }) => {
+  if (validCount === 0) return "no_valid_receipts";
+  if (invalidCount > 0 || statusCounts.needs_review > 0) return "review_before_tuning";
+  if (statusCounts.overestimated > 0) return "ranking_or_provider_gap_suspected";
+  if (statusCounts.observation_incomplete > 0) return "needs_more_observations";
+  if (statusCounts.underestimated > 0) return "possible_underestimate";
+  if (validCount >= 3 && statusCounts.matched === validCount) return "stable_positive_signal";
+  return "limited_positive_signal";
+};
+
+const aggregateNextAction = (status) => {
+  if (status === "stable_positive_signal") {
+    return "Repeated redacted receipts matched; keep dogfooding and promote only through the owning evidence surface if needed.";
+  }
+  if (status === "limited_positive_signal") {
+    return "One or two matched receipts are useful calibration, but gather more implementation/review/validation receipts before tuning ranking.";
+  }
+  if (status === "ranking_or_provider_gap_suspected") {
+    return "Review overestimated receipts and omission follow-ups before changing ranking or adding provider adapters.";
+  }
+  if (status === "possible_underestimate") {
+    return "Record that packets may be more useful than predicted; tune estimates only after repeated comparable receipts.";
+  }
+  if (status === "needs_more_observations") {
+    return "Fill observed counts for incomplete receipts before treating the aggregate as usefulness signal.";
+  }
+  if (status === "review_before_tuning") {
+    return "Resolve invalid or needs-review receipts before using this aggregate to tune providers, ranking, or docs.";
+  }
+  return "Supply at least one valid redacted dogfood observation or evaluation.";
+};
+
+export const buildDogfoodAggregateEvaluation = (input = {}) => {
+  const { entries, invalidEntries } = aggregateEntriesFromInput(input);
+  if (entries.length === 0 && invalidEntries.length === 0) {
+    return {
+      ok: false,
+      errors: ["at least one observation or evaluation is required"],
+      nonAuthorization: NON_AUTHORIZATION,
+    };
+  }
+  if (entries.length + invalidEntries.length > MAX_AGGREGATE_ITEMS) {
+    return {
+      ok: false,
+      errors: [`aggregate input exceeds ${MAX_AGGREGATE_ITEMS} receipt item(s)`],
+      nonAuthorization: NON_AUTHORIZATION,
+    };
+  }
+
+  const normalized = entries.map(normalizeAggregateEntry);
+  const validEvaluations = normalized
+    .filter((entry) => entry.ok)
+    .map((entry) => ({ ref: entry.ref, evaluation: entry.evaluation }));
+  const allInvalidEntries = [
+    ...invalidEntries,
+    ...normalized
+      .filter((entry) => !entry.ok)
+      .map((entry) => ({ ref: entry.ref, errors: entry.errors ?? ["invalid receipt"] })),
+  ];
+  if (validEvaluations.length === 0) {
+    return {
+      ok: false,
+      errors: allInvalidEntries.flatMap((entry) => entry.errors),
+      invalidEntries: allInvalidEntries,
+      nonAuthorization: NON_AUTHORIZATION,
+    };
+  }
+
+  const statusCounts = Object.fromEntries(CALIBRATION_STATUSES.map((status) => [status, 0]));
+  for (const { evaluation } of validEvaluations) statusCounts[evaluation.status] += 1;
+
+  const evaluations = validEvaluations.map(({ ref, evaluation }) => ({
+    ref,
+    status: evaluation.status,
+    expectedLowLevelCallsAvoided: evaluation.expectedLowLevelCallsAvoided,
+    actualLowLevelReadSearchStatusCalls: evaluation.actualLowLevelReadSearchStatusCalls,
+    actualLowLevelCallsAvoided: evaluation.actualLowLevelCallsAvoided,
+    duplicateReadsObserved: evaluation.duplicateReadsObserved,
+    recommendationMatchedOutcome: evaluation.recommendationMatchedOutcome,
+    packetUtilityRecommendationStatus: evaluation.packetUtilityRecommendationStatus,
+    omissionFollowupCount: evaluation.omissionFollowupsUsed.length,
+    unwiredProviderOmissionCount: evaluation.unwiredProviderOmissions.length,
+  }));
+  const providerOmissionCounts = countValues(
+    validEvaluations.flatMap(({ evaluation }) => evaluation.unwiredProviderOmissions),
+  );
+  const omissionFollowupCounts = countValues(
+    validEvaluations.flatMap(({ evaluation }) => evaluation.omissionFollowupsUsed),
+  );
+  const packetUtilityRecommendationCounts = countValues(
+    validEvaluations.map(({ evaluation }) => evaluation.packetUtilityRecommendationStatus),
+  );
+  const aggregateStatus = aggregateStatusFor({
+    validCount: validEvaluations.length,
+    invalidCount: allInvalidEntries.length,
+    statusCounts,
+  });
+
+  return {
+    ok: true,
+    kind: "context_pack_dogfood_aggregate_evaluation_v1",
+    status: aggregateStatus,
+    receiptCount: entries.length + invalidEntries.length,
+    validReceiptCount: validEvaluations.length,
+    invalidReceiptCount: allInvalidEntries.length,
+    statusCounts,
+    totals: {
+      expectedLowLevelCallsAvoided: validEvaluations.reduce(
+        (sum, entry) => sum + entry.evaluation.expectedLowLevelCallsAvoided,
+        0,
+      ),
+      actualLowLevelCallsAvoided: validEvaluations.reduce(
+        (sum, entry) => sum + (entry.evaluation.actualLowLevelCallsAvoided ?? 0),
+        0,
+      ),
+      actualLowLevelReadSearchStatusCalls: validEvaluations.reduce(
+        (sum, entry) => sum + (entry.evaluation.actualLowLevelReadSearchStatusCalls ?? 0),
+        0,
+      ),
+    },
+    packetUtilityRecommendationCounts,
+    providerOmissionCounts,
+    omissionFollowupCounts,
+    evaluations,
+    invalidEntries: allInvalidEntries,
+    nextAction: aggregateNextAction(aggregateStatus),
+    nonAuthorization: NON_AUTHORIZATION,
+  };
+};
+
+export const formatDogfoodAggregateEvaluation = (aggregate) => {
+  if (!aggregate.ok) {
+    return [
+      "# Context-pack dogfood aggregate evaluation failed",
+      "",
+      ...(aggregate.errors ?? []).map((error) => `- ${markdownInlineLabel(error, "error")}`),
+      "",
+      `Non-authorization: ${aggregate.nonAuthorization}`,
+    ].join("\n");
+  }
+
+  const statusLines = CALIBRATION_STATUSES.map(
+    (status) => `- ${status}: ${aggregate.statusCounts[status] ?? 0}`,
+  );
+  const providerLines = Object.entries(aggregate.providerOmissionCounts).map(
+    ([provider, count]) => `- ${markdownInlineLabel(provider, "provider")}: ${count}`,
+  );
+  const utilityLines = Object.entries(aggregate.packetUtilityRecommendationCounts).map(
+    ([status, count]) => `- ${markdownInlineLabel(status, "packet utility status")}: ${count}`,
+  );
+  const invalidLines = aggregate.invalidEntries.map(
+    (entry) =>
+      `- ${markdownInlineLabel(entry.ref, "receipt")}: ${entry.errors.map((error) => markdownInlineLabel(error, "error")).join("; ")}`,
+  );
+
+  return [
+    "# Context-pack dogfood aggregate evaluation",
+    "",
+    `Status: ${aggregate.status}`,
+    `Receipts: ${aggregate.validReceiptCount} valid, ${aggregate.invalidReceiptCount} invalid, ${aggregate.receiptCount} total`,
+    `Expected low-level calls avoided: ${aggregate.totals.expectedLowLevelCallsAvoided}`,
+    `Actual low-level calls avoided: ${aggregate.totals.actualLowLevelCallsAvoided}`,
+    `Actual low-level read/search/status calls: ${aggregate.totals.actualLowLevelReadSearchStatusCalls}`,
+    "",
+    "## Calibration status counts",
+    statusLines.join("\n"),
+    "",
+    "## Packet utility recommendation counts",
+    utilityLines.length ? utilityLines.join("\n") : "- none recorded",
+    "",
+    "## Unwired provider omission counts",
+    providerLines.length ? providerLines.join("\n") : "- none recorded",
+    "",
+    "## Invalid receipts",
+    invalidLines.length ? invalidLines.join("\n") : "- none",
+    "",
+    "## Next action",
+    `- ${aggregate.nextAction}`,
+    "",
+    "## Non-authorization",
+    `- ${aggregate.nonAuthorization}`,
+  ].join("\n");
+};
+
+export const dogfoodAggregateEvaluationToolResult = async (input = {}) => {
+  const aggregate = buildDogfoodAggregateEvaluation(input);
+  return textResult(formatDogfoodAggregateEvaluation(aggregate), {
+    dogfoodAggregateEvaluation: aggregate,
+  });
+};
+
 export const DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS = {
   type: "object",
   additionalProperties: false,
@@ -297,6 +664,49 @@ export const DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS = {
       maxLength: MAX_OBSERVATION_JSON_BYTES,
       description:
         "Filled context_pack_dogfood_observation_v1 JSON string emitted by context_pack.",
+    },
+  },
+};
+
+export const DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    items: {
+      type: "array",
+      maxItems: MAX_AGGREGATE_ITEMS,
+      items: {
+        oneOf: [
+          { type: "object", additionalProperties: true },
+          { type: "string", maxLength: MAX_OBSERVATION_JSON_BYTES },
+        ],
+      },
+      description:
+        "Mixed redacted context_pack dogfood observations or context_pack dogfood evaluations.",
+    },
+    observations: {
+      type: "array",
+      maxItems: MAX_AGGREGATE_ITEMS,
+      items: { type: "object", additionalProperties: true },
+      description: "Filled context_pack_dogfood_observation_v1 objects emitted by context_pack.",
+    },
+    observationJsons: {
+      type: "array",
+      maxItems: MAX_AGGREGATE_ITEMS,
+      items: { type: "string", maxLength: MAX_OBSERVATION_JSON_BYTES },
+      description: "Filled context_pack_dogfood_observation_v1 JSON strings.",
+    },
+    evaluations: {
+      type: "array",
+      maxItems: MAX_AGGREGATE_ITEMS,
+      items: { type: "object", additionalProperties: true },
+      description: "context_pack_dogfood_evaluation_v1 objects from context_dogfood_evaluate.",
+    },
+    evaluationJsons: {
+      type: "array",
+      maxItems: MAX_AGGREGATE_ITEMS,
+      items: { type: "string", maxLength: MAX_OBSERVATION_JSON_BYTES },
+      description: "context_pack_dogfood_evaluation_v1 JSON strings.",
     },
   },
 };

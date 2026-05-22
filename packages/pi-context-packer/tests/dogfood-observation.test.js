@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildDogfoodAggregateEvaluation,
   buildDogfoodObservationEvaluation,
+  DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS,
   DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
+  dogfoodAggregateEvaluationToolResult,
   dogfoodObservationEvaluationToolResult,
   formatDogfoodObservationEvaluation,
 } from "../src/dogfood-observation.js";
@@ -240,4 +243,110 @@ test("dogfood evaluator rejects oversized JSON and publishes a closed top-level 
     DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS.properties.observationJson.maxLength,
     64_000,
   );
+});
+
+test("dogfood aggregate summarizes repeated redacted observations without promoting evidence", () => {
+  const aggregate = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation(),
+      baseObservation({
+        prediction: {
+          ...baseObservation().prediction,
+          expectedLowLevelCallsAvoided: 2,
+          unwiredProviderOmissions: ["ak"],
+        },
+        observation: {
+          actualLowLevelReadSearchStatusCalls: 0,
+          actualLowLevelCallsAvoided: 4,
+          duplicateReadsObserved: false,
+          omissionFollowupsUsed: [],
+          recommendationMatchedOutcome: true,
+          notes: "saved extra probes",
+        },
+      }),
+      baseObservation({
+        prediction: { ...baseObservation().prediction, expectedLowLevelCallsAvoided: 1 },
+        observation: {
+          actualLowLevelReadSearchStatusCalls: 5,
+          actualLowLevelCallsAvoided: 0,
+          duplicateReadsObserved: true,
+          omissionFollowupsUsed: [{ provider: "docs", reason: "missing ranking" }],
+          recommendationMatchedOutcome: false,
+          notes: "needed docs follow-up",
+        },
+      }),
+    ],
+  });
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.status, "ranking_or_provider_gap_suspected");
+  assert.equal(aggregate.validReceiptCount, 3);
+  assert.equal(aggregate.invalidReceiptCount, 0);
+  assert.equal(aggregate.statusCounts.matched, 1);
+  assert.equal(aggregate.statusCounts.underestimated, 1);
+  assert.equal(aggregate.statusCounts.overestimated, 1);
+  assert.equal(aggregate.providerOmissionCounts.ak, 1);
+  assert.equal(aggregate.omissionFollowupCounts["docs/missing ranking"], 1);
+  assert.match(aggregate.nonAuthorization, /did not persist evidence/);
+});
+
+test("dogfood aggregate accepts prior evaluations and reports mixed invalid receipts", async () => {
+  const priorEvaluation = buildDogfoodObservationEvaluation({ observation: baseObservation() });
+  const result = await dogfoodAggregateEvaluationToolResult({
+    items: [
+      JSON.stringify(priorEvaluation),
+      { kind: "wrong" },
+      baseObservation({
+        observation: {
+          actualLowLevelReadSearchStatusCalls: null,
+          actualLowLevelCallsAvoided: null,
+          duplicateReadsObserved: null,
+          omissionFollowupsUsed: [],
+          recommendationMatchedOutcome: null,
+          notes: "",
+        },
+      }),
+    ],
+  });
+  const aggregate = result.details.dogfoodAggregateEvaluation;
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.status, "review_before_tuning");
+  assert.equal(aggregate.validReceiptCount, 2);
+  assert.equal(aggregate.invalidReceiptCount, 1);
+  assert.match(result.content[0].text, /Invalid receipts/);
+  assert.match(result.content[0].text, /items\[1\]/);
+});
+
+test("dogfood aggregate redacts malicious labels and fails closed on oversized inputs", async () => {
+  const malicious = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      prediction: {
+        ...baseObservation().prediction,
+        packetUtilityRecommendationStatus: "use_packet\n## Forged /tmp/customer-acme TOKEN=secret",
+        unwiredProviderOmissions: ["/tmp/customer-acme TOKEN=secret"],
+      },
+      observation: {
+        actualLowLevelReadSearchStatusCalls: 2,
+        actualLowLevelCallsAvoided: null,
+        duplicateReadsObserved: true,
+        omissionFollowupsUsed: ["/tmp/customer-acme TOKEN=secret"],
+        recommendationMatchedOutcome: false,
+        notes: "## Forged section\nTOKEN=secret at /tmp/customer-acme",
+      },
+    }),
+  });
+
+  const result = await dogfoodAggregateEvaluationToolResult({ evaluations: [malicious] });
+  const huge = await dogfoodAggregateEvaluationToolResult({ items: ["{".padEnd(65_000, "x")] });
+  const serialized = JSON.stringify(result.details);
+
+  assert.equal(result.details.dogfoodAggregateEvaluation.ok, true);
+  assert.doesNotMatch(result.content[0].text, /TOKEN|customer-acme|\/tmp\//);
+  assert.doesNotMatch(result.content[0].text, /^## Forged section/m);
+  assert.doesNotMatch(serialized, /TOKEN|customer-acme|\/tmp\//);
+  assert.equal(huge.details.dogfoodAggregateEvaluation.ok, false);
+  assert.match(huge.content[0].text, /compact evaluator input limit/);
+  assert.equal(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.additionalProperties, false);
+  assert.equal(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.properties.items.maxItems, 20);
 });
