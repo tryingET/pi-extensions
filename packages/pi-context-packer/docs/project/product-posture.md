@@ -71,7 +71,7 @@ The package currently owns:
 - primary Markdown packet output;
 - advisory owner-surface routing for authority-sensitive work without invoking those surfaces;
 - compact structured `details` that omit raw item content by default;
-- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, session awareness, unwired provider omissions, packet-local utility recommendations, and post-use dogfood follow-up scaffolds;
+- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, session awareness, unwired provider omissions, packet-local utility recommendations, post-use dogfood follow-up scaffolds, and copy-ready observation templates that omit raw packet content;
 - explicit omissions for planned-but-unwired provider seams.
 
 ## Product non-goals
@@ -122,7 +122,7 @@ A context packet is product-healthy only when:
 
 ## Current main gap
 
-The main remaining product gap is not another provider adapter; it is a growing body of live usefulness proof under the stricter pre-provider safety membrane. The package now refuses artifact-prone SCI workflows unless read-only safety is explicitly confirmed, so current SCI output is usually an honest omission rather than a risky packet section. First dogfood receipts show both a useful packet and a `no_packet_needed` outcome in [Dogfood measurement receipts — 2026-05-22](2026-05-22-dogfood-measurement-receipts.md), but the next frontier is repeated receipts across implementation, review, and validation tasks that distinguish useful omissions from missing capability before ranking changes or new owner adapters are justified.
+The main remaining product gap is not another provider adapter; it is a growing body of live usefulness proof under the stricter pre-provider safety membrane, now supported by copy-ready packet-local observation templates. The package now refuses artifact-prone SCI workflows unless read-only safety is explicitly confirmed, so current SCI output is usually an honest omission rather than a risky packet section. First dogfood receipts show both a useful packet and a `no_packet_needed` outcome in [Dogfood measurement receipts — 2026-05-22](2026-05-22-dogfood-measurement-receipts.md), but the next frontier is repeated receipts across implementation, review, and validation tasks that distinguish useful omissions from missing capability before ranking changes or new owner adapters are justified.
 
 ## Next product bets
 

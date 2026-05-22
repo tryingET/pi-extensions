@@ -7,6 +7,7 @@ import { buildContextPlan, CONTEXT_PLAN_PARAMETERS } from "./context-plan.js";
 import { discoverDocsSeeds } from "./docs-provider.js";
 import { buildSciSection } from "./sci-provider.js";
 import {
+  buildDogfoodObservationTemplate,
   buildMeasurementHints,
   buildMeasurementReceipt,
   buildSessionAwareness,
@@ -497,12 +498,23 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     budget: plan.budget,
     sessionAwareness,
   });
+  const dogfoodObservationTemplate = buildDogfoodObservationTemplate({
+    objective: plan.objective,
+    generatedAt: new Date().toISOString(),
+    totals: {
+      candidatesSelected: sections.reduce((sum, section) => sum + section.items.length, 0),
+      candidatesOmitted: omissions.length,
+    },
+    sections,
+    omissions,
+    measurementReceipt,
+  });
   const ownerSurfaceRecommendations = plan.ownerSurfaceRecommendations ?? [];
   const nextOwnerActions = ownerSurfaceRecommendations.map(ownerActionFromRecommendation);
   const packet = {
     ok: true,
     objective: plan.objective,
-    generatedAt: new Date().toISOString(),
+    generatedAt: dogfoodObservationTemplate.packet.generatedAt,
     cwd,
     repoRoot,
     budget: plan.budget,
@@ -525,6 +537,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       ...omissions.map(suggestionFromOmission),
     ],
     measurementReceipt,
+    dogfoodObservationTemplate,
     measurementHints: buildMeasurementHints(measurementReceipt, plan.budget),
     nonAuthorizations: plan.nonAuthorizations,
   };

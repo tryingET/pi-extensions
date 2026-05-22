@@ -40,6 +40,12 @@ export const formatContextPacket = (result) => {
   );
   const utility = packet.measurementReceipt.packetUtilityRecommendation;
   const dogfoodFollowup = packet.measurementReceipt.dogfoodFollowupReceipt;
+  const dogfoodObservationTemplate = packet.dogfoodObservationTemplate
+    ? markdownFence(
+        "dogfood-observation-template.json",
+        JSON.stringify(packet.dogfoodObservationTemplate, null, 2),
+      )
+    : undefined;
   return [
     `# Context packet: ${packet.objective}`,
     "",
@@ -65,6 +71,9 @@ export const formatContextPacket = (result) => {
           `- non-authorization: ${dogfoodFollowup.nonAuthorization}`,
         ].join("\n")
       : "- none",
+    "",
+    "## Dogfood observation template",
+    dogfoodObservationTemplate ?? "- none",
     "",
     "## Section summary",
     sectionSummaries.length ? sectionSummaries.join("\n") : "- none",
@@ -118,6 +127,7 @@ export const compactContextPacketDetails = (result) => {
     measurementReceipt: packet.measurementReceipt,
     packetUtilityRecommendation: packet.measurementReceipt.packetUtilityRecommendation,
     dogfoodFollowupReceipt: packet.measurementReceipt.dogfoodFollowupReceipt,
+    dogfoodObservationTemplate: packet.dogfoodObservationTemplate,
     measurementHints: packet.measurementHints,
     nonAuthorizations: packet.nonAuthorizations,
   };

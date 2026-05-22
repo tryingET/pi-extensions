@@ -143,6 +143,72 @@ export const buildDogfoodFollowupReceipt = (receipt) => ({
     "packet-local follow-up scaffold only; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
 });
 
+const compactSelectedItems = (sections) =>
+  sections.flatMap((section) =>
+    section.items.map((item) => ({
+      id: item.id,
+      provider: section.provider,
+      kind: item.kind,
+      contentMode: item.contentMode,
+      provenance: item.provenance,
+      duplicateOf: item.duplicateOf,
+      duplicateTokensAvoided: item.duplicateTokensAvoided ?? 0,
+    })),
+  );
+
+const compactOmissions = (omissions) =>
+  omissions.map((omission) => ({
+    provider: omission.provider,
+    reason: omission.reason,
+    detail: omission.detail,
+  }));
+
+export const buildDogfoodObservationTemplate = ({
+  objective,
+  generatedAt,
+  totals,
+  sections,
+  omissions,
+  measurementReceipt,
+}) => ({
+  kind: "context_pack_dogfood_observation_v1",
+  status: "observation_pending",
+  packet: {
+    objectiveRef: "packet.objective",
+    objectiveEstimatedTokens: textTokens(typeof objective === "string" ? objective : ""),
+    objectiveBytes: Buffer.byteLength(typeof objective === "string" ? objective : ""),
+    generatedAt,
+    selectedItemCount: measurementReceipt.selectedItemCount,
+    omittedCandidateCount: measurementReceipt.omittedCandidateCount,
+    candidatesSelected: totals.candidatesSelected,
+    candidatesOmitted: totals.candidatesOmitted,
+    selectedItems: compactSelectedItems(sections),
+    omissions: compactOmissions(omissions),
+  },
+  prediction: {
+    expectedLowLevelCallsAvoided: measurementReceipt.estimatedToolCallsAvoided,
+    packetUtilityRecommendationStatus:
+      measurementReceipt.packetUtilityRecommendation?.status ?? "unknown",
+    alreadyLoadedItems: measurementReceipt.alreadyLoadedItems,
+    freshItemCount: measurementReceipt.freshItemCount,
+    duplicateTokensAvoided: measurementReceipt.duplicateTokensAvoided,
+    unwiredProviderOmissions: measurementReceipt.unwiredProviderOmissions,
+  },
+  observation: {
+    actualLowLevelReadSearchStatusCalls: null,
+    duplicateReadsObserved: null,
+    omissionFollowupsUsed: [],
+    recommendationMatchedOutcome: null,
+    notes: "",
+  },
+  countingRule:
+    "Count ad-hoc read/search/list/status probes that the packet should have avoided; track validation commands separately.",
+  instructions:
+    "After the work, paste this template into the owning dogfood evidence surface only if useful, fill observation fields, and keep any sensitive task content out of notes.",
+  nonAuthorization:
+    "copy-ready packet-local observation template only; context-packer did not persist evidence, update AK/FCOS, write session memory, mutate files, or validate observed counts",
+});
+
 export const buildPacketUtilityRecommendation = (receipt) => {
   const hasOmissions = receipt.omittedCandidateCount > 0;
   const hasFreshContent = receipt.freshItemCount > 0;
