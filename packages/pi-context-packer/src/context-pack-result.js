@@ -1,16 +1,21 @@
-import { markdownFence } from "./context-intake-safety.js";
+import { markdownFence, markdownInlineLabel } from "./context-intake-safety.js";
 import { formatContextPlan } from "./context-plan.js";
 
 export const textResult = (text, details = {}) => ({ content: [{ type: "text", text }], details });
 
 const formatPacketItem = (item) => {
-  const heading = `### ${item.id}`;
+  const displayId = markdownInlineLabel(item.id, "packet item");
+  const heading = `### ${displayId}`;
   const meta = [
-    `- kind: ${item.kind}`,
-    `- mode: ${item.contentMode}`,
-    item.provenance?.path ? `- path: ${item.provenance.path}` : undefined,
-    item.provenance?.command ? `- command: ${item.provenance.command}` : undefined,
-    `- rationale: ${item.rationale}`,
+    `- kind: ${markdownInlineLabel(item.kind, "unknown")}`,
+    `- mode: ${markdownInlineLabel(item.contentMode, "unknown")}`,
+    item.provenance?.path
+      ? `- path: ${markdownInlineLabel(item.provenance.path, "unknown")}`
+      : undefined,
+    item.provenance?.command
+      ? `- command: ${markdownInlineLabel(item.provenance.command, "unknown")}`
+      : undefined,
+    `- rationale: ${markdownInlineLabel(item.rationale, "none")}`,
   ].filter(Boolean);
   return [heading, ...meta, "", markdownFence(item.id, item.content)].join("\n");
 };
@@ -32,11 +37,12 @@ export const formatContextPacket = (result) => {
     ].join("\n"),
   );
   const omissions = packet.omissions.map(
-    (omission) => `- ${omission.provider}/${omission.reason}: ${omission.detail}`,
+    (omission) =>
+      `- ${markdownInlineLabel(omission.provider, "provider")}/${markdownInlineLabel(omission.reason, "reason")}: ${markdownInlineLabel(omission.detail, "detail omitted")}`,
   );
   const ownerRouting = (packet.ownerSurfaceRecommendations ?? []).map(
     (recommendation) =>
-      `- ${recommendation.surface}: ${recommendation.nextAction} (${recommendation.nonAuthorization})`,
+      `- ${markdownInlineLabel(recommendation.surface, "surface")}: ${markdownInlineLabel(recommendation.nextAction, "next action")} (${markdownInlineLabel(recommendation.nonAuthorization, "non-authorization")})`,
   );
   const utility = packet.measurementReceipt.packetUtilityRecommendation;
   const dogfoodFollowup = packet.measurementReceipt.dogfoodFollowupReceipt;
@@ -47,7 +53,7 @@ export const formatContextPacket = (result) => {
       )
     : undefined;
   return [
-    `# Context packet: ${packet.objective}`,
+    `# Context packet: ${markdownInlineLabel(packet.objective, "objective")}`,
     "",
     `Selected: ${packet.totals.candidatesSelected} item(s), ${packet.totals.estimatedTokens} estimated tokens, ${packet.totals.bytes} bytes`,
     `Estimated tool calls avoided: ${packet.measurementReceipt.estimatedToolCallsAvoided}`,

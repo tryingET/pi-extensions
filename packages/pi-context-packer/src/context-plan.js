@@ -4,6 +4,7 @@ import {
   hasControlCharacter,
   hasSchemeOrDrivePrefix,
   includesBoundedSignal,
+  markdownInlineLabel,
   repoRelativePathSafetyIssue,
 } from "./context-intake-safety.js";
 import { buildOwnerSurfaceRecommendations } from "./owner-surface-routing.js";
@@ -540,7 +541,7 @@ export const formatContextPlan = (plan) => {
     .join("\n");
 
   return [
-    `Context plan for: ${plan.objective}`,
+    `Context plan for: ${markdownInlineLabel(plan.objective, "objective")}`,
     `budget: ${plan.budget.maxTokens} tokens (${plan.budget.reserveTokens} reserved)`,
     `selected providers: ${selected || "none"}`,
     `optional providers: ${optional || "none"}`,

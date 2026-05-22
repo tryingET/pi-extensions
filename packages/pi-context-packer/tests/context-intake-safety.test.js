@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { publicOmissionDetail } from "../src/context-intake-safety.js";
+import { markdownInlineLabel, publicOmissionDetail } from "../src/context-intake-safety.js";
+
+test("markdownInlineLabel collapses control characters and bounds labels", () => {
+  assert.equal(
+    markdownInlineLabel("objective\n## Forged section\r\n- <h2>fake</h2>"),
+    "objective ## Forged section - ‹h2›fake‹/h2›",
+  );
+  assert.equal(markdownInlineLabel("", "fallback"), "fallback");
+  assert.equal(markdownInlineLabel("x".repeat(300)).length, 240);
+});
 
 test("publicOmissionDetail withholds POSIX, Windows, UNC, and secret-like raw details", () => {
   const fallback = "provider unavailable detail withheld";

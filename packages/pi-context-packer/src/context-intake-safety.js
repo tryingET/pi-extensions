@@ -38,6 +38,24 @@ export const boundedSignalMatches = (haystack, signal) =>
 export const includesBoundedSignal = (haystack, signals) =>
   signals.some((signal) => boundedSignalMatches(haystack, signal));
 
+const replaceControlCharacters = (value) =>
+  Array.from(value)
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127 ? " " : character;
+    })
+    .join("");
+
+export const markdownInlineLabel = (value, fallback = "unnamed", maxLength = 240) => {
+  const text = replaceControlCharacters(String(value ?? ""))
+    .replace(/</gu, "‹")
+    .replace(/>/gu, "›")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (!text) return fallback;
+  return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1))}…` : text;
+};
+
 const longestBacktickRun = (text) => {
   const runs = String(text).match(/`+/gu) ?? [];
   return runs.reduce((max, run) => Math.max(max, run.length), 0);
@@ -89,7 +107,12 @@ export const publicOmissionDetail = (detail, fallback = "omission detail withhel
 };
 
 export const markdownFence = (label, content) => {
-  const fenceLength = Math.max(3, longestBacktickRun(content) + 1, longestBacktickRun(label) + 1);
+  const safeLabel = markdownInlineLabel(label);
+  const fenceLength = Math.max(
+    3,
+    longestBacktickRun(content) + 1,
+    longestBacktickRun(safeLabel) + 1,
+  );
   const fence = "`".repeat(fenceLength);
-  return [fence, `# ${label}`, content, fence].join("\n");
+  return [fence, `# ${safeLabel}`, content, fence].join("\n");
 };

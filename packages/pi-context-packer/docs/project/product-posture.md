@@ -51,7 +51,7 @@ The package should feel like a context advisory membrane: it helps decide what c
 
 - maturity: `internal dogfood / pre-provider safety hardened MVP with redacted receipt export`
 - current strategic line: keep `context_plan` cheap and always available, keep `context_pack` activatable, preserve Markdown-primary output, and use redacted live dogfood receipts to prove ranking/utility before adding AK/FCOS/Prompt Vault adapters
-- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, dot-prefixed/internal path intake, docs-list path intake, Markdown fence injection, owner-surface false positives, unreadable files, symlink escapes, missing workspace-root degradation, SCI workflow refusal until read-only safety is confirmed, compact details, budgets, fresh-vs-duplicate tool-call estimates, session dedupe, compact session metadata without raw context-usage echoing, redacted dogfood observation templates, public omission/error detail redaction across Markdown/details/next suggestions, raw omission-detail suppression, and wired-vs-planned-unwired provider gap classification; docs list passes
+- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, dot-prefixed/internal path intake, docs-list path intake, Markdown fence injection, Markdown structural-label injection, owner-surface false positives, unreadable files, symlink escapes, missing workspace-root degradation, SCI workflow refusal until read-only safety is confirmed, compact details, budgets, fresh-vs-duplicate tool-call estimates, session dedupe, compact session metadata without raw context-usage echoing, redacted dogfood observation templates, public omission/error detail redaction across Markdown/details/next suggestions, raw omission-detail suppression, and wired-vs-planned-unwired provider gap classification; docs list passes
 - release posture: package checks pass; package is installed locally into Pi; live activation is via toolbox `context-packer` bundle
 
 ## Current landed capability baseline
@@ -64,7 +64,7 @@ The package currently owns:
 - AGENTS provider with loader-style root-to-leaf ordering;
 - caller-seeded Markdown docs provider;
 - docs-list-ranked Markdown discovery when no explicit safe Markdown seed was supplied;
-- shared intake-safety membrane for caller and provider-discovered paths, default-deny dot-prefixed path segments, monorepo ancestor repoRoot acceptance only with a `.git` marker, boundary-aware provider/owner-surface matching, and adaptive Markdown fences;
+- shared intake-safety membrane for caller and provider-discovered paths, default-deny dot-prefixed path segments, monorepo ancestor repoRoot acceptance only with a `.git` marker, boundary-aware provider/owner-surface matching, adaptive Markdown fences, and bounded one-line Markdown structural labels;
 - trusted-system-git status provider;
 - read-only SCI provider seam for caller-seeded code paths and symbols that refuses workflow execution unless SCI read-only safety is explicitly confirmed;
 - session/system-prompt-aware measurement and already-loaded dedupe;

@@ -319,3 +319,14 @@ test("formatContextPlan gives a compact operator-readable summary", () => {
   assert.match(text, /owner-surface routing:/);
   assert.match(text, /non-authorizations:/);
 });
+
+test("formatContextPlan collapses caller-controlled objective labels before rendering", () => {
+  const plan = buildContextPlan({
+    objective: "Plan context\n## Forged plan section\n<h2>fake</h2>",
+  });
+  const text = formatContextPlan(plan);
+
+  assert.match(text, /^Context plan for: Plan context ## Forged plan section ‹h2›fake‹\/h2›$/m);
+  assert.doesNotMatch(text, /^## Forged plan section$/m);
+  assert.doesNotMatch(text, /<h2>fake<\/h2>/);
+});
