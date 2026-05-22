@@ -195,6 +195,70 @@ After AGENTS and product posture content were already in the active session, the
 
 Outcome: no-packet recommendation matched the live work. This is the clearest current product proof for session-awareness: the packet should sometimes prevent context growth rather than add content.
 
+## Receipt C — post-reload copy-ready observation template check
+
+### Context
+
+After reloading Pi with the dogfood template changes available, the current session already had the relevant AGENTS, measurement implementation, packet formatting, and dogfood evidence files loaded. The objective was deliberately narrow:
+
+```text
+Post-reload dogfood: verify copy-ready dogfood observation template output
+```
+
+Providers `git`, `sci`, `ak`, `fcos`, and `prompt_vault` were disabled for this check so the packet decision measured only already-loaded AGENTS/docs context and the receipt-export surface.
+
+### Packet receipt
+
+```json
+{
+  "totals": {
+    "estimatedTokens": 129,
+    "bytes": 510,
+    "candidatesSelected": 3,
+    "candidatesOmitted": 0
+  },
+  "measurementReceipt": {
+    "estimatedToolCallsAvoided": 0,
+    "alreadyLoadedItems": 3,
+    "freshItemCount": 0,
+    "duplicateTokensAvoided": 4145,
+    "omittedCandidateCount": 0,
+    "packetUtilityRecommendation": {
+      "status": "no_packet_needed",
+      "reason": "all selected packet content is already represented in the active prompt/session"
+    }
+  },
+  "dogfoodObservationTemplate": {
+    "kind": "context_pack_dogfood_observation_v1",
+    "observation": {
+      "actualLowLevelReadSearchStatusCalls": null,
+      "duplicateReadsObserved": null,
+      "omissionFollowupsUsed": [],
+      "recommendationMatchedOutcome": null,
+      "notes": ""
+    }
+  },
+  "templateTextHasSelectedPaths": false,
+  "templateTextHasRawContentMarkers": false
+}
+```
+
+### Follow-up observation
+
+```json
+{
+  "status": "observed",
+  "expectedLowLevelCallsAvoided": 0,
+  "actualLowLevelReadSearchStatusCalls": 0,
+  "duplicateReadsObserved": false,
+  "omissionFollowupsUsed": [],
+  "recommendationMatchedOutcome": true,
+  "notes": "The post-reload packet did the right thing: it recommended no packet, exposed 4,145 duplicate tokens avoided, and produced a copy-ready observation template without selected paths or raw content markers."
+}
+```
+
+Outcome: reload verification matched the intended product behavior. The copy-ready template is useful even when no packet is needed because it gives the agent a safe place to record the observed no-packet outcome.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.
