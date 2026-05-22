@@ -908,7 +908,7 @@ export function formatReviewOutcomes(outcomes) {
         `- ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}; latest: ${item.latestSummary}`,
       );
       if (item.reviewNote) lines.push(`  review note: ${item.reviewNote}`);
-      for (const followup of buildReviewOutcomeFollowupLines(item)) {
+      for (const followup of buildReviewOutcomeFollowupLines(item, outcomes.filters)) {
         lines.push(`  ${followup}`);
       }
     }
@@ -975,10 +975,10 @@ export function formatReviewComparison(comparison) {
         `  inspect: ${formatAgentVentCommand("review", "show", item.recurrenceKey)} [limit]`,
       );
       lines.push(
-        `  outcomes: ${formatAgentVentCommand("outcomes", item.reviewState)} [per-state-limit]`,
+        `  outcomes: ${formatAgentVentCommandWithFilters(comparison.filters, "outcomes", item.reviewState)} [per-state-limit]`,
       );
       lines.push(
-        `  export bucket: ${formatAgentVentCommand("export", "markdown", item.reviewState)} [limit]`,
+        `  ${formatExportBucketLine("export bucket", item.reviewState, comparison.filters)}`,
       );
       if (item.reviewState === "new") {
         lines.push(
@@ -986,7 +986,7 @@ export function formatReviewComparison(comparison) {
         );
       } else {
         lines.push(
-          `  retention planning: ${formatAgentVentCommand("retention", "candidates", item.reviewState)} [limit]`,
+          `  retention planning: ${formatAgentVentCommandWithFilters(comparison.filters, "retention", "candidates", item.reviewState)} [limit]`,
         );
       }
       lines.push(
@@ -1517,7 +1517,7 @@ export function formatRetentionCandidates(candidates) {
     } else {
       lines.push(
         `  preview archive token: ${formatAgentVentCommand("retention", "preview", item.recurrenceKey)}`,
-        `  export this outcome bucket: ${formatAgentVentCommand("export", "markdown", item.reviewState)} [limit]`,
+        `  ${formatExportBucketLine("export this outcome bucket", item.reviewState, candidates.filters)}`,
       );
     }
   }
@@ -2205,7 +2205,7 @@ function reviewOutcomeDescription(state) {
   return "draft noted locally; owner system remains authoritative for any submitted work";
 }
 
-function buildReviewOutcomeFollowupLines(group) {
+function buildReviewOutcomeFollowupLines(group, filters = {}) {
   const key = group.recurrenceKey;
   const lines = [`inspect: ${formatAgentVentCommand("review", "show", key)} [limit]`];
   if (group.reviewState === "new") {
@@ -2216,7 +2216,7 @@ function buildReviewOutcomeFollowupLines(group) {
   } else {
     lines.push(
       `optional local lifecycle: ${formatAgentVentCommand("retention", "preview", key)}`,
-      `export this outcome bucket: ${formatAgentVentCommand("export", "markdown", group.reviewState)} [limit]`,
+      formatExportBucketLine("export this outcome bucket", group.reviewState, filters),
       `revisit local state: ${formatAgentVentCommand("review", "set", "new", key)} [note]`,
     );
   }
@@ -2250,6 +2250,27 @@ function buildReviewNextActionLines(group, options = {}) {
 
 function formatAgentVentCommand(...args) {
   return `/agent_vent ${args.map((arg) => quoteCommandArg(arg)).join(" ")}`;
+}
+
+function formatAgentVentCommandWithFilters(filters, ...args) {
+  return formatAgentVentCommand(...args, ...reviewFilterCommandArgs(filters));
+}
+
+function reviewFilterCommandArgs(filters = {}) {
+  const args = [];
+  if (filters.category) args.push(`category=${filters.category}`);
+  if (filters.tool) args.push(`tool=${filters.tool}`);
+  if (filters.packageName) args.push(`package=${filters.packageName}`);
+  if (filters.tags?.length) args.push(`tag=${filters.tags.join(",")}`);
+  return args;
+}
+
+function formatExportBucketLine(label, state, filters = {}) {
+  const command = `${formatAgentVentCommand("export", "markdown", state)} [limit]`;
+  if (hasReviewFilters(filters)) {
+    return `${label} (broader; export does not support facet filters): ${command}`;
+  }
+  return `${label}: ${command}`;
 }
 
 function normalizeReviewFilters(input = {}) {

@@ -742,7 +742,10 @@ test("review outcomes bucket post-review follow-up without authority drift", () 
   assert.match(text, /seen token=\[REDACTED\] locally/);
   assert.match(text, /retention waits for local review/);
   assert.match(text, /optional local lifecycle: \/agent_vent retention preview/);
-  assert.match(text, /export this outcome bucket: \/agent_vent export markdown acknowledged/);
+  assert.match(
+    text,
+    /export this outcome bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
+  );
   assert.match(text, /Local diagnostic labels only; not owner routing/);
   assert.match(text, /No AK task, GitHub issue, incident, evidence, telemetry/);
   assert.doesNotMatch(
@@ -810,8 +813,15 @@ test("review comparison contrasts state buckets without authority drift", () => 
   const text = formatReviewComparison(unfiltered);
   assert.match(text, /Agent vent review comparison/);
   assert.match(text, /State totals:/);
-  assert.match(text, /export bucket: \/agent_vent export markdown acknowledged/);
-  assert.match(text, /retention planning: \/agent_vent retention candidates acknowledged/);
+  assert.match(
+    text,
+    /export bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
+  );
+  assert.match(text, /outcomes: \/agent_vent outcomes acknowledged tag=compare/);
+  assert.match(
+    text,
+    /retention planning: \/agent_vent retention candidates acknowledged tag=compare/,
+  );
   assert.match(text, /choose local outcome: \/agent_vent review set acknowledged/);
   assert.match(text, /intentionally emits no archive or restore confirmation tokens/);
   assert.match(text, /No AK task, GitHub issue, incident, evidence, telemetry/);
@@ -1251,6 +1261,10 @@ test("retention candidates list reviewed groups without tokens or mutation", () 
   assert.match(text, /read-only planning view/);
   assert.match(text, /preview archive token: \/agent_vent retention preview/);
   assert.match(text, /reviewed token=\[REDACTED\] locally/);
+  assert.match(
+    text,
+    /export this outcome bucket \(broader; export does not support facet filters\): \/agent_vent export markdown acknowledged/,
+  );
   assert.match(text, /No archive, restore, AK task, GitHub issue, incident, evidence/);
   assert.match(text, /not owner routing/);
   assert.doesNotMatch(text, /archive:[a-f0-9]/);

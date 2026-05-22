@@ -217,7 +217,8 @@ const AgentVentParams = Type.Object({
     Type.Integer({
       minimum: 1,
       maximum: 100,
-      description: "Maximum rows/groups for list, summary, or review actions.",
+      description:
+        "Maximum rows/groups for list, summary, review, outcomes, compare, export, or retention planning actions.",
     }),
   ),
 });
