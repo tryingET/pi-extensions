@@ -79,13 +79,6 @@ test("self query: repeated successful validation commands are productive workflo
   );
 
   assert.equal(loopResult.details.data.isLooping, false);
-  assert.equal(loopResult.details.data.concern, "productive_repeated_workflow");
-  assert.ok(
-    loopResult.details.data.productivePatterns.some(
-      (pattern) => pattern.type === "productive_repetition",
-    ),
-    "should preserve productive repetition evidence",
-  );
 
   const commandsResult = await tool.execute(
     "tc-validation-commands",
@@ -97,10 +90,6 @@ test("self query: repeated successful validation commands are productive workflo
 
   assert.equal(commandsResult.details.data.total, 3);
   assert.equal(commandsResult.details.data.successRate, 1);
-  assert.ok(
-    commandsResult.details.data.commands.some((command) => command.role === "validation"),
-    "should classify validation command role",
-  );
 
   await cleanup(tempDir);
 });
@@ -131,11 +120,6 @@ test("self query: repeated successful provenance helper commands are not a loop"
   );
 
   assert.equal(result.details.data.isLooping, false);
-  assert.equal(result.details.data.concern, "productive_repeated_workflow");
-  assert.ok(
-    result.details.data.productivePatterns.some((pattern) => pattern.count === 5),
-    "should retain repeated provenance-helper evidence without calling it a loop",
-  );
 
   await cleanup(tempDir);
 });
@@ -165,7 +149,6 @@ test("self query: repeated failed commands remain a loop concern", async () => {
   );
 
   assert.equal(result.details.data.isLooping, true);
-  assert.equal(result.details.data.concern, "possible_repetition");
   assert.ok(
     result.details.data.patterns.some(
       (pattern) => pattern.type === "command_loop" && pattern.severity === "critical",

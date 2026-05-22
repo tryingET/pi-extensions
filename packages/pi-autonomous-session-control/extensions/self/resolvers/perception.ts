@@ -120,14 +120,7 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
         understood: true,
         intent: "perception",
         answer: result.summary,
-        data: {
-          isLooping: result.isLooping,
-          patterns: result.patterns,
-          productivePatterns: result.productivePatterns,
-          concern: result.concern,
-          advisory: result.advisory,
-          authority: result.authority,
-        },
+        data: { isLooping: result.isLooping, patterns: result.patterns },
       };
     }
 
@@ -216,8 +209,6 @@ function resolveSessionSummary(state: SelfState): SelfResponse {
 
   if (loops.isLooping) {
     parts.push(`⚠️ Possible repetition: ${loops.patterns.length} pattern(s)`);
-  } else if (loops.concern === "productive_repeated_workflow") {
-    parts.push("Repeated workflow appears productive");
   }
   if (progress.isStalled) {
     parts.push(
@@ -239,7 +230,6 @@ function resolveSessionSummary(state: SelfState): SelfResponse {
       isLooping: loops.isLooping,
       isStalled: progress.isStalled,
       loopPatterns: loops.patterns,
-      loopConcern: loops.concern,
       progressConcern: progress.concern,
     },
   };

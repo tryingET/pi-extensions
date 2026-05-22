@@ -3,13 +3,7 @@
  * The LLM queries this to perceive its own behavior.
  */
 
-import type {
-  CommandRole,
-  DetectedPattern,
-  FileOperation,
-  OperationLog,
-  PatternDetector,
-} from "./types.ts";
+import type { DetectedPattern, FileOperation, OperationLog, PatternDetector } from "./types.ts";
 
 // ============================================================================
 // CONSTANTS
@@ -49,7 +43,6 @@ export function trackCommand(log: OperationLog, rawCommand: string, success: boo
     rawCommand: rawCommand.slice(0, COMMAND_NORMALIZE_MAX_LEN),
     timestamp: Date.now(),
     success,
-    role: classifyCommandRole(rawCommand),
   });
   trimLog(log);
 }
@@ -124,39 +117,17 @@ function extractErrorSignature(message: string): string {
     .trim();
 }
 
-function classifyCommandRole(command: string): CommandRole {
+function isProductiveWorkflowCommand(command: string): boolean {
   const lower = command.trim().toLowerCase();
-
-  if (/\b(provenance[-_]note|pi[-_]provenance|provenance)\b/.test(lower)) {
-    return "provenance_helper";
-  }
-  if (
-    /^(?:\S+\s+)?ak\s+task\s+(?:complete|close|done|finish|update\b.*\b(?:done|completed))\b/.test(
-      lower,
-    )
-  ) {
-    return "ak_completion";
-  }
-  if (/^git\s+commit\b/.test(lower)) {
-    return "vcs_commit";
-  }
-  if (/^git\s+(?:status|log|diff|show|rev-parse)\b/.test(lower)) {
-    return "vcs_inspection";
-  }
-  if (
+  return (
+    /\bprovenance[-_]?note\b|\bpi[-_]?provenance\b/.test(lower) ||
+    /^git\s+(?:commit|status|log|diff|show|rev-parse)\b/.test(lower) ||
+    /^ak\s+task\s+(?:complete|close|done|finish|update\b.*\b(?:done|completed))\b/.test(lower) ||
     /\b(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:test|check|lint|typecheck|quality|ci)\b/.test(lower) ||
     /\b(?:node\s+--test|vitest|jest|tsc|biome\s+(?:check|ci|lint)|just\s+(?:test|check|lint|ci))\b/.test(
       lower,
     )
-  ) {
-    return "validation";
-  }
-
-  return "generic";
-}
-
-function isProductiveRepeatedCommandRole(role: CommandRole): boolean {
-  return role !== "generic";
+  );
 }
 
 // ============================================================================
@@ -195,48 +166,36 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
   }
 
   // Detect command loops: same normalized command 3+ times.
-  // Repeated successful validation/provenance/VCS/AK commands are visible as productive
-  // repetition rather than loops; repeated failures still stay loop/error evidence.
+  // Repeated successful workflow commands are common validation/closeout, not stuckness.
   const commandCounts = new Map<
     string,
-    { count: number; successes: number; allSuccessful: boolean; role: CommandRole }
+    { count: number; successes: number; productive: boolean }
   >();
   for (const cmd of log.commands) {
     const existing = commandCounts.get(cmd.command);
     if (existing) {
       existing.count++;
       if (cmd.success) existing.successes++;
-      existing.allSuccessful = existing.allSuccessful && cmd.success;
+      existing.productive = existing.productive || isProductiveWorkflowCommand(cmd.rawCommand);
     } else {
       commandCounts.set(cmd.command, {
         count: 1,
         successes: cmd.success ? 1 : 0,
-        allSuccessful: cmd.success,
-        role: cmd.role,
+        productive: isProductiveWorkflowCommand(cmd.rawCommand),
       });
     }
   }
   for (const [command, data] of commandCounts) {
     if (data.count >= LOOP_THRESHOLD) {
-      if (data.allSuccessful && isProductiveRepeatedCommandRole(data.role)) {
-        patterns.push({
-          type: "productive_repetition",
-          key: command,
-          count: data.count,
-          firstSeen: now,
-          lastSeen: now,
-          severity: "info",
-        });
-      } else {
-        patterns.push({
-          type: "command_loop",
-          key: command,
-          count: data.count,
-          firstSeen: now,
-          lastSeen: now,
-          severity: data.successes === data.count ? "warning" : "critical",
-        });
-      }
+      if (data.successes === data.count && data.productive) continue;
+      patterns.push({
+        type: "command_loop",
+        key: command,
+        count: data.count,
+        firstSeen: now,
+        lastSeen: now,
+        severity: data.successes === data.count ? "warning" : "critical",
+      });
     }
   }
 
@@ -321,13 +280,13 @@ export function queryFilesTouched(log: OperationLog): FilesTouchedResult {
 }
 
 export interface CommandsRunResult {
-  commands: Array<{ command: string; count: number; successRate: number; role: CommandRole }>;
+  commands: Array<{ command: string; count: number; successRate: number }>;
   total: number;
   successRate: number;
 }
 
 export function queryCommandsRun(log: OperationLog): CommandsRunResult {
-  const commandMap = new Map<string, { count: number; successes: number; role: CommandRole }>();
+  const commandMap = new Map<string, { count: number; successes: number }>();
   let totalSuccesses = 0;
   let totalRuns = 0;
 
@@ -340,7 +299,6 @@ export function queryCommandsRun(log: OperationLog): CommandsRunResult {
       commandMap.set(cmd.command, {
         count: 1,
         successes: cmd.success ? 1 : 0,
-        role: cmd.role,
       });
     }
     totalRuns++;
@@ -353,7 +311,6 @@ export function queryCommandsRun(log: OperationLog): CommandsRunResult {
         command,
         count: data.count,
         successRate: data.count > 0 ? data.successes / data.count : 0,
-        role: data.role,
       }))
       .sort((a, b) => b.count - a.count),
     total: totalRuns,
@@ -378,15 +335,9 @@ export function queryErrors(log: OperationLog): ErrorsResult {
   };
 }
 
-export type LoopConcern = "possible_repetition" | "productive_repeated_workflow" | "no_concern";
-
 export interface LoopStatusResult {
   isLooping: boolean;
   patterns: DetectedPattern[];
-  productivePatterns: DetectedPattern[];
-  concern: LoopConcern;
-  advisory: true;
-  authority: "mirror_only";
   summary: string;
 }
 
@@ -394,38 +345,18 @@ export function queryLoopStatus(detector: PatternDetector): LoopStatusResult {
   const loops = detector.detected.filter(
     (p) => p.type === "edit_loop" || p.type === "command_loop" || p.type === "error_loop",
   );
-  const productivePatterns = detector.detected.filter((p) => p.type === "productive_repetition");
 
   const isLooping = loops.length > 0;
-  const concern: LoopConcern = isLooping
-    ? "possible_repetition"
-    : productivePatterns.length > 0
-      ? "productive_repeated_workflow"
-      : "no_concern";
   const summary = isLooping
     ? `Mirror-only advisory: possible repetition in ${loops.length} pattern(s): ${loops.map((l) => `${l.type}(${l.key}): ${l.count}x`).join(", ")}. Review task context before treating this as stuckness.`
-    : productivePatterns.length > 0
-      ? `Mirror-only advisory: repeated workflow appears productive (${productivePatterns.map((p) => `${p.key}: ${p.count}x`).join(", ")}). No loop concern from tracked session-local evidence.`
-      : "Mirror-only advisory: no loop concern from tracked session-local evidence.";
+    : "Mirror-only advisory: no loop concern from tracked session-local evidence.";
 
   return {
     isLooping,
     patterns: loops,
-    productivePatterns,
-    concern,
-    advisory: true,
-    authority: "mirror_only",
     summary,
   };
 }
-
-export interface ProgressEvidence {
-  recentSuccessfulCommands: number;
-  recentSuccessfulProductiveCommands: number;
-  productiveCommandRoles: CommandRole[];
-}
-
-export type ProgressConcern = "stall_with_progress_evidence" | "possible_stall" | "no_concern";
 
 export interface ProgressResult {
   hasProgress: boolean;
@@ -433,10 +364,8 @@ export interface ProgressResult {
   operations: number;
   turnsSinceChange: number;
   isStalled: boolean;
-  concern: ProgressConcern;
-  advisory: true;
-  authority: "mirror_only";
-  progressEvidence: ProgressEvidence;
+  concern: "stall_with_progress_evidence" | "possible_stall" | "no_concern";
+  progressEvidence: { recentSuccessfulProductiveCommands: number };
   summary: string;
 }
 
@@ -445,31 +374,21 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
   const hasProgress = log.fileOps.length > 0;
   const stallPattern = detector.detected.find((p) => p.type === "stall");
   const isStalled = Boolean(stallPattern);
-  const recentCommands = log.commands.filter((cmd) => cmd.timestamp >= log.lastMeaningfulChangeAt);
-  const productiveCommandRoles = Array.from(
-    new Set(
-      recentCommands
-        .filter((cmd) => cmd.success && isProductiveRepeatedCommandRole(cmd.role))
-        .map((cmd) => cmd.role),
-    ),
-  );
-  const progressEvidence: ProgressEvidence = {
-    recentSuccessfulCommands: recentCommands.filter((cmd) => cmd.success).length,
-    recentSuccessfulProductiveCommands: recentCommands.filter(
-      (cmd) => cmd.success && isProductiveRepeatedCommandRole(cmd.role),
-    ).length,
-    productiveCommandRoles,
-  };
-  const hasProgressEvidence = progressEvidence.recentSuccessfulProductiveCommands > 0;
-  const concern: ProgressConcern = isStalled
-    ? hasProgressEvidence
+  const recentProductiveCommands = log.commands.filter(
+    (cmd) =>
+      cmd.timestamp >= log.lastMeaningfulChangeAt &&
+      cmd.success &&
+      isProductiveWorkflowCommand(cmd.rawCommand),
+  ).length;
+  const concern = isStalled
+    ? recentProductiveCommands > 0
       ? "stall_with_progress_evidence"
       : "possible_stall"
     : "no_concern";
 
   const summary = isStalled
-    ? hasProgressEvidence
-      ? `Mirror-only advisory: possible stall with progress evidence. No tracked file change for ${log.turnsSinceMeaningfulChange} turns, but recent successful ${productiveCommandRoles.join("/")} command(s) suggest investigation, validation, or closeout may still be productive.`
+    ? recentProductiveCommands > 0
+      ? `Mirror-only advisory: possible stall with progress evidence. No tracked file change for ${log.turnsSinceMeaningfulChange} turns, but recent successful workflow command(s) suggest investigation, validation, or closeout may still be productive.`
       : `Mirror-only advisory: possible stall. No tracked meaningful file change for ${log.turnsSinceMeaningfulChange} turns.`
     : hasProgress
       ? `✅ Progress: ${filesTouched} files touched, ${log.fileOps.length} operations.`
@@ -482,9 +401,7 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
     turnsSinceChange: log.turnsSinceMeaningfulChange,
     isStalled,
     concern,
-    advisory: true,
-    authority: "mirror_only",
-    progressEvidence,
+    progressEvidence: { recentSuccessfulProductiveCommands: recentProductiveCommands },
     summary,
   };
 }
@@ -530,8 +447,6 @@ export function queryHandoffSummary(
   }
   if (loops.isLooping) {
     cues.push("mirror-only repetition cue visible; caller should decide whether it is intentional");
-  } else if (loops.concern === "productive_repeated_workflow") {
-    cues.push("repeated workflow appears productive rather than stuck from tracked evidence");
   }
   if (progress.isStalled) {
     cues.push(

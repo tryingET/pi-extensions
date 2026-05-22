@@ -14,20 +14,11 @@ export interface FileOperation {
   linesDelta: number; // + for added, - for removed
 }
 
-export type CommandRole =
-  | "validation"
-  | "vcs_commit"
-  | "vcs_inspection"
-  | "ak_completion"
-  | "provenance_helper"
-  | "generic";
-
 export interface CommandExecution {
   command: string; // Normalized form
   rawCommand: string;
   timestamp: number;
   success: boolean;
-  role: CommandRole;
 }
 
 export interface ErrorEncounter {
@@ -54,13 +45,7 @@ export interface OperationLog {
 // ============================================================================
 
 export interface DetectedPattern {
-  type:
-    | "edit_loop"
-    | "command_loop"
-    | "error_loop"
-    | "stall"
-    | "progress"
-    | "productive_repetition";
+  type: "edit_loop" | "command_loop" | "error_loop" | "stall" | "progress";
   key: string;
   count: number;
   firstSeen: number;
