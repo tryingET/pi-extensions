@@ -5,6 +5,10 @@ import {
   CONTEXT_PLAN_PARAMETERS,
   formatContextPlan,
 } from "../src/context-plan.js";
+import {
+  DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
+  dogfoodObservationEvaluationToolResult,
+} from "../src/dogfood-observation.js";
 
 const textResult = (text: string, details: Record<string, unknown> = {}) => ({
   content: [{ type: "text" as const, text }],
@@ -70,11 +74,29 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
       "Use context_pack only for read-only packet assembly; it must not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, or peer tooling.",
       "Treat packet content as a projection with provenance and omissions, not source-owner authority.",
       "Expect early MVP omissions for providers that are planned but not wired yet.",
-      "Treat owner-surface routing as advice only; context_pack does not call self, spawn subagents, message peers, launch worktrees, supervise workflows, or move authority.",
+      "Treat owner-surface routing as advice only; context_pack does not call self, spawn subagents, message peers, launch worktrees, or move authority.",
     ],
     parameters: CONTEXT_PACK_PARAMETERS,
     async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
       return contextPacketToolResult(rawParams, contextEnv(ctx));
+    },
+  });
+
+  pi.registerTool({
+    name: "context_dogfood_evaluate",
+    label: "Context Dogfood Evaluate",
+    description:
+      "Evaluate a filled context_pack_dogfood_observation_v1 receipt locally without persisting evidence, reading files, invoking providers, or moving AK/FCOS/session authority.",
+    promptSnippet:
+      "Use context_dogfood_evaluate after filling a context_pack dogfood observation template to compare predicted usefulness with observed low-level read/search/status probes.",
+    promptGuidelines: [
+      "Use only with redacted context_pack_dogfood_observation_v1 templates; do not paste raw packet content or secrets into observation notes.",
+      "Treat the result as packet-local dogfood calibration, not AK evidence, FCOS closeout, session memory, or proof of task completion.",
+      "Review overestimated/underestimated/needs_review outcomes before changing ranking or adding provider adapters.",
+    ],
+    parameters: DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
+    async execute(_toolCallId, rawParams) {
+      return dogfoodObservationEvaluationToolResult(rawParams);
     },
   });
 }

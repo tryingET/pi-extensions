@@ -226,13 +226,14 @@ export const buildDogfoodObservationTemplate = ({
   },
   observation: {
     actualLowLevelReadSearchStatusCalls: null,
+    actualLowLevelCallsAvoided: null,
     duplicateReadsObserved: null,
     omissionFollowupsUsed: [],
     recommendationMatchedOutcome: null,
     notes: "",
   },
   countingRule:
-    "Count ad-hoc read/search/list/status probes that the packet should have avoided; track validation commands separately.",
+    "Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; track validation commands separately.",
   instructions:
     "After the work, paste this template into the owning dogfood evidence surface only if useful, fill observation fields, and keep any sensitive task content out of notes.",
   nonAuthorization:
