@@ -185,16 +185,12 @@ function handleListActionState(state: SelfState): SelfResponse {
 function handlePrefillEditor(query: SelfQuery): SelfResponse {
   const normalizedContext = normalizeInput(query.context);
 
-  // Try multiple sources for the prefill text
-  let text = normalizeString(normalizedContext.text) || extractQuotedContent(query.query);
-
-  // Also support colon syntax: "Prefill: <text>"
-  if (!text) {
-    const colonMatch = query.query.match(/(?:prefill|suggest\s+input)\s*:\s*(.+)$/i);
-    if (colonMatch) {
-      text = colonMatch[1].trim();
-    }
-  }
+  // Prefer colon syntax so command text can contain quoted arguments.
+  const colonMatch = query.query.match(/(?:prefill|suggest\s+input)\s*:\s*(.+)$/i);
+  const text =
+    normalizeString(normalizedContext.text) ||
+    normalizePrefillText(colonMatch?.[1]) ||
+    extractQuotedContent(query.query);
 
   if (!text) {
     return {
@@ -211,4 +207,12 @@ function handlePrefillEditor(query: SelfQuery): SelfResponse {
     answer: `Editor prefill suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
     data: { text, prefill: true },
   };
+}
+
+function normalizePrefillText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+
+  const quoted = trimmed.match(/^"([\s\S]*)"$/) || trimmed.match(/^'([\s\S]*)'$/);
+  return (quoted?.[1] ?? trimmed).replace(/\\"/g, '"').replace(/\\'/g, "'");
 }

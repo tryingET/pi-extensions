@@ -120,6 +120,39 @@ test("self query: prefill intent wins when text mentions follow-up", async () =>
   await cleanup(tempDir);
 });
 
+test("self query: prefill preserves quoted command arguments", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  await tool.execute(
+    "tc-prefill-quoted-command",
+    {
+      query:
+        'prefill: "scout_peer_spawn({ role: \\"reviewer\\", objective: \\"Review loop cues\\" })"',
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(editorText, 'scout_peer_spawn({ role: "reviewer", objective: "Review loop cues" })');
+
+  await cleanup(tempDir);
+});
+
 test("self query: remind me later", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
