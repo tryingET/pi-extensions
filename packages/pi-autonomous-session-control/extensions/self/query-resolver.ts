@@ -380,6 +380,7 @@ function resolveMetaQuery(intent: string): SelfResponse {
 - "Create checkpoint before [reason]"
 - "Queue followup: [task]" / "Remind me: [task]"
 - "Prefill: [text]"
+- "Prefill suggested next move" after a handoff summary exposes nextMove
 - "Action summary" / "List checkpoints" / "List followups"
 
 **2. toolbox/bundle discovery** (outside self):
@@ -420,7 +421,13 @@ function resolveMetaQuery(intent: string): SelfResponse {
           {
             name: "action",
             description: "Create restart-persistent checkpoints and followups, prefill editor",
-            examples: ["Create checkpoint", "Queue followup: X", "Prefill: Y", "Action summary"],
+            examples: [
+              "Create checkpoint",
+              "Queue followup: X",
+              "Prefill: Y",
+              "Prefill suggested next move",
+              "Action summary",
+            ],
           },
         ],
         discoverySurfaces: [

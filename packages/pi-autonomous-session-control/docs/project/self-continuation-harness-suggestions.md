@@ -52,7 +52,13 @@ A prefilled suggestion should name:
 3. the smallest objective;
 4. non-authorizations.
 
-Use the interactive slash-command projection when one exists. Do not prefill model-callable tool syntax such as `scout_peer_spawn(...)`; the Pi editor is an operator input surface, and the peer capability's slash projection is `/scoutpeer` (clean read-only scout) or `/parallelquest` (isolated candidate worktree).
+Use the interactive slash-command projection when one exists. Do not prefill model-callable tool syntax such as `scout_peer_spawn(...)`; the Pi editor is an operator input surface. The machine-readable projection owner is `packages/pi-little-helpers/src/capabilityManifest.ts` (`LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS`), currently mapping `scout_peer_spawn -> /scoutpeer` and `candidate_peer_spawn -> /parallelquest`.
+
+When `controller handoff summary` returns `nextMove`, the caller can ask `self` to bridge it into the editor:
+
+```text
+self({ query: "prefill suggested next move" })
+```
 
 Example:
 

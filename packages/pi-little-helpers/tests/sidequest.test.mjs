@@ -133,6 +133,39 @@ function extractShellCommand(ghosttyArgs) {
   return ghosttyArgs[shellIndex + 1];
 }
 
+function matchCount(text, pattern) {
+  return [...text.matchAll(pattern)].length;
+}
+
+function assertIntercomReportBackContract(prompt, { peerPrefix, target }) {
+  assert.match(prompt, new RegExp(`Report to the exact parent target: ${target}`));
+  assert.equal(matchCount(prompt, /Only allowed pre-ACK tool: `intercom`/g), 1);
+  assert.equal(
+    matchCount(prompt, new RegExp(`PEER_ACK peer_run_id=${peerPrefix}-[^:]+: spawned`, "g")),
+    1,
+  );
+  assert.equal(
+    matchCount(
+      prompt,
+      new RegExp(`2\\. \`PEER_FINAL peer_run_id=${peerPrefix}-[^:]+: \\.\\.\\.\``, "g"),
+    ),
+    1,
+  );
+  assert.equal(
+    matchCount(prompt, /Do not send both a final report and a separate final DoD report/g),
+    1,
+  );
+  assert.equal(matchCount(prompt, /After sending `PEER_FINAL`, stop/g), 1);
+  assert.equal(
+    matchCount(
+      prompt,
+      /After ACK succeeds, continue with the objective and send exactly one `PEER_FINAL`/g,
+    ),
+    1,
+  );
+  assert.equal(matchCount(prompt, /For the final message, use: `intercom\(/g), 1);
+}
+
 test("getGhosttySurfaceId only accepts Ghostty surface id formats", () => {
   assert.equal(getGhosttySurfaceId({ GHOSTTY_SURFACE_ID: "17" }), "17");
   assert.equal(getGhosttySurfaceId({ GHOSTTY_SURFACE_ID: "0x2b2826e0" }), "0x2b2826e0");
@@ -614,15 +647,16 @@ test("/scoutpeer uses intercom report-back when the controller session id is ava
   );
   assert.ok(launchCall);
   const prompt = extractPiArgs(launchCall.args).at(-1);
-  assert.match(
-    prompt,
-    /Report to the exact parent target: session-019e10d2-15f5-705a-aea4-01ba49d2bbac/,
-  );
-  assert.match(prompt, /PEER_ACK peer_run_id=scoutpeer-[^:]+: spawned scout peer started/);
-  assert.match(prompt, /PEER_FINAL peer_run_id=scoutpeer-[^:]+: \.\.\./);
+  assertIntercomReportBackContract(prompt, {
+    peerPrefix: "scoutpeer",
+    target: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+  });
   assert.doesNotMatch(prompt, /Manual report-back is requested/);
   assert.match(harness.notifications.at(-1).message, /watch with intercom/);
-  assert.match(harness.notifications.at(-1).message, /peer_watch/);
+  assert.match(
+    harness.notifications.at(-1).message,
+    /intercom\(\{ action: "peer_watch", peerRunId: "scoutpeer-[^"]+", waitFor: "final" \}\)/,
+  );
 });
 
 test("visible-loop writes config and launches one clean Ghostty tab with the child command", async () => {
@@ -1518,15 +1552,11 @@ test("scout_peer_spawn uses the same Ghostty window fallback launch path and ret
       piArgs.at(-1).indexOf("## Objective"),
   );
   assert.match(piArgs.at(-1), /Role\nreviewer/);
-  assert.match(
-    piArgs.at(-1),
-    /Report to the exact parent target: session-019e10d2-15f5-705a-aea4-01ba49d2bbac/,
-  );
   assert.match(piArgs.at(-1), /Message budget: at most PEER_ACK and PEER_FINAL/);
-  assert.match(piArgs.at(-1), /PEER_ACK peer_run_id=scoutpeer-[^:]+: \.\.\./);
-  assert.match(piArgs.at(-1), /PEER_FINAL peer_run_id=scoutpeer-[^:]+: \.\.\./);
-  assert.match(piArgs.at(-1), /Do not send both a final report and a separate final DoD report/);
-  assert.match(piArgs.at(-1), /After sending `PEER_FINAL`, stop/);
+  assertIntercomReportBackContract(piArgs.at(-1), {
+    peerPrefix: "scoutpeer",
+    target: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+  });
   assert.match(
     piArgs.at(-1),
     /intercom\(\{ action: "send", to: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac", message: "PEER_ACK peer_run_id=scoutpeer-[^:]+: \.\.\." \}\)/,

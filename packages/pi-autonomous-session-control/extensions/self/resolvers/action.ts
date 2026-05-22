@@ -3,6 +3,7 @@
  */
 
 import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
+import { analyzePatterns, queryHandoffSummary } from "../perception.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
 import { extractQuotedContent } from "./helpers.ts";
 
@@ -67,7 +68,7 @@ export function resolveActionQuery(
     }
 
     case "prefill_editor": {
-      return handlePrefillEditor(query);
+      return handlePrefillEditor(query, state);
     }
 
     case "list_action_state": {
@@ -182,7 +183,7 @@ function handleListActionState(state: SelfState): SelfResponse {
   };
 }
 
-function handlePrefillEditor(query: SelfQuery): SelfResponse {
+function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {
   const normalizedContext = normalizeInput(query.context);
 
   // Prefer colon syntax so command text can contain quoted arguments.
@@ -192,20 +193,44 @@ function handlePrefillEditor(query: SelfQuery): SelfResponse {
     normalizePrefillText(colonMatch?.[1]) ||
     extractQuotedContent(query.query);
 
-  if (!text) {
+  if (text) {
+    return buildPrefillResponse(text);
+  }
+
+  if (/prefill\s+(?:the\s+)?(?:suggested\s+)?next\s+move/i.test(query.query)) {
+    analyzePatterns(state.operations, state.patterns);
+    const handoff = queryHandoffSummary(state.operations, state.patterns);
+    if (handoff.nextMove) {
+      return buildPrefillResponse(handoff.nextMove.prefillText, { nextMove: handoff.nextMove });
+    }
     return {
       understood: true,
       intent: "action",
-      answer: "What should I prefill in the editor? Provide text in quotes or use colon syntax.",
-      suggestions: ['prefill: "next step description"', 'suggest input: "test edge case X"'],
+      answer:
+        "No suggested next move is visible from the current mirror state. Ask for a controller handoff summary or continue locally.",
+      data: { prefill: false },
+      suggestions: ["controller handoff summary", "prefill: local validation command"],
     };
   }
 
   return {
     understood: true,
     intent: "action",
+    answer: "What should I prefill in the editor? Provide text in quotes or use colon syntax.",
+    suggestions: [
+      'prefill: "next step description"',
+      'suggest input: "test edge case X"',
+      "prefill suggested next move",
+    ],
+  };
+}
+
+function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {
+  return {
+    understood: true,
+    intent: "action",
     answer: `Editor prefill suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
-    data: { text, prefill: true },
+    data: { text, prefill: true, ...extraData },
   };
 }
 

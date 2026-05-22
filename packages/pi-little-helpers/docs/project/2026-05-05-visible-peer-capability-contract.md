@@ -18,7 +18,14 @@ The visible peer-spawn surface is one capability with two runtime projections:
 - slash commands: `/sidequest`, `/scoutpeer`, `/parallelquest`
 - model-callable tools: `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`
 
-The source of truth is `src/capabilityManifest.ts`:
+The source of truth is `src/capabilityManifest.ts`. It also exports `LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS`, the machine-readable map used by downstream suggestion surfaces to choose the operator-facing slash command instead of model-callable tool syntax:
+
+| Tool | Slash projection |
+|---|---|
+| `fork_peer_spawn` | `/sidequest` |
+| `scout_peer_spawn` | `/scoutpeer` |
+| `candidate_peer_spawn` | `/parallelquest` |
+
 
 ```text
 LITTLE_HELPERS_CAPABILITY_MANIFEST
@@ -57,7 +64,7 @@ When a peer-spawn surface fails, check the capability in this order:
 4. `extensions/sidequest.ts` imports the manifest and registers slash commands plus peer-spawn tools from it by default.
 5. `npm run check` passes in `packages/pi-little-helpers`.
 6. If toolbox status reports the peer-spawn tools missing, enable/install `pi-little-helpers` and `/reload`; toolbox cannot make missing tools API-callable mid-session.
-7. If toolbox status reports the peer-spawn tools active but an API session cannot call `candidate_peer_spawn`, confirm the session started after the sidequest extension was enabled. Use the current interactive visible-peer command documented by this package as the immediate workaround; do not hard-code historical slash-command names in adapter-facing docs.
+7. If toolbox status reports the peer-spawn tools active but an API session cannot call `candidate_peer_spawn`, confirm the session started after the sidequest extension was enabled. Use the current interactive visible-peer command documented by `LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS` as the immediate workaround; do not hard-code historical slash-command names in adapter-facing docs.
 
 ## Boundary
 

@@ -13,6 +13,30 @@ export const LITTLE_HELPERS_PEER_TOOL_NAMES = [
   "candidate_peer_cleanup",
 ] as const;
 
+export const LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS = [
+  {
+    tool: "fork_peer_spawn",
+    command: "sidequest",
+    slash: "/sidequest",
+    sessionMode: "forked-context",
+    reportBack: "manual-visible",
+  },
+  {
+    tool: "scout_peer_spawn",
+    command: "scoutpeer",
+    slash: "/scoutpeer",
+    sessionMode: "clean-scout",
+    reportBack: "intercom-when-session-id-available",
+  },
+  {
+    tool: "candidate_peer_spawn",
+    command: "parallelquest",
+    slash: "/parallelquest",
+    sessionMode: "clean-candidate-worktree",
+    reportBack: "manual-visible",
+  },
+] as const;
+
 export const LITTLE_HELPERS_TOOLBOX_EXPORTS = [
   {
     mode: "monorepo-sibling",
@@ -33,11 +57,14 @@ export const LITTLE_HELPERS_CAPABILITY_MANIFEST = {
     "Fork, scout, and candidate peer launch surfaces exposed as slash commands and model-callable tools from one capability contract.",
   commands: LITTLE_HELPERS_COMMAND_NAMES,
   tools: LITTLE_HELPERS_PEER_TOOL_NAMES,
+  projections: LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS,
   toolboxExports: LITTLE_HELPERS_TOOLBOX_EXPORTS,
 } as const;
 
 export type LittleHelpersCommandName = (typeof LITTLE_HELPERS_COMMAND_NAMES)[number];
 export type LittleHelpersPeerToolName = (typeof LITTLE_HELPERS_PEER_TOOL_NAMES)[number];
+export type LittleHelpersToolCommandProjection =
+  (typeof LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS)[number];
 
 export interface CapabilityRegistrationSnapshot {
   commands: string[];

@@ -134,7 +134,7 @@ The `self-prompt-vault-compat` command reports the ASC package version, vault-cl
 
 ### Capability discovery surfaces
 
-The `self` tool accepts operational handoff queries such as `controller handoff summary` and `closeout summary`. These summaries are mirror-only: they aggregate tracked file touches, recent commands, errors, progress/stall state, loop state, and handoff cues for the caller to decide what to report. They are not durable evidence, AK/KES authority, or a controller.
+The `self` tool accepts operational handoff queries such as `controller handoff summary` and `closeout summary`. These summaries are mirror-only: they aggregate tracked file touches, recent commands, errors, progress/stall state, loop state, and handoff cues for the caller to decide what to report. They are not durable evidence, AK/KES authority, or a controller. When a handoff includes `nextMove`, `self({ query: "prefill suggested next move" })` copies that exact operator-facing suggestion into the Pi editor.
 
 Loop/stall responses from `self` are mirror-only advisories. Repeated successful validation, provenance-helper, VCS, or AK-completion commands may indicate productive workflow rather than stuckness; stall signals may coexist with recent command evidence when the mirror has not seen a recent file change. The caller decides what the session-local evidence means in task context.
 
@@ -467,6 +467,7 @@ Then in Pi:
 - [Project skills](docs/project/skills.md)
 - [ASC public execution contract](docs/project/public-execution-contract.md)
 - [Self continuation harness suggestions](docs/project/self-continuation-harness-suggestions.md)
+- [Self `/scoutpeer` continuation dogfood](docs/project/2026-05-22-self-scoutpeer-continuation-dogfood.md)
 - [Rewind salvage and integration plan](docs/project/2026-04-22-rewind-salvage-and-integration-plan.md)
 - [Strategic goals](docs/project/strategic_goals.md)
 - [Tactical goals](docs/project/tactical_goals.md)

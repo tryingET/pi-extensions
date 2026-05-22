@@ -6,6 +6,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
 
+function recordBash(harness, id, command, { isError = false, text = "" } = {}) {
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+
+  toolCallHandler({ toolName: "bash", toolCallId: id, input: { command } });
+  toolResultHandler({
+    toolName: "bash",
+    toolCallId: id,
+    isError,
+    content: text ? [{ type: "text", text }] : [],
+  });
+}
+
 test("self query: create checkpoint", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -149,6 +162,46 @@ test("self query: prefill preserves quoted command arguments", async () => {
   );
 
   assert.equal(editorText, 'scout_peer_spawn({ role: "reviewer", objective: "Review loop cues" })');
+
+  await cleanup(tempDir);
+});
+
+test("self query: prefill suggested next move uses current handoff nextMove", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-prefill-next-move",
+    { query: "prefill suggested next move" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("prefilled"));
+  assert.ok(editorText.startsWith("/scoutpeer "));
+  assert.equal(editorText.includes("scout_peer_spawn"), false);
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
 
   await cleanup(tempDir);
 });

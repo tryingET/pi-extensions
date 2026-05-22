@@ -33,4 +33,27 @@ test("toolbox bundle registers the sidequest peer-spawn capability", () => {
   );
   assert.deepEqual([...commands.keys()], []);
   assert.deepEqual([...tools.keys()], [...PEER_SPAWN_TOOL_NAMES]);
+  assert.deepEqual(PEER_SPAWN_CAPABILITY_MANIFEST.projections, [
+    {
+      tool: "fork_peer_spawn",
+      command: "sidequest",
+      slash: "/sidequest",
+      sessionMode: "forked-context",
+      reportBack: "manual-visible",
+    },
+    {
+      tool: "scout_peer_spawn",
+      command: "scoutpeer",
+      slash: "/scoutpeer",
+      sessionMode: "clean-scout",
+      reportBack: "intercom-when-session-id-available",
+    },
+    {
+      tool: "candidate_peer_spawn",
+      command: "parallelquest",
+      slash: "/parallelquest",
+      sessionMode: "clean-candidate-worktree",
+      reportBack: "manual-visible",
+    },
+  ]);
 });
