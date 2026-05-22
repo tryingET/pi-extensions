@@ -57,14 +57,17 @@ export const CATALOG: ToolboxBundle[] = [
       "context window",
       "context_plan",
       "context_pack",
+      "context_dogfood_evaluate",
+      "dogfood receipt",
       "sci",
       "docs",
     ],
     profiles: [
       {
         id: "read",
-        description: "Read-only context packet planning and bounded packet assembly.",
-        tools: ["context_plan", "context_pack"],
+        description:
+          "Read-only context packet planning, bounded packet assembly, and packet-local dogfood receipt evaluation.",
+        tools: ["context_plan", "context_pack", "context_dogfood_evaluate"],
         risk: "read",
         defaultTtlTurns: 4,
         requiresExplicitUserIntent: false,

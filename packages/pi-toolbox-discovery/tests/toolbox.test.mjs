@@ -284,7 +284,7 @@ test("catalog includes context-packer read profile", async () => {
   const contextPacker = CATALOG.find((bundle) => bundle.id === "context-packer");
   const read = contextPacker?.profiles.find((profile) => profile.id === "read");
   assert.ok(read);
-  assert.deepEqual(read.tools, ["context_plan", "context_pack"]);
+  assert.deepEqual(read.tools, ["context_plan", "context_pack", "context_dogfood_evaluate"]);
   assert.equal(read.risk, "read");
 
   const harness = createHarness();
@@ -292,10 +292,14 @@ test("catalog includes context-packer read profile", async () => {
     action: "activate",
     bundle: "context-packer",
   });
-  assert.match(result.content[0].text, /Activated tools: context_plan, context_pack/);
-  assert.deepEqual(result.details.activatedNewTools, ["context_pack"]);
+  assert.match(
+    result.content[0].text,
+    /Activated tools: context_plan, context_pack, context_dogfood_evaluate/,
+  );
+  assert.deepEqual(result.details.activatedNewTools, ["context_pack", "context_dogfood_evaluate"]);
   assert.equal(harness.activeTools.includes("context_plan"), true);
   assert.equal(harness.activeTools.includes("context_pack"), true);
+  assert.equal(harness.activeTools.includes("context_dogfood_evaluate"), true);
 });
 
 test("catalog includes agent_vent as diagnostic companion to ASC", async () => {
