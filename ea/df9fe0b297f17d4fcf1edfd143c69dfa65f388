@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "eadf9fe0b297f17d4fcf1edfd143c69dfa65f388"
+created_at: "2026-05-22T16:13:23Z"
+intent: "Refresh pi-context-packer product posture with bounded SCI sandbox frontier"
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-context-packer run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-agent-vent run check && npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-context-packer run check"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "context-packer product posture frontier update"
