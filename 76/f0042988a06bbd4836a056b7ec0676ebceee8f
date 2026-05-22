@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "76f0042988a06bbd4836a056b7ec0676ebceee8f"
-created_at: "2026-05-22T11:52:27Z"
+created_at: "2026-05-22T11:53:17Z"
 intent: "Refresh pi-context-packer product posture after pre-provider safety hardening."
 files:
   - "packages/pi-context-packer/docs/project/product-posture.md"
@@ -13,8 +13,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run check && npm --prefix ../pi-agent-vent run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
-  total: 2
+  total: 1
   rationale: "context-packer posture-only frontier update"
