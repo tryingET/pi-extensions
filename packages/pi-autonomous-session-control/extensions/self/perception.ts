@@ -488,7 +488,7 @@ function suggestNextHarnessMove(input: {
       slice: "source-owner + authority-risk",
       owner: "peer-tools",
       prefillText:
-        'scout_peer_spawn({ role: "reviewer", objective: "Review the visible loop/error cues and recommend the smallest safe next move without changing owner boundaries." })',
+        "/scoutpeer Review the visible loop/error cues and recommend the smallest safe next move without changing owner boundaries. Do not edit files or claim authority.",
     };
   }
 

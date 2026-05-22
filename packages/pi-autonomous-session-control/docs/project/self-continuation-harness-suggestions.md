@@ -37,11 +37,11 @@ self observes -> chooses slice + owning harness move -> prefills editor -> opera
 | Situation visible to `self` | Suggested slice | Prefill target |
 |---|---|---|
 | Continuation, handoff, or compaction pressure | temporal + artifact/packet | `/compact-focus ...` or handoff text |
-| Unclear boundary or design risk | source-owner + authority-risk | `scout_peer_spawn(...)` |
-| Bounded implementation alternative | vertical + artifact/packet | `candidate_peer_spawn(...)` |
-| Missing future context packet | source-owner + artifact/packet | `context_plan(...)` |
+| Unclear boundary or design risk | source-owner + authority-risk | `/scoutpeer ...` |
+| Bounded implementation alternative | vertical + artifact/packet | `/parallelquest ...` |
+| Missing future context packet | source-owner + artifact/packet | natural-language request naming `context_plan` |
 | Obvious local verification | vertical | local validation command |
-| Multi-step workflow coordination | phase/lifecycle + authority-risk | society-orchestrator-owned loop/workflow surface |
+| Multi-step workflow coordination | phase/lifecycle + authority-risk | society-orchestrator-owned slash/workflow surface |
 
 ## Prefill rule
 
@@ -52,21 +52,12 @@ A prefilled suggestion should name:
 3. the smallest objective;
 4. non-authorizations.
 
+Use the interactive slash-command projection when one exists. Do not prefill model-callable tool syntax such as `scout_peer_spawn(...)`; the Pi editor is an operator input surface, and the peer capability's slash projection is `/scoutpeer` (clean read-only scout) or `/parallelquest` (isolated candidate worktree).
+
 Example:
 
 ```text
-scout_peer_spawn({
-  role: "reviewer",
-  objective: "Review whether ASC/self continuation hints preserve owner boundaries.",
-  context: {
-    campaignGoal: "Suggest next harness moves without ASC owning them",
-    constraints: [
-      "self remains mirror-only",
-      "ASC does not own compaction",
-      "ASC does not own orchestration"
-    ]
-  }
-})
+/scoutpeer Review whether ASC/self continuation hints preserve owner boundaries. Keep self mirror-only; do not edit files, run destructive commands, or claim compaction/orchestration/AK authority.
 ```
 
 ## Stop rule

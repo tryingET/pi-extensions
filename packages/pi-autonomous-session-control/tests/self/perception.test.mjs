@@ -354,7 +354,8 @@ test("self query: controller handoff summary includes actionable mirror cues", a
   assert.ok(result.details.data.cues.some((cue) => cue.includes("failed command")));
   assert.equal(result.details.data.nextMove.owner, "peer-tools");
   assert.equal(result.details.data.nextMove.slice, "source-owner + authority-risk");
-  assert.ok(result.details.data.nextMove.prefillText.includes("scout_peer_spawn"));
+  assert.ok(result.details.data.nextMove.prefillText.startsWith("/scoutpeer "));
+  assert.equal(result.details.data.nextMove.prefillText.includes("scout_peer_spawn"), false);
 
   await cleanup(tempDir);
 });
