@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "d5af029299601fe477308b70d12a6f98ae10ee25"
-created_at: "2026-05-22T13:05:07Z"
+created_at: "2026-05-22T13:07:21Z"
 intent: "Refresh pi-agent-vent product posture frontier after diagnostic contract hardening"
 files:
   - "packages/pi-agent-vent/docs/project/product-posture.md"
@@ -12,9 +12,9 @@ validation:
     command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict"
     status: "pass"
   full_gate:
-    command: "npm run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict"
+    command: "npm run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict && npm --prefix ../pi-context-packer run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs ../pi-context-packer --strict"
     status: "pass"
 group:
   index: 1
-  total: 1
+  total: 3
   rationale: "single docs posture refresh"
