@@ -44,7 +44,7 @@ Then in Pi:
 
 ## Tool behavior
 
-`agent_vent` supports thirteen actions:
+`agent_vent` supports fourteen actions:
 
 | Action | Purpose |
 |---|---|
@@ -54,6 +54,7 @@ Then in Pi:
 | `path` | Show the store path and boundary contract. |
 | `review` | Show recurrence groups as a local operator review queue; optionally filter by local category/tag/tool/package facets; include a recurrence key to inspect bounded representative samples. |
 | `outcomes` | Show read-only local follow-up grouped by review outcome state, including exact local next commands without owner-system mutation. |
+| `compare` | Compare local review-state buckets before export, retention planning, or draft-only handoff without emitting archive/restore tokens. |
 | `facets` | Show read-only local category/tag/tool/package facet counts for triage. |
 | `set_review` | Set local review state for a recurrence group. |
 | `curate` | Append local recurrence merge/rename projection events without rewriting raw vents. |
@@ -76,7 +77,8 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent review show bug:reload-tools
 /agent_vent review set acknowledged bug:reload-tools "seen locally"
 /agent_vent outcomes all 10 category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
-# outcomes limit is per review-state bucket, not a global row cap
+# outcomes and compare limits are per review-state bucket, not a global row cap
+/agent_vent compare 10 category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
 /agent_vent retention candidates reviewed 20 category=tool_failure tag=reload tool=pi-reload package=tryinget-pi-agent-vent
 /agent_vent curate merge bug:reload-tool-a bug:reload-tools "same local pattern"
 /agent_vent curate remove bug:reload-tool-a "undo local merge"
@@ -89,7 +91,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent path
 ```
 
-`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, retention-candidate, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Outcome limits are explicit per review-state bucket so `outcomes all 1` can show one `new`, one `acknowledged`, one `dismissed`, and one `escalation_drafted` group. Review/outcome/retention-candidate command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, or mutate owner systems.
+`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue, outcome, compare, retention-candidate, and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Outcome and compare limits are explicit per review-state bucket so `outcomes all 1` can show one `new`, one `acknowledged`, one `dismissed`, and one `escalation_drafted` group, while `compare 1` shows at most one group per state. Review/outcome/compare/retention-candidate command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states/arguments, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, archive, restore, or mutate owner systems.
 
 ## Deeper Pi integration
 
@@ -124,7 +126,7 @@ PI_AGENT_VENT_DIR=/path/to/private/dir pi
 
 Records are append-only JSONL with `schemaVersion: 1`. Optional `tool` and `packageName` record fields are local diagnostic facets only, not owner-routing truth. Review state changes are append-only local events in `review-events.jsonl`; recurrence curation changes are append-only local events in `curation-events.jsonl`. Retention lifecycle receipts are append-only local events in `retention-events.jsonl`; archive rollback artifacts are package-created local files under `backups/`. Recurrence review state, review outcome follow-up, and merged/renamed groups are projections from the latest local events; raw vent records are not rewritten except by explicit, confirmation-gated local retention archive/restore operations.
 
-Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `facets`, `review`, `outcomes`, `curate`, `draft`, `stats`, `export`, and `retention` are local diagnostic surfaces, not evidence, owner routing, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
+Reads tolerate malformed old lines, oversized lines, invalid records, and semantic curation corruption by reporting ignored/quarantined counts. JSONL store files fail closed when replaced by symlinks or when a store exceeds the package file-size guard. `facets`, `review`, `outcomes`, `compare`, `curate`, `draft`, `stats`, `export`, and `retention` are local diagnostic surfaces, not evidence, owner routing, tasks, issues, incidents, publication, telemetry, or ASC/self state. Draft outputs are paste-ready text only; the owner system still decides acceptance, lifecycle, evidence, and publication.
 
 Retention archive is intentionally destructive to the active local vents store, so it is confirmation-gated: use `retention candidates` for a read-only reviewed-group planning view that emits no archive tokens, preview a reviewed recurrence group first, copy the exact `archive:<token>`, then archive. The token includes the active store hash, archive and record append share a local lock, archive creates a backup before rewriting `vents.jsonl`, and receipt failures roll the active store back when the archive rewrite can still be identified. Restore requires the package-created backup path, exact derived `restore:<token>`, real backup-directory containment, and a current-store hash match so stale backups fail closed. The package intentionally has no hard-delete command in v0.1; permanent removal is operator-owned filesystem/data-lifecycle control, not evidence/task/incident lifecycle.
 

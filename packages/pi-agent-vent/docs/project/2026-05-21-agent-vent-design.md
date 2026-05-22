@@ -101,6 +101,7 @@ Actions:
 - `path` — show local store path and data contract.
 - `review` — show recurrence groups as a local review queue, optionally focused by local category/tag/tool/package facet filters; when given a recurrence key, show bounded representative local samples for that group.
 - `outcomes` — show read-only post-review follow-up grouped by local review outcome state, optionally focused by local category/tag/tool/package facet filters.
+- `compare` — show a read-only cross-state review comparison before export, retention planning, or draft-only handoff, optionally focused by local category/tag/tool/package facet filters.
 - `facets` — show read-only local category/tag/tool/package facet counts for triage.
 - `set_review` — append a local review-state event for a recurrence group.
 - `curate` — append a local recurrence merge/rename projection event.
@@ -119,7 +120,7 @@ Important behavior:
 - `tool` and `packageName` are optional caller-supplied local diagnostic facets, not owner-routing truth.
 - `facets` is read-only and summarizes local labels; it never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `review` facet filters are read-only local diagnostic focus aids; review command syntax fails closed before store reads for unknown filter keys, invalid states, and invalid category values, and filters do not assign owners, route work, mutate owner surfaces, or change review state.
-- `review` queue/detail and `outcomes` output may show advisory human-review hints plus exact next-action commands for local review states, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths for legacy key safety. Outcome limits are per review-state bucket rather than global. Review/outcome command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states, and invalid category values. These are UX guidance only and do not route, submit, file, create, declare, assign owners, record evidence, publish, or mutate owner systems.
+- `review` queue/detail, `outcomes`, and `compare` output may show advisory human-review hints plus exact next-action commands for local review states, draft-only handoff targets, export prompts, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths for legacy key safety. Outcome and compare limits are per review-state bucket rather than global. Review/outcome/compare command syntax fails closed before store reads for unknown filters, including unknown empty filters such as `owner=`, invalid states/arguments, and invalid category values. These are UX guidance only and do not route, submit, file, create, declare, assign owners, record evidence, publish, archive, restore, or mutate owner systems; compare intentionally emits no retention confirmation tokens.
 - `set_review` requires an existing recurrence group and never mutates AK, GitHub, incident, evidence, telemetry, or ASC/self state.
 - `curate` requires an existing source group, rejects self/cycle aliases, supports append-only `remove` undo events, and stores local projection events only.
 - `draft` supports `github_issue`, `ak_task`, `incident_review`, and `maintainer_note`; it includes local diagnostic facets when present, returns text only, and never submits, files, declares, records evidence, assigns owners, or changes review state automatically.
@@ -139,6 +140,7 @@ Human/operator command for lightweight inspection. `/agent-vent` remains a compa
 - `/agent_vent review show <recurrenceKey> [limit]`
 - `/agent_vent review set <state> <recurrenceKey> [note]`
 - `/agent_vent outcomes [new|acknowledged|dismissed|escalation_drafted|all] [per-state-limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]`
+- `/agent_vent compare [per-state-limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]`
 - `/agent_vent curate merge <sourceRecurrenceKey> <targetRecurrenceKey> [note]`
 - `/agent_vent curate rename <sourceRecurrenceKey> <targetRecurrenceKey> [note]`
 - `/agent_vent curate remove <sourceRecurrenceKey> [note]`

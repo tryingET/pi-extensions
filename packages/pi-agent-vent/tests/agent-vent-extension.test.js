@@ -33,11 +33,12 @@ test("extension registers agent_vent tool and command aliases", () => {
   assert.match(pi.tools.get("agent_vent").description, /frustration/i);
 });
 
-test("agent_vent tool schema stays aligned with retention candidate command contract", () => {
+test("agent_vent tool schema stays aligned with retention candidate and compare command contracts", () => {
   const pi = createMockPi();
   agentVentExtension(pi.api);
   const schemaText = JSON.stringify(pi.tools.get("agent_vent").parameters);
 
+  assert.match(schemaText, /"compare"/);
   assert.match(schemaText, /"candidates"/);
   assert.match(schemaText, /retentionCandidateState/);
   assert.match(schemaText, /"reviewed"/);
@@ -236,8 +237,41 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.equal(outcomesResult.details.reviewOutcomes.counts.acknowledged, 1);
     assert.equal(outcomesResult.details.reviewOutcomes.filters.tool, "pi-reload");
 
-    const retentionCandidatesResult = await tool.execute(
+    const compareResult = await tool.execute(
       "tool-call-3c",
+      {
+        action: "compare",
+        category: "tool_failure",
+        tags: ["reload"],
+        tool: "pi reload",
+        packageName: "@tryinget/pi-agent-vent",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.match(compareResult.content[0].text, /Agent vent review comparison/);
+    assert.match(compareResult.content[0].text, /acknowledged: groups=1/);
+    assert.match(
+      compareResult.content[0].text,
+      /retention planning: \/agent_vent retention candidates acknowledged/,
+    );
+    assert.match(
+      compareResult.content[0].text,
+      /intentionally emits no archive or restore confirmation tokens/,
+    );
+    assert.doesNotMatch(
+      compareResult.content[0].text,
+      /archive:[a-f0-9]|was filed|owner was assigned/,
+    );
+    assert.equal(compareResult.details.reviewComparison.totals.acknowledged.groups, 1);
+    assert.equal(compareResult.details.reviewComparison.filters.tool, "pi-reload");
+
+    const retentionCandidatesResult = await tool.execute(
+      "tool-call-3d",
       {
         action: "retention",
         retentionAction: "candidates",
@@ -262,7 +296,7 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.equal(retentionCandidatesResult.details.retention.filters.tool, "pi-reload");
 
     const allRetentionCandidatesResult = await tool.execute(
-      "tool-call-3d",
+      "tool-call-3e",
       {
         action: "retention",
         retentionAction: "candidates",
@@ -429,12 +463,21 @@ test("agent_vent command rejects unknown review filter keys without creating sto
     assert.doesNotMatch(messages[6], /symlink/);
     await pi.commands.get("agent_vent").handler("outcomes resolved", { hasUI: false });
     assert.match(messages[7], /Invalid \/agent_vent outcomes state: resolved/);
-    await pi.commands.get("agent_vent").handler("retention candidates owner=", { hasUI: false });
-    assert.match(messages[8], /Unknown \/agent_vent retention candidates filter\(s\): owner/);
+    await pi.commands.get("agent_vent").handler("compare owner=", { hasUI: false });
+    assert.match(messages[8], /Unknown \/agent_vent compare filter\(s\): owner/);
     assert.doesNotMatch(messages[8], /symlink/);
-    await pi.commands.get("agent_vent").handler("retention candidates resolved", { hasUI: false });
-    assert.match(messages[9], /Invalid \/agent_vent retention candidates state: resolved/);
+    await pi.commands.get("agent_vent").handler("compare resolved", { hasUI: false });
+    assert.match(messages[9], /Invalid \/agent_vent compare argument: resolved/);
     assert.doesNotMatch(messages[9], /symlink/);
+    await pi.commands.get("agent_vent").handler("compare new", { hasUI: false });
+    assert.match(messages[10], /Invalid \/agent_vent compare argument: new/);
+    assert.doesNotMatch(messages[10], /symlink/);
+    await pi.commands.get("agent_vent").handler("retention candidates owner=", { hasUI: false });
+    assert.match(messages[11], /Unknown \/agent_vent retention candidates filter\(s\): owner/);
+    assert.doesNotMatch(messages[11], /symlink/);
+    await pi.commands.get("agent_vent").handler("retention candidates resolved", { hasUI: false });
+    assert.match(messages[12], /Invalid \/agent_vent retention candidates state: resolved/);
+    assert.doesNotMatch(messages[12], /symlink/);
   } finally {
     console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;

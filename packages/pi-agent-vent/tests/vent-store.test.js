@@ -16,6 +16,7 @@ import {
   buildRecurrenceKey,
   buildRetentionCandidates,
   buildRetentionPreview,
+  buildReviewComparison,
   buildReviewDetail,
   buildReviewOutcomes,
   createCurationEvent,
@@ -32,6 +33,7 @@ import {
   formatFacetSummary,
   formatLifecycleStats,
   formatRetentionCandidates,
+  formatReviewComparison,
   formatReviewDetail,
   formatReviewOutcomes,
   formatReviewQueue,
@@ -749,6 +751,77 @@ test("review outcomes bucket post-review follow-up without authority drift", () 
   );
 });
 
+test("review comparison contrasts state buckets without authority drift", () => {
+  const fresh = createVentRecord({
+    summary: "Fresh compare needs review token=abc123",
+    category: "workflow",
+    recurrenceKey: "fresh compare",
+    tags: ["Compare"],
+  });
+  const acknowledged = createVentRecord({
+    summary: "Acknowledged compare issue",
+    category: "tool_failure",
+    severity: "high",
+    recurrenceKey: "ack compare",
+    tags: ["Compare"],
+    tool: "pi reload",
+    packageName: "@tryinget/pi-agent-vent",
+  });
+  const dismissed = createVentRecord({
+    summary: "Dismissed compare issue",
+    category: "documentation",
+    recurrenceKey: "dismiss compare",
+    tags: ["Compare"],
+  });
+  const drafted = createVentRecord({
+    summary: "Drafted compare critical issue",
+    category: "bug",
+    severity: "critical",
+    recurrenceKey: "draft compare",
+    tags: ["Compare"],
+  });
+  const reviews = [
+    createReviewEvent({ recurrenceKey: acknowledged.recurrenceKey, state: "acknowledged" }),
+    createReviewEvent({ recurrenceKey: dismissed.recurrenceKey, state: "dismissed" }),
+    createReviewEvent({ recurrenceKey: drafted.recurrenceKey, state: "escalation_drafted" }),
+  ];
+
+  const comparison = buildReviewComparison({
+    records: [fresh, acknowledged, dismissed, drafted],
+    reviewEvents: reviews,
+    filters: { tags: ["compare"], tool: `${"x".repeat(5000)} token=abc123` },
+    limit: 1000,
+  });
+  assert.equal(comparison.limitPerState, 100);
+  assert.equal(comparison.matchingGroupCount, 0);
+  assert.ok(comparison.filters.tool.length <= 80);
+
+  const unfiltered = buildReviewComparison({
+    records: [fresh, acknowledged, dismissed, drafted],
+    reviewEvents: reviews,
+    filters: { tags: ["compare"] },
+    limit: 2,
+  });
+  assert.equal(unfiltered.totals.new.groups, 1);
+  assert.equal(unfiltered.totals.acknowledged.candidateIncidents, 0);
+  assert.equal(unfiltered.totals.escalation_drafted.candidateIncidents, 1);
+  assert.equal(unfiltered.totals.escalation_drafted.criticalGroups, 1);
+  assert.deepEqual(unfiltered.filters.tags, ["compare"]);
+  const text = formatReviewComparison(unfiltered);
+  assert.match(text, /Agent vent review comparison/);
+  assert.match(text, /State totals:/);
+  assert.match(text, /export bucket: \/agent_vent export markdown acknowledged/);
+  assert.match(text, /retention planning: \/agent_vent retention candidates acknowledged/);
+  assert.match(text, /choose local outcome: \/agent_vent review set acknowledged/);
+  assert.match(text, /intentionally emits no archive or restore confirmation tokens/);
+  assert.match(text, /No AK task, GitHub issue, incident, evidence, telemetry/);
+  assert.match(text, /token=\[REDACTED\]/);
+  assert.doesNotMatch(
+    text,
+    /archive:[a-f0-9]|restore:[a-f0-9]|GitHub issue was created|AK task was created|incident was declared|owner was assigned|resolved externally|was filed/,
+  );
+});
+
 test("review outcomes limit is explicit per state bucket", () => {
   const states = ["new", "acknowledged", "dismissed", "escalation_drafted"];
   const records = [];
@@ -944,7 +1017,7 @@ test("draft-only escalation fails closed for unknown group and invalid target", 
   );
 });
 
-test("diagnostic state membrane redacts legacy valid JSONL before draft/export", () => {
+test("diagnostic state membrane redacts legacy valid JSONL before draft/export/compare", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-legacy-secret-"));
   const storePath = path.join(dir, "vents.jsonl");
   fs.writeFileSync(
@@ -978,9 +1051,14 @@ test("diagnostic state membrane redacts legacy valid JSONL before draft/export",
   assert.equal(state.records[0].privacy.redacted, true);
   assert.deepEqual(state.records[0].tags, ["secret-redacted"]);
   assert.equal(state.records[0].tool, "tool-token-redacted");
+  const comparisonText = formatReviewComparison(
+    buildReviewComparison({ records: state.records, filters: { tool: "tool token=abc123" } }),
+  );
+
   assert.match(draft.text, /password=\[REDACTED\]/);
   assert.match(draft.text, /Bearer \[REDACTED\]/);
-  assert.doesNotMatch(draft.text, /hunter2|abcdefghijklmnop|abc123/);
+  assert.match(comparisonText, /tool-token-redacted/);
+  assert.doesNotMatch(`${draft.text}\n${comparisonText}`, /hunter2|abcdefghijklmnop|abc123/);
 });
 
 test("draft lookup is not constrained by display limits", () => {

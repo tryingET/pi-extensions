@@ -12,6 +12,7 @@ import {
   buildLifecycleSnapshot,
   buildRetentionCandidates,
   buildRetentionPreview,
+  buildReviewComparison,
   buildReviewDetail,
   buildReviewOutcomes,
   CATEGORIES,
@@ -36,6 +37,7 @@ import {
   formatRetentionCandidates,
   formatRetentionPreview,
   formatRetentionRestoreResult,
+  formatReviewComparison,
   formatReviewDetail,
   formatReviewOutcomes,
   formatReviewQueue,
@@ -59,6 +61,7 @@ const ACTIONS = [
   "path",
   "review",
   "outcomes",
+  "compare",
   "set_review",
   "stats",
   "export",
@@ -231,6 +234,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "Use agent_vent when you encounter recurring agent frustration, long-lived bugs, repeated tool/runtime failures, context-loss patterns, or missing affordances worth later human review.",
       "Use action=review to inspect the local recurrence review queue; include recurrenceKey to inspect bounded representative samples for one local group; optionally filter review by local category, tag, tool, or package facets; use action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
       "Use action=outcomes for read-only post-review follow-up across local review-state buckets; outcome guidance is local diagnostic UX only, not owner routing or external completion.",
+      "Use action=compare for a read-only cross-state review comparison before export, retention planning, or draft-only handoff; comparison output emits no archive/restore tokens and mutates nothing.",
       "Use action=facets for read-only local category/tag/tool/package triage; facets and review filters are caller-supplied diagnostic labels, not owner routing.",
       "Use action=stats or action=export for non-destructive local lifecycle inspection; exports are diagnostic projections, not evidence or escalation.",
       "Use action=curate to append local recurrence merge/rename projection events; raw vent records are not rewritten.",
@@ -426,6 +430,31 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           reviewPath,
           curationPath,
           reviewOutcomes: outcomes,
+          malformedLines,
+          malformedReviewLines,
+          malformedCurationLines,
+        });
+      }
+
+      if (action === "compare") {
+        const comparison = buildReviewComparison({
+          records,
+          reviewEvents,
+          curationEvents,
+          limit: clampLimit(params.limit, 5),
+          filters: {
+            category: params.category,
+            tool: params.tool,
+            packageName: params.packageName,
+            tags: params.tags,
+          },
+        });
+        return textResult(formatReviewComparison(comparison), {
+          action,
+          storePath,
+          reviewPath,
+          curationPath,
+          reviewComparison: comparison,
           malformedLines,
           malformedReviewLines,
           malformedCurationLines,
@@ -656,12 +685,12 @@ export default function agentVentExtension(pi: ExtensionAPI) {
   registerAgentVentCommand(
     pi,
     "agent_vent",
-    "Inspect local agent vent records: /agent_vent [help|summary|list|facets|review|outcomes|curate|draft|retention|stats|export|path]",
+    "Inspect local agent vent records: /agent_vent [help|summary|list|facets|review|outcomes|compare|curate|draft|retention|stats|export|path]",
   );
   registerAgentVentCommand(
     pi,
     "agent-vent",
-    "Alias for /agent_vent [help|summary|list|facets|review|outcomes|curate|draft|retention|stats|export|path]",
+    "Alias for /agent_vent [help|summary|list|facets|review|outcomes|compare|curate|draft|retention|stats|export|path]",
   );
 }
 
@@ -700,6 +729,8 @@ function handleCommand(args: string) {
       "  /agent_vent review set <state> <recurrenceKey> [note] Set local review state for a recurrence group.",
       "  /agent_vent outcomes [state|all] [per-state-limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
       "                                                        Show read-only local follow-up by review outcome bucket.",
+      "  /agent_vent compare [per-state-limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
+      "                                                        Compare local review-state buckets before export, retention planning, or draft-only handoff.",
       "  /agent_vent curate merge <sourceKey> <targetKey> [note] Append a local merge projection event.",
       "  /agent_vent curate rename <sourceKey> <targetKey> [note] Append a local rename projection event.",
       "  /agent_vent curate remove <sourceKey> [note]             Append a local curation undo event.",
@@ -717,7 +748,7 @@ function handleCommand(args: string) {
       "  /agent_vent path                                     Show local JSONL store paths.",
       "  /agent-vent ...                                      Backward-compatible alias.",
       "",
-      "LLM tool: agent_vent can record minimized frustration events, local review states, and local recurrence curation projections.",
+      "LLM tool: agent_vent can record minimized frustration events, local review states, local recurrence curation projections, and read-only review comparisons.",
       "Boundary: local diagnostics only; no AK tasks, GitHub issues, incidents, evidence, telemetry, or ASC/self state are created.",
     ].join("\n");
   }
@@ -728,6 +759,10 @@ function handleCommand(args: string) {
 
   if (action === "review" || action === "outcomes") {
     const syntaxError = reviewListSyntaxError(tokens.slice(1), action);
+    if (syntaxError) return syntaxError;
+  }
+  if (action === "compare") {
+    const syntaxError = compareSyntaxError(tokens.slice(1));
     if (syntaxError) return syntaxError;
   }
   if (action === "retention" && tokens[1] === "candidates") {
@@ -750,6 +785,9 @@ function handleCommand(args: string) {
   }
   if (action === "outcomes") {
     return `${handleOutcomesCommand(tokens.slice(1), state)}${suffix}`;
+  }
+  if (action === "compare") {
+    return `${handleCompareCommand(tokens.slice(1), state)}${suffix}`;
   }
   if (action === "curate") {
     return `${handleCurateCommand(tokens.slice(1), state, curationPath)}${suffix}`;
@@ -868,6 +906,21 @@ function handleOutcomesCommand(tokens: string[], diagnosticState: Record<string,
   );
 }
 
+function handleCompareCommand(tokens: string[], diagnosticState: Record<string, unknown>) {
+  const parsed = parseReviewListTokens(tokens);
+  const syntaxError = compareSyntaxError(tokens, parsed);
+  if (syntaxError) return syntaxError;
+  return formatReviewComparison(
+    buildReviewComparison({
+      records: diagnosticState.records as unknown[],
+      reviewEvents: diagnosticState.reviewEvents as unknown[],
+      curationEvents: diagnosticState.curationEvents as unknown[],
+      limit: clampLimit(parsed.limit, 5),
+      filters: parsed.filters,
+    }),
+  );
+}
+
 function reviewListSyntaxError(
   tokens: string[],
   action: "review" | "outcomes",
@@ -917,6 +970,21 @@ function retentionCandidatesSyntaxError(
   }
   if (parsed.invalidState) {
     return `Invalid /agent_vent retention candidates state: ${parsed.invalidState}\n${usage}`;
+  }
+  return undefined;
+}
+
+function compareSyntaxError(tokens: string[], parsed = parseReviewListTokens(tokens)) {
+  const usage =
+    "Usage: /agent_vent compare [per-state-limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
+  if (parsed.unknownFilters.length) {
+    return `Unknown /agent_vent compare filter(s): ${parsed.unknownFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.invalidFilters.length) {
+    return `Invalid /agent_vent compare filter value(s): ${parsed.invalidFilters.join(", ")}\n${usage}`;
+  }
+  if (parsed.state) {
+    return `Invalid /agent_vent compare argument: ${parsed.invalidState || parsed.state}\n${usage}`;
   }
   return undefined;
 }

@@ -641,6 +641,53 @@ export function buildReviewOutcomes(input = {}) {
   };
 }
 
+export function buildReviewComparison(input = {}) {
+  const records = input.records || [];
+  const reviewEvents = input.reviewEvents || [];
+  const curationEvents = input.curationEvents || [];
+  const filters = normalizeReviewFilters(input.filters);
+  const allItems = buildReviewQueueItems(records, reviewEvents, curationEvents);
+  const matchingItems = allItems.filter((item) => reviewItemMatchesFilters(item, filters));
+  const limit = clampLimit(input.limit, 5);
+  const totals = Object.fromEntries(
+    REVIEW_STATES.map((state) => [
+      state,
+      { groups: 0, records: 0, candidateIncidents: 0, criticalGroups: 0 },
+    ]),
+  );
+
+  for (const item of matchingItems) {
+    const total = totals[item.reviewState];
+    total.groups += 1;
+    total.records += item.count;
+    if (item.candidateIncident) total.candidateIncidents += 1;
+    if (item.maxSeverity === "critical") total.criticalGroups += 1;
+  }
+
+  return {
+    generatedAt: input.now || new Date().toISOString(),
+    classification: "local-diagnostic-user-data",
+    boundary:
+      "Read-only local diagnostic review-state comparison projection. No AK task, GitHub issue, incident, evidence, telemetry, publication, owner assignment, archive, restore, or ASC/self state mutation occurred; no retention confirmation tokens are emitted here.",
+    totalRecords: records.length,
+    groupCount: allItems.length,
+    matchingGroupCount: matchingItems.length,
+    filters,
+    hasFilters: hasReviewFilters(filters),
+    limitPerState: limit,
+    totals,
+    buckets: REVIEW_STATES.map((state) => {
+      const items = matchingItems.filter((item) => item.reviewState === state);
+      return {
+        state,
+        description: reviewOutcomeDescription(state),
+        ...totals[state],
+        items: items.slice(0, limit),
+      };
+    }),
+  };
+}
+
 export function buildReviewDetail(input = {}) {
   const recurrenceKey = sanitizeDisplayText(input.recurrenceKey, 200);
   if (!recurrenceKey) throw new Error("agent_vent review detail requires a recurrenceKey");
@@ -867,6 +914,87 @@ export function formatReviewOutcomes(outcomes) {
     }
   }
   if (outcomes.hasFilters) {
+    lines.push(
+      "Filter note: category/tag/tool/package values are local diagnostic labels only, not owner routing or owner assignment.",
+    );
+  }
+  return lines.join("\n");
+}
+
+export function formatReviewComparison(comparison) {
+  const filterText = formatReviewFilters(comparison.filters);
+  if (comparison.totalRecords === 0) {
+    return [
+      "No agent vent records found yet. Record minimized vents before comparing local review states.",
+      comparison.hasFilters
+        ? `Filters requested: ${filterText}. Local diagnostic labels only; not owner routing.`
+        : undefined,
+      `Boundary: ${comparison.boundary}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  const scopeText = comparison.hasFilters
+    ? `${comparison.matchingGroupCount} matching of ${comparison.groupCount} total recurrence group(s)`
+    : `${comparison.groupCount} total recurrence group(s)`;
+  const lines = [
+    `Agent vent review comparison: ${scopeText}; showing up to ${comparison.limitPerState} group(s) per state bucket.`,
+    comparison.hasFilters
+      ? `Filters: ${filterText}. Local diagnostic labels only; not owner routing or owner assignment.`
+      : undefined,
+    "States are local review markers only, not resolution, assignment, issue status, task truth, incident state, evidence, publication, or telemetry.",
+    "This comparison is read-only and intentionally emits no archive or restore confirmation tokens.",
+    `Boundary: ${comparison.boundary}`,
+    "",
+    "State totals:",
+  ].filter(Boolean);
+
+  for (const state of REVIEW_STATES) {
+    const total = comparison.totals[state];
+    lines.push(
+      `- ${state}: groups=${total.groups}, records=${total.records}, candidateIncidents=${total.candidateIncidents}, criticalGroups=${total.criticalGroups}`,
+    );
+  }
+
+  for (const bucket of comparison.buckets) {
+    lines.push(
+      "",
+      `${bucket.state}: ${bucket.groups} group(s), ${bucket.records} record(s), ${bucket.candidateIncidents} candidate incident(s) — ${bucket.description}`,
+    );
+    if (!bucket.items.length) {
+      lines.push("- none");
+      continue;
+    }
+    for (const item of bucket.items) {
+      const marker = item.candidateIncident ? "candidate incident for human review" : "watch";
+      lines.push(
+        `- ${item.recurrenceKey} — ${item.count}x, max=${item.maxSeverity}, ${marker}; latest: ${item.latestSummary}`,
+      );
+      lines.push(
+        `  inspect: ${formatAgentVentCommand("review", "show", item.recurrenceKey)} [limit]`,
+      );
+      lines.push(
+        `  outcomes: ${formatAgentVentCommand("outcomes", item.reviewState)} [per-state-limit]`,
+      );
+      lines.push(
+        `  export bucket: ${formatAgentVentCommand("export", "markdown", item.reviewState)} [limit]`,
+      );
+      if (item.reviewState === "new") {
+        lines.push(
+          `  choose local outcome: ${formatAgentVentCommand("review", "set", "acknowledged", item.recurrenceKey)} [note] | ${formatAgentVentCommand("review", "set", "dismissed", item.recurrenceKey)} [note] | ${formatAgentVentCommand("review", "set", "escalation_drafted", item.recurrenceKey)} [note]`,
+        );
+      } else {
+        lines.push(
+          `  retention planning: ${formatAgentVentCommand("retention", "candidates", item.reviewState)} [limit]`,
+        );
+      }
+      lines.push(
+        "  boundary: local diagnostics only; no owner routing, assignment, filing, task creation, incident declaration, evidence, publication, archive, restore, telemetry, or ASC/self mutation occurred",
+      );
+    }
+  }
+  if (comparison.hasFilters) {
     lines.push(
       "Filter note: category/tag/tool/package values are local diagnostic labels only, not owner routing or owner assignment.",
     );
