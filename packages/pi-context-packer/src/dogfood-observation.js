@@ -351,6 +351,11 @@ const normalizeStoredEvaluation = (value, ref) => {
     `${ref}.duplicateTokensAvoided`,
     errors,
   );
+  const omissionFollowupsTruncated = readOptionalCount(
+    evaluation.omissionFollowupsTruncated,
+    `${ref}.omissionFollowupsTruncated`,
+    errors,
+  );
   if (errors.length) return { ok: false, errors };
 
   return {
@@ -364,12 +369,7 @@ const normalizeStoredEvaluation = (value, ref) => {
     actualLowLevelCallsAvoided: actualLowLevelCallsAvoided ?? null,
     duplicateReadsObserved: booleanOrNull(evaluation.duplicateReadsObserved),
     omissionFollowupsUsed: sanitizeFollowups(evaluation.omissionFollowupsUsed),
-    omissionFollowupsTruncated: Math.max(
-      0,
-      Array.isArray(evaluation.omissionFollowupsUsed)
-        ? evaluation.omissionFollowupsUsed.length - MAX_FOLLOWUPS
-        : 0,
-    ),
+    omissionFollowupsTruncated: omissionFollowupsTruncated ?? 0,
     recommendationMatchedOutcome: booleanOrNull(evaluation.recommendationMatchedOutcome),
     packetUtilityRecommendationStatus:
       typeof evaluation.packetUtilityRecommendationStatus === "string"
@@ -511,14 +511,6 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
       nonAuthorization: NON_AUTHORIZATION,
     };
   }
-  if (entries.length + invalidEntries.length > MAX_AGGREGATE_ITEMS) {
-    return {
-      ok: false,
-      errors: [`aggregate input exceeds ${MAX_AGGREGATE_ITEMS} receipt item(s)`],
-      nonAuthorization: NON_AUTHORIZATION,
-    };
-  }
-
   const normalized = entries.map(normalizeAggregateEntry);
   const validEvaluations = normalized
     .filter((entry) => entry.ok)
@@ -551,6 +543,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     recommendationMatchedOutcome: evaluation.recommendationMatchedOutcome,
     packetUtilityRecommendationStatus: evaluation.packetUtilityRecommendationStatus,
     omissionFollowupCount: evaluation.omissionFollowupsUsed.length,
+    omissionFollowupsTruncated: evaluation.omissionFollowupsTruncated,
     unwiredProviderOmissionCount: evaluation.unwiredProviderOmissions.length,
   }));
   const providerOmissionCounts = countValues(
@@ -589,6 +582,10 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
         (sum, entry) => sum + (entry.evaluation.actualLowLevelReadSearchStatusCalls ?? 0),
         0,
       ),
+      omissionFollowupsTruncated: validEvaluations.reduce(
+        (sum, entry) => sum + (entry.evaluation.omissionFollowupsTruncated ?? 0),
+        0,
+      ),
     },
     packetUtilityRecommendationCounts,
     providerOmissionCounts,
@@ -620,6 +617,9 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
   const utilityLines = Object.entries(aggregate.packetUtilityRecommendationCounts).map(
     ([status, count]) => `- ${markdownInlineLabel(status, "packet utility status")}: ${count}`,
   );
+  const followupLines = Object.entries(aggregate.omissionFollowupCounts).map(
+    ([followup, count]) => `- ${markdownInlineLabel(followup, "omission follow-up")}: ${count}`,
+  );
   const invalidLines = aggregate.invalidEntries.map(
     (entry) =>
       `- ${markdownInlineLabel(entry.ref, "receipt")}: ${entry.errors.map((error) => markdownInlineLabel(error, "error")).join("; ")}`,
@@ -633,6 +633,7 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     `Expected low-level calls avoided: ${aggregate.totals.expectedLowLevelCallsAvoided}`,
     `Actual low-level calls avoided: ${aggregate.totals.actualLowLevelCallsAvoided}`,
     `Actual low-level read/search/status calls: ${aggregate.totals.actualLowLevelReadSearchStatusCalls}`,
+    `Omission follow-ups truncated: ${aggregate.totals.omissionFollowupsTruncated}`,
     "",
     "## Calibration status counts",
     statusLines.join("\n"),
@@ -642,6 +643,9 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     "",
     "## Unwired provider omission counts",
     providerLines.length ? providerLines.join("\n") : "- none recorded",
+    "",
+    "## Omission follow-up counts",
+    followupLines.length ? followupLines.join("\n") : "- none recorded",
     "",
     "## Invalid receipts",
     invalidLines.length ? invalidLines.join("\n") : "- none",
@@ -664,6 +668,7 @@ export const dogfoodAggregateEvaluationToolResult = async (input = {}) => {
 export const DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS = {
   type: "object",
   additionalProperties: false,
+  anyOf: [{ required: ["observation"] }, { required: ["observationJson"] }],
   properties: {
     observation: {
       type: "object",
@@ -682,9 +687,17 @@ export const DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS = {
 export const DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS = {
   type: "object",
   additionalProperties: false,
+  anyOf: [
+    { required: ["items"] },
+    { required: ["observations"] },
+    { required: ["observationJsons"] },
+    { required: ["evaluations"] },
+    { required: ["evaluationJsons"] },
+  ],
   properties: {
     items: {
       type: "array",
+      minItems: 1,
       maxItems: MAX_AGGREGATE_ITEMS,
       items: {
         oneOf: [
@@ -697,24 +710,28 @@ export const DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS = {
     },
     observations: {
       type: "array",
+      minItems: 1,
       maxItems: MAX_AGGREGATE_ITEMS,
       items: { type: "object", additionalProperties: true },
       description: "Filled context_pack_dogfood_observation_v1 objects emitted by context_pack.",
     },
     observationJsons: {
       type: "array",
+      minItems: 1,
       maxItems: MAX_AGGREGATE_ITEMS,
       items: { type: "string", maxLength: MAX_OBSERVATION_JSON_BYTES },
       description: "Filled context_pack_dogfood_observation_v1 JSON strings.",
     },
     evaluations: {
       type: "array",
+      minItems: 1,
       maxItems: MAX_AGGREGATE_ITEMS,
       items: { type: "object", additionalProperties: true },
       description: "context_pack_dogfood_evaluation_v1 objects from context_dogfood_evaluate.",
     },
     evaluationJsons: {
       type: "array",
+      minItems: 1,
       maxItems: MAX_AGGREGATE_ITEMS,
       items: { type: "string", maxLength: MAX_OBSERVATION_JSON_BYTES },
       description: "context_pack_dogfood_evaluation_v1 JSON strings.",

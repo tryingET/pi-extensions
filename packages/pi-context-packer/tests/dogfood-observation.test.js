@@ -239,6 +239,10 @@ test("dogfood evaluator rejects oversized JSON and publishes a closed top-level 
     /compact evaluator input limit/,
   );
   assert.equal(DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS.additionalProperties, false);
+  assert.deepEqual(DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS.anyOf, [
+    { required: ["observation"] },
+    { required: ["observationJson"] },
+  ]);
   assert.equal(
     DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS.properties.observationJson.maxLength,
     64_000,
@@ -292,10 +296,23 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
 
 test("dogfood aggregate accepts prior evaluations and reports mixed invalid receipts", async () => {
   const priorEvaluation = buildDogfoodObservationEvaluation({ observation: baseObservation() });
+  const truncatedEvaluation = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      observation: {
+        actualLowLevelReadSearchStatusCalls: 1,
+        actualLowLevelCallsAvoided: 1,
+        duplicateReadsObserved: true,
+        omissionFollowupsUsed: Array.from({ length: 20 }, (_, index) => `followup-${index}`),
+        recommendationMatchedOutcome: true,
+        notes: "many followups",
+      },
+    }),
+  });
   const result = await dogfoodAggregateEvaluationToolResult({
     items: [
       JSON.stringify(priorEvaluation),
       { kind: "wrong" },
+      truncatedEvaluation,
       baseObservation({
         observation: {
           actualLowLevelReadSearchStatusCalls: null,
@@ -312,8 +329,13 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
 
   assert.equal(aggregate.ok, true);
   assert.equal(aggregate.status, "review_before_tuning");
-  assert.equal(aggregate.validReceiptCount, 2);
+  assert.equal(aggregate.validReceiptCount, 3);
   assert.equal(aggregate.invalidReceiptCount, 1);
+  assert.equal(aggregate.totals.omissionFollowupsTruncated, 8);
+  assert.equal(aggregate.evaluations[1].omissionFollowupsTruncated, 8);
+  assert.match(result.content[0].text, /Omission follow-up counts/);
+  assert.match(result.content[0].text, /Omission follow-ups truncated: 8/);
+  assert.match(result.content[0].text, /followup-0/);
   assert.match(result.content[0].text, /Invalid receipts/);
   assert.match(result.content[0].text, /items\[1\]/);
 });
@@ -348,6 +370,14 @@ test("dogfood aggregate redacts malicious labels and fails closed on oversized i
   assert.equal(huge.details.dogfoodAggregateEvaluation.ok, false);
   assert.match(huge.content[0].text, /compact evaluator input limit/);
   assert.equal(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.additionalProperties, false);
+  assert.deepEqual(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.anyOf, [
+    { required: ["items"] },
+    { required: ["observations"] },
+    { required: ["observationJsons"] },
+    { required: ["evaluations"] },
+    { required: ["evaluationJsons"] },
+  ]);
+  assert.equal(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.properties.items.minItems, 1);
   assert.equal(DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS.properties.items.maxItems, 20);
 });
 
