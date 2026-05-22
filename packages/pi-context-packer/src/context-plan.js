@@ -261,6 +261,11 @@ const rebasePathSeedsToRepoRoot = ({ seeds, cwd, repoRoot }) => {
 
   return seeds.map((seed) => {
     if (seed.kind !== "path") return seed;
+    const repoRootCandidate = path.resolve(repoRoot, seed.value);
+    if (pathIsInside(repoRoot, repoRootCandidate) && pathExists(repoRootCandidate)) {
+      return seed;
+    }
+
     const cwdCandidate = path.resolve(cwd, seed.value);
     if (pathIsInside(repoRoot, cwdCandidate) && pathExists(cwdCandidate)) {
       const rebasedValue = path.relative(repoRoot, cwdCandidate);

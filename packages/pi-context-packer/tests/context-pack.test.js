@@ -353,6 +353,32 @@ test("context_pack rebases cwd-relative docs seeds after repoRoot inference", as
   assert.match(docs.items[0].content, /Package Vision/);
 });
 
+test("context_pack preserves repo-root-relative docs seeds when package cwd has a shadowing file", async () => {
+  const root = await makeWorkspace();
+  const packageCwd = join(root, "packages", "pkg");
+  await writeGitMarker(root);
+  await mkdir(join(root, "docs"), { recursive: true });
+  await mkdir(join(packageCwd, "docs"), { recursive: true });
+  await writeFile(join(root, "docs", "README.md"), "# Root Docs\n", "utf8");
+  await writeFile(join(packageCwd, "docs", "README.md"), "# Package Docs\n", "utf8");
+
+  const result = await buildContextPacket(
+    {
+      objective: "Read repo docs",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: "docs/README.md" }],
+      providers: { agents: "off", git: "off", sci: "off", docs: "required" },
+    },
+    { cwd: packageCwd },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(result.packet.repoRoot, root);
+  assert.equal(docs.items[0].provenance.path, "docs/README.md");
+  assert.match(docs.items[0].content, /Root Docs/);
+  assert.doesNotMatch(docs.items[0].content, /Package Docs/);
+});
+
 test("context_pack runs git status at repoRoot after package-cwd inference", async () => {
   const root = await makeWorkspace();
   const packageCwd = join(root, "packages", "pkg");

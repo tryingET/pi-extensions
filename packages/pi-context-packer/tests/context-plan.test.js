@@ -256,6 +256,29 @@ test("context_plan rebases cwd-relative path seeds to an inferred repoRoot", asy
   ]);
 });
 
+test("context_plan preserves repo-root-relative path seeds when cwd has a shadowing file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-shadow-seed-"));
+  const packageCwd = join(root, "packages", "pkg");
+  await writeGitMarker(root);
+  await mkdir(join(root, "docs"), { recursive: true });
+  await mkdir(join(packageCwd, "docs"), { recursive: true });
+  await writeFile(join(root, "docs", "README.md"), "# Root Docs\n", "utf8");
+  await writeFile(join(packageCwd, "docs", "README.md"), "# Package Docs\n", "utf8");
+
+  const plan = buildContextPlan(
+    {
+      objective: "Read repo docs",
+      cwd: packageCwd,
+      seeds: [{ kind: "path", value: "docs/README.md" }],
+    },
+    { cwd: packageCwd },
+  );
+
+  const docsPlan = plan.providerPlans.find((providerPlan) => providerPlan.provider === "docs");
+  assert.equal(plan.repoRoot, root);
+  assert.deepEqual(docsPlan.proposedQueries[0].seeds, [{ kind: "path", value: "docs/README.md" }]);
+});
+
 test("context_plan rejects broad ancestor repoRoot values without a git marker", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-plan-broad-"));
   const packageCwd = join(root, "packages", "pkg");
