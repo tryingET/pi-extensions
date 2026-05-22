@@ -861,7 +861,7 @@ function reviewListSyntaxError(
 }
 
 function parseReviewListTokens(tokens: string[]) {
-  const filters: { category?: string; tag?: string; tool?: string; packageName?: string } = {};
+  const filters: { category?: string; tags?: string[]; tool?: string; packageName?: string } = {};
   const tags: string[] = [];
   const unknownFilters: string[] = [];
   const invalidFilters: string[] = [];
