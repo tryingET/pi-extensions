@@ -65,7 +65,7 @@ test("context_plan routes Markdown-only path seeds to docs without selecting SCI
   assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, [
     { kind: "path", value: "README.md" },
   ]);
-  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [{ kind: "path", value: "README.md" }]);
+  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, []);
 });
 
 test("context_plan honors provider required and off modes without creating mutation authority", () => {
@@ -114,14 +114,12 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
     plan.risks.filter((risk) => risk.kind === "seed" && risk.severity === "blocked").length,
     2,
   );
-  for (const providerPlan of plan.providerPlans) {
-    for (const query of providerPlan.proposedQueries) {
-      assert.deepEqual(query.seeds, [
-        { kind: "path", value: "packages/pi-context-packer/src/context-plan.js" },
-        { kind: "symbol", value: "targetSymbol" },
-      ]);
-    }
-  }
+  const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
+  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [
+    { kind: "path", value: "packages/pi-context-packer/src/context-plan.js" },
+    { kind: "symbol", value: "targetSymbol" },
+  ]);
+  assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, []);
   const serialized = JSON.stringify(plan.providerPlans);
   assert.doesNotMatch(
     serialized,

@@ -380,27 +380,32 @@ const normalizeWorkspace = (raw, env) => {
   return { cwd, repoRoot, risks };
 };
 
+const seedMatchesProvider = (provider, seed) => {
+  if (provider === "sci") {
+    return seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value));
+  }
+  if (provider === "docs") return seed.kind === "path" && isMarkdownPath(seed.value);
+  if (provider === "ak") return seed.kind === "ak" || seed.kind === "task";
+  if (provider === "fcos") return seed.kind === "fcos";
+  if (provider === "prompt_vault") return seed.kind === "prompt";
+  return provider === "agents" || provider === "git" || provider === "session";
+};
+
+const providerQuerySeeds = (provider, seeds) =>
+  seeds.filter((seed) => seedMatchesProvider(provider, seed));
+
 const providerMatches = (provider, objective, seeds) => {
   if (provider === "agents") return true;
   if (provider === "git") return includesBoundedSignal(objective, PROVIDER_KEYWORDS.git);
   if (includesBoundedSignal(objective, PROVIDER_KEYWORDS[provider] ?? [])) return true;
 
-  return seeds.some((seed) => {
-    if (provider === "sci") {
-      return seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value));
-    }
-    if (provider === "docs") return seed.kind === "path" && isMarkdownPath(seed.value);
-    if (provider === "ak") return seed.kind === "ak" || seed.kind === "task";
-    if (provider === "fcos") return seed.kind === "fcos";
-    if (provider === "prompt_vault") return seed.kind === "prompt";
-    return false;
-  });
+  return seeds.some((seed) => seedMatchesProvider(provider, seed));
 };
 
 const queryForProvider = (provider, objective, seeds, budget) => ({
   id: `${provider}-q1`,
   query: objective,
-  seeds,
+  seeds: providerQuerySeeds(provider, seeds),
   maxResults: provider === "git" || provider === "agents" ? 5 : 12,
   maxBytes: Math.min(
     budget.maxBytes,
