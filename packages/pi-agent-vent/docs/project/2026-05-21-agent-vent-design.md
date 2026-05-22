@@ -129,7 +129,7 @@ Important behavior:
 
 ### `/agent_vent`
 
-Human/operator command for lightweight inspection. `/agent-vent` remains a compatibility alias.
+Human/operator command for lightweight inspection. The command name is intentionally singular: `/agent_vent`.
 
 - `/agent_vent help`
 - `/agent_vent summary`
@@ -168,7 +168,7 @@ This heuristic intentionally errs toward surfacing review candidates, not assert
 
 - ASC/`self` owns operational introspection, subagent/runtime control, and mirror-only handoff/progress summaries.
 - `pi-agent-vent` owns local diagnostic vent records, redaction, recurrence grouping, and advisory candidate-incident heuristics.
-- `pi-toolbox-discovery` owns discovery/activation of the already-registered `agent_vent` tool through the same-named `agent_vent` bundle.
+- `pi-toolbox-discovery` owns discovery/activation of the already-registered `agent_vent` tool through the same-named `agent_vent` bundle; `agent-vent` is not a runtime alias.
 
 This keeps vent persistence from becoming hidden ASC state while still making the capability discoverable during autonomous work.
 

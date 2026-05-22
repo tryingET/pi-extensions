@@ -13,6 +13,12 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.1.1] - 2026-05-22
+
+### Changed
+
+- Removed the `agent-vent` toolbox bundle alias; the diagnostic bundle id is only `agent_vent`.
+
 ## [0.1.0] - 2026-02-08
 
 ### Added

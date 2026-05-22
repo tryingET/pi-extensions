@@ -1,6 +1,6 @@
 {
   "packages/pi-activity-strip": "0.1.0",
-  "packages/pi-agent-vent": "0.1.0",
+  "packages/pi-agent-vent": "0.1.1",
   "packages/pi-autonomous-session-control": "0.1.5",
   "packages/pi-autoresearch": "0.1.0",
   "packages/pi-better-openai": "0.1.0",
@@ -23,7 +23,7 @@
   "packages/pi-session-compaction": "0.1.0",
   "packages/pi-society-orchestrator": "0.2.0",
   "packages/pi-society-startup-context": "0.1.0",
-  "packages/pi-toolbox-discovery": "0.1.0",
+  "packages/pi-toolbox-discovery": "0.1.1",
   "packages/pi-vault-client": "0.1.0",
   "packages/pi-workstation-inference-provider": "0.1.0"
 }

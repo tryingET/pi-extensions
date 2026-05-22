@@ -23,13 +23,13 @@ function createMockPi() {
   };
 }
 
-test("extension registers agent_vent tool and command aliases", () => {
+test("extension registers only the canonical agent_vent tool and command", () => {
   const pi = createMockPi();
   agentVentExtension(pi.api);
 
   assert.equal(pi.tools.has("agent_vent"), true);
   assert.equal(pi.commands.has("agent_vent"), true);
-  assert.equal(pi.commands.has("agent-vent"), true);
+  assert.equal(pi.commands.has("agent-vent"), false);
   assert.match(pi.tools.get("agent_vent").description, /frustration/i);
 });
 

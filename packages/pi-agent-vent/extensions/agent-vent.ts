@@ -724,12 +724,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
   registerAgentVentCommand(
     pi,
     "agent_vent",
-    "Inspect local agent vent records: /agent_vent [help|summary|list|facets|review|outcomes|compare|curate|draft|retention|stats|export|path]",
-  );
-  registerAgentVentCommand(
-    pi,
-    "agent-vent",
-    "Alias for /agent_vent [help|summary|list|facets|review|outcomes|compare|curate|draft|retention|stats|export|path]",
+    "Inspect local agent_vent records: /agent_vent [help|summary|list|facets|review|outcomes|compare|curate|draft|retention|stats|export|path]",
   );
 }
 
@@ -787,7 +782,6 @@ function handleCommand(args: string) {
       "  /agent_vent export [markdown|json] [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
       "                                                        Export a bounded local diagnostic projection, optionally facet-filtered.",
       "  /agent_vent path                                     Show local JSONL store paths.",
-      "  /agent-vent ...                                      Backward-compatible alias.",
       "",
       "LLM tool: agent_vent can record minimized frustration events, local review states, local recurrence curation projections, and read-only review comparisons.",
       "Boundary: local diagnostics only; no AK tasks, GitHub issues, incidents, evidence, telemetry, or ASC/self state are created.",

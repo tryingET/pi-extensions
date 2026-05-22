@@ -324,7 +324,8 @@ test("catalog includes agent_vent as diagnostic companion to ASC", async () => {
     action: "explain",
     bundle: "agent-vent",
   });
-  assert.match(aliasResult.content[0].text, /agent_vent: Agent vent diagnostics/);
+  assert.match(aliasResult.content[0].text, /Unknown toolbox bundle: agent-vent/);
+  assert.equal(aliasResult.details.ok, false);
 });
 
 test("session_start clears stale leases and TTL keeps activation for one future turn", async () => {

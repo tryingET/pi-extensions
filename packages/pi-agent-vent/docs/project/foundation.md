@@ -30,7 +30,7 @@ Capture recurring agent-observed friction as local diagnostic events so maintain
 In scope:
 
 - Pi custom tool `agent_vent`.
-- Pi command `/agent_vent` with `/agent-vent` compatibility alias.
+- Pi command `/agent_vent` only; no `/agent-vent` runtime alias.
 - Local JSONL append/read/summarize behavior.
 - Redaction/minimization and candidate-incident heuristics.
 

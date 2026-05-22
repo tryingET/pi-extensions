@@ -13,12 +13,18 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.1.1] - 2026-05-22
+
+### Changed
+
+- Removed the `/agent-vent` command compatibility alias; runtime-facing tool, command, and toolbox bundle naming is now singularly `agent_vent`.
+
 ## [0.1.0] - 2026-05-21
 
 ### Added
 
 - Added the `agent_vent` Pi tool for local agent frustration capture.
-- Added `/agent_vent` inspection command, with `/agent-vent` retained as a compatibility alias.
+- Added `/agent_vent` inspection command.
 - Added local append-only JSONL storage at `~/.pi/agent/agent-vent/vents.jsonl`, overridable with `PI_AGENT_VENT_DIR`.
 - Added recurrence grouping, advisory candidate-incident heuristics, malformed-line tolerance, and conservative secret redaction.
 - Added `node:test` coverage for redaction, JSONL round trips, recurrence summaries, and validation errors.

@@ -20,9 +20,7 @@ const normalizeText = (value: string | undefined): string => (value ?? "").trim(
 
 export function findBundle(bundleId: string | undefined): ToolboxBundle | undefined {
   const normalized = normalizeText(bundleId);
-  const aliases = new Map([["agent-vent", "agent_vent"]]);
-  const canonical = aliases.get(normalized) ?? normalized;
-  return CATALOG.find((bundle) => bundle.id === canonical);
+  return CATALOG.find((bundle) => bundle.id === normalized);
 }
 
 function defaultProfile(bundle: ToolboxBundle): ToolboxProfile {

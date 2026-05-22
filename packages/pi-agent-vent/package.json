@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-agent-vent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local pi tool for agents to record recurring frustrations, bugs, and workflow friction without creating incidents or external telemetry",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

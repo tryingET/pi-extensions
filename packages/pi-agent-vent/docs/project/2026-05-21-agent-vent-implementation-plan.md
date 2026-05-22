@@ -19,7 +19,7 @@ Create a new simple-package monorepo package from `pi-extensions-template` and r
 
 - Package exists at `packages/pi-agent-vent` with tracked `.copier-answers.yml` and template-aligned metadata.
 - `agent_vent` custom tool supports `record`, `summary`, `list`, and `path` actions.
-- `/agent_vent` command supports human-readable `help`, `summary`, `list`, and `path` inspection, with `/agent-vent` retained as a compatibility alias.
+- `/agent_vent` command supports human-readable `help`, `summary`, `list`, and `path` inspection, with no `/agent-vent` runtime alias.
 - Durable data is append-only JSONL at `~/.pi/agent/agent-vent/vents.jsonl` or `PI_AGENT_VENT_DIR`.
 - Records are minimized, schema-versioned, and redacted for common secret patterns.
 - Recurrence grouping and candidate-incident heuristics are implemented in testable core code.
@@ -38,7 +38,7 @@ Create a new simple-package monorepo package from `pi-extensions-template` and r
    - grouping, candidate-incident, and formatting helpers.
 3. Replace `extensions/agent-vent.ts` scaffold command:
    - register `agent_vent` custom tool with clear prompt guidelines;
-   - register `/agent_vent` inspection command plus `/agent-vent` compatibility alias;
+   - register `/agent_vent` inspection command only; do not add `/agent-vent` as a runtime alias;
    - keep all storage local; avoid network and owner-surface writes.
 4. Add `tests/vent-store.test.js` for redaction, record creation, JSONL round-trip, and summary grouping.
 5. Update package metadata and docs:
