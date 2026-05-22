@@ -532,24 +532,40 @@ test("context_pack recommends reviewing omissions when no fresh packet content i
   );
 });
 
-test("context_pack includes session environment metadata when selected", async () => {
+test("context_pack includes compact session environment metadata when selected", async () => {
   const root = await makeWorkspace();
-  const result = await buildContextPacket(
-    {
-      objective: "Plan current context window environment",
-      cwd: root,
-      repoRoot: root,
-      providers: { session: "required", git: "off" },
+  const input = {
+    objective: "Plan current context window environment",
+    cwd: root,
+    repoRoot: root,
+    providers: { session: "required", git: "off" },
+  };
+  const env = {
+    systemPrompt: "loaded prompt",
+    contextUsage: {
+      tokens: 1234,
+      contextWindow: 2000,
+      rawPrompt: "SECRET SESSION PROMPT",
+      path: "/tmp/customer-acme/session.json",
+      nested: { token: "abc123" },
     },
-    {
-      systemPrompt: "loaded prompt",
-      contextUsage: { tokens: 1234 },
-      modelLabel: "test/model",
-    },
-  );
+    modelLabel: "test/model",
+  };
 
+  const result = await buildContextPacket(input, env);
+  const toolResult = await contextPacketToolResult(input, { cwd: root, ...env });
   const session = result.packet.sections.find((section) => section.provider === "session");
+  const serializedDetails = JSON.stringify(result.packet.measurementReceipt.sessionAwareness);
+  const serializedToolDetails = JSON.stringify(
+    toolResult.details.measurementReceipt.sessionAwareness,
+  );
   assert.equal(session.items.length, 1);
   assert.match(session.items[0].content, /systemPromptEstimatedTokens/);
+  assert.match(session.items[0].content, /rawUsageOmitted/);
   assert.match(session.items[0].content, /test\/model/);
+  assert.match(session.items[0].content, /1234/);
+  assert.doesNotMatch(session.items[0].content, /SECRET SESSION PROMPT|customer-acme|abc123/);
+  assert.doesNotMatch(toolResult.content[0].text, /SECRET SESSION PROMPT|customer-acme|abc123/);
+  assert.doesNotMatch(serializedDetails, /SECRET SESSION PROMPT|customer-acme|abc123/);
+  assert.doesNotMatch(serializedToolDetails, /SECRET SESSION PROMPT|customer-acme|abc123/);
 });

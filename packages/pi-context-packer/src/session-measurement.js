@@ -36,25 +36,36 @@ const extractUsageWindow = (usage) => {
   return undefined;
 };
 
-export const buildSessionAwareness = (env = {}) => {
-  const usage = env.contextUsage;
-  const systemPrompt = typeof env.systemPrompt === "string" ? env.systemPrompt : "";
+const compactContextUsage = (usage) => {
   const tokens = extractUsageTokens(usage);
   const windowTokens = extractUsageWindow(usage);
   const contextPressureRatio = tokens && windowTokens ? tokens / windowTokens : undefined;
   return {
+    tokens: tokens ?? null,
+    windowTokens: windowTokens ?? null,
+    contextPressureRatio: contextPressureRatio ?? null,
+    rawUsageOmitted: Boolean(usage),
+  };
+};
+
+export const buildSessionAwareness = (env = {}) => {
+  const usage = env.contextUsage;
+  const systemPrompt = typeof env.systemPrompt === "string" ? env.systemPrompt : "";
+  const contextUsage = compactContextUsage(usage);
+  const { tokens, contextPressureRatio } = contextUsage;
+  return {
     cwd: env.cwd,
     model: env.modelLabel,
     contextUsageKnown: Boolean(usage),
-    contextUsage: usage ?? null,
-    contextPressureRatio,
+    contextUsage,
+    contextPressureRatio: contextPressureRatio ?? undefined,
     highContextPressure:
       Boolean(contextPressureRatio && contextPressureRatio >= 0.8) ||
       Boolean(tokens && tokens >= 120_000),
     systemPromptEstimatedTokens: systemPrompt ? textTokens(systemPrompt) : null,
     systemPromptBytes: systemPrompt ? Buffer.byteLength(systemPrompt) : null,
     visibleSessionSection: false,
-    note: "system prompt raw content intentionally omitted; metadata is used for dedupe and context-pressure measurement",
+    note: "system prompt raw content and raw context-usage object intentionally omitted; compact numeric metadata is used for dedupe and context-pressure measurement",
   };
 };
 

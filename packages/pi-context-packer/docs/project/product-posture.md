@@ -51,7 +51,7 @@ The package should feel like a context advisory membrane: it helps decide what c
 
 - maturity: `internal dogfood / pre-provider safety hardened MVP with redacted receipt export`
 - current strategic line: keep `context_plan` cheap and always available, keep `context_pack` activatable, preserve Markdown-primary output, and use redacted live dogfood receipts to prove ranking/utility before adding AK/FCOS/Prompt Vault adapters
-- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, dot-prefixed/internal path intake, docs-list path intake, Markdown fence injection, owner-surface false positives, unreadable files, symlink escapes, missing workspace-root degradation, SCI workflow refusal until read-only safety is confirmed, compact details, budgets, fresh-vs-duplicate tool-call estimates, session dedupe, redacted dogfood observation templates, public omission/error detail redaction across Markdown/details/next suggestions, raw omission-detail suppression, and wired-vs-planned-unwired provider gap classification; docs list passes
+- proof posture: package quality gate passes with adversarial tests for unsafe caller paths, dot-prefixed/internal path intake, docs-list path intake, Markdown fence injection, owner-surface false positives, unreadable files, symlink escapes, missing workspace-root degradation, SCI workflow refusal until read-only safety is confirmed, compact details, budgets, fresh-vs-duplicate tool-call estimates, session dedupe, compact session metadata without raw context-usage echoing, redacted dogfood observation templates, public omission/error detail redaction across Markdown/details/next suggestions, raw omission-detail suppression, and wired-vs-planned-unwired provider gap classification; docs list passes
 - release posture: package checks pass; package is installed locally into Pi; live activation is via toolbox `context-packer` bundle
 
 ## Current landed capability baseline
@@ -71,7 +71,7 @@ The package currently owns:
 - primary Markdown packet output;
 - advisory owner-surface routing for authority-sensitive work without invoking those surfaces;
 - compact structured `details` that omit raw item content by default;
-- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, session awareness, planned-unwired provider omissions, packet-local utility recommendations, post-use dogfood follow-up scaffolds, public provider-failure omission details that omit raw subprocess error text, and redacted copy-ready observation templates that omit raw packet content, selected item paths, and raw omission details;
+- measurement receipt fields for estimated tool calls avoided, packet fill, selected/omitted counts, already-loaded dedupe, compact session awareness that omits raw context-usage objects, planned-unwired provider omissions, packet-local utility recommendations, post-use dogfood follow-up scaffolds, public provider-failure omission details that omit raw subprocess error text, and redacted copy-ready observation templates that omit raw packet content, selected item paths, and raw omission details;
 - explicit omissions for planned-but-unwired provider seams.
 
 ## Product non-goals
