@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "1602a473ea5884ec9d1da3a73060b3c64d5c34ca"
+created_at: "2026-05-22T11:56:16Z"
+intent: "Refresh pi-agent-vent product posture frontier after review-command hardening"
+files:
+  - "packages/pi-agent-vent/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Docs-only frontier update after verified review command hardening"
