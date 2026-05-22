@@ -46,6 +46,28 @@ test("context_plan selects code and docs providers from objective and seeds", as
   assert.equal(byProvider.fcos.posture, "optional");
 });
 
+test("context_plan routes Markdown-only path seeds to docs without selecting SCI", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "pi-context-plan-docs-only-"));
+  const plan = buildContextPlan(
+    {
+      objective: "Read package docs",
+      cwd: repo,
+      seeds: [{ kind: "path", value: "README.md" }],
+      providers: { git: "off", session: "off" },
+    },
+    { cwd: repo },
+  );
+
+  assert.equal(plan.ok, true);
+  const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
+  assert.equal(byProvider.docs.posture, "selected");
+  assert.equal(byProvider.sci.posture, "optional");
+  assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, [
+    { kind: "path", value: "README.md" },
+  ]);
+  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [{ kind: "path", value: "README.md" }]);
+});
+
 test("context_plan honors provider required and off modes without creating mutation authority", () => {
   const plan = buildContextPlan({
     objective: "Coordinate FCOS context window work",

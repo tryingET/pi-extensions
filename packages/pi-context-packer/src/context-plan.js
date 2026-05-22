@@ -16,6 +16,7 @@ const DEFAULT_MAX_TOKENS = 40_000;
 const DEFAULT_RESERVE_TOKENS = 12_000;
 const DEFAULT_PROVIDER_MAX_TOKENS = 12_000;
 const ESTIMATED_BYTES_PER_TOKEN = 4;
+const isMarkdownPath = (value) => /\.md$/i.test(value);
 
 const PROVIDER_AUTHORITY = {
   agents:
@@ -385,8 +386,10 @@ const providerMatches = (provider, objective, seeds) => {
   if (includesBoundedSignal(objective, PROVIDER_KEYWORDS[provider] ?? [])) return true;
 
   return seeds.some((seed) => {
-    if (provider === "sci") return seed.kind === "path" || seed.kind === "symbol";
-    if (provider === "docs") return seed.kind === "path" && /\.md$/i.test(seed.value);
+    if (provider === "sci") {
+      return seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value));
+    }
+    if (provider === "docs") return seed.kind === "path" && isMarkdownPath(seed.value);
     if (provider === "ak") return seed.kind === "ak" || seed.kind === "task";
     if (provider === "fcos") return seed.kind === "fcos";
     if (provider === "prompt_vault") return seed.kind === "prompt";

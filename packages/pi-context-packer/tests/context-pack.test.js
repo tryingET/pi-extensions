@@ -51,6 +51,27 @@ test("context_pack assembles AGENTS and seeded Markdown without mutating provide
   assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 2);
 });
 
+test("context_pack keeps Markdown-only path packets on docs without SCI omissions", async () => {
+  const root = await makeWorkspace();
+  const result = await buildContextPacket({
+    objective: "Read docs context",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "docs/project/note.md" }],
+    providers: { git: "off", session: "off" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    result.packet.sections.map((section) => section.provider),
+    ["agents", "docs"],
+  );
+  assert.equal(
+    result.packet.omissions.some((omission) => omission.provider === "sci"),
+    false,
+  );
+});
+
 test("context_pack enforces the global packet budget across providers while preserving reserve", async () => {
   const root = await makeWorkspace();
   const body = "x".repeat(2400);
@@ -772,10 +793,7 @@ test("context_pack emits measurement receipt for packet usefulness", async () =>
   assert.equal(result.packet.measurementReceipt.wiredProviders.includes("docs"), true);
   assert.equal(typeof result.packet.measurementReceipt.packetFillRatio, "number");
   assert.equal(result.packet.measurementReceipt.freshItemCount, 2);
-  assert.equal(
-    result.packet.measurementReceipt.packetUtilityRecommendation.status,
-    "use_packet_review_omissions",
-  );
+  assert.equal(result.packet.measurementReceipt.packetUtilityRecommendation.status, "use_packet");
   assert.equal(
     result.packet.measurementReceipt.dogfoodFollowupReceipt.status,
     "observation_pending",
