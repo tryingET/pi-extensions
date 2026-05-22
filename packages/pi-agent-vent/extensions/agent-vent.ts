@@ -656,7 +656,7 @@ function handleCommand(args: string) {
   }
 
   if (action === "review") {
-    const syntaxError = reviewListSyntaxError(tokens.slice(1));
+    const syntaxError = reviewSyntaxError(tokens.slice(1));
     if (syntaxError) return syntaxError;
   }
 
@@ -759,7 +759,7 @@ function handleReviewCommand(
   }
 
   const parsed = parseReviewListTokens(tokens);
-  const syntaxError = reviewListSyntaxError(tokens, parsed);
+  const syntaxError = reviewSyntaxError(tokens, parsed);
   if (syntaxError) return syntaxError;
   const normalizedState =
     parsed.state && parsed.state !== "all" ? normalizeReviewState(parsed.state) : parsed.state;
@@ -772,8 +772,21 @@ function handleReviewCommand(
   return formatReviewQueue(queue);
 }
 
-function reviewListSyntaxError(tokens: string[], parsed = parseReviewListTokens(tokens)) {
-  if (tokens[0] === "show" || tokens[0] === "set") return undefined;
+function reviewSyntaxError(tokens: string[], parsed = parseReviewListTokens(tokens)) {
+  if (tokens[0] === "show") {
+    if (!tokens[1]) return "Usage: /agent_vent review show <recurrenceKey> [limit]";
+    return undefined;
+  }
+  if (tokens[0] === "set") {
+    const state = tokens[1]?.toLowerCase().replaceAll("-", "_");
+    if (!tokens[1] || !tokens[2]) {
+      return "Usage: /agent_vent review set <new|acknowledged|dismissed|escalation_drafted> <recurrenceKey> [note]";
+    }
+    if (!REVIEW_STATES.includes(state)) {
+      return `Invalid /agent_vent review state: ${tokens[1]}\nUsage: /agent_vent review set <new|acknowledged|dismissed|escalation_drafted> <recurrenceKey> [note]`;
+    }
+    return undefined;
+  }
   const usage =
     "Usage: /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]";
   if (parsed.unknownFilters.length) {

@@ -85,7 +85,7 @@ The tool prompt tells the agent to avoid ordinary status updates, raw logs, secr
 /agent_vent path
 ```
 
-`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Review filters fail closed for unknown keys or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, or mutate owner systems.
+`/agent-vent` remains a compatibility alias for users who prefer kebab-case slash commands. Review queue and detail output include advisory human-review hints, exact local next-action commands for review state, draft-only handoff targets, and retention preview eligibility; generated commands quote dynamic recurrence keys/paths so legacy keys remain copyable. Review command syntax fails closed before store reads for unknown filters, invalid states, or invalid category values. These surfaces are guidance only and do not route, file, create, declare, assign, record evidence, publish, or mutate owner systems.
 
 ## Deeper Pi integration
 

@@ -337,6 +337,10 @@ test("agent_vent command rejects unknown review filter keys without creating sto
     assert.doesNotMatch(messages[0], /symlink/);
     await pi.commands.get("agent_vent").handler("review category=bgu", { hasUI: false });
     assert.match(messages[1], /Invalid \/agent_vent review filter value\(s\): category=bgu/);
+    await pi.commands.get("agent_vent").handler("review show", { hasUI: false });
+    assert.match(messages[2], /Usage: \/agent_vent review show <recurrenceKey> \[limit\]/);
+    await pi.commands.get("agent_vent").handler("review set resolved bug:legacy", { hasUI: false });
+    assert.match(messages[3], /Invalid \/agent_vent review state: resolved/);
   } finally {
     console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
