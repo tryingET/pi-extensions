@@ -83,6 +83,24 @@ export const assertInstalledArtifactPackage = ({ packageRoot, packageName, packa
   return { packageJsonPath, extensionPath };
 };
 
+export const assertLocalTarballInstallSource = ({ packageSpec }) => {
+  if (!packageSpec || typeof packageSpec !== "string") {
+    throw new Error("PACKAGE_SPEC is required for local tarball install-source validation.");
+  }
+  if (!packageSpec.startsWith("npm:")) {
+    throw new Error(`Release smoke expected an npm: tarball install source, got: ${packageSpec}`);
+  }
+
+  const tarballPath = packageSpec.slice("npm:".length);
+  if (!path.isAbsolute(tarballPath) || !tarballPath.endsWith(".tgz")) {
+    throw new Error(
+      `Release smoke expected npm:<absolute .tgz path> as the install source, got: ${packageSpec}`,
+    );
+  }
+
+  return { tarballPath };
+};
+
 export const buildLocalPathArtifactSettings = ({ settings, packageRoot }) => {
   if (!packageRoot || typeof packageRoot !== "string") {
     throw new Error("packageRoot is required for release smoke settings preparation.");
@@ -292,6 +310,15 @@ const runCli = async () => {
     return;
   }
 
+  if (command === "assert-local-tarball-install-source") {
+    const packageSpec = readArgValue(args, "--package-spec");
+    assertLocalTarballInstallSource({ packageSpec });
+    console.log(
+      "Local npm:<tarball> package spec is validated as an install source; runtime discovery smoke uses the installed local package path.",
+    );
+    return;
+  }
+
   if (
     command === "prepare-local-path-artifact-settings" ||
     command === "prepare-installed-artifact-settings"
@@ -326,7 +353,7 @@ const runCli = async () => {
   }
 
   throw new Error(
-    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-installed-artifact|prepare-local-path-artifact-settings|assert-command-output|assert-installed-tool-path> ...",
+    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-local-tarball-install-source|assert-installed-artifact|prepare-local-path-artifact-settings|assert-command-output|assert-installed-tool-path> ...",
   );
 };
 

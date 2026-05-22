@@ -46,7 +46,7 @@ system4d:
 - Package passes `npm run release:check:quick` in workspace.
   - Quick checks are artifact-only and require no Pi auth: they verify `npm pack`, packaged Markdown links, artifact-local `npm install && npm run check`, isolated npm installation of the packed tarball, and installed shadow registered-tool `agent_vent path` execution against isolated vent storage.
 - Package passes `npm run release:check` where live Pi smoke is available.
-  - Full checks additionally install the tarball through isolated Pi package settings and smoke `/agent_vent path` through local-path package discovery.
+  - Full checks additionally install the tarball through isolated Pi package settings, validate local `npm:<tarball>` as the install source, and smoke `/agent_vent path` through local-path package discovery of the installed artifact. Pi package docs define npm settings sources as package specs such as `npm:@scope/pkg@1.2.3`; local tarball paths are validated here as install inputs, not claimed as a runtime package-discovery source.
 - Root release workflow can produce/update component release PR.
 - Publish workflow completes with `npm publish --provenance --access public` for package.
 

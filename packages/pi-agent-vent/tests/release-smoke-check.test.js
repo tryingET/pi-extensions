@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   assertAgentVentPathSmokeOutput,
   assertInstalledArtifactPackage,
+  assertLocalTarballInstallSource,
   assertPackageSpecInstalled,
   buildLocalPathArtifactSettings,
   executeInstalledArtifactToolPathSmoke,
@@ -47,6 +48,29 @@ test("release smoke settings check fails closed when package spec is missing", (
         packageSpec: "npm:/tmp/pi-agent-vent.tgz",
       }),
     /Installed package spec not found/,
+  );
+});
+
+test("release smoke validates local npm tarball specs as install sources only", () => {
+  assert.deepEqual(assertLocalTarballInstallSource({ packageSpec: "npm:/tmp/pi-agent-vent.tgz" }), {
+    tarballPath: "/tmp/pi-agent-vent.tgz",
+  });
+
+  assert.throws(
+    () => assertLocalTarballInstallSource({ packageSpec: "" }),
+    /PACKAGE_SPEC is required/,
+  );
+  assert.throws(
+    () => assertLocalTarballInstallSource({ packageSpec: "/tmp/pi-agent-vent.tgz" }),
+    /expected an npm: tarball install source/,
+  );
+  assert.throws(
+    () => assertLocalTarballInstallSource({ packageSpec: "npm:../pi-agent-vent.tgz" }),
+    /expected npm:<absolute \.tgz path>/,
+  );
+  assert.throws(
+    () => assertLocalTarballInstallSource({ packageSpec: "npm:/tmp/pi-agent-vent.zip" }),
+    /expected npm:<absolute \.tgz path>/,
   );
 });
 

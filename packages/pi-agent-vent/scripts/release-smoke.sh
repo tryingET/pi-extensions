@@ -33,9 +33,9 @@ cleanup() {
 trap cleanup EXIT
 
 SMOKE_DIR="$(mktemp -d /tmp/pi-agent-vent-release-smoke-XXXXXX)"
-SMOKE_VENT_DIR="$SMOKE_DIR/agent-vent-store"
+SMOKE_LOCAL_PATH_VENT_DIR="$SMOKE_DIR/agent-vent-local-path-store"
 SMOKE_TOOL_VENT_DIR="$SMOKE_DIR/agent-vent-tool-store"
-SMOKE_OUTPUT="$SMOKE_DIR/agent-vent-path.out"
+SMOKE_LOCAL_PATH_OUTPUT="$SMOKE_DIR/agent-vent-local-path.out"
 PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 if [[ -n "${NPM_CONFIG_PREFIX:-}" ]]; then
@@ -65,23 +65,26 @@ node ./scripts/release-smoke-check.mjs assert-installed-artifact \
   --package-name "$PACKAGE_NAME" \
   --package-version "$PACKAGE_VERSION"
 
+node ./scripts/release-smoke-check.mjs assert-local-tarball-install-source \
+  --package-spec "$PACKAGE_SPEC"
+
 node ./scripts/release-smoke-check.mjs prepare-local-path-artifact-settings \
   --settings "$PI_CODING_AGENT_DIR/settings.json" \
   --package-root "$INSTALLED_PACKAGE_ROOT"
 
 echo "== installed local-path package-discovery /agent_vent command smoke"
-PI_AGENT_VENT_DIR="$SMOKE_VENT_DIR" \
+PI_AGENT_VENT_DIR="$SMOKE_LOCAL_PATH_VENT_DIR" \
   pi --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates --no-context-files --no-themes \
-  -p "/agent_vent path" >"$SMOKE_OUTPUT" 2>&1
-cat "$SMOKE_OUTPUT"
+  -p "/agent_vent path" >"$SMOKE_LOCAL_PATH_OUTPUT" 2>&1
+cat "$SMOKE_LOCAL_PATH_OUTPUT"
 
 node ./scripts/release-smoke-check.mjs assert-command-output \
-  --output "$SMOKE_OUTPUT" \
-  --vent-dir "$SMOKE_VENT_DIR"
+  --output "$SMOKE_LOCAL_PATH_OUTPUT" \
+  --vent-dir "$SMOKE_LOCAL_PATH_VENT_DIR"
 
 echo "== installed artifact shadow agent_vent registered-tool path smoke"
 node ./scripts/release-smoke-check.mjs assert-installed-tool-path \
   --package-root "$INSTALLED_PACKAGE_ROOT" \
   --vent-dir "$SMOKE_TOOL_VENT_DIR"
 
-echo "release smoke done: installed artifact /agent_vent path command loads through local-path package discovery and agent_vent shadow tool path executes from $INSTALLED_PACKAGE_ROOT."
+echo "release smoke done: local npm:<tarball> install source was validated; installed artifact /agent_vent path command loads through local-path package discovery and agent_vent shadow tool path executes from $INSTALLED_PACKAGE_ROOT."
