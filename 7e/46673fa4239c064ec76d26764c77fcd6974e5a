@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "7e46673fa4239c064ec76d26764c77fcd6974e5a"
-created_at: "2026-05-22T13:07:47Z"
+created_at: "2026-05-22T13:08:15Z"
 intent: "Refresh pi-context-packer product posture after evaluator hardening"
 files:
   - "packages/pi-context-packer/docs/project/product-posture.md"
@@ -13,7 +13,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict && npm --prefix ../pi-context-packer run check && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs ../pi-context-packer --strict"
-    status: "pending"
+    status: "pass"
 group:
   index: 4
   total: 4
