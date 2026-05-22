@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "9bd39a57b8bcb15c9ebde6249397cffadc0b9321"
-created_at: "2026-05-22T13:53:31Z"
+created_at: "2026-05-22T13:53:42Z"
 intent: "Refresh agent-vent product posture after export-scope fixes"
 files:
   - "docs/project/product-posture.md"
@@ -13,7 +13,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
