@@ -68,6 +68,7 @@ const ACTIONS = [
   "retention",
 ] as const;
 const EXPORT_FORMATS = ["markdown", "json"] as const;
+const RETENTION_CANDIDATE_STATES = ["reviewed", "all", ...REVIEW_STATES] as const;
 
 const AgentVentParams = Type.Object({
   action: Type.Optional(
@@ -151,7 +152,16 @@ const AgentVentParams = Type.Object({
       REVIEW_STATES.map((state) => Type.Literal(state)),
       {
         description:
-          "Local review state filter for action=review or target state for action=set_review.",
+          "Local review state filter for action=review/outcomes or target state for action=set_review.",
+      },
+    ),
+  ),
+  retentionCandidateState: Type.Optional(
+    Type.Union(
+      RETENTION_CANDIDATE_STATES.map((state) => Type.Literal(state)),
+      {
+        description:
+          "Local state filter for action=retention with retentionAction=candidates. Defaults to reviewed; reviewed means acknowledged, dismissed, or escalation_drafted.",
       },
     ),
   ),
@@ -182,7 +192,7 @@ const AgentVentParams = Type.Object({
       RETENTION_ACTIONS.map((action) => Type.Literal(action)),
       {
         description:
-          "Confirmation-gated local data lifecycle action for action=retention: preview, archive, or restore.",
+          "Local data lifecycle action for action=retention: candidates, preview, archive, or restore. Only archive/restore mutate local diagnostic stores and require confirmation tokens.",
       },
     ),
   ),
@@ -494,7 +504,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
             records,
             reviewEvents,
             curationEvents,
-            state: params.reviewState,
+            state: params.retentionCandidateState || params.reviewState,
             limit: clampLimit(params.limit, 20),
             filters: {
               category: params.category,

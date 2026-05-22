@@ -33,6 +33,18 @@ test("extension registers agent_vent tool and command aliases", () => {
   assert.match(pi.tools.get("agent_vent").description, /frustration/i);
 });
 
+test("agent_vent tool schema stays aligned with retention candidate command contract", () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const schemaText = JSON.stringify(pi.tools.get("agent_vent").parameters);
+
+  assert.match(schemaText, /"candidates"/);
+  assert.match(schemaText, /retentionCandidateState/);
+  assert.match(schemaText, /"reviewed"/);
+  assert.match(schemaText, /"all"/);
+  assert.match(schemaText, /candidates, preview, archive, or restore/);
+});
+
 test("agent_vent records minimized local diagnostics without external authority claims", async () => {
   const pi = createMockPi();
   agentVentExtension(pi.api);
@@ -248,6 +260,22 @@ test("agent_vent records minimized local diagnostics without external authority 
     assert.doesNotMatch(retentionCandidatesResult.content[0].text, /Confirmation token: archive:/);
     assert.equal(retentionCandidatesResult.details.retention.candidateCount, 1);
     assert.equal(retentionCandidatesResult.details.retention.filters.tool, "pi-reload");
+
+    const allRetentionCandidatesResult = await tool.execute(
+      "tool-call-3d",
+      {
+        action: "retention",
+        retentionAction: "candidates",
+        retentionCandidateState: "all",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.equal(allRetentionCandidatesResult.details.retention.stateFilter, "all");
 
     const draftResult = await tool.execute(
       "tool-call-4",

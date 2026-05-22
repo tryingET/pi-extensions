@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildDogfoodObservationEvaluation,
+  DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
   dogfoodObservationEvaluationToolResult,
   formatDogfoodObservationEvaluation,
 } from "../src/dogfood-observation.js";
@@ -80,6 +81,56 @@ test("dogfood evaluator classifies overestimated and underestimated usefulness f
   assert.equal(overestimated.omissionFollowupsUsed[0], "docs/provider gap");
 });
 
+test("dogfood evaluator sends contradictory observations to review instead of matching", () => {
+  const evaluation = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      observation: {
+        actualLowLevelReadSearchStatusCalls: 999,
+        actualLowLevelCallsAvoided: 3,
+        duplicateReadsObserved: true,
+        omissionFollowupsUsed: ["prompt_vault/provider unavailable"],
+        recommendationMatchedOutcome: false,
+        notes: "equal avoided count conflicts with expensive follow-up",
+      },
+    }),
+  });
+
+  assert.equal(evaluation.status, "needs_review");
+  assert.match(evaluation.nextAction, /Review duplicate reads/);
+});
+
+test("dogfood evaluator treats residual-only observations as incomplete unless outcome is explicit", () => {
+  const incomplete = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      prediction: { ...baseObservation().prediction, expectedLowLevelCallsAvoided: 5 },
+      observation: {
+        actualLowLevelReadSearchStatusCalls: 1,
+        actualLowLevelCallsAvoided: null,
+        duplicateReadsObserved: false,
+        omissionFollowupsUsed: [],
+        recommendationMatchedOutcome: null,
+        notes: "residual calls alone do not prove avoided calls",
+      },
+    }),
+  });
+  const matched = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      prediction: { ...baseObservation().prediction, expectedLowLevelCallsAvoided: 5 },
+      observation: {
+        actualLowLevelReadSearchStatusCalls: 1,
+        actualLowLevelCallsAvoided: null,
+        duplicateReadsObserved: false,
+        omissionFollowupsUsed: [],
+        recommendationMatchedOutcome: true,
+        notes: "human observed packet matched outcome",
+      },
+    }),
+  });
+
+  assert.equal(incomplete.status, "observation_incomplete");
+  assert.equal(matched.status, "matched");
+});
+
 test("dogfood evaluator reports incomplete observations without claiming evidence", () => {
   const evaluation = buildDogfoodObservationEvaluation({
     observation: baseObservation({
@@ -118,18 +169,20 @@ test("dogfood evaluator redacts malicious notes and caps huge omission followups
   const observation = baseObservation({
     prediction: {
       expectedLowLevelCallsAvoided: 1,
-      packetUtilityRecommendationStatus: "use_packet\n## Forged",
+      packetUtilityRecommendationStatus: "use_packet\n## Forged at /tmp/customer-acme",
       alreadyLoadedItems: 0,
       freshItemCount: 1,
       duplicateTokensAvoided: 0,
-      unwiredProviderOmissions: ["ak", "fcos"],
+      unwiredProviderOmissions: ["ak", { provider: "fcos", reason: "TOKEN=secret" }],
     },
     observation: {
       actualLowLevelReadSearchStatusCalls: 2,
       actualLowLevelCallsAvoided: null,
       duplicateReadsObserved: true,
       omissionFollowupsUsed: Array.from({ length: 20 }, (_, index) =>
-        index === 0 ? "failed at /tmp/customer-acme with TOKEN=secret" : `followup-${index}`,
+        index === 0
+          ? { provider: "/tmp/customer-acme", reason: "TOKEN=secret" }
+          : `followup-${index}`,
       ),
       recommendationMatchedOutcome: false,
       notes:
@@ -145,4 +198,21 @@ test("dogfood evaluator redacts malicious notes and caps huge omission followups
   assert.doesNotMatch(result.content[0].text, /SECRET TOKEN|customer-acme|\/tmp\//);
   assert.doesNotMatch(result.content[0].text, /^## Forged section/m);
   assert.doesNotMatch(serialized, /SECRET TOKEN|customer-acme|\/tmp\//);
+});
+
+test("dogfood evaluator rejects oversized JSON and publishes a closed top-level schema", async () => {
+  const huge = await dogfoodObservationEvaluationToolResult({
+    observationJson: "{".padEnd(65_000, "x"),
+  });
+
+  assert.equal(huge.details.dogfoodObservationEvaluation.ok, false);
+  assert.match(
+    huge.details.dogfoodObservationEvaluation.errors[0],
+    /compact evaluator input limit/,
+  );
+  assert.equal(DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS.additionalProperties, false);
+  assert.equal(
+    DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS.properties.observationJson.maxLength,
+    64_000,
+  );
 });

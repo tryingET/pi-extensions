@@ -8,6 +8,8 @@ import { textResult } from "./context-pack-result.js";
 const OBSERVATION_KIND = "context_pack_dogfood_observation_v1";
 const MAX_FOLLOWUPS = 12;
 const MAX_SAFE_NOTE_LENGTH = 480;
+const MAX_SAFE_LABEL_LENGTH = 80;
+const MAX_OBSERVATION_JSON_BYTES = 64_000;
 
 const NON_AUTHORIZATION =
   "packet-local dogfood evaluation only; context-packer did not persist evidence, update AK/FCOS, write session memory, read files, call providers, or validate task completion";
@@ -27,21 +29,26 @@ const finiteNonNegativeInteger = (value) => {
 
 const booleanOrNull = (value) => (typeof value === "boolean" ? value : null);
 
-const sanitizeNote = (value) => {
+const sanitizeText = (value, fallback, maxLength = MAX_SAFE_NOTE_LENGTH) => {
   if (typeof value !== "string" || !value.trim()) return "";
-  const bounded =
-    value.length > MAX_SAFE_NOTE_LENGTH ? `${value.slice(0, MAX_SAFE_NOTE_LENGTH)}…` : value;
-  const publicDetail = publicOmissionDetail(bounded, "observation notes withheld");
-  return markdownInlineLabel(publicDetail, "observation notes withheld", MAX_SAFE_NOTE_LENGTH);
+  const bounded = value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
+  const publicDetail = publicOmissionDetail(bounded, fallback);
+  return markdownInlineLabel(publicDetail, fallback, maxLength);
 };
+
+const sanitizeNote = (value) =>
+  sanitizeText(value, "observation notes withheld", MAX_SAFE_NOTE_LENGTH);
+
+const sanitizeLabel = (value, fallback = "value") =>
+  sanitizeText(value, `${fallback} withheld`, MAX_SAFE_LABEL_LENGTH) || fallback;
 
 const sanitizeFollowups = (values) => {
   if (!Array.isArray(values)) return [];
   return values.slice(0, MAX_FOLLOWUPS).map((value, index) => {
     if (typeof value === "string") return sanitizeNote(value) || `omission follow-up ${index + 1}`;
     if (value && typeof value === "object") {
-      const provider = markdownInlineLabel(value.provider, "provider", 80);
-      const reason = markdownInlineLabel(value.reason, "reason", 80);
+      const provider = sanitizeLabel(value.provider, "provider");
+      const reason = sanitizeLabel(value.reason, "reason");
       return `${provider}/${reason}`;
     }
     return `omission follow-up ${index + 1}`;
@@ -51,6 +58,9 @@ const sanitizeFollowups = (values) => {
 const parseObservationInput = (input = {}) => {
   const raw = asObject(input) ?? {};
   if (typeof raw.observationJson === "string") {
+    if (Buffer.byteLength(raw.observationJson) > MAX_OBSERVATION_JSON_BYTES) {
+      return { errors: ["observationJson exceeds the compact evaluator input limit"] };
+    }
     try {
       return { observation: JSON.parse(raw.observationJson) };
     } catch {
@@ -70,18 +80,25 @@ const classifyCalibration = ({
   omissionFollowupsUsed,
   recommendationMatchedOutcome,
 }) => {
+  const contrarySignals =
+    recommendationMatchedOutcome === false ||
+    duplicateReadsObserved === true ||
+    omissionFollowupsUsed.length > 0;
+  const unexpectedlyHighResidualCalls =
+    actualResidualCalls !== undefined && actualResidualCalls > expectedAvoided;
+
   if (actualAvoided !== undefined) {
-    if (actualAvoided === expectedAvoided) return "matched";
-    return actualAvoided < expectedAvoided ? "overestimated" : "underestimated";
+    if (actualAvoided < expectedAvoided) return "overestimated";
+    if (contrarySignals || unexpectedlyHighResidualCalls) return "needs_review";
+    if (actualAvoided > expectedAvoided) return "underestimated";
+    return "matched";
   }
 
   if (actualResidualCalls === undefined) return "observation_incomplete";
-  if (actualResidualCalls > expectedAvoided) return "overestimated";
-  if (recommendationMatchedOutcome === false) return "needs_review";
-  if (duplicateReadsObserved === true || omissionFollowupsUsed.length > 0) return "needs_review";
-  if (recommendationMatchedOutcome === true || actualResidualCalls <= expectedAvoided)
-    return "matched";
-  return "needs_review";
+  if (unexpectedlyHighResidualCalls) return "overestimated";
+  if (contrarySignals) return "needs_review";
+  if (recommendationMatchedOutcome === true) return "matched";
+  return "observation_incomplete";
 };
 
 const nextActionForStatus = (status) => {
@@ -164,7 +181,7 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     recommendationMatchedOutcome,
     packetUtilityRecommendationStatus:
       typeof prediction.packetUtilityRecommendationStatus === "string"
-        ? markdownInlineLabel(prediction.packetUtilityRecommendationStatus, "unknown", 80)
+        ? sanitizeLabel(prediction.packetUtilityRecommendationStatus, "packet utility status")
         : "unknown",
     alreadyLoadedItems: finiteNonNegativeInteger(prediction.alreadyLoadedItems) ?? null,
     freshItemCount: finiteNonNegativeInteger(prediction.freshItemCount) ?? null,
@@ -244,7 +261,7 @@ export const dogfoodObservationEvaluationToolResult = async (input = {}) => {
 
 export const DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS = {
   type: "object",
-  additionalProperties: true,
+  additionalProperties: false,
   properties: {
     observation: {
       type: "object",
@@ -253,6 +270,7 @@ export const DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS = {
     },
     observationJson: {
       type: "string",
+      maxLength: MAX_OBSERVATION_JSON_BYTES,
       description:
         "Filled context_pack_dogfood_observation_v1 JSON string emitted by context_pack.",
     },
