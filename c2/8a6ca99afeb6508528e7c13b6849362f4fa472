@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "c28a6ca99afeb6508528e7c13b6849362f4fa472"
+created_at: "2026-05-22T16:43:20Z"
+intent: "Route Markdown-only path seeds to docs without SCI omissions and refresh context-packer posture"
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+  - "packages/pi-context-packer/src/context-plan.js"
+  - "packages/pi-context-packer/tests/context-pack.test.js"
+  - "packages/pi-context-packer/tests/context-plan.test.js"
+validation:
+  fast_gate:
+    command: "npm run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Complete residual Markdown path routing and posture refresh"
