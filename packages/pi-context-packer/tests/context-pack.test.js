@@ -3,7 +3,13 @@ import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { buildContextPacket, formatContextPacket } from "../src/context-pack.js";
+import {
+  buildContextPacket as buildContextPacketImpl,
+  formatContextPacket,
+} from "../src/context-pack.js";
+
+const buildContextPacket = (input, env = {}) =>
+  buildContextPacketImpl(input, { cwd: input.cwd, ...env });
 
 const makeWorkspace = async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-pack-"));
@@ -137,6 +143,7 @@ test("context_pack treats uppercase Markdown seeds as docs", async () => {
 
 test("context_pack preserves loader-style AGENTS order", async () => {
   const root = await makeWorkspace();
+  await mkdir(join(root, ".git"), { recursive: true });
   await mkdir(join(root, "packages", "pkg"), { recursive: true });
   await writeFile(join(root, "packages", "pkg", "AGENTS.md"), "# Package AGENTS\n", "utf8");
 
@@ -209,7 +216,7 @@ test("context_pack records planned provider omissions and owner routes for selec
   );
 });
 
-test("context_pack reports missing workspace roots instead of throwing", async () => {
+test("context_pack degrades missing workspace roots instead of echoing false repoRoot authority", async () => {
   const root = await makeWorkspace();
   const missingRoot = join(root, "missing-root");
   const result = await buildContextPacket({
@@ -221,12 +228,10 @@ test("context_pack reports missing workspace roots instead of throwing", async (
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.packet.repoRoot, missingRoot);
-  assert.ok(
-    result.packet.omissions.some((omission) =>
-      omission.detail.includes("workspace root does not exist"),
-    ),
-  );
+  assert.equal(result.packet.cwd, process.cwd());
+  assert.equal(result.packet.repoRoot, process.cwd());
+  assert.ok(result.plan.risks.some((risk) => risk.message.includes("cwd does not exist")));
+  assert.ok(result.plan.risks.some((risk) => risk.message.includes("repoRoot does not exist")));
 });
 
 test("context_pack fails closed on unsafe path seeds", async () => {
@@ -411,6 +416,7 @@ test("context_pack deduplicates content already loaded in the system prompt", as
   assert.equal(agents.items[0].duplicateOf, "system_prompt");
   assert.equal(result.packet.measurementReceipt.alreadyLoadedItems, 1);
   assert.equal(result.packet.measurementReceipt.freshItemCount, 0);
+  assert.equal(result.packet.measurementReceipt.estimatedToolCallsAvoided, 0);
   assert.equal(
     result.packet.measurementReceipt.packetUtilityRecommendation.status,
     "no_packet_needed",

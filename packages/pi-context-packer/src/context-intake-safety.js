@@ -1,5 +1,5 @@
 const GENERATED_OR_VENDOR_PARTS = new Set(["node_modules", "dist", "build", "coverage"]);
-const HIDDEN_OR_INTERNAL_PARTS = new Set([".git", ".pi-subagent-sessions", "__pycache__"]);
+const HIDDEN_OR_INTERNAL_PARTS = new Set(["__pycache__"]);
 
 export const hasControlCharacter = (value) =>
   Array.from(value).some((character) => character.charCodeAt(0) < 32);
@@ -18,7 +18,7 @@ export const repoRelativePathSafetyIssue = (value, label = "path seed") => {
   if (!parts.length || parts.some((part) => part === "." || part === "..")) {
     return "current-directory or parent-traversing path seed omitted";
   }
-  if (parts.some((part) => HIDDEN_OR_INTERNAL_PARTS.has(part))) {
+  if (parts.some((part) => part.startsWith(".") || HIDDEN_OR_INTERNAL_PARTS.has(part))) {
     return "hidden/internal path seed omitted";
   }
   if (parts.some((part) => GENERATED_OR_VENDOR_PARTS.has(part))) {

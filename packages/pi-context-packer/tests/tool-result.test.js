@@ -15,13 +15,16 @@ const makeWorkspace = async () => {
 
 test("contextPacketToolResult returns markdown content and compact details", async () => {
   const root = await makeWorkspace();
-  const result = await contextPacketToolResult({
-    objective: "Assemble readable packet",
-    cwd: root,
-    repoRoot: root,
-    seeds: [{ kind: "path", value: "docs/note.md" }],
-    providers: { git: "off", sci: "off" },
-  });
+  const result = await contextPacketToolResult(
+    {
+      objective: "Assemble readable packet",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "docs/note.md" }],
+      providers: { git: "off", sci: "off" },
+    },
+    { cwd: root },
+  );
 
   assert.match(result.content[0].text, /# Context packet:/);
   assert.match(result.content[0].text, /Useful packet content/);

@@ -165,6 +165,32 @@ const hasGitMarker = (candidateRoot) => {
   }
 };
 
+const directoryIssue = (value, label) => {
+  try {
+    const pathStat = statSync(value);
+    return pathStat.isDirectory() ? undefined : `${label} is not a directory`;
+  } catch {
+    return `${label} does not exist`;
+  }
+};
+
+const trustedFallbackCwd = (env, risks) => {
+  const candidate = coerceString(env.cwd).trim();
+  if (!candidate) return process.cwd();
+  const issue = workspacePathIssue(candidate, "trusted env cwd");
+  const candidateDirectoryIssue =
+    !issue && path.isAbsolute(candidate) ? directoryIssue(candidate, "trusted env cwd") : undefined;
+  if (issue || !path.isAbsolute(candidate) || candidateDirectoryIssue) {
+    risks.push({
+      kind: "path",
+      severity: "blocked",
+      message: `${issue ?? candidateDirectoryIssue ?? "trusted env cwd must be absolute"}; using process cwd as trust anchor`,
+    });
+    return process.cwd();
+  }
+  return candidate;
+};
+
 const repoRootTrustIssue = (repoRoot, trustedEnvCwd) => {
   if (!trustedEnvCwd || !path.isAbsolute(trustedEnvCwd) || !path.isAbsolute(repoRoot)) {
     return undefined;
@@ -192,11 +218,10 @@ const cwdTrustIssue = (cwd, trustedEnvCwd, repoRoot) => {
 };
 
 const normalizeWorkspace = (raw, env) => {
-  const trustedEnvCwd = coerceString(env.cwd).trim();
-  const fallbackCwd = trustedEnvCwd || process.cwd();
+  const risks = [];
+  const fallbackCwd = trustedFallbackCwd(env, risks);
   const requestedCwd = coerceString(raw.cwd, fallbackCwd).trim() || fallbackCwd;
   const requestedRepoRoot = coerceString(raw.repoRoot).trim();
-  const risks = [];
   let cwd = requestedCwd;
   let repoRoot = requestedRepoRoot || undefined;
 
@@ -222,8 +247,35 @@ const normalizeWorkspace = (raw, env) => {
     }
   }
 
+  if (!path.isAbsolute(cwd)) cwd = path.resolve(fallbackCwd, cwd);
+  if (repoRoot && !path.isAbsolute(repoRoot)) repoRoot = path.resolve(fallbackCwd, repoRoot);
+
+  if (cwd !== fallbackCwd) {
+    const cwdDirectoryIssue = directoryIssue(cwd, "cwd");
+    if (cwdDirectoryIssue) {
+      risks.push({
+        kind: "path",
+        severity: "blocked",
+        message: `${cwdDirectoryIssue}; falling back to environment cwd`,
+      });
+      cwd = fallbackCwd;
+    }
+  }
+
   if (repoRoot) {
-    const trustIssue = repoRootTrustIssue(repoRoot, trustedEnvCwd);
+    const repoRootDirectoryIssue = directoryIssue(repoRoot, "repoRoot");
+    if (repoRootDirectoryIssue) {
+      risks.push({
+        kind: "path",
+        severity: "blocked",
+        message: `${repoRootDirectoryIssue}; repoRoot omitted`,
+      });
+      repoRoot = undefined;
+    }
+  }
+
+  if (repoRoot) {
+    const trustIssue = repoRootTrustIssue(repoRoot, fallbackCwd);
     if (trustIssue) {
       risks.push({
         kind: "path",
@@ -234,7 +286,7 @@ const normalizeWorkspace = (raw, env) => {
     }
   }
 
-  const cwdIssueAfterRepoTrust = cwdTrustIssue(cwd, trustedEnvCwd, repoRoot);
+  const cwdIssueAfterRepoTrust = cwdTrustIssue(cwd, fallbackCwd, repoRoot);
   if (cwdIssueAfterRepoTrust) {
     risks.push({
       kind: "path",

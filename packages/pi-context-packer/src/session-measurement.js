@@ -94,8 +94,9 @@ export const buildMeasurementReceipt = ({
   const wiredProviders = sections.map((section) => section.provider);
   const selectedItemCount = sections.reduce((sum, section) => sum + section.items.length, 0);
   const estimatedToolCallsAvoided = sections.reduce((sum, section) => {
-    if (section.provider === "sci") return sum + section.items.length * 2;
-    return sum + section.items.length;
+    const freshItems = section.items.filter((item) => !item.duplicateOf).length;
+    if (section.provider === "sci") return sum + freshItems * 2;
+    return sum + freshItems;
   }, 0);
   const alreadyLoadedItems = sections.reduce(
     (sum, section) => sum + section.items.filter((item) => item.duplicateOf).length,

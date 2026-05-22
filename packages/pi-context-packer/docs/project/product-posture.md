@@ -64,9 +64,9 @@ The package currently owns:
 - AGENTS provider with loader-style root-to-leaf ordering;
 - caller-seeded Markdown docs provider;
 - docs-list-ranked Markdown discovery when no explicit safe Markdown seed was supplied;
-- shared intake-safety membrane for caller and provider-discovered paths, monorepo ancestor repoRoot acceptance only with a `.git` marker, boundary-aware provider/owner-surface matching, and adaptive Markdown fences;
+- shared intake-safety membrane for caller and provider-discovered paths, default-deny dot-prefixed path segments, monorepo ancestor repoRoot acceptance only with a `.git` marker, boundary-aware provider/owner-surface matching, and adaptive Markdown fences;
 - trusted-system-git status provider;
-- read-only SCI provider for caller-seeded code paths and symbols that leaves newly-created `.ontology` artifacts untouched and records blocked omissions instead of deleting source-owned state;
+- read-only SCI provider seam for caller-seeded code paths and symbols that refuses workflow execution unless SCI read-only safety is explicitly confirmed;
 - session/system-prompt-aware measurement and already-loaded dedupe;
 - primary Markdown packet output;
 - advisory owner-surface routing for authority-sensitive work without invoking those surfaces;

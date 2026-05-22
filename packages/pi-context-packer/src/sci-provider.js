@@ -110,6 +110,20 @@ export const buildSciSection = async ({ cwd, seeds, maxBytes, env = {} }) => {
   const ontologyPath = resolve(cwd, ".ontology");
   const hadOntologyBefore = await pathExists(ontologyPath);
 
+  if (env.sciReadOnlySafe !== true && env.allowSciArtifactCreation !== true) {
+    return {
+      section: sectionFromItems([]),
+      omissions: [
+        {
+          provider: "sci",
+          reason: "blocked",
+          detail:
+            "SCI read-only safety was not confirmed; refusing to run workflows that may create or mutate .ontology artifacts",
+        },
+      ],
+    };
+  }
+
   if (hadOntologyBefore && env.allowExistingSciArtifacts !== true) {
     return {
       section: sectionFromItems([]),

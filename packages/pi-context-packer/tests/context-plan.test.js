@@ -17,18 +17,23 @@ test("context_plan requires an objective", () => {
   assert.ok(plan.nonAuthorizations.some((item) => item.includes("does not mutate")));
 });
 
-test("context_plan selects code and docs providers from objective and seeds", () => {
-  const plan = buildContextPlan({
-    objective: "Plan implementation context for a TypeScript symbol and Markdown architecture note",
-    cwd: "/repo",
-    seeds: [
-      { kind: "symbol", value: "buildContextPlan" },
-      { kind: "path", value: "docs/project/architecture.md" },
-    ],
-  });
+test("context_plan selects code and docs providers from objective and seeds", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "pi-context-plan-repo-"));
+  const plan = buildContextPlan(
+    {
+      objective:
+        "Plan implementation context for a TypeScript symbol and Markdown architecture note",
+      cwd: repo,
+      seeds: [
+        { kind: "symbol", value: "buildContextPlan" },
+        { kind: "path", value: "docs/project/architecture.md" },
+      ],
+    },
+    { cwd: repo },
+  );
 
   assert.equal(plan.ok, true);
-  assert.equal(plan.cwd, "/repo");
+  assert.equal(plan.cwd, repo);
   const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
   assert.equal(byProvider.agents.posture, "selected");
   assert.equal(byProvider.sci.posture, "selected");
@@ -59,6 +64,8 @@ test("context_plan omits unsafe caller-controlled path seeds from provider queri
       { kind: "path", value: "/etc/passwd" },
       { kind: "path", value: "node_modules/pkg/index.js" },
       { kind: "path", value: ".git/config" },
+      { kind: "path", value: ".env" },
+      { kind: "path", value: ".ontology/context.md" },
       { kind: "path", value: "docs\\windows.md" },
       { kind: "path", value: "file:///etc/passwd" },
       { kind: "path", value: "C:/Users/admin/secret.txt" },
@@ -68,10 +75,10 @@ test("context_plan omits unsafe caller-controlled path seeds from provider queri
   });
 
   assert.equal(plan.ok, true);
-  assert.equal(plan.omittedSeeds.length, 9);
+  assert.equal(plan.omittedSeeds.length, 11);
   assert.equal(
     plan.risks.filter((risk) => risk.kind === "path" && risk.severity === "blocked").length,
-    9,
+    11,
   );
   for (const providerPlan of plan.providerPlans) {
     for (const query of providerPlan.proposedQueries) {
@@ -81,39 +88,54 @@ test("context_plan omits unsafe caller-controlled path seeds from provider queri
   const serialized = JSON.stringify(plan.providerPlans);
   assert.doesNotMatch(
     serialized,
-    /\.\.|\/etc\/passwd|node_modules|\.git|windows|file:\/\/|C:|http:\/\/|example\.invalid/,
+    /\.\.|\/etc\/passwd|node_modules|\.git|\.env|\.ontology|windows|file:\/\/|C:|http:\/\/|example\.invalid/,
   );
 });
 
-test("context_plan screens unsafe workspace roots without treating them as authority", () => {
+test("context_plan screens unsafe workspace roots without treating them as authority", async () => {
+  const safeRepo = await mkdtemp(join(tmpdir(), "pi-context-plan-safe-"));
   const plan = buildContextPlan(
     {
       objective: "Plan repo context",
       cwd: "file:///tmp/worktree",
       repoRoot: "../outside",
     },
-    { cwd: "/safe/repo" },
+    { cwd: safeRepo },
   );
 
-  assert.equal(plan.cwd, "/safe/repo");
+  assert.equal(plan.cwd, safeRepo);
   assert.equal(plan.repoRoot, undefined);
   assert.ok(plan.risks.some((risk) => risk.kind === "path" && risk.message.includes("cwd")));
   assert.ok(plan.risks.some((risk) => risk.kind === "path" && risk.message.includes("repoRoot")));
 });
 
-test("context_plan rejects caller workspace roots outside the trusted environment cwd", () => {
+test("context_plan rejects caller workspace roots outside the trusted environment cwd", async () => {
+  const safeRepo = await mkdtemp(join(tmpdir(), "pi-context-plan-safe-"));
+  const otherRepo = await mkdtemp(join(tmpdir(), "pi-context-plan-other-"));
   const plan = buildContextPlan(
     {
       objective: "Plan repo context",
-      cwd: "/tmp/other-repo",
-      repoRoot: "/tmp",
+      cwd: otherRepo,
+      repoRoot: tmpdir(),
     },
-    { cwd: "/safe/repo" },
+    { cwd: safeRepo },
   );
 
-  assert.equal(plan.cwd, "/safe/repo");
+  assert.equal(plan.cwd, safeRepo);
   assert.equal(plan.repoRoot, undefined);
   assert.ok(plan.risks.some((risk) => risk.message.includes("outside trusted environment cwd")));
+});
+
+test("context_plan uses process cwd as trust anchor when env cwd is unavailable", () => {
+  const plan = buildContextPlan({
+    objective: "Plan repo context",
+    cwd: "/tmp/not-trusted",
+    repoRoot: "/tmp",
+  });
+
+  assert.equal(plan.cwd, process.cwd());
+  assert.equal(plan.repoRoot, undefined);
+  assert.ok(plan.risks.some((risk) => risk.message.includes("falling back")));
 });
 
 test("context_plan accepts a git repoRoot ancestor of the trusted package cwd", async () => {

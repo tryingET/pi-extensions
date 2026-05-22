@@ -12,6 +12,9 @@
       "!**/node_modules/**/*",
       "!**/dist/**/*",
       "!**/coverage/**/*",
+      "!**/.pi-subagent-sessions/**/*",
+      "!**/.pi-subagent-sessions.self-memory.json",
+      "!**/.ontology/**/*",
       // external/ is reserved for vendored or synced third-party assets.
       "!external/**/*",
       // ontology/ contains generated domain artifacts/snapshots.

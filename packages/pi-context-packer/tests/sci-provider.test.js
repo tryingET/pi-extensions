@@ -3,7 +3,10 @@ import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { buildContextPacket } from "../src/context-pack.js";
+import { buildContextPacket as buildContextPacketImpl } from "../src/context-pack.js";
+
+const buildContextPacket = (input, env = {}) =>
+  buildContextPacketImpl(input, { cwd: input.cwd, ...env });
 
 const makeWorkspace = async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-pack-sci-"));
@@ -53,7 +56,7 @@ test("context_pack uses SCI read_file for code path seeds", async () => {
       seeds: [{ kind: "path", value: "src/example.js" }],
       providers: { git: "off" },
     },
-    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
   );
 
   const sci = result.packet.sections.find((section) => section.provider === "sci");
@@ -116,7 +119,7 @@ test("context_pack falls back from SCI symbol_search to text_search", async () =
       seeds: [{ kind: "symbol", value: "target" }],
       providers: { git: "off" },
     },
-    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
   );
 
   const sci = result.packet.sections.find((section) => section.provider === "sci");
@@ -125,9 +128,11 @@ test("context_pack falls back from SCI symbol_search to text_search", async () =
   assert.match(sci.items[0].content, /src\/example\.js/);
 });
 
-test("context_pack does not delete SCI artifacts created during a read-only attempt", async () => {
+test("context_pack refuses SCI workflows until read-only safety is confirmed", async () => {
   const root = await makeWorkspace();
+  const calls = [];
   const fakeExec = async (_command, _args, options) => {
+    calls.push(options.cwd);
     await mkdir(join(options.cwd, ".ontology"));
     return {
       stdout: sciStdout({
@@ -148,14 +153,17 @@ test("context_pack does not delete SCI artifacts created during a read-only atte
     { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec },
   );
 
-  assert.equal(await pathExists(join(root, ".ontology")), true);
+  assert.equal(calls.length, 0);
+  assert.equal(await pathExists(join(root, ".ontology")), false);
   assert.equal(
     result.packet.sections.some((section) => section.provider === "sci"),
     false,
   );
   assert.ok(
     result.packet.omissions.some(
-      (omission) => omission.provider === "sci" && omission.detail.includes("left untouched"),
+      (omission) =>
+        omission.provider === "sci" &&
+        omission.detail.includes("read-only safety was not confirmed"),
     ),
   );
 });
