@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "e09734405c9bb1aa1d86f7708ed2577b70278603"
+created_at: "2026-05-22T16:10:06Z"
+intent: "Harden pi-agent-vent release smoke coverage for installed registered-tool path execution"
+files:
+  - "packages/pi-agent-vent/README.md"
+  - "packages/pi-agent-vent/docs/project/product-posture.md"
+  - "packages/pi-agent-vent/scripts/release-check.sh"
+  - "packages/pi-agent-vent/scripts/release-smoke-check.mjs"
+  - "packages/pi-agent-vent/scripts/release-smoke.sh"
+  - "packages/pi-agent-vent/tests/release-smoke-check.test.js"
+validation:
+  fast_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-agent-vent run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-agent-vent run check && npm --prefix /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-context-packer run check"
+    status: "pending"
+group:
+  index: 1
+  total: 2
+  rationale: "agent-vent release smoke contract changes"
