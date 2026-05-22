@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   buildContextPacket as buildContextPacketImpl,
+  contextPacketToolResult,
   formatContextPacket,
 } from "../src/context-pack.js";
 
@@ -415,21 +416,34 @@ test("context_pack redacts omission details and does not call wired provider out
     "utf8",
   );
   await chmod(script, 0o755);
+  const input = {
+    objective: "Use architecture docs",
+    cwd: root,
+    repoRoot: root,
+    providers: { docs: "required", git: "off", sci: "off" },
+  };
+  const env = { docsListScript: script };
 
-  const result = await buildContextPacket(
-    {
-      objective: "Use architecture docs",
-      cwd: root,
-      repoRoot: root,
-      providers: { docs: "required", git: "off", sci: "off" },
-    },
-    { docsListScript: script },
-  );
+  const result = await buildContextPacket(input, env);
+  const formatted = formatContextPacket(result);
+  const toolResult = await contextPacketToolResult(input, { cwd: root, ...env });
   const serializedTemplate = JSON.stringify(result.packet.dogfoodObservationTemplate);
+  const serializedDetails = JSON.stringify(toolResult.details);
+  const serializedSuggestions = JSON.stringify(result.packet.nextToolSuggestions);
 
   assert.ok(result.packet.omissions.some((omission) => omission.detail.includes("docs-list")));
   assert.equal(result.packet.measurementReceipt.unwiredProviderOmissions.includes("docs"), false);
-  assert.doesNotMatch(serializedTemplate, /SECRET LOCAL PATH|customer-acme|docs-list failed/);
+  assert.doesNotMatch(
+    JSON.stringify(result.packet.omissions),
+    /SECRET LOCAL PATH|customer-acme|\/tmp\//,
+  );
+  assert.doesNotMatch(formatted, /SECRET LOCAL PATH|customer-acme|\/tmp\//);
+  assert.doesNotMatch(serializedDetails, /SECRET LOCAL PATH|customer-acme/);
+  assert.doesNotMatch(serializedSuggestions, /SECRET LOCAL PATH|customer-acme|\/tmp\//);
+  assert.doesNotMatch(
+    serializedTemplate,
+    /SECRET LOCAL PATH|customer-acme|docs-list failed|\/tmp\//,
+  );
   assert.match(serializedTemplate, /detailRef/);
 });
 

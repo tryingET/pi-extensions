@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { repoRelativePathSafetyIssue } from "./context-intake-safety.js";
+import { repoRelativePathSafetyIssue, subprocessFailureDetail } from "./context-intake-safety.js";
 
 const execFileAsync = promisify(execFile);
 const DOCS_LIST_MAX_BUFFER = 64_000;
@@ -46,7 +46,7 @@ const normalizeOutputPaths = (stdout) => {
       omissions.push({
         provider: "docs",
         reason: "unsafe_path",
-        detail: `${candidate}: docs-list output omitted: ${issue}`,
+        detail: `docs-list output omitted: ${issue}`,
       });
     } else {
       paths.push(candidate);
@@ -100,7 +100,7 @@ export const discoverDocsSeeds = async ({ repoRoot, objective, env = {}, top = D
         {
           provider: "docs",
           reason: "unavailable",
-          detail: `docs-list failed: ${error instanceof Error ? error.message : String(error)}`,
+          detail: subprocessFailureDetail("docs-list", error, "discovery"),
         },
       ],
     };

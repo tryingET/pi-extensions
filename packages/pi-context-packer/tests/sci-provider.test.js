@@ -128,6 +128,38 @@ test("context_pack falls back from SCI symbol_search to text_search", async () =
   assert.match(sci.items[0].content, /src\/example\.js/);
 });
 
+test("context_pack redacts SCI subprocess failures before packet surfaces", async () => {
+  const root = await makeWorkspace();
+  const fakeExec = async () => {
+    throw new Error("SECRET TOKEN leaked through stderr at /tmp/customer-acme/sci.log");
+  };
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use code context for implementation",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "src/example.js" }],
+      providers: { git: "off" },
+    },
+    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+  );
+  const serializedOmissions = JSON.stringify(result.packet.omissions);
+
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "sci"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "sci" &&
+        omission.detail.includes("raw subprocess error output omitted"),
+    ),
+  );
+  assert.doesNotMatch(serializedOmissions, /SECRET TOKEN|customer-acme|\/tmp\/|fake-sci/);
+});
+
 test("context_pack refuses SCI workflows until read-only safety is confirmed", async () => {
   const root = await makeWorkspace();
   const calls = [];

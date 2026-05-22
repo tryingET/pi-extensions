@@ -43,6 +43,46 @@ const longestBacktickRun = (text) => {
   return runs.reduce((max, run) => Math.max(max, run.length), 0);
 };
 
+const UNSAFE_DETAIL_SIGNALS =
+  /\b(token|password|passwd|api[_-]?key|credential|customer-[a-z0-9_-]+)\b/iu;
+const ABSOLUTE_POSIX_PATH_SIGNAL = /(^|[\s"'`=(:])\/[\w./~+-]+/u;
+
+const safeErrorCode = (value) => {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const text = String(value);
+  return /^[A-Za-z0-9_.-]{1,40}$/u.test(text) ? text : undefined;
+};
+
+const safeErrorSignal = (value) => {
+  if (typeof value !== "string") return undefined;
+  return /^[A-Z0-9_]{1,40}$/u.test(value) ? value : undefined;
+};
+
+export const subprocessFailureDetail = (toolLabel, error, action = "run") => {
+  const parts = [];
+  const errorLike = error && typeof error === "object" ? error : {};
+  const code = safeErrorCode(errorLike.code);
+  const signal = safeErrorSignal(errorLike.signal);
+  if (code) parts.push(`code=${code}`);
+  if (signal) parts.push(`signal=${signal}`);
+  if (errorLike.killed === true) parts.push("terminated=true");
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/timed out|timeout|ETIMEDOUT/iu.test(message)) parts.push("timeout=true");
+  const suffix = parts.length ? ` (${Array.from(new Set(parts)).join(", ")})` : "";
+  return `${toolLabel} ${action} failed${suffix}; raw subprocess error output omitted from packet surfaces`;
+};
+
+export const publicOmissionDetail = (detail, fallback = "omission detail withheld") => {
+  const text = typeof detail === "string" ? detail : String(detail ?? "");
+  if (!text.trim()) return fallback;
+  if (text.length > 1000) return `${fallback}; raw detail exceeded safe public length`;
+  if (hasControlCharacter(text)) return `${fallback}; raw detail contained control characters`;
+  if (UNSAFE_DETAIL_SIGNALS.test(text) || ABSOLUTE_POSIX_PATH_SIGNAL.test(text)) {
+    return `${fallback}; raw detail contained local path or secret-like text`;
+  }
+  return text;
+};
+
 export const markdownFence = (label, content) => {
   const fenceLength = Math.max(3, longestBacktickRun(content) + 1, longestBacktickRun(label) + 1);
   const fence = "`".repeat(fenceLength);

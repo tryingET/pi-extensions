@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
+import { subprocessFailureDetail } from "./context-intake-safety.js";
 
 const execFileAsync = promisify(execFile);
 const ESTIMATED_BYTES_PER_TOKEN = 4;
@@ -60,10 +61,16 @@ const tryWorkflow = async ({ cwd, workflow, args, env, exec }) => {
       const result = await runWorkflow({ cwd, command, workflow, args, exec });
       return { ...result, command };
     } catch (error) {
-      errors.push(`${command}: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(subprocessFailureDetail("SCI workflow", error, workflow));
     }
   }
-  return { ok: false, error: errors.join("; ") || "no SCI command candidates available" };
+  const uniqueErrors = Array.from(new Set(errors));
+  return {
+    ok: false,
+    error: uniqueErrors.length
+      ? `SCI ${workflow} unavailable after ${errors.length} candidate(s): ${uniqueErrors.join("; ")}`
+      : "no SCI command candidates available",
+  };
 };
 
 const pathSeedsForSci = (seeds) =>

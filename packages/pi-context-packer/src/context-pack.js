@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { open, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { promisify } from "node:util";
+import { publicOmissionDetail, subprocessFailureDetail } from "./context-intake-safety.js";
 import { formatContextPacket, toolResultFromContextPacketResult } from "./context-pack-result.js";
 import { buildContextPlan, CONTEXT_PLAN_PARAMETERS } from "./context-plan.js";
 import { discoverDocsSeeds } from "./docs-provider.js";
@@ -148,14 +149,14 @@ const readBoundedFile = async ({
       content = await handle.readFile("utf8");
       afterReadStat = await handle.stat();
     }
-  } catch (error) {
-    blockedDetail = `${pathSeed}: read failed: ${error instanceof Error ? error.message : String(error)}`;
+  } catch {
+    blockedDetail = `${pathSeed}: read failed; raw filesystem error output omitted`;
   }
 
   try {
     await handle?.close();
-  } catch (error) {
-    blockedDetail = `${pathSeed}: close failed: ${error instanceof Error ? error.message : String(error)}`;
+  } catch {
+    blockedDetail = `${pathSeed}: close failed; raw filesystem error output omitted`;
   }
 
   if (blockedDetail) {
@@ -329,7 +330,7 @@ const buildGitSection = async ({ cwd }) => {
         {
           provider: "git",
           reason: "unavailable",
-          detail: `git status unavailable: ${error instanceof Error ? error.message : String(error)}`,
+          detail: subprocessFailureDetail("git status", error, "read"),
         },
       ],
     };
@@ -369,6 +370,14 @@ const ownerSurfaceForProvider = (provider) => {
   if (provider === "sci") return "SCI / semantic-code-intelligence";
   return `${provider} owner surface`;
 };
+
+const publicOmission = (omission) => ({
+  ...omission,
+  detail: publicOmissionDetail(
+    omission.detail,
+    `${omission.provider} ${omission.reason} detail withheld`,
+  ),
+});
 
 const suggestionFromOmission = (omission) => ({
   tool: ownerSurfaceForProvider(omission.provider),
@@ -488,13 +497,14 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   }
 
   omissions.push(...unavailableProviderOmissions(providerIds));
+  const publicOmissions = omissions.map(publicOmission);
 
   const estimatedTokens = sections.reduce((sum, section) => sum + section.estimatedTokens, 0);
   const bytes = sections.reduce((sum, section) => sum + section.bytes, 0);
   const measurementReceipt = buildMeasurementReceipt({
     estimatedTokens,
     sections,
-    omissions,
+    omissions: publicOmissions,
     budget: plan.budget,
     sessionAwareness,
   });
@@ -503,10 +513,10 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     generatedAt: new Date().toISOString(),
     totals: {
       candidatesSelected: sections.reduce((sum, section) => sum + section.items.length, 0),
-      candidatesOmitted: omissions.length,
+      candidatesOmitted: publicOmissions.length,
     },
     sections,
-    omissions,
+    omissions: publicOmissions,
     measurementReceipt,
   });
   const ownerSurfaceRecommendations = plan.ownerSurfaceRecommendations ?? [];
@@ -522,10 +532,10 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       estimatedTokens,
       bytes,
       candidatesSelected: sections.reduce((sum, section) => sum + section.items.length, 0),
-      candidatesOmitted: omissions.length,
+      candidatesOmitted: publicOmissions.length,
     },
     sections,
-    omissions,
+    omissions: publicOmissions,
     ownerSurfaceRecommendations,
     nextOwnerActions,
     nextToolSuggestions: [
@@ -534,7 +544,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
         reason: action.action,
         nonAuthorization: action.nonAuthorization,
       })),
-      ...omissions.map(suggestionFromOmission),
+      ...publicOmissions.map(suggestionFromOmission),
     ],
     measurementReceipt,
     dogfoodObservationTemplate,
