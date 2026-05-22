@@ -782,6 +782,8 @@ export function buildLifecycleSnapshot(input = {}) {
     reviewStateCounts[item.reviewState] += 1;
   }
 
+  const exportLimit = clampLimit(input.limit, 20);
+
   return {
     generatedAt: input.now || new Date().toISOString(),
     classification: "local-diagnostic-user-data",
@@ -840,13 +842,17 @@ export function buildLifecycleSnapshot(input = {}) {
       reviewStates: reviewStateCounts,
     },
     summary: summarizeRecords(scopedRecords, {
-      limit: clampLimit(input.limit, 20),
+      limit: exportLimit,
       curationEvents,
     }),
     reviewQueue: summarizeReviewQueue(scopedRecords, reviewEvents, {
       state: "all",
-      limit: clampLimit(input.limit, 20),
+      limit: exportLimit,
       curationEvents,
+    }),
+    nextActions: buildExportNextActions(scopedReviewItems, {
+      limit: exportLimit,
+      filters,
     }),
   };
 }
@@ -1233,6 +1239,26 @@ export function formatExportMarkdown(snapshot) {
   }
   if (snapshot.reviewQueue.items.length === 0)
     lines.push("No recurrence groups in this export filter.");
+
+  lines.push("", "## Safe local follow-up", "");
+  if (!snapshot.nextActions?.length) {
+    lines.push("No local follow-up commands in this export scope.");
+  }
+  for (const action of snapshot.nextActions || []) {
+    lines.push(`- ${action.recurrenceKey} [${action.reviewState}]`);
+    lines.push(`  - Inspect local samples: ${action.inspectCommand}`);
+    if (action.reviewCommands?.length) {
+      lines.push(`  - Choose local review state: ${action.reviewCommands.join(" | ")}`);
+    }
+    if (action.retentionPreviewCommand) {
+      lines.push(`  - Optional local retention preview: ${action.retentionPreviewCommand}`);
+    }
+    lines.push(`  - Draft-only handoff: ${action.draftCommands.join(" | ")}`);
+    lines.push(`  - ${action.boundary}`);
+  }
+  lines.push(
+    "Follow-up boundary: commands above are local diagnostics or draft-only text. They do not file, create, declare, assign, record evidence, publish, archive, restore, or mutate owner systems.",
+  );
   return lines.join("\n");
 }
 
@@ -2359,6 +2385,45 @@ function reviewOutcomeDescription(state) {
   if (state === "dismissed")
     return "locally dismissed; a human may revisit, export, or archive reviewed diagnostics";
   return "draft noted locally; owner system remains authoritative for any submitted work";
+}
+
+function buildExportNextActions(items = [], options = {}) {
+  const limit = clampLimit(options.limit, 20);
+  return items.slice(0, limit).map((item) => {
+    const key = item.recurrenceKey;
+    const reviewCommands =
+      item.reviewState === "new"
+        ? [
+            formatAgentVentCommand("review", "set", "acknowledged", key),
+            formatAgentVentCommand("review", "set", "dismissed", key),
+            formatAgentVentCommand("review", "set", "escalation_drafted", key),
+          ]
+        : [];
+    return {
+      recurrenceKey: key,
+      reviewState: item.reviewState,
+      inspectCommand: `${formatAgentVentCommand("review", "show", key)} [limit]`,
+      reviewCommands,
+      retentionPreviewCommand:
+        item.reviewState === "new"
+          ? undefined
+          : formatAgentVentCommand("retention", "preview", key),
+      exportBucketCommand: formatAgentVentCommandWithFilters(
+        options.filters,
+        "export",
+        "markdown",
+        item.reviewState,
+      ),
+      draftCommands: [
+        formatAgentVentCommand("draft", "github_issue", key),
+        formatAgentVentCommand("draft", "ak_task", key),
+        formatAgentVentCommand("draft", "incident_review", key),
+        formatAgentVentCommand("draft", "maintainer_note", key),
+      ],
+      boundary:
+        "local diagnostics/drafts only; no owner routing, assignment, filing, task creation, incident declaration, evidence, publication, archive, restore, telemetry, or ASC/self mutation occurred",
+    };
+  });
 }
 
 function buildReviewOutcomeFollowupLines(group, filters = {}) {

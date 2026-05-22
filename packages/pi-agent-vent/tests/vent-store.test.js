@@ -1178,8 +1178,25 @@ test("lifecycle stats and exports are bounded local projections", () => {
   assert.equal(snapshot.counts.reviewStates.escalation_drafted, 1);
   assert.equal(snapshot.files.vents.exists, true);
   assert.match(formatLifecycleStats(snapshot), /no AK task, GitHub issue, incident, evidence/);
-  assert.match(formatExportMarkdown(snapshot), /# Agent vent local diagnostic export/);
-  assert.equal(JSON.parse(formatExportJson(snapshot)).counts.vents, 1);
+  const markdown = formatExportMarkdown(snapshot);
+  assert.match(markdown, /# Agent vent local diagnostic export/);
+  assert.match(markdown, /## Safe local follow-up/);
+  assert.match(markdown, /Optional local retention preview: \/agent_vent retention preview/);
+  assert.match(markdown, /Draft-only handoff:/);
+  assert.match(
+    markdown,
+    /They do not file, create, declare, assign, record evidence, publish, archive, restore/,
+  );
+  const json = JSON.parse(formatExportJson(snapshot));
+  assert.equal(json.counts.vents, 1);
+  assert.equal(
+    json.nextActions[0].retentionPreviewCommand,
+    `/agent_vent retention preview ${record.recurrenceKey}`,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(json.nextActions),
+    /archive:[a-f0-9]|restore:[a-f0-9]|owner was assigned/,
+  );
 });
 
 test("lifecycle export can preserve facet scope without owner-routing claims", () => {
@@ -1231,6 +1248,11 @@ test("lifecycle export can preserve facet scope without owner-routing claims", (
   assert.match(markdown, /Filters: tool=pi-reload; package=tryinget-pi-agent-vent; tags=export/);
   assert.match(markdown, /not owner routing or owner assignment/);
   assert.match(markdown, /token=\[REDACTED\]/);
+  assert.match(markdown, /Safe local follow-up/);
+  assert.match(
+    markdown,
+    /Optional local retention preview: \/agent_vent retention preview tool_failure:export-keep/,
+  );
   assert.doesNotMatch(
     markdown,
     /Omit unrelated export group|Omit mixed-group private payload|owner was assigned|archive:[a-f0-9]/,
@@ -1238,6 +1260,10 @@ test("lifecycle export can preserve facet scope without owner-routing claims", (
   const json = JSON.parse(formatExportJson(snapshot));
   assert.equal(json.scope.filters.tool, "pi-reload");
   assert.equal(json.counts.vents, 1);
+  assert.equal(
+    json.nextActions[0].exportBucketCommand,
+    "/agent_vent export markdown acknowledged tool=pi-reload package=tryinget-pi-agent-vent tag=export",
+  );
 });
 
 test("lifecycle export state scope constrains counts and summaries", () => {
@@ -1277,6 +1303,27 @@ test("lifecycle export state scope constrains counts and summaries", () => {
   const markdown = formatExportMarkdown(snapshot);
   assert.match(markdown, /Acknowledged export group/);
   assert.doesNotMatch(markdown, /Fresh export group should not appear/);
+});
+
+test("lifecycle export follow-up commands quote legacy keys without authority claims", () => {
+  const legacy = {
+    ...createVentRecord({ summary: "Legacy export key", category: "bug" }),
+    recurrenceKey: 'bug:legacy key "quoted"',
+  };
+  const snapshot = buildLifecycleSnapshot({ records: [legacy], reviewEvents: [], limit: 5 });
+  const markdown = formatExportMarkdown(snapshot);
+  const json = JSON.parse(formatExportJson(snapshot));
+
+  assert.match(markdown, /\/agent_vent review show "bug:legacy key \\"quoted\\""/);
+  assert.match(markdown, /Choose local review state:/);
+  assert.doesNotMatch(markdown, /retention preview "bug:legacy key/);
+  assert.match(markdown, /draft commands only generate local text|local diagnostics\/drafts only/);
+  assert.equal(json.nextActions[0].reviewCommands.length, 3);
+  assert.equal(json.nextActions[0].retentionPreviewCommand, undefined);
+  assert.doesNotMatch(
+    JSON.stringify(json.nextActions),
+    /archive:[a-f0-9]|restore:[a-f0-9]|filed|owner was assigned/,
+  );
 });
 
 test("lifecycle export rejects empty facet filters", () => {
