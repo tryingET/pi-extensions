@@ -40,6 +40,7 @@ export function mapActionIntent(lower: string): string {
     return "list_action_state";
   }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
+  if (lower.includes("prefill") || lower.includes("suggest input")) return "prefill_editor";
   if (
     lower.includes("followup") ||
     lower.includes("follow-up") ||
@@ -48,7 +49,6 @@ export function mapActionIntent(lower: string): string {
   ) {
     return "queue_followup";
   }
-  if (lower.includes("prefill") || lower.includes("suggest input")) return "prefill_editor";
   return "create_checkpoint";
 }
 

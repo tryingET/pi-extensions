@@ -63,7 +63,15 @@ test("self query: prefill editor", async () => {
   extension(harness.pi);
 
   const tool = harness.tools.get("self");
-  const ctx = createMockContext();
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
 
   const result = await tool.execute(
     "tc-1",
@@ -73,11 +81,41 @@ test("self query: prefill editor", async () => {
     ctx,
   );
 
-  assert.ok(
-    result.content[0].text.includes("prefill") || result.content[0].text.includes("Prefill"),
-    "should mention prefill",
-  );
+  assert.ok(result.content[0].text.includes("prefilled"), "should report real prefill");
+  assert.equal(editorText, "implement the error handling for edge case X");
   assert.ok(result.details.data?.text, "should return prefill text");
+
+  await cleanup(tempDir);
+});
+
+test("self query: prefill intent wins when text mentions follow-up", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-prefill-followup",
+    { query: 'prefill: "write the follow-up later"' },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("prefilled"));
+  assert.equal(editorText, "write the follow-up later");
+  assert.equal(result.details.data.prefill, true);
 
   await cleanup(tempDir);
 });

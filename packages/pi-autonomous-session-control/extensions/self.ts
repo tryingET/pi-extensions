@@ -301,7 +301,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       }),
       context: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       await memoryLifecycle.ready;
 
       const typedParams = params as { query: string; context?: Record<string, unknown> };
@@ -312,6 +312,16 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
           ? typedParams.context
           : undefined;
       const response = resolveQuery({ query: typedParams.query, context }, state);
+      const prefillData = response.data as { prefill?: unknown; text?: unknown } | undefined;
+      const didPrefill =
+        response.intent === "action" &&
+        prefillData?.prefill === true &&
+        typeof prefillData.text === "string" &&
+        ctx.hasUI;
+
+      if (didPrefill) {
+        ctx.ui.setEditorText(prefillData.text as string);
+      }
 
       if (
         response.intent === "crystallization" ||
@@ -331,7 +341,9 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
           {
             type: "text",
             text:
-              response.answer +
+              (didPrefill
+                ? response.answer.replace("Editor prefill suggested", "Editor prefilled")
+                : response.answer) +
               (response.suggestions?.length
                 ? `\n\nSuggestions: ${response.suggestions.join("; ")}`
                 : ""),
