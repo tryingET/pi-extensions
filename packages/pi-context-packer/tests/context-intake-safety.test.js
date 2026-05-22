@@ -15,8 +15,9 @@ test("markdownInlineLabel collapses control characters and bounds labels", () =>
   assert.equal(markdownInlineLabel("x".repeat(300)).length, 240);
 });
 
-test("repoRelativePathSafetyIssue rejects DEL control characters", () => {
+test("repoRelativePathSafetyIssue rejects DEL and C1 control characters", () => {
   assert.match(repoRelativePathSafetyIssue("docs/\u007fsecret.md"), /control characters/);
+  assert.match(repoRelativePathSafetyIssue("docs/\u0085secret.md"), /control characters/);
 });
 
 test("publicOmissionDetail withholds POSIX, Windows, UNC, and secret-like raw details", () => {

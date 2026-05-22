@@ -1,11 +1,10 @@
 const GENERATED_OR_VENDOR_PARTS = new Set(["node_modules", "dist", "build", "coverage"]);
 const HIDDEN_OR_INTERNAL_PARTS = new Set(["__pycache__"]);
 
+const isControlCode = (code) => code < 32 || code === 127 || (code >= 128 && code <= 159);
+
 export const hasControlCharacter = (value) =>
-  Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || code === 127;
-  });
+  Array.from(value).some((character) => isControlCode(character.charCodeAt(0)));
 
 export const hasSchemeOrDrivePrefix = (value) => /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value);
 
@@ -45,7 +44,7 @@ const replaceControlCharacters = (value) =>
   Array.from(value)
     .map((character) => {
       const code = character.charCodeAt(0);
-      return code < 32 || code === 127 ? " " : character;
+      return isControlCode(code) ? " " : character;
     })
     .join("");
 

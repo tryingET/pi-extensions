@@ -186,6 +186,52 @@ test("context_pack screens docs-list discovered paths with the shared path polic
   );
 });
 
+test("context_pack screens docs-list control-character paths without dropping safe discoveries", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "safe-after-control.md"),
+    "# Safe after control\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "console.log('\\u000bdocs/project/leading-control.md');",
+      "console.log('docs/project/bad\\u007fname.md');",
+      "console.log('docs/project/trailing-control.md\\u0085');",
+      "console.log('docs/project/safe-after-control.md');",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use architecture docs",
+      cwd: root,
+      repoRoot: root,
+      providers: { docs: "required", git: "off", sci: "off" },
+    },
+    { docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["docs/project/safe-after-control.md"],
+  );
+  assert.equal(
+    result.packet.omissions.filter(
+      (omission) =>
+        omission.provider === "docs" &&
+        omission.reason === "unsafe_path" &&
+        omission.detail.includes("control characters"),
+    ).length,
+    3,
+  );
+});
+
 test("context_pack treats uppercase Markdown seeds as docs", async () => {
   const root = await makeWorkspace();
   await writeFile(join(root, "docs", "project", "README.MD"), "# Uppercase markdown\n", "utf8");

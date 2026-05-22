@@ -2,7 +2,11 @@ import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { repoRelativePathSafetyIssue, subprocessFailureDetail } from "./context-intake-safety.js";
+import {
+  hasControlCharacter,
+  repoRelativePathSafetyIssue,
+  subprocessFailureDetail,
+} from "./context-intake-safety.js";
 
 const execFileAsync = promisify(execFile);
 const DOCS_LIST_MAX_BUFFER = 64_000;
@@ -34,14 +38,23 @@ const firstExistingScript = async (env = {}) => {
 const normalizeOutputPaths = (stdout) => {
   const paths = [];
   const omissions = [];
-  const candidates = stdout
+  const lines = stdout
     .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("Docs ") && !line.startsWith("Showing "))
-    .filter((line) => /\.md$/iu.test(line));
+    .filter(
+      (line) =>
+        line.trim() && !line.trim().startsWith("Docs ") && !line.trim().startsWith("Showing "),
+    );
 
-  for (const candidate of candidates) {
-    const issue = repoRelativePathSafetyIssue(candidate, "docs-list path");
+  for (const rawLine of lines) {
+    const candidate = rawLine.trim();
+    const mentionsMarkdownPath = candidate.toLowerCase().includes(".md");
+    if (!mentionsMarkdownPath) continue;
+
+    const issue =
+      hasControlCharacter(rawLine) || rawLine !== candidate
+        ? "docs-list path contains control characters or surrounding whitespace"
+        : repoRelativePathSafetyIssue(candidate, "docs-list path") ||
+          (!/\.md$/iu.test(candidate) ? "docs-list path is not a Markdown file path" : undefined);
     if (issue) {
       omissions.push({
         provider: "docs",
