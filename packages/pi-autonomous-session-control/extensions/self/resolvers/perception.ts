@@ -44,6 +44,9 @@ export const PERCEPTION_KEYWORDS = [
   "suggest next slice",
   "best slice",
   "slice ranking",
+  "failure-recovery cues",
+  "smallest safe next action",
+  "recent failed commands",
 ];
 
 export function mapPerceptionIntent(lower: string): string {
@@ -53,7 +56,10 @@ export function mapPerceptionIntent(lower: string): string {
     lower.includes("close out") ||
     lower.includes("close-out") ||
     lower.includes("controller summary") ||
-    lower.includes("session close")
+    lower.includes("session close") ||
+    lower.includes("failure-recovery cues") ||
+    lower.includes("smallest safe next action") ||
+    lower.includes("recent failed commands")
   ) {
     return "handoff_summary";
   }

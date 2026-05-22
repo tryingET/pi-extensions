@@ -398,6 +398,41 @@ test("self query: rank continuation slices surfaces multi-dimensional candidates
   await cleanup(tempDir);
 });
 
+test("self query: compound failure-recovery cue request returns handoff packet", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-compound-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-compound-failure-recovery",
+    {
+      query:
+        "What visible loop/errors/failure-recovery cues triggered this scout? Include recent failed commands, loop status, files touched, and the smallest safe next action.",
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Mirror-only handoff summary"));
+  assert.ok(result.content[0].text.includes("failed: false"));
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
+  assert.ok(result.details.data.nextMove.slice.includes("failure-recovery"));
+
+  await cleanup(tempDir);
+});
+
 test("self query: time since change uses turns since meaningful change", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
