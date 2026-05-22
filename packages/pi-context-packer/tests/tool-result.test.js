@@ -36,4 +36,14 @@ test("contextPacketToolResult returns markdown content and compact details", asy
     result.details.packetUtilityRecommendation.nonAuthorization.includes("advisory"),
     true,
   );
+  assert.equal(result.details.dogfoodFollowupReceipt.status, "observation_pending");
+  assert.equal(result.details.dogfoodFollowupReceipt.actualLowLevelReadSearchStatusCalls, null);
+  assert.equal(
+    result.details.dogfoodFollowupReceipt.nonAuthorization.includes("AK evidence"),
+    true,
+  );
+  assert.equal(
+    JSON.stringify(result.details.dogfoodFollowupReceipt).includes("Useful packet content"),
+    false,
+  );
 });

@@ -39,6 +39,7 @@ export const formatContextPacket = (result) => {
       `- ${recommendation.surface}: ${recommendation.nextAction} (${recommendation.nonAuthorization})`,
   );
   const utility = packet.measurementReceipt.packetUtilityRecommendation;
+  const dogfoodFollowup = packet.measurementReceipt.dogfoodFollowupReceipt;
   return [
     `# Context packet: ${packet.objective}`,
     "",
@@ -52,6 +53,16 @@ export const formatContextPacket = (result) => {
           `- reason: ${utility.reason}`,
           `- next: ${utility.nextAction}`,
           `- non-authorization: ${utility.nonAuthorization}`,
+        ].join("\n")
+      : "- none",
+    "",
+    "## Dogfood follow-up",
+    dogfoodFollowup
+      ? [
+          `- status: ${dogfoodFollowup.status}`,
+          `- expected low-level calls avoided: ${dogfoodFollowup.expectedLowLevelCallsAvoided}`,
+          "- actual low-level read/search/status calls: fill externally after work if useful",
+          `- non-authorization: ${dogfoodFollowup.nonAuthorization}`,
         ].join("\n")
       : "- none",
     "",
@@ -106,6 +117,7 @@ export const compactContextPacketDetails = (result) => {
     nextToolSuggestions: packet.nextToolSuggestions,
     measurementReceipt: packet.measurementReceipt,
     packetUtilityRecommendation: packet.measurementReceipt.packetUtilityRecommendation,
+    dogfoodFollowupReceipt: packet.measurementReceipt.dogfoodFollowupReceipt,
     measurementHints: packet.measurementHints,
     nonAuthorizations: packet.nonAuthorizations,
   };

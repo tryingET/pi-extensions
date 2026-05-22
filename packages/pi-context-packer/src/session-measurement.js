@@ -125,8 +125,22 @@ export const buildMeasurementReceipt = ({
   return {
     ...receipt,
     packetUtilityRecommendation: buildPacketUtilityRecommendation(receipt),
+    dogfoodFollowupReceipt: buildDogfoodFollowupReceipt(receipt),
   };
 };
+
+export const buildDogfoodFollowupReceipt = (receipt) => ({
+  status: "observation_pending",
+  expectedLowLevelCallsAvoided: receipt.estimatedToolCallsAvoided,
+  actualLowLevelReadSearchStatusCalls: null,
+  duplicateReadsObserved: null,
+  omissionFollowupsUsed: [],
+  recommendationMatchedOutcome: null,
+  notes:
+    "Fill externally after the work if maintaining dogfood evidence; context-packer does not persist or validate this receipt.",
+  nonAuthorization:
+    "packet-local follow-up scaffold only; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
+});
 
 export const buildPacketUtilityRecommendation = (receipt) => {
   const hasOmissions = receipt.omittedCandidateCount > 0;
@@ -205,5 +219,9 @@ export const buildMeasurementHints = (receipt, budget) => [
   {
     metric: "provider_gap",
     note: `${receipt.omittedCandidateCount} candidate/provider omissions recorded`,
+  },
+  {
+    metric: "dogfood_followup",
+    note: `After the task, compare actual low-level read/search/status calls against ${receipt.dogfoodFollowupReceipt?.expectedLowLevelCallsAvoided ?? receipt.estimatedToolCallsAvoided} estimated calls avoided if recording packet usefulness externally`,
   },
 ];

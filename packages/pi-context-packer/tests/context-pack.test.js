@@ -324,6 +324,9 @@ test("formatContextPacket summarizes selected sections, omissions, and owner rou
 
   assert.match(text, /# Context packet:/);
   assert.match(text, /## Packet utility/);
+  assert.match(text, /## Dogfood follow-up/);
+  assert.match(text, /actual low-level read\/search\/status calls: fill externally/);
+  assert.match(text, /no AK evidence, FCOS update, session memory/);
   assert.match(text, /## Section summary/);
   assert.match(text, /## Omissions/);
   assert.match(text, /## Owner-surface routing/);
@@ -374,7 +377,20 @@ test("context_pack emits measurement receipt for packet usefulness", async () =>
     result.packet.measurementReceipt.packetUtilityRecommendation.status,
     "use_packet_review_omissions",
   );
+  assert.equal(
+    result.packet.measurementReceipt.dogfoodFollowupReceipt.status,
+    "observation_pending",
+  );
+  assert.equal(
+    result.packet.measurementReceipt.dogfoodFollowupReceipt.expectedLowLevelCallsAvoided,
+    result.packet.measurementReceipt.estimatedToolCallsAvoided,
+  );
+  assert.equal(
+    result.packet.measurementReceipt.dogfoodFollowupReceipt.actualLowLevelReadSearchStatusCalls,
+    null,
+  );
   assert.ok(result.packet.measurementHints.some((hint) => hint.metric === "tool_calls_avoided"));
+  assert.ok(result.packet.measurementHints.some((hint) => hint.metric === "dogfood_followup"));
 });
 
 test("context_pack deduplicates content already loaded in the system prompt", async () => {
