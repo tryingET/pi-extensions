@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f46bc0b714bcbdce993ec115a3e93efb1047f77d"
+created_at: "2026-05-22T11:19:38Z"
+intent: "Harden root package-quality-gate target resolution when invoked from nested package cwd"
+files:
+  - "scripts/package-quality-gate.sh"
+  - "scripts/package-quality-gate.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test scripts/package-quality-gate.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Root gate fix for package-local validation calls"
+links:
+  task_ids:
+    - 3321
