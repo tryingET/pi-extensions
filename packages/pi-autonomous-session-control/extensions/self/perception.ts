@@ -119,39 +119,51 @@ function extractErrorSignature(message: string): string {
     .trim();
 }
 
+function isValidationOrQualityCommand(lowerCommand: string): boolean {
+  return (
+    /\b(?:npm|pnpm|yarn)(?:\s+(?:--prefix|-c|--cwd)\s+\S+|\s+--\S+(?:=\S+)?)*\s+(?:run\s+)?(?:test|check|lint|typecheck|quality(?::\w+)?|ci|release:check(?::quick)?)\b/.test(
+      lowerCommand,
+    ) ||
+    /\b(?:node\s+--test|vitest|jest|tsc|biome\s+(?:check|ci|lint)|just\s+(?:test|check|lint|ci))\b/.test(
+      lowerCommand,
+    )
+  );
+}
+
 function isProductiveWorkflowCommand(command: string): boolean {
   const lower = command.trim().toLowerCase();
   return (
     /\bprovenance[-_]?note\b|\bpi[-_]?provenance\b/.test(lower) ||
     /^git\s+(?:commit|status|log|diff|show|rev-parse)\b/.test(lower) ||
     /^ak\s+task\s+(?:complete|close|done|finish|update\b.*\b(?:done|completed))\b/.test(lower) ||
-    /\b(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:test|check|lint|typecheck|quality|ci)\b/.test(lower) ||
-    /\b(?:node\s+--test|vitest|jest|tsc|biome\s+(?:check|ci|lint)|just\s+(?:test|check|lint|ci))\b/.test(
-      lower,
-    )
+    isValidationOrQualityCommand(lower)
   );
 }
 
-function latestSuccessfulProductiveCommandAt(log: OperationLog): number {
+function isRecoveryEvidenceCommand(command: string): boolean {
+  return isValidationOrQualityCommand(command.trim().toLowerCase());
+}
+
+function latestSuccessfulRecoveryEvidenceCommandAt(log: OperationLog): number {
   return log.commands.reduce(
     (latest, cmd) =>
-      cmd.success && isProductiveWorkflowCommand(cmd.rawCommand)
+      cmd.success && isRecoveryEvidenceCommand(cmd.rawCommand)
         ? Math.max(latest, cmd.timestamp)
         : latest,
     0,
   );
 }
 
-function hasProductiveSuccessAfterLatestFailedCommand(log: OperationLog): boolean {
+function hasRecoveryEvidenceAfterLatestFailedCommand(log: OperationLog): boolean {
   let latestFailedIndex = -1;
-  let latestProductiveSuccessIndex = -1;
+  let latestRecoveryEvidenceIndex = -1;
   log.commands.forEach((cmd, index) => {
     if (!cmd.success) latestFailedIndex = index;
-    if (cmd.success && isProductiveWorkflowCommand(cmd.rawCommand)) {
-      latestProductiveSuccessIndex = index;
+    if (cmd.success && isRecoveryEvidenceCommand(cmd.rawCommand)) {
+      latestRecoveryEvidenceIndex = index;
     }
   });
-  return latestFailedIndex >= 0 && latestProductiveSuccessIndex > latestFailedIndex;
+  return latestFailedIndex >= 0 && latestRecoveryEvidenceIndex > latestFailedIndex;
 }
 
 // ============================================================================
@@ -191,8 +203,8 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
 
   // Detect command loops: same normalized command 3+ times.
   // Repeated successful workflow commands are common validation/closeout, not stuckness.
-  const latestProductiveSuccessAt = latestSuccessfulProductiveCommandAt(log);
-  const recoveredLatestFailure = hasProductiveSuccessAfterLatestFailedCommand(log);
+  const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
+  const recoveredLatestFailure = hasRecoveryEvidenceAfterLatestFailedCommand(log);
   const commandCounts = new Map<
     string,
     { count: number; successes: number; productive: boolean; latestFailureAt: number }
@@ -220,7 +232,7 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
       if (
         data.latestFailureAt > 0 &&
         recoveredLatestFailure &&
-        latestProductiveSuccessAt >= data.latestFailureAt
+        latestRecoveryEvidenceAt >= data.latestFailureAt
       ) {
         continue;
       }
@@ -235,14 +247,14 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
     }
   }
 
-  // Detect error loops: same error signature 3+ times. A later successful productive
+  // Detect error loops: same error signature 3+ times. A later successful validation/check
   // command is recovery evidence, so stale failures should not dominate continuation routing.
   for (const error of log.errors) {
     if (error.count >= LOOP_THRESHOLD) {
       const errorLastSeen = error.lastSeen ?? error.timestamp;
       if (
-        latestProductiveSuccessAt > errorLastSeen ||
-        (recoveredLatestFailure && latestProductiveSuccessAt >= errorLastSeen)
+        latestRecoveryEvidenceAt > errorLastSeen ||
+        (recoveredLatestFailure && latestRecoveryEvidenceAt >= errorLastSeen)
       ) {
         continue;
       }
@@ -499,15 +511,15 @@ export function queryHandoffSummary(
     success: cmd.success,
   }));
   const allErrors = queryErrors(log).errors;
-  const latestProductiveSuccessAt = latestSuccessfulProductiveCommandAt(log);
-  const recoveredLatestFailure = hasProductiveSuccessAfterLatestFailedCommand(log);
+  const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
+  const recoveredLatestFailure = hasRecoveryEvidenceAfterLatestFailedCommand(log);
   const errors = allErrors
     .filter(
       (error) =>
-        latestProductiveSuccessAt === 0 ||
+        latestRecoveryEvidenceAt === 0 ||
         (recoveredLatestFailure
-          ? error.lastSeen > latestProductiveSuccessAt
-          : error.lastSeen >= latestProductiveSuccessAt),
+          ? error.lastSeen > latestRecoveryEvidenceAt
+          : error.lastSeen >= latestRecoveryEvidenceAt),
     )
     .slice(0, 5);
   const progress = queryProgress(log, detector);

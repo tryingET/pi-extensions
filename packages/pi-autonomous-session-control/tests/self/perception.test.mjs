@@ -174,7 +174,11 @@ test("self query: later productive success recovers stale failure loop cues", as
       text: "command failed",
     });
   }
-  recordBash(harness, "cmd-recovery-validation", "npm run check");
+  recordBash(
+    harness,
+    "cmd-recovery-validation",
+    "npm --prefix packages/pi-autonomous-session-control run check",
+  );
 
   const loopResult = await tool.execute(
     "tc-recovered-loop",
@@ -198,6 +202,41 @@ test("self query: later productive success recovers stale failure loop cues", as
   assert.ok(
     handoffResult.content[0].text.includes("no continuation slice candidate"),
     "stale recovered failures should not prefill a scout peer",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: git status after failures is not recovery evidence", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-unrecovered-${i}`, "npm run check", {
+      isError: true,
+      text: "lint failed on a.ts",
+    });
+  }
+  recordBash(harness, "cmd-git-status", "git status --short");
+
+  const result = await tool.execute(
+    "tc-git-status-not-recovery",
+    { query: "rank continuation slices" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
+  assert.ok(result.details.data.nextMove.slice.includes("failure-recovery"));
+  assert.ok(
+    result.content[0].text.includes("failure-recovery"),
+    "read-only git inspection should not suppress failure recovery cues",
   );
 
   await cleanup(tempDir);
