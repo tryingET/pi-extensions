@@ -159,6 +159,50 @@ test("self query: repeated failed commands remain a loop concern", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: later productive success recovers stale failure loop cues", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-recovered-${i}`, "false", {
+      isError: true,
+      text: "command failed",
+    });
+  }
+  recordBash(harness, "cmd-recovery-validation", "npm run check");
+
+  const loopResult = await tool.execute(
+    "tc-recovered-loop",
+    { query: "Am I in a loop?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(loopResult.details.data.isLooping, false);
+
+  const handoffResult = await tool.execute(
+    "tc-recovered-handoff",
+    { query: "rank continuation slices" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(handoffResult.details.data.sliceCandidates[0]?.owner, undefined);
+  assert.ok(
+    handoffResult.content[0].text.includes("no continuation slice candidate"),
+    "stale recovered failures should not prefill a scout peer",
+  );
+
+  await cleanup(tempDir);
+});
+
 test("self query: stall wording includes productive command evidence", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

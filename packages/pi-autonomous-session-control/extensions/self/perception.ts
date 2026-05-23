@@ -49,19 +49,21 @@ export function trackCommand(log: OperationLog, rawCommand: string, success: boo
 
 export function trackError(log: OperationLog, toolName: string, rawMessage: string): void {
   const signature = extractErrorSignature(rawMessage);
+  const now = Date.now();
 
   // Find or create error entry
   const entry = log.errors.find((e) => e.toolName === toolName && e.signature === signature);
   if (entry) {
     entry.count++;
-    entry.lastSeen = Date.now();
+    entry.lastSeen = now;
     entry.rawMessage = rawMessage.slice(0, 200);
   } else {
     log.errors.push({
       toolName,
       signature,
       rawMessage: rawMessage.slice(0, 200),
-      timestamp: Date.now(),
+      timestamp: now,
+      lastSeen: now,
       count: 1,
     });
   }
@@ -130,6 +132,28 @@ function isProductiveWorkflowCommand(command: string): boolean {
   );
 }
 
+function latestSuccessfulProductiveCommandAt(log: OperationLog): number {
+  return log.commands.reduce(
+    (latest, cmd) =>
+      cmd.success && isProductiveWorkflowCommand(cmd.rawCommand)
+        ? Math.max(latest, cmd.timestamp)
+        : latest,
+    0,
+  );
+}
+
+function hasProductiveSuccessAfterLatestFailedCommand(log: OperationLog): boolean {
+  let latestFailedIndex = -1;
+  let latestProductiveSuccessIndex = -1;
+  log.commands.forEach((cmd, index) => {
+    if (!cmd.success) latestFailedIndex = index;
+    if (cmd.success && isProductiveWorkflowCommand(cmd.rawCommand)) {
+      latestProductiveSuccessIndex = index;
+    }
+  });
+  return latestFailedIndex >= 0 && latestProductiveSuccessIndex > latestFailedIndex;
+}
+
 // ============================================================================
 // PATTERN DETECTION
 // ============================================================================
@@ -167,27 +191,39 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
 
   // Detect command loops: same normalized command 3+ times.
   // Repeated successful workflow commands are common validation/closeout, not stuckness.
+  const latestProductiveSuccessAt = latestSuccessfulProductiveCommandAt(log);
+  const recoveredLatestFailure = hasProductiveSuccessAfterLatestFailedCommand(log);
   const commandCounts = new Map<
     string,
-    { count: number; successes: number; productive: boolean }
+    { count: number; successes: number; productive: boolean; latestFailureAt: number }
   >();
   for (const cmd of log.commands) {
     const existing = commandCounts.get(cmd.command);
     if (existing) {
       existing.count++;
       if (cmd.success) existing.successes++;
+      if (!cmd.success)
+        existing.latestFailureAt = Math.max(existing.latestFailureAt, cmd.timestamp);
       existing.productive = existing.productive || isProductiveWorkflowCommand(cmd.rawCommand);
     } else {
       commandCounts.set(cmd.command, {
         count: 1,
         successes: cmd.success ? 1 : 0,
         productive: isProductiveWorkflowCommand(cmd.rawCommand),
+        latestFailureAt: cmd.success ? 0 : cmd.timestamp,
       });
     }
   }
   for (const [command, data] of commandCounts) {
     if (data.count >= LOOP_THRESHOLD) {
       if (data.successes === data.count && data.productive) continue;
+      if (
+        data.latestFailureAt > 0 &&
+        recoveredLatestFailure &&
+        latestProductiveSuccessAt >= data.latestFailureAt
+      ) {
+        continue;
+      }
       patterns.push({
         type: "command_loop",
         key: command,
@@ -199,9 +235,17 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
     }
   }
 
-  // Detect error loops: same error signature 3+ times
+  // Detect error loops: same error signature 3+ times. A later successful productive
+  // command is recovery evidence, so stale failures should not dominate continuation routing.
   for (const error of log.errors) {
     if (error.count >= LOOP_THRESHOLD) {
+      const errorLastSeen = error.lastSeen ?? error.timestamp;
+      if (
+        latestProductiveSuccessAt > errorLastSeen ||
+        (recoveredLatestFailure && latestProductiveSuccessAt >= errorLastSeen)
+      ) {
+        continue;
+      }
       patterns.push({
         type: "error_loop",
         key: `${error.toolName}:${error.signature}`,
@@ -319,7 +363,13 @@ export function queryCommandsRun(log: OperationLog): CommandsRunResult {
 }
 
 export interface ErrorsResult {
-  errors: Array<{ tool: string; signature: string; count: number; lastMessage: string }>;
+  errors: Array<{
+    tool: string;
+    signature: string;
+    count: number;
+    lastMessage: string;
+    lastSeen: number;
+  }>;
   total: number;
 }
 
@@ -330,6 +380,7 @@ export function queryErrors(log: OperationLog): ErrorsResult {
       signature: e.signature,
       count: e.count,
       lastMessage: e.rawMessage,
+      lastSeen: e.lastSeen ?? e.timestamp,
     })),
     total: log.errors.reduce((sum, e) => sum + e.count, 0),
   };
@@ -447,7 +498,18 @@ export function queryHandoffSummary(
     rawCommand: cmd.rawCommand,
     success: cmd.success,
   }));
-  const errors = queryErrors(log).errors.slice(0, 5);
+  const allErrors = queryErrors(log).errors;
+  const latestProductiveSuccessAt = latestSuccessfulProductiveCommandAt(log);
+  const recoveredLatestFailure = hasProductiveSuccessAfterLatestFailedCommand(log);
+  const errors = allErrors
+    .filter(
+      (error) =>
+        latestProductiveSuccessAt === 0 ||
+        (recoveredLatestFailure
+          ? error.lastSeen > latestProductiveSuccessAt
+          : error.lastSeen >= latestProductiveSuccessAt),
+    )
+    .slice(0, 5);
   const progress = queryProgress(log, detector);
   const loops = queryLoopStatus(detector);
 
@@ -464,7 +526,9 @@ export function queryHandoffSummary(
     );
   }
   if (errors.length > 0) {
-    cues.push(`include ${errors.length} error pattern(s) still visible to self`);
+    cues.push(`include ${errors.length} unrecovered error pattern(s) still visible to self`);
+  } else if (allErrors.length > 0) {
+    cues.push("earlier error pattern(s) are followed by successful productive command evidence");
   }
   if (loops.isLooping) {
     cues.push("mirror-only repetition cue visible; caller should decide whether it is intentional");
