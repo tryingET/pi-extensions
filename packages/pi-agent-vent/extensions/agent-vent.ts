@@ -48,11 +48,11 @@ import {
   normalizeRetentionAction,
   normalizeReviewState,
   RETENTION_ACTIONS,
-  REVIEW_STATES,
   readRetentionEvents,
   resolveRecurrenceGroup,
   restoreRetentionBackup,
   SEVERITIES,
+  REVIEW_STATES as STORE_REVIEW_STATES,
   summarizeRecords,
   summarizeReviewQueue,
 } from "../src/vent-store.js";
@@ -74,6 +74,10 @@ const ACTIONS = [
   "retention",
 ] as const;
 const EXPORT_FORMATS = ["markdown", "json"] as const;
+const FALLBACK_REVIEW_STATES = ["new", "acknowledged", "dismissed", "escalation_drafted"] as const;
+const REVIEW_STATES = Array.isArray(STORE_REVIEW_STATES)
+  ? STORE_REVIEW_STATES
+  : FALLBACK_REVIEW_STATES;
 const RETENTION_CANDIDATE_STATES = ["reviewed", "all", ...REVIEW_STATES] as const;
 
 const AgentVentParams = Type.Object({
