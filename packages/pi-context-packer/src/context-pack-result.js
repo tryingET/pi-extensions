@@ -98,9 +98,34 @@ export const formatContextPacket = (result) => {
   ].join("\n");
 };
 
+const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
+const textTokens = (value) => Math.ceil(textBytes(value) / 4);
+
+const compactProvenance = (provenance = {}) => ({
+  provider: provenance.provider,
+  ...(provenance.path ? { pathRef: "packet Markdown item metadata", pathOmitted: true } : {}),
+  ...(provenance.command
+    ? { commandRef: "packet Markdown item metadata", commandOmitted: true }
+    : {}),
+  ...(provenance.ref ? { ref: provenance.ref } : {}),
+});
+
+const compactMeasurementReceipt = (receipt) => ({
+  ...receipt,
+  sessionAwareness: receipt.sessionAwareness
+    ? {
+        ...receipt.sessionAwareness,
+        cwd: undefined,
+        cwdRef: receipt.sessionAwareness.cwd ? "packet.workspace.cwd" : undefined,
+        cwdOmitted: Boolean(receipt.sessionAwareness.cwd),
+      }
+    : receipt.sessionAwareness,
+});
+
 export const compactContextPacketDetails = (result, renderedMarkdownText) => {
   if (!result.ok) return { ok: false, errors: result.errors ?? [], plan: result.plan };
   const { packet } = result;
+  const measurementReceipt = compactMeasurementReceipt(packet.measurementReceipt);
   const renderedMarkdown =
     typeof renderedMarkdownText === "string"
       ? {
@@ -112,25 +137,32 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
       : undefined;
   return {
     ok: true,
-    objective: packet.objective,
+    objectiveRef: "packet Markdown title",
+    objectiveEstimatedTokens: textTokens(packet.objective),
+    objectiveBytes: textBytes(packet.objective),
     generatedAt: packet.generatedAt,
-    cwd: packet.cwd,
-    repoRoot: packet.repoRoot,
+    workspace: {
+      cwdRef: "packet.cwd",
+      repoRootRef: "packet.repoRoot",
+      absolutePathsOmitted: true,
+    },
     budget: packet.budget,
     totals: packet.totals,
     ...(renderedMarkdown ? { renderedMarkdown } : {}),
-    sections: packet.sections.map((section) => ({
+    sections: packet.sections.map((section, sectionIndex) => ({
       id: section.id,
       provider: section.provider,
       title: section.title,
       estimatedTokens: section.estimatedTokens,
       bytes: section.bytes,
       itemCount: section.items.length,
-      items: section.items.map((item) => ({
-        id: item.id,
+      items: section.items.map((item, itemIndex) => ({
+        ref: `packet.sections[${sectionIndex}].items[${itemIndex}]`,
+        idRef: "packet Markdown item heading",
+        idOmitted: true,
         kind: item.kind,
         contentMode: item.contentMode,
-        provenance: item.provenance,
+        provenance: compactProvenance(item.provenance),
         estimatedTokens: item.estimatedTokens,
         bytes: item.bytes,
         duplicateOf: item.duplicateOf,
@@ -141,11 +173,17 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
     ownerSurfaceRecommendations: packet.ownerSurfaceRecommendations,
     nextOwnerActions: packet.nextOwnerActions,
     nextToolSuggestions: packet.nextToolSuggestions,
-    measurementReceipt: packet.measurementReceipt,
-    packetUtilityRecommendation: packet.measurementReceipt.packetUtilityRecommendation,
-    dogfoodFollowupReceipt: packet.measurementReceipt.dogfoodFollowupReceipt,
+    measurementReceipt,
+    packetUtilityRecommendation: measurementReceipt.packetUtilityRecommendation,
+    dogfoodFollowupReceipt: measurementReceipt.dogfoodFollowupReceipt,
     dogfoodObservationTemplate: packet.dogfoodObservationTemplate,
     measurementHints: packet.measurementHints,
+    redaction: {
+      rawObjectiveOmitted: true,
+      absoluteWorkspacePathsOmitted: true,
+      rawSelectedItemPathsOmitted: true,
+      rawItemContentOmitted: true,
+    },
     nonAuthorizations: packet.nonAuthorizations,
   };
 };

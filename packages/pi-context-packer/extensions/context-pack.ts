@@ -1,4 +1,8 @@
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type {
+  AgentToolResult,
+  ExtensionAPI,
+  ExtensionContext,
+} from "@mariozechner/pi-coding-agent";
 import { CONTEXT_PACK_PARAMETERS, contextPacketToolResult } from "../src/context-pack.js";
 import {
   buildContextPlan,
@@ -12,10 +16,18 @@ import {
   dogfoodObservationEvaluationToolResult,
 } from "../src/dogfood-observation.js";
 
-const textResult = (text: string, details: Record<string, unknown> = {}) => ({
+const textResult = (
+  text: string,
+  details: Record<string, unknown> = {},
+): AgentToolResult<Record<string, unknown>> => ({
   content: [{ type: "text" as const, text }],
   details,
 });
+
+const asToolResult = async (
+  result: Promise<unknown>,
+): Promise<AgentToolResult<Record<string, unknown>>> =>
+  (await result) as AgentToolResult<Record<string, unknown>>;
 
 const truthyEnv = (value: string | undefined) => /^(1|true|yes)$/iu.test(value ?? "");
 
@@ -83,7 +95,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     ],
     parameters: CONTEXT_PACK_PARAMETERS,
     async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
-      return contextPacketToolResult(rawParams, contextEnv(ctx));
+      return asToolResult(contextPacketToolResult(rawParams, contextEnv(ctx)));
     },
   });
 
@@ -101,7 +113,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     ],
     parameters: DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
     async execute(_toolCallId, rawParams) {
-      return dogfoodObservationEvaluationToolResult(rawParams);
+      return asToolResult(dogfoodObservationEvaluationToolResult(rawParams));
     },
   });
 
@@ -119,7 +131,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     ],
     parameters: DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS,
     async execute(_toolCallId, rawParams) {
-      return dogfoodAggregateEvaluationToolResult(rawParams);
+      return asToolResult(dogfoodAggregateEvaluationToolResult(rawParams));
     },
   });
 }

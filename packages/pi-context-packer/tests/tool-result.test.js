@@ -29,8 +29,18 @@ test("contextPacketToolResult returns markdown content and compact details", asy
   assert.match(result.content[0].text, /# Context packet:/);
   assert.match(result.content[0].text, /Useful packet content/);
   assert.equal(result.details.ok, true);
+  assert.equal(result.details.objective, undefined);
+  assert.equal(result.details.cwd, undefined);
+  assert.equal(result.details.repoRoot, undefined);
+  assert.equal(result.details.objectiveRef, "packet Markdown title");
+  assert.equal(result.details.workspace.absolutePathsOmitted, true);
+  assert.equal(result.details.redaction.rawSelectedItemPathsOmitted, true);
   assert.equal(result.details.sections[0].items[0].content, undefined);
-  assert.equal(result.details.sections[0].items[0].id.startsWith("agents:"), true);
+  assert.equal(result.details.sections[0].items[0].id, undefined);
+  assert.equal(result.details.sections[0].items[0].idOmitted, true);
+  assert.equal(result.details.sections[0].items[0].ref, "packet.sections[0].items[0]");
+  assert.equal(result.details.sections[0].items[0].provenance.path, undefined);
+  assert.equal(result.details.sections[0].items[0].provenance.pathOmitted, true);
   assert.equal(Array.isArray(result.details.ownerSurfaceRecommendations), true);
   assert.equal(Array.isArray(result.details.nextOwnerActions), true);
   assert.equal(typeof result.details.measurementReceipt.estimatedToolCallsAvoided, "number");
@@ -61,4 +71,7 @@ test("contextPacketToolResult returns markdown content and compact details", asy
     JSON.stringify(result.details.dogfoodObservationTemplate).includes("Useful packet content"),
     false,
   );
+  assert.equal(JSON.stringify(result.details).includes(root), false);
+  assert.equal(JSON.stringify(result.details).includes("Assemble readable packet"), false);
+  assert.equal(JSON.stringify(result.details).includes("docs/note.md"), false);
 });

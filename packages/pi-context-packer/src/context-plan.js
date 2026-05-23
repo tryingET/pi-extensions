@@ -16,6 +16,11 @@ const DEFAULT_MAX_TOKENS = 40_000;
 const DEFAULT_RESERVE_TOKENS = 12_000;
 const DEFAULT_PROVIDER_MAX_TOKENS = 12_000;
 const ESTIMATED_BYTES_PER_TOKEN = 4;
+const MAX_OBJECTIVE_CHARS = 4_000;
+const MAX_SEEDS = 40;
+const MAX_SEED_VALUE_CHARS = 1_000;
+const MAX_SEED_NOTE_CHARS = 500;
+const MAX_WORKSPACE_PATH_CHARS = 4_096;
 const isMarkdownPath = (value) => /\.md$/i.test(value);
 
 const PROVIDER_AUTHORITY = {
@@ -108,21 +113,49 @@ const positiveInteger = (value, fallback) => {
   return normalized > 0 ? normalized : fallback;
 };
 
+const normalizeSeedNote = (note) => {
+  const value = coerceString(note).trim();
+  if (!value) return undefined;
+  return value.length > MAX_SEED_NOTE_CHARS ? `${value.slice(0, MAX_SEED_NOTE_CHARS)}…` : value;
+};
+
 const normalizeSeeds = (seeds) => {
-  if (!Array.isArray(seeds)) return [];
-  return seeds
-    .map((seed) => {
-      const raw = asObject(seed);
-      const kind = coerceString(raw.kind, "free_text");
-      const value = coerceString(raw.value).trim();
-      if (!value) return undefined;
-      return {
+  if (!Array.isArray(seeds)) return { seeds: [], omittedSeeds: [] };
+  const normalizedSeeds = [];
+  const omittedSeeds = [];
+
+  for (const [index, seed] of seeds.entries()) {
+    const raw = asObject(seed);
+    const kind = coerceString(raw.kind, "free_text");
+    if (index >= MAX_SEEDS) {
+      omittedSeeds.push({
         kind,
-        value,
-        ...(typeof raw.note === "string" && raw.note.trim() ? { note: raw.note.trim() } : {}),
-      };
-    })
-    .filter(Boolean);
+        provider: omittedSeedProvider({ kind, value: "" }),
+        reason: `seed count exceeds compact input limit (${MAX_SEEDS})`,
+      });
+      continue;
+    }
+
+    const value = coerceString(raw.value).trim();
+    if (!value) continue;
+    if (value.length > MAX_SEED_VALUE_CHARS) {
+      omittedSeeds.push({
+        kind,
+        provider: omittedSeedProvider({ kind, value }),
+        reason: `seed value exceeds compact input limit (${MAX_SEED_VALUE_CHARS} characters)`,
+      });
+      continue;
+    }
+
+    const note = normalizeSeedNote(raw.note);
+    normalizedSeeds.push({
+      kind,
+      value,
+      ...(note ? { note } : {}),
+    });
+  }
+
+  return { seeds: normalizedSeeds, omittedSeeds };
 };
 
 const seedSafetyIssue = (seed) => {
@@ -159,6 +192,8 @@ const workspacePathIssue = (value, label) => {
   if (hasControlCharacter(value)) return `${label} contains control characters`;
   if (hasSchemeOrDrivePrefix(value))
     return `${label} must be a filesystem path, not a URI or drive-letter path`;
+  if (value.length > MAX_WORKSPACE_PATH_CHARS)
+    return `${label} exceeds compact input limit (${MAX_WORKSPACE_PATH_CHARS} characters)`;
   if (value.startsWith("~")) return `${label} must not be home-relative`;
   if (value.includes("\\")) return `${label} must use POSIX separators`;
   const parts = value.split("/").filter(Boolean);
@@ -508,16 +543,25 @@ export const buildContextPlan = (input = {}, env = {}) => {
       nonAuthorizations: NON_AUTHORIZATIONS,
     };
   }
+  if (objective.length > MAX_OBJECTIVE_CHARS) {
+    return {
+      ok: false,
+      errors: [`objective exceeds compact input limit (${MAX_OBJECTIVE_CHARS} characters)`],
+      nonAuthorizations: NON_AUTHORIZATIONS,
+    };
+  }
 
   const { cwd, repoRoot, risks: workspaceRisks } = normalizeWorkspace(raw, env);
   const budget = normalizeBudget(raw.budget);
-  const seeds = normalizeSeeds(raw.seeds);
-  const { safeSeeds: partitionedSafeSeeds, omittedSeeds } = partitionSeeds(seeds);
+  const { seeds, omittedSeeds: intakeOmittedSeeds } = normalizeSeeds(raw.seeds);
+  const { safeSeeds: partitionedSafeSeeds, omittedSeeds: safetyOmittedSeeds } =
+    partitionSeeds(seeds);
   const safeSeeds = rebasePathSeedsToRepoRoot({
     seeds: partitionedSafeSeeds,
     cwd,
     repoRoot,
   });
+  const omittedSeeds = [...intakeOmittedSeeds, ...safetyOmittedSeeds];
   const providers = asObject(raw.providers);
   const normalizedObjective = objective.toLowerCase();
   const providerPlans = buildProviderPlans({
@@ -559,14 +603,17 @@ export const CONTEXT_PLAN_PARAMETERS = {
     objective: {
       type: "string",
       description: "Task/question to plan context for.",
+      maxLength: MAX_OBJECTIVE_CHARS,
     },
     cwd: {
       type: "string",
       description: "Workspace cwd for provider planning; defaults to current Pi cwd.",
+      maxLength: MAX_WORKSPACE_PATH_CHARS,
     },
     repoRoot: {
       type: "string",
       description: "Optional repository root when known.",
+      maxLength: MAX_WORKSPACE_PATH_CHARS,
     },
     budget: {
       type: "object",
@@ -583,6 +630,7 @@ export const CONTEXT_PLAN_PARAMETERS = {
     },
     seeds: {
       type: "array",
+      maxItems: MAX_SEEDS,
       items: {
         type: "object",
         additionalProperties: false,
@@ -591,8 +639,8 @@ export const CONTEXT_PLAN_PARAMETERS = {
             type: "string",
             enum: ["path", "symbol", "task", "fcos", "ak", "prompt", "free_text"],
           },
-          value: { type: "string" },
-          note: { type: "string" },
+          value: { type: "string", maxLength: MAX_SEED_VALUE_CHARS },
+          note: { type: "string", maxLength: MAX_SEED_NOTE_CHARS },
         },
         required: ["kind", "value"],
       },

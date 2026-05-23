@@ -54,7 +54,8 @@ export const buildSessionAwareness = (env = {}) => {
   const contextUsage = compactContextUsage(usage);
   const { tokens, contextPressureRatio } = contextUsage;
   return {
-    cwd: env.cwd,
+    cwdRef: env.cwd ? "ExtensionContext.cwd" : undefined,
+    cwdOmitted: Boolean(env.cwd),
     model: env.modelLabel,
     contextUsageKnown: Boolean(usage),
     contextUsage,

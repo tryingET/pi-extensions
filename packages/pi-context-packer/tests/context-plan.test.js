@@ -22,6 +22,26 @@ test("context_plan requires an objective", () => {
   assert.ok(plan.nonAuthorizations.some((item) => item.includes("does not mutate")));
 });
 
+test("context_plan rejects oversized objectives before echoing them into plan output", () => {
+  const plan = buildContextPlan({ objective: "x".repeat(4001) });
+
+  assert.equal(plan.ok, false);
+  assert.deepEqual(plan.errors, ["objective exceeds compact input limit (4000 characters)"]);
+  assert.doesNotMatch(formatContextPlan(plan), /x{100}/);
+});
+
+test("context_plan blocks oversized workspace paths before routing or echoing them", () => {
+  const longPath = `/${"a".repeat(4097)}`;
+  const plan = buildContextPlan({ objective: "Read docs", cwd: longPath, repoRoot: longPath });
+
+  assert.equal(plan.ok, true);
+  assert.ok(plan.risks.some((risk) => risk.message.includes("cwd exceeds compact input limit")));
+  assert.ok(
+    plan.risks.some((risk) => risk.message.includes("repoRoot exceeds compact input limit")),
+  );
+  assert.doesNotMatch(formatContextPlan(plan), /a{100}/);
+});
+
 test("context_plan selects code and docs providers from objective and seeds", async () => {
   const repo = await mkdtemp(join(tmpdir(), "pi-context-plan-repo-"));
   const plan = buildContextPlan(
@@ -74,6 +94,32 @@ test("context_plan routes Markdown-only path seeds to docs without selecting SCI
     { kind: "path", value: "README.md" },
   ]);
   assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, []);
+});
+
+test("context_plan caps seed counts, seed values, and seed notes before provider routing", () => {
+  const seeds = [
+    { kind: "path", value: "README.md", note: "n".repeat(600) },
+    { kind: "free_text", value: "x".repeat(1001) },
+    ...Array.from({ length: 41 }, (_, index) => ({ kind: "path", value: `docs/${index}.md` })),
+  ];
+
+  const plan = buildContextPlan({ objective: "Read docs", seeds });
+  const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
+  const routedDocsSeeds = byProvider.docs.proposedQueries[0].seeds;
+
+  assert.equal(plan.ok, true);
+  assert.equal(CONTEXT_PLAN_PARAMETERS.properties.objective.maxLength, 4000);
+  assert.equal(CONTEXT_PLAN_PARAMETERS.properties.seeds.maxItems, 40);
+  assert.equal(CONTEXT_PLAN_PARAMETERS.properties.seeds.items.properties.value.maxLength, 1000);
+  assert.equal(CONTEXT_PLAN_PARAMETERS.properties.seeds.items.properties.note.maxLength, 500);
+  assert.equal(routedDocsSeeds[0].note.length, 501);
+  assert.equal(plan.omittedSeeds.length, 4);
+  assert.ok(plan.omittedSeeds.some((seed) => seed.reason.includes("seed value exceeds")));
+  assert.equal(
+    plan.omittedSeeds.filter((seed) => seed.reason.includes("seed count exceeds")).length,
+    3,
+  );
+  assert.ok(plan.risks.some((risk) => risk.message.includes("compact input limit")));
 });
 
 test("context_plan honors provider required and off modes without creating mutation authority", () => {
